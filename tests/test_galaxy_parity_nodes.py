@@ -282,6 +282,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/nar/gkr367",
         },
+        "hmmer_hmmfetch": {
+            "display_name": "HMMER hmmfetch",
+            "category": "annotation",
+            "required_executables": ["hmmfetch"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/nar/gkr367",
+        },
         "hmmer_alimask": {
             "display_name": "HMMER alimask",
             "category": "annotation",
@@ -2945,6 +2952,32 @@ def test_hmmer_hmmemit_renders_sampling_command_and_dynamic_output(tmp_path: Pat
     ]
     assert node_class.PLAN_OUTPUTS({"output_mode": "aln"}, tmp_path) == [tmp_path / "hmmer_hmmemit" / "emitted.sto"]
     assert node_class.PLAN_OUTPUTS({"output_mode": "mrcs"}, tmp_path) == [tmp_path / "hmmer_hmmemit" / "emitted.fasta"]
+
+
+def test_hmmer_hmmfetch_renders_model_selection_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_hmmfetch")
+    info = _registry().object_info()["hmmer_hmmfetch"]
+
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["selected_hmm_models"]
+    assert "10.1093/nar/gkr367" in info["citation_dois"]
+    assert info["input"]["required"]["hmmfile"][0] == "FILE"
+    assert info["input"]["required"]["keyfile"][0] == "FILE"
+    assert node_class.render_command(
+        {
+            "hmmfile": "pfam-a.hmm",
+            "keyfile": "models.txt",
+            "output": "/work/hmmfetch",
+        }
+    ) == [
+        "hmmfetch",
+        "-f",
+        "pfam-a.hmm",
+        "models.txt",
+        ">",
+        "/work/hmmfetch/selected.hmm",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_hmmfetch" / "selected.hmm"]
 
 
 def test_hmmer_nodes_render_table_outputs() -> None:

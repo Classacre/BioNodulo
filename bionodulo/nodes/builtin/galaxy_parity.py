@@ -4911,6 +4911,60 @@ class HMMERHmmemitNode(CommandNode):
         }
 
 
+class HMMERHmmfetchNode(CommandNode):
+    """Retrieve selected profile HMM models from a HMM file."""
+
+    NODE_ID = "hmmer_hmmfetch"
+    DISPLAY_NAME = "HMMER hmmfetch"
+    REQUIRED_CONDA_PACKAGES = ["hmmer"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Retrieve selected profile HMM models from a HMM file."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "hmmfetch",
+        "retrieve HMM",
+        "profile HMM names",
+        "Pfam subset",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("selected_hmm_models",)
+    REQUIRED_EXECUTABLES = ["hmmfetch"]
+    DOCUMENTATION_URL = "http://hmmer.org/documentation.html"
+    CITATION_DOIS = ["10.1093/nar/gkr367"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkr367"]
+    CITATION_TEXT = "HMMER web server: interactive sequence similarity searching."
+    VERSION = "3.4"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "hmmfetch",
+            "-f",
+            str(inputs.get("hmmfile", "")),
+            str(inputs.get("keyfile", "")),
+        ]
+        _add_shell_redirect(cmd, f"{_out(inputs)}/selected.hmm")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "selected.hmm"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "hmmfile": ("FILE", {"description": "Profile HMM file to retrieve models from"}),
+                "keyfile": ("FILE", {"description": "Text or tabular file with one HMM name per line"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 
