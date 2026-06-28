@@ -5834,6 +5834,76 @@ class RSeQCGeneBodyCoverageNode(CommandNode):
         }
 
 
+class RSeQCGeneBodyCoverage2Node(CommandNode):
+    """Assess RNA-seq gene body coverage from BigWig signal."""
+
+    NODE_ID = "rseqc_gene_body_coverage2"
+    DISPLAY_NAME = "RSeQC Gene Body Coverage BigWig"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate read coverage across scaled gene bodies from a BigWig signal file with lower memory use."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "geneBody_coverage2",
+        "gene body coverage bigwig",
+        "BigWig coverage",
+        "coverage uniformity",
+        "5 prime bias",
+        "3 prime bias",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TSV", "TEXT")
+    RETURN_NAMES = ("coverage_plot", "coverage_table", "r_script")
+    REQUIRED_EXECUTABLES = ["geneBody_coverage2.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#genebody-coverage2-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "geneBody_coverage2.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-r",
+            str(inputs.get("refgene", "")),
+            "-o",
+            f"{out}/output",
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.geneBodyCoverage.pdf",
+            out / "output.geneBodyCoverage.txt",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.geneBodyCoverage_plot.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BIGWIG", {"description": "Coverage signal file in BigWig format"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the gene body coverage plot"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCRNAFragmentSizeNode(CommandNode):
     """Estimate RNA-seq fragment sizes for each transcript."""
 

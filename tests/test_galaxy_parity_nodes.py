@@ -3134,6 +3134,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_gene_body_coverage2": {
+            "display_name": "RSeQC Gene Body Coverage BigWig",
+            "category": "rna_seq",
+            "required_executables": ["geneBody_coverage2.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_rna_fragment_size": {
             "display_name": "RSeQC RNA Fragment Size",
             "category": "rna_seq",
@@ -3698,6 +3705,40 @@ def test_rseqc_gene_body_coverage_renders_merged_bam_command_and_heatmap(tmp_pat
         tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.curves.pdf",
         tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.txt",
         tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.r",
+    ]
+
+
+def test_rseqc_gene_body_coverage2_renders_bigwig_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_gene_body_coverage2")
+    info = _registry().object_info()["rseqc_gene_body_coverage2"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
+    assert info["output_name"] == ["coverage_plot", "coverage_table", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "coverage.bw",
+            "refgene": "genes.bed12",
+            "rscript_output": True,
+            "output": "/work/rseqc_gene_body_coverage2",
+        }
+    ) == [
+        "geneBody_coverage2.py",
+        "-i",
+        "coverage.bw",
+        "-r",
+        "genes.bed12",
+        "-o",
+        "/work/rseqc_gene_body_coverage2/output",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.pdf",
+        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.txt",
+        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage_plot.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.pdf",
+        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.txt",
     ]
 
 
