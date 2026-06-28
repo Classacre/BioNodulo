@@ -387,6 +387,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["mmseqs2"],
             "doi": "10.1093/bioinformatics/btab184",
         },
+        "kaiju": {
+            "display_name": "Kaiju",
+            "category": "taxonomy",
+            "required_executables": ["kaiju", "kaijup", "kaijux"],
+            "required_conda_packages": ["kaiju"],
+            "doi": "10.1038/ncomms11257",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -4584,6 +4591,115 @@ def test_mmseqs2_taxonomy_assignment_renders_chained_taxonomy_pipeline_and_outpu
     ]
     assert node_class.PLAN_OUTPUTS({"keep_kraken_report": False, "keep_krona_report": False}, tmp_path) == [
         tmp_path / "mmseqs2_taxonomy_assignment" / "taxo_result.tsv",
+    ]
+
+
+def test_kaiju_renders_galaxy_aligned_taxonomy_and_best_sequence_modes(tmp_path: Path) -> None:
+    node_class = _node_class("kaiju")
+    info = _registry().object_info()["kaiju"]
+
+    assert info["output"] == ["TSV", "TSV"]
+    assert info["output_name"] == ["taxonomic_classification", "best_matching_sequences"]
+    assert info["citation_dois"] == ["10.1038/ncomms11257"]
+    assert info["citation_text"] == "Fast and sensitive taxonomic classification for metagenomics with Kaiju."
+    assert info["input"]["required"]["input_type"][1]["options"] == ["single", "paired"]
+    assert info["input"]["required"]["reads"][0] == "FASTQ"
+    assert info["input"]["required"]["reference_database"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["task"][1]["options"] == ["tax", "best_sequence"]
+    assert info["input"]["optional"]["mode"][1]["default"] == "greedy"
+    assert info["input"]["optional"]["low_complexity"][1]["default"] is True
+
+    assert node_class.render_command(
+        {
+            "input_type": "paired",
+            "reads_1": "sample_R1.fastq.gz",
+            "reads_2": "sample_R2.fastq.gz",
+            "reference_database": "/db/kaiju/nr",
+            "task": "tax",
+            "protein": False,
+            "low_complexity": True,
+            "mode": "greedy",
+            "mismatches": 5,
+            "match_length": 13,
+            "match_score": 75,
+            "evalue": 0.001,
+            "verbose": True,
+            "threads": 12,
+            "output": "/work/kaiju",
+        }
+    ) == [
+        "kaiju",
+        "-t",
+        "/db/kaiju/nr/nodes.dmp",
+        "-o",
+        "/work/kaiju/kaiju_taxonomy.tsv",
+        "-f",
+        "/db/kaiju/nr/database.fmi",
+        "-i",
+        "sample_R1.fastq.gz",
+        "-j",
+        "sample_R2.fastq.gz",
+        "-z",
+        "12",
+        "-x",
+        "-a",
+        "greedy",
+        "-e",
+        "5",
+        "-m",
+        "13",
+        "-s",
+        "75",
+        "-E",
+        "0.001",
+        "-v",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "reads": "proteins.faa",
+            "reference_database": "/db/kaiju/refseq",
+            "task": "best_sequence",
+            "protein": True,
+            "low_complexity": False,
+            "mode": "mem",
+            "threads": 4,
+            "output": "/work/kaiju",
+        }
+    ) == [
+        "kaijup",
+        "-o",
+        "/work/kaiju/kaiju_best_sequences.tsv",
+        "-f",
+        "/db/kaiju/refseq/database.fmi",
+        "-i",
+        "proteins.faa",
+        "-z",
+        "4",
+        "-p",
+        "-X",
+        "-a",
+        "mem",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "reads": "reads.fastq",
+            "reference_database": "/db/kaiju/refseq",
+            "task": "best_sequence",
+            "protein": False,
+            "low_complexity": True,
+            "output": "/work/kaiju",
+        }
+    )[0] == "kaijux"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kaiju" / "kaiju_taxonomy.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"task": "best_sequence"}, tmp_path) == [
+        tmp_path / "kaiju" / "kaiju_best_sequences.tsv",
     ]
 
 

@@ -7769,6 +7769,138 @@ class MMseqs2TaxonomyAssignmentNode(CommandNode):
         }
 
 
+class KaijuNode(CommandNode):
+    """Classify metagenomic reads with the Galaxy IUC Kaiju wrapper behavior."""
+
+    NODE_ID = "kaiju"
+    DISPLAY_NAME = "Kaiju"
+    REQUIRED_CONDA_PACKAGES = ["kaiju"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Classify metagenomic reads or report best matching database sequences with Kaiju."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "kaiju",
+        "taxonomic classification",
+        "metagenomics",
+        "protein-level classifier",
+        "best matching sequence",
+    ]
+    RETURN_TYPES = ("TSV", "TSV")
+    RETURN_NAMES = ("taxonomic_classification", "best_matching_sequences")
+    REQUIRED_EXECUTABLES = ["kaiju", "kaijup", "kaijux"]
+    DOCUMENTATION_URL = "https://github.com/bioinformatics-centre/kaiju"
+    CITATION_DOIS = ["10.1038/ncomms11257"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/ncomms11257"]
+    CITATION_TEXT = "Fast and sensitive taxonomic classification for metagenomics with Kaiju."
+    VERSION = "1.10.1"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        task = str(inputs.get("task", "tax"))
+        protein = bool(inputs.get("protein", False))
+        reference = str(inputs.get("reference_database", "")).rstrip("/")
+
+        if task == "tax":
+            cmd = [
+                "kaiju",
+                "-t",
+                f"{reference}/nodes.dmp",
+                "-o",
+                f"{out}/kaiju_taxonomy.tsv",
+            ]
+        else:
+            cmd = [
+                "kaijup" if protein else "kaijux",
+                "-o",
+                f"{out}/kaiju_best_sequences.tsv",
+            ]
+
+        cmd.extend(["-f", f"{reference}/database.fmi"])
+        if str(inputs.get("input_type", "single")) == "paired":
+            cmd.extend(["-i", str(inputs.get("reads_1", "")), "-j", str(inputs.get("reads_2", ""))])
+        else:
+            cmd.extend(["-i", str(inputs.get("reads", ""))])
+
+        cmd.extend(["-z", str(inputs.get("threads", 1))])
+        if protein:
+            cmd.append("-p")
+        cmd.append("-x" if inputs.get("low_complexity", True) else "-X")
+
+        mode = str(inputs.get("mode", "greedy"))
+        cmd.extend(["-a", mode])
+        if mode == "greedy":
+            cmd.extend(
+                [
+                    "-e",
+                    str(inputs.get("mismatches", 3)),
+                    "-m",
+                    str(inputs.get("match_length", 11)),
+                    "-s",
+                    str(inputs.get("match_score", 65)),
+                    "-E",
+                    str(inputs.get("evalue", 0.01)),
+                ]
+            )
+        if inputs.get("verbose", False):
+            cmd.append("-v")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        if str(inputs.get("task", "tax")) == "best_sequence":
+            return [out / "kaiju_best_sequences.tsv"]
+        return [out / "kaiju_taxonomy.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_type": (
+                    "STRING",
+                    {"default": "single", "options": ["single", "paired"], "description": "Single or paired read inputs"},
+                ),
+                "reads": ("FASTQ", {"description": "Single-end FASTA/FASTQ reads"}),
+                "reads_1": ("FASTQ", {"description": "Forward reads for paired input"}),
+                "reads_2": ("FASTQ", {"description": "Reverse reads for paired input"}),
+                "reference_database": (
+                    "DIRECTORY",
+                    {"description": "Kaiju database directory containing database.fmi and nodes.dmp"},
+                ),
+            },
+            "optional": {
+                "task": (
+                    "STRING",
+                    {"default": "tax", "options": ["tax", "best_sequence"], "description": "Taxonomic classification or best sequence lookup"},
+                ),
+                "protein": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Input sequences are protein sequences"},
+                ),
+                "low_complexity": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Enable SEG low-complexity filtering"},
+                ),
+                "mode": (
+                    "STRING",
+                    {"default": "greedy", "options": ["greedy", "mem"], "description": "Kaiju MEM or greedy search mode"},
+                ),
+                "mismatches": ("INT", {"default": 3, "min": 0, "description": "Greedy-mode mismatches allowed"}),
+                "match_length": ("INT", {"default": 11, "min": 1, "description": "Greedy-mode minimum match length"}),
+                "match_score": ("INT", {"default": 65, "min": 1, "description": "Greedy-mode minimum match score"}),
+                "evalue": ("FLOAT", {"default": 0.01, "min": 0, "description": "Greedy-mode minimum E-value"}),
+                "verbose": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include additional classification columns"},
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MashDistNode(CommandNode):
     """Estimate Mash distances between reference and query sequences."""
 

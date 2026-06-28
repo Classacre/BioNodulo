@@ -1502,6 +1502,42 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btab184'],
     citation_text: 'Fast and sensitive taxonomic assignment to metagenomic contigs.',
   },
+  kaiju: {
+    name: 'kaiju',
+    display_name: 'Kaiju',
+    category: 'taxonomy',
+    description: 'Classify metagenomic reads or report best matching database sequences with Kaiju.',
+    search_aliases: ['Galaxy', 'kaiju', 'taxonomic classification', 'metagenomics', 'protein-level classifier', 'best matching sequence'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'single', options: ['single', 'paired'] },
+        reads: { type: 'FASTQ' },
+        reads_1: { type: 'FASTQ' },
+        reads_2: { type: 'FASTQ' },
+        reference_database: { type: 'DIRECTORY' },
+      },
+      optional: {
+        task: { type: 'STRING', default: 'tax', options: ['tax', 'best_sequence'] },
+        protein: { type: 'BOOLEAN', default: false },
+        low_complexity: { type: 'BOOLEAN', default: true },
+        mode: { type: 'STRING', default: 'greedy', options: ['greedy', 'mem'] },
+        mismatches: { type: 'INT', default: 3 },
+        match_length: { type: 'INT', default: 11 },
+        match_score: { type: 'INT', default: 65 },
+        evalue: { type: 'FLOAT', default: 0.01 },
+        verbose: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV', 'TSV'],
+    output_name: ['taxonomic_classification', 'best_matching_sequences'],
+    required_executables: ['kaiju', 'kaijup', 'kaijux'],
+    required_conda_packages: ['kaiju'],
+    documentation_url: 'https://github.com/bioinformatics-centre/kaiju',
+    citation_dois: ['10.1038/ncomms11257'],
+    citation_urls: ['https://doi.org/10.1038/ncomms11257'],
+    citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4378,7 +4414,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('188 nodes available')).toBeVisible();
+  await expect(page.getByText('189 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4443,6 +4479,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mmseqs reciprocal best hit', name: 'MMseqs2 Easy RBH', category: 'alignment' },
     { query: 'mmseqs taxonomy LCA', name: 'MMseqs2 Easy Taxonomy', category: 'taxonomy' },
     { query: 'filtertaxseqdb', name: 'MMseqs2 Taxonomy', category: 'taxonomy' },
+    { query: 'protein-level classifier', name: 'Kaiju', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },
