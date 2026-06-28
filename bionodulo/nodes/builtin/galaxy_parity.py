@@ -8074,6 +8074,99 @@ class Kaiju2KronaNode(CommandNode):
         }
 
 
+class KaijuMergeOutputsNode(CommandNode):
+    """Merge Kaiju and Kraken-style classification tables."""
+
+    NODE_ID = "kaiju_merge_outputs"
+    DISPLAY_NAME = "Kaiju Merge Outputs"
+    REQUIRED_CONDA_PACKAGES = ["kaiju"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Merge Kaiju and Kraken-style classification output tables with conflict resolution."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "kaiju",
+        "kaiju-mergeOutputs",
+        "merge classifications",
+        "conflict resolution",
+        "Kraken table",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("merged_classification",)
+    REQUIRED_EXECUTABLES = ["kaiju-mergeOutputs"]
+    DOCUMENTATION_URL = KaijuNode.DOCUMENTATION_URL
+    CITATION_DOIS = KaijuNode.CITATION_DOIS
+    CITATION_URLS = KaijuNode.CITATION_URLS
+    CITATION_TEXT = KaijuNode.CITATION_TEXT
+    VERSION = KaijuNode.VERSION
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        conflict_mode = str(inputs.get("conflict_mode", "lca"))
+        cmd = [
+            "kaiju-mergeOutputs",
+            "-i",
+            "kaiju.out.sort",
+            "-j",
+            "kraken.out.sort",
+            "-o",
+            f"{out}/kaiju_merged_outputs.tsv",
+            "-c",
+            conflict_mode,
+        ]
+        if conflict_mode in {"lca", "lowest"}:
+            reference = str(inputs.get("reference_database", "")).rstrip("/")
+            cmd.extend(["-t", f"{reference}/nodes.dmp"])
+        if inputs.get("use_score", False):
+            cmd.append("-s")
+        cmd.append("-v")
+
+        commands = [
+            f"sort -k2,2 {shlex.quote(str(inputs.get('kaiju_table', '')))} > kaiju.out.sort",
+            f"sort -k2,2 {shlex.quote(str(inputs.get('kraken_table', '')))} > kraken.out.sort",
+            shlex.join(cmd),
+        ]
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "kaiju_merged_outputs.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "kaiju_table": ("TSV", {"description": "Kaiju output table sorted by read identifier before merging"}),
+                "kraken_table": (
+                    "TSV",
+                    {"description": "Second classification table in Kaiju/Kraken column format"},
+                ),
+            },
+            "optional": {
+                "reference_database": (
+                    "DIRECTORY",
+                    {"description": "Kaiju database directory containing nodes.dmp for LCA conflict modes"},
+                ),
+                "conflict_mode": (
+                    "STRING",
+                    {
+                        "default": "lca",
+                        "options": ["1", "2", "lca", "lowest"],
+                        "description": "Resolve conflicting taxon IDs from the first input, second input, LCA, or lowest lineage match",
+                    },
+                ),
+                "use_score": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use the fourth-column classification score to prefer better-scoring taxa"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class Kaiju2TableNode(CommandNode):
     """Summarize Kaiju classifications by taxonomic rank."""
 

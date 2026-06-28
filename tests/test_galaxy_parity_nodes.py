@@ -408,6 +408,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kaiju"],
             "doi": "10.1038/ncomms11257",
         },
+        "kaiju_merge_outputs": {
+            "display_name": "Kaiju Merge Outputs",
+            "category": "taxonomy",
+            "required_executables": ["kaiju-mergeOutputs"],
+            "required_conda_packages": ["kaiju"],
+            "doi": "10.1038/ncomms11257",
+        },
         "kaiju2table": {
             "display_name": "Kaiju2Table",
             "category": "taxonomy",
@@ -4853,6 +4860,58 @@ def test_kaiju2krona_renders_krona_import_command_and_outputs(tmp_path: Path) ->
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "kaiju2krona" / "kaiju_krona.tsv",
+    ]
+
+
+def test_kaiju_merge_outputs_renders_sorted_merge_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kaiju_merge_outputs")
+    info = _registry().object_info()["kaiju_merge_outputs"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["merged_classification"]
+    assert info["citation_dois"] == ["10.1038/ncomms11257"]
+    assert info["citation_text"] == "Fast and sensitive taxonomic classification for metagenomics with Kaiju."
+    assert info["input"]["required"]["kaiju_table"][0] == "TSV"
+    assert info["input"]["required"]["kraken_table"][0] == "TSV"
+    assert info["input"]["optional"]["reference_database"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["conflict_mode"][1]["default"] == "lca"
+    assert info["input"]["optional"]["conflict_mode"][1]["options"] == ["1", "2", "lca", "lowest"]
+    assert info["input"]["optional"]["use_score"][1]["default"] is False
+
+    assert node_class.render_command(
+        {
+            "kaiju_table": "kaiju calls.tsv",
+            "kraken_table": "kraken.out",
+            "reference_database": "/db/kaiju/nr",
+            "conflict_mode": "lca",
+            "use_score": True,
+            "output": "/work/kaiju_merge",
+        }
+    ) == (
+        "sort -k2,2 'kaiju calls.tsv' > kaiju.out.sort && "
+        "sort -k2,2 kraken.out > kraken.out.sort && "
+        "kaiju-mergeOutputs -i kaiju.out.sort -j kraken.out.sort "
+        "-o /work/kaiju_merge/kaiju_merged_outputs.tsv -c lca "
+        "-t /db/kaiju/nr/nodes.dmp -s -v"
+    )
+
+    assert node_class.render_command(
+        {
+            "kaiju_table": "kaiju.out",
+            "kraken_table": "other.tsv",
+            "conflict_mode": "1",
+            "use_score": False,
+            "output": "/work/kaiju_merge",
+        }
+    ) == (
+        "sort -k2,2 kaiju.out > kaiju.out.sort && "
+        "sort -k2,2 other.tsv > kraken.out.sort && "
+        "kaiju-mergeOutputs -i kaiju.out.sort -j kraken.out.sort "
+        "-o /work/kaiju_merge/kaiju_merged_outputs.tsv -c 1 -v"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kaiju_merge_outputs" / "kaiju_merged_outputs.tsv",
     ]
 
 

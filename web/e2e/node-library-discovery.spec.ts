@@ -1589,6 +1589,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/ncomms11257'],
     citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
   },
+  kaiju_merge_outputs: {
+    name: 'kaiju_merge_outputs',
+    display_name: 'Kaiju Merge Outputs',
+    category: 'taxonomy',
+    description: 'Merge Kaiju and Kraken-style classification output tables with conflict resolution.',
+    search_aliases: ['Galaxy', 'kaiju', 'kaiju-mergeOutputs', 'merge classifications', 'conflict resolution', 'Kraken table'],
+    input: {
+      required: {
+        kaiju_table: { type: 'TSV' },
+        kraken_table: { type: 'TSV' },
+      },
+      optional: {
+        reference_database: { type: 'DIRECTORY' },
+        conflict_mode: { type: 'STRING', default: 'lca', options: ['1', '2', 'lca', 'lowest'] },
+        use_score: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['merged_classification'],
+    required_executables: ['kaiju-mergeOutputs'],
+    required_conda_packages: ['kaiju'],
+    documentation_url: 'https://github.com/bioinformatics-centre/kaiju',
+    citation_dois: ['10.1038/ncomms11257'],
+    citation_urls: ['https://doi.org/10.1038/ncomms11257'],
+    citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
+  },
   kaiju2table: {
     name: 'kaiju2table',
     display_name: 'Kaiju2Table',
@@ -4496,7 +4522,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('192 nodes available')).toBeVisible();
+  await expect(page.getByText('193 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4564,6 +4590,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'protein-level classifier', name: 'Kaiju', category: 'taxonomy' },
     { query: 'Print full taxon path', name: 'Kaiju Add Taxon Names', category: 'taxonomy' },
     { query: 'Krona import', name: 'Kaiju2Krona', category: 'taxonomy' },
+    { query: 'conflict resolution', name: 'Kaiju Merge Outputs', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
