@@ -429,6 +429,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kraken"],
             "doi": "10.1186/gb-2014-15-3-r46",
         },
+        "kraken_filter": {
+            "display_name": "Kraken Filter",
+            "category": "metagenomics",
+            "required_executables": ["kraken-filter"],
+            "required_conda_packages": ["kraken"],
+            "doi": "10.1186/gb-2014-15-3-r46",
+        },
         "kraken_report": {
             "display_name": "Kraken Report",
             "category": "metagenomics",
@@ -5246,6 +5253,84 @@ def test_kraken_report_validates_wrapper_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({"kraken_output": "classification.kraken"}) == "Kraken database is required"
     assert node_class.VALIDATE_INPUTS({"db": "/db/kraken"}) == "Kraken classification output is required"
     assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "kraken_output": "classification.kraken"}) is True
+
+
+def test_kraken_filter_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["kraken_filter"]
+
+    assert info["display_name"] == "Kraken Filter"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Filter classic Kraken classification output by confidence score."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "Kraken Filter",
+        "kraken-filter",
+        "confidence threshold",
+        "classification filter",
+        "taxonomy confidence",
+        "unclassified",
+    ]
+    assert info["version"] == "1.3.1"
+    assert info["output"] == ["KRAKEN_OUTPUT"]
+    assert info["output_name"] == ["filtered_output"]
+    assert info["required_executables"] == ["kraken-filter"]
+    assert info["required_conda_packages"] == ["kraken"]
+    assert info["documentation_url"] == "http://ccb.jhu.edu/software/kraken/"
+    assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
+    assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+
+    assert info["input"]["required"]["input"][0] == "STRING"
+    assert info["input"]["required"]["input"][1]["description"] == "Taxonomy classification produced by Kraken"
+    assert info["input"]["required"]["db"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["threshold"][0] == "FLOAT"
+    assert info["input"]["optional"]["threshold"][1]["default"] == 0
+    assert info["input"]["optional"]["threshold"][1]["min"] == 0
+    assert info["input"]["optional"]["threshold"][1]["max"] == 1
+
+
+def test_kraken_filter_renders_threshold_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kraken_filter")
+
+    assert node_class.render_command(
+        {
+            "input": "sample classification.kraken",
+            "db": "/db/mini kraken",
+            "threshold": 0.25,
+            "output": "/work/kraken_filter",
+        }
+    ) == (
+        "kraken-filter --db '/db/mini kraken' --threshold 0.25 'sample classification.kraken' "
+        "> /work/kraken_filter/filtered_output.kraken"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "classification.kraken",
+            "db": "/db/kraken",
+            "output": "/work/kraken_filter",
+        }
+    ) == "kraken-filter --db /db/kraken --threshold 0 classification.kraken > /work/kraken_filter/filtered_output.kraken"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kraken_filter" / "filtered_output.kraken",
+    ]
+
+
+def test_kraken_filter_validates_wrapper_inputs() -> None:
+    node_class = _node_class("kraken_filter")
+
+    assert node_class.VALIDATE_INPUTS({"input": "classification.kraken"}) == "Kraken database is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken"}) == "Kraken classification output is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input": "classification.kraken", "threshold": "bad"}) == (
+        "Confidence threshold must be a number between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input": "classification.kraken", "threshold": -0.1}) == (
+        "Confidence threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input": "classification.kraken", "threshold": 1.1}) == (
+        "Confidence threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input": "classification.kraken", "threshold": 0.5}) is True
 
 
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:

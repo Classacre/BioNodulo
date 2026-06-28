@@ -8701,6 +8701,99 @@ class KrakenReportNode(CommandNode):
         }
 
 
+class KrakenFilterNode(CommandNode):
+    """Filter classic Kraken classification output by confidence threshold."""
+
+    NODE_ID = "kraken_filter"
+    DISPLAY_NAME = "Kraken Filter"
+    REQUIRED_CONDA_PACKAGES = ["kraken"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Filter classic Kraken classification output by confidence score."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Kraken Filter",
+        "kraken-filter",
+        "confidence threshold",
+        "classification filter",
+        "taxonomy confidence",
+        "unclassified",
+    ]
+    RETURN_TYPES = ("KRAKEN_OUTPUT",)
+    RETURN_NAMES = ("filtered_output",)
+    REQUIRED_EXECUTABLES = ["kraken-filter"]
+    DOCUMENTATION_URL = "http://ccb.jhu.edu/software/kraken/"
+    CITATION_DOIS = ["10.1186/gb-2014-15-3-r46"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/gb-2014-15-3-r46"]
+    CITATION_TEXT = "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+    VERSION = "1.3.1"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/filtered_output.kraken"
+
+    @classmethod
+    def _threshold(cls, inputs: dict[str, Any]) -> float:
+        return float(inputs.get("threshold", 0))
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("db", "")).strip():
+            return "Kraken database is required"
+        if not str(inputs.get("input", "")).strip():
+            return "Kraken classification output is required"
+        try:
+            threshold = cls._threshold(inputs)
+        except (TypeError, ValueError):
+            return "Confidence threshold must be a number between 0 and 1"
+        if not 0 <= threshold <= 1:
+            return "Confidence threshold must be between 0 and 1"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "kraken-filter",
+            "--db",
+            str(inputs.get("db", "")),
+            "--threshold",
+            str(inputs.get("threshold", 0)),
+            str(inputs.get("input", "")),
+        ]
+        _add_shell_redirect(cmd, cls._output_path(inputs))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "filtered_output.kraken"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": (
+                    "KRAKEN_OUTPUT",
+                    {"description": "Taxonomy classification produced by Kraken"},
+                ),
+                "db": ("DIRECTORY", {"description": "Kraken database used for the original classification"}),
+            },
+            "optional": {
+                "threshold": (
+                    "FLOAT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Confidence threshold between 0 and 1",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
 KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
 METAPHLAN_DOI = "10.1038/s41587-023-01688-w"
