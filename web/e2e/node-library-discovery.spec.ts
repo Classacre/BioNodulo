@@ -1687,6 +1687,64 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41587-023-01688-w'],
     citation_text: 'Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4.',
   },
+  humann: {
+    name: 'humann',
+    display_name: 'HUMAnN',
+    category: 'metagenomics',
+    description: 'Profile microbial pathway and gene-family abundance with HUMAnN 3.',
+    search_aliases: ['Galaxy', 'HUMAnN', 'functional profiling', 'pathway abundance', 'gene families', 'ChocoPhlAn', 'UniRef', 'intermediate output files'],
+    input: {
+      required: {
+        reads: { type: 'FILE' },
+        nuc_db: { type: 'DIRECTORY' },
+        prot_db: { type: 'DIRECTORY' },
+      },
+      optional: {
+        threads: { type: 'INT', default: 8 },
+        input_selector: { type: 'STRING', default: 'raw', options: ['raw', 'mapping', 'abundance'] },
+        input_ext: { type: 'STRING', default: 'fastq' },
+        workflow_selector: {
+          type: 'STRING',
+          default: 'none',
+          options: ['none', 'bypass_prescreen', 'bypass_taxonomic_profiling', 'bypass_nucleotide_index', 'bypass_nucleotide_search', 'bypass_translated_search'],
+        },
+        metaphlan_db_selector: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        nucleotide_db_selector: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        protein_db_selector: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        search_mode: { type: 'STRING', default: '', options: ['', 'uniref50', 'uniref90'] },
+        gap_fill: { type: 'BOOLEAN', default: true },
+        minpath: { type: 'BOOLEAN', default: true },
+        pathways: { type: 'STRING', default: 'metacyc', options: ['metacyc', 'unipathway'] },
+        output_format: { type: 'STRING', default: 'tsv', options: ['tsv', 'biom'] },
+        intermediate_temp: { type: 'STRING', default: [], list: true },
+      },
+    },
+    output: ['HUMANN_OUTPUT', 'TSV', 'TSV', 'TSV', 'BIOM', 'BIOM', 'BIOM', 'TXT', 'TSV', 'TSV', 'SAM', 'TSV', 'FASTA', 'FASTA', 'TSV', 'FASTA'],
+    output_name: [
+      'output_dir',
+      'genefamilies',
+      'pathabundance',
+      'pathcoverage',
+      'genefamilies_biom',
+      'pathabundance_biom',
+      'pathcoverage_biom',
+      'log',
+      'metaphlan_bowtie2',
+      'metaphlan_bugs_list',
+      'bowtie2_alignment',
+      'bowtie2_reduced_alignment',
+      'bowtie2_unaligned',
+      'custom_chocophlan_database',
+      'diamond_aligned',
+      'diamond_unaligned',
+    ],
+    required_executables: ['humann'],
+    required_conda_packages: ['humann'],
+    documentation_url: 'https://huttenhower.sph.harvard.edu/humann/',
+    citation_dois: ['10.7554/eLife.65088', '10.1371/journal.pcbi.1002358'],
+    citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
+    citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
+  },
   krakentools_combine_kreports: {
     name: 'krakentools_combine_kreports',
     display_name: 'Krakentools Combine Kraken Reports',
@@ -4812,7 +4870,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('203 nodes available')).toBeVisible();
+  await expect(page.getByText('204 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4883,6 +4941,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'conflict resolution', name: 'Kaiju Merge Outputs', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
+    { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
     { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },
