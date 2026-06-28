@@ -5316,6 +5316,117 @@ class RSeQCFPKMCountNode(CommandNode):
         }
 
 
+class RSeQCRPKMSaturationNode(CommandNode):
+    """Assess whether expression estimates are saturated by sequencing depth."""
+
+    NODE_ID = "rseqc_rpkm_saturation"
+    DISPLAY_NAME = "RSeQC RPKM Saturation"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Resample RNA-seq alignments to evaluate whether transcript RPKM estimates are stable at the current sequencing depth."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "RPKM_saturation",
+        "rpkm saturation",
+        "expression saturation",
+        "sequencing depth",
+        "jackknifing",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TSV", "TSV", "TEXT")
+    RETURN_NAMES = ("saturation_plot", "rpkm_values", "raw_counts", "r_script")
+    REQUIRED_EXECUTABLES = ["RPKM_saturation.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#rpkm-saturation-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def _strand_rule(cls, inputs: dict[str, Any]) -> str:
+        strand_specific = str(inputs.get("strand_specific", "none"))
+        if strand_specific == "pair":
+            return {
+                "sd": "1++,1--,2+-,2-+",
+                "ds": "1+-,1-+,2++,2--",
+            }.get(str(inputs.get("pair_type", "sd")), "1++,1--,2+-,2-+")
+        if strand_specific == "single":
+            return {
+                "s": "++,--",
+                "d": "+-,-+",
+            }.get(str(inputs.get("single_type", "s")), "++,--")
+        return ""
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "RPKM_saturation.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-o",
+            f"{out}/output",
+            "-r",
+            str(inputs.get("refgene", "")),
+        ]
+        strand_rule = cls._strand_rule(inputs)
+        if strand_rule:
+            cmd.extend(["-d", strand_rule])
+        cmd.extend(
+            [
+                "-l",
+                str(inputs.get("percentile_floor", 5)),
+                "-u",
+                str(inputs.get("percentile_ceiling", 100)),
+                "-s",
+                str(inputs.get("percentile_step", 5)),
+                "-c",
+                str(inputs.get("rpkm_cutoff", "0.01")),
+                "--mapq",
+                str(inputs.get("mapq", 30)),
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.saturation.pdf",
+            out / "output.eRPKM.xls",
+            out / "output.rawCount.xls",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.saturation.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "strand_specific": (
+                    "STRING",
+                    {"default": "none", "options": ["none", "pair", "single"], "description": "Strand-specific library type"},
+                ),
+                "pair_type": ("STRING", {"default": "sd", "options": ["sd", "ds"], "description": "Paired-end strand rule"}),
+                "single_type": ("STRING", {"default": "s", "options": ["s", "d"], "description": "Single-end strand rule"}),
+                "percentile_floor": ("INT", {"default": 5, "min": 0, "max": 100, "description": "Lower resampling percentile"}),
+                "percentile_ceiling": ("INT", {"default": 100, "min": 0, "max": 100, "description": "Upper resampling percentile"}),
+                "percentile_step": ("INT", {"default": 5, "min": 1, "max": 100, "description": "Resampling percentile increment"}),
+                "rpkm_cutoff": ("STRING", {"default": "0.01", "description": "Ignore transcripts with RPKM below this threshold"}),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "rscript_output": ("BOOLEAN", {"default": False, "description": "Expose the R script used to generate the saturation plot"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCRNAFragmentSizeNode(CommandNode):
     """Estimate RNA-seq fragment sizes for each transcript."""
 

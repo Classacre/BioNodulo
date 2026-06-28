@@ -3099,6 +3099,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_rpkm_saturation": {
+            "display_name": "RSeQC RPKM Saturation",
+            "category": "rna_seq",
+            "required_executables": ["RPKM_saturation.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_rna_fragment_size": {
             "display_name": "RSeQC RNA Fragment Size",
             "category": "rna_seq",
@@ -3327,6 +3334,87 @@ def test_rseqc_fpkm_count_renders_expression_quantification_command_and_output(t
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "rseqc_fpkm_count" / "output.FPKM.xls",
+    ]
+
+
+def test_rseqc_rpkm_saturation_renders_saturation_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_rpkm_saturation")
+    info = _registry().object_info()["rseqc_rpkm_saturation"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TSV", "TEXT"]
+    assert info["output_name"] == ["saturation_plot", "rpkm_values", "raw_counts", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed",
+            "strand_specific": "none",
+            "percentile_floor": 10,
+            "percentile_ceiling": 90,
+            "percentile_step": 10,
+            "rpkm_cutoff": "0.05",
+            "mapq": 25,
+            "rscript_output": True,
+            "output": "/work/rseqc_rpkm_saturation",
+        }
+    ) == [
+        "RPKM_saturation.py",
+        "-i",
+        "aligned.bam",
+        "-o",
+        "/work/rseqc_rpkm_saturation/output",
+        "-r",
+        "genes.bed",
+        "-l",
+        "10",
+        "-u",
+        "90",
+        "-s",
+        "10",
+        "-c",
+        "0.05",
+        "--mapq",
+        "25",
+    ]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed",
+            "strand_specific": "pair",
+            "pair_type": "ds",
+            "output": "/work/rseqc_rpkm_saturation",
+        }
+    ) == [
+        "RPKM_saturation.py",
+        "-i",
+        "aligned.bam",
+        "-o",
+        "/work/rseqc_rpkm_saturation/output",
+        "-r",
+        "genes.bed",
+        "-d",
+        "1+-,1-+,2++,2--",
+        "-l",
+        "5",
+        "-u",
+        "100",
+        "-s",
+        "5",
+        "-c",
+        "0.01",
+        "--mapq",
+        "30",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_rpkm_saturation" / "output.saturation.pdf",
+        tmp_path / "rseqc_rpkm_saturation" / "output.eRPKM.xls",
+        tmp_path / "rseqc_rpkm_saturation" / "output.rawCount.xls",
+        tmp_path / "rseqc_rpkm_saturation" / "output.saturation.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_rpkm_saturation" / "output.saturation.pdf",
+        tmp_path / "rseqc_rpkm_saturation" / "output.eRPKM.xls",
+        tmp_path / "rseqc_rpkm_saturation" / "output.rawCount.xls",
     ]
 
 

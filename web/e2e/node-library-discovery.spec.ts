@@ -1181,6 +1181,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_rpkm_saturation: {
+    name: 'rseqc_rpkm_saturation',
+    display_name: 'RSeQC RPKM Saturation',
+    category: 'rna_seq',
+    description: 'Resample RNA-seq alignments to evaluate whether transcript RPKM estimates are stable at the current sequencing depth.',
+    search_aliases: ['Galaxy', 'rseqc', 'RPKM_saturation', 'rpkm saturation', 'expression saturation', 'sequencing depth', 'jackknifing', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        refgene: { type: 'BED' },
+      },
+      optional: {
+        strand_specific: { type: 'STRING', default: 'none', options: ['none', 'pair', 'single'] },
+        pair_type: { type: 'STRING', default: 'sd', options: ['sd', 'ds'] },
+        single_type: { type: 'STRING', default: 's', options: ['s', 'd'] },
+        percentile_floor: { type: 'INT', default: 5 },
+        percentile_ceiling: { type: 'INT', default: 100 },
+        percentile_step: { type: 'INT', default: 5 },
+        rpkm_cutoff: { type: 'STRING', default: '0.01' },
+        mapq: { type: 'INT', default: 30 },
+        rscript_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['IMAGE', 'TSV', 'TSV', 'TEXT'],
+    output_name: ['saturation_plot', 'rpkm_values', 'raw_counts', 'r_script'],
+    required_executables: ['RPKM_saturation.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#rpkm-saturation-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_rna_fragment_size: {
     name: 'rseqc_rna_fragment_size',
     display_name: 'RSeQC RNA Fragment Size',
@@ -3313,7 +3345,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('153 nodes available')).toBeVisible();
+  await expect(page.getByText('154 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3372,6 +3404,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'fpkm gene expression', name: 'RSeQC FPKM Count', category: 'rna_seq' },
+    { query: 'expression saturation', name: 'RSeQC RPKM Saturation', category: 'rna_seq' },
     { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
     { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'junction saturation', name: 'RSeQC Junction Saturation', category: 'rna_seq' },
