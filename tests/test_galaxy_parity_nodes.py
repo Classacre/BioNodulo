@@ -268,6 +268,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/nar/gkr367",
         },
+        "hmmer_hmmconvert": {
+            "display_name": "HMMER hmmconvert",
+            "category": "annotation",
+            "required_executables": ["hmmconvert"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/nar/gkr367",
+        },
         "hmmer_alimask": {
             "display_name": "HMMER alimask",
             "category": "annotation",
@@ -2792,6 +2799,44 @@ def test_hmmer_hmmbuild_renders_profile_build_command_and_output(tmp_path: Path)
         "MADE1.sto",
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_hmmbuild" / "profile.hmm"]
+
+
+def test_hmmer_hmmconvert_renders_conversion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_hmmconvert")
+    info = _registry().object_info()["hmmer_hmmconvert"]
+
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["converted_profile"]
+    assert "10.1093/nar/gkr367" in info["citation_dois"]
+    assert info["input"]["required"]["format"][1]["options"] == ["-a", "-2"]
+    assert node_class.render_command(
+        {
+            "hmmfile": "globins4.hmm",
+            "format": "-2",
+            "output": "/work/hmmconvert",
+        }
+    ) == [
+        "hmmconvert",
+        "-2",
+        "globins4.hmm",
+        ">",
+        "/work/hmmconvert/converted.hmm2",
+    ]
+    assert node_class.render_command(
+        {
+            "hmmfile": "legacy.hmm2",
+            "format": "-a",
+            "output": "/work/hmmconvert",
+        }
+    ) == [
+        "hmmconvert",
+        "-a",
+        "legacy.hmm2",
+        ">",
+        "/work/hmmconvert/converted.hmm3",
+    ]
+    assert node_class.PLAN_OUTPUTS({"format": "-2"}, tmp_path) == [tmp_path / "hmmer_hmmconvert" / "converted.hmm2"]
+    assert node_class.PLAN_OUTPUTS({"format": "-a"}, tmp_path) == [tmp_path / "hmmer_hmmconvert" / "converted.hmm3"]
 
 
 def test_hmmer_nodes_render_table_outputs() -> None:

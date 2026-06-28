@@ -1000,6 +1000,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
     citation_text: 'HMMER web server: interactive sequence similarity searching.',
   },
+  hmmer_hmmconvert: {
+    name: 'hmmer_hmmconvert',
+    display_name: 'HMMER hmmconvert',
+    category: 'annotation',
+    description: 'Convert HMM profile files between HMMER formats.',
+    search_aliases: ['Galaxy', 'hmmer', 'hmmconvert', 'HMMER2', 'HMMER3', 'profile conversion'],
+    input: {
+      required: {
+        hmmfile: { type: 'FILE' },
+        format: { type: 'STRING', default: '-a', options: ['-a', '-2'] },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['converted_profile'],
+    required_executables: ['hmmconvert'],
+    required_conda_packages: ['hmmer'],
+    documentation_url: 'http://hmmer.org/documentation.html',
+    citation_dois: ['10.1093/nar/gkr367'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
+    citation_text: 'HMMER web server: interactive sequence similarity searching.',
+  },
   hmmer_alimask: {
     name: 'hmmer_alimask',
     display_name: 'HMMER alimask',
@@ -3924,7 +3945,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('175 nodes available')).toBeVisible();
+  await expect(page.getByText('176 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3974,6 +3995,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },
     { query: 'hmmbuild', name: 'HMMER hmmbuild', category: 'annotation' },
+    { query: 'hmmconvert', name: 'HMMER hmmconvert', category: 'annotation' },
     { query: 'hmmer alignment mask', name: 'HMMER alimask', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

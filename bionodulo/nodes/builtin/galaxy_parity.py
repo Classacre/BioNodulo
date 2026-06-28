@@ -4702,6 +4702,71 @@ class HMMERHmmbuildNode(CommandNode):
         }
 
 
+class HMMERHmmconvertNode(CommandNode):
+    """Convert HMM profile files between HMMER formats."""
+
+    NODE_ID = "hmmer_hmmconvert"
+    DISPLAY_NAME = "HMMER hmmconvert"
+    REQUIRED_CONDA_PACKAGES = ["hmmer"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Convert HMM profile files between HMMER formats."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "hmmconvert",
+        "HMMER2",
+        "HMMER3",
+        "profile conversion",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("converted_profile",)
+    REQUIRED_EXECUTABLES = ["hmmconvert"]
+    DOCUMENTATION_URL = "http://hmmer.org/documentation.html"
+    CITATION_DOIS = ["10.1093/nar/gkr367"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkr367"]
+    CITATION_TEXT = "HMMER web server: interactive sequence similarity searching."
+    VERSION = "3.4"
+    SHELL = True
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        return "converted.hmm2" if str(inputs.get("format", "-a")) == "-2" else "converted.hmm3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "hmmconvert",
+            str(inputs.get("format", "-a")),
+            str(inputs.get("hmmfile", "")),
+        ]
+        _add_shell_redirect(cmd, f"{out}/{cls._output_name(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "hmmfile": ("FILE", {"description": "Input profile HMM in HMMER2 or HMMER3 format"}),
+                "format": (
+                    "STRING",
+                    {
+                        "default": "-a",
+                        "options": ["-a", "-2"],
+                        "description": "Output HMMER3 ASCII or backward-compatible HMMER2 ASCII format",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 
