@@ -1813,6 +1813,49 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj-cs.104'],
     citation_text: 'Bracken: estimating species abundance in metagenomics data.',
   },
+  recentrifuge: {
+    name: 'recentrifuge',
+    display_name: 'Recentrifuge',
+    category: 'metagenomics',
+    description: 'Robust comparative analysis and contamination removal for metagenomics.',
+    search_aliases: ['Galaxy', 'Recentrifuge', 'robust contamination removal', 'comparative analysis', 'metagenomics', 'Centrifuge', 'Kraken', 'CLARK', 'LMAT', 'generic classifier'],
+    input: {
+      required: {
+        input_file: { type: 'TSV', multiple: true },
+        filetype: { type: 'STRING', default: 'centrifuge', options: ['centrifuge', 'clark', 'generic', 'lmat', 'kraken'] },
+        database_name: { type: 'DIRECTORY' },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+        format: { type: 'STRING', default: '' },
+        extra: { type: 'STRING', default: 'CSV', options: ['CSV', 'DYNOMICS', 'FULL', 'TSV'] },
+        nohtml: { type: 'BOOLEAN', default: false },
+        no_logfile: { type: 'BOOLEAN', default: false },
+        controls: { type: 'INT', default: 0 },
+        scoring: { type: 'STRING', default: '', options: ['', 'SHEL', 'LENGTH', 'LOGLENGTH', 'NORMA', 'LMAT', 'CLARK_C', 'CLARK_G', 'KRAKEN', 'GENERIC'] },
+        minscore_value: { type: 'INT', default: 0 },
+        mintaxa: { type: 'INT', default: 0 },
+        exclude_taxa_name: { type: 'STRING', default: '' },
+        include_taxa_name: { type: 'STRING', default: '' },
+        avoidcross: { type: 'BOOLEAN', default: false },
+        ctrlminscore: { type: 'INT', default: 0 },
+        ctrlmintaxa: { type: 'INT', default: 0 },
+        summary: { type: 'STRING', default: 'ADD', options: ['ADD', 'ONLY', 'AVOID'] },
+        takeoutroot: { type: 'BOOLEAN', default: false },
+        nokollapse: { type: 'BOOLEAN', default: false },
+        strain: { type: 'BOOLEAN', default: false },
+        sequential: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['HTML_REPORT', 'TEXT', 'TSV', 'TSV', 'FILE'],
+    output_name: ['html_report', 'logfile', 'data_table', 'stat_table', 'xlsx_report'],
+    required_executables: ['rcf'],
+    required_conda_packages: ['recentrifuge'],
+    documentation_url: 'https://github.com/khyox/recentrifuge',
+    citation_dois: ['10.1371/journal.pcbi.1006967'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1006967'],
+    citation_text: 'Recentrifuge: Robust comparative analysis and contamination removal for metagenomics.',
+  },
   krakentools_combine_kreports: {
     name: 'krakentools_combine_kreports',
     display_name: 'Krakentools Combine Kraken Reports',
@@ -4938,7 +4981,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('206 nodes available')).toBeVisible();
+  await expect(page.getByText('207 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5012,6 +5055,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },
     { query: 'Kraken-style Bracken report', name: 'Bracken', category: 'metagenomics' },
+    { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
     { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },

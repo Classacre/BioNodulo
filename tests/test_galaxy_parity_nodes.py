@@ -485,6 +485,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["metaphlan", "seqtk"],
             "doi": "10.1038/s41587-023-01688-w",
         },
+        "recentrifuge": {
+            "display_name": "Recentrifuge",
+            "category": "metagenomics",
+            "required_executables": ["rcf"],
+            "required_conda_packages": ["recentrifuge"],
+            "doi": "10.1371/journal.pcbi.1006967",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -5505,6 +5512,185 @@ def test_customize_metaphlan_database_renders_add_remove_keep_commands_and_outpu
         tmp_path / "customize_metaphlan_database" / "custom_marker_sequences.fasta",
         tmp_path / "customize_metaphlan_database" / "custom_marker_metadata.json",
     ]
+
+
+def test_recentrifuge_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["recentrifuge"]
+
+    assert info["display_name"] == "Recentrifuge"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Robust comparative analysis and contamination removal for metagenomics."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "Recentrifuge",
+        "robust contamination removal",
+        "comparative analysis",
+        "metagenomics",
+        "Centrifuge",
+        "Kraken",
+        "CLARK",
+        "LMAT",
+        "generic classifier",
+    ]
+    assert info["version"] == "1.16.1"
+    assert info["output"] == ["HTML_REPORT", "TEXT", "TSV", "TSV", "FILE"]
+    assert info["output_name"] == ["html_report", "logfile", "data_table", "stat_table", "xlsx_report"]
+    assert info["required_executables"] == ["rcf"]
+    assert info["required_conda_packages"] == ["recentrifuge"]
+    assert info["documentation_url"] == "https://github.com/khyox/recentrifuge"
+    assert info["citation_dois"] == ["10.1371/journal.pcbi.1006967"]
+    assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1006967"]
+    assert info["citation_text"] == "Recentrifuge: Robust comparative analysis and contamination removal for metagenomics."
+
+    assert info["input"]["required"]["input_file"][0] == "TSV"
+    assert info["input"]["required"]["input_file"][1]["multiple"] is True
+    assert info["input"]["required"]["filetype"][1]["options"] == ["centrifuge", "clark", "generic", "lmat", "kraken"]
+    assert info["input"]["required"]["database_name"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["format"][1]["displayOptions"] == {"show": {"filetype": ["generic"]}}
+    assert info["input"]["optional"]["extra"][1]["default"] == "CSV"
+    assert info["input"]["optional"]["extra"][1]["options"] == ["CSV", "DYNOMICS", "FULL", "TSV"]
+    assert info["input"]["optional"]["nohtml"][1]["default"] is False
+    assert info["input"]["optional"]["no_logfile"][1]["default"] is False
+    assert info["input"]["optional"]["scoring"][1]["options"] == [
+        "",
+        "SHEL",
+        "LENGTH",
+        "LOGLENGTH",
+        "NORMA",
+        "LMAT",
+        "CLARK_C",
+        "CLARK_G",
+        "KRAKEN",
+        "GENERIC",
+    ]
+    assert info["input"]["optional"]["summary"][1]["default"] == "ADD"
+    assert info["input"]["optional"]["summary"][1]["options"] == ["ADD", "ONLY", "AVOID"]
+
+
+def test_recentrifuge_renders_kraken_csv_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("recentrifuge")
+
+    assert node_class.render_command(
+        {
+            "input_file": ["kraken sample.out", "control.kraken"],
+            "element_identifiers": ["Tumor sample#1", "negative.control"],
+            "filetype": "kraken",
+            "database_name": "/db/ncbi_taxonomy",
+            "extra": "CSV",
+            "output": "/work/recentrifuge",
+        }
+    ) == (
+        "mkdir -p input_dir && "
+        "ln -s 'kraken sample.out' 'input_dir/Tumor sample_1.krk' && "
+        "ln -s control.kraken input_dir/negative_control.krk && "
+        "rcf -n /db/ncbi_taxonomy -k input_dir -e CSV -o output --scoring KRAKEN "
+        "--summary ADD | tee /work/recentrifuge/logfile.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"extra": "CSV"}, tmp_path) == [
+        tmp_path / "recentrifuge" / "output.rcf.html",
+        tmp_path / "recentrifuge" / "logfile.txt",
+        tmp_path / "recentrifuge" / "output.rcf.data.csv",
+        tmp_path / "recentrifuge" / "output.rcf.stat.csv",
+    ]
+
+
+def test_recentrifuge_renders_centrifuge_tsv_command_and_suppressed_reports(tmp_path: Path) -> None:
+    node_class = _node_class("recentrifuge")
+
+    assert node_class.render_command(
+        {
+            "input_file": ["centrifuge.out", "centrifuge 2.out"],
+            "filetype": "centrifuge",
+            "database_name": "/db/ncbi_taxonomy",
+            "extra": "TSV",
+            "nohtml": True,
+            "no_logfile": True,
+            "scoring": "LENGTH",
+            "summary": "ONLY",
+            "strain": True,
+            "output": "/work/recentrifuge",
+        }
+    ) == (
+        "mkdir -p input_dir && "
+        "ln -s centrifuge.out input_dir/centrifuge_out.out && "
+        "ln -s 'centrifuge 2.out' 'input_dir/centrifuge 2_out.out' && "
+        "rcf -n /db/ncbi_taxonomy -f input_dir -e TSV -o output --nohtml "
+        "--scoring LENGTH --summary ONLY --strain > /work/recentrifuge/logfile.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"extra": "TSV", "nohtml": True, "no_logfile": True}, tmp_path) == [
+        tmp_path / "recentrifuge" / "output.rcf.data.tsv",
+        tmp_path / "recentrifuge" / "output.rcf.stat.tsv",
+    ]
+
+
+def test_recentrifuge_renders_generic_full_command_with_advanced_options(tmp_path: Path) -> None:
+    node_class = _node_class("recentrifuge")
+
+    assert node_class.render_command(
+        {
+            "input_file": ["generic calls.tsv"],
+            "element_identifiers": ["generic sample.tsv"],
+            "filetype": "generic",
+            "format": "TYP:csv,TID:1,LEN:3,SCO:6,UNC:0",
+            "database_name": "/db/ncbi taxonomy",
+            "extra": "FULL",
+            "controls": 2,
+            "scoring": "NORMA",
+            "minscore_value": 5,
+            "mintaxa": 3,
+            "exclude_taxa_name": "9606,10090",
+            "include_taxa_name": "2,2157",
+            "avoidcross": True,
+            "ctrlminscore": 7,
+            "ctrlmintaxa": 4,
+            "summary": "AVOID",
+            "takeoutroot": True,
+            "nokollapse": True,
+            "sequential": True,
+            "output": "/work/recentrifuge",
+        }
+    ) == (
+        "mkdir -p input_dir && "
+        "ln -s 'generic calls.tsv' 'input_dir/generic sample_tsv' && "
+        "rcf -n '/db/ncbi taxonomy' -g input_dir "
+        "--format TYP:csv,TID:1,LEN:3,SCO:6,UNC:0 -e FULL -o output "
+        "--controls 2 --scoring NORMA --minscore 5 --mintaxa 3 "
+        "--exclude 9606,10090 --include 2,2157 --avoidcross "
+        "--ctrlminscore 7 --ctrlmintaxa 4 --summary AVOID --takeoutroot "
+        "--nokollapse --sequential | tee /work/recentrifuge/logfile.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"extra": "FULL", "nohtml": False, "no_logfile": False}, tmp_path) == [
+        tmp_path / "recentrifuge" / "output.rcf.html",
+        tmp_path / "recentrifuge" / "logfile.txt",
+        tmp_path / "recentrifuge" / "output.rcf.xlsx",
+    ]
+    assert node_class.PLAN_OUTPUTS({"extra": "DYNOMICS", "nohtml": True}, tmp_path) == [
+        tmp_path / "recentrifuge" / "logfile.txt",
+        tmp_path / "recentrifuge" / "output.rcf.xlsx",
+    ]
+
+
+def test_recentrifuge_validates_required_wrapper_inputs() -> None:
+    node_class = _node_class("recentrifuge")
+
+    assert node_class.VALIDATE_INPUTS({"database_name": "/db/ncbi_taxonomy", "filetype": "kraken"}) == (
+        "At least one taxonomy input file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": ["calls.tsv"], "filetype": "kraken"}) == (
+        "NCBI taxonomy database is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": ["calls.tsv"], "database_name": "/db/ncbi_taxonomy", "filetype": "generic"}
+    ) == "Generic input mode requires a format string"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {"input_file": ["calls.tsv"], "database_name": "/db/ncbi_taxonomy", "filetype": "kraken"}
+        )
+        is True
+    )
 
 
 def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadata() -> None:
