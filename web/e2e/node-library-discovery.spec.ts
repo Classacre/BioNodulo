@@ -1268,6 +1268,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_deletion_profile: {
+    name: 'rseqc_deletion_profile',
+    display_name: 'RSeQC Deletion Profile',
+    category: 'rna_seq',
+    description: 'Calculate the distribution of deleted nucleotides across RNA-seq reads from BAM alignments.',
+    search_aliases: ['Galaxy', 'rseqc', 'deletion_profile', 'deletion profile', 'deleted nucleotides', 'read deletions', 'CIGAR', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        read_align_length: { type: 'INT' },
+      },
+      optional: {
+        read_num: { type: 'INT', default: 1000000 },
+        mapq: { type: 'INT', default: 30 },
+        rscript_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['IMAGE', 'TSV', 'TEXT'],
+    output_name: ['deletion_profile_plot', 'deletion_profile', 'r_script'],
+    required_executables: ['deletion_profile.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#deletion-profile-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_rna_fragment_size: {
     name: 'rseqc_rna_fragment_size',
     display_name: 'RSeQC RNA Fragment Size',
@@ -3400,7 +3426,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('156 nodes available')).toBeVisible();
+  await expect(page.getByText('157 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3462,6 +3488,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'expression saturation', name: 'RSeQC RPKM Saturation', category: 'rna_seq' },
     { query: 'wiggle coverage track', name: 'RSeQC BAM to Wiggle', category: 'rna_seq' },
     { query: 'soft clipping CIGAR', name: 'RSeQC Clipping Profile', category: 'rna_seq' },
+    { query: 'deleted nucleotides', name: 'RSeQC Deletion Profile', category: 'rna_seq' },
     { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
     { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'junction saturation', name: 'RSeQC Junction Saturation', category: 'rna_seq' },

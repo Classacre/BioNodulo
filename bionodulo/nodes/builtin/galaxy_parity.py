@@ -5608,6 +5608,94 @@ class RSeQCClippingProfileNode(CommandNode):
         }
 
 
+class RSeQCDeletionProfileNode(CommandNode):
+    """Estimate deleted-base profiles across RNA-seq reads."""
+
+    NODE_ID = "rseqc_deletion_profile"
+    DISPLAY_NAME = "RSeQC Deletion Profile"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate the distribution of deleted nucleotides across RNA-seq reads from BAM alignments."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "deletion_profile",
+        "deletion profile",
+        "deleted nucleotides",
+        "read deletions",
+        "CIGAR",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TSV", "TEXT")
+    RETURN_NAMES = ("deletion_profile_plot", "deletion_profile", "r_script")
+    REQUIRED_EXECUTABLES = ["deletion_profile.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#deletion-profile-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "deletion_profile.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-o",
+            f"{out}/output",
+            "-l",
+            str(inputs.get("read_align_length", "")),
+            "-n",
+            str(inputs.get("read_num", 1000000)),
+            "-q",
+            str(inputs.get("mapq", 30)),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.deletion_profile.pdf",
+            out / "output.deletion_profile.txt",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.deletion_profile.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM alignment file"}),
+                "read_align_length": (
+                    "INT",
+                    {
+                        "min": 1,
+                        "description": "Alignment length of reads; for example 101 for a 101M read alignment",
+                    },
+                ),
+            },
+            "optional": {
+                "read_num": (
+                    "INT",
+                    {
+                        "default": 1000000,
+                        "min": 1,
+                        "description": "Number of aligned reads with deletions used to calculate the profile",
+                    },
+                ),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the deletion profile plot"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCRNAFragmentSizeNode(CommandNode):
     """Estimate RNA-seq fragment sizes for each transcript."""
 
