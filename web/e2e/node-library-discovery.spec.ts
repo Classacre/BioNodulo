@@ -1263,6 +1263,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_mismatch_profile: {
+    name: 'rseqc_mismatch_profile',
+    display_name: 'RSeQC Mismatch Profile',
+    category: 'rna_seq',
+    description: 'Calculate the distribution of mismatches across read positions for BAM alignments with MD tags.',
+    search_aliases: ['Galaxy', 'rseqc', 'mismatch_profile', 'mismatch profile', 'MD tag', 'read mismatches', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        read_align_length: { type: 'INT' },
+      },
+      optional: {
+        read_num: { type: 'INT', default: 1000000 },
+        mapq: { type: 'INT', default: 30 },
+        rscript_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['IMAGE', 'TSV', 'TEXT'],
+    output_name: ['mismatch_profile_plot', 'mismatch_profile', 'r_script'],
+    required_executables: ['mismatch_profile.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#mismatch-profile-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_bam_stat: {
     name: 'rseqc_bam_stat',
     display_name: 'RSeQC BAM Stat',
@@ -3238,7 +3264,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('150 nodes available')).toBeVisible();
+  await expect(page.getByText('151 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3300,6 +3326,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
     { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'junction saturation', name: 'RSeQC Junction Saturation', category: 'rna_seq' },
+    { query: 'mismatch profile', name: 'RSeQC Mismatch Profile', category: 'rna_seq' },
     { query: 'bam mapping statistics', name: 'RSeQC BAM Stat', category: 'rna_seq' },
     { query: 'read distribution', name: 'RSeQC Read Distribution', category: 'rna_seq' },
     { query: 'read duplication', name: 'RSeQC Read Duplication', category: 'rna_seq' },

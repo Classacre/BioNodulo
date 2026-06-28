@@ -3120,6 +3120,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_mismatch_profile": {
+            "display_name": "RSeQC Mismatch Profile",
+            "category": "rna_seq",
+            "required_executables": ["mismatch_profile.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_bam_stat": {
             "display_name": "RSeQC BAM Stat",
             "category": "rna_seq",
@@ -3465,6 +3472,46 @@ def test_rseqc_junction_saturation_renders_saturation_command_and_outputs(tmp_pa
     ]
     assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
         tmp_path / "rseqc_junction_saturation" / "output.junctionSaturation_plot.pdf",
+    ]
+
+
+def test_rseqc_mismatch_profile_renders_mismatch_profile_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_mismatch_profile")
+    info = _registry().object_info()["rseqc_mismatch_profile"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
+    assert info["output_name"] == ["mismatch_profile_plot", "mismatch_profile", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "read_align_length": 101,
+            "read_num": 500000,
+            "mapq": 20,
+            "rscript_output": True,
+            "output": "/work/rseqc_mismatch_profile",
+        }
+    ) == [
+        "mismatch_profile.py",
+        "-i",
+        "aligned.bam",
+        "-o",
+        "/work/rseqc_mismatch_profile/output",
+        "-l",
+        "101",
+        "-n",
+        "500000",
+        "-q",
+        "20",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.pdf",
+        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.xls",
+        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.pdf",
+        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.xls",
     ]
 
 

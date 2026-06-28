@@ -5556,6 +5556,93 @@ class RSeQCJunctionSaturationNode(CommandNode):
         }
 
 
+class RSeQCMismatchProfileNode(CommandNode):
+    """Calculate mismatch distribution across read positions."""
+
+    NODE_ID = "rseqc_mismatch_profile"
+    DISPLAY_NAME = "RSeQC Mismatch Profile"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate the distribution of mismatches across read positions for BAM alignments with MD tags."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "mismatch_profile",
+        "mismatch profile",
+        "MD tag",
+        "read mismatches",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TSV", "TEXT")
+    RETURN_NAMES = ("mismatch_profile_plot", "mismatch_profile", "r_script")
+    REQUIRED_EXECUTABLES = ["mismatch_profile.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#mismatch-profile-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "mismatch_profile.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-o",
+            f"{out}/output",
+            "-l",
+            str(inputs.get("read_align_length", "")),
+            "-n",
+            str(inputs.get("read_num", 1000000)),
+            "-q",
+            str(inputs.get("mapq", 30)),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.mismatch_profile.pdf",
+            out / "output.mismatch_profile.xls",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.mismatch_profile.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM alignment file containing MD tags"}),
+                "read_align_length": (
+                    "INT",
+                    {
+                        "min": 1,
+                        "description": "Alignment length of reads; for example 101 for a 101M read alignment",
+                    },
+                ),
+            },
+            "optional": {
+                "read_num": (
+                    "INT",
+                    {
+                        "default": 1000000,
+                        "min": 1,
+                        "description": "Number of aligned reads with mismatches used to calculate the profile",
+                    },
+                ),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the mismatch profile plot"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCBamStatNode(CommandNode):
     """Summarize BAM or SAM mapping statistics with RSeQC."""
 
