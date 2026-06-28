@@ -965,6 +965,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
     citation_text: 'HMMER web server: interactive sequence similarity searching.',
   },
+  hmmer_hmmbuild: {
+    name: 'hmmer_hmmbuild',
+    display_name: 'HMMER hmmbuild',
+    category: 'annotation',
+    description: 'Build a profile HMM from a multiple sequence alignment.',
+    search_aliases: ['Galaxy', 'hmmer', 'hmmbuild', 'profile HMM', 'multiple sequence alignment', 'HMM profile'],
+    input: {
+      required: {
+        msafile: { type: 'ALIGNMENT' },
+      },
+      optional: {
+        hmmname: { type: 'STRING', default: '' },
+        input_format_select: { type: 'STRING', default: '--amino', options: ['--amino', '--dna', '--rna'] },
+        model_construction: { type: 'STRING', default: 'fast', options: ['fast', 'hand'] },
+        symfrac: { type: 'FLOAT', default: 0.5, displayOptions: { show: { model_construction: ['fast'] } } },
+        fragthresh: { type: 'FLOAT', default: 0.5 },
+        relative_weighting: { type: 'STRING', default: '--wpb', options: ['--wpb', '--wgsc', '--wblosum', '--wnone', '--wgiven'] },
+        wid: { type: 'FLOAT', default: 0.62, displayOptions: { show: { relative_weighting: ['--wblosum'] } } },
+        effective_weighting: { type: 'STRING', default: '', options: ['', 'eent', 'eclust', 'enone'] },
+        prior: { type: 'STRING', default: '', options: ['', '--pnone', '--plaplace'] },
+        single_sequence_scoring: { type: 'STRING', default: 'false', options: ['false', 'singlemx'] },
+        threads: { type: 'INT', default: 1 },
+        seed: { type: 'INT', default: 42 },
+        maxinsertlen: { type: 'INT', default: '' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['hmm_profile'],
+    required_executables: ['hmmbuild'],
+    required_conda_packages: ['hmmer'],
+    documentation_url: 'http://hmmer.org/documentation.html',
+    citation_dois: ['10.1093/nar/gkr367'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
+    citation_text: 'HMMER web server: interactive sequence similarity searching.',
+  },
   hmmer_alimask: {
     name: 'hmmer_alimask',
     display_name: 'HMMER alimask',
@@ -3889,7 +3924,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('174 nodes available')).toBeVisible();
+  await expect(page.getByText('175 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3938,6 +3973,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },
+    { query: 'hmmbuild', name: 'HMMER hmmbuild', category: 'annotation' },
     { query: 'hmmer alignment mask', name: 'HMMER alimask', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

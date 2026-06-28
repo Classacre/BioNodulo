@@ -261,6 +261,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/nar/gkr367",
         },
+        "hmmer_hmmbuild": {
+            "display_name": "HMMER hmmbuild",
+            "category": "annotation",
+            "required_executables": ["hmmbuild"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/nar/gkr367",
+        },
         "hmmer_alimask": {
             "display_name": "HMMER alimask",
             "category": "annotation",
@@ -2639,6 +2646,152 @@ def test_hmmer_hmmalign_renders_stockholm_alignment_command_and_output(tmp_path:
         "/work/hmmalign/alignment.sto",
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_hmmalign" / "alignment.sto"]
+
+
+def test_hmmer_hmmbuild_renders_profile_build_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_hmmbuild")
+    info = _registry().object_info()["hmmer_hmmbuild"]
+
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["hmm_profile"]
+    assert "10.1093/nar/gkr367" in info["citation_dois"]
+    assert info["input"]["optional"]["symfrac"][1]["displayOptions"] == {
+        "show": {"model_construction": ["fast"]},
+    }
+    assert info["input"]["optional"]["wid"][1]["displayOptions"] == {
+        "show": {"relative_weighting": ["--wblosum"]},
+    }
+    assert info["input"]["optional"]["esigma"][1]["displayOptions"] == {
+        "show": {"effective_weighting": ["eent"]},
+    }
+    assert node_class.render_command(
+        {
+            "msafile": "globins4.sto",
+            "hmmname": "globins",
+            "input_format_select": "--amino",
+            "model_construction": "fast",
+            "symfrac": 0.6,
+            "fragthresh": 0.4,
+            "relative_weighting": "--wblosum",
+            "wid": 0.7,
+            "effective_weighting": "eent",
+            "eset": 2.5,
+            "ere": 0.59,
+            "esigma": 45,
+            "prior": "--pnone",
+            "single_sequence_scoring": "singlemx",
+            "popen": 0.03,
+            "pextend": 0.5,
+            "eml": 220,
+            "emn": 210,
+            "evl": 230,
+            "evn": 220,
+            "efl": 120,
+            "efn": 210,
+            "eft": 0.05,
+            "threads": 6,
+            "seed": 4,
+            "w_beta": 1e-7,
+            "w_length": 450,
+            "maxinsertlen": 25,
+            "output": "/work/hmmbuild",
+        }
+    ) == [
+        "hmmbuild",
+        "-n",
+        "globins",
+        "--amino",
+        "--fast",
+        "--symfrac",
+        "0.6",
+        "--fragthresh",
+        "0.4",
+        "--wblosum",
+        "--wid",
+        "0.7",
+        "--eent",
+        "--eset",
+        "2.5",
+        "--ere",
+        "0.59",
+        "--esigma",
+        "45",
+        "--pnone",
+        "--popen",
+        "0.03",
+        "--pextend",
+        "0.5",
+        "--EmL",
+        "220",
+        "--EmN",
+        "210",
+        "--EvL",
+        "230",
+        "--EvN",
+        "220",
+        "--EfL",
+        "120",
+        "--EfN",
+        "210",
+        "--Eft",
+        "0.05",
+        "--cpu",
+        "5",
+        "--seed",
+        "4",
+        "--w_beta",
+        "1e-07",
+        "--w_length",
+        "450",
+        "--maxinsertlen",
+        "25",
+        "/work/hmmbuild/profile.hmm",
+        "globins4.sto",
+    ]
+
+    assert node_class.render_command(
+        {
+            "msafile": "MADE1.sto",
+            "input_format_select": "--dna",
+            "model_construction": "hand",
+            "relative_weighting": "--wpb",
+            "effective_weighting": "enone",
+            "prior": "",
+            "single_sequence_scoring": "false",
+            "threads": 1,
+            "seed": 42,
+            "output": "/work/hmmbuild",
+        }
+    ) == [
+        "hmmbuild",
+        "--dna",
+        "--hand",
+        "--fragthresh",
+        "0.5",
+        "--wpb",
+        "--enone",
+        "--EmL",
+        "200",
+        "--EmN",
+        "200",
+        "--EvL",
+        "200",
+        "--EvN",
+        "200",
+        "--EfL",
+        "100",
+        "--EfN",
+        "200",
+        "--Eft",
+        "0.04",
+        "--cpu",
+        "1",
+        "--seed",
+        "42",
+        "/work/hmmbuild/profile.hmm",
+        "MADE1.sto",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_hmmbuild" / "profile.hmm"]
 
 
 def test_hmmer_nodes_render_table_outputs() -> None:
