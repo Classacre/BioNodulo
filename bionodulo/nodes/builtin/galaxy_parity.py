@@ -7314,6 +7314,461 @@ class MMseqs2EasyTaxonomyNode(CommandNode):
         }
 
 
+class MMseqs2TaxonomyAssignmentNode(CommandNode):
+    """Run the lower-level MMseqs2 taxonomy assignment pipeline."""
+
+    NODE_ID = "mmseqs2_taxonomy_assignment"
+    DISPLAY_NAME = "MMseqs2 Taxonomy"
+    REQUIRED_CONDA_PACKAGES = ["mmseqs2"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Run the fine-grained MMseqs2 taxonomy workflow with optional taxon filtering and reports."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "mmseqs2",
+        "mmseqs",
+        "taxonomy",
+        "taxonomy assignment",
+        "filtertaxseqdb",
+        "Kraken report",
+        "Krona report",
+    ]
+    RETURN_TYPES = ("TSV", "TXT", "HTML")
+    RETURN_NAMES = ("taxonomy_tsv", "kraken_report", "krona_report")
+    REQUIRED_EXECUTABLES = ["mmseqs"]
+    DOCUMENTATION_URL = MMseqs2EasySearchNode.DOCUMENTATION_URL
+    CITATION_DOIS = ["10.1093/bioinformatics/btab184"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btab184"]
+    CITATION_TEXT = "Fast and sensitive taxonomic assignment to metagenomic contigs."
+    VERSION = MMseqs2EasySearchNode.VERSION
+    SHELL = True
+
+    @classmethod
+    def _database_source(cls, inputs: dict[str, Any]) -> str:
+        if inputs.get("download_tax_db"):
+            return "database"
+        database_root = str(inputs.get("target_database", ""))
+        return f"{database_root.rstrip('/')}/database" if database_root else "database"
+
+    @classmethod
+    def _add_prefilter_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--add-self-matches",
+                str(inputs.get("add_self_matches", 0)),
+                "-s",
+                str(inputs.get("sensitivity", 2)),
+                "-k",
+                str(inputs.get("kmer_length", 0)),
+                "--target-search-mode",
+                str(inputs.get("target_search_mode", 0)),
+                "--max-seqs",
+                str(inputs.get("max_seqs", 300)),
+                "--split",
+                str(inputs.get("split", 0)),
+                "--split-mode",
+                str(inputs.get("split_mode", 2)),
+                "--diag-score",
+                str(inputs.get("diag_score", 1)),
+                "--exact-kmer-matching",
+                str(inputs.get("exact_kmer_matching", 0)),
+                "--mask",
+                str(inputs.get("mask", 1)),
+                "--mask-prob",
+                str(inputs.get("mask_prob", 0.9)),
+                "--mask-lower-case",
+                str(inputs.get("mask_lower_case", 0)),
+                "--mask-n-repeat",
+                str(inputs.get("mask_n_repeat", 0)),
+                "--min-ungapped-score",
+                str(inputs.get("min_ungapped_score", 15)),
+                "--spaced-kmer-mode",
+                str(inputs.get("spaced_kmer_mode", 1)),
+            ]
+        )
+
+    @classmethod
+    def _add_align_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "-a",
+                str(inputs.get("convertalis", 0)),
+                "--alignment-mode",
+                str(inputs.get("alignment_mode", 1)),
+                "--alignment-output-mode",
+                str(inputs.get("alignment_output_mode", 0)),
+                "--wrapped-scoring",
+                str(inputs.get("wrapped_scoring", 0)),
+                "-e",
+                str(inputs.get("evalue", 1)),
+                "--min-seq-id",
+                str(inputs.get("min_seq_id", 0)),
+                "--min-aln-len",
+                str(inputs.get("min_aln_len", 0)),
+                "--seq-id-mode",
+                str(inputs.get("seq_id_mode", 0)),
+                "--alt-ali",
+                str(inputs.get("alt_ali", 0)),
+                "-c",
+                str(inputs.get("cov", 0)),
+                "--cov-mode",
+                str(inputs.get("cov_mode", 0)),
+                "--max-rejected",
+                str(inputs.get("max_rejected", 5)),
+                "--max-accept",
+                str(inputs.get("max_accept", 30)),
+                "--score-bias",
+                str(inputs.get("score_bias", 0)),
+                "--realign",
+                str(inputs.get("realign", 0)),
+                "--realign-score-bias",
+                str(inputs.get("realign_score_bias", -0.2)),
+                "--realign-max-seqs",
+                str(inputs.get("realign_max_seqs", 2147483647)),
+                "--corr-score-weight",
+                str(inputs.get("corr_score_weight", 0)),
+                "--exhaustive-search-filter",
+                str(inputs.get("exhaustive_search_filter", 0)),
+            ]
+        )
+
+    @classmethod
+    def _add_misc_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        MMseqs2EasyTaxonomyNode._add_taxonomy_options(cmd, inputs)
+        cmd.extend(
+            [
+                "--rescore-mode",
+                str(inputs.get("rescore_mode", 0)),
+                "--allow-deletion",
+                str(inputs.get("allow_deletion", 0)),
+                "--min-length",
+                str(inputs.get("min_length", 30)),
+                "--max-length",
+                str(inputs.get("max_length", 32734)),
+                "--max-gaps",
+                str(inputs.get("max_gaps", 2147483647)),
+                "--contig-start-mode",
+                str(inputs.get("contig_start_mode", 2)),
+                "--contig-end-mode",
+                str(inputs.get("contig_end_mode", 2)),
+                "--orf-start-mode",
+                str(inputs.get("orf_start_mode", 1)),
+                "--forward-frames",
+                str(inputs.get("forward_frames", "1,2,3")),
+                "--reverse-frames",
+                str(inputs.get("reverse_frames", "1,2,3")),
+                "--translation-table",
+                str(inputs.get("translation_table", 1)),
+                "--translate",
+                str(inputs.get("translate", 0)),
+                "--use-all-table-starts",
+                str(inputs.get("use_all_table_starts", 0)),
+                "--id-offset",
+                str(inputs.get("id_offset", 0)),
+                "--sequence-overlap",
+                str(inputs.get("sequence_overlap", 0)),
+                "--sequence-split-mode",
+                str(inputs.get("sequence_split_mode", 1)),
+                "--headers-split-mode",
+                str(inputs.get("headers_split_mode", 0)),
+                "--search-type",
+                str(inputs.get("search_type", 3 if inputs.get("database_type") == "nucleotides_tax" else 0)),
+                "--prefilter-mode",
+                str(inputs.get("prefilter_mode", 0)),
+            ]
+        )
+
+    @classmethod
+    def _add_common_and_expert_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--threads",
+                str(inputs.get("threads", 1)),
+                "--max-seq-len",
+                str(inputs.get("max_seq_len", 65535)),
+                "--filter-hits",
+                str(inputs.get("filter_hits", 0)),
+                "--sort-results",
+                str(inputs.get("sort_results", 0)),
+                "--chain-alignments",
+                str(inputs.get("chain_alignments", 0)),
+                "--merge-query",
+                str(inputs.get("merge_query", 1)),
+            ]
+        )
+
+    @classmethod
+    def _taxonomy_command(cls, inputs: dict[str, Any], out: str, taxonomy_database: str) -> list[str]:
+        cmd = [
+            "mmseqs",
+            "taxonomy",
+            f"{out}/sequenceDB",
+            taxonomy_database,
+            f"{out}/output_taxonomy",
+            f"{out}/tmp",
+        ]
+        dbtype = str(inputs.get("dbtype", "0"))
+        if dbtype == "1":
+            _add_if_value(cmd, "--comp-bias-corr-scale", inputs.get("comp_bias_corr_scale", 1))
+        elif dbtype == "2":
+            _add_if_value(cmd, "--zdrop", inputs.get("zdrop", 40))
+        cls._add_prefilter_options(cmd, inputs)
+        cls._add_align_options(cmd, inputs)
+        MMseqs2EasyTaxonomyNode._add_profile_options(cmd, inputs)
+        cls._add_misc_options(cmd, inputs)
+        cls._add_common_and_expert_options(cmd, inputs)
+        return cmd
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_fasta = str(inputs.get("input_fasta", ""))
+        commands = [
+            shlex.join(["ln", "-s", "-f", input_fasta, "input"]),
+            shlex.join(
+                [
+                    "mmseqs",
+                    "createdb",
+                    "input",
+                    f"{out}/sequenceDB",
+                    "--dbtype",
+                    str(inputs.get("dbtype", 0)),
+                    "--shuffle",
+                    str(inputs.get("shuffle", 1)),
+                ]
+            ),
+        ]
+
+        if inputs.get("download_tax_db"):
+            database_root = str(inputs.get("target_database", ""))
+            commands.extend(
+                [
+                    f"cp -r {shlex.quote(database_root)}/database* .",
+                    shlex.join(["mmseqs", "createtaxdb", "database", f"{out}/tmp"]),
+                ]
+            )
+
+        taxonomy_database = cls._database_source(inputs)
+        filter_taxon_list = str(inputs.get("filter_taxon_list", ""))
+        if filter_taxon_list:
+            filtered_database = f"{out}/database_filtered"
+            commands.append(
+                shlex.join(
+                    [
+                        "mmseqs",
+                        "filtertaxseqdb",
+                        taxonomy_database,
+                        filtered_database,
+                        "--taxon-list",
+                        filter_taxon_list,
+                    ]
+                )
+            )
+            taxonomy_database = filtered_database
+
+        commands.append(shlex.join(cls._taxonomy_command(inputs, out, taxonomy_database)))
+        commands.append(
+            shlex.join(
+                [
+                    "mmseqs",
+                    "createtsv",
+                    f"{out}/sequenceDB",
+                    f"{out}/output_taxonomy",
+                    f"{out}/taxo_result.tsv",
+                    "--first-seq-as-repr",
+                    str(inputs.get("first_seq_as_repr", 0)),
+                    "--target-column",
+                    str(inputs.get("target_column", 1)),
+                    "--full-header",
+                    str(inputs.get("full_header", 0)),
+                    "--idx-seq-src",
+                    str(inputs.get("idx_seq_src", 0)),
+                    "--threads",
+                    str(inputs.get("threads", 1)),
+                ]
+            )
+        )
+
+        if inputs.get("keep_kraken_report", True):
+            commands.append(
+                shlex.join(
+                    [
+                        "mmseqs",
+                        "taxonomyreport",
+                        taxonomy_database,
+                        f"{out}/output_taxonomy",
+                        f"{out}/taxo_result.txt",
+                        "--report-mode",
+                        "0",
+                        "--threads",
+                        str(inputs.get("threads", 1)),
+                    ]
+                )
+            )
+        if inputs.get("keep_krona_report", True):
+            commands.append(
+                shlex.join(
+                    [
+                        "mmseqs",
+                        "taxonomyreport",
+                        taxonomy_database,
+                        f"{out}/output_taxonomy",
+                        f"{out}/taxo_result.html",
+                        "--report-mode",
+                        "1",
+                        "--threads",
+                        str(inputs.get("threads", 1)),
+                    ]
+                )
+            )
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "taxo_result.tsv"]
+        if inputs.get("keep_kraken_report", True):
+            outputs.append(out / "taxo_result.txt")
+        if inputs.get("keep_krona_report", True):
+            outputs.append(out / "taxo_result.html")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        taxonomy_optional = dict(MMseqs2EasyTaxonomyNode.INPUT_TYPES()["optional"])
+        taxonomy_optional.update(
+            {
+                "sensitivity": ("FLOAT", {"default": 2, "min": 1, "max": 7.5}),
+                "target_search_mode": (
+                    "STRING",
+                    {"default": "0", "options": ["0", "1"], "advanced": True},
+                ),
+                "alignment_mode": (
+                    "STRING",
+                    {"default": "1", "options": ["0", "1", "2", "3", "4"], "advanced": True},
+                ),
+                "exhaustive_search_filter": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 1, "advanced": True},
+                ),
+                "filter_taxon_list": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Optional taxon list for pre-filtering the taxonomy database",
+                    },
+                ),
+                "rescore_mode": (
+                    "STRING",
+                    {"default": "0", "options": ["0", "1", "2", "3", "4"], "advanced": True},
+                ),
+                "allow_deletion": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "min_length": ("INT", {"default": 30, "min": 0, "advanced": True}),
+                "max_length": ("INT", {"default": 32734, "min": 0, "advanced": True}),
+                "max_gaps": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "contig_start_mode": (
+                    "STRING",
+                    {"default": "2", "options": ["0", "1", "2"], "advanced": True},
+                ),
+                "contig_end_mode": (
+                    "STRING",
+                    {"default": "2", "options": ["0", "1", "2"], "advanced": True},
+                ),
+                "orf_start_mode": (
+                    "STRING",
+                    {"default": "1", "options": ["0", "1", "2"], "advanced": True},
+                ),
+                "forward_frames": ("STRING", {"default": "1,2,3", "advanced": True}),
+                "reverse_frames": ("STRING", {"default": "1,2,3", "advanced": True}),
+                "translation_table": (
+                    "STRING",
+                    {
+                        "default": "1",
+                        "options": [
+                            "1",
+                            "2",
+                            "3",
+                            "4",
+                            "5",
+                            "6",
+                            "9",
+                            "10",
+                            "11",
+                            "12",
+                            "13",
+                            "14",
+                            "15",
+                            "16",
+                            "21",
+                            "22",
+                            "23",
+                            "24",
+                            "25",
+                            "26",
+                            "27",
+                            "28",
+                            "29",
+                            "30",
+                            "31",
+                        ],
+                        "advanced": True,
+                    },
+                ),
+                "translate": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "use_all_table_starts": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 1, "advanced": True},
+                ),
+                "id_offset": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "sequence_overlap": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "sequence_split_mode": (
+                    "STRING",
+                    {"default": "1", "options": ["0", "1"], "advanced": True},
+                ),
+                "headers_split_mode": (
+                    "STRING",
+                    {"default": "0", "options": ["0", "1"], "advanced": True},
+                ),
+                "prefilter_mode": (
+                    "STRING",
+                    {"default": "0", "options": ["0", "1", "2"], "advanced": True},
+                ),
+                "first_seq_as_repr": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "target_column": ("INT", {"default": 1, "min": 0, "advanced": True}),
+                "full_header": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "idx_seq_src": (
+                    "STRING",
+                    {"default": "0", "options": ["0", "1", "2"], "advanced": True},
+                ),
+                "keep_kraken_report": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Generate a Kraken-style taxonomy report"},
+                ),
+                "keep_krona_report": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Generate a Krona HTML taxonomy report"},
+                ),
+            }
+        )
+        taxonomy_optional.pop("output_selection", None)
+        return {
+            "required": {
+                "input_fasta": ("FASTA", {"description": "Query FASTA/FASTQ file"}),
+                "database_type": (
+                    "STRING",
+                    {
+                        "default": "amino_acid_tax",
+                        "options": ["amino_acid_tax", "nucleotides_tax"],
+                        "description": "Taxonomy database type: amino acid or nucleotide",
+                    },
+                ),
+                "target_database": ("FILE", {"default": "", "description": "Cached MMseqs2 taxonomy database directory"}),
+            },
+            "optional": taxonomy_optional,
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MashDistNode(CommandNode):
     """Estimate Mash distances between reference and query sequences."""
 

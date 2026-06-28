@@ -1464,6 +1464,44 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btab184'],
     citation_text: 'Fast and sensitive taxonomic assignment to metagenomic contigs.',
   },
+  mmseqs2_taxonomy_assignment: {
+    name: 'mmseqs2_taxonomy_assignment',
+    display_name: 'MMseqs2 Taxonomy',
+    category: 'taxonomy',
+    description: 'Run the fine-grained MMseqs2 taxonomy workflow with optional taxon filtering and reports.',
+    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'taxonomy', 'taxonomy assignment', 'filtertaxseqdb', 'Kraken report', 'Krona report'],
+    input: {
+      required: {
+        input_fasta: { type: 'FASTA' },
+        database_type: { type: 'STRING', default: 'amino_acid_tax', options: ['amino_acid_tax', 'nucleotides_tax'] },
+        target_database: { type: 'FILE', default: '' },
+      },
+      optional: {
+        dbtype: { type: 'STRING', default: '0', options: ['0', '1', '2'] },
+        search_type: { type: 'STRING', default: '0', options: ['0', '1', '2', '3', '4'] },
+        sensitivity: { type: 'FLOAT', default: 2 },
+        evalue: { type: 'FLOAT', default: 1 },
+        min_seq_id: { type: 'FLOAT', default: 0 },
+        cov: { type: 'FLOAT', default: 0 },
+        max_rejected: { type: 'INT', default: 5 },
+        max_accept: { type: 'INT', default: 30 },
+        filter_taxon_list: { type: 'STRING', default: '' },
+        lca_mode: { type: 'STRING', default: '3', options: ['1', '3', '4'] },
+        tax_lineage: { type: 'STRING', default: '0', options: ['0', '1', '2'] },
+        keep_kraken_report: { type: 'BOOLEAN', default: true },
+        keep_krona_report: { type: 'BOOLEAN', default: true },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV', 'TXT', 'HTML'],
+    output_name: ['taxonomy_tsv', 'kraken_report', 'krona_report'],
+    required_executables: ['mmseqs'],
+    required_conda_packages: ['mmseqs2'],
+    documentation_url: 'https://github.com/soedinglab/MMseqs2/wiki',
+    citation_dois: ['10.1093/bioinformatics/btab184'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btab184'],
+    citation_text: 'Fast and sensitive taxonomic assignment to metagenomic contigs.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4340,7 +4378,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('187 nodes available')).toBeVisible();
+  await expect(page.getByText('188 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4404,6 +4442,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mmseqs linsearch', name: 'MMseqs2 Easy Linsearch', category: 'alignment' },
     { query: 'mmseqs reciprocal best hit', name: 'MMseqs2 Easy RBH', category: 'alignment' },
     { query: 'mmseqs taxonomy LCA', name: 'MMseqs2 Easy Taxonomy', category: 'taxonomy' },
+    { query: 'filtertaxseqdb', name: 'MMseqs2 Taxonomy', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },
