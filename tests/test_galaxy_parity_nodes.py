@@ -450,6 +450,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["krakentools"],
             "doi": "10.1038/s41596-022-00738-y",
         },
+        "krakentools_kreport2mpa": {
+            "display_name": "Krakentools Kreport2MPA",
+            "category": "taxonomy",
+            "required_executables": ["kreport2mpa.py"],
+            "required_conda_packages": ["krakentools"],
+            "doi": "10.1038/s41596-022-00738-y",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -5171,6 +5178,43 @@ def test_krakentools_kreport2krona_renders_conversion_command_and_outputs(tmp_pa
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "krakentools_kreport2krona" / "krona_text.tsv",
+    ]
+
+
+def test_krakentools_kreport2mpa_renders_metaphlan_conversion_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("krakentools_kreport2mpa")
+    info = _registry().object_info()["krakentools_kreport2mpa"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["metaphlan_profile"]
+    assert info["citation_dois"] == ["10.1038/s41596-022-00738-y"]
+    assert info["citation_text"] == "Metagenome analysis using the Kraken software suite."
+    assert info["input"]["required"]["report"][0] == "TSV"
+    assert info["input"]["optional"]["intermediate_ranks"][1]["default"] is False
+    assert info["input"]["optional"]["percentages"][1]["default"] is False
+
+    assert node_class.render_command(
+        {
+            "report": "sample report.tabular",
+            "intermediate_ranks": True,
+            "percentages": True,
+            "output": "/work/krakentools_mpa",
+        }
+    ) == (
+        "kreport2mpa.py --report 'sample report.tabular' "
+        "--output /work/krakentools_mpa/metaphlan_profile.tsv "
+        "--intermediate-ranks --percentages"
+    )
+
+    assert node_class.render_command(
+        {
+            "report": "sample.tabular",
+            "output": "/work/krakentools_mpa",
+        }
+    ) == "kreport2mpa.py --report sample.tabular --output /work/krakentools_mpa/metaphlan_profile.tsv"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "krakentools_kreport2mpa" / "metaphlan_profile.tsv",
     ]
 
 
