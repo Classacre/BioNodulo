@@ -1825,6 +1825,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41587-023-01688-w'],
     citation_text: 'Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4.',
   },
+  extract_metaphlan_database: {
+    name: 'extract_metaphlan_database',
+    display_name: 'Extract MetaPhlAn DB',
+    category: 'metagenomics',
+    description: 'Reconstruct marker sequences and marker metadata from a cached MetaPhlAn BowTie2 database.',
+    search_aliases: ['Galaxy', 'MetaPhlAn', 'bowtie2-inspect', 'marker sequences', 'marker metadata', 'customizemetadata.py'],
+    input: {
+      required: {
+        database_path: { type: 'DIRECTORY' },
+        database_key: { type: 'STRING' },
+      },
+      optional: {
+        customizemetadata_script: { type: 'FILE', default: 'customizemetadata.py' },
+      },
+    },
+    output: ['FASTA', 'JSON'],
+    output_name: ['marker_sequences', 'marker_metadata'],
+    required_executables: ['bowtie2-inspect', 'python'],
+    required_conda_packages: ['metaphlan'],
+    documentation_url: 'https://github.com/biobakery/MetaPhlAn',
+    citation_dois: ['10.1038/s41587-023-01688-w'],
+    citation_urls: ['https://doi.org/10.1038/s41587-023-01688-w'],
+    citation_text: 'Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4701,7 +4725,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('200 nodes available')).toBeVisible();
+  await expect(page.getByText('201 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4778,6 +4802,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MetaPhlAn-style', name: 'Krakentools Kreport2MPA', category: 'taxonomy' },
     { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
+    { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },

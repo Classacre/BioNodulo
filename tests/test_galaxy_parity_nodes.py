@@ -471,6 +471,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["metaphlan"],
             "doi": "10.1038/s41587-023-01688-w",
         },
+        "extract_metaphlan_database": {
+            "display_name": "Extract MetaPhlAn DB",
+            "category": "metagenomics",
+            "required_executables": ["bowtie2-inspect", "python"],
+            "required_conda_packages": ["metaphlan"],
+            "doi": "10.1038/s41587-023-01688-w",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -5338,6 +5345,54 @@ def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path)
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "merge_metaphlan_tables" / "merged_metaphlan_tables.tsv",
+    ]
+
+
+def test_extract_metaphlan_database_renders_database_export_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("extract_metaphlan_database")
+    info = _registry().object_info()["extract_metaphlan_database"]
+
+    assert info["output"] == ["FASTA", "JSON"]
+    assert info["output_name"] == ["marker_sequences", "marker_metadata"]
+    assert info["citation_dois"] == ["10.1038/s41587-023-01688-w"]
+    assert info["citation_text"] == "Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4."
+    assert info["input"]["required"]["database_path"][0] == "DIRECTORY"
+    assert info["input"]["required"]["database_key"][0] == "STRING"
+    assert info["input"]["optional"]["customizemetadata_script"][0] == "FILE"
+    assert info["input"]["optional"]["customizemetadata_script"][1]["default"] == "customizemetadata.py"
+
+    assert node_class.render_command(
+        {
+            "database_path": "/db/metaphlan",
+            "database_key": "mpa_vJun23_CHOCOPhlAnSGB_202403",
+            "output": "/work/extract_metaphlan_database",
+        }
+    ) == (
+        "bowtie2-inspect /db/metaphlan/mpa_vJun23_CHOCOPhlAnSGB_202403 "
+        "> /work/extract_metaphlan_database/marker_sequences.fasta && "
+        "python customizemetadata.py transform_pkl_to_json "
+        "--pkl /db/metaphlan/mpa_vJun23_CHOCOPhlAnSGB_202403.pkl "
+        "--json /work/extract_metaphlan_database/marker_metadata.json"
+    )
+
+    assert node_class.render_command(
+        {
+            "database_path": "/db/metaphlan",
+            "database_key": "mpa_vJun23_CHOCOPhlAnSGB_202403",
+            "customizemetadata_script": "/opt/galaxy tools/customizemetadata.py",
+            "output": "/work/extract_metaphlan_database",
+        }
+    ) == (
+        "bowtie2-inspect /db/metaphlan/mpa_vJun23_CHOCOPhlAnSGB_202403 "
+        "> /work/extract_metaphlan_database/marker_sequences.fasta && "
+        "python '/opt/galaxy tools/customizemetadata.py' transform_pkl_to_json "
+        "--pkl /db/metaphlan/mpa_vJun23_CHOCOPhlAnSGB_202403.pkl "
+        "--json /work/extract_metaphlan_database/marker_metadata.json"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "extract_metaphlan_database" / "marker_sequences.fasta",
+        tmp_path / "extract_metaphlan_database" / "marker_metadata.json",
     ]
 
 
