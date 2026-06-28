@@ -436,6 +436,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["krakentools"],
             "doi": "10.1038/s41596-022-00738-y",
         },
+        "krakentools_beta_diversity": {
+            "display_name": "Krakentools Beta Diversity",
+            "category": "taxonomy",
+            "required_executables": ["beta_diversity.py"],
+            "required_conda_packages": ["krakentools"],
+            "doi": "10.1038/s41596-022-00738-y",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -5074,6 +5081,55 @@ def test_krakentools_alpha_diversity_renders_metric_command_and_outputs(tmp_path
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "krakentools_alpha_diversity" / "alpha_diversity.txt",
+    ]
+
+
+def test_krakentools_beta_diversity_renders_distance_matrix_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("krakentools_beta_diversity")
+    info = _registry().object_info()["krakentools_beta_diversity"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["beta_diversity"]
+    assert info["citation_dois"] == ["10.1038/s41596-022-00738-y"]
+    assert info["citation_text"] == "Metagenome analysis using the Kraken software suite."
+    assert info["input"]["required"]["taxonomy_files"][0] == "TSV"
+    assert info["input"]["required"]["taxonomy_files"][1]["multiple"] is True
+    assert info["input"]["optional"]["sample_type"][1]["default"] == "single"
+    assert info["input"]["optional"]["sample_type"][1]["options"] == ["single", "simple", "bracken", "kreport", "krona"]
+    assert info["input"]["optional"]["level"][1]["default"] == "all"
+    assert info["input"]["optional"]["level"][1]["options"] == ["all", "S", "G", "F", "O"]
+
+    assert node_class.render_command(
+        {
+            "taxonomy_files": ["beta kreport 1.tsv", "beta-kreport-2.tsv"],
+            "element_identifiers": ["Sample 1", "Sample#2"],
+            "sample_type": "kreport",
+            "level": "G",
+            "output": "/work/krakentools_beta",
+        }
+    ) == (
+        "ln -s 'beta kreport 1.tsv' Sample_1 && "
+        "ln -s beta-kreport-2.tsv Sample_2 && "
+        "beta_diversity.py --inputs Sample_1 Sample_2 --type kreport --level G "
+        "> /work/krakentools_beta/beta_diversity.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "inputs": ["bracken1.tsv", "bracken2.tsv"],
+            "sample_type": "bracken",
+            "level": "S",
+            "output": "/work/krakentools_beta",
+        }
+    ) == (
+        "ln -s bracken1.tsv bracken1.tsv && "
+        "ln -s bracken2.tsv bracken2.tsv && "
+        "beta_diversity.py --inputs bracken1.tsv bracken2.tsv --type bracken "
+        "> /work/krakentools_beta/beta_diversity.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "krakentools_beta_diversity" / "beta_diversity.tsv",
     ]
 
 

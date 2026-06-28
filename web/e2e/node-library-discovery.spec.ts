@@ -1694,6 +1694,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
     citation_text: 'Metagenome analysis using the Kraken software suite.',
   },
+  krakentools_beta_diversity: {
+    name: 'krakentools_beta_diversity',
+    display_name: 'Krakentools Beta Diversity',
+    category: 'taxonomy',
+    description: 'Calculate Bray-Curtis beta diversity from Kraken, Krona, Bracken, or tabular taxonomy files.',
+    search_aliases: ['Galaxy', 'krakentools', 'beta_diversity.py', 'beta diversity', 'Bray-Curtis', 'Krona file', 'Bracken abundance'],
+    input: {
+      required: {
+        taxonomy_files: { type: 'TSV', list: true },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], list: true },
+        sample_type: { type: 'STRING', default: 'single', options: ['single', 'simple', 'bracken', 'kreport', 'krona'] },
+        level: { type: 'STRING', default: 'all', options: ['all', 'S', 'G', 'F', 'O'] },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['beta_diversity'],
+    required_executables: ['beta_diversity.py'],
+    required_conda_packages: ['krakentools'],
+    documentation_url: 'https://github.com/jenniferlu717/KrakenTools',
+    citation_dois: ['10.1038/s41596-022-00738-y'],
+    citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
+    citation_text: 'Metagenome analysis using the Kraken software suite.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4570,7 +4595,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('195 nodes available')).toBeVisible();
+  await expect(page.getByText('196 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4642,6 +4667,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
+    { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },

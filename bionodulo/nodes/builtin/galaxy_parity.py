@@ -8339,6 +8339,111 @@ class KrakentoolsAlphaDiversityNode(CommandNode):
         }
 
 
+class KrakentoolsBetaDiversityNode(CommandNode):
+    """Calculate Bray-Curtis beta diversity from taxonomy tables."""
+
+    NODE_ID = "krakentools_beta_diversity"
+    DISPLAY_NAME = "Krakentools Beta Diversity"
+    REQUIRED_CONDA_PACKAGES = ["krakentools"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Calculate Bray-Curtis beta diversity from Kraken, Krona, Bracken, or tabular taxonomy files."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "krakentools",
+        "beta_diversity.py",
+        "beta diversity",
+        "Bray-Curtis",
+        "Krona file",
+        "Bracken abundance",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("beta_diversity",)
+    REQUIRED_EXECUTABLES = ["beta_diversity.py"]
+    DOCUMENTATION_URL = "https://github.com/jenniferlu717/KrakenTools"
+    CITATION_DOIS = [KRAKENTOOLS_DOI]
+    CITATION_URLS = [f"{DOI_URL}{KRAKENTOOLS_DOI}"]
+    CITATION_TEXT = KRAKENTOOLS_CITATION_TEXT
+    VERSION = "1.2.1"
+    SHELL = True
+
+    @classmethod
+    def _input_names(cls, inputs: dict[str, Any], taxonomy_files: list[str]) -> list[str]:
+        labels = _as_list(inputs.get("element_identifiers"))
+        names: list[str] = []
+        for index, taxonomy_file in enumerate(taxonomy_files):
+            label = labels[index] if index < len(labels) and labels[index] else taxonomy_file
+            names.append(_safe_identifier(label))
+        return names
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        taxonomy_files = _as_list(inputs.get("taxonomy_files", inputs.get("inputs")))
+        input_names = cls._input_names(inputs, taxonomy_files)
+        commands = [
+            f"ln -s {shlex.quote(taxonomy_file)} {shlex.quote(input_name)}"
+            for taxonomy_file, input_name in zip(taxonomy_files, input_names, strict=False)
+        ]
+
+        sample_type = str(inputs.get("sample_type", inputs.get("type", "single")))
+        cmd = [
+            "beta_diversity.py",
+            "--inputs",
+            *input_names,
+            "--type",
+            sample_type,
+        ]
+        if sample_type in {"kreport", "krona"}:
+            cmd.extend(["--level", str(inputs.get("level", "all"))])
+        _add_shell_redirect(cmd, f"{out}/beta_diversity.tsv")
+        commands.append(_shell_join(cmd))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "beta_diversity.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "taxonomy_files": (
+                    "TSV",
+                    {"multiple": True, "description": "Kraken, Krona, Bracken, or tabular taxonomy files"},
+                ),
+            },
+            "optional": {
+                "element_identifiers": (
+                    "STRING",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional sample labels used for beta diversity matrix headers",
+                    },
+                ),
+                "sample_type": (
+                    "STRING",
+                    {
+                        "default": "single",
+                        "options": ["single", "simple", "bracken", "kreport", "krona"],
+                        "description": "Input file type used by KrakenTools beta_diversity.py",
+                    },
+                ),
+                "level": (
+                    "STRING",
+                    {
+                        "default": "all",
+                        "options": ["all", "S", "G", "F", "O"],
+                        "description": "Taxonomic level used for Kraken report or Krona inputs",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class Kaiju2TableNode(CommandNode):
     """Summarize Kaiju classifications by taxonomic rank."""
 
