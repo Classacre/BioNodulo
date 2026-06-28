@@ -4405,6 +4405,80 @@ class HMMERAlimaskNode(CommandNode):
         }
 
 
+class HMMERHmmalignNode(CommandNode):
+    """Align sequences to a profile HMM using hmmalign."""
+
+    NODE_ID = "hmmer_hmmalign"
+    DISPLAY_NAME = "HMMER hmmalign"
+    REQUIRED_CONDA_PACKAGES = ["hmmer"]
+    CATEGORY = "alignment"
+    DESCRIPTION = "Align sequences to a profile HMM and write a Stockholm alignment."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "hmmalign",
+        "profile HMM alignment",
+        "Stockholm alignment",
+    ]
+    RETURN_TYPES = ("ALIGNMENT",)
+    RETURN_NAMES = ("alignment",)
+    REQUIRED_EXECUTABLES = ["hmmalign"]
+    DOCUMENTATION_URL = "http://hmmer.org/documentation.html"
+    CITATION_DOIS = ["10.1093/nar/gkr367"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkr367"]
+    CITATION_TEXT = "HMMER web server: interactive sequence similarity searching."
+    VERSION = "3.4"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["hmmalign"]
+        if inputs.get("trim"):
+            cmd.append("--trim")
+        input_format = str(inputs.get("input_format_select", "--amino"))
+        if input_format:
+            cmd.append(input_format)
+        cmd.extend([
+            "--outformat",
+            "stockholm",
+            str(inputs.get("hmmfile", "")),
+            str(inputs.get("seq", "")),
+        ])
+        _add_shell_redirect(cmd, f"{out}/alignment.sto")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "alignment.sto"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "seq": ("FASTA", {"description": "FASTA sequences to align against the profile HMM"}),
+                "hmmfile": ("FILE", {"description": "Single-profile HMM model"}),
+                "input_format_select": (
+                    "STRING",
+                    {
+                        "default": "--amino",
+                        "options": ["--amino", "--dna", "--rna"],
+                        "description": "Alphabet for the sequences and model",
+                    },
+                ),
+            },
+            "optional": {
+                "trim": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Trim terminal nonaligned residues from the Stockholm alignment"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 

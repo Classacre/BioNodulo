@@ -254,6 +254,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["diamond"],
             "doi": "10.1038/s41592-021-01101-x",
         },
+        "hmmer_hmmalign": {
+            "display_name": "HMMER hmmalign",
+            "category": "alignment",
+            "required_executables": ["hmmalign"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/nar/gkr367",
+        },
         "hmmer_alimask": {
             "display_name": "HMMER alimask",
             "category": "annotation",
@@ -2583,6 +2590,55 @@ def test_hmmer_alimask_renders_mask_ranges_and_output(tmp_path: Path) -> None:
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_alimask" / "masked.sto"]
+
+
+def test_hmmer_hmmalign_renders_stockholm_alignment_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_hmmalign")
+    info = _registry().object_info()["hmmer_hmmalign"]
+
+    assert info["output"] == ["ALIGNMENT"]
+    assert info["output_name"] == ["alignment"]
+    assert "10.1093/nar/gkr367" in info["citation_dois"]
+    assert info["input"]["required"]["input_format_select"][1]["options"] == ["--amino", "--dna", "--rna"]
+    assert node_class.render_command(
+        {
+            "seq": "globins45.fa",
+            "hmmfile": "globins4.hmm",
+            "trim": True,
+            "input_format_select": "--amino",
+            "output": "/work/hmmalign",
+        }
+    ) == [
+        "hmmalign",
+        "--trim",
+        "--amino",
+        "--outformat",
+        "stockholm",
+        "globins4.hmm",
+        "globins45.fa",
+        ">",
+        "/work/hmmalign/alignment.sto",
+    ]
+
+    assert node_class.render_command(
+        {
+            "seq": "reads.fasta",
+            "hmmfile": "model.hmm",
+            "trim": False,
+            "input_format_select": "--rna",
+            "output": "/work/hmmalign",
+        }
+    ) == [
+        "hmmalign",
+        "--rna",
+        "--outformat",
+        "stockholm",
+        "model.hmm",
+        "reads.fasta",
+        ">",
+        "/work/hmmalign/alignment.sto",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_hmmalign" / "alignment.sto"]
 
 
 def test_hmmer_nodes_render_table_outputs() -> None:
