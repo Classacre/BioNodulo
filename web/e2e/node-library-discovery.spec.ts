@@ -940,6 +940,37 @@ const objectInfo = {
     citation_dois: ['10.1093/nar/gkr367'],
     citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
   },
+  hmmer_alimask: {
+    name: 'hmmer_alimask',
+    display_name: 'HMMER alimask',
+    category: 'annotation',
+    description: 'Append a mask line to a multiple sequence alignment using HMMER alimask.',
+    search_aliases: ['Galaxy', 'hmmer', 'alimask', 'alignment mask', 'model range', 'Stockholm alignment'],
+    input: {
+      required: {
+        msafile: { type: 'ALIGNMENT' },
+        range_type: { type: 'STRING', default: 'model', options: ['model', 'ali'] },
+        ranges: { type: 'STRING', list: true },
+      },
+      optional: {
+        input_format: { type: 'STRING', default: '--amino', options: ['--amino', '--dna', '--rna'] },
+        model_construction: { type: 'STRING', default: 'fast', options: ['fast', 'hand'] },
+        symfrac: { type: 'FLOAT', default: 0.5, displayOptions: { show: { model_construction: ['fast'] } } },
+        fragthresh: { type: 'FLOAT', default: 0.5 },
+        relative_weighting: { type: 'STRING', default: '--wpb', options: ['--wpb', '--wgsc', '--wblosum', '--wnone', '--wgiven'] },
+        wid: { type: 'FLOAT', default: 0.62, displayOptions: { show: { relative_weighting: ['--wblosum'] } } },
+        seed: { type: 'INT', default: 42 },
+      },
+    },
+    output: ['ALIGNMENT'],
+    output_name: ['masked_alignment'],
+    required_executables: ['alimask'],
+    required_conda_packages: ['hmmer'],
+    documentation_url: 'http://hmmer.org/documentation.html',
+    citation_dois: ['10.1093/nar/gkr367'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
+    citation_text: 'HMMER web server: interactive sequence similarity searching.',
+  },
   mmseqs2_easy_search: {
     name: 'mmseqs2_easy_search',
     display_name: 'MMseqs2 Easy Search',
@@ -3833,7 +3864,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('172 nodes available')).toBeVisible();
+  await expect(page.getByText('173 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3881,6 +3912,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
+    { query: 'hmmer alignment mask', name: 'HMMER alimask', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },

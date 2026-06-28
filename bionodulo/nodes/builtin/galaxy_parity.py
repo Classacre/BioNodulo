@@ -4278,6 +4278,133 @@ class DiamondAlignNode(CommandNode):
         }
 
 
+class HMMERAlimaskNode(CommandNode):
+    """Apply an HMMER model or alignment coordinate mask to an MSA."""
+
+    NODE_ID = "hmmer_alimask"
+    DISPLAY_NAME = "HMMER alimask"
+    REQUIRED_CONDA_PACKAGES = ["hmmer"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Append a mask line to a multiple sequence alignment using HMMER alimask."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "alimask",
+        "alignment mask",
+        "model range",
+        "Stockholm alignment",
+    ]
+    RETURN_TYPES = ("ALIGNMENT",)
+    RETURN_NAMES = ("masked_alignment",)
+    REQUIRED_EXECUTABLES = ["alimask"]
+    DOCUMENTATION_URL = "http://hmmer.org/documentation.html"
+    CITATION_DOIS = ["10.1093/nar/gkr367"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkr367"]
+    CITATION_TEXT = "HMMER web server: interactive sequence similarity searching."
+    VERSION = "3.4"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        range_flag = "--alirange" if str(inputs.get("range_type", "model")) == "ali" else "--modelrange"
+        cmd = [
+            "alimask",
+            range_flag,
+            ",".join(_as_list(inputs.get("ranges"))),
+        ]
+        input_format = str(inputs.get("input_format", "--amino"))
+        if input_format:
+            cmd.append(input_format)
+        model_construction = str(inputs.get("model_construction", "fast"))
+        if model_construction:
+            cmd.append(model_construction if model_construction.startswith("--") else f"--{model_construction}")
+        if model_construction in {"fast", "--fast"}:
+            _add_if_value(cmd, "--symfrac", inputs.get("symfrac", 0.5))
+        _add_if_value(cmd, "--fragthresh", inputs.get("fragthresh", 0.5))
+        relative_weighting = str(inputs.get("relative_weighting", "--wpb"))
+        if relative_weighting:
+            cmd.append(relative_weighting)
+        if relative_weighting == "--wblosum":
+            _add_if_value(cmd, "--wid", inputs.get("wid", 0.62))
+        _add_if_value(cmd, "--seed", inputs.get("seed", 42))
+        cmd.extend([str(inputs.get("msafile", "")), f"{out}/masked.sto"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "masked.sto"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "msafile": ("ALIGNMENT", {"description": "Multiple sequence alignment to mask"}),
+                "range_type": (
+                    "STRING",
+                    {
+                        "default": "model",
+                        "options": ["model", "ali"],
+                        "description": "Interpret ranges in model or alignment coordinates",
+                    },
+                ),
+                "ranges": (
+                    "STRING",
+                    {"list": True, "description": "One or more inclusive ranges such as 12-40"},
+                ),
+            },
+            "optional": {
+                "input_format": (
+                    "STRING",
+                    {"default": "--amino", "options": ["--amino", "--dna", "--rna"], "description": "Alignment alphabet"},
+                ),
+                "model_construction": (
+                    "STRING",
+                    {
+                        "default": "fast",
+                        "options": ["fast", "hand"],
+                        "description": "How alimask chooses consensus columns for model-coordinate ranges",
+                    },
+                ),
+                "symfrac": (
+                    "FLOAT",
+                    {
+                        "default": 0.5,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Residue fraction threshold for fast consensus-column assignment",
+                        "displayOptions": {"show": {"model_construction": ["fast"]}},
+                    },
+                ),
+                "fragthresh": (
+                    "FLOAT",
+                    {"default": 0.5, "min": 0, "max": 1, "description": "Sequence-length fraction below which sequences are fragments"},
+                ),
+                "relative_weighting": (
+                    "STRING",
+                    {
+                        "default": "--wpb",
+                        "options": ["--wpb", "--wgsc", "--wblosum", "--wnone", "--wgiven"],
+                        "description": "Relative sequence weighting strategy",
+                    },
+                ),
+                "wid": (
+                    "FLOAT",
+                    {
+                        "default": 0.62,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Identity cutoff for BLOSUM-style weighting",
+                        "displayOptions": {"show": {"relative_weighting": ["--wblosum"]}},
+                    },
+                ),
+                "seed": ("INT", {"default": 42, "min": 0, "description": "Random seed; 0 chooses a random seed"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 

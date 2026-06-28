@@ -254,6 +254,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["diamond"],
             "doi": "10.1038/s41592-021-01101-x",
         },
+        "hmmer_alimask": {
+            "display_name": "HMMER alimask",
+            "category": "annotation",
+            "required_executables": ["alimask"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/nar/gkr367",
+        },
         "hmmer_hmmsearch": {
             "display_name": "HMMER hmmsearch",
             "category": "annotation",
@@ -2501,6 +2508,81 @@ def test_diamond_nodes_render_database_and_alignment_commands(tmp_path: Path) ->
         "--min-orf",
         "20",
     ]
+
+
+def test_hmmer_alimask_renders_mask_ranges_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_alimask")
+    info = _registry().object_info()["hmmer_alimask"]
+
+    assert info["output"] == ["ALIGNMENT"]
+    assert info["output_name"] == ["masked_alignment"]
+    assert "10.1093/nar/gkr367" in info["citation_dois"]
+    assert info["input"]["optional"]["symfrac"][1]["displayOptions"] == {
+        "show": {"model_construction": ["fast"]},
+    }
+    assert info["input"]["optional"]["wid"][1]["displayOptions"] == {
+        "show": {"relative_weighting": ["--wblosum"]},
+    }
+    assert node_class.render_command(
+        {
+            "msafile": "globins.sto",
+            "range_type": "model",
+            "ranges": ["10-20", "45-60"],
+            "input_format": "--amino",
+            "model_construction": "fast",
+            "symfrac": 0.45,
+            "fragthresh": 0.7,
+            "relative_weighting": "--wblosum",
+            "wid": 0.8,
+            "seed": 4,
+            "output": "/work/alimask",
+        }
+    ) == [
+        "alimask",
+        "--modelrange",
+        "10-20,45-60",
+        "--amino",
+        "--fast",
+        "--symfrac",
+        "0.45",
+        "--fragthresh",
+        "0.7",
+        "--wblosum",
+        "--wid",
+        "0.8",
+        "--seed",
+        "4",
+        "globins.sto",
+        "/work/alimask/masked.sto",
+    ]
+
+    assert node_class.render_command(
+        {
+            "msafile": "globins.sto",
+            "range_type": "ali",
+            "ranges": ["5-15"],
+            "input_format": "--dna",
+            "model_construction": "hand",
+            "relative_weighting": "--wpb",
+            "seed": 42,
+            "output": "/work/alimask",
+        }
+    ) == [
+        "alimask",
+        "--alirange",
+        "5-15",
+        "--dna",
+        "--hand",
+        "--fragthresh",
+        "0.5",
+        "--wpb",
+        "--seed",
+        "42",
+        "globins.sto",
+        "/work/alimask/masked.sto",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_alimask" / "masked.sto"]
 
 
 def test_hmmer_nodes_render_table_outputs() -> None:
