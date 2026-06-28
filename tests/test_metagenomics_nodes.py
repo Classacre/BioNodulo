@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bionodulo.nodes.builtin.metagenomics import BrackenNode, HUMAnNNode, MetaPhlAnNode
+from bionodulo.nodes.builtin.metagenomics import BrackenNode, HUMAnNNode, Kraken2Node, MetaPhlAnNode
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -8,6 +8,116 @@ def _object_info(node_id: str) -> dict:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     return registry.object_info()[node_id]
+
+
+def test_kraken2_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:
+    info = _object_info("kraken2")
+
+    assert info["display_name"] == "Kraken2"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Assign taxonomic labels to sequencing reads with Kraken2."
+    assert info["output"] == ["KRAKEN_OUTPUT", "KRAKEN_REPORT", "FASTQ", "FASTQ", "DIRECTORY", "DIRECTORY"]
+    assert info["output_name"] == [
+        "output",
+        "report",
+        "classified_reads",
+        "unclassified_reads",
+        "classified_read_pairs",
+        "unclassified_read_pairs",
+    ]
+    assert info["required_executables"] == ["kraken2"]
+    assert info["required_conda_packages"] == ["kraken2"]
+    assert info["documentation_url"] == "https://ccb.jhu.edu/software/kraken2/"
+    assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/gb-2014-15-3-r46"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "classified reads" in info["search_aliases"]
+
+    assert info["input"]["required"]["db"][0] == "DIRECTORY"
+    assert info["input"]["required"]["reads"][0] == "FILE"
+    assert info["input"]["optional"]["single_paired_selector"][1]["options"] == ["no", "collection"]
+    assert info["input"]["optional"]["input_ext"][1]["options"] == [
+        "fasta",
+        "fasta.gz",
+        "fasta.bz2",
+        "fastq",
+        "fastq.gz",
+        "fastq.bz2",
+    ]
+    assert info["input"]["optional"]["create_report"][1]["default"] is True
+    assert info["input"]["optional"]["split_reads"][1]["default"] is False
+    assert info["input"]["optional"]["report_minimizer_data"][1]["default"] is False
+    assert info["input"]["optional"]["min_base_quality"][1]["default"] == 0
+
+
+def test_kraken2_renders_single_read_command_and_dynamic_outputs(tmp_path: Path) -> None:
+    cmd = Kraken2Node.render_command(
+        {
+            "reads": "reads.fa",
+            "db": "/db/kraken2",
+            "single_paired_selector": "no",
+            "quick": True,
+            "confidence": 0.2,
+            "min_base_quality": 15,
+            "minimum_hit_groups": 3,
+            "use_names": True,
+            "create_report": True,
+            "use_mpa_style": True,
+            "report_zero_counts": True,
+            "report_minimizer_data": True,
+            "threads": 4,
+            "output": "/work/kraken2",
+        }
+    )
+
+    assert cmd == (
+        "kraken2 --threads 4 --db /db/kraken2 --quick reads.fa "
+        "--confidence 0.2 --minimum-base-quality 15 --minimum-hit-groups 3 --use-names "
+        "--report /work/kraken2/report.kreport --use-mpa-style --report-zero-counts "
+        "--report-minimizer-data > /work/kraken2/output.kraken"
+    )
+    assert Kraken2Node.PLAN_OUTPUTS({"create_report": True}, tmp_path) == [
+        tmp_path / "kraken2" / "output.kraken",
+        tmp_path / "kraken2" / "report.kreport",
+    ]
+
+
+def test_kraken2_renders_paired_split_reads_and_validates_inputs(tmp_path: Path) -> None:
+    cmd = Kraken2Node.render_command(
+        {
+            "reads": ["R1.fastq.gz", "R2.fastq.gz"],
+            "db": "/db/kraken2",
+            "single_paired_selector": "collection",
+            "split_reads": True,
+            "input_ext": "fastq.gz",
+            "create_report": True,
+            "confidence": 0,
+            "threads": 2,
+            "output": "/work/kraken2",
+        }
+    )
+
+    assert cmd == (
+        "kraken2 --threads 2 --db /db/kraken2 --paired R1.fastq.gz R2.fastq.gz "
+        "--unclassified-out 'un_out#' --classified-out 'cl_out#' --confidence 0 "
+        "--minimum-base-quality 0 --minimum-hit-groups 2 --report /work/kraken2/report.kreport "
+        "> /work/kraken2/output.kraken && mkdir -p /work/kraken2/classified_read_pairs "
+        "/work/kraken2/unclassified_read_pairs && gzip -c un_out_1 > "
+        "/work/kraken2/unclassified_read_pairs/forward.fastq.gz && gzip -c un_out_2 > "
+        "/work/kraken2/unclassified_read_pairs/reverse.fastq.gz && gzip -c cl_out_1 > "
+        "/work/kraken2/classified_read_pairs/forward.fastq.gz && gzip -c cl_out_2 > "
+        "/work/kraken2/classified_read_pairs/reverse.fastq.gz"
+    )
+    assert Kraken2Node.PLAN_OUTPUTS({"create_report": True, "split_reads": True, "single_paired_selector": "collection"}, tmp_path) == [
+        tmp_path / "kraken2" / "output.kraken",
+        tmp_path / "kraken2" / "report.kreport",
+        tmp_path / "kraken2" / "classified_read_pairs",
+        tmp_path / "kraken2" / "unclassified_read_pairs",
+    ]
+    assert Kraken2Node.VALIDATE_INPUTS({"db": "/db/kraken2", "single_paired_selector": "collection", "reads": ["R1.fastq"]}) == (
+        "Paired Kraken2 input requires two read files"
+    )
+    assert Kraken2Node.VALIDATE_INPUTS({"reads": "reads.fa"}) == "db is required"
 
 
 def test_bracken_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:

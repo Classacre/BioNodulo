@@ -1646,6 +1646,45 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/ncomms11257'],
     citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
   },
+  kraken2: {
+    name: 'kraken2',
+    display_name: 'Kraken2',
+    category: 'metagenomics',
+    description: 'Assign taxonomic labels to sequencing reads with Kraken2.',
+    search_aliases: ['Galaxy', 'Kraken2', 'taxonomic classification', 'classified reads', 'unclassified reads', 'Kraken report', 'MPA style report', 'minimizer data'],
+    input: {
+      required: {
+        db: { type: 'DIRECTORY' },
+        reads: { type: 'FILE' },
+        threads: { type: 'INT', default: 8 },
+      },
+      optional: {
+        single_paired_selector: { type: 'STRING', default: 'no', options: ['no', 'collection'] },
+        r1: { type: 'FASTQ', default: '' },
+        r2: { type: 'FASTQ', default: '' },
+        input_ext: { type: 'STRING', default: 'fastq', options: ['fasta', 'fasta.gz', 'fasta.bz2', 'fastq', 'fastq.gz', 'fastq.bz2'] },
+        use_names: { type: 'BOOLEAN', default: false },
+        confidence: { type: 'FLOAT', default: 0 },
+        min_base_quality: { type: 'INT', default: 0 },
+        minimum_hit_groups: { type: 'INT', default: 2 },
+        quick: { type: 'BOOLEAN', default: false },
+        split_reads: { type: 'BOOLEAN', default: false },
+        create_report: { type: 'BOOLEAN', default: true },
+        use_mpa_style: { type: 'BOOLEAN', default: false },
+        report_zero_counts: { type: 'BOOLEAN', default: false },
+        report_minimizer_data: { type: 'BOOLEAN', default: false },
+        memory_mapping: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['KRAKEN_OUTPUT', 'KRAKEN_REPORT', 'FASTQ', 'FASTQ', 'DIRECTORY', 'DIRECTORY'],
+    output_name: ['output', 'report', 'classified_reads', 'unclassified_reads', 'classified_read_pairs', 'unclassified_read_pairs'],
+    required_executables: ['kraken2'],
+    required_conda_packages: ['kraken2'],
+    documentation_url: 'https://ccb.jhu.edu/software/kraken2/',
+    citation_dois: ['10.1186/gb-2014-15-3-r46'],
+    citation_urls: ['https://doi.org/10.1186/gb-2014-15-3-r46'],
+    citation_text: 'Kraken: ultrafast metagenomic sequence classification using exact alignments.',
+  },
   metaphlan: {
     name: 'metaphlan',
     display_name: 'MetaPhlAn',
@@ -4899,7 +4938,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('205 nodes available')).toBeVisible();
+  await expect(page.getByText('206 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4969,6 +5008,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Krona import', name: 'Kaiju2Krona', category: 'taxonomy' },
     { query: 'conflict resolution', name: 'Kaiju Merge Outputs', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
+    { query: 'minimizer data', name: 'Kraken2', category: 'metagenomics' },
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },
     { query: 'Kraken-style Bracken report', name: 'Bracken', category: 'metagenomics' },
