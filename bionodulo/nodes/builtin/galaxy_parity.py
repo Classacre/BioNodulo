@@ -8794,6 +8794,87 @@ class KrakenFilterNode(CommandNode):
         }
 
 
+class KrakenTranslateNode(CommandNode):
+    """Convert classic Kraken taxonomy IDs to lineage names."""
+
+    NODE_ID = "kraken_translate"
+    DISPLAY_NAME = "Kraken Translate"
+    REQUIRED_CONDA_PACKAGES = ["kraken"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Convert Kraken taxonomy IDs into taxonomic lineage names."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Kraken Translate",
+        "kraken-translate",
+        "taxonomy labels",
+        "lineage names",
+        "MPA format",
+        "standard ranks",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("translated",)
+    REQUIRED_EXECUTABLES = ["kraken-translate"]
+    DOCUMENTATION_URL = "http://ccb.jhu.edu/software/kraken/"
+    CITATION_DOIS = ["10.1186/gb-2014-15-3-r46"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/gb-2014-15-3-r46"]
+    CITATION_TEXT = "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+    VERSION = "1.3.1"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/translated.tsv"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("db", "")).strip():
+            return "Kraken database is required"
+        if not str(inputs.get("input", "")).strip():
+            return "Kraken classification output is required"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "kraken-translate",
+            "--db",
+            str(inputs.get("db", "")),
+        ]
+        if inputs.get("mpa_format", False):
+            cmd.append("--mpa-format")
+        cmd.append(str(inputs.get("input", "")))
+        _add_shell_redirect(cmd, cls._output_path(inputs))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "translated.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": (
+                    "TSV",
+                    {"description": "Taxonomy classification produced by Kraken"},
+                ),
+                "db": ("DIRECTORY", {"description": "Kraken database used for the original classification"}),
+            },
+            "optional": {
+                "mpa_format": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Restrict labels to standard rank assignments in MPA format",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
 KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
 METAPHLAN_DOI = "10.1038/s41587-023-01688-w"

@@ -443,6 +443,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kraken"],
             "doi": "10.1186/gb-2014-15-3-r46",
         },
+        "kraken_translate": {
+            "display_name": "Kraken Translate",
+            "category": "metagenomics",
+            "required_executables": ["kraken-translate"],
+            "required_conda_packages": ["kraken"],
+            "doi": "10.1186/gb-2014-15-3-r46",
+        },
         "krakentools_combine_kreports": {
             "display_name": "Krakentools Combine Kraken Reports",
             "category": "taxonomy",
@@ -5331,6 +5338,73 @@ def test_kraken_filter_validates_wrapper_inputs() -> None:
         "Confidence threshold must be between 0 and 1"
     )
     assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input": "classification.kraken", "threshold": 0.5}) is True
+
+
+def test_kraken_translate_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["kraken_translate"]
+
+    assert info["display_name"] == "Kraken Translate"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Convert Kraken taxonomy IDs into taxonomic lineage names."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "Kraken Translate",
+        "kraken-translate",
+        "taxonomy labels",
+        "lineage names",
+        "MPA format",
+        "standard ranks",
+    ]
+    assert info["version"] == "1.3.1"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["translated"]
+    assert info["required_executables"] == ["kraken-translate"]
+    assert info["required_conda_packages"] == ["kraken"]
+    assert info["documentation_url"] == "http://ccb.jhu.edu/software/kraken/"
+    assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
+    assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["description"] == "Taxonomy classification produced by Kraken"
+    assert info["input"]["required"]["db"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["mpa_format"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["mpa_format"][1]["default"] is False
+
+
+def test_kraken_translate_renders_translation_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kraken_translate")
+
+    assert node_class.render_command(
+        {
+            "input": "sample classification.kraken",
+            "db": "/db/mini kraken",
+            "mpa_format": True,
+            "output": "/work/kraken_translate",
+        }
+    ) == (
+        "kraken-translate --db '/db/mini kraken' --mpa-format 'sample classification.kraken' "
+        "> /work/kraken_translate/translated.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "classification.kraken",
+            "db": "/db/kraken",
+            "output": "/work/kraken_translate",
+        }
+    ) == "kraken-translate --db /db/kraken classification.kraken > /work/kraken_translate/translated.tsv"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kraken_translate" / "translated.tsv",
+    ]
+
+
+def test_kraken_translate_validates_wrapper_inputs() -> None:
+    node_class = _node_class("kraken_translate")
+
+    assert node_class.VALIDATE_INPUTS({"input": "classification.kraken"}) == "Kraken database is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken"}) == "Kraken classification output is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input": "classification.kraken"}) is True
 
 
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
