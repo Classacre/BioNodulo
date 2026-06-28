@@ -345,6 +345,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["mmseqs2"],
             "doi": "10.1038/nbt.3988",
         },
+        "mmseqs2_easy_cluster": {
+            "display_name": "MMseqs2 Easy Cluster",
+            "category": "clustering",
+            "required_executables": ["mmseqs"],
+            "required_conda_packages": ["mmseqs2"],
+            "doi": "10.1038/nbt.3988",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -3766,6 +3773,110 @@ def test_mmseqs2_easy_search_renders_sensitive_search_command() -> None:
         "2",
         "--threads",
         "8",
+    ]
+
+
+def test_mmseqs2_easy_cluster_renders_cascaded_cluster_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("mmseqs2_easy_cluster")
+    info = _registry().object_info()["mmseqs2_easy_cluster"]
+
+    assert info["output"] == ["FASTA", "FASTA", "TSV"]
+    assert info["output_name"] == ["representative_sequences", "clustered_sequences", "cluster_tsv"]
+    assert "10.1038/nbt.3988" in info["citation_dois"]
+    assert info["input"]["required"]["input_fasta"][0] == "FASTA"
+    assert info["input"]["optional"]["dbtype"][1]["options"] == ["0", "1", "2"]
+    assert info["input"]["optional"]["min_seq_id"][1]["default"] == 0.3
+    assert info["input"]["optional"]["cov"][1]["default"] == 0.8
+    assert info["input"]["optional"]["output_selection"][1]["default"] == [
+        "file_rep_seq",
+        "file_all_seq",
+        "file_cluster_tsv",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_fasta": "proteins.fasta.gz",
+            "dbtype": "1",
+            "comp_bias_corr_scale": 0.7,
+            "add_self_matches": 1,
+            "kmer_length": 6,
+            "mask": 0,
+            "mask_prob": 0.75,
+            "mask_lower_case": 1,
+            "mask_n_repeat": 3,
+            "spaced_kmer_mode": 0,
+            "sensitivity": 7.5,
+            "max_seqs": 500,
+            "split": 2,
+            "split_mode": 1,
+            "diag_score": 0,
+            "exact_kmer_matching": 1,
+            "min_ungapped_score": 20,
+            "convertalis": 1,
+            "alignment_output_mode": 3,
+            "wrapped_scoring": 1,
+            "min_aln_len": 40,
+            "seq_id_mode": 1,
+            "alt_ali": 2,
+            "score_bias": 0.4,
+            "realign": 1,
+            "realign_score_bias": -0.1,
+            "realign_max_seqs": 5000,
+            "corr_score_weight": 0.2,
+            "alignment_mode": 3,
+            "evalue": 1e-6,
+            "min_seq_id": 0.55,
+            "cov": 0.9,
+            "cov_mode": 2,
+            "max_rejected": 200,
+            "max_accept": 150,
+            "cluster_mode": 2,
+            "max_iterations": 100,
+            "similarity_type": 1,
+            "rescore_mode": 2,
+            "shuffle": 0,
+            "id_offset": 10,
+            "threads": 12,
+            "max_seq_len": 50000,
+            "filter_hits": 1,
+            "sort_results": 1,
+            "output": "/work/mmseqs_cluster",
+        }
+    ) == (
+        "ln -sf proteins.fasta.gz input.fasta.gz && "
+        "mmseqs easy-cluster input.fasta.gz /work/mmseqs_cluster/result /work/mmseqs_cluster/tmp "
+        "--comp-bias-corr-scale 0.7 --dbtype 1 --add-self-matches 1 -k 6 --mask 0 "
+        "--mask-prob 0.75 --mask-lower-case 1 --mask-n-repeat 3 --spaced-kmer-mode 0 "
+        "-s 7.5 --max-seqs 500 --split 2 --split-mode 1 --diag-score 0 "
+        "--exact-kmer-matching 1 --min-ungapped-score 20 -a 1 --alignment-output-mode 3 "
+        "--wrapped-scoring 1 --min-aln-len 40 --seq-id-mode 1 --alt-ali 2 --score-bias 0.4 "
+        "--realign 1 --realign-score-bias -0.1 --realign-max-seqs 5000 --corr-score-weight 0.2 "
+        "--alignment-mode 3 -e 1e-06 --min-seq-id 0.55 -c 0.9 --cov-mode 2 --max-rejected 200 "
+        "--max-accept 150 --cluster-mode 2 --max-iterations 100 --similarity-type 1 "
+        "--rescore-mode 2 --shuffle 0 --id-offset 10 --threads 12 --max-seq-len 50000 "
+        "--filter-hits 1 --sort-results 1"
+    )
+    assert node_class.render_command(
+        {
+            "input_fasta": "contigs.fa",
+            "dbtype": "2",
+            "zdrop": 80,
+            "threads": 1,
+            "output": "/work/mmseqs_cluster",
+        }
+    ).startswith(
+        "ln -sf contigs.fa input.fa && "
+        "mmseqs easy-cluster input.fa /work/mmseqs_cluster/result /work/mmseqs_cluster/tmp "
+        "--zdrop 80 --dbtype 2"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_cluster" / "result_rep_seq.fasta",
+        tmp_path / "mmseqs2_easy_cluster" / "result_all_seqs.fasta",
+        tmp_path / "mmseqs2_easy_cluster" / "result_cluster.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_selection": ["file_rep_seq", "file_cluster_tsv"]}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_cluster" / "result_rep_seq.fasta",
+        tmp_path / "mmseqs2_easy_cluster" / "result_cluster.tsv",
     ]
 
 

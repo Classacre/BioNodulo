@@ -5993,6 +5993,281 @@ class MMseqs2EasySearchNode(CommandNode):
         }
 
 
+class MMseqs2EasyClusterNode(CommandNode):
+    """Cluster protein or nucleotide sequences with MMseqs2 easy-cluster."""
+
+    NODE_ID = "mmseqs2_easy_cluster"
+    DISPLAY_NAME = "MMseqs2 Easy Cluster"
+    REQUIRED_CONDA_PACKAGES = ["mmseqs2"]
+    CATEGORY = "clustering"
+    DESCRIPTION = "Cluster protein or nucleotide sequences with MMseqs2 cascaded clustering."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "mmseqs2",
+        "mmseqs",
+        "easy-cluster",
+        "cascaded clustering",
+        "sequence clustering",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTA", "TSV")
+    RETURN_NAMES = ("representative_sequences", "clustered_sequences", "cluster_tsv")
+    REQUIRED_EXECUTABLES = ["mmseqs"]
+    DOCUMENTATION_URL = "https://github.com/soedinglab/MMseqs2/wiki"
+    CITATION_DOIS = MMseqs2EasySearchNode.CITATION_DOIS
+    CITATION_URLS = MMseqs2EasySearchNode.CITATION_URLS
+    CITATION_TEXT = MMseqs2EasySearchNode.CITATION_TEXT
+    VERSION = MMseqs2EasySearchNode.VERSION
+    SHELL = True
+
+    @classmethod
+    def _input_link_name(cls, input_fasta: Any) -> str:
+        suffixes = Path(str(input_fasta or "")).suffixes
+        if suffixes[-2:] == [".fasta", ".gz"]:
+            return "input.fasta.gz"
+        if suffixes[-2:] == [".fa", ".gz"]:
+            return "input.fa.gz"
+        if suffixes and suffixes[-1].lower() in {".fasta", ".fa", ".faa", ".fna", ".ffn", ".gz"}:
+            return f"input{suffixes[-1].lower()}"
+        return "input.fasta"
+
+    @classmethod
+    def _add_dbtype_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        dbtype = str(inputs.get("dbtype", "0"))
+        if dbtype == "1":
+            _add_if_value(cmd, "--comp-bias-corr-scale", inputs.get("comp_bias_corr_scale", 1))
+        elif dbtype == "2":
+            _add_if_value(cmd, "--zdrop", inputs.get("zdrop", 40))
+        cmd.extend(["--dbtype", dbtype])
+
+    @classmethod
+    def _add_prefilter_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--add-self-matches",
+                str(inputs.get("add_self_matches", 0)),
+                "-k",
+                str(inputs.get("kmer_length", 0)),
+                "--mask",
+                str(inputs.get("mask", 1)),
+                "--mask-prob",
+                str(inputs.get("mask_prob", 0.9)),
+                "--mask-lower-case",
+                str(inputs.get("mask_lower_case", 0)),
+                "--mask-n-repeat",
+                str(inputs.get("mask_n_repeat", 0)),
+                "--spaced-kmer-mode",
+                str(inputs.get("spaced_kmer_mode", 1)),
+                "-s",
+                str(inputs.get("sensitivity", 5.7)),
+                "--max-seqs",
+                str(inputs.get("max_seqs", 300)),
+                "--split",
+                str(inputs.get("split", 0)),
+                "--split-mode",
+                str(inputs.get("split_mode", 2)),
+                "--diag-score",
+                str(inputs.get("diag_score", 1)),
+                "--exact-kmer-matching",
+                str(inputs.get("exact_kmer_matching", 0)),
+                "--min-ungapped-score",
+                str(inputs.get("min_ungapped_score", 15)),
+            ]
+        )
+
+    @classmethod
+    def _add_align_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "-a",
+                str(inputs.get("convertalis", 0)),
+                "--alignment-output-mode",
+                str(inputs.get("alignment_output_mode", 0)),
+                "--wrapped-scoring",
+                str(inputs.get("wrapped_scoring", 0)),
+                "--min-aln-len",
+                str(inputs.get("min_aln_len", 0)),
+                "--seq-id-mode",
+                str(inputs.get("seq_id_mode", 0)),
+                "--alt-ali",
+                str(inputs.get("alt_ali", 0)),
+                "--score-bias",
+                str(inputs.get("score_bias", 0)),
+                "--realign",
+                str(inputs.get("realign", 0)),
+                "--realign-score-bias",
+                str(inputs.get("realign_score_bias", -0.2)),
+                "--realign-max-seqs",
+                str(inputs.get("realign_max_seqs", 2147483647)),
+                "--corr-score-weight",
+                str(inputs.get("corr_score_weight", 0)),
+                "--alignment-mode",
+                str(inputs.get("alignment_mode", 0)),
+                "-e",
+                str(inputs.get("evalue", 0.001)),
+                "--min-seq-id",
+                str(inputs.get("min_seq_id", 0.3)),
+                "-c",
+                str(inputs.get("cov", 0.8)),
+                "--cov-mode",
+                str(inputs.get("cov_mode", 0)),
+                "--max-rejected",
+                str(inputs.get("max_rejected", 2147483647)),
+                "--max-accept",
+                str(inputs.get("max_accept", 2147483647)),
+            ]
+        )
+
+    @classmethod
+    def _add_clustering_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--cluster-mode",
+                str(inputs.get("cluster_mode", 0)),
+                "--max-iterations",
+                str(inputs.get("max_iterations", 1000)),
+                "--similarity-type",
+                str(inputs.get("similarity_type", 2)),
+            ]
+        )
+
+    @classmethod
+    def _add_misc_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--rescore-mode",
+                str(inputs.get("rescore_mode", 0)),
+                "--shuffle",
+                str(inputs.get("shuffle", 1)),
+                "--id-offset",
+                str(inputs.get("id_offset", 0)),
+                "--threads",
+                str(inputs.get("threads", 1)),
+                "--max-seq-len",
+                str(inputs.get("max_seq_len", 65535)),
+                "--filter-hits",
+                str(inputs.get("filter_hits", 0)),
+                "--sort-results",
+                str(inputs.get("sort_results", 0)),
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_fasta = str(inputs.get("input_fasta", ""))
+        linked_input = cls._input_link_name(input_fasta)
+        cmd = ["mmseqs", "easy-cluster", linked_input, f"{out}/result", f"{out}/tmp"]
+        cls._add_dbtype_options(cmd, inputs)
+        cls._add_prefilter_options(cmd, inputs)
+        cls._add_align_options(cmd, inputs)
+        cls._add_clustering_options(cmd, inputs)
+        cls._add_misc_options(cmd, inputs)
+        return f"ln -sf {shlex.quote(input_fasta)} {shlex.quote(linked_input)} && {shlex.join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        selected = set(_as_list(inputs.get("output_selection")))
+        if not selected:
+            selected = {"file_rep_seq", "file_all_seq", "file_cluster_tsv"}
+        outputs = {
+            "file_rep_seq": out / "result_rep_seq.fasta",
+            "file_all_seq": out / "result_all_seqs.fasta",
+            "file_cluster_tsv": out / "result_cluster.tsv",
+        }
+        return [path for key, path in outputs.items() if key in selected]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_fasta": ("FASTA", {"description": "Protein or nucleotide FASTA sequences to cluster"}),
+            },
+            "optional": {
+                "dbtype": (
+                    "STRING",
+                    {
+                        "default": "0",
+                        "options": ["0", "1", "2"],
+                        "description": "Input data type: automatic, amino acid, or nucleotide",
+                    },
+                ),
+                "comp_bias_corr_scale": (
+                    "FLOAT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 1,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["1"]}},
+                    },
+                ),
+                "zdrop": (
+                    "INT",
+                    {
+                        "default": 40,
+                        "min": 0,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["2"]}},
+                    },
+                ),
+                "add_self_matches": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "kmer_length": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "mask": ("STRING", {"default": "1", "options": ["0", "1"], "advanced": True}),
+                "mask_prob": ("FLOAT", {"default": 0.9, "min": 0, "advanced": True}),
+                "mask_lower_case": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "mask_n_repeat": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "spaced_kmer_mode": ("STRING", {"default": "1", "options": ["0", "1"], "advanced": True}),
+                "sensitivity": ("FLOAT", {"default": 5.7, "min": 1, "max": 7.5}),
+                "max_seqs": ("INT", {"default": 300, "min": 0, "advanced": True}),
+                "split": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "split_mode": ("STRING", {"default": "2", "options": ["0", "1", "2"], "advanced": True}),
+                "diag_score": ("INT", {"default": 1, "min": 0, "max": 1, "advanced": True}),
+                "exact_kmer_matching": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "min_ungapped_score": ("INT", {"default": 15, "min": 0, "advanced": True}),
+                "convertalis": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "alignment_output_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4", "5"], "advanced": True}),
+                "wrapped_scoring": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "min_aln_len": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "seq_id_mode": ("STRING", {"default": "0", "options": ["0", "1", "2"], "advanced": True}),
+                "alt_ali": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "score_bias": ("FLOAT", {"default": 0, "advanced": True}),
+                "realign": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "realign_score_bias": ("FLOAT", {"default": -0.2, "advanced": True}),
+                "realign_max_seqs": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "corr_score_weight": ("FLOAT", {"default": 0, "advanced": True}),
+                "alignment_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4"], "advanced": True}),
+                "evalue": ("FLOAT", {"default": 0.001, "min": 0}),
+                "min_seq_id": ("FLOAT", {"default": 0.3, "min": 0, "max": 1}),
+                "cov": ("FLOAT", {"default": 0.8, "min": 0, "max": 1}),
+                "cov_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4", "5"]}),
+                "max_rejected": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "max_accept": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "cluster_mode": ("STRING", {"default": "0", "options": ["0", "1", "2"]}),
+                "max_iterations": ("INT", {"default": 1000, "min": 0, "advanced": True}),
+                "similarity_type": ("STRING", {"default": "2", "options": ["1", "2"], "advanced": True}),
+                "rescore_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4"], "advanced": True}),
+                "shuffle": ("INT", {"default": 1, "min": 0, "max": 1, "advanced": True}),
+                "id_offset": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "max_seq_len": ("INT", {"default": 65535, "min": 1, "advanced": True}),
+                "filter_hits": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "sort_results": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "output_selection": (
+                    "STRING",
+                    {
+                        "default": ["file_rep_seq", "file_all_seq", "file_cluster_tsv"],
+                        "options": ["file_rep_seq", "file_all_seq", "file_cluster_tsv"],
+                        "list": True,
+                        "description": "MMseqs2 easy-cluster output files to keep",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MashDistNode(CommandNode):
     """Estimate Mash distances between reference and query sequences."""
 

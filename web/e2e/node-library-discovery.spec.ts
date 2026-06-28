@@ -1292,6 +1292,36 @@ const objectInfo = {
     citation_dois: ['10.1038/nbt.3988'],
     citation_urls: ['https://doi.org/10.1038/nbt.3988'],
   },
+  mmseqs2_easy_cluster: {
+    name: 'mmseqs2_easy_cluster',
+    display_name: 'MMseqs2 Easy Cluster',
+    category: 'clustering',
+    description: 'Cluster protein or nucleotide sequences with MMseqs2 cascaded clustering.',
+    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-cluster', 'cascaded clustering', 'sequence clustering'],
+    input: {
+      required: {
+        input_fasta: { type: 'FASTA' },
+      },
+      optional: {
+        dbtype: { type: 'STRING', default: '0', options: ['0', '1', '2'] },
+        min_seq_id: { type: 'FLOAT', default: 0.3 },
+        cov: { type: 'FLOAT', default: 0.8 },
+        cov_mode: { type: 'STRING', default: '0', options: ['0', '1', '2', '3', '4', '5'] },
+        sensitivity: { type: 'FLOAT', default: 5.7 },
+        cluster_mode: { type: 'STRING', default: '0', options: ['0', '1', '2'] },
+        output_selection: { type: 'STRING', default: ['file_rep_seq', 'file_all_seq', 'file_cluster_tsv'], list: true, options: ['file_rep_seq', 'file_all_seq', 'file_cluster_tsv'] },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['FASTA', 'FASTA', 'TSV'],
+    output_name: ['representative_sequences', 'clustered_sequences', 'cluster_tsv'],
+    required_executables: ['mmseqs'],
+    required_conda_packages: ['mmseqs2'],
+    documentation_url: 'https://github.com/soedinglab/MMseqs2/wiki',
+    citation_dois: ['10.1038/nbt.3988'],
+    citation_urls: ['https://doi.org/10.1038/nbt.3988'],
+    citation_text: 'MMseqs2 enables sensitive protein sequence searching for the analysis of massive data sets.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4168,7 +4198,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('182 nodes available')).toBeVisible();
+  await expect(page.getByText('183 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4227,6 +4257,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'nhmmscan', name: 'HMMER nhmmscan', category: 'annotation' },
     { query: 'hmmer alignment mask', name: 'HMMER alimask', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
+    { query: 'mmseqs easy-cluster', name: 'MMseqs2 Easy Cluster', category: 'clustering' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },
