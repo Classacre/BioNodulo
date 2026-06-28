@@ -3232,6 +3232,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_tin": {
+            "display_name": "RSeQC Transcript Integrity Number",
+            "category": "rna_seq",
+            "required_executables": ["tin.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1186/s12859-016-0922-z",
+        },
         "bedtools_coveragebed": {
             "display_name": "BEDTools Coverage",
             "category": "genomics",
@@ -4311,6 +4318,53 @@ def test_rseqc_read_duplication_renders_duplication_command_and_outputs(tmp_path
         tmp_path / "rseqc_read_duplication" / "output.DupRate_plot.pdf",
         tmp_path / "rseqc_read_duplication" / "output.pos.DupRate.xls",
         tmp_path / "rseqc_read_duplication" / "output.seq.DupRate.xls",
+    ]
+
+
+def test_rseqc_tin_renders_transcript_integrity_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_tin")
+    info = _registry().object_info()["rseqc_tin"]
+
+    assert info["output"] == ["TSV", "TSV"]
+    assert info["output_name"] == ["tin_summary", "tin_table"]
+    assert info["citation_dois"] == ["10.1186/s12859-016-0922-z", "10.1093/bioinformatics/bts356"]
+    assert node_class.render_command(
+        {
+            "input": ["sample one.bam", "sample one.bam", "batch/sample-two.bam"],
+            "refgene": "genes.bed12",
+            "minCov": 12,
+            "samplesize": 80,
+            "subtractbackground": True,
+            "output": "/work/rseqc_tin",
+        }
+    ) == (
+        "mkdir -p /work/rseqc_tin/input_bams && "
+        "ln -sf 'sample one.bam' /work/rseqc_tin/input_bams/sample_one.bam && "
+        "ln -sf 'sample one.bam' /work/rseqc_tin/input_bams/sample_one.2.bam && "
+        "ln -sf batch/sample-two.bam /work/rseqc_tin/input_bams/sample-two.bam && "
+        "printf '%s\\n' /work/rseqc_tin/input_bams/sample_one.bam "
+        "/work/rseqc_tin/input_bams/sample_one.2.bam /work/rseqc_tin/input_bams/sample-two.bam "
+        "> /work/rseqc_tin/input_list.txt && "
+        "tin.py -i /work/rseqc_tin/input_list.txt --refgene genes.bed12 --minCov 12 --sample-size 80 "
+        "--subtract-background && mv *summary.txt /work/rseqc_tin/summary.tab && mv *tin.xls /work/rseqc_tin/tin.xls"
+    )
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "refgene": "genes.bed12",
+            "output": "/work/rseqc_tin",
+        }
+    ) == (
+        "mkdir -p /work/rseqc_tin/input_bams && "
+        "ln -sf aligned.bam /work/rseqc_tin/input_bams/aligned.bam && "
+        "printf '%s\\n' /work/rseqc_tin/input_bams/aligned.bam > /work/rseqc_tin/input_list.txt && "
+        "tin.py -i /work/rseqc_tin/input_list.txt --refgene genes.bed12 --minCov 10 --sample-size 100 && "
+        "mv *summary.txt /work/rseqc_tin/summary.tab && mv *tin.xls /work/rseqc_tin/tin.xls"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "rseqc_tin" / "summary.tab",
+        tmp_path / "rseqc_tin" / "tin.xls",
     ]
 
 

@@ -6897,6 +6897,142 @@ class RSeQCReadDuplicationNode(CommandNode):
         }
 
 
+class RSeQCTINNode(CommandNode):
+    """Evaluate RNA integrity at transcript and sample level with TIN."""
+
+    NODE_ID = "rseqc_tin"
+    DISPLAY_NAME = "RSeQC Transcript Integrity Number"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate transcript integrity number scores from sorted and indexed BAM alignments against a BED12 gene model."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "tin",
+        "tin.py",
+        "Transcript Integrity Number",
+        "transcript integrity",
+        "RNA integrity",
+        "RNA degradation",
+        "medTIN",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("TSV", "TSV")
+    RETURN_NAMES = ("tin_summary", "tin_table")
+    REQUIRED_EXECUTABLES = ["tin.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#tin-py"
+    CITATION_DOIS = ["10.1186/s12859-016-0922-z", "10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = "Measure transcript integrity using RNA-seq data; RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+    SHELL = True
+
+    @classmethod
+    def _bam_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("input", inputs.get("inputs")))
+
+    @classmethod
+    def _linked_bam_names(cls, bam_files: list[str]) -> list[str]:
+        names: list[str] = []
+        seen: dict[str, int] = {}
+        for bam_file in bam_files:
+            name = _safe_name(bam_file)
+            if not name.endswith(".bam"):
+                name = f"{name}.bam"
+            count = seen.get(name, 0)
+            seen[name] = count + 1
+            if count:
+                stem = name[:-4] if name.endswith(".bam") else name
+                name = f"{stem}.{count + 1}.bam"
+            names.append(name)
+        return names
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_dir = f"{out}/input_bams"
+        input_list = f"{out}/input_list.txt"
+        bam_files = cls._bam_files(inputs)
+        linked_paths = [
+            f"{input_dir}/{linked_name}"
+            for linked_name in cls._linked_bam_names(bam_files)
+        ]
+
+        parts = [f"mkdir -p {shlex.quote(input_dir)}"]
+        for source, linked_path in zip(bam_files, linked_paths, strict=True):
+            parts.append(f"ln -sf {shlex.quote(source)} {shlex.quote(linked_path)}")
+
+        printf_cmd = ["printf", "%s\\n", *linked_paths, ">", input_list]
+        parts.append(_shell_join(printf_cmd))
+        tin_cmd = [
+            "tin.py",
+            "-i",
+            input_list,
+            "--refgene",
+            str(inputs.get("refgene", "")),
+            "--minCov",
+            str(inputs.get("minCov", inputs.get("min_cov", 10))),
+            "--sample-size",
+            str(inputs.get("samplesize", inputs.get("sample_size", 100))),
+        ]
+        if inputs.get("subtractbackground", inputs.get("subtract_background")):
+            tin_cmd.append("--subtract-background")
+        parts.append(_shell_join(tin_cmd))
+        parts.append(f"mv *summary.txt {shlex.quote(f'{out}/summary.tab')}")
+        parts.append(f"mv *tin.xls {shlex.quote(f'{out}/tin.xls')}")
+        return " && ".join(parts)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [
+            out / "summary.tab",
+            out / "tin.xls",
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": (
+                    "BAM",
+                    {
+                        "multiple": True,
+                        "description": "Sorted and indexed BAM alignment file or files used to calculate transcript integrity",
+                    },
+                ),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "minCov": (
+                    "INT",
+                    {
+                        "default": 10,
+                        "min": 1,
+                        "description": "Minimum number of reads mapped to a transcript",
+                    },
+                ),
+                "samplesize": (
+                    "INT",
+                    {
+                        "default": 100,
+                        "min": 1,
+                        "description": "Number of equal-spaced nucleotide positions sampled from each mRNA",
+                    },
+                ),
+                "subtractbackground": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Subtract background noise estimated from intronic reads",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BEDToolsCoverageNode(CommandNode):
     """Compute depth and breadth of B features across A intervals."""
 

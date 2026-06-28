@@ -1672,6 +1672,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_tin: {
+    name: 'rseqc_tin',
+    display_name: 'RSeQC Transcript Integrity Number',
+    category: 'rna_seq',
+    description: 'Calculate transcript integrity number scores from sorted and indexed BAM alignments against a BED12 gene model.',
+    search_aliases: ['Galaxy', 'rseqc', 'tin', 'tin.py', 'Transcript Integrity Number', 'transcript integrity', 'RNA integrity', 'RNA degradation', 'medTIN', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM', multiple: true },
+        refgene: { type: 'BED' },
+      },
+      optional: {
+        minCov: { type: 'INT', default: 10 },
+        samplesize: { type: 'INT', default: 100 },
+        subtractbackground: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV', 'TSV'],
+    output_name: ['tin_summary', 'tin_table'],
+    required_executables: ['tin.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#tin-py',
+    citation_dois: ['10.1186/s12859-016-0922-z', '10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1186/s12859-016-0922-z', 'https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'Measure transcript integrity using RNA-seq data; RSeQC: quality control of RNA-seq experiments.',
+  },
   bedtools_coveragebed: {
     name: 'bedtools_coveragebed',
     display_name: 'BEDTools Coverage',
@@ -3578,7 +3604,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('163 nodes available')).toBeVisible();
+  await expect(page.getByText('164 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3656,6 +3682,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bam mapping statistics', name: 'RSeQC BAM Stat', category: 'rna_seq' },
     { query: 'read distribution', name: 'RSeQC Read Distribution', category: 'rna_seq' },
     { query: 'read duplication', name: 'RSeQC Read Duplication', category: 'rna_seq' },
+    { query: 'transcript integrity', name: 'RSeQC Transcript Integrity Number', category: 'rna_seq' },
     { query: 'bedtools coverage', name: 'BEDTools Coverage', category: 'genomics' },
     { query: 'genome coverage bedgraph', name: 'BEDTools Genome Coverage', category: 'genomics' },
     { query: 'subtractbed', name: 'BEDTools Subtract', category: 'genomics' },
