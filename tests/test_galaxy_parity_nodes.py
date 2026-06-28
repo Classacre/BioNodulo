@@ -373,6 +373,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["mmseqs2"],
             "doi": "10.1038/nbt.3988",
         },
+        "mmseqs2_easy_taxonomy": {
+            "display_name": "MMseqs2 Easy Taxonomy",
+            "category": "taxonomy",
+            "required_executables": ["mmseqs"],
+            "required_conda_packages": ["mmseqs2"],
+            "doi": "10.1093/bioinformatics/btab184",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -4234,6 +4241,152 @@ def test_mmseqs2_easy_rbh_renders_reciprocal_best_hit_command_and_output(tmp_pat
     ]
     assert node_class.PLAN_OUTPUTS({"format_mode": "3"}, tmp_path) == [
         tmp_path / "mmseqs2_easy_rbh" / "search_results.html",
+    ]
+
+
+def test_mmseqs2_easy_taxonomy_renders_taxonomic_assignment_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("mmseqs2_easy_taxonomy")
+    info = _registry().object_info()["mmseqs2_easy_taxonomy"]
+
+    assert info["output"] == ["TSV", "TXT", "TSV", "TXT"]
+    assert info["output_name"] == ["lca_results", "kraken_report", "top_hit_alignments", "top_hit_report"]
+    assert "10.1093/bioinformatics/btab184" in info["citation_dois"]
+    assert info["input"]["required"]["query_fasta"][0] == "FASTA"
+    assert info["input"]["required"]["database_type"][1]["options"] == ["amino_acid_tax", "nucleotides_tax"]
+    assert info["input"]["required"]["target_database"][0] == "FILE"
+    assert info["input"]["optional"]["search_type"][1]["options"] == ["0", "1", "2", "3", "4"]
+    assert info["input"]["optional"]["evalue"][1]["default"] == 1
+    assert info["input"]["optional"]["max_rejected"][1]["default"] == 5
+    assert info["input"]["optional"]["max_accept"][1]["default"] == 30
+    assert info["input"]["optional"]["mask_profile"][1]["default"] == 1
+    assert info["input"]["optional"]["lca_mode"][1]["default"] == "3"
+    assert info["input"]["optional"]["output_selection"][1]["default"] == ["report"]
+
+    assert node_class.render_command(
+        {
+            "query_fasta": "mystery.fastq.gz",
+            "database_type": "amino_acid_tax",
+            "target_database": "/indexes/uniprot",
+            "download_tax_db": True,
+            "dbtype": "1",
+            "comp_bias_corr_scale": 0.7,
+            "add_self_matches": 1,
+            "kmer_length": 6,
+            "mask": 0,
+            "mask_prob": 0.7,
+            "mask_lower_case": 1,
+            "mask_n_repeat": 3,
+            "spaced_kmer_mode": 0,
+            "sensitivity": 7.5,
+            "max_seqs": 500,
+            "split": 2,
+            "split_mode": 1,
+            "diag_score": 0,
+            "exact_kmer_matching": 1,
+            "min_ungapped_score": 20,
+            "convertalis": 1,
+            "alignment_output_mode": 3,
+            "wrapped_scoring": 1,
+            "min_aln_len": 25,
+            "seq_id_mode": 1,
+            "alt_ali": 2,
+            "score_bias": 0.2,
+            "realign": 1,
+            "realign_score_bias": -0.05,
+            "realign_max_seqs": 4000,
+            "corr_score_weight": 0.3,
+            "alignment_mode": 2,
+            "evalue": 1e-4,
+            "min_seq_id": 0.8,
+            "cov": 0.8,
+            "cov_mode": 1,
+            "max_rejected": 12,
+            "max_accept": 8,
+            "mask_profile": 0,
+            "e_profile": 0.002,
+            "wg": 1,
+            "filter_msa": 0,
+            "filter_min_enable": 10,
+            "max_seq_id": 0.85,
+            "qid": "0.15,0.30",
+            "qsc": -10,
+            "profile_cov": 0.2,
+            "diff": 500,
+            "pseudo_cnt_mode": 1,
+            "exhaustive_search": 1,
+            "lca_search": 1,
+            "orf_filter_e": 50,
+            "orf_filter_s": 3,
+            "lca_mode": "1",
+            "majority": 0.7,
+            "vote_mode": "2",
+            "tax_lineage": "1",
+            "blacklist": "12908,28384",
+            "taxon_list": "2,2157",
+            "search_type": 2,
+            "threads": 12,
+            "max_seq_len": 50000,
+            "filter_hits": 1,
+            "sort_results": 1,
+            "chain_alignments": 1,
+            "merge_query": 0,
+            "output": "/work/mmseqs_taxonomy",
+        }
+    ) == (
+        "ln -s mystery.fastq.gz query.fastq.gz && cp -r /indexes/uniprot/database* . && "
+        "mmseqs createtaxdb database /work/mmseqs_taxonomy/tmp && "
+        "mmseqs easy-taxonomy query.fastq.gz database /work/mmseqs_taxonomy/result /work/mmseqs_taxonomy/tmp "
+        "--comp-bias-corr-scale 0.7 --dbtype 1 --add-self-matches 1 -k 6 --mask 0 "
+        "--mask-prob 0.7 --mask-lower-case 1 --mask-n-repeat 3 --spaced-kmer-mode 0 "
+        "-s 7.5 --max-seqs 500 --split 2 --split-mode 1 --diag-score 0 --exact-kmer-matching 1 "
+        "--min-ungapped-score 20 -a 1 --alignment-output-mode 3 --wrapped-scoring 1 --min-aln-len 25 "
+        "--seq-id-mode 1 --alt-ali 2 --score-bias 0.2 --realign 1 --realign-score-bias -0.05 "
+        "--realign-max-seqs 4000 --corr-score-weight 0.3 --alignment-mode 2 -e 0.0001 --min-seq-id 0.8 "
+        "-c 0.8 --cov-mode 1 --max-rejected 12 --max-accept 8 --mask-profile 0 --e-profile 0.002 "
+        "--wg 1 --filter-msa 0 --filter-min-enable 10 --max-seq-id 0.85 --qid 0.15,0.30 "
+        "--qsc -10 --cov 0.2 --diff 500 --pseudo-cnt-mode 1 --exhaustive-search 1 --lca-search 1 "
+        "--orf-filter-e 50 --orf-filter-s 3 --lca-mode 1 --majority 0.7 --vote-mode 2 --tax-lineage 1 "
+        "--blacklist 12908,28384 --taxon-list 2,2157 --search-type 2 --threads 12 --max-seq-len 50000 "
+        "--filter-hits 1 --sort-results 1 --chain-alignments 1 --merge-query 0"
+    )
+    assert node_class.render_command(
+        {
+            "query_fasta": "reads.fa",
+            "database_type": "nucleotides_tax",
+            "target_database": "/indexes/nt_tax",
+            "dbtype": "2",
+            "zdrop": 80,
+            "search_type": 3,
+            "output": "/work/mmseqs_taxonomy",
+        }
+    ).startswith(
+        "ln -s reads.fa query.fa && "
+        "mmseqs easy-taxonomy query.fa /indexes/nt_tax/database /work/mmseqs_taxonomy/result /work/mmseqs_taxonomy/tmp "
+        "--zdrop 80 --dbtype 2"
+    )
+    command_without_tax_filters = node_class.render_command(
+        {
+            "query_fasta": "reads.fa",
+            "target_database": "/indexes/nt_tax",
+            "blacklist": "",
+            "taxon_list": "",
+            "output": "/work/mmseqs_taxonomy",
+        }
+    )
+    assert "--blacklist" not in command_without_tax_filters
+    assert "--taxon-list" not in command_without_tax_filters
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_taxonomy" / "result_lca.tsv",
+        tmp_path / "mmseqs2_easy_taxonomy" / "result_report.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_selection": ["report", "tophit_aln", "tophit_report"]}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_taxonomy" / "result_lca.tsv",
+        tmp_path / "mmseqs2_easy_taxonomy" / "result_report.txt",
+        tmp_path / "mmseqs2_easy_taxonomy" / "result_tophit_aln.tsv",
+        tmp_path / "mmseqs2_easy_taxonomy" / "result_tophit_report.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_selection": []}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_taxonomy" / "result_lca.tsv",
     ]
 
 

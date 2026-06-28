@@ -7031,6 +7031,289 @@ class MMseqs2EasyRBHNode(CommandNode):
         }
 
 
+class MMseqs2EasyTaxonomyNode(CommandNode):
+    """Assign taxonomy to sequences with MMseqs2 easy-taxonomy."""
+
+    NODE_ID = "mmseqs2_easy_taxonomy"
+    DISPLAY_NAME = "MMseqs2 Easy Taxonomy"
+    REQUIRED_CONDA_PACKAGES = ["mmseqs2"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Assign taxonomy to query sequences against an MMseqs2 taxonomy database using LCA."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "mmseqs2",
+        "mmseqs",
+        "easy-taxonomy",
+        "taxonomy assignment",
+        "LCA",
+        "metagenomic classification",
+    ]
+    RETURN_TYPES = ("TSV", "TXT", "TSV", "TXT")
+    RETURN_NAMES = ("lca_results", "kraken_report", "top_hit_alignments", "top_hit_report")
+    REQUIRED_EXECUTABLES = ["mmseqs"]
+    DOCUMENTATION_URL = MMseqs2EasySearchNode.DOCUMENTATION_URL
+    CITATION_DOIS = ["10.1093/bioinformatics/btab184"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/btab184"]
+    CITATION_TEXT = "Fast and sensitive taxonomic assignment to metagenomic contigs."
+    VERSION = MMseqs2EasySearchNode.VERSION
+    SHELL = True
+
+    @classmethod
+    def _target_command_part(cls, inputs: dict[str, Any], out: str) -> tuple[list[str], str]:
+        database_root = str(inputs.get("target_database", ""))
+        if inputs.get("download_tax_db"):
+            return [
+                f"cp -r {shlex.quote(database_root)}/database* .",
+                f"mmseqs createtaxdb database {shlex.quote(f'{out}/tmp')}",
+            ], "database"
+        target = f"{database_root.rstrip('/')}/database" if database_root else "database"
+        return [], target
+
+    @classmethod
+    def _add_profile_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--mask-profile",
+                str(inputs.get("mask_profile", 1)),
+                "--e-profile",
+                str(inputs.get("e_profile", 0.001)),
+                "--wg",
+                str(inputs.get("wg", 0)),
+                "--filter-msa",
+                str(inputs.get("filter_msa", 1)),
+                "--filter-min-enable",
+                str(inputs.get("filter_min_enable", 0)),
+                "--max-seq-id",
+                str(inputs.get("max_seq_id", 0.9)),
+                "--qid",
+                str(inputs.get("qid", "0")),
+                "--qsc",
+                str(inputs.get("qsc", -20)),
+                "--cov",
+                str(inputs.get("profile_cov", 0)),
+                "--diff",
+                str(inputs.get("diff", 1000)),
+                "--pseudo-cnt-mode",
+                str(inputs.get("pseudo_cnt_mode", 0)),
+                "--exhaustive-search",
+                str(inputs.get("exhaustive_search", 0)),
+                "--lca-search",
+                str(inputs.get("lca_search", 0)),
+            ]
+        )
+
+    @classmethod
+    def _add_taxonomy_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--orf-filter-e",
+                str(inputs.get("orf_filter_e", 100)),
+                "--orf-filter-s",
+                str(inputs.get("orf_filter_s", 2)),
+                "--lca-mode",
+                str(inputs.get("lca_mode", 3)),
+                "--majority",
+                str(inputs.get("majority", 0.5)),
+                "--vote-mode",
+                str(inputs.get("vote_mode", 1)),
+                "--tax-lineage",
+                str(inputs.get("tax_lineage", 0)),
+            ]
+        )
+        _add_if_value(cmd, "--blacklist", inputs.get("blacklist"))
+        _add_if_value(cmd, "--taxon-list", inputs.get("taxon_list"))
+
+    @classmethod
+    def _add_expert_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--filter-hits",
+                str(inputs.get("filter_hits", 0)),
+                "--sort-results",
+                str(inputs.get("sort_results", 0)),
+                "--chain-alignments",
+                str(inputs.get("chain_alignments", 0)),
+                "--merge-query",
+                str(inputs.get("merge_query", 1)),
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        query_fasta = str(inputs.get("query_fasta", ""))
+        linked_query = MMseqs2EasyLinsearchNode._sequence_link_name("query", query_fasta)
+        prelude = [f"ln -s {shlex.quote(query_fasta)} {shlex.quote(linked_query)}"]
+        target_prelude, target = cls._target_command_part(inputs, out)
+        prelude.extend(target_prelude)
+
+        effective_inputs = dict(inputs)
+        effective_inputs.setdefault("evalue", 1)
+        effective_inputs.setdefault("min_seq_id", 0)
+        effective_inputs.setdefault("cov", 0)
+        effective_inputs.setdefault("max_rejected", 5)
+        effective_inputs.setdefault("max_accept", 30)
+
+        cmd = [
+            "mmseqs",
+            "easy-taxonomy",
+            linked_query,
+            target,
+            f"{out}/result",
+            f"{out}/tmp",
+        ]
+        MMseqs2EasyClusterNode._add_dbtype_options(cmd, effective_inputs)
+        MMseqs2EasyRBHNode._add_prefilter_options(cmd, effective_inputs)
+        MMseqs2EasyRBHNode._add_search_common_options(cmd, effective_inputs)
+        MMseqs2EasyClusterNode._add_align_options(cmd, effective_inputs)
+        cls._add_profile_options(cmd, effective_inputs)
+        cls._add_taxonomy_options(cmd, effective_inputs)
+        cmd.extend(["--search-type", str(effective_inputs.get("search_type", 0))])
+        MMseqs2EasyRBHNode._add_common_options(cmd, effective_inputs)
+        cls._add_expert_options(cmd, effective_inputs)
+        return f"{' && '.join(prelude)} && {shlex.join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        selected = set(_as_list(inputs.get("output_selection")))
+        outputs = [out / "result_lca.tsv"]
+        if "output_selection" not in inputs:
+            selected = {"report"}
+        if "report" in selected:
+            outputs.append(out / "result_report.txt")
+        if "tophit_aln" in selected:
+            outputs.append(out / "result_tophit_aln.tsv")
+        if "tophit_report" in selected:
+            outputs.append(out / "result_tophit_report.txt")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "query_fasta": ("FASTA", {"description": "Query FASTA/FASTQ file"}),
+                "database_type": (
+                    "STRING",
+                    {
+                        "default": "amino_acid_tax",
+                        "options": ["amino_acid_tax", "nucleotides_tax"],
+                        "description": "Taxonomy database type: amino acid or nucleotide",
+                    },
+                ),
+                "target_database": ("FILE", {"default": "", "description": "Cached MMseqs2 taxonomy database directory"}),
+            },
+            "optional": {
+                "dbtype": (
+                    "STRING",
+                    {
+                        "default": "0",
+                        "options": ["0", "1", "2"],
+                        "description": "Input data type: automatic, amino acid, or nucleotide",
+                    },
+                ),
+                "comp_bias_corr_scale": (
+                    "FLOAT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 1,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["1"]}},
+                    },
+                ),
+                "zdrop": (
+                    "INT",
+                    {
+                        "default": 40,
+                        "min": 0,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["2"]}},
+                    },
+                ),
+                "add_self_matches": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "kmer_length": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "mask": ("STRING", {"default": "1", "options": ["0", "1"], "advanced": True}),
+                "mask_prob": ("FLOAT", {"default": 0.9, "min": 0, "advanced": True}),
+                "mask_lower_case": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "mask_n_repeat": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "spaced_kmer_mode": ("STRING", {"default": "1", "options": ["0", "1"], "advanced": True}),
+                "sensitivity": ("FLOAT", {"default": 5.7, "min": 1, "max": 7.5}),
+                "max_seqs": ("INT", {"default": 300, "min": 0, "advanced": True}),
+                "split": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "split_mode": ("STRING", {"default": "2", "options": ["0", "1", "2"], "advanced": True}),
+                "diag_score": ("INT", {"default": 1, "min": 0, "max": 1, "advanced": True}),
+                "exact_kmer_matching": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "min_ungapped_score": ("INT", {"default": 15, "min": 0, "advanced": True}),
+                "convertalis": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "alignment_output_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4", "5"], "advanced": True}),
+                "wrapped_scoring": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "min_aln_len": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "seq_id_mode": ("STRING", {"default": "0", "options": ["0", "1", "2"], "advanced": True}),
+                "alt_ali": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "score_bias": ("FLOAT", {"default": 0, "advanced": True}),
+                "realign": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "realign_score_bias": ("FLOAT", {"default": -0.2, "advanced": True}),
+                "realign_max_seqs": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "corr_score_weight": ("FLOAT", {"default": 0, "advanced": True}),
+                "alignment_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4"], "advanced": True}),
+                "evalue": ("FLOAT", {"default": 1, "min": 0}),
+                "min_seq_id": ("FLOAT", {"default": 0, "min": 0, "max": 1}),
+                "cov": ("FLOAT", {"default": 0, "min": 0, "max": 1}),
+                "cov_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4", "5"]}),
+                "max_rejected": ("INT", {"default": 5, "min": 0, "advanced": True}),
+                "max_accept": ("INT", {"default": 30, "min": 0, "advanced": True}),
+                "mask_profile": ("INT", {"default": 1, "min": 0, "max": 1, "advanced": True}),
+                "e_profile": ("FLOAT", {"default": 0.001, "min": 0, "advanced": True}),
+                "wg": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "filter_msa": ("INT", {"default": 1, "min": 0, "max": 1, "advanced": True}),
+                "filter_min_enable": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "max_seq_id": ("FLOAT", {"default": 0.9, "min": 0, "max": 1, "advanced": True}),
+                "qid": ("STRING", {"default": "0", "advanced": True}),
+                "qsc": ("FLOAT", {"default": -20, "min": -50, "max": 100, "advanced": True}),
+                "profile_cov": ("FLOAT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "diff": ("INT", {"default": 1000, "min": 0, "advanced": True}),
+                "pseudo_cnt_mode": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "exhaustive_search": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "lca_search": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "orf_filter_e": ("FLOAT", {"default": 100, "min": 0, "advanced": True}),
+                "orf_filter_s": ("FLOAT", {"default": 2, "min": 0, "advanced": True}),
+                "lca_mode": ("STRING", {"default": "3", "options": ["1", "3", "4"]}),
+                "majority": ("FLOAT", {"default": 0.5, "min": 0, "max": 1}),
+                "vote_mode": ("STRING", {"default": "1", "options": ["0", "1", "2"]}),
+                "tax_lineage": ("STRING", {"default": "0", "options": ["0", "1", "2"]}),
+                "blacklist": ("STRING", {"default": "", "advanced": True}),
+                "taxon_list": ("STRING", {"default": "", "advanced": True}),
+                "search_type": (
+                    "STRING",
+                    {
+                        "default": "0",
+                        "options": ["0", "1", "2", "3", "4"],
+                        "description": "0 auto, 1 amino acid, 2 translated, 3 nucleotide, 4 translated nucleotide",
+                    },
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "max_seq_len": ("INT", {"default": 65535, "min": 1, "advanced": True}),
+                "filter_hits": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "sort_results": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "chain_alignments": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "merge_query": ("INT", {"default": 1, "min": 0, "advanced": True}),
+                "output_selection": (
+                    "STRING",
+                    {
+                        "default": ["report"],
+                        "options": ["report", "tophit_aln", "tophit_report"],
+                        "list": True,
+                        "description": "Additional MMseqs2 taxonomy outputs to keep",
+                    },
+                ),
+                "download_tax_db": ("BOOLEAN", {"default": False, "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MashDistNode(CommandNode):
     """Estimate Mash distances between reference and query sequences."""
 
