@@ -1257,6 +1257,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-018-1618-7'],
     citation_text: 'An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar.',
   },
+  ivar_filtervariants: {
+    name: 'ivar_filtervariants',
+    display_name: 'iVar Filter Variants',
+    category: 'variant',
+    description: 'Intersect iVar variant TSV calls across replicates or samples aligned to the same reference.',
+    search_aliases: ['Galaxy', 'ivar', 'ivar filtervariants', 'replicate variants', 'variant intersection', 'viral variant filtering'],
+    input: {
+      required: {
+        inputs: { type: 'TSV', list: true },
+      },
+      optional: {
+        min_fraction: { type: 'FLOAT', default: 1.0 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['filtered_variants'],
+    required_executables: ['ivar'],
+    required_conda_packages: ['ivar'],
+    documentation_url: 'https://andersen-lab.github.io/ivar/html/',
+    citation_dois: ['10.1186/s13059-018-1618-7'],
+    citation_urls: ['https://doi.org/10.1186/s13059-018-1618-7'],
+    citation_text: 'An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar.',
+  },
   gtdbtk_classify_wf: {
     name: 'gtdbtk_classify_wf',
     display_name: 'GTDB-Tk Classify',
@@ -3752,7 +3775,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('169 nodes available')).toBeVisible();
+  await expect(page.getByText('170 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3813,6 +3836,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'lofreq read realignment', name: 'LoFreq Viterbi Realignment', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
+    { query: 'ivar replicate variants', name: 'iVar Filter Variants', category: 'variant' },
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'fpkm gene expression', name: 'RSeQC FPKM Count', category: 'rna_seq' },

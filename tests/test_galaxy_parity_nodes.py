@@ -2727,6 +2727,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["samtools", "ivar"],
             "doi": "10.1186/s13059-018-1618-7",
         },
+        "ivar_filtervariants": {
+            "display_name": "iVar Filter Variants",
+            "category": "variant",
+            "required_executables": ["ivar"],
+            "required_conda_packages": ["ivar"],
+            "doi": "10.1186/s13059-018-1618-7",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -3481,6 +3488,34 @@ def test_ivar_consensus_renders_mpileup_pipeline_and_output(tmp_path: Path) -> N
     )[-1] == "-k"
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ivar_consensus" / "consensus.fa"]
+
+
+def test_ivar_filtervariants_renders_replicate_filter_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ivar_filtervariants")
+    info = _registry().object_info()["ivar_filtervariants"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["filtered_variants"]
+    assert "10.1186/s13059-018-1618-7" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "inputs": ["replicate-a.tsv", "replicate-b.tsv", "replicate-c.tsv"],
+            "min_fraction": 0.5,
+            "output": "/work/ivar_filtervariants",
+        }
+    ) == [
+        "ivar",
+        "filtervariants",
+        "-t",
+        "0.5",
+        "-p",
+        "/work/ivar_filtervariants/filtered",
+        "replicate-a.tsv",
+        "replicate-b.tsv",
+        "replicate-c.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ivar_filtervariants" / "filtered.tsv"]
 
 
 def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata() -> None:

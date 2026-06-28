@@ -5621,6 +5621,67 @@ class IVarConsensusNode(CommandNode):
         }
 
 
+class IVarFilterVariantsNode(CommandNode):
+    """Filter iVar variant TSV calls across replicates or samples."""
+
+    NODE_ID = "ivar_filtervariants"
+    DISPLAY_NAME = "iVar Filter Variants"
+    REQUIRED_CONDA_PACKAGES = ["ivar"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Intersect iVar variant TSV calls across replicates or samples aligned to the same reference."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ivar",
+        "ivar filtervariants",
+        "replicate variants",
+        "variant intersection",
+        "viral variant filtering",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("filtered_variants",)
+    REQUIRED_EXECUTABLES = ["ivar"]
+    DOCUMENTATION_URL = "https://andersen-lab.github.io/ivar/html/"
+    CITATION_DOIS = ["10.1186/s13059-018-1618-7"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/s13059-018-1618-7"]
+    CITATION_TEXT = "An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar."
+    VERSION = "1.4.4"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["ivar", "filtervariants"]
+        _add_if_value(cmd, "-t", inputs.get("min_fraction", 1.0))
+        cmd.extend(["-p", f"{out}/filtered"])
+        cmd.extend(_as_list(inputs.get("inputs")))
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "filtered.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputs": ("TSV", {"list": True, "description": "iVar variant TSV files for each replicate or sample"}),
+            },
+            "optional": {
+                "min_fraction": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Minimum fraction of files required to contain the same variant",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarVariantsNode(CommandNode):
     """Call viral amplicon variants from samtools mpileup using iVar."""
 
