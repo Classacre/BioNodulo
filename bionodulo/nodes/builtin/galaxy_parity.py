@@ -8167,6 +8167,239 @@ class KaijuMergeOutputsNode(CommandNode):
         }
 
 
+class CentrifugeNode(CommandNode):
+    """Classify metagenomic reads with Centrifuge."""
+
+    NODE_ID = "centrifuge"
+    DISPLAY_NAME = "Centrifuge"
+    REQUIRED_CONDA_PACKAGES = ["centrifuge"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Read-based metagenome characterization with Centrifuge."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Centrifuge",
+        "metagenomic classification",
+        "taxonomic classification",
+        "read-based metagenomics",
+        "SRA accession",
+        "FM index",
+    ]
+    RETURN_TYPES = ("TSV", "SAM", "TSV")
+    RETURN_NAMES = ("tabular_output", "sam_output", "report")
+    REQUIRED_EXECUTABLES = ["centrifuge"]
+    DOCUMENTATION_URL = "https://ccb.jhu.edu/software/centrifuge/"
+    CITATION_DOIS = ["10.1101/gr.210641.116"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.210641.116"]
+    CITATION_TEXT = "Centrifuge: rapid and sensitive classification of metagenomic sequences."
+    VERSION = "1.0.4_beta"
+    SHELL = True
+
+    _DEFAULT_TAB_COLUMNS = "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches"
+    _TAB_COLUMNS = {
+        "readID",
+        "seqID",
+        "taxID",
+        "score",
+        "2ndBestScore",
+        "hitLength",
+        "queryLength",
+        "numMatches",
+    }
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any], filename: str) -> str:
+        return f"{_out(inputs)}/{filename}"
+
+    @classmethod
+    def _paired_values(cls, inputs: dict[str, Any]) -> list[tuple[str, str]]:
+        raw_paired_values = inputs.get("paired_reads")
+        if raw_paired_values is None or raw_paired_values == "":
+            paired_values: list[Any] = []
+        elif (
+            isinstance(raw_paired_values, (list, tuple))
+            and len(raw_paired_values) >= 2
+            and not isinstance(raw_paired_values[0], (dict, list, tuple))
+        ):
+            paired_values = [raw_paired_values]
+        elif isinstance(raw_paired_values, (list, tuple)):
+            paired_values = list(raw_paired_values)
+        else:
+            paired_values = [raw_paired_values]
+        pairs: list[tuple[str, str]] = []
+        for value in paired_values:
+            if isinstance(value, dict):
+                forward = value.get("forward", value.get("input_1", value.get("r1", "")))
+                reverse = value.get("reverse", value.get("input_2", value.get("r2", "")))
+                pairs.append((str(forward), str(reverse)))
+            elif isinstance(value, (list, tuple)) and len(value) >= 2:
+                pairs.append((str(value[0]), str(value[1])))
+            elif value:
+                pair_root = str(value).rstrip("/")
+                pairs.append((f"{pair_root}/forward", f"{pair_root}/reverse"))
+        return pairs
+
+    @classmethod
+    def _output_filename(cls, inputs: dict[str, Any]) -> str:
+        return "centrifuge_output.sam" if str(inputs.get("out_fmt", "tab")) == "sam" else "centrifuge_output.tsv"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("db", "")).strip():
+            return "Centrifuge database is required"
+        if not _as_list(inputs.get("unpaired_reads")) and not cls._paired_values(inputs) and not str(inputs.get("sra", "")).strip():
+            return "At least one unpaired read, paired read collection, or SRA accession is required"
+        if inputs.get("norc", False) and inputs.get("nofw", False):
+            return "Centrifuge cannot disable both forward and reverse-complement mapping"
+        try:
+            min_hitlen = int(inputs.get("min_hitlen", 22))
+        except (TypeError, ValueError):
+            return "Minimum hit length must be an integer"
+        if min_hitlen < 16:
+            return "Minimum hit length must be at least 16"
+
+        columns = str(inputs.get("tab_fmt_cols", cls._DEFAULT_TAB_COLUMNS))
+        for column in columns.split(","):
+            if column and column not in cls._TAB_COLUMNS:
+                return f"Unsupported Centrifuge tabular output column: {column}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "centrifuge",
+            "--out-fmt",
+            str(inputs.get("out_fmt", "tab")),
+            "--tab-fmt-cols",
+            str(inputs.get("tab_fmt_cols", cls._DEFAULT_TAB_COLUMNS)),
+            "--threads",
+            str(inputs.get("threads", 1)),
+        ]
+
+        for key, flag in (
+            ("skip", "--skip"),
+            ("upto", "--upto"),
+            ("trim5", "--trim5"),
+            ("trim3", "--trim3"),
+        ):
+            _add_if_value(cmd, flag, inputs.get(key))
+
+        for key, flag in (
+            ("ignore_quals", "--ignore-quals"),
+            ("nofw", "--nofw"),
+            ("norc", "--norc"),
+            ("non_deterministic", "--non-deterministic"),
+        ):
+            if inputs.get(key, False):
+                cmd.append(flag)
+
+        _add_if_value(cmd, "--seed", inputs.get("seed"))
+        cmd.extend(["--min-hitlen", str(inputs.get("min_hitlen", 22))])
+        _add_if_value(cmd, "--min-totallen", inputs.get("min_totallen"))
+        _add_if_value(cmd, "--host-taxids", inputs.get("host_taxids"))
+        _add_if_value(cmd, "--exclude-taxids", inputs.get("exclude_taxids"))
+        cmd.extend(["-x", str(inputs.get("db", ""))])
+
+        for read_path in _as_list(inputs.get("unpaired_reads")):
+            cmd.extend(["-U", read_path])
+        for forward, reverse in cls._paired_values(inputs):
+            cmd.extend(["-1", forward, "-2", reverse])
+        _add_if_value(cmd, "--sra-acc", inputs.get("sra"))
+
+        cmd.extend(
+            [
+                "-S",
+                cls._out_path(inputs, cls._output_filename(inputs)),
+                "--report-file",
+                cls._out_path(inputs, "centrifuge_report.tsv"),
+            ]
+        )
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [
+            out / cls._output_filename(inputs),
+            out / "centrifuge_report.tsv",
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "db": (
+                    "DIRECTORY",
+                    {"description": "Centrifuge index filename prefix or database directory"},
+                ),
+            },
+            "optional": {
+                "unpaired_reads": (
+                    "FASTQ",
+                    {"default": [], "multiple": True, "description": "One or more unpaired FASTQ read files"},
+                ),
+                "paired_reads": (
+                    "FASTQ_LIST",
+                    {"default": [], "multiple": True, "description": "One or more paired read collections"},
+                ),
+                "sra": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated SRA accessions, e.g. SRR353653,SRR353654"},
+                ),
+                "out_fmt": (
+                    "STRING",
+                    {"default": "tab", "options": ["tab", "sam"], "description": "Classification output format"},
+                ),
+                "tab_fmt_cols": (
+                    "STRING",
+                    {
+                        "default": cls._DEFAULT_TAB_COLUMNS,
+                        "description": "Comma-separated output columns for tabular Centrifuge output",
+                    },
+                ),
+                "skip": ("INT", {"default": "", "min": 0, "description": "Initial reads or read pairs to skip"}),
+                "upto": ("INT", {"default": "", "min": 0, "description": "Stop after this many reads or read pairs"}),
+                "trim5": ("INT", {"default": "", "min": 0, "description": "Trim bases from the 5 prime end"}),
+                "trim3": ("INT", {"default": "", "min": 0, "description": "Trim bases from the 3 prime end"}),
+                "ignore_quals": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Treat all quality values as Phred 30"},
+                ),
+                "nofw": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not align the forward strand"},
+                ),
+                "norc": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not align the reverse-complement strand"},
+                ),
+                "seed": ("INT", {"default": "", "min": 0, "advanced": True}),
+                "non_deterministic": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use non-deterministic random seeding", "advanced": True},
+                ),
+                "min_hitlen": (
+                    "INT",
+                    {"default": 22, "min": 16, "description": "Minimum length of partial hits"},
+                ),
+                "min_totallen": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Minimum summed length of partial hits per read"},
+                ),
+                "host_taxids": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated host taxonomic IDs", "advanced": True},
+                ),
+                "exclude_taxids": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated taxonomic IDs to exclude", "advanced": True},
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
 KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
 METAPHLAN_DOI = "10.1038/s41587-023-01688-w"

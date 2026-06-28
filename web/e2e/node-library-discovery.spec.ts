@@ -1685,6 +1685,47 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/gb-2014-15-3-r46'],
     citation_text: 'Kraken: ultrafast metagenomic sequence classification using exact alignments.',
   },
+  centrifuge: {
+    name: 'centrifuge',
+    display_name: 'Centrifuge',
+    category: 'metagenomics',
+    description: 'Read-based metagenome characterization with Centrifuge.',
+    search_aliases: ['Galaxy', 'Centrifuge', 'metagenomic classification', 'taxonomic classification', 'read-based metagenomics', 'SRA accession', 'FM index'],
+    input: {
+      required: {
+        db: { type: 'DIRECTORY' },
+      },
+      optional: {
+        unpaired_reads: { type: 'FASTQ', default: [], multiple: true },
+        paired_reads: { type: 'FASTQ_LIST', default: [], multiple: true },
+        sra: { type: 'STRING', default: '' },
+        out_fmt: { type: 'STRING', default: 'tab', options: ['tab', 'sam'] },
+        tab_fmt_cols: { type: 'STRING', default: 'readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches' },
+        skip: { type: 'INT', default: '' },
+        upto: { type: 'INT', default: '' },
+        trim5: { type: 'INT', default: '' },
+        trim3: { type: 'INT', default: '' },
+        ignore_quals: { type: 'BOOLEAN', default: false },
+        nofw: { type: 'BOOLEAN', default: false },
+        norc: { type: 'BOOLEAN', default: false },
+        seed: { type: 'INT', default: '' },
+        non_deterministic: { type: 'BOOLEAN', default: false },
+        min_hitlen: { type: 'INT', default: 22 },
+        min_totallen: { type: 'INT', default: '' },
+        host_taxids: { type: 'STRING', default: '' },
+        exclude_taxids: { type: 'STRING', default: '' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV', 'SAM', 'TSV'],
+    output_name: ['tabular_output', 'sam_output', 'report'],
+    required_executables: ['centrifuge'],
+    required_conda_packages: ['centrifuge'],
+    documentation_url: 'https://ccb.jhu.edu/software/centrifuge/',
+    citation_dois: ['10.1101/gr.210641.116'],
+    citation_urls: ['https://doi.org/10.1101/gr.210641.116'],
+    citation_text: 'Centrifuge: rapid and sensitive classification of metagenomic sequences.',
+  },
   metaphlan: {
     name: 'metaphlan',
     display_name: 'MetaPhlAn',
@@ -4981,7 +5022,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('207 nodes available')).toBeVisible();
+  await expect(page.getByText('208 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5052,6 +5093,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'conflict resolution', name: 'Kaiju Merge Outputs', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'minimizer data', name: 'Kraken2', category: 'metagenomics' },
+    { query: 'SRA accession', name: 'Centrifuge', category: 'metagenomics' },
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },
     { query: 'Kraken-style Bracken report', name: 'Bracken', category: 'metagenomics' },

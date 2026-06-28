@@ -5693,6 +5693,153 @@ def test_recentrifuge_validates_required_wrapper_inputs() -> None:
     )
 
 
+def test_centrifuge_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["centrifuge"]
+
+    assert info["display_name"] == "Centrifuge"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Read-based metagenome characterization with Centrifuge."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "Centrifuge",
+        "metagenomic classification",
+        "taxonomic classification",
+        "read-based metagenomics",
+        "SRA accession",
+        "FM index",
+    ]
+    assert info["version"] == "1.0.4_beta"
+    assert info["output"] == ["TSV", "SAM", "TSV"]
+    assert info["output_name"] == ["tabular_output", "sam_output", "report"]
+    assert info["required_executables"] == ["centrifuge"]
+    assert info["required_conda_packages"] == ["centrifuge"]
+    assert info["documentation_url"] == "https://ccb.jhu.edu/software/centrifuge/"
+    assert info["citation_dois"] == ["10.1101/gr.210641.116"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.210641.116"]
+    assert info["citation_text"] == "Centrifuge: rapid and sensitive classification of metagenomic sequences."
+
+    assert info["input"]["required"]["db"][0] == "DIRECTORY"
+    assert info["input"]["required"]["db"][1]["description"] == "Centrifuge index filename prefix or database directory"
+    assert info["input"]["optional"]["unpaired_reads"][0] == "FASTQ"
+    assert info["input"]["optional"]["unpaired_reads"][1]["multiple"] is True
+    assert info["input"]["optional"]["paired_reads"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["paired_reads"][1]["multiple"] is True
+    assert info["input"]["optional"]["sra"][0] == "STRING"
+    assert info["input"]["optional"]["out_fmt"][1]["default"] == "tab"
+    assert info["input"]["optional"]["out_fmt"][1]["options"] == ["tab", "sam"]
+    assert (
+        info["input"]["optional"]["tab_fmt_cols"][1]["default"]
+        == "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches"
+    )
+    assert info["input"]["optional"]["min_hitlen"][1]["default"] == 22
+    assert info["input"]["optional"]["min_hitlen"][1]["min"] == 16
+    assert info["input"]["optional"]["host_taxids"][1]["advanced"] is True
+    assert info["input"]["optional"]["exclude_taxids"][1]["advanced"] is True
+
+
+def test_centrifuge_renders_unpaired_tab_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("centrifuge")
+
+    assert node_class.render_command(
+        {
+            "db": "/indexes/p_compressed+h+v",
+            "unpaired_reads": ["sample A.fq", "sample_B.fastq"],
+            "skip": 3,
+            "upto": 6,
+            "trim5": 10,
+            "trim3": 5,
+            "ignore_quals": True,
+            "norc": True,
+            "seed": 123,
+            "min_hitlen": 83,
+            "min_totallen": 100,
+            "host_taxids": "9606,10090",
+            "exclude_taxids": "9913",
+            "threads": 8,
+            "output": "/work/centrifuge",
+        }
+    ) == (
+        "centrifuge --out-fmt tab --tab-fmt-cols "
+        "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches "
+        "--threads 8 --skip 3 --upto 6 --trim5 10 --trim3 5 --ignore-quals --norc --seed 123 "
+        "--min-hitlen 83 --min-totallen 100 --host-taxids 9606,10090 --exclude-taxids 9913 "
+        "-x /indexes/p_compressed+h+v -U 'sample A.fq' -U sample_B.fastq "
+        "-S /work/centrifuge/centrifuge_output.tsv --report-file /work/centrifuge/centrifuge_report.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "centrifuge" / "centrifuge_output.tsv",
+        tmp_path / "centrifuge" / "centrifuge_report.tsv",
+    ]
+
+
+def test_centrifuge_renders_paired_sam_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("centrifuge")
+
+    assert node_class.render_command(
+        {
+            "db": "/indexes/bacteria",
+            "paired_reads": [
+                {"forward": "reads R1.fq", "reverse": "reads R2.fq"},
+                ("lane2_R1.fq", "lane2_R2.fq"),
+            ],
+            "out_fmt": "sam",
+            "tab_fmt_cols": "readID,taxID,score",
+            "nofw": True,
+            "non_deterministic": True,
+            "threads": 4,
+            "output": "/work/centrifuge",
+        }
+    ) == (
+        "centrifuge --out-fmt sam --tab-fmt-cols readID,taxID,score --threads 4 "
+        "--nofw --non-deterministic --min-hitlen 22 -x /indexes/bacteria "
+        "-1 'reads R1.fq' -2 'reads R2.fq' -1 lane2_R1.fq -2 lane2_R2.fq "
+        "-S /work/centrifuge/centrifuge_output.sam --report-file /work/centrifuge/centrifuge_report.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"out_fmt": "sam"}, tmp_path) == [
+        tmp_path / "centrifuge" / "centrifuge_output.sam",
+        tmp_path / "centrifuge" / "centrifuge_report.tsv",
+    ]
+
+
+def test_centrifuge_renders_sra_command_and_validates_wrapper_inputs(tmp_path: Path) -> None:
+    node_class = _node_class("centrifuge")
+
+    assert node_class.render_command(
+        {
+            "db": "/indexes/refseq",
+            "sra": "SRR353653,SRR353654",
+            "output": "/work/centrifuge",
+        }
+    ) == (
+        "centrifuge --out-fmt tab --tab-fmt-cols "
+        "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches "
+        "--threads 1 --min-hitlen 22 -x /indexes/refseq --sra-acc SRR353653,SRR353654 "
+        "-S /work/centrifuge/centrifuge_output.tsv --report-file /work/centrifuge/centrifuge_report.tsv"
+    )
+
+    assert node_class.VALIDATE_INPUTS({"unpaired_reads": ["sample.fq"]}) == "Centrifuge database is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/indexes/refseq"}) == (
+        "At least one unpaired read, paired read collection, or SRA accession is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/indexes/refseq", "unpaired_reads": ["sample.fq"], "norc": True, "nofw": True}) == (
+        "Centrifuge cannot disable both forward and reverse-complement mapping"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/indexes/refseq", "unpaired_reads": ["sample.fq"], "min_hitlen": 15}) == (
+        "Minimum hit length must be at least 16"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"db": "/indexes/refseq", "unpaired_reads": ["sample.fq"], "tab_fmt_cols": "FooBar"}
+    ) == "Unsupported Centrifuge tabular output column: FooBar"
+    assert node_class.VALIDATE_INPUTS({"db": "/indexes/refseq", "sra": "SRR353653,SRR353654"}) is True
+
+    assert node_class.PLAN_OUTPUTS({"out_fmt": "tab"}, tmp_path) == [
+        tmp_path / "centrifuge" / "centrifuge_output.tsv",
+        tmp_path / "centrifuge" / "centrifuge_report.tsv",
+    ]
+
+
 def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
