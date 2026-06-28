@@ -8400,6 +8400,236 @@ class CentrifugeNode(CommandNode):
         }
 
 
+class KrakenNode(CommandNode):
+    """Assign taxonomy to reads with classic Kraken."""
+
+    NODE_ID = "kraken"
+    DISPLAY_NAME = "Kraken"
+    REQUIRED_CONDA_PACKAGES = ["kraken"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Assign taxonomic labels to sequencing reads with Kraken."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Kraken",
+        "taxonomic classification",
+        "metagenomics",
+        "k-mer exact alignment",
+        "classified reads",
+        "unclassified reads",
+        "quick mode",
+    ]
+    RETURN_TYPES = ("KRAKEN_OUTPUT", "FASTQ", "FASTQ")
+    RETURN_NAMES = ("classification", "classified_reads", "unclassified_reads")
+    REQUIRED_EXECUTABLES = ["kraken"]
+    DOCUMENTATION_URL = "http://ccb.jhu.edu/software/kraken/"
+    CITATION_DOIS = ["10.1186/gb-2014-15-3-r46"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/gb-2014-15-3-r46"]
+    CITATION_TEXT = "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+    VERSION = "1.1.1"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/classification.kraken"
+
+    @classmethod
+    def _input_format(cls, inputs: dict[str, Any]) -> str:
+        input_format = str(inputs.get("input_format", "")).lower()
+        if input_format in {"fasta", "fastq"}:
+            return input_format
+
+        paths = [
+            str(inputs.get("input_sequences", "")),
+            str(inputs.get("forward_input", "")),
+            str(inputs.get("reverse_input", "")),
+        ]
+        raw_pair = inputs.get("input_pair")
+        if isinstance(raw_pair, dict):
+            paths.extend([str(raw_pair.get("forward", "")), str(raw_pair.get("reverse", ""))])
+        elif isinstance(raw_pair, (list, tuple)):
+            paths.extend(str(value) for value in raw_pair)
+        if any(Path(path).suffix.lower() in {".fa", ".fasta", ".fna"} for path in paths if path):
+            return "fasta"
+        return "fastq"
+
+    @classmethod
+    def _paired_collection(cls, inputs: dict[str, Any]) -> tuple[str, str]:
+        pair = inputs.get("input_pair")
+        if isinstance(pair, dict):
+            return str(pair.get("forward", "")), str(pair.get("reverse", ""))
+        if isinstance(pair, (list, tuple)) and len(pair) >= 2:
+            return str(pair[0]), str(pair[1])
+        if pair:
+            root = str(pair).rstrip("/")
+            return f"{root}/forward", f"{root}/reverse"
+        return "", ""
+
+    @classmethod
+    def _read_inputs(cls, inputs: dict[str, Any]) -> list[str]:
+        input_type = str(inputs.get("input_type", "single"))
+        if input_type == "paired":
+            return [str(inputs.get("forward_input", "")), str(inputs.get("reverse_input", ""))]
+        if input_type == "paired_collection":
+            return list(cls._paired_collection(inputs))
+        return [str(inputs.get("input_sequences", ""))]
+
+    @classmethod
+    def _split_suffix(cls, inputs: dict[str, Any]) -> str:
+        return "fasta" if cls._input_format(inputs) == "fasta" else "fastq"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("db", "")).strip():
+            return "Kraken database is required"
+        input_type = str(inputs.get("input_type", "single"))
+        if input_type == "paired":
+            if not str(inputs.get("forward_input", "")).strip() or not str(inputs.get("reverse_input", "")).strip():
+                return "Forward and reverse reads are required for paired input"
+        elif input_type == "paired_collection":
+            forward, reverse = cls._paired_collection(inputs)
+            if not forward or not reverse:
+                return "Paired collection input is required"
+        elif not str(inputs.get("input_sequences", "")).strip():
+            return "Single-end input sequences are required"
+
+        if str(inputs.get("quick", "no")) == "yes":
+            try:
+                min_hits = int(inputs.get("min_hits", 1))
+            except (TypeError, ValueError):
+                return "Quick mode min_hits must be an integer"
+            if min_hits < 1:
+                return "Quick mode min_hits must be at least 1"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        input_type = str(inputs.get("input_type", "single"))
+        input_format = cls._input_format(inputs)
+        cmd = [
+            "kraken",
+            "--threads",
+            str(inputs.get("threads", 1)),
+            "--db",
+            str(inputs.get("db", "")),
+        ]
+        if inputs.get("only_classified_output", False):
+            cmd.append("--only-classified-output")
+        if str(inputs.get("quick", "no")) == "yes":
+            cmd.extend(["--quick", "--min-hits", str(inputs.get("min_hits", 1))])
+        cmd.append("--fastq-input" if input_format == "fastq" else "--fasta-input")
+        cmd.extend(read for read in cls._read_inputs(inputs) if read)
+        if input_type in {"paired", "paired_collection"}:
+            cmd.append("--paired")
+            if inputs.get("check_names", False):
+                cmd.append("--check-names")
+        if inputs.get("split_reads", False):
+            suffix = cls._split_suffix(inputs)
+            cmd.extend(
+                [
+                    "--classified-out",
+                    f"{_out(inputs)}/classified_reads.{suffix}",
+                    "--unclassified-out",
+                    f"{_out(inputs)}/unclassified_reads.{suffix}",
+                ]
+            )
+        _add_shell_redirect(cmd, cls._output_path(inputs))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "classification.kraken"]
+        if inputs.get("split_reads", False):
+            suffix = cls._split_suffix(inputs)
+            outputs.extend([out / f"classified_reads.{suffix}", out / f"unclassified_reads.{suffix}"])
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_type": (
+                    "STRING",
+                    {
+                        "default": "single",
+                        "options": ["single", "paired", "paired_collection"],
+                        "description": "Single reads, paired reads, or a paired collection",
+                    },
+                ),
+                "db": ("DIRECTORY", {"description": "Kraken database directory"}),
+                "input_sequences": (
+                    "FASTQ",
+                    {
+                        "description": "Single-end FASTA or FASTQ reads",
+                        "displayOptions": {"show": {"input_type": ["single"]}},
+                    },
+                ),
+            },
+            "optional": {
+                "forward_input": (
+                    "FASTQ",
+                    {
+                        "default": "",
+                        "description": "Forward reads for paired input",
+                        "displayOptions": {"show": {"input_type": ["paired"]}},
+                    },
+                ),
+                "reverse_input": (
+                    "FASTQ",
+                    {
+                        "default": "",
+                        "description": "Reverse reads for paired input",
+                        "displayOptions": {"show": {"input_type": ["paired"]}},
+                    },
+                ),
+                "input_pair": (
+                    "FASTQ_LIST",
+                    {
+                        "default": [],
+                        "description": "Paired read collection as [forward, reverse] or mapping",
+                        "displayOptions": {"show": {"input_type": ["paired_collection"]}},
+                    },
+                ),
+                "input_format": (
+                    "STRING",
+                    {"default": "fastq", "options": ["fastq", "fasta"], "description": "Input read format"},
+                ),
+                "split_reads": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write classified and unclassified read outputs"},
+                ),
+                "quick": (
+                    "STRING",
+                    {"default": "no", "options": ["no", "yes"], "description": "Enable Kraken quick operation"},
+                ),
+                "min_hits": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "description": "Number of hits required for classification in quick mode",
+                        "displayOptions": {"show": {"quick": ["yes"]}},
+                    },
+                ),
+                "only_classified_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Print no Kraken output for unclassified sequences"},
+                ),
+                "check_names": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Verify paired read names match",
+                        "displayOptions": {"show": {"input_type": ["paired", "paired_collection"]}},
+                    },
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
 KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
 METAPHLAN_DOI = "10.1038/s41587-023-01688-w"

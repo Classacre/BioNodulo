@@ -1685,6 +1685,40 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/gb-2014-15-3-r46'],
     citation_text: 'Kraken: ultrafast metagenomic sequence classification using exact alignments.',
   },
+  kraken: {
+    name: 'kraken',
+    display_name: 'Kraken',
+    category: 'metagenomics',
+    description: 'Assign taxonomic labels to sequencing reads with Kraken.',
+    search_aliases: ['Galaxy', 'Kraken', 'taxonomic classification', 'metagenomics', 'k-mer exact alignment', 'classified reads', 'unclassified reads', 'quick mode'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'single', options: ['single', 'paired', 'paired_collection'] },
+        db: { type: 'DIRECTORY' },
+        input_sequences: { type: 'FASTQ' },
+      },
+      optional: {
+        forward_input: { type: 'FASTQ', default: '' },
+        reverse_input: { type: 'FASTQ', default: '' },
+        input_pair: { type: 'FASTQ_LIST', default: [] },
+        input_format: { type: 'STRING', default: 'fastq', options: ['fastq', 'fasta'] },
+        split_reads: { type: 'BOOLEAN', default: false },
+        quick: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        min_hits: { type: 'INT', default: 1 },
+        only_classified_output: { type: 'BOOLEAN', default: false },
+        check_names: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['KRAKEN_OUTPUT', 'FASTQ', 'FASTQ'],
+    output_name: ['classification', 'classified_reads', 'unclassified_reads'],
+    required_executables: ['kraken'],
+    required_conda_packages: ['kraken'],
+    documentation_url: 'http://ccb.jhu.edu/software/kraken/',
+    citation_dois: ['10.1186/gb-2014-15-3-r46'],
+    citation_urls: ['https://doi.org/10.1186/gb-2014-15-3-r46'],
+    citation_text: 'Kraken: ultrafast metagenomic sequence classification using exact alignments.',
+  },
   centrifuge: {
     name: 'centrifuge',
     display_name: 'Centrifuge',
@@ -5022,7 +5056,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('208 nodes available')).toBeVisible();
+  await expect(page.getByText('209 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5093,6 +5127,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'conflict resolution', name: 'Kaiju Merge Outputs', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'minimizer data', name: 'Kraken2', category: 'metagenomics' },
+    { query: 'quick mode', name: 'Kraken', category: 'metagenomics' },
     { query: 'SRA accession', name: 'Centrifuge', category: 'metagenomics' },
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },

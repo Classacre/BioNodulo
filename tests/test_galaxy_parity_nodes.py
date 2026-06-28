@@ -422,6 +422,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kaiju"],
             "doi": "10.1038/ncomms11257",
         },
+        "kraken": {
+            "display_name": "Kraken",
+            "category": "metagenomics",
+            "required_executables": ["kraken"],
+            "required_conda_packages": ["kraken"],
+            "doi": "10.1186/gb-2014-15-3-r46",
+        },
         "krakentools_combine_kreports": {
             "display_name": "Krakentools Combine Kraken Reports",
             "category": "taxonomy",
@@ -5047,6 +5054,126 @@ def test_kaiju2table_renders_summary_table_command_and_outputs(tmp_path: Path) -
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "kaiju2table" / "kaiju_summary.tsv",
     ]
+
+
+def test_kraken_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["kraken"]
+
+    assert info["display_name"] == "Kraken"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Assign taxonomic labels to sequencing reads with Kraken."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "Kraken",
+        "taxonomic classification",
+        "metagenomics",
+        "k-mer exact alignment",
+        "classified reads",
+        "unclassified reads",
+        "quick mode",
+    ]
+    assert info["version"] == "1.1.1"
+    assert info["output"] == ["KRAKEN_OUTPUT", "FASTQ", "FASTQ"]
+    assert info["output_name"] == ["classification", "classified_reads", "unclassified_reads"]
+    assert info["required_executables"] == ["kraken"]
+    assert info["required_conda_packages"] == ["kraken"]
+    assert info["documentation_url"] == "http://ccb.jhu.edu/software/kraken/"
+    assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
+    assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+
+    assert info["input"]["required"]["input_type"][1]["options"] == ["single", "paired", "paired_collection"]
+    assert info["input"]["required"]["db"][0] == "DIRECTORY"
+    assert info["input"]["required"]["input_sequences"][0] == "FASTQ"
+    assert info["input"]["optional"]["input_format"][1]["options"] == ["fastq", "fasta"]
+    assert info["input"]["optional"]["split_reads"][1]["default"] is False
+    assert info["input"]["optional"]["only_classified_output"][1]["default"] is False
+    assert info["input"]["optional"]["quick"][1]["default"] == "no"
+    assert info["input"]["optional"]["min_hits"][1]["displayOptions"] == {"show": {"quick": ["yes"]}}
+
+
+def test_kraken_renders_single_fasta_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kraken")
+
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "input_sequences": "reads.fa",
+            "input_format": "fasta",
+            "db": "/db/kraken",
+            "threads": 4,
+            "only_classified_output": True,
+            "output": "/work/kraken",
+        }
+    ) == (
+        "kraken --threads 4 --db /db/kraken --only-classified-output --fasta-input reads.fa "
+        "> /work/kraken/classification.kraken"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kraken" / "classification.kraken",
+    ]
+
+
+def test_kraken_renders_paired_quick_split_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kraken")
+
+    assert node_class.render_command(
+        {
+            "input_type": "paired",
+            "forward_input": "sample R1.fastq",
+            "reverse_input": "sample R2.fastq",
+            "input_format": "fastq",
+            "db": "/db/kraken legacy",
+            "threads": 8,
+            "quick": "yes",
+            "min_hits": 3,
+            "check_names": True,
+            "split_reads": True,
+            "output": "/work/kraken",
+        }
+    ) == (
+        "kraken --threads 8 --db '/db/kraken legacy' --quick --min-hits 3 --fastq-input "
+        "'sample R1.fastq' 'sample R2.fastq' --paired --check-names "
+        "--classified-out /work/kraken/classified_reads.fastq "
+        "--unclassified-out /work/kraken/unclassified_reads.fastq "
+        "> /work/kraken/classification.kraken"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"split_reads": True, "input_format": "fastq"}, tmp_path) == [
+        tmp_path / "kraken" / "classification.kraken",
+        tmp_path / "kraken" / "classified_reads.fastq",
+        tmp_path / "kraken" / "unclassified_reads.fastq",
+    ]
+
+
+def test_kraken_renders_paired_collection_and_validates_wrapper_inputs() -> None:
+    node_class = _node_class("kraken")
+
+    assert node_class.render_command(
+        {
+            "input_type": "paired_collection",
+            "input_pair": {"forward": "lane1_R1.fq", "reverse": "lane1_R2.fq"},
+            "db": "/db/minikraken",
+            "check_names": False,
+            "output": "/work/kraken",
+        }
+    ) == (
+        "kraken --threads 1 --db /db/minikraken --fastq-input lane1_R1.fq lane1_R2.fq --paired "
+        "> /work/kraken/classification.kraken"
+    )
+
+    assert node_class.VALIDATE_INPUTS({"input_sequences": "reads.fq"}) == "Kraken database is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input_type": "single"}) == "Single-end input sequences are required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input_type": "paired", "forward_input": "R1.fq"}) == (
+        "Forward and reverse reads are required for paired input"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input_type": "paired_collection", "input_pair": []}) == (
+        "Paired collection input is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input_sequences": "reads.fq", "quick": "yes", "min_hits": 0}) == (
+        "Quick mode min_hits must be at least 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input_sequences": "reads.fq"}) is True
 
 
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
