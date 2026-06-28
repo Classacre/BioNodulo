@@ -1564,6 +1564,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/ncomms11257'],
     citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
   },
+  kaiju2krona: {
+    name: 'kaiju2krona',
+    display_name: 'Kaiju2Krona',
+    category: 'taxonomy',
+    description: 'Convert Kaiju output into a Krona-compatible taxonomy import table.',
+    search_aliases: ['Galaxy', 'kaiju', 'kaiju2krona', 'Krona import', 'selected ranks', 'taxonomy sunburst'],
+    input: {
+      required: {
+        kaiju_table: { type: 'TSV' },
+        reference_database: { type: 'DIRECTORY' },
+      },
+      optional: {
+        include_unclassified: { type: 'BOOLEAN', default: false },
+        selected_ranks: { type: 'STRING', default: [], list: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['krona_import_tsv'],
+    required_executables: ['kaiju2krona'],
+    required_conda_packages: ['kaiju'],
+    documentation_url: 'https://github.com/bioinformatics-centre/kaiju',
+    citation_dois: ['10.1038/ncomms11257'],
+    citation_urls: ['https://doi.org/10.1038/ncomms11257'],
+    citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
+  },
   kaiju2table: {
     name: 'kaiju2table',
     display_name: 'Kaiju2Table',
@@ -4471,7 +4496,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('191 nodes available')).toBeVisible();
+  await expect(page.getByText('192 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4538,6 +4563,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'filtertaxseqdb', name: 'MMseqs2 Taxonomy', category: 'taxonomy' },
     { query: 'protein-level classifier', name: 'Kaiju', category: 'taxonomy' },
     { query: 'Print full taxon path', name: 'Kaiju Add Taxon Names', category: 'taxonomy' },
+    { query: 'Krona import', name: 'Kaiju2Krona', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },

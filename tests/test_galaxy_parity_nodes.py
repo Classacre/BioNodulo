@@ -401,6 +401,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kaiju"],
             "doi": "10.1038/ncomms11257",
         },
+        "kaiju2krona": {
+            "display_name": "Kaiju2Krona",
+            "category": "taxonomy",
+            "required_executables": ["kaiju2krona"],
+            "required_conda_packages": ["kaiju"],
+            "doi": "10.1038/ncomms11257",
+        },
         "kaiju2table": {
             "display_name": "Kaiju2Table",
             "category": "taxonomy",
@@ -4785,6 +4792,67 @@ def test_kaiju_add_taxon_names_renders_annotation_command_and_outputs(tmp_path: 
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "kaiju_add_taxon_names" / "kaiju_taxon_names.tsv",
+    ]
+
+
+def test_kaiju2krona_renders_krona_import_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kaiju2krona")
+    info = _registry().object_info()["kaiju2krona"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["krona_import_tsv"]
+    assert info["citation_dois"] == ["10.1038/ncomms11257"]
+    assert info["citation_text"] == "Fast and sensitive taxonomic classification for metagenomics with Kaiju."
+    assert info["input"]["required"]["kaiju_table"][0] == "TSV"
+    assert info["input"]["required"]["reference_database"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["include_unclassified"][1]["default"] is False
+    assert info["input"]["optional"]["selected_ranks"][1]["default"] == []
+
+    assert node_class.render_command(
+        {
+            "kaiju_table": "kaiju.out",
+            "reference_database": "/db/kaiju/nr",
+            "include_unclassified": True,
+            "selected_ranks": ["superkingdom", "phylum", "genus"],
+            "output": "/work/kaiju2krona",
+        }
+    ) == [
+        "kaiju2krona",
+        "-t",
+        "/db/kaiju/nr/nodes.dmp",
+        "-n",
+        "/db/kaiju/nr/names.dmp",
+        "-i",
+        "kaiju.out",
+        "-o",
+        "/work/kaiju2krona/kaiju_krona.tsv",
+        "-u",
+        "-l",
+        "superkingdom.phylum.genus",
+    ]
+
+    assert node_class.render_command(
+        {
+            "kaiju_table": "kaiju_taxnames.out",
+            "reference_database": "/db/kaiju/refseq",
+            "include_unclassified": False,
+            "selected_ranks": [],
+            "output": "/work/kaiju2krona",
+        }
+    ) == [
+        "kaiju2krona",
+        "-t",
+        "/db/kaiju/refseq/nodes.dmp",
+        "-n",
+        "/db/kaiju/refseq/names.dmp",
+        "-i",
+        "kaiju_taxnames.out",
+        "-o",
+        "/work/kaiju2krona/kaiju_krona.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kaiju2krona" / "kaiju_krona.tsv",
     ]
 
 

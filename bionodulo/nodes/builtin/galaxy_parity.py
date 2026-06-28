@@ -7991,6 +7991,89 @@ class KaijuAddTaxonNamesNode(CommandNode):
         }
 
 
+class Kaiju2KronaNode(CommandNode):
+    """Convert Kaiju classifications into a Krona import table."""
+
+    NODE_ID = "kaiju2krona"
+    DISPLAY_NAME = "Kaiju2Krona"
+    REQUIRED_CONDA_PACKAGES = ["kaiju"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Convert Kaiju output into a Krona-compatible taxonomy import table."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "kaiju",
+        "kaiju2krona",
+        "Krona import",
+        "selected ranks",
+        "taxonomy sunburst",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("krona_import_tsv",)
+    REQUIRED_EXECUTABLES = ["kaiju2krona"]
+    DOCUMENTATION_URL = KaijuNode.DOCUMENTATION_URL
+    CITATION_DOIS = KaijuNode.CITATION_DOIS
+    CITATION_URLS = KaijuNode.CITATION_URLS
+    CITATION_TEXT = KaijuNode.CITATION_TEXT
+    VERSION = KaijuNode.VERSION
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        reference = str(inputs.get("reference_database", "")).rstrip("/")
+        cmd = [
+            "kaiju2krona",
+            "-t",
+            f"{reference}/nodes.dmp",
+            "-n",
+            f"{reference}/names.dmp",
+            "-i",
+            str(inputs.get("kaiju_table", "")),
+            "-o",
+            f"{out}/kaiju_krona.tsv",
+        ]
+        if inputs.get("include_unclassified", False):
+            cmd.append("-u")
+        selected_ranks = ".".join(_as_list(inputs.get("selected_ranks")))
+        if selected_ranks:
+            cmd.extend(["-l", selected_ranks])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "kaiju_krona.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        ranks = ["superkingdom", "phylum", "class", "order", "family", "genus", "species"]
+        return {
+            "required": {
+                "kaiju_table": ("TSV", {"description": "Kaiju output table"}),
+                "reference_database": (
+                    "DIRECTORY",
+                    {"description": "Kaiju database directory containing nodes.dmp and names.dmp"},
+                ),
+            },
+            "optional": {
+                "include_unclassified": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include count for unclassified reads"},
+                ),
+                "selected_ranks": (
+                    "STRING",
+                    {
+                        "default": [],
+                        "options": ranks,
+                        "multiple": True,
+                        "description": "Taxonomic ranks to print as dot-delimited Krona paths",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class Kaiju2TableNode(CommandNode):
     """Summarize Kaiju classifications by taxonomic rank."""
 
