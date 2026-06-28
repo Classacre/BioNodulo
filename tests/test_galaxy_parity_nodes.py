@@ -296,6 +296,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/nar/gkr367",
         },
+        "hmmer_phmmer": {
+            "display_name": "HMMER phmmer",
+            "category": "annotation",
+            "required_executables": ["phmmer"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/nar/gkr367",
+        },
         "hmmer_alimask": {
             "display_name": "HMMER alimask",
             "category": "annotation",
@@ -3165,6 +3172,175 @@ def test_hmmer_jackhmmer_renders_iterative_search_command_and_outputs(tmp_path: 
     }
     assert node_class.PLAN_OUTPUTS({"output_formats": []}, tmp_path) == {
         "output": tmp_path / "hmmer_jackhmmer" / "output.txt",
+    }
+
+
+def test_hmmer_phmmer_renders_protein_search_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_phmmer")
+    info = _registry().object_info()["hmmer_phmmer"]
+
+    assert info["output"] == ["STATS_FILE", "TSV", "TSV", "TSV"]
+    assert info["output_name"] == ["output", "tblout", "domtblout", "pfamtblout"]
+    assert "10.1093/nar/gkr367" in info["citation_dois"]
+    assert info["input"]["required"]["seqfile"][0] == "FASTA"
+    assert info["input"]["required"]["seqdb"][0] == "FASTA"
+    assert info["input"]["optional"]["output_formats"][1]["default"] == ["tblout", "domtblout", "pfamtblout"]
+    assert info["input"]["optional"]["domT"][1]["displayOptions"] == {
+        "show": {"threshold_mode": ["score"]},
+    }
+    assert "relative_weighting" not in info["input"]["optional"]
+    assert "effective_weighting" not in info["input"]["optional"]
+    assert "prior" not in info["input"]["optional"]
+    assert node_class.render_command(
+        {
+            "seqfile": "globins.fa",
+            "seqdb": "uniprot.fa",
+            "output_formats": ["tblout", "domtblout", "pfamtblout"],
+            "acc": True,
+            "noali": True,
+            "notextw": True,
+            "single_sequence_scoring": "singlemx",
+            "popen": 0.04,
+            "pextend": 0.45,
+            "threshold_mode": "score",
+            "score_threshold": 35,
+            "incT": 40,
+            "domT": 20,
+            "incdomT": 25,
+            "max": True,
+            "F1": 0.03,
+            "F2": 0.004,
+            "F3": 2e-6,
+            "nobias": True,
+            "eml": 240,
+            "emn": 230,
+            "evl": 250,
+            "evn": 240,
+            "efl": 130,
+            "efn": 220,
+            "eft": 0.06,
+            "nonull2": True,
+            "z": 2000,
+            "domz": 75,
+            "threads": 8,
+            "seed": 4,
+            "output": "/work/phmmer",
+        }
+    ) == [
+        "phmmer",
+        "--tblout",
+        "/work/phmmer/results.tblout",
+        "--domtblout",
+        "/work/phmmer/domains.domtblout",
+        "--pfamtblout",
+        "/work/phmmer/pfam.tblout",
+        "--acc",
+        "--noali",
+        "--notextw",
+        "--popen",
+        "0.04",
+        "--pextend",
+        "0.45",
+        "-T",
+        "35",
+        "--incT",
+        "40",
+        "--domT",
+        "20",
+        "--incdomT",
+        "25",
+        "--max",
+        "--F1",
+        "0.03",
+        "--F2",
+        "0.004",
+        "--F3",
+        "2e-06",
+        "--nobias",
+        "--EmL",
+        "240",
+        "--EmN",
+        "230",
+        "--EvL",
+        "250",
+        "--EvN",
+        "240",
+        "--EfL",
+        "130",
+        "--EfN",
+        "220",
+        "--Eft",
+        "0.06",
+        "--nonull2",
+        "-Z",
+        "2000",
+        "--domZ",
+        "75",
+        "--cpu",
+        "7",
+        "--seed",
+        "4",
+        "globins.fa",
+        "uniprot.fa",
+        ">",
+        "/work/phmmer/output.txt",
+    ]
+    assert node_class.render_command(
+        {
+            "seqfile": "globins.fa",
+            "seqdb": "uniprot.fa",
+            "output_formats": [],
+            "threshold_mode": "evalue",
+            "evalue": 10,
+            "domE": 10,
+            "threads": 1,
+            "seed": 42,
+            "output": "/work/phmmer",
+        }
+    ) == [
+        "phmmer",
+        "-E",
+        "10",
+        "--domE",
+        "10",
+        "--F1",
+        "0.02",
+        "--F2",
+        "0.001",
+        "--F3",
+        "1e-05",
+        "--EmL",
+        "200",
+        "--EmN",
+        "200",
+        "--EvL",
+        "200",
+        "--EvN",
+        "200",
+        "--EfL",
+        "100",
+        "--EfN",
+        "200",
+        "--Eft",
+        "0.04",
+        "--cpu",
+        "1",
+        "--seed",
+        "42",
+        "globins.fa",
+        "uniprot.fa",
+        ">",
+        "/work/phmmer/output.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == {
+        "output": tmp_path / "hmmer_phmmer" / "output.txt",
+        "tblout": tmp_path / "hmmer_phmmer" / "results.tblout",
+        "domtblout": tmp_path / "hmmer_phmmer" / "domains.domtblout",
+        "pfamtblout": tmp_path / "hmmer_phmmer" / "pfam.tblout",
+    }
+    assert node_class.PLAN_OUTPUTS({"output_formats": ["tblout"]}, tmp_path) == {
+        "output": tmp_path / "hmmer_phmmer" / "output.txt",
+        "tblout": tmp_path / "hmmer_phmmer" / "results.tblout",
     }
 
 

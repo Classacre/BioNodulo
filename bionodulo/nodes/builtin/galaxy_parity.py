@@ -5280,6 +5280,143 @@ class HMMERJackhmmerNode(CommandNode):
         }
 
 
+class HMMERPhmmerNode(HMMERJackhmmerNode):
+    """Search protein sequences against a protein FASTA database."""
+
+    NODE_ID = "hmmer_phmmer"
+    DISPLAY_NAME = "HMMER phmmer"
+    DESCRIPTION = "Search protein sequences against a protein FASTA database."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "phmmer",
+        "protein search",
+        "BLASTP-like",
+        "sequence homology",
+    ]
+    RETURN_TYPES = ("STATS_FILE", "TSV", "TSV", "TSV")
+    RETURN_NAMES = ("output", "tblout", "domtblout", "pfamtblout")
+    REQUIRED_EXECUTABLES = ["phmmer"]
+    DEFAULT_OUTPUT_FORMATS = ("tblout", "domtblout", "pfamtblout")
+
+    @classmethod
+    def _add_output_format_flags(cls, cmd: list[str], inputs: dict[str, Any], out: str) -> None:
+        super()._add_output_format_flags(cmd, inputs, out)
+        if "pfamtblout" in set(cls._output_formats(inputs)):
+            cmd.extend(["--pfamtblout", f"{out}/pfam.tblout"])
+
+    @classmethod
+    def _add_thresholds(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        threshold_mode = str(inputs.get("threshold_mode", "evalue"))
+        if threshold_mode == "score":
+            _add_if_value(cmd, "-T", inputs.get("score_threshold"))
+            _add_if_value(cmd, "--incT", inputs.get("incT"))
+            _add_if_value(cmd, "--domT", inputs.get("domT"))
+            _add_if_value(cmd, "--incdomT", inputs.get("incdomT"))
+        else:
+            _add_if_value(cmd, "-E", inputs.get("evalue", 10))
+            _add_if_value(cmd, "--incE", inputs.get("incE"))
+            _add_if_value(cmd, "--domE", inputs.get("domE", 10))
+            _add_if_value(cmd, "--incdomE", inputs.get("incdomE"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["phmmer"]
+        cls._add_output_format_flags(cmd, inputs, out)
+        cls._add_output_options(cmd, inputs)
+        cls._add_single_sequence_scoring(cmd, inputs)
+        cls._add_thresholds(cmd, inputs)
+        cls._add_acceleration_options(cmd, inputs)
+        cls._add_calibration_options(cmd, inputs)
+        cls._add_advanced_options(cmd, inputs)
+        _add_if_value(cmd, "--cpu", max(1, int(inputs.get("threads", 1)) - 1))
+        _add_if_value(cmd, "--seed", inputs.get("seed", 42))
+        cmd.extend([str(inputs.get("seqfile", "")), str(inputs.get("seqdb", ""))])
+        _add_shell_redirect(cmd, f"{out}/output.txt")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> dict[str, Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = {"output": out / "output.txt"}
+        output_formats = set(cls._output_formats(inputs))
+        if "tblout" in output_formats:
+            outputs["tblout"] = out / "results.tblout"
+        if "domtblout" in output_formats:
+            outputs["domtblout"] = out / "domains.domtblout"
+        if "pfamtblout" in output_formats:
+            outputs["pfamtblout"] = out / "pfam.tblout"
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        jackhmmer_inputs = super().INPUT_TYPES()
+        optional = dict(jackhmmer_inputs["optional"])
+        optional.pop("iterations")
+        for jackhmmer_only in (
+            "relative_weighting",
+            "wid",
+            "effective_weighting",
+            "eset",
+            "ere",
+            "esigma",
+            "eid",
+            "prior",
+        ):
+            optional.pop(jackhmmer_only, None)
+        optional["output_formats"] = (
+            "STRING",
+            {
+                "default": ["tblout", "domtblout", "pfamtblout"],
+                "options": ["tblout", "domtblout", "pfamtblout"],
+                "list": True,
+                "description": "Additional tabular output files to write",
+            },
+        )
+        optional["domE"] = (
+            "FLOAT",
+            {
+                "default": 10,
+                "min": 0,
+                "description": "Domain E-value reporting threshold",
+                "displayOptions": {"show": {"threshold_mode": ["evalue"]}},
+            },
+        )
+        optional["incdomE"] = (
+            "FLOAT",
+            {
+                "default": "",
+                "description": "Domain E-value inclusion threshold",
+                "advanced": True,
+                "displayOptions": {"show": {"threshold_mode": ["evalue"]}},
+            },
+        )
+        optional["domT"] = (
+            "FLOAT",
+            {
+                "default": "",
+                "description": "Domain bit score reporting threshold",
+                "displayOptions": {"show": {"threshold_mode": ["score"]}},
+            },
+        )
+        optional["incdomT"] = (
+            "FLOAT",
+            {
+                "default": "",
+                "description": "Domain bit score inclusion threshold",
+                "advanced": True,
+                "displayOptions": {"show": {"threshold_mode": ["score"]}},
+            },
+        )
+        return {
+            "required": jackhmmer_inputs["required"],
+            "optional": optional,
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 
