@@ -1719,6 +1719,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
     citation_text: 'Metagenome analysis using the Kraken software suite.',
   },
+  krakentools_kreport2krona: {
+    name: 'krakentools_kreport2krona',
+    display_name: 'Krakentools Kreport2Krona',
+    category: 'taxonomy',
+    description: 'Convert a Kraken report into a Krona-compatible text table.',
+    search_aliases: ['Galaxy', 'krakentools', 'kreport2krona.py', 'Krona-compatible', 'intermediate ranks', 'Kraken report'],
+    input: {
+      required: {
+        report: { type: 'TSV' },
+      },
+      optional: {
+        intermediate_ranks: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['krona_text'],
+    required_executables: ['kreport2krona.py'],
+    required_conda_packages: ['krakentools'],
+    documentation_url: 'https://github.com/jenniferlu717/KrakenTools',
+    citation_dois: ['10.1038/s41596-022-00738-y'],
+    citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
+    citation_text: 'Metagenome analysis using the Kraken software suite.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4595,7 +4618,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('196 nodes available')).toBeVisible();
+  await expect(page.getByText('197 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4668,6 +4691,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
     { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },
+    { query: 'Krona-compatible', name: 'Krakentools Kreport2Krona', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },

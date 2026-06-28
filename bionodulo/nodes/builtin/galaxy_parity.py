@@ -8444,6 +8444,67 @@ class KrakentoolsBetaDiversityNode(CommandNode):
         }
 
 
+class KrakentoolsKreport2KronaNode(CommandNode):
+    """Convert Kraken reports to Krona-compatible text tables."""
+
+    NODE_ID = "krakentools_kreport2krona"
+    DISPLAY_NAME = "Krakentools Kreport2Krona"
+    REQUIRED_CONDA_PACKAGES = ["krakentools"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Convert a Kraken report into a Krona-compatible text table."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "krakentools",
+        "kreport2krona.py",
+        "Krona-compatible",
+        "intermediate ranks",
+        "Kraken report",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("krona_text",)
+    REQUIRED_EXECUTABLES = ["kreport2krona.py"]
+    DOCUMENTATION_URL = "https://github.com/jenniferlu717/KrakenTools"
+    CITATION_DOIS = [KRAKENTOOLS_DOI]
+    CITATION_URLS = [f"{DOI_URL}{KRAKENTOOLS_DOI}"]
+    CITATION_TEXT = KRAKENTOOLS_CITATION_TEXT
+    VERSION = "1.2.1"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = [
+            "kreport2krona.py",
+            "--report",
+            str(inputs.get("report", "")),
+            "--output",
+            f"{out}/krona_text.tsv",
+        ]
+        if inputs.get("intermediate_ranks", False):
+            cmd.append("--intermediate-ranks")
+        return shlex.join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "krona_text.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "report": ("TSV", {"description": "Kraken report file to convert to Krona-compatible text"}),
+            },
+            "optional": {
+                "intermediate_ranks": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include non-standard intermediate ranks in the Krona paths"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class Kaiju2TableNode(CommandNode):
     """Summarize Kaiju classifications by taxonomic rank."""
 
