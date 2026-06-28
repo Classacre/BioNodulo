@@ -352,6 +352,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["mmseqs2"],
             "doi": "10.1038/nbt.3988",
         },
+        "mmseqs2_easy_linclust_clustering": {
+            "display_name": "MMseqs2 Easy Linclust",
+            "category": "clustering",
+            "required_executables": ["mmseqs"],
+            "required_conda_packages": ["mmseqs2"],
+            "doi": "10.1038/s41467-018-04964-5",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -3877,6 +3884,111 @@ def test_mmseqs2_easy_cluster_renders_cascaded_cluster_command_and_outputs(tmp_p
     assert node_class.PLAN_OUTPUTS({"output_selection": ["file_rep_seq", "file_cluster_tsv"]}, tmp_path) == [
         tmp_path / "mmseqs2_easy_cluster" / "result_rep_seq.fasta",
         tmp_path / "mmseqs2_easy_cluster" / "result_cluster.tsv",
+    ]
+
+
+def test_mmseqs2_easy_linclust_renders_linear_cluster_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("mmseqs2_easy_linclust_clustering")
+    info = _registry().object_info()["mmseqs2_easy_linclust_clustering"]
+
+    assert info["output"] == ["FASTA", "FASTA", "TSV"]
+    assert info["output_name"] == ["representative_sequences", "clustered_sequences", "cluster_tsv"]
+    assert "10.1038/s41467-018-04964-5" in info["citation_dois"]
+    assert info["input"]["required"]["input_fasta"][0] == "FASTA"
+    assert info["input"]["optional"]["dbtype"][1]["options"] == ["0", "1", "2"]
+    assert info["input"]["optional"]["min_seq_id"][1]["default"] == 0
+    assert info["input"]["optional"]["cov"][1]["default"] == 0.8
+    assert info["input"]["optional"]["spaced_kmer_mode"][1]["default"] == "0"
+    assert info["input"]["optional"]["kmer_per_seq"][1]["default"] == 21
+    assert info["input"]["optional"]["output_selection"][1]["default"] == [
+        "file_rep_seq",
+        "file_all_seq",
+        "file_cluster_tsv",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_fasta": "proteins.fasta",
+            "dbtype": "1",
+            "comp_bias_corr_scale": 0.6,
+            "kmer_per_seq_scale": 0.15,
+            "add_self_matches": 1,
+            "kmer_length": 7,
+            "mask": 0,
+            "mask_prob": 0.7,
+            "mask_lower_case": 1,
+            "mask_n_repeat": 2,
+            "spaced_kmer_mode": 1,
+            "convertalis": 1,
+            "alignment_output_mode": 3,
+            "wrapped_scoring": 1,
+            "min_aln_len": 35,
+            "seq_id_mode": 1,
+            "alt_ali": 2,
+            "score_bias": 0.3,
+            "realign": 1,
+            "realign_score_bias": -0.05,
+            "realign_max_seqs": 3000,
+            "corr_score_weight": 0.25,
+            "alignment_mode": 2,
+            "evalue": 1e-5,
+            "min_seq_id": 0.5,
+            "cov": 0.85,
+            "cov_mode": 1,
+            "max_rejected": 100,
+            "max_accept": 80,
+            "cluster_mode": 2,
+            "max_iterations": 120,
+            "similarity_type": 1,
+            "cluster_weight_threshold": 0.95,
+            "kmer_per_seq": 30,
+            "hash_shift": 99,
+            "include_only_extendable": 1,
+            "ignore_multi_kmer": 1,
+            "rescore_mode": 3,
+            "shuffle": 0,
+            "id_offset": 5,
+            "threads": 16,
+            "max_seq_len": 70000,
+            "filter_hits": 1,
+            "sort_results": 1,
+            "output": "/work/mmseqs_linclust",
+        }
+    ) == (
+        "ln -sf proteins.fasta input.fasta && "
+        "mmseqs easy-linclust input.fasta /work/mmseqs_linclust/result /work/mmseqs_linclust/tmp "
+        "--comp-bias-corr-scale 0.6 --kmer-per-seq-scale 0.15 --dbtype 1 --add-self-matches 1 "
+        "-k 7 --mask 0 --mask-prob 0.7 --mask-lower-case 1 --mask-n-repeat 2 --spaced-kmer-mode 1 "
+        "-a 1 --alignment-output-mode 3 --wrapped-scoring 1 --min-aln-len 35 --seq-id-mode 1 "
+        "--alt-ali 2 --score-bias 0.3 --realign 1 --realign-score-bias -0.05 --realign-max-seqs 3000 "
+        "--corr-score-weight 0.25 --alignment-mode 2 -e 1e-05 --min-seq-id 0.5 -c 0.85 --cov-mode 1 "
+        "--max-rejected 100 --max-accept 80 --cluster-mode 2 --max-iterations 120 --similarity-type 1 "
+        "--cluster-weight-threshold 0.95 --kmer-per-seq 30 --hash-shift 99 --include-only-extendable 1 "
+        "--ignore-multi-kmer 1 --rescore-mode 3 --shuffle 0 --id-offset 5 --threads 16 --max-seq-len 70000 "
+        "--filter-hits 1 --sort-results 1"
+    )
+    assert node_class.render_command(
+        {
+            "input_fasta": "reads.fasta.gz",
+            "dbtype": "2",
+            "zdrop": 90,
+            "kmer_per_seq_scale": 0.2,
+            "adjust_kmer_len": 1,
+            "threads": 1,
+            "output": "/work/mmseqs_linclust",
+        }
+    ).startswith(
+        "ln -sf reads.fasta.gz input.fasta.gz && "
+        "mmseqs easy-linclust input.fasta.gz /work/mmseqs_linclust/result /work/mmseqs_linclust/tmp "
+        "--zdrop 90 --kmer-per-seq-scale 0.2 --adjust-kmer-len 1 --dbtype 2"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_linclust_clustering" / "result_rep_seq.fasta",
+        tmp_path / "mmseqs2_easy_linclust_clustering" / "result_all_seqs.fasta",
+        tmp_path / "mmseqs2_easy_linclust_clustering" / "result_cluster.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_selection": ["file_all_seq"]}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_linclust_clustering" / "result_all_seqs.fasta",
     ]
 
 

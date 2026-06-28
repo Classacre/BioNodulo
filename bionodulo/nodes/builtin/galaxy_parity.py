@@ -6268,6 +6268,200 @@ class MMseqs2EasyClusterNode(CommandNode):
         }
 
 
+class MMseqs2EasyLinclustNode(MMseqs2EasyClusterNode):
+    """Cluster very large sequence sets in linear time with MMseqs2 Linclust."""
+
+    NODE_ID = "mmseqs2_easy_linclust_clustering"
+    DISPLAY_NAME = "MMseqs2 Easy Linclust"
+    DESCRIPTION = "Cluster very large protein or nucleotide datasets in linear time with MMseqs2 Linclust."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "mmseqs2",
+        "mmseqs",
+        "easy-linclust",
+        "linclust",
+        "linear clustering",
+    ]
+    CITATION_DOIS = [
+        "10.1038/s41467-018-04964-5",
+        *MMseqs2EasySearchNode.CITATION_DOIS,
+    ]
+    CITATION_URLS = [f"{DOI_URL}10.1038/s41467-018-04964-5", *MMseqs2EasySearchNode.CITATION_URLS]
+    CITATION_TEXT = "Clustering huge protein sequence sets in linear time."
+
+    @classmethod
+    def _add_dbtype_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        dbtype = str(inputs.get("dbtype", "0"))
+        if dbtype == "1":
+            _add_if_value(cmd, "--comp-bias-corr-scale", inputs.get("comp_bias_corr_scale", 1))
+            _add_if_value(cmd, "--kmer-per-seq-scale", inputs.get("kmer_per_seq_scale", 0.0))
+        elif dbtype == "2":
+            _add_if_value(cmd, "--zdrop", inputs.get("zdrop", 40))
+            _add_if_value(cmd, "--kmer-per-seq-scale", inputs.get("kmer_per_seq_scale", 0.0))
+            _add_if_value(cmd, "--adjust-kmer-len", inputs.get("adjust_kmer_len", 0))
+        cmd.extend(["--dbtype", dbtype])
+
+    @classmethod
+    def _add_prefilter_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--add-self-matches",
+                str(inputs.get("add_self_matches", 0)),
+                "-k",
+                str(inputs.get("kmer_length", 0)),
+                "--mask",
+                str(inputs.get("mask", 1)),
+                "--mask-prob",
+                str(inputs.get("mask_prob", 0.9)),
+                "--mask-lower-case",
+                str(inputs.get("mask_lower_case", 0)),
+                "--mask-n-repeat",
+                str(inputs.get("mask_n_repeat", 0)),
+                "--spaced-kmer-mode",
+                str(inputs.get("spaced_kmer_mode", 0)),
+            ]
+        )
+
+    @classmethod
+    def _add_kmermatcher_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--cluster-weight-threshold",
+                str(inputs.get("cluster_weight_threshold", 0.9)),
+                "--kmer-per-seq",
+                str(inputs.get("kmer_per_seq", 21)),
+                "--hash-shift",
+                str(inputs.get("hash_shift", 67)),
+                "--include-only-extendable",
+                str(inputs.get("include_only_extendable", 0)),
+                "--ignore-multi-kmer",
+                str(inputs.get("ignore_multi_kmer", 0)),
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_fasta = str(inputs.get("input_fasta", ""))
+        linked_input = cls._input_link_name(input_fasta)
+        effective_inputs = dict(inputs)
+        effective_inputs.setdefault("min_seq_id", 0)
+        cmd = ["mmseqs", "easy-linclust", linked_input, f"{out}/result", f"{out}/tmp"]
+        cls._add_dbtype_options(cmd, effective_inputs)
+        cls._add_prefilter_options(cmd, effective_inputs)
+        cls._add_align_options(cmd, effective_inputs)
+        cls._add_clustering_options(cmd, effective_inputs)
+        cls._add_kmermatcher_options(cmd, effective_inputs)
+        cls._add_misc_options(cmd, effective_inputs)
+        return f"ln -sf {shlex.quote(input_fasta)} {shlex.quote(linked_input)} && {shlex.join(cmd)}"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_fasta": ("FASTA", {"description": "Protein or nucleotide FASTA sequences to cluster"}),
+            },
+            "optional": {
+                "dbtype": (
+                    "STRING",
+                    {
+                        "default": "0",
+                        "options": ["0", "1", "2"],
+                        "description": "Input data type: automatic, amino acid, or nucleotide",
+                    },
+                ),
+                "comp_bias_corr_scale": (
+                    "FLOAT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 1,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["1"]}},
+                    },
+                ),
+                "zdrop": (
+                    "INT",
+                    {
+                        "default": 40,
+                        "min": 0,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["2"]}},
+                    },
+                ),
+                "kmer_per_seq_scale": (
+                    "FLOAT",
+                    {
+                        "default": 0.0,
+                        "min": 0,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["1", "2"]}},
+                    },
+                ),
+                "adjust_kmer_len": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 1,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["2"]}},
+                    },
+                ),
+                "add_self_matches": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "kmer_length": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "mask": ("STRING", {"default": "1", "options": ["0", "1"], "advanced": True}),
+                "mask_prob": ("FLOAT", {"default": 0.9, "min": 0, "advanced": True}),
+                "mask_lower_case": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "mask_n_repeat": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "spaced_kmer_mode": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "convertalis": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "alignment_output_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4", "5"], "advanced": True}),
+                "wrapped_scoring": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "min_aln_len": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "seq_id_mode": ("STRING", {"default": "0", "options": ["0", "1", "2"], "advanced": True}),
+                "alt_ali": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "score_bias": ("FLOAT", {"default": 0, "advanced": True}),
+                "realign": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "realign_score_bias": ("FLOAT", {"default": -0.2, "advanced": True}),
+                "realign_max_seqs": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "corr_score_weight": ("FLOAT", {"default": 0, "advanced": True}),
+                "alignment_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4"], "advanced": True}),
+                "evalue": ("FLOAT", {"default": 0.001, "min": 0}),
+                "min_seq_id": ("FLOAT", {"default": 0, "min": 0, "max": 1}),
+                "cov": ("FLOAT", {"default": 0.8, "min": 0, "max": 1}),
+                "cov_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4", "5"]}),
+                "max_rejected": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "max_accept": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "cluster_mode": ("STRING", {"default": "0", "options": ["0", "1", "2"]}),
+                "max_iterations": ("INT", {"default": 1000, "min": 0, "advanced": True}),
+                "similarity_type": ("STRING", {"default": "2", "options": ["1", "2"], "advanced": True}),
+                "cluster_weight_threshold": ("FLOAT", {"default": 0.9, "min": 0, "advanced": True}),
+                "kmer_per_seq": ("INT", {"default": 21, "min": 1, "advanced": True}),
+                "hash_shift": ("INT", {"default": 67, "min": 0, "advanced": True}),
+                "include_only_extendable": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "ignore_multi_kmer": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "rescore_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4"], "advanced": True}),
+                "shuffle": ("INT", {"default": 1, "min": 0, "max": 1, "advanced": True}),
+                "id_offset": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "max_seq_len": ("INT", {"default": 65535, "min": 1, "advanced": True}),
+                "filter_hits": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "sort_results": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "output_selection": (
+                    "STRING",
+                    {
+                        "default": ["file_rep_seq", "file_all_seq", "file_cluster_tsv"],
+                        "options": ["file_rep_seq", "file_all_seq", "file_cluster_tsv"],
+                        "list": True,
+                        "description": "MMseqs2 easy-linclust output files to keep",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MashDistNode(CommandNode):
     """Estimate Mash distances between reference and query sequences."""
 
