@@ -5696,6 +5696,144 @@ class RSeQCDeletionProfileNode(CommandNode):
         }
 
 
+class RSeQCGeneBodyCoverageNode(CommandNode):
+    """Assess RNA-seq coverage uniformity across scaled gene bodies."""
+
+    NODE_ID = "rseqc_gene_body_coverage"
+    DISPLAY_NAME = "RSeQC Gene Body Coverage"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate read coverage across scaled gene bodies to reveal RNA-seq 5 prime or 3 prime coverage bias."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "geneBody_coverage",
+        "gene body coverage",
+        "coverage uniformity",
+        "5 prime bias",
+        "3 prime bias",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "IMAGE", "TSV", "TEXT")
+    RETURN_NAMES = ("coverage_curves", "coverage_heatmap", "coverage_table", "r_script")
+    REQUIRED_EXECUTABLES = ["geneBody_coverage.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#genebody-coverage-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+    SHELL = True
+
+    @classmethod
+    def _bam_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("input", inputs.get("inputs")))
+
+    @classmethod
+    def _linked_bam_names(cls, bam_files: list[str]) -> list[str]:
+        names: list[str] = []
+        seen: dict[str, int] = {}
+        for bam_file in bam_files:
+            name = _safe_name(bam_file)
+            if not name.endswith(".bam"):
+                name = f"{name}.bam"
+            count = seen.get(name, 0)
+            seen[name] = count + 1
+            if count:
+                stem = name[:-4] if name.endswith(".bam") else name
+                name = f"{stem}.{count + 1}.bam"
+            names.append(name)
+        return names
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        bam_files = cls._bam_files(inputs)
+        if len(bam_files) <= 1:
+            input_arg = bam_files[0] if bam_files else ""
+            return [
+                "geneBody_coverage.py",
+                "-i",
+                input_arg,
+                "-r",
+                str(inputs.get("refgene", "")),
+                "--minimum_length",
+                str(inputs.get("minimum_length", 100)),
+                "-o",
+                f"{out}/output",
+            ]
+
+        input_dir = f"{out}/input_bams"
+        input_list = f"{out}/input_list.txt"
+        linked_names = cls._linked_bam_names(bam_files)
+        linked_paths = [f"{input_dir}/{linked_name}" for linked_name in linked_names]
+        cmd = ["mkdir", "-p", input_dir]
+        for source, linked_path in zip(bam_files, linked_paths, strict=True):
+            cmd.extend(["&&", "ln", "-sf", source, linked_path])
+        cmd.extend(["&&", "printf", "%s\\n"])
+        cmd.extend(linked_paths)
+        cmd.extend(
+            [
+                ">",
+                input_list,
+                "&&",
+                "geneBody_coverage.py",
+                "-i",
+                input_list,
+                "-r",
+                str(inputs.get("refgene", "")),
+                "--minimum_length",
+                str(inputs.get("minimum_length", 100)),
+                "-o",
+                f"{out}/output",
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.geneBodyCoverage.curves.pdf",
+        ]
+        if len(cls._bam_files(inputs)) >= 3:
+            outputs.append(out / "output.geneBodyCoverage.heatMap.pdf")
+        outputs.append(out / "output.geneBodyCoverage.txt")
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.geneBodyCoverage.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": (
+                    "BAM",
+                    {
+                        "multiple": True,
+                        "description": "Sorted and indexed BAM alignment file or multiple BAM files to merge into one coverage plot",
+                    },
+                ),
+                "refgene": ("BED", {"description": "Reference gene model in BED12 format"}),
+            },
+            "optional": {
+                "minimum_length": (
+                    "INT",
+                    {
+                        "default": 100,
+                        "min": 100,
+                        "description": "Minimum mRNA length in bp; transcripts shorter than this are skipped",
+                    },
+                ),
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the gene body coverage plots"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCRNAFragmentSizeNode(CommandNode):
     """Estimate RNA-seq fragment sizes for each transcript."""
 
