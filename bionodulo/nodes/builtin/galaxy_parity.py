@@ -8630,6 +8630,77 @@ class KrakenNode(CommandNode):
         }
 
 
+class KrakenReportNode(CommandNode):
+    """Generate a classic Kraken taxonomy report."""
+
+    NODE_ID = "kraken_report"
+    DISPLAY_NAME = "Kraken Report"
+    REQUIRED_CONDA_PACKAGES = ["kraken"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Generate a tabular sample report from classic Kraken classification output."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Kraken Report",
+        "kraken-report",
+        "sample report",
+        "taxonomy summary",
+        "classification report",
+        "NCBI taxonomy ID",
+    ]
+    RETURN_TYPES = ("KRAKEN_REPORT",)
+    RETURN_NAMES = ("report",)
+    REQUIRED_EXECUTABLES = ["kraken-report"]
+    DOCUMENTATION_URL = "http://ccb.jhu.edu/software/kraken/"
+    CITATION_DOIS = ["10.1186/gb-2014-15-3-r46"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/gb-2014-15-3-r46"]
+    CITATION_TEXT = "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+    VERSION = "1.3.1"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/kraken_report.tsv"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("db", "")).strip():
+            return "Kraken database is required"
+        if not str(inputs.get("kraken_output", "")).strip():
+            return "Kraken classification output is required"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "kraken-report",
+            "--db",
+            str(inputs.get("db", "")),
+            str(inputs.get("kraken_output", "")),
+        ]
+        _add_shell_redirect(cmd, cls._output_path(inputs))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "kraken_report.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "kraken_output": (
+                    "KRAKEN_OUTPUT",
+                    {"description": "Taxonomy classification produced by Kraken"},
+                ),
+                "db": ("DIRECTORY", {"description": "Kraken database used for the original classification"}),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
 KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
 METAPHLAN_DOI = "10.1038/s41587-023-01688-w"

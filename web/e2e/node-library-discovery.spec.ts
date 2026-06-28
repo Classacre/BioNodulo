@@ -1719,6 +1719,28 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/gb-2014-15-3-r46'],
     citation_text: 'Kraken: ultrafast metagenomic sequence classification using exact alignments.',
   },
+  kraken_report: {
+    name: 'kraken_report',
+    display_name: 'Kraken Report',
+    category: 'metagenomics',
+    description: 'Generate a tabular sample report from classic Kraken classification output.',
+    search_aliases: ['Galaxy', 'Kraken Report', 'kraken-report', 'sample report', 'taxonomy summary', 'classification report', 'NCBI taxonomy ID'],
+    input: {
+      required: {
+        kraken_output: { type: 'STRING' },
+        db: { type: 'DIRECTORY' },
+      },
+      optional: {},
+    },
+    output: ['KRAKEN_REPORT'],
+    output_name: ['report'],
+    required_executables: ['kraken-report'],
+    required_conda_packages: ['kraken'],
+    documentation_url: 'http://ccb.jhu.edu/software/kraken/',
+    citation_dois: ['10.1186/gb-2014-15-3-r46'],
+    citation_urls: ['https://doi.org/10.1186/gb-2014-15-3-r46'],
+    citation_text: 'Kraken: ultrafast metagenomic sequence classification using exact alignments.',
+  },
   centrifuge: {
     name: 'centrifuge',
     display_name: 'Centrifuge',
@@ -5056,7 +5078,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('209 nodes available')).toBeVisible();
+  await expect(page.getByText('210 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5128,6 +5150,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'minimizer data', name: 'Kraken2', category: 'metagenomics' },
     { query: 'quick mode', name: 'Kraken', category: 'metagenomics' },
+    { query: 'sample report', name: 'Kraken Report', category: 'metagenomics' },
     { query: 'SRA accession', name: 'Centrifuge', category: 'metagenomics' },
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },

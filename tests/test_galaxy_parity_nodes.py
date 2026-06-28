@@ -429,6 +429,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kraken"],
             "doi": "10.1186/gb-2014-15-3-r46",
         },
+        "kraken_report": {
+            "display_name": "Kraken Report",
+            "category": "metagenomics",
+            "required_executables": ["kraken-report"],
+            "required_conda_packages": ["kraken"],
+            "doi": "10.1186/gb-2014-15-3-r46",
+        },
         "krakentools_combine_kreports": {
             "display_name": "Krakentools Combine Kraken Reports",
             "category": "taxonomy",
@@ -5174,6 +5181,71 @@ def test_kraken_renders_paired_collection_and_validates_wrapper_inputs() -> None
         "Quick mode min_hits must be at least 1"
     )
     assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input_sequences": "reads.fq"}) is True
+
+
+def test_kraken_report_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["kraken_report"]
+
+    assert info["display_name"] == "Kraken Report"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate a tabular sample report from classic Kraken classification output."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "Kraken Report",
+        "kraken-report",
+        "sample report",
+        "taxonomy summary",
+        "classification report",
+        "NCBI taxonomy ID",
+    ]
+    assert info["version"] == "1.3.1"
+    assert info["output"] == ["KRAKEN_REPORT"]
+    assert info["output_name"] == ["report"]
+    assert info["required_executables"] == ["kraken-report"]
+    assert info["required_conda_packages"] == ["kraken"]
+    assert info["documentation_url"] == "http://ccb.jhu.edu/software/kraken/"
+    assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
+    assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+
+    assert info["input"]["required"]["kraken_output"][0] == "STRING"
+    assert info["input"]["required"]["kraken_output"][1]["description"] == "Taxonomy classification produced by Kraken"
+    assert info["input"]["required"]["db"][0] == "DIRECTORY"
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_kraken_report_renders_report_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kraken_report")
+
+    assert node_class.render_command(
+        {
+            "kraken_output": "sample classification.kraken",
+            "db": "/db/mini kraken",
+            "output": "/work/kraken_report",
+        }
+    ) == (
+        "kraken-report --db '/db/mini kraken' 'sample classification.kraken' "
+        "> /work/kraken_report/kraken_report.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "kraken_output": "classification.kraken",
+            "db": "/db/kraken",
+            "output": "/work/kraken_report",
+        }
+    ) == "kraken-report --db /db/kraken classification.kraken > /work/kraken_report/kraken_report.tsv"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kraken_report" / "kraken_report.tsv",
+    ]
+
+
+def test_kraken_report_validates_wrapper_inputs() -> None:
+    node_class = _node_class("kraken_report")
+
+    assert node_class.VALIDATE_INPUTS({"kraken_output": "classification.kraken"}) == "Kraken database is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken"}) == "Kraken classification output is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "kraken_output": "classification.kraken"}) is True
 
 
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
