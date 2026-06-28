@@ -289,6 +289,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/nar/gkr367",
         },
+        "hmmer_jackhmmer": {
+            "display_name": "HMMER jackhmmer",
+            "category": "annotation",
+            "required_executables": ["jackhmmer"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/nar/gkr367",
+        },
         "hmmer_alimask": {
             "display_name": "HMMER alimask",
             "category": "annotation",
@@ -2978,6 +2985,187 @@ def test_hmmer_hmmfetch_renders_model_selection_command_and_output(tmp_path: Pat
         "/work/hmmfetch/selected.hmm",
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_hmmfetch" / "selected.hmm"]
+
+
+def test_hmmer_jackhmmer_renders_iterative_search_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_jackhmmer")
+    info = _registry().object_info()["hmmer_jackhmmer"]
+
+    assert info["output"] == ["STATS_FILE", "TSV", "TSV"]
+    assert info["output_name"] == ["output", "tblout", "domtblout"]
+    assert "10.1093/nar/gkr367" in info["citation_dois"]
+    assert info["input"]["required"]["seqfile"][0] == "FASTA"
+    assert info["input"]["required"]["seqdb"][0] == "FASTA"
+    assert info["input"]["optional"]["output_formats"][1]["default"] == ["tblout", "domtblout"]
+    assert info["input"]["optional"]["output_formats"][1]["list"] is True
+    assert info["input"]["optional"]["popen"][1]["displayOptions"] == {
+        "show": {"single_sequence_scoring": ["singlemx"]},
+    }
+    assert info["input"]["optional"]["incT"][1]["displayOptions"] == {
+        "show": {"threshold_mode": ["score"]},
+    }
+    assert node_class.render_command(
+        {
+            "seqfile": "query.fa",
+            "seqdb": "uniprot.fa",
+            "iterations": 3,
+            "output_formats": ["tblout", "domtblout"],
+            "acc": True,
+            "noali": True,
+            "notextw": True,
+            "single_sequence_scoring": "singlemx",
+            "popen": 0.03,
+            "pextend": 0.5,
+            "threshold_mode": "score",
+            "score_threshold": 25,
+            "incT": 30,
+            "max": True,
+            "F1": 0.01,
+            "F2": 0.002,
+            "F3": 1e-6,
+            "nobias": True,
+            "relative_weighting": "--wblosum",
+            "wid": 0.65,
+            "effective_weighting": "eent",
+            "eset": 2.0,
+            "ere": 0.59,
+            "esigma": 45,
+            "prior": "--pnone",
+            "eml": 220,
+            "emn": 210,
+            "evl": 230,
+            "evn": 220,
+            "efl": 120,
+            "efn": 210,
+            "eft": 0.05,
+            "nonull2": True,
+            "z": 1000,
+            "domz": 50,
+            "threads": 6,
+            "seed": 4,
+            "output": "/work/jackhmmer",
+        }
+    ) == [
+        "jackhmmer",
+        "-N",
+        "3",
+        "--tblout",
+        "/work/jackhmmer/results.tblout",
+        "--domtblout",
+        "/work/jackhmmer/domains.domtblout",
+        "--acc",
+        "--noali",
+        "--notextw",
+        "--popen",
+        "0.03",
+        "--pextend",
+        "0.5",
+        "-T",
+        "25",
+        "--incT",
+        "30",
+        "--max",
+        "--F1",
+        "0.01",
+        "--F2",
+        "0.002",
+        "--F3",
+        "1e-06",
+        "--nobias",
+        "--wblosum",
+        "--wid",
+        "0.65",
+        "--eent",
+        "--eset",
+        "2.0",
+        "--ere",
+        "0.59",
+        "--esigma",
+        "45",
+        "--pnone",
+        "--EmL",
+        "220",
+        "--EmN",
+        "210",
+        "--EvL",
+        "230",
+        "--EvN",
+        "220",
+        "--EfL",
+        "120",
+        "--EfN",
+        "210",
+        "--Eft",
+        "0.05",
+        "--nonull2",
+        "-Z",
+        "1000",
+        "--domZ",
+        "50",
+        "--cpu",
+        "5",
+        "--seed",
+        "4",
+        "query.fa",
+        "uniprot.fa",
+        ">",
+        "/work/jackhmmer/output.txt",
+    ]
+    assert node_class.render_command(
+        {
+            "seqfile": "query.fa",
+            "seqdb": "uniprot.fa",
+            "output_formats": [],
+            "threshold_mode": "evalue",
+            "evalue": 10,
+            "threads": 1,
+            "seed": 42,
+            "output": "/work/jackhmmer",
+        }
+    ) == [
+        "jackhmmer",
+        "-N",
+        "5",
+        "-E",
+        "10",
+        "--F1",
+        "0.02",
+        "--F2",
+        "0.001",
+        "--F3",
+        "1e-05",
+        "--wpb",
+        "--EmL",
+        "200",
+        "--EmN",
+        "200",
+        "--EvL",
+        "200",
+        "--EvN",
+        "200",
+        "--EfL",
+        "100",
+        "--EfN",
+        "200",
+        "--Eft",
+        "0.04",
+        "--cpu",
+        "1",
+        "--seed",
+        "42",
+        "query.fa",
+        "uniprot.fa",
+        ">",
+        "/work/jackhmmer/output.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == {
+        "output": tmp_path / "hmmer_jackhmmer" / "output.txt",
+        "tblout": tmp_path / "hmmer_jackhmmer" / "results.tblout",
+        "domtblout": tmp_path / "hmmer_jackhmmer" / "domains.domtblout",
+    }
+    assert node_class.PLAN_OUTPUTS({"output_formats": []}, tmp_path) == {
+        "output": tmp_path / "hmmer_jackhmmer" / "output.txt",
+    }
 
 
 def test_hmmer_nodes_render_table_outputs() -> None:

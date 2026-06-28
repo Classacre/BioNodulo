@@ -1073,6 +1073,53 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
     citation_text: 'HMMER web server: interactive sequence similarity searching.',
   },
+  hmmer_jackhmmer: {
+    name: 'hmmer_jackhmmer',
+    display_name: 'HMMER jackhmmer',
+    category: 'annotation',
+    description: 'Iteratively search protein sequences against a protein FASTA database.',
+    search_aliases: ['Galaxy', 'hmmer', 'jackhmmer', 'iterative search', 'profile iteration', 'PSI-BLAST-like'],
+    input: {
+      required: {
+        seqfile: { type: 'FASTA' },
+        seqdb: { type: 'FASTA' },
+      },
+      optional: {
+        iterations: { type: 'INT', default: 5 },
+        output_formats: { type: 'STRING', default: ['tblout', 'domtblout'], list: true, options: ['tblout', 'domtblout'] },
+        acc: { type: 'BOOLEAN', default: false },
+        noali: { type: 'BOOLEAN', default: false },
+        notextw: { type: 'BOOLEAN', default: false },
+        single_sequence_scoring: { type: 'STRING', default: 'false', options: ['false', 'singlemx'] },
+        popen: { type: 'FLOAT', default: 0.02, displayOptions: { show: { single_sequence_scoring: ['singlemx'] } } },
+        pextend: { type: 'FLOAT', default: 0.4, displayOptions: { show: { single_sequence_scoring: ['singlemx'] } } },
+        threshold_mode: { type: 'STRING', default: 'evalue', options: ['evalue', 'score'] },
+        evalue: { type: 'FLOAT', default: 10, displayOptions: { show: { threshold_mode: ['evalue'] } } },
+        incE: { type: 'FLOAT', default: '', displayOptions: { show: { threshold_mode: ['evalue'] } } },
+        score_threshold: { type: 'FLOAT', default: '', displayOptions: { show: { threshold_mode: ['score'] } } },
+        incT: { type: 'FLOAT', default: '', displayOptions: { show: { threshold_mode: ['score'] } } },
+        max: { type: 'BOOLEAN', default: false },
+        F1: { type: 'FLOAT', default: 0.02 },
+        F2: { type: 'FLOAT', default: 0.001 },
+        F3: { type: 'FLOAT', default: 0.00001 },
+        nobias: { type: 'BOOLEAN', default: false },
+        relative_weighting: { type: 'STRING', default: '--wpb', options: ['--wpb', '--wgsc', '--wblosum', '--wnone', '--wgiven'] },
+        wid: { type: 'FLOAT', default: 0.62, displayOptions: { show: { relative_weighting: ['--wblosum'] } } },
+        effective_weighting: { type: 'STRING', default: '', options: ['', 'eent', 'eclust', 'enone'] },
+        prior: { type: 'STRING', default: '', options: ['', '--pnone', '--plaplace'] },
+        threads: { type: 'INT', default: 1 },
+        seed: { type: 'INT', default: 42 },
+      },
+    },
+    output: ['STATS_FILE', 'TSV', 'TSV'],
+    output_name: ['output', 'tblout', 'domtblout'],
+    required_executables: ['jackhmmer'],
+    required_conda_packages: ['hmmer'],
+    documentation_url: 'http://hmmer.org/documentation.html',
+    citation_dois: ['10.1093/nar/gkr367'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
+    citation_text: 'HMMER web server: interactive sequence similarity searching.',
+  },
   hmmer_alimask: {
     name: 'hmmer_alimask',
     display_name: 'HMMER alimask',
@@ -3997,7 +4044,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('178 nodes available')).toBeVisible();
+  await expect(page.getByText('179 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4050,6 +4097,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'hmmconvert', name: 'HMMER hmmconvert', category: 'annotation' },
     { query: 'hmmemit', name: 'HMMER hmmemit', category: 'annotation' },
     { query: 'hmmfetch', name: 'HMMER hmmfetch', category: 'annotation' },
+    { query: 'jackhmmer', name: 'HMMER jackhmmer', category: 'annotation' },
     { query: 'hmmer alignment mask', name: 'HMMER alimask', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

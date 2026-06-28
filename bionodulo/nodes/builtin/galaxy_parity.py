@@ -4965,6 +4965,321 @@ class HMMERHmmfetchNode(CommandNode):
         }
 
 
+class HMMERJackhmmerNode(CommandNode):
+    """Iteratively search protein sequences against a protein FASTA database."""
+
+    NODE_ID = "hmmer_jackhmmer"
+    DISPLAY_NAME = "HMMER jackhmmer"
+    REQUIRED_CONDA_PACKAGES = ["hmmer"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Iteratively search protein sequences against a protein FASTA database."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "jackhmmer",
+        "iterative search",
+        "profile iteration",
+        "PSI-BLAST-like",
+    ]
+    RETURN_TYPES = ("STATS_FILE", "TSV", "TSV")
+    RETURN_NAMES = ("output", "tblout", "domtblout")
+    REQUIRED_EXECUTABLES = ["jackhmmer"]
+    DOCUMENTATION_URL = "http://hmmer.org/documentation.html"
+    CITATION_DOIS = ["10.1093/nar/gkr367"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkr367"]
+    CITATION_TEXT = "HMMER web server: interactive sequence similarity searching."
+    VERSION = "3.4"
+    SHELL = True
+    DEFAULT_OUTPUT_FORMATS = ("tblout", "domtblout")
+
+    @classmethod
+    def _output_formats(cls, inputs: dict[str, Any]) -> list[str]:
+        if "output_formats" not in inputs:
+            return list(cls.DEFAULT_OUTPUT_FORMATS)
+        return _as_list(inputs.get("output_formats"))
+
+    @classmethod
+    def _add_output_format_flags(cls, cmd: list[str], inputs: dict[str, Any], out: str) -> None:
+        output_formats = set(cls._output_formats(inputs))
+        if "tblout" in output_formats:
+            cmd.extend(["--tblout", f"{out}/results.tblout"])
+        if "domtblout" in output_formats:
+            cmd.extend(["--domtblout", f"{out}/domains.domtblout"])
+
+    @classmethod
+    def _add_output_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        for key, flag in (("acc", "--acc"), ("noali", "--noali"), ("notextw", "--notextw")):
+            if inputs.get(key):
+                cmd.append(flag)
+
+    @classmethod
+    def _add_single_sequence_scoring(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        if str(inputs.get("single_sequence_scoring", "false")) == "singlemx":
+            _add_if_value(cmd, "--popen", inputs.get("popen", 0.02))
+            _add_if_value(cmd, "--pextend", inputs.get("pextend", 0.4))
+
+    @classmethod
+    def _add_thresholds(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        threshold_mode = str(inputs.get("threshold_mode", "evalue"))
+        if threshold_mode == "score":
+            _add_if_value(cmd, "-T", inputs.get("score_threshold"))
+            _add_if_value(cmd, "--incT", inputs.get("incT"))
+        else:
+            _add_if_value(cmd, "-E", inputs.get("evalue", 10))
+            _add_if_value(cmd, "--incE", inputs.get("incE"))
+
+    @classmethod
+    def _add_acceleration_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        if inputs.get("max"):
+            cmd.append("--max")
+        _add_if_value(cmd, "--F1", inputs.get("F1", 0.02))
+        _add_if_value(cmd, "--F2", inputs.get("F2", 0.001))
+        _add_if_value(cmd, "--F3", inputs.get("F3", 1e-5))
+        if inputs.get("nobias"):
+            cmd.append("--nobias")
+
+    @classmethod
+    def _add_weighting_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        relative_weighting = str(inputs.get("relative_weighting", "--wpb"))
+        if relative_weighting:
+            cmd.append(relative_weighting)
+        if relative_weighting == "--wblosum":
+            _add_if_value(cmd, "--wid", inputs.get("wid", 0.62))
+
+        effective_weighting = str(inputs.get("effective_weighting", ""))
+        if effective_weighting:
+            cmd.append(effective_weighting if effective_weighting.startswith("--") else f"--{effective_weighting}")
+        if effective_weighting == "eent":
+            _add_if_value(cmd, "--eset", inputs.get("eset", 0))
+            _add_if_value(cmd, "--ere", inputs.get("ere", 0))
+            _add_if_value(cmd, "--esigma", inputs.get("esigma", 45))
+        elif effective_weighting == "eclust":
+            _add_if_value(cmd, "--eset", inputs.get("eset", 0))
+            _add_if_value(cmd, "--eid", inputs.get("eid", 0.62))
+
+        prior = str(inputs.get("prior", ""))
+        if prior:
+            cmd.append(prior)
+
+    @classmethod
+    def _add_calibration_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        _add_if_value(cmd, "--EmL", inputs.get("eml", 200))
+        _add_if_value(cmd, "--EmN", inputs.get("emn", 200))
+        _add_if_value(cmd, "--EvL", inputs.get("evl", 200))
+        _add_if_value(cmd, "--EvN", inputs.get("evn", 200))
+        _add_if_value(cmd, "--EfL", inputs.get("efl", 100))
+        _add_if_value(cmd, "--EfN", inputs.get("efn", 200))
+        _add_if_value(cmd, "--Eft", inputs.get("eft", 0.04))
+
+    @classmethod
+    def _add_advanced_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        if inputs.get("nonull2"):
+            cmd.append("--nonull2")
+        _add_if_value(cmd, "-Z", inputs.get("z"))
+        _add_if_value(cmd, "--domZ", inputs.get("domz"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["jackhmmer", "-N", str(inputs.get("iterations", 5))]
+        cls._add_output_format_flags(cmd, inputs, out)
+        cls._add_output_options(cmd, inputs)
+        cls._add_single_sequence_scoring(cmd, inputs)
+        cls._add_thresholds(cmd, inputs)
+        cls._add_acceleration_options(cmd, inputs)
+        cls._add_weighting_options(cmd, inputs)
+        cls._add_calibration_options(cmd, inputs)
+        cls._add_advanced_options(cmd, inputs)
+        _add_if_value(cmd, "--cpu", max(1, int(inputs.get("threads", 1)) - 1))
+        _add_if_value(cmd, "--seed", inputs.get("seed", 42))
+        cmd.extend([str(inputs.get("seqfile", "")), str(inputs.get("seqdb", ""))])
+        _add_shell_redirect(cmd, f"{out}/output.txt")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> dict[str, Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = {"output": out / "output.txt"}
+        output_formats = set(cls._output_formats(inputs))
+        if "tblout" in output_formats:
+            outputs["tblout"] = out / "results.tblout"
+        if "domtblout" in output_formats:
+            outputs["domtblout"] = out / "domains.domtblout"
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "seqfile": ("FASTA", {"description": "Protein sequence FASTA to search with"}),
+                "seqdb": ("FASTA", {"description": "Protein sequence database FASTA"}),
+            },
+            "optional": {
+                "iterations": ("INT", {"default": 5, "min": 1, "description": "Maximum number of iterations"}),
+                "output_formats": (
+                    "STRING",
+                    {
+                        "default": ["tblout", "domtblout"],
+                        "options": ["tblout", "domtblout"],
+                        "list": True,
+                        "description": "Additional tabular output files to write",
+                    },
+                ),
+                "acc": ("BOOLEAN", {"default": False, "description": "Prefer accessions over names in output"}),
+                "noali": ("BOOLEAN", {"default": False, "description": "Suppress alignment blocks in text output"}),
+                "notextw": ("BOOLEAN", {"default": False, "description": "Use unlimited text output line width"}),
+                "single_sequence_scoring": (
+                    "STRING",
+                    {"default": "false", "options": ["false", "singlemx"], "description": "Single-sequence scoring mode"},
+                ),
+                "popen": (
+                    "FLOAT",
+                    {
+                        "default": 0.02,
+                        "min": 0,
+                        "max": 0.5,
+                        "description": "Gap open probability for singlemx",
+                        "displayOptions": {"show": {"single_sequence_scoring": ["singlemx"]}},
+                    },
+                ),
+                "pextend": (
+                    "FLOAT",
+                    {
+                        "default": 0.4,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Gap extend probability for singlemx",
+                        "displayOptions": {"show": {"single_sequence_scoring": ["singlemx"]}},
+                    },
+                ),
+                "threshold_mode": (
+                    "STRING",
+                    {"default": "evalue", "options": ["evalue", "score"], "description": "Reporting threshold mode"},
+                ),
+                "evalue": (
+                    "FLOAT",
+                    {
+                        "default": 10,
+                        "min": 0,
+                        "description": "E-value reporting threshold",
+                        "displayOptions": {"show": {"threshold_mode": ["evalue"]}},
+                    },
+                ),
+                "incE": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "E-value inclusion threshold",
+                        "advanced": True,
+                        "displayOptions": {"show": {"threshold_mode": ["evalue"]}},
+                    },
+                ),
+                "score_threshold": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "Bit score reporting threshold",
+                        "displayOptions": {"show": {"threshold_mode": ["score"]}},
+                    },
+                ),
+                "incT": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "Bit score inclusion threshold",
+                        "advanced": True,
+                        "displayOptions": {"show": {"threshold_mode": ["score"]}},
+                    },
+                ),
+                "max": ("BOOLEAN", {"default": False, "description": "Turn all heuristic filters off", "advanced": True}),
+                "F1": ("FLOAT", {"default": 0.02, "min": 0, "advanced": True}),
+                "F2": ("FLOAT", {"default": 0.001, "min": 0, "advanced": True}),
+                "F3": ("FLOAT", {"default": 1e-5, "min": 0, "advanced": True}),
+                "nobias": ("BOOLEAN", {"default": False, "description": "Turn off composition bias filter", "advanced": True}),
+                "relative_weighting": (
+                    "STRING",
+                    {
+                        "default": "--wpb",
+                        "options": ["--wpb", "--wgsc", "--wblosum", "--wnone", "--wgiven"],
+                        "description": "Relative sequence weighting strategy",
+                        "advanced": True,
+                    },
+                ),
+                "wid": (
+                    "FLOAT",
+                    {
+                        "default": 0.62,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Identity cutoff for BLOSUM-style weighting",
+                        "advanced": True,
+                        "displayOptions": {"show": {"relative_weighting": ["--wblosum"]}},
+                    },
+                ),
+                "effective_weighting": (
+                    "STRING",
+                    {"default": "", "options": ["", "eent", "eclust", "enone"], "description": "Effective sequence weighting strategy", "advanced": True},
+                ),
+                "eset": (
+                    "FLOAT",
+                    {
+                        "default": 0,
+                        "description": "Explicit effective sequence number",
+                        "advanced": True,
+                        "displayOptions": {"show": {"effective_weighting": ["eent", "eclust"]}},
+                    },
+                ),
+                "ere": (
+                    "FLOAT",
+                    {
+                        "default": 0,
+                        "description": "Minimum relative entropy per position for eent",
+                        "advanced": True,
+                        "displayOptions": {"show": {"effective_weighting": ["eent"]}},
+                    },
+                ),
+                "esigma": (
+                    "FLOAT",
+                    {
+                        "default": 45,
+                        "description": "Minimum total relative entropy for eent",
+                        "advanced": True,
+                        "displayOptions": {"show": {"effective_weighting": ["eent"]}},
+                    },
+                ),
+                "eid": (
+                    "FLOAT",
+                    {
+                        "default": 0.62,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Single-linkage identity cutoff for eclust",
+                        "advanced": True,
+                        "displayOptions": {"show": {"effective_weighting": ["eclust"]}},
+                    },
+                ),
+                "prior": (
+                    "STRING",
+                    {"default": "", "options": ["", "--pnone", "--plaplace"], "description": "Alternative prior strategy", "advanced": True},
+                ),
+                "eml": ("INT", {"default": 200, "min": 1, "advanced": True}),
+                "emn": ("INT", {"default": 200, "min": 1, "advanced": True}),
+                "evl": ("INT", {"default": 200, "min": 1, "advanced": True}),
+                "evn": ("INT", {"default": 200, "min": 1, "advanced": True}),
+                "efl": ("INT", {"default": 100, "min": 1, "advanced": True}),
+                "efn": ("INT", {"default": 200, "min": 1, "advanced": True}),
+                "eft": ("FLOAT", {"default": 0.04, "min": 0, "max": 1, "advanced": True}),
+                "nonull2": ("BOOLEAN", {"default": False, "description": "Turn off biased composition score corrections", "advanced": True}),
+                "z": ("INT", {"default": "", "description": "Comparisons for E-value calculation", "advanced": True}),
+                "domz": ("INT", {"default": "", "description": "Significant sequences for domain E-value calculation", "advanced": True}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "seed": ("INT", {"default": 42, "min": 0, "description": "Random seed; 0 chooses a random seed"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 
