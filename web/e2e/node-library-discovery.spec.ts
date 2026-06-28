@@ -1766,6 +1766,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
     citation_text: 'Metagenome analysis using the Kraken software suite.',
   },
+  krakentools_extract_kraken_reads: {
+    name: 'krakentools_extract_kraken_reads',
+    display_name: 'Krakentools Extract Kraken Reads By ID',
+    category: 'taxonomy',
+    description: 'Extract FASTA or FASTQ reads assigned to selected taxonomic IDs from Kraken, KrakenUniq, or Kraken2 classifications.',
+    search_aliases: ['Galaxy', 'krakentools', 'extract_kraken_reads.py', 'Kraken reads', 'taxonomic IDs', 'include children', 'paired collection'],
+    input: {
+      required: {
+        library_type: { type: 'STRING', default: 'single', options: ['single', 'paired', 'paired_collection'] },
+        input_1: { type: 'FASTQ' },
+        results: { type: 'TSV' },
+        taxid: { type: 'STRING' },
+      },
+      optional: {
+        input_2: { type: 'FASTQ', default: '' },
+        paired_collection: { type: 'DIRECTORY', default: '' },
+        report: { type: 'TSV', default: '' },
+        max_reads: { type: 'INT', default: 100000000 },
+        exclude: { type: 'BOOLEAN', default: false },
+        fastq_output: { type: 'BOOLEAN', default: false },
+        include_parents: { type: 'BOOLEAN', default: false },
+        include_children: { type: 'BOOLEAN', default: false },
+        input_1_ext: { type: 'STRING', default: 'fastq', options: ['fastq', 'fasta', 'fastq.gz', 'fasta.gz'] },
+        input_2_ext: { type: 'STRING', default: 'fastq', options: ['fastq', 'fasta', 'fastq.gz', 'fasta.gz'] },
+      },
+    },
+    output: ['FASTA', 'FASTA', 'DIRECTORY'],
+    output_name: ['forward_reads', 'reverse_reads', 'paired_reads'],
+    required_executables: ['extract_kraken_reads.py', 'gzip'],
+    required_conda_packages: ['krakentools', 'gzip'],
+    documentation_url: 'https://github.com/jenniferlu717/KrakenTools',
+    citation_dois: ['10.1038/s41596-022-00738-y'],
+    citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
+    citation_text: 'Metagenome analysis using the Kraken software suite.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4642,7 +4677,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('198 nodes available')).toBeVisible();
+  await expect(page.getByText('199 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4717,6 +4752,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },
     { query: 'Krona-compatible', name: 'Krakentools Kreport2Krona', category: 'taxonomy' },
     { query: 'MetaPhlAn-style', name: 'Krakentools Kreport2MPA', category: 'taxonomy' },
+    { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },

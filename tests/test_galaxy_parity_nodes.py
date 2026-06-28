@@ -457,6 +457,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["krakentools"],
             "doi": "10.1038/s41596-022-00738-y",
         },
+        "krakentools_extract_kraken_reads": {
+            "display_name": "Krakentools Extract Kraken Reads By ID",
+            "category": "taxonomy",
+            "required_executables": ["extract_kraken_reads.py", "gzip"],
+            "required_conda_packages": ["krakentools", "gzip"],
+            "doi": "10.1038/s41596-022-00738-y",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -5215,6 +5222,71 @@ def test_krakentools_kreport2mpa_renders_metaphlan_conversion_command_and_output
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "krakentools_kreport2mpa" / "metaphlan_profile.tsv",
+    ]
+
+
+def test_krakentools_extract_kraken_reads_renders_extraction_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("krakentools_extract_kraken_reads")
+    info = _registry().object_info()["krakentools_extract_kraken_reads"]
+
+    assert info["output"] == ["FASTA", "FASTA", "DIRECTORY"]
+    assert info["output_name"] == ["forward_reads", "reverse_reads", "paired_reads"]
+    assert info["citation_dois"] == ["10.1038/s41596-022-00738-y"]
+    assert info["citation_text"] == "Metagenome analysis using the Kraken software suite."
+    assert info["input"]["required"]["library_type"][1]["default"] == "single"
+    assert info["input"]["required"]["library_type"][1]["options"] == ["single", "paired", "paired_collection"]
+    assert info["input"]["required"]["taxid"][0] == "STRING"
+    assert info["input"]["required"]["results"][0] == "TSV"
+    assert info["input"]["optional"]["max_reads"][1]["default"] == 100000000
+    assert info["input"]["optional"]["fastq_output"][1]["default"] is False
+    assert info["input"]["optional"]["include_children"][1]["default"] is False
+
+    assert node_class.render_command(
+        {
+            "library_type": "single",
+            "input_1": "reads R1.fq",
+            "results": "kraken results.tsv",
+            "taxid": "10386 11176",
+            "max_reads": 2,
+            "exclude": True,
+            "fastq_output": True,
+            "include_parents": True,
+            "report": "kraken report.tsv",
+            "output": "/work/krakentools_extract",
+        }
+    ) == (
+        "extract_kraken_reads.py -k 'kraken results.tsv' -s 'reads R1.fq' "
+        "-o output_1.fastq --taxid 10386 11176 --max 2 --include-parents "
+        "--exclude --fastq-output --report 'kraken report.tsv' && "
+        "gzip -cvf output_1.fastq > /work/krakentools_extract/output_1.fastq.gz"
+    )
+
+    assert node_class.render_command(
+        {
+            "library_type": "paired",
+            "input_1": "reads/R1.fastq.gz",
+            "input_2": "reads/R2.fastq.gz",
+            "input_1_ext": "fastq.gz",
+            "results": "kraken2.results",
+            "taxid": "11176",
+            "include_children": True,
+            "report": "kraken2.report",
+            "output": "/work/krakentools_extract",
+        }
+    ) == (
+        "ln -s reads/R1.fastq.gz input_1.gz && "
+        "ln -s reads/R2.fastq.gz input_2.gz && "
+        "extract_kraken_reads.py -k kraken2.results -s input_1.gz -o output_1.fasta "
+        "--taxid 11176 --max 100000000 --include-children -s2 input_2.gz "
+        "-o2 output_2.fasta --report kraken2.report && "
+        "gzip -cvf output_1.fasta > /work/krakentools_extract/output_1.fasta.gz && "
+        "gzip -cvf output_2.fasta > /work/krakentools_extract/output_2.fasta.gz"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"fastq_output": True}, tmp_path) == [
+        tmp_path / "krakentools_extract_kraken_reads" / "output_1.fastq.gz",
+        tmp_path / "krakentools_extract_kraken_reads" / "output_2.fastq.gz",
+        tmp_path / "krakentools_extract_kraken_reads" / "paired_reads",
     ]
 
 

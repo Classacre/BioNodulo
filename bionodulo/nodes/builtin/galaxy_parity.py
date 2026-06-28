@@ -8573,6 +8573,222 @@ class KrakentoolsKreport2MpaNode(CommandNode):
         }
 
 
+class KrakentoolsExtractKrakenReadsNode(CommandNode):
+    """Extract reads assigned to selected taxonomy IDs from Kraken output."""
+
+    NODE_ID = "krakentools_extract_kraken_reads"
+    DISPLAY_NAME = "Krakentools Extract Kraken Reads By ID"
+    REQUIRED_CONDA_PACKAGES = ["krakentools", "gzip"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = (
+        "Extract FASTA or FASTQ reads assigned to selected taxonomic IDs from "
+        "Kraken, KrakenUniq, or Kraken2 classifications."
+    )
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "krakentools",
+        "extract_kraken_reads.py",
+        "Kraken reads",
+        "taxonomic IDs",
+        "include children",
+        "paired collection",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTA", "DIRECTORY")
+    RETURN_NAMES = ("forward_reads", "reverse_reads", "paired_reads")
+    REQUIRED_EXECUTABLES = ["extract_kraken_reads.py", "gzip"]
+    DOCUMENTATION_URL = "https://github.com/jenniferlu717/KrakenTools"
+    CITATION_DOIS = [KRAKENTOOLS_DOI]
+    CITATION_URLS = [f"{DOI_URL}{KRAKENTOOLS_DOI}"]
+    CITATION_TEXT = KRAKENTOOLS_CITATION_TEXT
+    VERSION = "1.2.1"
+    SHELL = True
+
+    @classmethod
+    def _library_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("library_type", inputs.get("type", "single")))
+
+    @classmethod
+    def _is_paired(cls, inputs: dict[str, Any]) -> bool:
+        return cls._library_type(inputs) in {"paired", "paired_collection"}
+
+    @classmethod
+    def _output_ext(cls, inputs: dict[str, Any]) -> str:
+        return "fastq" if inputs.get("fastq_output", False) else "fasta"
+
+    @classmethod
+    def _temp_output_name(cls, inputs: dict[str, Any], index: int) -> str:
+        return f"output_{index}.{cls._output_ext(inputs)}"
+
+    @classmethod
+    def _compressed_output_name(cls, inputs: dict[str, Any], index: int) -> str:
+        return f"{cls._temp_output_name(inputs, index)}.gz"
+
+    @classmethod
+    def _is_gzipped(cls, inputs: dict[str, Any], key: str, path: str) -> bool:
+        ext = str(inputs.get(f"{key}_ext", "")).lower()
+        return ext.endswith("gz") or path.lower().endswith(".gz")
+
+    @classmethod
+    def _paired_collection_reads(cls, inputs: dict[str, Any]) -> tuple[str, str]:
+        collection = inputs.get("paired_collection", inputs.get("input_1", ""))
+        if isinstance(collection, dict):
+            forward = collection.get("forward", collection.get("input_1", ""))
+            reverse = collection.get("reverse", collection.get("input_2", ""))
+            return str(forward), str(reverse)
+        if isinstance(collection, (list, tuple)) and len(collection) >= 2:
+            return str(collection[0]), str(collection[1])
+        if collection:
+            collection_path = str(collection).rstrip("/")
+            return f"{collection_path}/forward", f"{collection_path}/reverse"
+        return str(inputs.get("input_1", "")), str(inputs.get("input_2", ""))
+
+    @classmethod
+    def _input_paths(cls, inputs: dict[str, Any]) -> tuple[str, str]:
+        if cls._library_type(inputs) == "paired_collection":
+            return cls._paired_collection_reads(inputs)
+        return str(inputs.get("input_1", "")), str(inputs.get("input_2", ""))
+
+    @classmethod
+    def _linked_inputs(cls, inputs: dict[str, Any]) -> tuple[list[str], str, str]:
+        input_1, input_2 = cls._input_paths(inputs)
+        commands: list[str] = []
+        if cls._is_gzipped(inputs, "input_1", input_1):
+            commands.append(f"ln -s {shlex.quote(input_1)} input_1.gz")
+            input_1 = "input_1.gz"
+        if cls._is_paired(inputs) and cls._is_gzipped(inputs, "input_2", input_2):
+            commands.append(f"ln -s {shlex.quote(input_2)} input_2.gz")
+            input_2 = "input_2.gz"
+        return commands, input_1, input_2
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        taxids = str(inputs.get("taxid", "")).strip().split()
+        if not taxids or any(not taxid.isdigit() for taxid in taxids):
+            return "Taxonomic ID(s) must be a space-separated list of numeric tax IDs"
+        if (inputs.get("include_parents") or inputs.get("include_children")) and not inputs.get("report"):
+            return "Report is required when including parent or child taxonomic assignments"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        commands, input_1, input_2 = cls._linked_inputs(inputs)
+        cmd = [
+            "extract_kraken_reads.py",
+            "-k",
+            str(inputs.get("results", "")),
+            "-s",
+            input_1,
+            "-o",
+            cls._temp_output_name(inputs, 1),
+            "--taxid",
+            *str(inputs.get("taxid", "")).strip().split(),
+            "--max",
+            str(inputs.get("max_reads", inputs.get("max", 100000000))),
+        ]
+        if inputs.get("include_parents", False):
+            cmd.append("--include-parents")
+        if inputs.get("include_children", False):
+            cmd.append("--include-children")
+        if inputs.get("exclude", False):
+            cmd.append("--exclude")
+        if inputs.get("fastq_output", False):
+            cmd.append("--fastq-output")
+        if cls._is_paired(inputs):
+            cmd.extend(["-s2", input_2, "-o2", cls._temp_output_name(inputs, 2)])
+        if inputs.get("include_parents", False) or inputs.get("include_children", False):
+            cmd.extend(["--report", str(inputs.get("report", ""))])
+        commands.append(shlex.join(cmd))
+
+        gzip_1 = ["gzip", "-cvf", cls._temp_output_name(inputs, 1)]
+        _add_shell_redirect(gzip_1, f"{out}/{cls._compressed_output_name(inputs, 1)}")
+        commands.append(_shell_join(gzip_1))
+        if cls._is_paired(inputs):
+            gzip_2 = ["gzip", "-cvf", cls._temp_output_name(inputs, 2)]
+            _add_shell_redirect(gzip_2, f"{out}/{cls._compressed_output_name(inputs, 2)}")
+            commands.append(_shell_join(gzip_2))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        paired_out = out / "paired_reads"
+        paired_out.mkdir(parents=True, exist_ok=True)
+        return [
+            out / cls._compressed_output_name(inputs, 1),
+            out / cls._compressed_output_name(inputs, 2),
+            paired_out,
+        ]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        sequence_formats = ["fastq", "fasta", "fastq.gz", "fasta.gz"]
+        return {
+            "required": {
+                "library_type": (
+                    "STRING",
+                    {
+                        "default": "single",
+                        "options": ["single", "paired", "paired_collection"],
+                        "description": "Single, paired, or paired-collection read input mode",
+                    },
+                ),
+                "input_1": ("FASTQ", {"description": "Single-end input or paired-end forward reads"}),
+                "results": ("TSV", {"description": "Kraken, KrakenUniq, or Kraken2 classification results file"}),
+                "taxid": (
+                    "STRING",
+                    {"description": "Space-delimited numeric taxonomy ID list used to select matching reads"},
+                ),
+            },
+            "optional": {
+                "input_2": ("FASTQ", {"default": "", "description": "Paired-end reverse reads"}),
+                "paired_collection": (
+                    "DIRECTORY",
+                    {"default": "", "description": "Directory or collection-like value containing forward and reverse reads"},
+                ),
+                "report": (
+                    "TSV",
+                    {
+                        "default": "",
+                        "description": "Kraken report required when include_parents or include_children is enabled",
+                    },
+                ),
+                "max_reads": (
+                    "INT",
+                    {"default": 100000000, "min": 1, "description": "Maximum number of reads to save for each taxonomic ID"},
+                ),
+                "exclude": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Invert output to save reads that do not match the selected tax IDs"},
+                ),
+                "fastq_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write FASTQ output instead of the default FASTA output"},
+                ),
+                "include_parents": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include reads classified at parent levels of the selected tax IDs"},
+                ),
+                "include_children": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include reads classified below the selected tax IDs"},
+                ),
+                "input_1_ext": (
+                    "STRING",
+                    {"default": "fastq", "options": sequence_formats, "advanced": True},
+                ),
+                "input_2_ext": (
+                    "STRING",
+                    {"default": "fastq", "options": sequence_formats, "advanced": True},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class Kaiju2TableNode(CommandNode):
     """Summarize Kaiju classifications by taxonomic rank."""
 
