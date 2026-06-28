@@ -1161,6 +1161,47 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
     citation_text: 'HMMER web server: interactive sequence similarity searching.',
   },
+  hmmer_nhmmer: {
+    name: 'hmmer_nhmmer',
+    display_name: 'HMMER nhmmer',
+    category: 'annotation',
+    description: 'Search a nucleotide profile HMM or alignment against a nucleotide FASTA database.',
+    search_aliases: ['Galaxy', 'hmmer', 'nhmmer', 'DNA search', 'RNA search', 'BLASTN-like', 'nucleotide homology'],
+    input: {
+      required: {
+        hmmfile: { type: 'FILE' },
+        seqfile: { type: 'FASTA' },
+      },
+      optional: {
+        output_formats: { type: 'STRING', default: ['tblout', 'dfamtblout'], list: true, options: ['tblout', 'dfamtblout', 'aliscoresout'] },
+        acc: { type: 'BOOLEAN', default: false },
+        noali: { type: 'BOOLEAN', default: false },
+        notextw: { type: 'BOOLEAN', default: false },
+        single_sequence_scoring: { type: 'STRING', default: 'false', options: ['false', 'singlemx'] },
+        popen: { type: 'FLOAT', default: 0.02, displayOptions: { show: { single_sequence_scoring: ['singlemx'] } } },
+        pextend: { type: 'FLOAT', default: 0.4, displayOptions: { show: { single_sequence_scoring: ['singlemx'] } } },
+        threshold_mode: { type: 'STRING', default: 'evalue', options: ['evalue', 'score', 'cut'] },
+        evalue: { type: 'FLOAT', default: 10, displayOptions: { show: { threshold_mode: ['evalue'] } } },
+        score_threshold: { type: 'FLOAT', default: '', displayOptions: { show: { threshold_mode: ['score'] } } },
+        cut_mode: { type: 'STRING', default: 'none', options: ['none', '--cut_ga', '--cut_nc', '--cut_tc'], displayOptions: { show: { threshold_mode: ['cut'] } } },
+        max: { type: 'BOOLEAN', default: false },
+        F1: { type: 'FLOAT', default: 0.02 },
+        F2: { type: 'FLOAT', default: 0.001 },
+        F3: { type: 'FLOAT', default: 0.00001 },
+        input_format_select: { type: 'STRING', default: '--dna', options: ['--dna', '--rna'] },
+        threads: { type: 'INT', default: 1 },
+        seed: { type: 'INT', default: 42 },
+      },
+    },
+    output: ['STATS_FILE', 'TSV', 'TEXT', 'TEXT'],
+    output_name: ['output', 'tblout', 'dfamtblout', 'aliscoresout'],
+    required_executables: ['nhmmer'],
+    required_conda_packages: ['hmmer'],
+    documentation_url: 'http://hmmer.org/documentation.html',
+    citation_dois: ['10.1093/bioinformatics/btt403'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btt403'],
+    citation_text: 'nhmmer: DNA homology search with profile HMMs.',
+  },
   hmmer_alimask: {
     name: 'hmmer_alimask',
     display_name: 'HMMER alimask',
@@ -4085,7 +4126,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('180 nodes available')).toBeVisible();
+  await expect(page.getByText('181 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4140,6 +4181,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'hmmfetch', name: 'HMMER hmmfetch', category: 'annotation' },
     { query: 'jackhmmer', name: 'HMMER jackhmmer', category: 'annotation' },
     { query: 'phmmer', name: 'HMMER phmmer', category: 'annotation' },
+    { query: 'nhmmer', name: 'HMMER nhmmer', category: 'annotation' },
     { query: 'hmmer alignment mask', name: 'HMMER alimask', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

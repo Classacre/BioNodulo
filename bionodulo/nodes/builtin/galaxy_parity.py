@@ -5417,6 +5417,211 @@ class HMMERPhmmerNode(HMMERJackhmmerNode):
         }
 
 
+class HMMERNhmmerNode(HMMERJackhmmerNode):
+    """Search nucleotide queries against a nucleotide FASTA database."""
+
+    NODE_ID = "hmmer_nhmmer"
+    DISPLAY_NAME = "HMMER nhmmer"
+    DESCRIPTION = "Search a nucleotide profile HMM or alignment against a nucleotide FASTA database."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "nhmmer",
+        "DNA search",
+        "RNA search",
+        "BLASTN-like",
+        "nucleotide homology",
+    ]
+    RETURN_TYPES = ("STATS_FILE", "TSV", "TEXT", "TEXT")
+    RETURN_NAMES = ("output", "tblout", "dfamtblout", "aliscoresout")
+    REQUIRED_EXECUTABLES = ["nhmmer"]
+    DOCUMENTATION_URL = "http://hmmer.org/documentation.html"
+    CITATION_DOIS = ["10.1093/bioinformatics/btt403"]
+    CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btt403"]
+    CITATION_TEXT = "nhmmer: DNA homology search with profile HMMs."
+    DEFAULT_OUTPUT_FORMATS = ("tblout", "dfamtblout")
+
+    @classmethod
+    def _add_output_format_flags(cls, cmd: list[str], inputs: dict[str, Any], out: str) -> None:
+        output_formats = set(cls._output_formats(inputs))
+        if "tblout" in output_formats:
+            cmd.extend(["--tblout", f"{out}/results.tblout"])
+        if "dfamtblout" in output_formats:
+            cmd.extend(["--dfamtblout", f"{out}/dfam.tblout"])
+        if "aliscoresout" in output_formats:
+            cmd.extend(["--aliscoresout", f"{out}/alignment_scores.txt"])
+
+    @classmethod
+    def _add_thresholds(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        threshold_mode = str(inputs.get("threshold_mode", "evalue"))
+        if threshold_mode == "score":
+            _add_if_value(cmd, "-T", inputs.get("score_threshold"))
+            _add_if_value(cmd, "--incT", inputs.get("incT"))
+        elif threshold_mode == "cut":
+            cut_mode = str(inputs.get("cut_mode", "none"))
+            if cut_mode != "none":
+                cmd.append(cut_mode)
+        else:
+            _add_if_value(cmd, "-E", inputs.get("evalue", 10))
+            _add_if_value(cmd, "--incE", inputs.get("incE"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["nhmmer"]
+        cls._add_output_format_flags(cmd, inputs, out)
+        cls._add_output_options(cmd, inputs)
+        cls._add_single_sequence_scoring(cmd, inputs)
+        cls._add_thresholds(cmd, inputs)
+        cls._add_acceleration_options(cmd, inputs)
+        input_format = str(inputs.get("input_format_select", "--dna"))
+        if input_format:
+            cmd.append(input_format)
+        cls._add_advanced_options(cmd, inputs)
+        _add_if_value(cmd, "--w_beta", inputs.get("w_beta"))
+        _add_if_value(cmd, "--w_length", inputs.get("w_length"))
+        _add_if_value(cmd, "--cpu", max(1, int(inputs.get("threads", 1)) - 1))
+        _add_if_value(cmd, "--seed", inputs.get("seed", 42))
+        cmd.extend([str(inputs.get("hmmfile", "")), str(inputs.get("seqfile", ""))])
+        _add_shell_redirect(cmd, f"{out}/output.txt")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> dict[str, Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = {"output": out / "output.txt"}
+        output_formats = set(cls._output_formats(inputs))
+        if "tblout" in output_formats:
+            outputs["tblout"] = out / "results.tblout"
+        if "dfamtblout" in output_formats:
+            outputs["dfamtblout"] = out / "dfam.tblout"
+        if "aliscoresout" in output_formats:
+            outputs["aliscoresout"] = out / "alignment_scores.txt"
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "hmmfile": ("FILE", {"description": "Nucleotide profile HMM, alignment, or single-sequence query"}),
+                "seqfile": ("FASTA", {"description": "Target nucleotide FASTA database"}),
+            },
+            "optional": {
+                "output_formats": (
+                    "STRING",
+                    {
+                        "default": ["tblout", "dfamtblout"],
+                        "options": ["tblout", "dfamtblout", "aliscoresout"],
+                        "list": True,
+                        "description": "Additional tabular or positional score output files to write",
+                    },
+                ),
+                "acc": ("BOOLEAN", {"default": False, "description": "Prefer accessions over names in output"}),
+                "noali": ("BOOLEAN", {"default": False, "description": "Suppress alignment blocks in text output"}),
+                "notextw": ("BOOLEAN", {"default": False, "description": "Use unlimited text output line width"}),
+                "single_sequence_scoring": (
+                    "STRING",
+                    {"default": "false", "options": ["false", "singlemx"], "description": "Single-sequence scoring mode"},
+                ),
+                "popen": (
+                    "FLOAT",
+                    {
+                        "default": 0.02,
+                        "min": 0,
+                        "max": 0.5,
+                        "description": "Gap open probability for singlemx",
+                        "displayOptions": {"show": {"single_sequence_scoring": ["singlemx"]}},
+                    },
+                ),
+                "pextend": (
+                    "FLOAT",
+                    {
+                        "default": 0.4,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Gap extend probability for singlemx",
+                        "displayOptions": {"show": {"single_sequence_scoring": ["singlemx"]}},
+                    },
+                ),
+                "threshold_mode": (
+                    "STRING",
+                    {
+                        "default": "evalue",
+                        "options": ["evalue", "score", "cut"],
+                        "description": "Reporting threshold mode",
+                    },
+                ),
+                "evalue": (
+                    "FLOAT",
+                    {
+                        "default": 10,
+                        "min": 0,
+                        "description": "E-value reporting threshold",
+                        "displayOptions": {"show": {"threshold_mode": ["evalue"]}},
+                    },
+                ),
+                "incE": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "E-value inclusion threshold",
+                        "advanced": True,
+                        "displayOptions": {"show": {"threshold_mode": ["evalue"]}},
+                    },
+                ),
+                "score_threshold": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "Bit score reporting threshold",
+                        "displayOptions": {"show": {"threshold_mode": ["score"]}},
+                    },
+                ),
+                "incT": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "Bit score inclusion threshold",
+                        "advanced": True,
+                        "displayOptions": {"show": {"threshold_mode": ["score"]}},
+                    },
+                ),
+                "cut_mode": (
+                    "STRING",
+                    {
+                        "default": "none",
+                        "options": ["none", "--cut_ga", "--cut_nc", "--cut_tc"],
+                        "description": "Use model-specific GA, NC, or TC cutoffs",
+                        "advanced": True,
+                        "displayOptions": {"show": {"threshold_mode": ["cut"]}},
+                    },
+                ),
+                "max": ("BOOLEAN", {"default": False, "description": "Turn all heuristic filters off", "advanced": True}),
+                "F1": ("FLOAT", {"default": 0.02, "min": 0, "advanced": True}),
+                "F2": ("FLOAT", {"default": 0.001, "min": 0, "advanced": True}),
+                "F3": ("FLOAT", {"default": 1e-5, "min": 0, "advanced": True}),
+                "nobias": ("BOOLEAN", {"default": False, "description": "Turn off composition bias filter", "advanced": True}),
+                "input_format_select": (
+                    "STRING",
+                    {
+                        "default": "--dna",
+                        "options": ["--dna", "--rna"],
+                        "description": "Alphabet for the query model and target sequences",
+                    },
+                ),
+                "nonull2": ("BOOLEAN", {"default": False, "description": "Turn off biased composition score corrections", "advanced": True}),
+                "z": ("INT", {"default": "", "description": "Comparisons for E-value calculation", "advanced": True}),
+                "domz": ("INT", {"default": "", "description": "Significant sequences for domain E-value calculation", "advanced": True}),
+                "w_beta": ("FLOAT", {"default": "", "advanced": True, "description": "Tail mass at which nhmmer sets window length"}),
+                "w_length": ("INT", {"default": "", "advanced": True, "description": "Override nhmmer window length"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "seed": ("INT", {"default": 42, "min": 0, "description": "Random seed; 0 chooses a random seed"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 
