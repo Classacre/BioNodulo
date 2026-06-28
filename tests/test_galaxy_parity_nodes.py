@@ -2720,6 +2720,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["samtools", "ivar"],
             "doi": "10.1186/s13059-018-1618-7",
         },
+        "ivar_consensus": {
+            "display_name": "iVar Consensus",
+            "category": "variant",
+            "required_executables": ["samtools", "ivar"],
+            "required_conda_packages": ["samtools", "ivar"],
+            "doi": "10.1186/s13059-018-1618-7",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -3420,6 +3427,60 @@ def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> N
         tmp_path / "ivar_variants" / "variants.tsv",
         tmp_path / "ivar_variants" / "variants.vcf",
     ]
+
+
+def test_ivar_consensus_renders_mpileup_pipeline_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ivar_consensus")
+    info = _registry().object_info()["ivar_consensus"]
+
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["consensus_fasta"]
+    assert "10.1186/s13059-018-1618-7" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_bam": "sorted.bam",
+            "min_qual": 25,
+            "min_freq": 0.5,
+            "min_indel_freq": 0.9,
+            "min_depth": 12,
+            "depth_action": "-n -",
+            "output": "/work/ivar_consensus",
+        }
+    ) == [
+        "samtools",
+        "mpileup",
+        "-A",
+        "-a",
+        "-d",
+        "0",
+        "-Q",
+        "0",
+        "sorted.bam",
+        "|",
+        "ivar",
+        "consensus",
+        "-p",
+        "/work/ivar_consensus/consensus",
+        "-q",
+        "25",
+        "-t",
+        "0.5",
+        "-c",
+        "0.9",
+        "-m",
+        "12",
+        "-n",
+        "-",
+    ]
+    assert node_class.render_command(
+        {
+            "input_bam": "sorted.bam",
+            "depth_action": "-k",
+            "output": "/work/ivar_consensus",
+        }
+    )[-1] == "-k"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ivar_consensus" / "consensus.fa"]
 
 
 def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata() -> None:

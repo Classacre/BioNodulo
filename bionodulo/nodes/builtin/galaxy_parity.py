@@ -5549,6 +5549,78 @@ class LoFreqViterbiNode(CommandNode):
         }
 
 
+class IVarConsensusNode(CommandNode):
+    """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
+
+    NODE_ID = "ivar_consensus"
+    DISPLAY_NAME = "iVar Consensus"
+    REQUIRED_CONDA_PACKAGES = ["samtools", "ivar"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Call a consensus FASTA from aligned viral amplicon reads with iVar consensus."
+    SEARCH_ALIASES = [GALAXY_ALIAS, "ivar", "ivar consensus", "viral consensus", "amplicon consensus", "consensus fasta"]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("consensus_fasta",)
+    REQUIRED_EXECUTABLES = ["samtools", "ivar"]
+    DOCUMENTATION_URL = "https://andersen-lab.github.io/ivar/html/"
+    CITATION_DOIS = ["10.1186/s13059-018-1618-7"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/s13059-018-1618-7"]
+    CITATION_TEXT = "An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar."
+    VERSION = "1.4.4"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "samtools",
+            "mpileup",
+            "-A",
+            "-a",
+            "-d",
+            "0",
+            "-Q",
+            "0",
+            str(inputs.get("input_bam", "")),
+            "|",
+            "ivar",
+            "consensus",
+            "-p",
+            f"{out}/consensus",
+            "-q",
+            str(inputs.get("min_qual", 20)),
+            "-t",
+            str(inputs.get("min_freq", 0.0)),
+            "-c",
+            str(inputs.get("min_indel_freq", 0.8)),
+            "-m",
+            str(inputs.get("min_depth", 10)),
+        ]
+        depth_action = str(inputs.get("depth_action", "-n N") or "")
+        if depth_action:
+            cmd.extend(depth_action.split())
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "consensus.fa"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bam": ("BAM", {"description": "Aligned BAM file"}),
+                "min_qual": ("INT", {"default": 20, "min": 0, "max": 255}),
+                "min_freq": ("FLOAT", {"default": 0.0, "min": 0, "max": 1}),
+                "min_indel_freq": ("FLOAT", {"default": 0.8, "min": 0, "max": 1}),
+                "min_depth": ("INT", {"default": 10, "min": 1}),
+                "depth_action": ("STRING", {"default": "-n N", "options": ["-k", "-n N", "-n -"]}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarVariantsNode(CommandNode):
     """Call viral amplicon variants from samtools mpileup using iVar."""
 
