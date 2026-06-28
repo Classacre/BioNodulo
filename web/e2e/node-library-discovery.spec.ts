@@ -1213,6 +1213,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_bam2wig: {
+    name: 'rseqc_bam2wig',
+    display_name: 'RSeQC BAM to Wiggle',
+    category: 'rna_seq',
+    description: 'Convert RNA-seq BAM alignments into wiggle coverage tracks for genome browser visualization.',
+    search_aliases: ['Galaxy', 'rseqc', 'bam2wig', 'BAM to Wiggle', 'wiggle', 'coverage track', 'genome browser', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        chromsize: { type: 'FILE' },
+      },
+      optional: {
+        strand_specific: { type: 'STRING', default: 'none', options: ['none', 'pair', 'single'] },
+        pair_type: { type: 'STRING', default: 'sd', options: ['sd', 'ds'] },
+        single_type: { type: 'STRING', default: 's', options: ['s', 'd'] },
+        normalize: { type: 'BOOLEAN', default: false },
+        totalwig: { type: 'INT', default: 1000000000 },
+        skip_multi_hits: { type: 'BOOLEAN', default: false },
+        mapq: { type: 'INT', default: 30 },
+      },
+    },
+    output: ['WIG', 'WIG', 'WIG'],
+    output_name: ['wiggle', 'forward_wiggle', 'reverse_wiggle'],
+    required_executables: ['bam2wig.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#bam2wig-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_rna_fragment_size: {
     name: 'rseqc_rna_fragment_size',
     display_name: 'RSeQC RNA Fragment Size',
@@ -3345,7 +3375,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('154 nodes available')).toBeVisible();
+  await expect(page.getByText('155 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3405,6 +3435,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'fpkm gene expression', name: 'RSeQC FPKM Count', category: 'rna_seq' },
     { query: 'expression saturation', name: 'RSeQC RPKM Saturation', category: 'rna_seq' },
+    { query: 'wiggle coverage track', name: 'RSeQC BAM to Wiggle', category: 'rna_seq' },
     { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
     { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'junction saturation', name: 'RSeQC Junction Saturation', category: 'rna_seq' },

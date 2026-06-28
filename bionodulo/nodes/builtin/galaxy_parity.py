@@ -5427,6 +5427,104 @@ class RSeQCRPKMSaturationNode(CommandNode):
         }
 
 
+class RSeQCBam2WigNode(CommandNode):
+    """Convert RNA-seq BAM alignments to wiggle coverage tracks."""
+
+    NODE_ID = "rseqc_bam2wig"
+    DISPLAY_NAME = "RSeQC BAM to Wiggle"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Convert RNA-seq BAM alignments into wiggle coverage tracks for genome browser visualization."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "bam2wig",
+        "BAM to Wiggle",
+        "wiggle",
+        "coverage track",
+        "genome browser",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("WIG", "WIG", "WIG")
+    RETURN_NAMES = ("wiggle", "forward_wiggle", "reverse_wiggle")
+    REQUIRED_EXECUTABLES = ["bam2wig.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#bam2wig-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def _strand_rule(cls, inputs: dict[str, Any]) -> str:
+        strand_specific = str(inputs.get("strand_specific", "none"))
+        if strand_specific == "pair":
+            return {
+                "sd": "1++,1--,2+-,2-+",
+                "ds": "1+-,1-+,2++,2--",
+            }.get(str(inputs.get("pair_type", "sd")), "1++,1--,2+-,2-+")
+        if strand_specific == "single":
+            return {
+                "s": "++,--",
+                "d": "+-,-+",
+            }.get(str(inputs.get("single_type", "s")), "++,--")
+        return ""
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "bam2wig.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-s",
+            str(inputs.get("chromsize", "")),
+            "-o",
+            f"{out}/outfile",
+        ]
+        strand_rule = cls._strand_rule(inputs)
+        if strand_rule:
+            cmd.extend(["-d", strand_rule])
+        if inputs.get("normalize"):
+            cmd.extend(["-t", str(inputs.get("totalwig", ""))])
+        if inputs.get("skip_multi_hits"):
+            cmd.append("--skip-multi-hits")
+            cmd.extend(["--mapq", str(inputs.get("mapq", 30))])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        if str(inputs.get("strand_specific", "none")) == "none":
+            return [out / "outfile.wig"]
+        return [out / "outfile.Forward.wig", out / "outfile.Reverse.wig"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "Sorted and indexed BAM alignment file"}),
+                "chromsize": (
+                    "FILE",
+                    {"description": "Chromosome size file with chromosome name and size columns"},
+                ),
+            },
+            "optional": {
+                "strand_specific": (
+                    "STRING",
+                    {"default": "none", "options": ["none", "pair", "single"], "description": "Strand-specific library type"},
+                ),
+                "pair_type": ("STRING", {"default": "sd", "options": ["sd", "ds"], "description": "Paired-end strand rule"}),
+                "single_type": ("STRING", {"default": "s", "options": ["s", "d"], "description": "Single-end strand rule"}),
+                "normalize": ("BOOLEAN", {"default": False, "description": "Normalize wiggle coverage to a specified total wigsum"}),
+                "totalwig": ("INT", {"default": 1000000000, "min": 1, "description": "Target wigsum used when normalization is enabled"}),
+                "skip_multi_hits": ("BOOLEAN", {"default": False, "description": "Skip multiple-hit reads and use only uniquely mapped reads"}),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality when skipping multiple-hit reads"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCRNAFragmentSizeNode(CommandNode):
     """Estimate RNA-seq fragment sizes for each transcript."""
 

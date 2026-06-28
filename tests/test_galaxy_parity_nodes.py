@@ -3106,6 +3106,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_bam2wig": {
+            "display_name": "RSeQC BAM to Wiggle",
+            "category": "rna_seq",
+            "required_executables": ["bam2wig.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_rna_fragment_size": {
             "display_name": "RSeQC RNA Fragment Size",
             "category": "rna_seq",
@@ -3415,6 +3422,85 @@ def test_rseqc_rpkm_saturation_renders_saturation_commands_and_outputs(tmp_path:
         tmp_path / "rseqc_rpkm_saturation" / "output.saturation.pdf",
         tmp_path / "rseqc_rpkm_saturation" / "output.eRPKM.xls",
         tmp_path / "rseqc_rpkm_saturation" / "output.rawCount.xls",
+    ]
+
+
+def test_rseqc_bam2wig_renders_wiggle_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_bam2wig")
+    info = _registry().object_info()["rseqc_bam2wig"]
+
+    assert info["output"] == ["WIG", "WIG", "WIG"]
+    assert info["output_name"] == ["wiggle", "forward_wiggle", "reverse_wiggle"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "chromsize": "hg19.chrom.sizes",
+            "normalize": True,
+            "totalwig": 100,
+            "skip_multi_hits": True,
+            "mapq": 20,
+            "strand_specific": "none",
+            "output": "/work/rseqc_bam2wig",
+        }
+    ) == [
+        "bam2wig.py",
+        "-i",
+        "aligned.bam",
+        "-s",
+        "hg19.chrom.sizes",
+        "-o",
+        "/work/rseqc_bam2wig/outfile",
+        "-t",
+        "100",
+        "--skip-multi-hits",
+        "--mapq",
+        "20",
+    ]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "chromsize": "hg19.chrom.sizes",
+            "strand_specific": "pair",
+            "pair_type": "ds",
+            "output": "/work/rseqc_bam2wig",
+        }
+    ) == [
+        "bam2wig.py",
+        "-i",
+        "aligned.bam",
+        "-s",
+        "hg19.chrom.sizes",
+        "-o",
+        "/work/rseqc_bam2wig/outfile",
+        "-d",
+        "1+-,1-+,2++,2--",
+    ]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "chromsize": "hg19.chrom.sizes",
+            "strand_specific": "single",
+            "single_type": "d",
+            "output": "/work/rseqc_bam2wig",
+        }
+    ) == [
+        "bam2wig.py",
+        "-i",
+        "aligned.bam",
+        "-s",
+        "hg19.chrom.sizes",
+        "-o",
+        "/work/rseqc_bam2wig/outfile",
+        "-d",
+        "+-,-+",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"strand_specific": "none"}, tmp_path) == [
+        tmp_path / "rseqc_bam2wig" / "outfile.wig",
+    ]
+    assert node_class.PLAN_OUTPUTS({"strand_specific": "pair"}, tmp_path) == [
+        tmp_path / "rseqc_bam2wig" / "outfile.Forward.wig",
+        tmp_path / "rseqc_bam2wig" / "outfile.Reverse.wig",
     ]
 
 
