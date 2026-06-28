@@ -3127,6 +3127,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_read_gc": {
+            "display_name": "RSeQC Read GC",
+            "category": "rna_seq",
+            "required_executables": ["read_GC.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_bam_stat": {
             "display_name": "RSeQC BAM Stat",
             "category": "rna_seq",
@@ -3512,6 +3519,40 @@ def test_rseqc_mismatch_profile_renders_mismatch_profile_command_and_outputs(tmp
     assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
         tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.pdf",
         tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.xls",
+    ]
+
+
+def test_rseqc_read_gc_renders_gc_content_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_read_gc")
+    info = _registry().object_info()["rseqc_read_gc"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
+    assert info["output_name"] == ["gc_plot", "gc_counts", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.sam",
+            "mapq": 15,
+            "rscript_output": True,
+            "output": "/work/rseqc_read_gc",
+        }
+    ) == [
+        "read_GC.py",
+        "--input-file",
+        "aligned.sam",
+        "--out-prefix",
+        "/work/rseqc_read_gc/output",
+        "--mapq",
+        "15",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_read_gc" / "output.GC_plot.pdf",
+        tmp_path / "rseqc_read_gc" / "output.GC.xls",
+        tmp_path / "rseqc_read_gc" / "output.GC_plot.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_read_gc" / "output.GC_plot.pdf",
+        tmp_path / "rseqc_read_gc" / "output.GC.xls",
     ]
 
 

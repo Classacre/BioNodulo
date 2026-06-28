@@ -1289,6 +1289,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_read_gc: {
+    name: 'rseqc_read_gc',
+    display_name: 'RSeQC Read GC',
+    category: 'rna_seq',
+    description: 'Calculate GC content distribution for reads in BAM or SAM alignments.',
+    search_aliases: ['Galaxy', 'rseqc', 'read_GC', 'read GC', 'GC content', 'GC bias', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+      },
+      optional: {
+        mapq: { type: 'INT', default: 30 },
+        rscript_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['IMAGE', 'TSV', 'TEXT'],
+    output_name: ['gc_plot', 'gc_counts', 'r_script'],
+    required_executables: ['read_GC.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#read-gc-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_bam_stat: {
     name: 'rseqc_bam_stat',
     display_name: 'RSeQC BAM Stat',
@@ -3264,7 +3288,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('151 nodes available')).toBeVisible();
+  await expect(page.getByText('152 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3327,6 +3351,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'junction saturation', name: 'RSeQC Junction Saturation', category: 'rna_seq' },
     { query: 'mismatch profile', name: 'RSeQC Mismatch Profile', category: 'rna_seq' },
+    { query: 'GC content', name: 'RSeQC Read GC', category: 'rna_seq' },
     { query: 'bam mapping statistics', name: 'RSeQC BAM Stat', category: 'rna_seq' },
     { query: 'read distribution', name: 'RSeQC Read Distribution', category: 'rna_seq' },
     { query: 'read duplication', name: 'RSeQC Read Duplication', category: 'rna_seq' },

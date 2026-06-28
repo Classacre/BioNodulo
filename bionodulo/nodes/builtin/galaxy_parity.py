@@ -5643,6 +5643,82 @@ class RSeQCMismatchProfileNode(CommandNode):
         }
 
 
+class RSeQCReadGCNode(CommandNode):
+    """Calculate GC content distribution of aligned reads."""
+
+    NODE_ID = "rseqc_read_gc"
+    DISPLAY_NAME = "RSeQC Read GC"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate GC content distribution for reads in BAM or SAM alignments."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "read_GC",
+        "read GC",
+        "GC content",
+        "GC bias",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TSV", "TEXT")
+    RETURN_NAMES = ("gc_plot", "gc_counts", "r_script")
+    REQUIRED_EXECUTABLES = ["read_GC.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#read-gc-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "read_GC.py",
+            "--input-file",
+            str(inputs.get("input", "")),
+            "--out-prefix",
+            f"{out}/output",
+            "--mapq",
+            str(inputs.get("mapq", 30)),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.GC_plot.pdf",
+            out / "output.GC.xls",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.GC_plot.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+            },
+            "optional": {
+                "mapq": (
+                    "INT",
+                    {
+                        "default": 30,
+                        "min": 0,
+                        "max": 255,
+                        "description": "Minimum mapping quality for an alignment to be called uniquely mapped",
+                    },
+                ),
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the GC plot"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCBamStatNode(CommandNode):
     """Summarize BAM or SAM mapping statistics with RSeQC."""
 
