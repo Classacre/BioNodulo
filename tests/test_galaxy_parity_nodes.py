@@ -3134,6 +3134,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_read_nvc": {
+            "display_name": "RSeQC Read NVC",
+            "category": "rna_seq",
+            "required_executables": ["read_NVC.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_bam_stat": {
             "display_name": "RSeQC BAM Stat",
             "category": "rna_seq",
@@ -3553,6 +3560,58 @@ def test_rseqc_read_gc_renders_gc_content_command_and_outputs(tmp_path: Path) ->
     assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
         tmp_path / "rseqc_read_gc" / "output.GC_plot.pdf",
         tmp_path / "rseqc_read_gc" / "output.GC.xls",
+    ]
+
+
+def test_rseqc_read_nvc_renders_nucleotide_cycle_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_read_nvc")
+    info = _registry().object_info()["rseqc_read_nvc"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
+    assert info["output_name"] == ["nvc_plot", "nvc_table", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "nx": False,
+            "mapq": 25,
+            "rscript_output": True,
+            "output": "/work/rseqc_read_nvc",
+        }
+    ) == [
+        "read_NVC.py",
+        "--input-file",
+        "aligned.bam",
+        "--out-prefix",
+        "/work/rseqc_read_nvc/output",
+        "--mapq",
+        "25",
+    ]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "nx": True,
+            "mapq": 25,
+            "output": "/work/rseqc_read_nvc",
+        }
+    ) == [
+        "read_NVC.py",
+        "--input-file",
+        "aligned.bam",
+        "--out-prefix",
+        "/work/rseqc_read_nvc/output",
+        "--nx",
+        "--mapq",
+        "25",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_read_nvc" / "output.NVC_plot.pdf",
+        tmp_path / "rseqc_read_nvc" / "output.NVC.xls",
+        tmp_path / "rseqc_read_nvc" / "output.NVC_plot.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_read_nvc" / "output.NVC_plot.pdf",
+        tmp_path / "rseqc_read_nvc" / "output.NVC.xls",
     ]
 
 

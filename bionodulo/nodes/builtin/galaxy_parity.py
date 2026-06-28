@@ -5719,6 +5719,89 @@ class RSeQCReadGCNode(CommandNode):
         }
 
 
+class RSeQCReadNVCNode(CommandNode):
+    """Check nucleotide composition bias across read cycles."""
+
+    NODE_ID = "rseqc_read_nvc"
+    DISPLAY_NAME = "RSeQC Read NVC"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate nucleotide-versus-cycle composition to inspect nucleotide composition bias across aligned reads."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "read_NVC",
+        "read NVC",
+        "nucleotide composition",
+        "nucleotide versus cycle",
+        "random priming bias",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TSV", "TEXT")
+    RETURN_NAMES = ("nvc_plot", "nvc_table", "r_script")
+    REQUIRED_EXECUTABLES = ["read_NVC.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#read-nvc-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "read_NVC.py",
+            "--input-file",
+            str(inputs.get("input", "")),
+            "--out-prefix",
+            f"{out}/output",
+        ]
+        if inputs.get("nx"):
+            cmd.append("--nx")
+        cmd.extend(["--mapq", str(inputs.get("mapq", 30))])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.NVC_plot.pdf",
+            out / "output.NVC.xls",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.NVC_plot.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file with fixed read length"}),
+            },
+            "optional": {
+                "nx": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include N and X alongside A, T, C, and G in the NVC plot"},
+                ),
+                "mapq": (
+                    "INT",
+                    {
+                        "default": 30,
+                        "min": 0,
+                        "max": 255,
+                        "description": "Minimum mapping quality for an alignment to be called uniquely mapped",
+                    },
+                ),
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the NVC plot"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCBamStatNode(CommandNode):
     """Summarize BAM or SAM mapping statistics with RSeQC."""
 
