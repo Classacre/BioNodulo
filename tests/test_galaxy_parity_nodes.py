@@ -3155,6 +3155,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_read_hexamer": {
+            "display_name": "RSeQC Read Hexamer",
+            "category": "rna_seq",
+            "required_executables": ["read_hexamer.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_rna_fragment_size": {
             "display_name": "RSeQC RNA Fragment Size",
             "category": "rna_seq",
@@ -3841,6 +3848,42 @@ def test_rseqc_insertion_profile_renders_inserted_base_command_and_outputs(tmp_p
     assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
         tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.pdf",
         tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.xls",
+    ]
+
+
+def test_rseqc_read_hexamer_renders_multi_input_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_read_hexamer")
+    info = _registry().object_info()["rseqc_read_hexamer"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["hexamer_frequencies"]
+    assert node_class.render_command(
+        {
+            "inputs": ["reads/R1.fastq.gz", "reads/R1.fastq.gz", "transcripts.fa"],
+            "refgenome": "genome.fa",
+            "refgene": "mrna.fa",
+            "output": "/work/rseqc_read_hexamer",
+        }
+    ) == (
+        "gunzip -c reads/R1.fastq.gz > R1_fastq_gz && "
+        "gunzip -c reads/R1.fastq.gz > R1_fastq_gz.1 && "
+        "ln -sf transcripts.fa transcripts_fa && "
+        "read_hexamer.py -i R1_fastq_gz,R1_fastq_gz.1,transcripts_fa "
+        "-r genome.fa -g mrna.fa > /work/rseqc_read_hexamer/read_hexamer.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "inputs": ["reads R2.fastq", "amplicons.fasta"],
+            "output": "/work/rseqc_read_hexamer",
+        }
+    ) == (
+        "ln -sf 'reads R2.fastq' reads_R2_fastq && "
+        "ln -sf amplicons.fasta amplicons_fasta && "
+        "read_hexamer.py -i reads_R2_fastq,amplicons_fasta > /work/rseqc_read_hexamer/read_hexamer.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "rseqc_read_hexamer" / "read_hexamer.tsv",
     ]
 
 

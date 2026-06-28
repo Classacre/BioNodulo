@@ -6,7 +6,7 @@ from pathlib import Path
 from re import sub
 from typing import Any
 
-from bionodulo.nodes.command_node import CommandNode
+from bionodulo.nodes.command_node import CommandNode, _shell_join
 
 
 GALAXY_ALIAS = "Galaxy"
@@ -6076,6 +6076,97 @@ class RSeQCInsertionProfileNode(CommandNode):
                     "BOOLEAN",
                     {"default": False, "description": "Expose the R script used to generate the insertion profile plot"},
                 ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class RSeQCReadHexamerNode(CommandNode):
+    """Calculate read and reference hexamer frequencies."""
+
+    NODE_ID = "rseqc_read_hexamer"
+    DISPLAY_NAME = "RSeQC Read Hexamer"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate hexamer or 6-mer frequencies for read FASTA/FASTQ files and optional reference genome or mRNA sequences."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "read_hexamer",
+        "read hexamer",
+        "hexamer frequency",
+        "6mer frequency",
+        "kmer bias",
+        "nucleotide composition",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("hexamer_frequencies",)
+    REQUIRED_EXECUTABLES = ["read_hexamer.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#read-hexamer-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+    SHELL = True
+
+    @classmethod
+    def _safe_input_names(cls, paths: list[str]) -> list[str]:
+        names: list[str] = []
+        seen: set[str] = set()
+        for index, path in enumerate(paths):
+            name = sub(r"[^\w\-_]", "_", Path(path).name)
+            if name in seen:
+                name = f"{name}.{index}"
+            seen.add(name)
+            names.append(name)
+        return names
+
+    @classmethod
+    def _stage_input(cls, source: str, target: str) -> str:
+        quoted_source = shlex.quote(source)
+        quoted_target = shlex.quote(target)
+        if source.endswith((".gz", ".gzip")):
+            return f"gunzip -c {quoted_source} > {quoted_target}"
+        return f"ln -sf {quoted_source} {quoted_target}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        input_paths = _as_list(inputs.get("inputs", inputs.get("input")))
+        input_names = cls._safe_input_names(input_paths)
+        setup = [cls._stage_input(path, name) for path, name in zip(input_paths, input_names, strict=False)]
+        cmd = ["read_hexamer.py", "-i", ",".join(input_names)]
+        refgenome = str(inputs.get("refgenome", "") or "")
+        if refgenome:
+            cmd.extend(["-r", refgenome])
+        refgene = str(inputs.get("refgene", "") or "")
+        if refgene:
+            cmd.extend(["-g", refgene])
+        cmd.extend([">", f"{_out(inputs)}/read_hexamer.tsv"])
+        parts = setup + [_shell_join(cmd)]
+        return " && ".join(parts)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "read_hexamer.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputs": (
+                    "FASTQ",
+                    {
+                        "multiple": True,
+                        "description": "Read sequence files in FASTA or FASTQ format; gzipped FASTQ/FASTA inputs are decompressed before analysis",
+                    },
+                ),
+            },
+            "optional": {
+                "refgenome": ("FASTA", {"description": "Optional reference genome FASTA for genome hexamer frequencies"}),
+                "refgene": ("FASTA", {"description": "Optional reference mRNA FASTA for transcript hexamer frequencies"}),
             },
             "hidden": {"output": ("STRING", {})},
         }

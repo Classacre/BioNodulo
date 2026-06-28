@@ -1397,6 +1397,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_read_hexamer: {
+    name: 'rseqc_read_hexamer',
+    display_name: 'RSeQC Read Hexamer',
+    category: 'rna_seq',
+    description: 'Calculate hexamer or 6-mer frequencies for read FASTA/FASTQ files and optional reference genome or mRNA sequences.',
+    search_aliases: ['Galaxy', 'rseqc', 'read_hexamer', 'read hexamer', 'hexamer frequency', '6mer frequency', 'kmer bias', 'nucleotide composition', 'rna-seq qc'],
+    input: {
+      required: {
+        inputs: { type: 'FASTQ', multiple: true },
+      },
+      optional: {
+        refgenome: { type: 'FASTA' },
+        refgene: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['hexamer_frequencies'],
+    required_executables: ['read_hexamer.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#read-hexamer-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_rna_fragment_size: {
     name: 'rseqc_rna_fragment_size',
     display_name: 'RSeQC RNA Fragment Size',
@@ -3529,7 +3553,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('161 nodes available')).toBeVisible();
+  await expect(page.getByText('162 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3596,6 +3620,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BigWig coverage', name: 'RSeQC Gene Body Coverage BigWig', category: 'rna_seq' },
     { query: 'insert size', name: 'RSeQC Inner Distance', category: 'rna_seq' },
     { query: 'inserted nucleotides', name: 'RSeQC Insertion Profile', category: 'rna_seq' },
+    { query: 'hexamer frequency', name: 'RSeQC Read Hexamer', category: 'rna_seq' },
     { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
     { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'junction saturation', name: 'RSeQC Junction Saturation', category: 'rna_seq' },
