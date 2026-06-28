@@ -366,6 +366,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["mmseqs2"],
             "doi": "10.1038/nbt.3988",
         },
+        "mmseqs2_easy_rbh": {
+            "display_name": "MMseqs2 Easy RBH",
+            "category": "alignment",
+            "required_executables": ["mmseqs"],
+            "required_conda_packages": ["mmseqs2"],
+            "doi": "10.1038/nbt.3988",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -4108,6 +4115,125 @@ def test_mmseqs2_easy_linsearch_renders_linear_search_command_and_output(tmp_pat
     ]
     assert node_class.PLAN_OUTPUTS({"format_mode": "3"}, tmp_path) == [
         tmp_path / "mmseqs2_easy_linsearch" / "search_results.html",
+    ]
+
+
+def test_mmseqs2_easy_rbh_renders_reciprocal_best_hit_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("mmseqs2_easy_rbh")
+    info = _registry().object_info()["mmseqs2_easy_rbh"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["search_results"]
+    assert "10.1038/nbt.3988" in info["citation_dois"]
+    assert info["input"]["required"]["query_fasta"][0] == "FASTA"
+    assert info["input"]["required"]["target_source"][1]["options"] == ["history", "cached"]
+    assert info["input"]["optional"]["spaced_kmer_mode"][1]["default"] == "1"
+    assert info["input"]["optional"]["sensitivity"][1]["default"] == 5.7
+    assert info["input"]["optional"]["chain_alignments"][1]["default"] == 0
+    assert info["input"]["optional"]["merge_query"][1]["default"] == 1
+    assert info["input"]["optional"]["strand"][1]["options"] == ["0", "1", "2"]
+    assert info["input"]["optional"]["format_mode"][1]["options"] == ["0", "4", "2", "1", "3"]
+
+    assert node_class.render_command(
+        {
+            "query_fasta": "query.fastq.gz",
+            "target_source": "history",
+            "target_fasta": "target.fasta",
+            "dbtype": "1",
+            "comp_bias_corr_scale": 0.7,
+            "add_self_matches": 1,
+            "kmer_length": 6,
+            "mask": 0,
+            "mask_prob": 0.7,
+            "mask_lower_case": 1,
+            "mask_n_repeat": 3,
+            "spaced_kmer_mode": 0,
+            "sensitivity": 7.5,
+            "max_seqs": 500,
+            "split": 2,
+            "split_mode": 1,
+            "diag_score": 0,
+            "exact_kmer_matching": 1,
+            "min_ungapped_score": 20,
+            "convertalis": 1,
+            "alignment_output_mode": 3,
+            "wrapped_scoring": 1,
+            "min_aln_len": 25,
+            "seq_id_mode": 1,
+            "alt_ali": 2,
+            "score_bias": 0.2,
+            "realign": 1,
+            "realign_score_bias": -0.05,
+            "realign_max_seqs": 4000,
+            "corr_score_weight": 0.3,
+            "alignment_mode": 2,
+            "evalue": 1e-4,
+            "min_seq_id": 0.8,
+            "cov": 0.8,
+            "cov_mode": 1,
+            "max_rejected": 120,
+            "max_accept": 80,
+            "format_mode": "4",
+            "format_fields": ["query", "target", "pident", "evalue", "qcov", "tcov"],
+            "search_type": 2,
+            "threads": 12,
+            "max_seq_len": 50000,
+            "filter_hits": 1,
+            "sort_results": 1,
+            "chain_alignments": 1,
+            "merge_query": 0,
+            "strand": 2,
+            "output": "/work/mmseqs_rbh",
+        }
+    ) == (
+        "ln -s query.fastq.gz query.fastq.gz && ln -s target.fasta target.fasta && "
+        "mmseqs easy-rbh query.fastq.gz target.fasta /work/mmseqs_rbh/search_results /work/mmseqs_rbh/tmp "
+        "--comp-bias-corr-scale 0.7 --dbtype 1 --add-self-matches 1 -k 6 --mask 0 "
+        "--mask-prob 0.7 --mask-lower-case 1 --mask-n-repeat 3 --spaced-kmer-mode 0 "
+        "-s 7.5 --max-seqs 500 --split 2 --split-mode 1 --diag-score 0 --exact-kmer-matching 1 "
+        "--min-ungapped-score 20 -a 1 --alignment-output-mode 3 --wrapped-scoring 1 --min-aln-len 25 "
+        "--seq-id-mode 1 --alt-ali 2 --score-bias 0.2 --realign 1 --realign-score-bias -0.05 "
+        "--realign-max-seqs 4000 --corr-score-weight 0.3 --alignment-mode 2 -e 0.0001 --min-seq-id 0.8 "
+        "-c 0.8 --cov-mode 1 --max-rejected 120 --max-accept 80 "
+        "--format-output query,target,pident,evalue,qcov,tcov --format-mode 4 --search-type 2 "
+        "--threads 12 --max-seq-len 50000 --filter-hits 1 --sort-results 1 --chain-alignments 1 "
+        "--merge-query 0 --strand 2"
+    )
+    assert node_class.render_command(
+        {
+            "query_fasta": "reads.fa",
+            "target_source": "cached",
+            "target_database": "/indexes/mmseqs",
+            "dbtype": "2",
+            "zdrop": 80,
+            "format_mode": "1",
+            "format_fields": ["query", "target"],
+            "threads": 1,
+            "output": "/work/mmseqs_rbh",
+        }
+    ).startswith(
+        "ln -s reads.fa query.fa && "
+        "mmseqs easy-rbh query.fa /indexes/mmseqs/database /work/mmseqs_rbh/search_results /work/mmseqs_rbh/tmp "
+        "--zdrop 80 --dbtype 2"
+    )
+    assert "--format-output" not in node_class.render_command(
+        {
+            "query_fasta": "reads.fa",
+            "target_source": "cached",
+            "target_database": "/indexes/mmseqs",
+            "format_mode": "1",
+            "format_fields": ["query", "target"],
+            "output": "/work/mmseqs_rbh",
+        }
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_rbh" / "search_results.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"format_mode": "1"}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_rbh" / "search_results.sam",
+    ]
+    assert node_class.PLAN_OUTPUTS({"format_mode": "3"}, tmp_path) == [
+        tmp_path / "mmseqs2_easy_rbh" / "search_results.html",
     ]
 
 

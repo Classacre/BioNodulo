@@ -6775,6 +6775,262 @@ class MMseqs2EasyLinsearchNode(CommandNode):
         }
 
 
+class MMseqs2EasyRBHNode(CommandNode):
+    """Identify reciprocal best hits with MMseqs2 easy-rbh."""
+
+    NODE_ID = "mmseqs2_easy_rbh"
+    DISPLAY_NAME = "MMseqs2 Easy RBH"
+    REQUIRED_CONDA_PACKAGES = ["mmseqs2"]
+    CATEGORY = "alignment"
+    DESCRIPTION = "Identify reciprocal best hits between two sequence sets for ortholog detection."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "mmseqs2",
+        "mmseqs",
+        "easy-rbh",
+        "reciprocal best hit",
+        "ortholog detection",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("search_results",)
+    REQUIRED_EXECUTABLES = ["mmseqs"]
+    DOCUMENTATION_URL = MMseqs2EasySearchNode.DOCUMENTATION_URL
+    CITATION_DOIS = ["10.1038/nbt.3988"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/nbt.3988"]
+    CITATION_TEXT = MMseqs2EasySearchNode.CITATION_TEXT
+    VERSION = MMseqs2EasySearchNode.VERSION
+    SHELL = True
+
+    @classmethod
+    def _target_command_part(cls, inputs: dict[str, Any]) -> tuple[list[str], str]:
+        if str(inputs.get("target_source", "history")) == "cached":
+            database_root = str(inputs.get("target_database", ""))
+            target = f"{database_root.rstrip('/')}/database" if database_root else "database"
+            return [], target
+        target_fasta = str(inputs.get("target_fasta", ""))
+        linked_target = MMseqs2EasyLinsearchNode._sequence_link_name("target", target_fasta)
+        return [f"ln -s {shlex.quote(target_fasta)} {shlex.quote(linked_target)}"], linked_target
+
+    @classmethod
+    def _add_prefilter_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--add-self-matches",
+                str(inputs.get("add_self_matches", 0)),
+                "-k",
+                str(inputs.get("kmer_length", 0)),
+                "--mask",
+                str(inputs.get("mask", 1)),
+                "--mask-prob",
+                str(inputs.get("mask_prob", 0.9)),
+                "--mask-lower-case",
+                str(inputs.get("mask_lower_case", 0)),
+                "--mask-n-repeat",
+                str(inputs.get("mask_n_repeat", 0)),
+                "--spaced-kmer-mode",
+                str(inputs.get("spaced_kmer_mode", 1)),
+            ]
+        )
+
+    @classmethod
+    def _add_search_common_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "-s",
+                str(inputs.get("sensitivity", 5.7)),
+                "--max-seqs",
+                str(inputs.get("max_seqs", 300)),
+                "--split",
+                str(inputs.get("split", 0)),
+                "--split-mode",
+                str(inputs.get("split_mode", 2)),
+                "--diag-score",
+                str(inputs.get("diag_score", 1)),
+                "--exact-kmer-matching",
+                str(inputs.get("exact_kmer_matching", 0)),
+                "--min-ungapped-score",
+                str(inputs.get("min_ungapped_score", 15)),
+            ]
+        )
+
+    @classmethod
+    def _add_common_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--threads",
+                str(inputs.get("threads", 1)),
+                "--max-seq-len",
+                str(inputs.get("max_seq_len", 65535)),
+            ]
+        )
+
+    @classmethod
+    def _add_expert_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--filter-hits",
+                str(inputs.get("filter_hits", 0)),
+                "--sort-results",
+                str(inputs.get("sort_results", 0)),
+                "--chain-alignments",
+                str(inputs.get("chain_alignments", 0)),
+                "--merge-query",
+                str(inputs.get("merge_query", 1)),
+                "--strand",
+                str(inputs.get("strand", 1)),
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        query_fasta = str(inputs.get("query_fasta", ""))
+        linked_query = MMseqs2EasyLinsearchNode._sequence_link_name("query", query_fasta)
+        prelude = [f"ln -s {shlex.quote(query_fasta)} {shlex.quote(linked_query)}"]
+        target_prelude, target = cls._target_command_part(inputs)
+        prelude.extend(target_prelude)
+
+        effective_inputs = dict(inputs)
+        effective_inputs.setdefault("min_seq_id", 0)
+        effective_inputs.setdefault("cov", 0)
+
+        cmd = [
+            "mmseqs",
+            "easy-rbh",
+            linked_query,
+            target,
+            f"{out}/search_results",
+            f"{out}/tmp",
+        ]
+        MMseqs2EasyClusterNode._add_dbtype_options(cmd, effective_inputs)
+        cls._add_prefilter_options(cmd, effective_inputs)
+        cls._add_search_common_options(cmd, effective_inputs)
+        MMseqs2EasyClusterNode._add_align_options(cmd, effective_inputs)
+        MMseqs2EasyLinsearchNode._add_output_format_options(cmd, effective_inputs)
+        cmd.extend(["--search-type", str(effective_inputs.get("search_type", 0))])
+        cls._add_common_options(cmd, effective_inputs)
+        cls._add_expert_options(cmd, effective_inputs)
+        return f"{' && '.join(prelude)} && {shlex.join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        suffix = {"1": "sam", "3": "html"}.get(str(inputs.get("format_mode", "0")), "tsv")
+        return [out / f"search_results.{suffix}"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "query_fasta": ("FASTA", {"description": "Query FASTA/FASTQ file"}),
+                "target_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": ["history", "cached"],
+                        "description": "Use a target FASTA from history or a cached MMseqs2 database",
+                    },
+                ),
+                "target_fasta": (
+                    "FASTA",
+                    {
+                        "default": "",
+                        "description": "Target FASTA file for history mode",
+                        "displayOptions": {"show": {"target_source": ["history"]}},
+                    },
+                ),
+                "target_database": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "description": "Cached MMseqs2 database directory containing database* files",
+                        "displayOptions": {"show": {"target_source": ["cached"]}},
+                    },
+                ),
+            },
+            "optional": {
+                "dbtype": (
+                    "STRING",
+                    {
+                        "default": "0",
+                        "options": ["0", "1", "2"],
+                        "description": "Input data type: automatic, amino acid, or nucleotide",
+                    },
+                ),
+                "comp_bias_corr_scale": (
+                    "FLOAT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 1,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["1"]}},
+                    },
+                ),
+                "zdrop": (
+                    "INT",
+                    {
+                        "default": 40,
+                        "min": 0,
+                        "advanced": True,
+                        "displayOptions": {"show": {"dbtype": ["2"]}},
+                    },
+                ),
+                "add_self_matches": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "kmer_length": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "mask": ("STRING", {"default": "1", "options": ["0", "1"], "advanced": True}),
+                "mask_prob": ("FLOAT", {"default": 0.9, "min": 0, "advanced": True}),
+                "mask_lower_case": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "mask_n_repeat": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "spaced_kmer_mode": ("STRING", {"default": "1", "options": ["0", "1"], "advanced": True}),
+                "sensitivity": ("FLOAT", {"default": 5.7, "min": 1, "max": 7.5}),
+                "max_seqs": ("INT", {"default": 300, "min": 0, "advanced": True}),
+                "split": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "split_mode": ("STRING", {"default": "2", "options": ["0", "1", "2"], "advanced": True}),
+                "diag_score": ("INT", {"default": 1, "min": 0, "max": 1, "advanced": True}),
+                "exact_kmer_matching": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "min_ungapped_score": ("INT", {"default": 15, "min": 0, "advanced": True}),
+                "convertalis": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "alignment_output_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4", "5"], "advanced": True}),
+                "wrapped_scoring": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "min_aln_len": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "seq_id_mode": ("STRING", {"default": "0", "options": ["0", "1", "2"], "advanced": True}),
+                "alt_ali": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "score_bias": ("FLOAT", {"default": 0, "advanced": True}),
+                "realign": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "realign_score_bias": ("FLOAT", {"default": -0.2, "advanced": True}),
+                "realign_max_seqs": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "corr_score_weight": ("FLOAT", {"default": 0, "advanced": True}),
+                "alignment_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4"], "advanced": True}),
+                "evalue": ("FLOAT", {"default": 0.001, "min": 0}),
+                "min_seq_id": ("FLOAT", {"default": 0, "min": 0, "max": 1}),
+                "cov": ("FLOAT", {"default": 0, "min": 0, "max": 1}),
+                "cov_mode": ("STRING", {"default": "0", "options": ["0", "1", "2", "3", "4", "5"]}),
+                "max_rejected": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "max_accept": ("INT", {"default": 2147483647, "min": 0, "advanced": True}),
+                "format_fields": MMseqs2EasyLinsearchNode.INPUT_TYPES()["optional"]["format_fields"],
+                "format_mode": MMseqs2EasyLinsearchNode.INPUT_TYPES()["optional"]["format_mode"],
+                "search_type": (
+                    "STRING",
+                    {
+                        "default": "0",
+                        "options": ["0", "1", "2", "3", "4"],
+                        "description": "0 auto, 1 amino acid, 2 translated, 3 nucleotide, 4 translated nucleotide",
+                    },
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "max_seq_len": ("INT", {"default": 65535, "min": 1, "advanced": True}),
+                "filter_hits": ("INT", {"default": 0, "min": 0, "max": 1, "advanced": True}),
+                "sort_results": ("STRING", {"default": "0", "options": ["0", "1"], "advanced": True}),
+                "chain_alignments": ("INT", {"default": 0, "min": 0, "advanced": True}),
+                "merge_query": ("INT", {"default": 1, "min": 0, "advanced": True}),
+                "strand": ("STRING", {"default": "1", "options": ["0", "1", "2"], "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MashDistNode(CommandNode):
     """Estimate Mash distances between reference and query sequences."""
 
