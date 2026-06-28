@@ -1202,6 +1202,48 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btt403'],
     citation_text: 'nhmmer: DNA homology search with profile HMMs.',
   },
+  hmmer_nhmmscan: {
+    name: 'hmmer_nhmmscan',
+    display_name: 'HMMER nhmmscan',
+    category: 'annotation',
+    description: 'Search nucleotide sequences against a nucleotide profile HMM database.',
+    search_aliases: ['Galaxy', 'hmmer', 'nhmmscan', 'Dfam scan', 'DNA profile database', 'nucleotide profiles'],
+    input: {
+      required: {
+        hmm_source: { type: 'STRING', default: 'history', options: ['history', 'indexed'] },
+        hmmfile: { type: 'FILE', default: '' },
+        hmmdb: { type: 'FILE', default: '' },
+        seqfile: { type: 'FASTA' },
+      },
+      optional: {
+        output_formats: { type: 'STRING', default: ['tblout', 'dfamtblout'], list: true, options: ['tblout', 'dfamtblout', 'aliscoresout'] },
+        acc: { type: 'BOOLEAN', default: false },
+        noali: { type: 'BOOLEAN', default: false },
+        notextw: { type: 'BOOLEAN', default: false },
+        threshold_mode: { type: 'STRING', default: 'evalue', options: ['evalue', 'score', 'cut'] },
+        evalue: { type: 'FLOAT', default: 10, displayOptions: { show: { threshold_mode: ['evalue'] } } },
+        score_threshold: { type: 'FLOAT', default: '', displayOptions: { show: { threshold_mode: ['score'] } } },
+        cut_mode: { type: 'STRING', default: 'none', options: ['none', '--cut_ga', '--cut_nc', '--cut_tc'], displayOptions: { show: { threshold_mode: ['cut'] } } },
+        max: { type: 'BOOLEAN', default: false },
+        F1: { type: 'FLOAT', default: 0.02 },
+        F2: { type: 'FLOAT', default: 0.001 },
+        F3: { type: 'FLOAT', default: 0.00001 },
+        B1: { type: 'INT', default: 110 },
+        B2: { type: 'INT', default: 240 },
+        B3: { type: 'INT', default: 1000 },
+        threads: { type: 'INT', default: 1 },
+        seed: { type: 'INT', default: 42 },
+      },
+    },
+    output: ['STATS_FILE', 'TSV', 'TEXT', 'TEXT'],
+    output_name: ['output', 'tblout', 'dfamtblout', 'aliscoresout'],
+    required_executables: ['nhmmscan', 'hmmpress'],
+    required_conda_packages: ['hmmer'],
+    documentation_url: 'http://hmmer.org/documentation.html',
+    citation_dois: ['10.1093/bioinformatics/btt403'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btt403'],
+    citation_text: 'nhmmer: DNA homology search with profile HMMs.',
+  },
   hmmer_alimask: {
     name: 'hmmer_alimask',
     display_name: 'HMMER alimask',
@@ -4126,7 +4168,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('181 nodes available')).toBeVisible();
+  await expect(page.getByText('182 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4182,6 +4224,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'jackhmmer', name: 'HMMER jackhmmer', category: 'annotation' },
     { query: 'phmmer', name: 'HMMER phmmer', category: 'annotation' },
     { query: 'nhmmer', name: 'HMMER nhmmer', category: 'annotation' },
+    { query: 'nhmmscan', name: 'HMMER nhmmscan', category: 'annotation' },
     { query: 'hmmer alignment mask', name: 'HMMER alimask', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

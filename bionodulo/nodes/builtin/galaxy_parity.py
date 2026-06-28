@@ -5622,6 +5622,168 @@ class HMMERNhmmerNode(HMMERJackhmmerNode):
         }
 
 
+class HMMERNhmmscanNode(HMMERNhmmerNode):
+    """Search nucleotide sequences against a nucleotide profile HMM database."""
+
+    NODE_ID = "hmmer_nhmmscan"
+    DISPLAY_NAME = "HMMER nhmmscan"
+    DESCRIPTION = "Search nucleotide sequences against a nucleotide profile HMM database."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "nhmmscan",
+        "Dfam scan",
+        "DNA profile database",
+        "nucleotide profiles",
+    ]
+    REQUIRED_EXECUTABLES = ["nhmmscan", "hmmpress"]
+
+    @classmethod
+    def _hmm_database(cls, inputs: dict[str, Any]) -> str:
+        if str(inputs.get("hmm_source", "history")) == "indexed":
+            return str(inputs.get("hmmdb", ""))
+        return str(inputs.get("hmmfile", ""))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        hmm_database = cls._hmm_database(inputs)
+        cmd: list[str] = []
+        if str(inputs.get("hmm_source", "history")) == "history":
+            cmd.extend(["hmmpress", hmm_database, "&&"])
+        cmd.append("nhmmscan")
+        cls._add_output_format_flags(cmd, inputs, out)
+        cls._add_output_options(cmd, inputs)
+        cls._add_thresholds(cmd, inputs)
+        cls._add_acceleration_options(cmd, inputs)
+        _add_if_value(cmd, "--B1", inputs.get("B1", 110))
+        _add_if_value(cmd, "--B2", inputs.get("B2", 240))
+        _add_if_value(cmd, "--B3", inputs.get("B3", 1000))
+        cls._add_advanced_options(cmd, inputs)
+        _add_if_value(cmd, "--w_beta", inputs.get("w_beta"))
+        _add_if_value(cmd, "--w_length", inputs.get("w_length"))
+        _add_if_value(cmd, "--cpu", max(1, int(inputs.get("threads", 1)) - 1))
+        _add_if_value(cmd, "--seed", inputs.get("seed", 42))
+        cmd.extend([hmm_database, str(inputs.get("seqfile", ""))])
+        _add_shell_redirect(cmd, f"{out}/output.txt")
+        return cmd
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "hmm_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": ["history", "indexed"],
+                        "description": "Use a workflow HMM database or an already indexed database path",
+                    },
+                ),
+                "hmmfile": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "description": "Nucleotide profile HMM database from the workflow history",
+                        "displayOptions": {"show": {"hmm_source": ["history"]}},
+                    },
+                ),
+                "hmmdb": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "description": "Pre-indexed nucleotide profile HMM database",
+                        "displayOptions": {"show": {"hmm_source": ["indexed"]}},
+                    },
+                ),
+                "seqfile": ("FASTA", {"description": "Nucleotide sequence FASTA queries"}),
+            },
+            "optional": {
+                "output_formats": (
+                    "STRING",
+                    {
+                        "default": ["tblout", "dfamtblout"],
+                        "options": ["tblout", "dfamtblout", "aliscoresout"],
+                        "list": True,
+                        "description": "Additional tabular or positional score output files to write",
+                    },
+                ),
+                "acc": ("BOOLEAN", {"default": False, "description": "Prefer accessions over names in output"}),
+                "noali": ("BOOLEAN", {"default": False, "description": "Suppress alignment blocks in text output"}),
+                "notextw": ("BOOLEAN", {"default": False, "description": "Use unlimited text output line width"}),
+                "threshold_mode": (
+                    "STRING",
+                    {
+                        "default": "evalue",
+                        "options": ["evalue", "score", "cut"],
+                        "description": "Reporting threshold mode",
+                    },
+                ),
+                "evalue": (
+                    "FLOAT",
+                    {
+                        "default": 10,
+                        "min": 0,
+                        "description": "E-value reporting threshold",
+                        "displayOptions": {"show": {"threshold_mode": ["evalue"]}},
+                    },
+                ),
+                "incE": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "E-value inclusion threshold",
+                        "advanced": True,
+                        "displayOptions": {"show": {"threshold_mode": ["evalue"]}},
+                    },
+                ),
+                "score_threshold": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "Bit score reporting threshold",
+                        "displayOptions": {"show": {"threshold_mode": ["score"]}},
+                    },
+                ),
+                "incT": (
+                    "FLOAT",
+                    {
+                        "default": "",
+                        "description": "Bit score inclusion threshold",
+                        "advanced": True,
+                        "displayOptions": {"show": {"threshold_mode": ["score"]}},
+                    },
+                ),
+                "cut_mode": (
+                    "STRING",
+                    {
+                        "default": "none",
+                        "options": ["none", "--cut_ga", "--cut_nc", "--cut_tc"],
+                        "description": "Use model-specific GA, NC, or TC cutoffs",
+                        "advanced": True,
+                        "displayOptions": {"show": {"threshold_mode": ["cut"]}},
+                    },
+                ),
+                "max": ("BOOLEAN", {"default": False, "description": "Turn all heuristic filters off", "advanced": True}),
+                "F1": ("FLOAT", {"default": 0.02, "min": 0, "advanced": True}),
+                "F2": ("FLOAT", {"default": 0.001, "min": 0, "advanced": True}),
+                "F3": ("FLOAT", {"default": 1e-5, "min": 0, "advanced": True}),
+                "nobias": ("BOOLEAN", {"default": False, "description": "Turn off composition bias filter", "advanced": True}),
+                "B1": ("INT", {"default": 110, "min": 1, "description": "MSV biased-composition modifier window length", "advanced": True}),
+                "B2": ("INT", {"default": 240, "min": 1, "description": "Viterbi biased-composition modifier window length", "advanced": True}),
+                "B3": ("INT", {"default": 1000, "min": 1, "description": "Forward biased-composition modifier window length", "advanced": True}),
+                "nonull2": ("BOOLEAN", {"default": False, "description": "Turn off biased composition score corrections", "advanced": True}),
+                "z": ("INT", {"default": "", "description": "Comparisons for E-value calculation", "advanced": True}),
+                "domz": ("INT", {"default": "", "description": "Significant sequences for domain E-value calculation", "advanced": True}),
+                "w_beta": ("FLOAT", {"default": "", "advanced": True, "description": "Tail mass at which nhmmscan sets window length"}),
+                "w_length": ("INT", {"default": "", "advanced": True, "description": "Override nhmmscan window length"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+                "seed": ("INT", {"default": 42, "min": 0, "description": "Random seed; 0 chooses a random seed"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 

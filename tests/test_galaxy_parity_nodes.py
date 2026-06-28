@@ -310,6 +310,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/bioinformatics/btt403",
         },
+        "hmmer_nhmmscan": {
+            "display_name": "HMMER nhmmscan",
+            "category": "annotation",
+            "required_executables": ["nhmmscan", "hmmpress"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/bioinformatics/btt403",
+        },
         "hmmer_alimask": {
             "display_name": "HMMER alimask",
             "category": "annotation",
@@ -3481,6 +3488,148 @@ def test_hmmer_nhmmer_renders_nucleotide_search_command_and_outputs(tmp_path: Pa
     assert node_class.PLAN_OUTPUTS({"output_formats": ["aliscoresout"]}, tmp_path) == {
         "output": tmp_path / "hmmer_nhmmer" / "output.txt",
         "aliscoresout": tmp_path / "hmmer_nhmmer" / "alignment_scores.txt",
+    }
+
+
+def test_hmmer_nhmmscan_renders_database_scan_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_nhmmscan")
+    info = _registry().object_info()["hmmer_nhmmscan"]
+
+    assert info["output"] == ["STATS_FILE", "TSV", "TEXT", "TEXT"]
+    assert info["output_name"] == ["output", "tblout", "dfamtblout", "aliscoresout"]
+    assert "10.1093/bioinformatics/btt403" in info["citation_dois"]
+    assert info["input"]["required"]["seqfile"][0] == "FASTA"
+    assert info["input"]["required"]["hmm_source"][1]["options"] == ["history", "indexed"]
+    assert info["input"]["optional"]["output_formats"][1]["default"] == ["tblout", "dfamtblout"]
+    assert info["input"]["optional"]["B1"][1]["default"] == 110
+    assert info["input"]["optional"]["B2"][1]["default"] == 240
+    assert info["input"]["optional"]["B3"][1]["default"] == 1000
+    assert info["input"]["optional"]["cut_mode"][1]["displayOptions"] == {
+        "show": {"threshold_mode": ["cut"]},
+    }
+    assert node_class.render_command(
+        {
+            "hmm_source": "history",
+            "hmmfile": "MADE1.hmm",
+            "seqfile": "dna_target.fa",
+            "output_formats": ["tblout", "dfamtblout", "aliscoresout"],
+            "acc": True,
+            "noali": True,
+            "notextw": True,
+            "threshold_mode": "score",
+            "score_threshold": 23,
+            "incT": 29,
+            "max": True,
+            "F1": 0.04,
+            "F2": 0.005,
+            "F3": 3e-6,
+            "nobias": True,
+            "B1": 120,
+            "B2": 260,
+            "B3": 1100,
+            "nonull2": True,
+            "z": 1500,
+            "domz": 60,
+            "w_beta": 1e-7,
+            "w_length": 120,
+            "threads": 8,
+            "seed": 4,
+            "output": "/work/nhmmscan",
+        }
+    ) == [
+        "hmmpress",
+        "MADE1.hmm",
+        "&&",
+        "nhmmscan",
+        "--tblout",
+        "/work/nhmmscan/results.tblout",
+        "--dfamtblout",
+        "/work/nhmmscan/dfam.tblout",
+        "--aliscoresout",
+        "/work/nhmmscan/alignment_scores.txt",
+        "--acc",
+        "--noali",
+        "--notextw",
+        "-T",
+        "23",
+        "--incT",
+        "29",
+        "--max",
+        "--F1",
+        "0.04",
+        "--F2",
+        "0.005",
+        "--F3",
+        "3e-06",
+        "--nobias",
+        "--B1",
+        "120",
+        "--B2",
+        "260",
+        "--B3",
+        "1100",
+        "--nonull2",
+        "-Z",
+        "1500",
+        "--domZ",
+        "60",
+        "--w_beta",
+        "1e-07",
+        "--w_length",
+        "120",
+        "--cpu",
+        "7",
+        "--seed",
+        "4",
+        "MADE1.hmm",
+        "dna_target.fa",
+        ">",
+        "/work/nhmmscan/output.txt",
+    ]
+    assert node_class.render_command(
+        {
+            "hmm_source": "indexed",
+            "hmmdb": "/indexes/dfam.hmm",
+            "seqfile": "dna_target.fa",
+            "output_formats": [],
+            "threshold_mode": "cut",
+            "cut_mode": "--cut_ga",
+            "threads": 1,
+            "seed": 42,
+            "output": "/work/nhmmscan",
+        }
+    ) == [
+        "nhmmscan",
+        "--cut_ga",
+        "--F1",
+        "0.02",
+        "--F2",
+        "0.001",
+        "--F3",
+        "1e-05",
+        "--B1",
+        "110",
+        "--B2",
+        "240",
+        "--B3",
+        "1000",
+        "--cpu",
+        "1",
+        "--seed",
+        "42",
+        "/indexes/dfam.hmm",
+        "dna_target.fa",
+        ">",
+        "/work/nhmmscan/output.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == {
+        "output": tmp_path / "hmmer_nhmmscan" / "output.txt",
+        "tblout": tmp_path / "hmmer_nhmmscan" / "results.tblout",
+        "dfamtblout": tmp_path / "hmmer_nhmmscan" / "dfam.tblout",
+    }
+    assert node_class.PLAN_OUTPUTS({"output_formats": ["aliscoresout"]}, tmp_path) == {
+        "output": tmp_path / "hmmer_nhmmscan" / "output.txt",
+        "aliscoresout": tmp_path / "hmmer_nhmmscan" / "alignment_scores.txt",
     }
 
 
