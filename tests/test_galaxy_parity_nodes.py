@@ -2713,6 +2713,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["lofreq", "samtools"],
             "doi": "10.1093/nar/gks918",
         },
+        "ivar_trim": {
+            "display_name": "iVar Trim",
+            "category": "variant",
+            "required_executables": ["scheme-convert", "ivar", "samtools"],
+            "required_conda_packages": ["ivar", "viramp-hub", "samtools"],
+            "doi": "10.1186/s13059-018-1618-7",
+        },
         "ivar_variants": {
             "display_name": "iVar Variants",
             "category": "variant",
@@ -3389,6 +3396,113 @@ def test_lofreq_viterbi_renders_realignment_sort_command_and_output(tmp_path: Pa
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_viterbi" / "realigned.bam"]
+
+
+def test_ivar_trim_renders_primer_trim_pipeline_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ivar_trim")
+    info = _registry().object_info()["ivar_trim"]
+
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["trimmed_bam"]
+    assert "10.1186/s13059-018-1618-7" in info["citation_dois"]
+    assert info["input"]["optional"]["amplicon_info"][1]["displayOptions"] == {
+        "show": {"amplicon_mode": ["provided"]},
+    }
+    assert info["input"]["optional"]["min_len"][1]["displayOptions"] == {
+        "show": {"trimmed_length_filter": ["custom"]},
+    }
+    assert node_class.render_command(
+        {
+            "input_bam": "aligned.sorted.bam",
+            "input_bed": "primers.bed",
+            "amplicon_mode": "provided",
+            "amplicon_info": "pairs.tsv",
+            "primer_pos_wiggle": 3,
+            "include_reads_without_primers": True,
+            "trimmed_length_filter": "custom",
+            "min_len": 45,
+            "min_qual": 25,
+            "window_width": 6,
+            "threads": 8,
+            "output": "/work/ivar_trim",
+        }
+    ) == [
+        "scheme-convert",
+        "--to",
+        "bed",
+        "--bed-type",
+        "ivar",
+        "-o",
+        "/work/ivar_trim/ivar.bed",
+        "primers.bed",
+        "&&",
+        "scheme-convert",
+        "-a",
+        "pairs.tsv",
+        "--to",
+        "amplicon-info",
+        "-r",
+        "outer",
+        "-o",
+        "/work/ivar_trim/amplicon_info.tsv",
+        "/work/ivar_trim/ivar.bed",
+        "&&",
+        "ivar",
+        "trim",
+        "-i",
+        "aligned.sorted.bam",
+        "-b",
+        "/work/ivar_trim/ivar.bed",
+        "-f",
+        "/work/ivar_trim/amplicon_info.tsv",
+        "-x",
+        "3",
+        "-e",
+        "-m",
+        "45",
+        "-q",
+        "25",
+        "-s",
+        "6",
+        "|",
+        "samtools",
+        "sort",
+        "-@",
+        "8",
+        "-T",
+        "${TMPDIR:-.}",
+        "-o",
+        "/work/ivar_trim/trimmed.sorted.bam",
+        "-",
+    ]
+
+    computed_cmd = node_class.render_command(
+        {
+            "input_bam": "aligned.sorted.bam",
+            "input_bed": "primers.bed",
+            "amplicon_mode": "computed",
+            "trimmed_length_filter": "auto",
+            "output": "/work/ivar_trim",
+        }
+    )
+    assert "-a" not in computed_cmd
+    assert "-f" in computed_cmd
+    assert "-1" in computed_cmd
+
+    no_filter_cmd = node_class.render_command(
+        {
+            "input_bam": "aligned.sorted.bam",
+            "input_bed": "primers.bed",
+            "amplicon_mode": "none",
+            "trimmed_length_filter": "off",
+            "output": "/work/ivar_trim",
+        }
+    )
+    assert "amplicon-info" not in no_filter_cmd
+    assert "-f" not in no_filter_cmd
+    assert no_filter_cmd[no_filter_cmd.index("-m") + 1] == "0"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ivar_trim" / "trimmed.sorted.bam"]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

@@ -5682,6 +5682,173 @@ class IVarFilterVariantsNode(CommandNode):
         }
 
 
+class IVarTrimNode(CommandNode):
+    """Soft-clip primers and quality-trim aligned amplicon reads with iVar."""
+
+    NODE_ID = "ivar_trim"
+    DISPLAY_NAME = "iVar Trim"
+    REQUIRED_CONDA_PACKAGES = ["ivar", "viramp-hub", "samtools"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Soft-clip primer sequences and quality-trim aligned viral amplicon reads with iVar trim."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ivar",
+        "ivar trim",
+        "primer trimming",
+        "quality trimming",
+        "amplicon trimming",
+        "soft clip primers",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("trimmed_bam",)
+    REQUIRED_EXECUTABLES = ["scheme-convert", "ivar", "samtools"]
+    DOCUMENTATION_URL = "https://andersen-lab.github.io/ivar/html/"
+    CITATION_DOIS = ["10.1186/s13059-018-1618-7"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/s13059-018-1618-7"]
+    CITATION_TEXT = "An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar."
+    VERSION = "1.4.4"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        bed = f"{out}/ivar.bed"
+        amplicon_info = f"{out}/amplicon_info.tsv"
+        cmd = [
+            "scheme-convert",
+            "--to",
+            "bed",
+            "--bed-type",
+            "ivar",
+            "-o",
+            bed,
+            str(inputs.get("input_bed", "")),
+        ]
+        amplicon_mode = str(inputs.get("amplicon_mode", "none"))
+        if amplicon_mode in {"computed", "provided"}:
+            cmd.extend(["&&", "scheme-convert"])
+            if amplicon_mode == "provided":
+                cmd.extend(["-a", str(inputs.get("amplicon_info", ""))])
+            cmd.extend(["--to", "amplicon-info", "-r", "outer", "-o", amplicon_info, bed])
+        cmd.extend(
+            [
+                "&&",
+                "ivar",
+                "trim",
+                "-i",
+                str(inputs.get("input_bam", "")),
+                "-b",
+                bed,
+            ]
+        )
+        if amplicon_mode in {"computed", "provided"}:
+            cmd.extend(["-f", amplicon_info])
+        cmd.extend(["-x", str(inputs.get("primer_pos_wiggle", 0))])
+        if inputs.get("include_reads_without_primers"):
+            cmd.append("-e")
+        trimmed_length_filter = str(inputs.get("trimmed_length_filter", "auto"))
+        min_len = {
+            "off": "0",
+            "auto": "-1",
+            "custom": str(inputs.get("min_len", 30)),
+        }.get(trimmed_length_filter, "-1")
+        cmd.extend(
+            [
+                "-m",
+                min_len,
+                "-q",
+                str(inputs.get("min_qual", 20)),
+                "-s",
+                str(inputs.get("window_width", 4)),
+                "|",
+                "samtools",
+                "sort",
+                "-@",
+                str(inputs.get("threads", 1)),
+                "-T",
+                "${TMPDIR:-.}",
+                "-o",
+                f"{out}/trimmed.sorted.bam",
+                "-",
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "trimmed.sorted.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bam": ("BAM", {"description": "Aligned and sorted BAM to primer-trim"}),
+                "input_bed": ("BED", {"description": "Six-column primer binding site BED"}),
+                "amplicon_mode": (
+                    "STRING",
+                    {
+                        "default": "none",
+                        "options": ["none", "computed", "provided"],
+                        "description": "Whether to drop reads not fully contained in known amplicons",
+                    },
+                ),
+                "primer_pos_wiggle": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "description": "Wiggle room for read ends relative to primer binding sites",
+                    },
+                ),
+                "include_reads_without_primers": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include reads that do not end in any primer binding site"},
+                ),
+                "min_qual": (
+                    "INT",
+                    {"default": 20, "min": 0, "max": 255, "description": "Sliding-window minimum base quality"},
+                ),
+                "window_width": (
+                    "INT",
+                    {"default": 4, "min": 0, "max": 255, "description": "Sliding-window width for quality trimming"},
+                ),
+                "trimmed_length_filter": (
+                    "STRING",
+                    {
+                        "default": "auto",
+                        "options": ["off", "auto", "custom"],
+                        "description": "Minimum retained read length mode after trimming",
+                    },
+                ),
+                "threads": (
+                    "INT",
+                    {"default": 1, "min": 1, "max": 128, "display": "slider", "description": "Threads for samtools sort"},
+                ),
+            },
+            "optional": {
+                "amplicon_info": (
+                    "TSV",
+                    {
+                        "description": "Tab-separated primer names for each amplicon",
+                        "displayOptions": {"show": {"amplicon_mode": ["provided"]}},
+                    },
+                ),
+                "min_len": (
+                    "INT",
+                    {
+                        "default": 30,
+                        "min": 1,
+                        "description": "Custom minimum trimmed read length",
+                        "displayOptions": {"show": {"trimmed_length_filter": ["custom"]}},
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarRemoveReadsNode(CommandNode):
     """Remove reads from iVar-trimmed BAMs when primer binding sites are affected."""
 

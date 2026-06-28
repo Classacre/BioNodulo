@@ -1232,6 +1232,38 @@ const objectInfo = {
     citation_dois: ['10.1186/s13059-018-1618-7'],
     citation_urls: ['https://doi.org/10.1186/s13059-018-1618-7'],
   },
+  ivar_trim: {
+    name: 'ivar_trim',
+    display_name: 'iVar Trim',
+    category: 'variant',
+    description: 'Soft-clip primer sequences and quality-trim aligned viral amplicon reads with iVar trim.',
+    search_aliases: ['Galaxy', 'ivar', 'ivar trim', 'primer trimming', 'quality trimming', 'amplicon trimming', 'soft clip primers'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        input_bed: { type: 'BED' },
+        amplicon_mode: { type: 'STRING', default: 'none', options: ['none', 'computed', 'provided'] },
+        primer_pos_wiggle: { type: 'INT', default: 0 },
+        include_reads_without_primers: { type: 'BOOLEAN', default: false },
+        min_qual: { type: 'INT', default: 20 },
+        window_width: { type: 'INT', default: 4 },
+        trimmed_length_filter: { type: 'STRING', default: 'auto', options: ['off', 'auto', 'custom'] },
+        threads: { type: 'INT', default: 1 },
+      },
+      optional: {
+        amplicon_info: { type: 'TSV', displayOptions: { show: { amplicon_mode: ['provided'] } } },
+        min_len: { type: 'INT', default: 30, displayOptions: { show: { trimmed_length_filter: ['custom'] } } },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['trimmed_bam'],
+    required_executables: ['scheme-convert', 'ivar', 'samtools'],
+    required_conda_packages: ['ivar', 'viramp-hub', 'samtools'],
+    documentation_url: 'https://andersen-lab.github.io/ivar/html/',
+    citation_dois: ['10.1186/s13059-018-1618-7'],
+    citation_urls: ['https://doi.org/10.1186/s13059-018-1618-7'],
+    citation_text: 'An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar.',
+  },
   ivar_consensus: {
     name: 'ivar_consensus',
     display_name: 'iVar Consensus',
@@ -3801,7 +3833,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('171 nodes available')).toBeVisible();
+  await expect(page.getByText('172 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3860,6 +3892,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Dindel indel quality', name: 'LoFreq Indel Quality', category: 'variant' },
     { query: 'lofreq strand bias filter', name: 'LoFreq Filter', category: 'variant' },
     { query: 'lofreq read realignment', name: 'LoFreq Viterbi Realignment', category: 'variant' },
+    { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
     { query: 'ivar replicate variants', name: 'iVar Filter Variants', category: 'variant' },
