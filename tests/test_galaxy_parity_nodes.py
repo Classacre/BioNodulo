@@ -394,6 +394,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kaiju"],
             "doi": "10.1038/ncomms11257",
         },
+        "kaiju_add_taxon_names": {
+            "display_name": "Kaiju Add Taxon Names",
+            "category": "taxonomy",
+            "required_executables": ["kaiju-addTaxonNames"],
+            "required_conda_packages": ["kaiju"],
+            "doi": "10.1038/ncomms11257",
+        },
         "kaiju2table": {
             "display_name": "Kaiju2Table",
             "category": "taxonomy",
@@ -4707,6 +4714,77 @@ def test_kaiju_renders_galaxy_aligned_taxonomy_and_best_sequence_modes(tmp_path:
     ]
     assert node_class.PLAN_OUTPUTS({"task": "best_sequence"}, tmp_path) == [
         tmp_path / "kaiju" / "kaiju_best_sequences.tsv",
+    ]
+
+
+def test_kaiju_add_taxon_names_renders_annotation_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kaiju_add_taxon_names")
+    info = _registry().object_info()["kaiju_add_taxon_names"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["taxon_names_table"]
+    assert info["citation_dois"] == ["10.1038/ncomms11257"]
+    assert info["citation_text"] == "Fast and sensitive taxonomic classification for metagenomics with Kaiju."
+    assert info["input"]["required"]["kaiju_table"][0] == "TSV"
+    assert info["input"]["required"]["reference_database"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["rank"][1]["options"] == [
+        "",
+        "phylum",
+        "class",
+        "order",
+        "family",
+        "genus",
+        "species",
+    ]
+    assert info["input"]["optional"]["print_full_taxon_path"][1]["default"] is False
+
+    assert node_class.render_command(
+        {
+            "kaiju_table": "kaiju.out",
+            "reference_database": "/db/kaiju/nr",
+            "exclude_unclassified": True,
+            "rank": "family",
+            "print_full_taxon_path": False,
+            "output": "/work/kaiju_taxnames",
+        }
+    ) == [
+        "kaiju-addTaxonNames",
+        "-t",
+        "/db/kaiju/nr/nodes.dmp",
+        "-n",
+        "/db/kaiju/nr/names.dmp",
+        "-i",
+        "kaiju.out",
+        "-o",
+        "/work/kaiju_taxnames/kaiju_taxon_names.tsv",
+        "-u",
+        "-r",
+        "family",
+    ]
+
+    assert node_class.render_command(
+        {
+            "kaiju_table": "kaiju.out",
+            "reference_database": "/db/kaiju/refseq",
+            "rank": "",
+            "print_full_taxon_path": True,
+            "output": "/work/kaiju_taxnames",
+        }
+    ) == [
+        "kaiju-addTaxonNames",
+        "-t",
+        "/db/kaiju/refseq/nodes.dmp",
+        "-n",
+        "/db/kaiju/refseq/names.dmp",
+        "-i",
+        "kaiju.out",
+        "-o",
+        "/work/kaiju_taxnames/kaiju_taxon_names.tsv",
+        "-p",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kaiju_add_taxon_names" / "kaiju_taxon_names.tsv",
     ]
 
 

@@ -7901,6 +7901,96 @@ class KaijuNode(CommandNode):
         }
 
 
+class KaijuAddTaxonNamesNode(CommandNode):
+    """Append taxon names or taxonomic paths to Kaiju output tables."""
+
+    NODE_ID = "kaiju_add_taxon_names"
+    DISPLAY_NAME = "Kaiju Add Taxon Names"
+    REQUIRED_CONDA_PACKAGES = ["kaiju"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Append taxon names or taxonomic paths to Kaiju output tables."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "kaiju",
+        "kaiju-addTaxonNames",
+        "taxon names",
+        "Print full taxon path",
+        "readable taxonomy",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("taxon_names_table",)
+    REQUIRED_EXECUTABLES = ["kaiju-addTaxonNames"]
+    DOCUMENTATION_URL = KaijuNode.DOCUMENTATION_URL
+    CITATION_DOIS = KaijuNode.CITATION_DOIS
+    CITATION_URLS = KaijuNode.CITATION_URLS
+    CITATION_TEXT = KaijuNode.CITATION_TEXT
+    VERSION = KaijuNode.VERSION
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        reference = str(inputs.get("reference_database", "")).rstrip("/")
+        cmd = [
+            "kaiju-addTaxonNames",
+            "-t",
+            f"{reference}/nodes.dmp",
+            "-n",
+            f"{reference}/names.dmp",
+            "-i",
+            str(inputs.get("kaiju_table", "")),
+            "-o",
+            f"{out}/kaiju_taxon_names.tsv",
+        ]
+        if inputs.get("exclude_unclassified", False):
+            cmd.append("-u")
+        rank = str(inputs.get("rank", ""))
+        if rank:
+            cmd.extend(["-r", rank])
+        if inputs.get("print_full_taxon_path", False):
+            cmd.append("-p")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "kaiju_taxon_names.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "kaiju_table": ("TSV", {"description": "Kaiju output table"}),
+                "reference_database": (
+                    "DIRECTORY",
+                    {"description": "Kaiju database directory containing nodes.dmp and names.dmp"},
+                ),
+            },
+            "optional": {
+                "exclude_unclassified": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not count unclassified reads in percentage totals"},
+                ),
+                "rank": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "phylum", "class", "order", "family", "genus", "species"],
+                        "description": "Optional rank whose taxon name should be appended",
+                    },
+                ),
+                "print_full_taxon_path": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Print the full taxon path instead of a rank-specific taxon name",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class Kaiju2TableNode(CommandNode):
     """Summarize Kaiju classifications by taxonomic rank."""
 
