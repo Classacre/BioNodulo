@@ -1538,6 +1538,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/ncomms11257'],
     citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
   },
+  kaiju2table: {
+    name: 'kaiju2table',
+    display_name: 'Kaiju2Table',
+    category: 'taxonomy',
+    description: 'Convert one or more Kaiju classification outputs into summary tables by taxonomic rank.',
+    search_aliases: ['Galaxy', 'kaiju', 'kaiju2table', 'summary table', 'minimum reporting percentage', 'taxonomic rank'],
+    input: {
+      required: {
+        kaiju_tables: { type: 'TSV', list: true },
+        reference_database: { type: 'DIRECTORY' },
+        rank: { type: 'STRING', default: 'phylum', options: ['phylum', 'class', 'order', 'family', 'genus', 'species'] },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [] },
+        minimum_percentage: { type: 'FLOAT', default: '' },
+        minimum_reads: { type: 'INT', default: '' },
+        expand_viruses: { type: 'BOOLEAN', default: false },
+        exclude_unclassified: { type: 'BOOLEAN', default: false },
+        tax_path_report: { type: 'STRING', default: '', options: ['', 'full', 'partial'] },
+        selected_ranks: { type: 'STRING', default: [], list: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['summary_table'],
+    required_executables: ['kaiju2table'],
+    required_conda_packages: ['kaiju'],
+    documentation_url: 'https://github.com/bioinformatics-centre/kaiju',
+    citation_dois: ['10.1038/ncomms11257'],
+    citation_urls: ['https://doi.org/10.1038/ncomms11257'],
+    citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4414,7 +4445,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('189 nodes available')).toBeVisible();
+  await expect(page.getByText('190 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4480,6 +4511,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mmseqs taxonomy LCA', name: 'MMseqs2 Easy Taxonomy', category: 'taxonomy' },
     { query: 'filtertaxseqdb', name: 'MMseqs2 Taxonomy', category: 'taxonomy' },
     { query: 'protein-level classifier', name: 'Kaiju', category: 'taxonomy' },
+    { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },

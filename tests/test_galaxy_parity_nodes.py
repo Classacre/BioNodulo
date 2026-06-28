@@ -394,6 +394,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kaiju"],
             "doi": "10.1038/ncomms11257",
         },
+        "kaiju2table": {
+            "display_name": "Kaiju2Table",
+            "category": "taxonomy",
+            "required_executables": ["kaiju2table"],
+            "required_conda_packages": ["kaiju"],
+            "doi": "10.1038/ncomms11257",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -4700,6 +4707,70 @@ def test_kaiju_renders_galaxy_aligned_taxonomy_and_best_sequence_modes(tmp_path:
     ]
     assert node_class.PLAN_OUTPUTS({"task": "best_sequence"}, tmp_path) == [
         tmp_path / "kaiju" / "kaiju_best_sequences.tsv",
+    ]
+
+
+def test_kaiju2table_renders_summary_table_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kaiju2table")
+    info = _registry().object_info()["kaiju2table"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["summary_table"]
+    assert info["citation_dois"] == ["10.1038/ncomms11257"]
+    assert info["citation_text"] == "Fast and sensitive taxonomic classification for metagenomics with Kaiju."
+    assert info["input"]["required"]["kaiju_tables"][0] == "TSV"
+    assert info["input"]["required"]["reference_database"][0] == "DIRECTORY"
+    assert info["input"]["required"]["rank"][1]["options"] == [
+        "phylum",
+        "class",
+        "order",
+        "family",
+        "genus",
+        "species",
+    ]
+    assert info["input"]["optional"]["tax_path_report"][1]["options"] == ["", "full", "partial"]
+    assert info["input"]["optional"]["selected_ranks"][1]["default"] == []
+
+    assert node_class.render_command(
+        {
+            "kaiju_tables": ["sample A.tsv", "kaiju-taxnames.out"],
+            "element_identifiers": ["sample A", "kaiju-taxnames.out"],
+            "reference_database": "/db/kaiju/nr",
+            "rank": "genus",
+            "minimum_percentage": 1.5,
+            "minimum_reads": "",
+            "expand_viruses": True,
+            "exclude_unclassified": True,
+            "tax_path_report": "partial",
+            "selected_ranks": ["superkingdom", "phylum", "genus"],
+            "output": "/work/kaiju2table",
+        }
+    ) == (
+        "ln -sf 'sample A.tsv' sample_A && "
+        "ln -sf kaiju-taxnames.out kaiju-taxnames.out && "
+        "kaiju2table -t /db/kaiju/nr/nodes.dmp -n /db/kaiju/nr/names.dmp -r genus "
+        "-o /work/kaiju2table/kaiju_summary.tsv -m 1.5 -e -u -l superkingdom,phylum,genus "
+        "sample_A kaiju-taxnames.out"
+    )
+
+    assert node_class.render_command(
+        {
+            "kaiju_tables": "single.tsv",
+            "reference_database": "/db/kaiju/refseq",
+            "rank": "species",
+            "minimum_percentage": "",
+            "minimum_reads": 12,
+            "tax_path_report": "full",
+            "output": "/work/kaiju2table",
+        }
+    ) == (
+        "ln -sf single.tsv single.tsv && "
+        "kaiju2table -t /db/kaiju/refseq/nodes.dmp -n /db/kaiju/refseq/names.dmp -r species "
+        "-o /work/kaiju2table/kaiju_summary.tsv -c 12 -p single.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kaiju2table" / "kaiju_summary.tsv",
     ]
 
 
