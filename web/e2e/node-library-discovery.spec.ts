@@ -1280,6 +1280,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-018-1618-7'],
     citation_text: 'An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar.',
   },
+  ivar_removereads: {
+    name: 'ivar_removereads',
+    display_name: 'iVar Remove Reads',
+    category: 'variant',
+    description: 'Remove reads from iVar-trimmed BAMs for amplicons whose primer binding sites overlap variants.',
+    search_aliases: ['Galaxy', 'ivar', 'ivar removereads', 'ivar getmasked', 'primer mismatch', 'remove primer-biased reads', 'amplicon filtering'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        variants_tsv: { type: 'TSV' },
+        input_bed: { type: 'BED' },
+        amplicon_mode: { type: 'STRING', default: 'computed', options: ['computed', 'provided'] },
+      },
+      optional: {
+        amplicon_info: { type: 'TSV', displayOptions: { show: { amplicon_mode: ['provided'] } } },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['filtered_bam'],
+    required_executables: ['scheme-convert', 'ivar', 'python'],
+    required_conda_packages: ['ivar', 'viramp-hub', 'python'],
+    documentation_url: 'https://andersen-lab.github.io/ivar/html/',
+    citation_dois: ['10.1186/s13059-018-1618-7'],
+    citation_urls: ['https://doi.org/10.1186/s13059-018-1618-7'],
+    citation_text: 'An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar.',
+  },
   gtdbtk_classify_wf: {
     name: 'gtdbtk_classify_wf',
     display_name: 'GTDB-Tk Classify',
@@ -3775,7 +3801,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('170 nodes available')).toBeVisible();
+  await expect(page.getByText('171 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3837,6 +3863,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
     { query: 'ivar replicate variants', name: 'iVar Filter Variants', category: 'variant' },
+    { query: 'ivar primer mismatch', name: 'iVar Remove Reads', category: 'variant' },
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
     { query: 'fpkm gene expression', name: 'RSeQC FPKM Count', category: 'rna_seq' },

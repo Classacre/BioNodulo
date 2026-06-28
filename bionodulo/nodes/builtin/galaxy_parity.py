@@ -5682,6 +5682,131 @@ class IVarFilterVariantsNode(CommandNode):
         }
 
 
+class IVarRemoveReadsNode(CommandNode):
+    """Remove reads from iVar-trimmed BAMs when primer binding sites are affected."""
+
+    NODE_ID = "ivar_removereads"
+    DISPLAY_NAME = "iVar Remove Reads"
+    REQUIRED_CONDA_PACKAGES = ["ivar", "viramp-hub", "python"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Remove reads from iVar-trimmed BAMs for amplicons whose primer binding sites overlap variants."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ivar",
+        "ivar removereads",
+        "ivar getmasked",
+        "primer mismatch",
+        "remove primer-biased reads",
+        "amplicon filtering",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("filtered_bam",)
+    REQUIRED_EXECUTABLES = ["scheme-convert", "ivar", "python"]
+    DOCUMENTATION_URL = "https://andersen-lab.github.io/ivar/html/"
+    CITATION_DOIS = ["10.1186/s13059-018-1618-7"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/s13059-018-1618-7"]
+    CITATION_TEXT = "An amplicon-based sequencing framework for accurately measuring intrahost virus diversity using PrimalSeq and iVar."
+    VERSION = "1.4.4"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        bed = f"{out}/ivar.bed"
+        amplicon_info = f"{out}/amplicon_info.tsv"
+        masked_primers = f"{out}/masked_primers"
+        masked_primers_txt = f"{masked_primers}.txt"
+        cmd = [
+            "scheme-convert",
+            "--to",
+            "bed",
+            "--bed-type",
+            "ivar",
+            "-o",
+            bed,
+            str(inputs.get("input_bed", "")),
+            "&&",
+            "scheme-convert",
+        ]
+        if str(inputs.get("amplicon_mode", "computed")) == "provided":
+            cmd.extend(["-a", str(inputs.get("amplicon_info", ""))])
+        cmd.extend(
+            [
+                "--to",
+                "amplicon-info",
+                "-o",
+                amplicon_info,
+                bed,
+                "&&",
+                "ivar",
+                "getmasked",
+                "-i",
+                str(inputs.get("variants_tsv", "")),
+                "-b",
+                bed,
+                "-f",
+                amplicon_info,
+                "-p",
+                masked_primers,
+                "&&",
+                "python",
+                "-m",
+                "bionodulo.nodes.scripts.ivar_complete_mask",
+                masked_primers_txt,
+                amplicon_info,
+                "&&",
+                "ivar",
+                "removereads",
+                "-i",
+                str(inputs.get("input_bam", "")),
+                "-b",
+                bed,
+                "-p",
+                f"{out}/removed_reads.bam",
+                "-t",
+                masked_primers_txt,
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "removed_reads.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bam": ("BAM", {"description": "Aligned, sorted BAM preprocessed with iVar trim"}),
+                "variants_tsv": (
+                    "TSV",
+                    {"description": "Variant TSV scanned for variants that affect primer binding sites"},
+                ),
+                "input_bed": ("BED", {"description": "Six-column primer binding site BED used for iVar trim"}),
+                "amplicon_mode": (
+                    "STRING",
+                    {
+                        "default": "computed",
+                        "options": ["computed", "provided"],
+                        "description": "Compute amplicon pairs from primer names or provide an amplicon-info table",
+                    },
+                ),
+            },
+            "optional": {
+                "amplicon_info": (
+                    "TSV",
+                    {
+                        "description": "Tab-separated primer names for each amplicon",
+                        "displayOptions": {"show": {"amplicon_mode": ["provided"]}},
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarVariantsNode(CommandNode):
     """Call viral amplicon variants from samtools mpileup using iVar."""
 

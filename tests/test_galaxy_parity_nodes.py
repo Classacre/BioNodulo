@@ -2734,6 +2734,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["ivar"],
             "doi": "10.1186/s13059-018-1618-7",
         },
+        "ivar_removereads": {
+            "display_name": "iVar Remove Reads",
+            "category": "variant",
+            "required_executables": ["scheme-convert", "ivar", "python"],
+            "required_conda_packages": ["ivar", "viramp-hub", "python"],
+            "doi": "10.1186/s13059-018-1618-7",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -3516,6 +3523,102 @@ def test_ivar_filtervariants_renders_replicate_filter_command_and_output(tmp_pat
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ivar_filtervariants" / "filtered.tsv"]
+
+
+def test_ivar_complete_mask_expands_masked_primers_to_full_amplicons(tmp_path: Path) -> None:
+    from bionodulo.nodes.scripts.ivar_complete_mask import complete_mask_file
+
+    masked = tmp_path / "masked_primers.txt"
+    amplicons = tmp_path / "amplicon_info.tsv"
+    masked.write_text("400_2_out_L\t400_3_out_R\n", encoding="utf-8")
+    amplicons.write_text(
+        "400_1_out_L\t400_1_out_R\n"
+        "400_2_out_L\t400_2_out_R\n"
+        "400_3_out_L\t400_3_out_R\n",
+        encoding="utf-8",
+    )
+
+    result = complete_mask_file(masked, amplicons)
+
+    assert result == ["400_2_out_L", "400_2_out_R", "400_3_out_L", "400_3_out_R"]
+    assert masked.read_text(encoding="utf-8") == "400_2_out_L\t400_2_out_R\t400_3_out_L\t400_3_out_R\n"
+
+
+def test_ivar_removereads_renders_mask_and_remove_pipeline_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ivar_removereads")
+    info = _registry().object_info()["ivar_removereads"]
+
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["filtered_bam"]
+    assert "10.1186/s13059-018-1618-7" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_bam": "trimmed.sorted.bam",
+            "variants_tsv": "primer_variants.tsv",
+            "input_bed": "primers.bed",
+            "amplicon_mode": "provided",
+            "amplicon_info": "pairs.tsv",
+            "output": "/work/ivar_removereads",
+        }
+    ) == [
+        "scheme-convert",
+        "--to",
+        "bed",
+        "--bed-type",
+        "ivar",
+        "-o",
+        "/work/ivar_removereads/ivar.bed",
+        "primers.bed",
+        "&&",
+        "scheme-convert",
+        "-a",
+        "pairs.tsv",
+        "--to",
+        "amplicon-info",
+        "-o",
+        "/work/ivar_removereads/amplicon_info.tsv",
+        "/work/ivar_removereads/ivar.bed",
+        "&&",
+        "ivar",
+        "getmasked",
+        "-i",
+        "primer_variants.tsv",
+        "-b",
+        "/work/ivar_removereads/ivar.bed",
+        "-f",
+        "/work/ivar_removereads/amplicon_info.tsv",
+        "-p",
+        "/work/ivar_removereads/masked_primers",
+        "&&",
+        "python",
+        "-m",
+        "bionodulo.nodes.scripts.ivar_complete_mask",
+        "/work/ivar_removereads/masked_primers.txt",
+        "/work/ivar_removereads/amplicon_info.tsv",
+        "&&",
+        "ivar",
+        "removereads",
+        "-i",
+        "trimmed.sorted.bam",
+        "-b",
+        "/work/ivar_removereads/ivar.bed",
+        "-p",
+        "/work/ivar_removereads/removed_reads.bam",
+        "-t",
+        "/work/ivar_removereads/masked_primers.txt",
+    ]
+
+    computed_cmd = node_class.render_command(
+        {
+            "input_bam": "trimmed.sorted.bam",
+            "variants_tsv": "primer_variants.tsv",
+            "input_bed": "primers.bed",
+            "amplicon_mode": "computed",
+            "output": "/work/ivar_removereads",
+        }
+    )
+    assert "-a" not in computed_cmd
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ivar_removereads" / "removed_reads.bam"]
 
 
 def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata() -> None:
