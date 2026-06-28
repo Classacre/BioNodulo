@@ -1745,6 +1745,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
     citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
   },
+  bracken: {
+    name: 'bracken',
+    display_name: 'Bracken',
+    category: 'metagenomics',
+    description: 'Re-estimate taxonomic abundance from a Kraken report with Bracken.',
+    search_aliases: ['Galaxy', 'Bracken', 'est_abundance.py', 'Kraken report', 'taxonomy abundance', 'Kraken-style Bracken report'],
+    input: {
+      required: {
+        report: { type: 'TSV' },
+        kmer_distr: { type: 'FILE' },
+      },
+      optional: {
+        db: { type: 'DIRECTORY', default: '' },
+        read_length: { type: 'STRING', default: '100' },
+        level: { type: 'STRING', default: 'S', options: ['S2', 'S1', 'S', 'G', 'F', 'O', 'C', 'P', 'D'] },
+        threshold: { type: 'INT', default: 10 },
+        out_report: { type: 'BOOLEAN', default: false },
+        logfile_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV', 'TSV', 'TXT'],
+    output_name: ['report', 'kraken_report', 'logfile'],
+    required_executables: ['est_abundance.py'],
+    required_conda_packages: ['bracken'],
+    documentation_url: 'https://github.com/jenniferlu717/Bracken/releases',
+    citation_dois: ['10.7717/peerj-cs.104'],
+    citation_urls: ['https://doi.org/10.7717/peerj-cs.104'],
+    citation_text: 'Bracken: estimating species abundance in metagenomics data.',
+  },
   krakentools_combine_kreports: {
     name: 'krakentools_combine_kreports',
     display_name: 'Krakentools Combine Kraken Reports',
@@ -4870,7 +4899,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('204 nodes available')).toBeVisible();
+  await expect(page.getByText('205 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4942,6 +4971,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },
+    { query: 'Kraken-style Bracken report', name: 'Bracken', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
     { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },

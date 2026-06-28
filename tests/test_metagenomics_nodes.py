@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bionodulo.nodes.builtin.metagenomics import HUMAnNNode, MetaPhlAnNode
+from bionodulo.nodes.builtin.metagenomics import BrackenNode, HUMAnNNode, MetaPhlAnNode
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -8,6 +8,82 @@ def _object_info(node_id: str) -> dict:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     return registry.object_info()[node_id]
+
+
+def test_bracken_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:
+    info = _object_info("bracken")
+
+    assert info["display_name"] == "Bracken"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Re-estimate taxonomic abundance from a Kraken report with Bracken."
+    assert info["output"] == ["TSV", "TSV", "TXT"]
+    assert info["output_name"] == ["report", "kraken_report", "logfile"]
+    assert info["required_executables"] == ["est_abundance.py"]
+    assert info["required_conda_packages"] == ["bracken"]
+    assert info["documentation_url"] == "https://github.com/jenniferlu717/Bracken/releases"
+    assert info["citation_dois"] == ["10.7717/peerj-cs.104"]
+    assert info["citation_urls"] == ["https://doi.org/10.7717/peerj-cs.104"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "Kraken-style Bracken report" in info["search_aliases"]
+
+    assert info["input"]["required"]["report"][0] == "TSV"
+    assert info["input"]["required"]["kmer_distr"][0] == "FILE"
+    assert info["input"]["optional"]["level"][1]["options"] == ["S2", "S1", "S", "G", "F", "O", "C", "P", "D"]
+    assert info["input"]["optional"]["threshold"][1]["default"] == 10
+    assert info["input"]["optional"]["out_report"][1]["default"] is False
+    assert info["input"]["optional"]["logfile_output"][1]["default"] is False
+
+
+def test_bracken_renders_est_abundance_command_and_dynamic_outputs(tmp_path: Path) -> None:
+    cmd = BrackenNode.render_command(
+        {
+            "report": "kraken_report.tsv",
+            "kmer_distr": "/db/database100mers.kmer_distrib",
+            "level": "S1",
+            "threshold": 7,
+            "out_report": True,
+            "logfile_output": True,
+            "output": "/work/bracken",
+        }
+    )
+
+    assert cmd == (
+        "set -o pipefail && "
+        "est_abundance.py -i kraken_report.tsv -k /db/database100mers.kmer_distrib -l S1 -t 7 "
+        "-o /work/bracken/report.tsv --out-report bracken.report | tee /work/bracken/bracken.log && "
+        "mv bracken.report /work/bracken/kraken_report.tsv"
+    )
+    assert BrackenNode.PLAN_OUTPUTS({"out_report": True, "logfile_output": True}, tmp_path) == [
+        tmp_path / "bracken" / "report.tsv",
+        tmp_path / "bracken" / "kraken_report.tsv",
+        tmp_path / "bracken" / "bracken.log",
+    ]
+
+
+def test_bracken_uses_legacy_database_alias_for_template_compatibility(tmp_path: Path) -> None:
+    cmd = BrackenNode.render_command(
+        {
+            "report": "kraken_report.tsv",
+            "db": "/db/kraken2",
+            "read_length": "150",
+            "level": "S",
+            "output": "/work/bracken",
+        }
+    )
+
+    assert cmd == (
+        "set -o pipefail && "
+        "est_abundance.py -i kraken_report.tsv -k /db/kraken2/database150mers.kmer_distrib -l S -t 10 "
+        "-o /work/bracken/report.tsv --out-report bracken.report"
+    )
+    assert BrackenNode.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bracken" / "report.tsv"]
+
+
+def test_bracken_validates_kmer_distribution_or_legacy_database() -> None:
+    assert BrackenNode.VALIDATE_INPUTS({"report": "kraken_report.tsv"}) == (
+        "kmer_distr is required unless db is provided for legacy Kraken database compatibility"
+    )
+    assert BrackenNode.VALIDATE_INPUTS({"report": "kraken_report.tsv", "kmer_distr": "/db/database100mers.kmer_distrib"}) is True
 
 
 def test_humann_plans_standard_functional_profile_outputs() -> None:

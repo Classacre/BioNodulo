@@ -22,6 +22,8 @@ HUMANN_CITATION_TEXT = (
     "bioBakery 3: a platform for analyzing meta'omic datasets; "
     "HUMAnN: the HMP Unified Metabolic Analysis Network."
 )
+BRACKEN_CITATION_DOI = "10.7717/peerj-cs.104"
+BRACKEN_CITATION_TEXT = "Bracken: estimating species abundance in metagenomics data."
 
 
 def _as_list(value: Any) -> list[str]:
@@ -159,36 +161,130 @@ class Kraken2BuildNode(CommandNode):
 
 class BrackenNode(CommandNode):
     """Abundance estimation with Bracken."""
+
     NODE_ID = "bracken"
     DISPLAY_NAME = "Bracken"
-    REQUIRED_CONDA_PACKAGES = ['bracken']
+    REQUIRED_CONDA_PACKAGES = ["bracken"]
     CATEGORY = "metagenomics"
-    DESCRIPTION = "Bayesian Re-estimation of Abundance after classification with Kraken"
-    SEARCH_ALIASES = ["bracken", "abundance", "kraken", "metagenomics"]
-    RETURN_TYPES = ("KRAKEN_REPORT",)
-    RETURN_NAMES = ("report",)
-    REQUIRED_EXECUTABLES = ["bracken"]
-    DOCUMENTATION_URL = "https://ccb.jhu.edu/software/bracken/"
-    VERSION = "3.1"
-    COMMAND = [
-        "bracken",
-        "-d", "{inputs.db}",
-        "-i", "{inputs.report}",
-        "-o", "{output}/report.kreport",
-        "-r", "{inputs.read_length}",
-        "-l", "{inputs.level}",
+    DESCRIPTION = "Re-estimate taxonomic abundance from a Kraken report with Bracken."
+    SEARCH_ALIASES = [
+        "Galaxy",
+        "Bracken",
+        "est_abundance.py",
+        "Kraken report",
+        "taxonomy abundance",
+        "Kraken-style Bracken report",
     ]
+    RETURN_TYPES = ("TSV", "TSV", "TXT")
+    RETURN_NAMES = ("report", "kraken_report", "logfile")
+    REQUIRED_EXECUTABLES = ["est_abundance.py"]
+    DOCUMENTATION_URL = "https://github.com/jenniferlu717/Bracken/releases"
+    CITATION_DOIS = [BRACKEN_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BRACKEN_CITATION_DOI}"]
+    CITATION_TEXT = BRACKEN_CITATION_TEXT
+    VERSION = "3.1"
+    SHELL = True
+
+    @classmethod
+    def _out(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("output", "."))
+
+    @classmethod
+    def _report_path(cls, out: str) -> str:
+        return f"{out}/report.tsv"
+
+    @classmethod
+    def _kraken_report_path(cls, out: str) -> str:
+        return f"{out}/kraken_report.tsv"
+
+    @classmethod
+    def _log_path(cls, out: str) -> str:
+        return f"{out}/bracken.log"
+
+    @classmethod
+    def _kmer_distribution(cls, inputs: dict[str, Any]) -> str:
+        if inputs.get("kmer_distr"):
+            return str(inputs["kmer_distr"])
+        if inputs.get("db"):
+            read_length = str(inputs.get("read_length", 100))
+            return f"{inputs['db']}/database{read_length}mers.kmer_distrib"
+        return ""
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = cls._out(inputs)
+        cmd = [
+            "set",
+            "-o",
+            "pipefail",
+            "&&",
+            "est_abundance.py",
+            "-i",
+            str(inputs.get("report", inputs.get("input", ""))),
+            "-k",
+            cls._kmer_distribution(inputs),
+            "-l",
+            str(inputs.get("level", "S")),
+            "-t",
+            str(inputs.get("threshold", 10)),
+            "-o",
+            cls._report_path(out),
+            "--out-report",
+            "bracken.report",
+        ]
+        if inputs.get("logfile_output"):
+            cmd.extend(["|", "tee", cls._log_path(out)])
+        rendered = _shell_join(cmd)
+        if inputs.get("out_report"):
+            rendered += " && " + _shell_join(["mv", "bracken.report", cls._kraken_report_path(out)])
+        return rendered
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "report.tsv"]
+        if inputs.get("out_report"):
+            outputs.append(out / "kraken_report.tsv")
+        if inputs.get("logfile_output"):
+            outputs.append(out / "bracken.log")
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not inputs.get("report") and not inputs.get("input"):
+            return "report is required"
+        if not inputs.get("kmer_distr") and not inputs.get("db"):
+            return "kmer_distr is required unless db is provided for legacy Kraken database compatibility"
+        return True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "report": ("KRAKEN_REPORT", {"description": "Kraken2 report file"}),
-                "db": ("DIRECTORY", {"description": "Kraken2 database directory"}),
-                "read_length": ("STRING", {"default": "100", "description": "Read length (35, 50, 75, 100, 150, 200, 250, 300)"}),
-                "level": ("STRING", {"default": "S", "description": "Taxonomic level: D, P, C, O, F, G, S"}),
+                "report": ("TSV", {"description": "Kraken report file"}),
+                "kmer_distr": ("FILE", {"description": "Bracken k-mer distribution file"}),
             },
-            "optional": {},
+            "optional": {
+                "db": (
+                    "DIRECTORY",
+                    {"default": "", "description": "Legacy Kraken database directory used to derive database{read_length}mers.kmer_distrib"},
+                ),
+                "read_length": ("STRING", {"default": "100", "description": "Legacy read length used with db"}),
+                "level": (
+                    "STRING",
+                    {"default": "S", "options": ["S2", "S1", "S", "G", "F", "O", "C", "P", "D"], "description": "Taxonomic level"},
+                ),
+                "threshold": (
+                    "INT",
+                    {
+                        "default": 10,
+                        "description": "Minimum Kraken-assigned reads required before final abundance estimation",
+                    },
+                ),
+                "out_report": ("BOOLEAN", {"default": False, "description": "Produce Kraken-style Bracken report"}),
+                "logfile_output": ("BOOLEAN", {"default": False, "description": "Add log file output"}),
+            },
             "hidden": {
                 "output": ("STRING", {}),
             },
