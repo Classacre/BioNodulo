@@ -3113,6 +3113,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_clipping_profile": {
+            "display_name": "RSeQC Clipping Profile",
+            "category": "rna_seq",
+            "required_executables": ["clipping_profile.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_rna_fragment_size": {
             "display_name": "RSeQC RNA Fragment Size",
             "category": "rna_seq",
@@ -3501,6 +3508,43 @@ def test_rseqc_bam2wig_renders_wiggle_commands_and_outputs(tmp_path: Path) -> No
     assert node_class.PLAN_OUTPUTS({"strand_specific": "pair"}, tmp_path) == [
         tmp_path / "rseqc_bam2wig" / "outfile.Forward.wig",
         tmp_path / "rseqc_bam2wig" / "outfile.Reverse.wig",
+    ]
+
+
+def test_rseqc_clipping_profile_renders_clipping_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_clipping_profile")
+    info = _registry().object_info()["rseqc_clipping_profile"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
+    assert info["output_name"] == ["clipping_profile_plot", "clipping_profile", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "mapq": 20,
+            "layout": "PE",
+            "rscript_output": True,
+            "output": "/work/rseqc_clipping_profile",
+        }
+    ) == [
+        "clipping_profile.py",
+        "-i",
+        "aligned.bam",
+        "-o",
+        "/work/rseqc_clipping_profile/output",
+        "-q",
+        "20",
+        "-s",
+        "PE",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.pdf",
+        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.xls",
+        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.pdf",
+        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.xls",
     ]
 
 

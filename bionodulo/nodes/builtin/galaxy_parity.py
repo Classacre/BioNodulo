@@ -5525,6 +5525,89 @@ class RSeQCBam2WigNode(CommandNode):
         }
 
 
+class RSeQCClippingProfileNode(CommandNode):
+    """Estimate clipped-base profiles across RNA-seq reads."""
+
+    NODE_ID = "rseqc_clipping_profile"
+    DISPLAY_NAME = "RSeQC Clipping Profile"
+    REQUIRED_CONDA_PACKAGES = ["rseqc"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate the distribution of soft-clipped nucleotides across RNA-seq reads from BAM alignments."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "clipping_profile",
+        "clipping profile",
+        "soft clipping",
+        "CIGAR",
+        "RNA-seq read clipping",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "TSV", "TEXT")
+    RETURN_NAMES = ("clipping_profile_plot", "clipping_profile", "r_script")
+    REQUIRED_EXECUTABLES = ["clipping_profile.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#clipping-profile-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "clipping_profile.py",
+            "-i",
+            str(inputs.get("input", "")),
+            "-o",
+            f"{out}/output",
+            "-q",
+            str(inputs.get("mapq", 30)),
+            "-s",
+            str(inputs.get("layout", "SE")),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.clipping_profile.pdf",
+            out / "output.clipping_profile.xls",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.clipping_profile.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM alignment file with CIGAR strings that can include soft clipping"}),
+            },
+            "optional": {
+                "mapq": (
+                    "INT",
+                    {
+                        "default": 30,
+                        "min": 0,
+                        "max": 255,
+                        "description": "Minimum mapping quality for an alignment to be considered uniquely mapped",
+                    },
+                ),
+                "layout": (
+                    "STRING",
+                    {"default": "SE", "options": ["SE", "PE"], "description": "Sequencing layout: single-end or paired-end"},
+                ),
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the clipping profile plot"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCRNAFragmentSizeNode(CommandNode):
     """Estimate RNA-seq fragment sizes for each transcript."""
 
