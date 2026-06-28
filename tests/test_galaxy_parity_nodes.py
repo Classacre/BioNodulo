@@ -478,6 +478,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["metaphlan"],
             "doi": "10.1038/s41587-023-01688-w",
         },
+        "customize_metaphlan_database": {
+            "display_name": "Customize MetaPhlAn DB",
+            "category": "metagenomics",
+            "required_executables": ["python", "seqtk"],
+            "required_conda_packages": ["metaphlan", "seqtk"],
+            "doi": "10.1038/s41587-023-01688-w",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -5393,6 +5400,110 @@ def test_extract_metaphlan_database_renders_database_export_command_and_outputs(
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "extract_metaphlan_database" / "marker_sequences.fasta",
         tmp_path / "extract_metaphlan_database" / "marker_metadata.json",
+    ]
+
+
+def test_customize_metaphlan_database_renders_add_remove_keep_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("customize_metaphlan_database")
+    info = _registry().object_info()["customize_metaphlan_database"]
+
+    assert info["output"] == ["FASTA", "JSON"]
+    assert info["output_name"] == ["out_fasta", "out_json"]
+    assert info["citation_dois"] == ["10.1038/s41587-023-01688-w"]
+    assert info["input"]["required"]["marker_sequences"][0] == "FASTA"
+    assert info["input"]["required"]["marker_metadata"][0] == "JSON"
+    assert info["input"]["optional"]["operation"][1]["options"] == ["add_marker", "remove_markers", "keep_markers"]
+    assert info["input"]["optional"]["genome_lengths"][1]["multiple"] is True
+    assert info["input"]["optional"]["customizemetadata_script"][1]["default"] == "customizemetadata.py"
+
+    assert node_class.render_command(
+        {
+            "marker_sequences": "test-db-without-one-marker.fasta",
+            "marker_metadata": "test-db-without-one-marker.json",
+            "operation": "add_marker",
+            "new_marker_sequences": "marker_sequence.fasta",
+            "marker_name": "13076__A0A2I1PE66__CYJ72_10760",
+            "marker_length": 540,
+            "genome_lengths": [2411251],
+            "genbank_accessions": ["GCA_002847845"],
+            "kingdom_names": ["Bacteria"],
+            "kingdom_ids": [2],
+            "phylum_names": ["Bacilli"],
+            "phylum_ids": [1239],
+            "class_names": ["Negativicutes"],
+            "class_ids": [91061],
+            "order_names": ["Lactobacillales"],
+            "order_ids": [186826],
+            "family_names": ["Aerococcaceae"],
+            "family_ids": [186827],
+            "genus_names": ["Globicatella"],
+            "genus_ids": [13075],
+            "species_names": ["Globicatella_sanguinis"],
+            "species_ids": [13076],
+            "strain_names": ["GCA_002847845"],
+            "output": "/work/customize_metaphlan_database",
+        }
+    ) == (
+        "python customizemetadata.py add_marker --in_json test-db-without-one-marker.json "
+        "--out_json /work/customize_metaphlan_database/custom_marker_metadata.json "
+        "--name 13076__A0A2I1PE66__CYJ72_10760 --m_length 540 "
+        "--g_length 2411251 --gca GCA_002847845 --k_name Bacteria --k_id 2 "
+        "--p_name Bacilli --p_id 1239 --c_name Negativicutes --c_id 91061 "
+        "--o_name Lactobacillales --o_id 186826 --f_name Aerococcaceae --f_id 186827 "
+        "--g_name Globicatella --g_id 13075 --s_name Globicatella_sanguinis --s_id 13076 "
+        "--t_name GCA_002847845 && "
+        "cat test-db-without-one-marker.fasta marker_sequence.fasta "
+        "> /work/customize_metaphlan_database/custom_marker_sequences.fasta"
+    )
+
+    assert node_class.render_command(
+        {
+            "marker_sequences": "test-db.fasta",
+            "marker_metadata": "test-db.json",
+            "operation": "remove_markers",
+            "markers": "marker.txt",
+            "output": "/work/customize_metaphlan_database",
+        }
+    ) == (
+        "python customizemetadata.py remove_markers --in_json test-db.json --markers marker.txt "
+        "--out_json /work/customize_metaphlan_database/custom_marker_metadata.json "
+        "--kept_markers kept_markers.txt && "
+        "seqtk subseq test-db.fasta kept_markers.txt "
+        "> /work/customize_metaphlan_database/custom_marker_sequences.fasta"
+    )
+
+    assert node_class.render_command(
+        {
+            "marker_sequences": "test-db.fasta",
+            "marker_metadata": "test-db.json",
+            "operation": "keep_markers",
+            "markers": "marker.txt",
+            "customizemetadata_script": "/opt/galaxy tools/customizemetadata.py",
+            "output": "/work/customize_metaphlan_database",
+        }
+    ) == (
+        "python '/opt/galaxy tools/customizemetadata.py' keep_markers --in_json test-db.json "
+        "--markers marker.txt --out_json /work/customize_metaphlan_database/custom_marker_metadata.json && "
+        "seqtk subseq test-db.fasta marker.txt "
+        "> /work/customize_metaphlan_database/custom_marker_sequences.fasta"
+    )
+
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "marker_sequences": "test-db.fasta",
+            "marker_metadata": "test-db.json",
+            "operation": "add_marker",
+            "new_marker_sequences": "marker_sequence.fasta",
+            "marker_name": "marker",
+            "marker_length": 540,
+            "genome_lengths": [2411251],
+            "genbank_accessions": [],
+        }
+    ) == "Add-marker taxonomy fields must have the same number of values as genome_lengths"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "customize_metaphlan_database" / "custom_marker_sequences.fasta",
+        tmp_path / "customize_metaphlan_database" / "custom_marker_metadata.json",
     ]
 
 

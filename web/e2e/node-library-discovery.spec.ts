@@ -1849,6 +1849,52 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41587-023-01688-w'],
     citation_text: 'Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4.',
   },
+  customize_metaphlan_database: {
+    name: 'customize_metaphlan_database',
+    display_name: 'Customize MetaPhlAn DB',
+    category: 'metagenomics',
+    description: 'Add, remove, or keep marker sequences and marker metadata for a custom MetaPhlAn database.',
+    search_aliases: ['Galaxy', 'MetaPhlAn', 'customizemetadata.py', 'add marker', 'remove markers', 'keep markers', 'seqtk subseq'],
+    input: {
+      required: {
+        marker_sequences: { type: 'FASTA' },
+        marker_metadata: { type: 'JSON' },
+      },
+      optional: {
+        operation: { type: 'STRING', default: 'add_marker', options: ['add_marker', 'remove_markers', 'keep_markers'] },
+        new_marker_sequences: { type: 'FASTA', default: '' },
+        marker_name: { type: 'STRING', default: '' },
+        marker_length: { type: 'INT', default: 0 },
+        markers: { type: 'TEXT', default: '' },
+        genome_lengths: { type: 'INT', default: [], list: true },
+        genbank_accessions: { type: 'STRING', default: [], list: true },
+        kingdom_names: { type: 'STRING', default: [], list: true },
+        kingdom_ids: { type: 'INT', default: [], list: true },
+        phylum_names: { type: 'STRING', default: [], list: true },
+        phylum_ids: { type: 'INT', default: [], list: true },
+        class_names: { type: 'STRING', default: [], list: true },
+        class_ids: { type: 'INT', default: [], list: true },
+        order_names: { type: 'STRING', default: [], list: true },
+        order_ids: { type: 'INT', default: [], list: true },
+        family_names: { type: 'STRING', default: [], list: true },
+        family_ids: { type: 'INT', default: [], list: true },
+        genus_names: { type: 'STRING', default: [], list: true },
+        genus_ids: { type: 'INT', default: [], list: true },
+        species_names: { type: 'STRING', default: [], list: true },
+        species_ids: { type: 'INT', default: [], list: true },
+        strain_names: { type: 'STRING', default: [], list: true },
+        customizemetadata_script: { type: 'FILE', default: 'customizemetadata.py' },
+      },
+    },
+    output: ['FASTA', 'JSON'],
+    output_name: ['out_fasta', 'out_json'],
+    required_executables: ['python', 'seqtk'],
+    required_conda_packages: ['metaphlan', 'seqtk'],
+    documentation_url: 'https://github.com/biobakery/MetaPhlAn',
+    citation_dois: ['10.1038/s41587-023-01688-w'],
+    citation_urls: ['https://doi.org/10.1038/s41587-023-01688-w'],
+    citation_text: 'Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4725,7 +4771,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('201 nodes available')).toBeVisible();
+  await expect(page.getByText('202 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4803,6 +4849,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
+    { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },
