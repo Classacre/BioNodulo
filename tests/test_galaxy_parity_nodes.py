@@ -422,6 +422,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kaiju"],
             "doi": "10.1038/ncomms11257",
         },
+        "krakentools_combine_kreports": {
+            "display_name": "Krakentools Combine Kraken Reports",
+            "category": "taxonomy",
+            "required_executables": ["combine_kreports.py"],
+            "required_conda_packages": ["krakentools"],
+            "doi": "10.1038/s41596-022-00738-y",
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -4976,6 +4983,52 @@ def test_kaiju2table_renders_summary_table_command_and_outputs(tmp_path: Path) -
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "kaiju2table" / "kaiju_summary.tsv",
+    ]
+
+
+def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("krakentools_combine_kreports")
+    info = _registry().object_info()["krakentools_combine_kreports"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["combined_report"]
+    assert info["citation_dois"] == ["10.1038/s41596-022-00738-y"]
+    assert info["citation_text"] == "Metagenome analysis using the Kraken software suite."
+    assert info["input"]["required"]["reports"][0] == "TSV"
+    assert info["input"]["required"]["reports"][1]["multiple"] is True
+    assert info["input"]["optional"]["display_headers"][1]["default"] is True
+    assert info["input"]["optional"]["only_combined"][1]["default"] is False
+
+    assert node_class.render_command(
+        {
+            "reports": ["alpha report.tsv", "beta.report"],
+            "element_identifiers": ["S1 report", "S2.report"],
+            "display_headers": True,
+            "only_combined": True,
+            "output": "/work/krakentools_combine",
+        }
+    ) == (
+        "ln -s 'alpha report.tsv' S1_report && "
+        "ln -s beta.report S2.report && "
+        "combine_kreports.py --reports S1_report S2.report "
+        "--output /work/krakentools_combine/combined_kreport.tsv "
+        "--display-headers --only-combined"
+    )
+
+    assert node_class.render_command(
+        {
+            "reports": ["alpha.report", "beta.report"],
+            "display_headers": False,
+            "only_combined": False,
+            "output": "/work/krakentools_combine",
+        }
+    ) == (
+        "combine_kreports.py --reports alpha.report beta.report "
+        "--output /work/krakentools_combine/combined_kreport.tsv --no-headers"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "krakentools_combine_kreports" / "combined_kreport.tsv",
     ]
 
 

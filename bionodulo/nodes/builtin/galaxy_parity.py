@@ -8167,6 +8167,109 @@ class KaijuMergeOutputsNode(CommandNode):
         }
 
 
+KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
+KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
+
+
+class KrakentoolsCombineKreportsNode(CommandNode):
+    """Combine multiple Kraken-style reports with KrakenTools."""
+
+    NODE_ID = "krakentools_combine_kreports"
+    DISPLAY_NAME = "Krakentools Combine Kraken Reports"
+    REQUIRED_CONDA_PACKAGES = ["krakentools"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Combine multiple Kraken-style taxonomy reports into one summed report."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "krakentools",
+        "combine_kreports.py",
+        "Kraken reports",
+        "combined report",
+        "only combined",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("combined_report",)
+    REQUIRED_EXECUTABLES = ["combine_kreports.py"]
+    DOCUMENTATION_URL = "https://github.com/jenniferlu717/KrakenTools"
+    CITATION_DOIS = [KRAKENTOOLS_DOI]
+    CITATION_URLS = [f"{DOI_URL}{KRAKENTOOLS_DOI}"]
+    CITATION_TEXT = KRAKENTOOLS_CITATION_TEXT
+    VERSION = "1.2.1"
+    SHELL = True
+
+    @classmethod
+    def _report_names(cls, inputs: dict[str, Any], reports: list[str]) -> list[str]:
+        labels = _as_list(inputs.get("element_identifiers"))
+        names: list[str] = []
+        for index, report in enumerate(reports):
+            label = labels[index] if index < len(labels) and labels[index] else report
+            names.append(_safe_identifier(label))
+        return names
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        reports = _as_list(inputs.get("reports"))
+        display_headers = bool(inputs.get("display_headers", True))
+        report_args = reports
+        commands: list[str] = []
+        if display_headers:
+            report_args = cls._report_names(inputs, reports)
+            commands.extend(
+                f"ln -s {shlex.quote(report)} {shlex.quote(report_name)}"
+                for report, report_name in zip(reports, report_args, strict=False)
+            )
+
+        cmd = [
+            "combine_kreports.py",
+            "--reports",
+            *report_args,
+            "--output",
+            f"{out}/combined_kreport.tsv",
+            "--display-headers" if display_headers else "--no-headers",
+        ]
+        if inputs.get("only_combined", False):
+            cmd.append("--only-combined")
+        commands.append(shlex.join(cmd))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "combined_kreport.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reports": (
+                    "TSV",
+                    {"multiple": True, "description": "One or more Kraken-style report files to combine"},
+                ),
+            },
+            "optional": {
+                "element_identifiers": (
+                    "STRING",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional sample names used as headers when display_headers is enabled",
+                    },
+                ),
+                "display_headers": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Display sample headers in the combined output"},
+                ),
+                "only_combined": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Display only combined read counts and percentages"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class Kaiju2TableNode(CommandNode):
     """Summarize Kaiju classifications by taxonomic rank."""
 

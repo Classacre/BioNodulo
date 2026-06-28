@@ -1646,6 +1646,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/ncomms11257'],
     citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
   },
+  krakentools_combine_kreports: {
+    name: 'krakentools_combine_kreports',
+    display_name: 'Krakentools Combine Kraken Reports',
+    category: 'taxonomy',
+    description: 'Combine multiple Kraken-style taxonomy reports into one summed report.',
+    search_aliases: ['Galaxy', 'krakentools', 'combine_kreports.py', 'Kraken reports', 'combined report', 'only combined'],
+    input: {
+      required: {
+        reports: { type: 'TSV', list: true },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], list: true },
+        display_headers: { type: 'BOOLEAN', default: true },
+        only_combined: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['combined_report'],
+    required_executables: ['combine_kreports.py'],
+    required_conda_packages: ['krakentools'],
+    documentation_url: 'https://github.com/jenniferlu717/KrakenTools',
+    citation_dois: ['10.1038/s41596-022-00738-y'],
+    citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
+    citation_text: 'Metagenome analysis using the Kraken software suite.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4522,7 +4547,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('193 nodes available')).toBeVisible();
+  await expect(page.getByText('194 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4592,6 +4617,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Krona import', name: 'Kaiju2Krona', category: 'taxonomy' },
     { query: 'conflict resolution', name: 'Kaiju Merge Outputs', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
+    { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },
