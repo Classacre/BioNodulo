@@ -6172,6 +6172,86 @@ class RSeQCReadHexamerNode(CommandNode):
         }
 
 
+class RSeQCReadQualityNode(CommandNode):
+    """Calculate Phred base quality distributions for aligned reads."""
+
+    NODE_ID = "rseqc_read_quality"
+    DISPLAY_NAME = "RSeQC Read Quality"
+    REQUIRED_CONDA_PACKAGES = ["rseqc", "r-base"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Calculate Phred base quality score distributions for BAM or SAM alignments and generate quality heatmap and boxplot reports."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "rseqc",
+        "read_quality",
+        "read quality",
+        "Phred quality",
+        "base quality",
+        "quality heatmap",
+        "quality boxplot",
+        "rna-seq qc",
+    ]
+    RETURN_TYPES = ("IMAGE", "IMAGE", "TEXT")
+    RETURN_NAMES = ("quality_heatmap", "quality_boxplot", "r_script")
+    REQUIRED_EXECUTABLES = ["read_quality.py"]
+    DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#read-quality-py"
+    CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bts356"]
+    CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
+    VERSION = "5.0.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "read_quality.py",
+            "--input-file",
+            str(inputs.get("input", "")),
+            "--out-prefix",
+            f"{out}/output",
+            "-r",
+            str(inputs.get("reduce", 1000)),
+            "--mapq",
+            str(inputs.get("mapq", 30)),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            out / "output.qual.heatmap.pdf",
+            out / "output.qual.boxplot.pdf",
+        ]
+        if inputs.get("rscript_output"):
+            outputs.append(out / "output.qual.r")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM or SAM alignment file"}),
+            },
+            "optional": {
+                "reduce": (
+                    "INT",
+                    {
+                        "default": 1000,
+                        "min": 1,
+                        "description": "Ignore Phred-score bins represented fewer than this many times in the boxplot to reduce memory use",
+                    },
+                ),
+                "mapq": ("INT", {"default": 30, "min": 0, "max": 255, "description": "Minimum mapping quality"}),
+                "rscript_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Expose the R script used to generate the quality plots"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class RSeQCRNAFragmentSizeNode(CommandNode):
     """Estimate RNA-seq fragment sizes for each transcript."""
 

@@ -3162,6 +3162,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_read_quality": {
+            "display_name": "RSeQC Read Quality",
+            "category": "rna_seq",
+            "required_executables": ["read_quality.py"],
+            "required_conda_packages": ["rseqc", "r-base"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_rna_fragment_size": {
             "display_name": "RSeQC RNA Fragment Size",
             "category": "rna_seq",
@@ -3884,6 +3891,43 @@ def test_rseqc_read_hexamer_renders_multi_input_command_and_output(tmp_path: Pat
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "rseqc_read_hexamer" / "read_hexamer.tsv",
+    ]
+
+
+def test_rseqc_read_quality_renders_phred_quality_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_read_quality")
+    info = _registry().object_info()["rseqc_read_quality"]
+
+    assert info["output"] == ["IMAGE", "IMAGE", "TEXT"]
+    assert info["output_name"] == ["quality_heatmap", "quality_boxplot", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "reduce": 500,
+            "mapq": 20,
+            "rscript_output": True,
+            "output": "/work/rseqc_read_quality",
+        }
+    ) == [
+        "read_quality.py",
+        "--input-file",
+        "aligned.bam",
+        "--out-prefix",
+        "/work/rseqc_read_quality/output",
+        "-r",
+        "500",
+        "--mapq",
+        "20",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_read_quality" / "output.qual.heatmap.pdf",
+        tmp_path / "rseqc_read_quality" / "output.qual.boxplot.pdf",
+        tmp_path / "rseqc_read_quality" / "output.qual.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_read_quality" / "output.qual.heatmap.pdf",
+        tmp_path / "rseqc_read_quality" / "output.qual.boxplot.pdf",
     ]
 
 
