@@ -1372,6 +1372,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
     citation_text: 'RSeQC: quality control of RNA-seq experiments.',
   },
+  rseqc_insertion_profile: {
+    name: 'rseqc_insertion_profile',
+    display_name: 'RSeQC Insertion Profile',
+    category: 'rna_seq',
+    description: 'Calculate the distribution of inserted nucleotides across RNA-seq reads from BAM alignments.',
+    search_aliases: ['Galaxy', 'rseqc', 'insertion_profile', 'insertion profile', 'inserted nucleotides', 'read insertions', 'CIGAR', 'rna-seq qc'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+      },
+      optional: {
+        mapq: { type: 'INT', default: 30 },
+        layout: { type: 'STRING', default: 'SE' },
+        rscript_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['IMAGE', 'TSV', 'TEXT'],
+    output_name: ['insertion_profile_plot', 'insertion_profile', 'r_script'],
+    required_executables: ['insertion_profile.py'],
+    required_conda_packages: ['rseqc'],
+    documentation_url: 'https://rseqc.sourceforge.net/#insertion-profile-py',
+    citation_dois: ['10.1093/bioinformatics/bts356'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts356'],
+    citation_text: 'RSeQC: quality control of RNA-seq experiments.',
+  },
   rseqc_rna_fragment_size: {
     name: 'rseqc_rna_fragment_size',
     display_name: 'RSeQC RNA Fragment Size',
@@ -3504,7 +3529,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('160 nodes available')).toBeVisible();
+  await expect(page.getByText('161 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3570,6 +3595,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'coverage uniformity', name: 'RSeQC Gene Body Coverage', category: 'rna_seq' },
     { query: 'BigWig coverage', name: 'RSeQC Gene Body Coverage BigWig', category: 'rna_seq' },
     { query: 'insert size', name: 'RSeQC Inner Distance', category: 'rna_seq' },
+    { query: 'inserted nucleotides', name: 'RSeQC Insertion Profile', category: 'rna_seq' },
     { query: 'rna fragment size', name: 'RSeQC RNA Fragment Size', category: 'rna_seq' },
     { query: 'splice junction', name: 'RSeQC Junction Annotation', category: 'rna_seq' },
     { query: 'junction saturation', name: 'RSeQC Junction Saturation', category: 'rna_seq' },

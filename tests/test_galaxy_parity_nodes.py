@@ -3148,6 +3148,13 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
             "required_conda_packages": ["rseqc"],
             "doi": "10.1093/bioinformatics/bts356",
         },
+        "rseqc_insertion_profile": {
+            "display_name": "RSeQC Insertion Profile",
+            "category": "rna_seq",
+            "required_executables": ["insertion_profile.py"],
+            "required_conda_packages": ["rseqc"],
+            "doi": "10.1093/bioinformatics/bts356",
+        },
         "rseqc_rna_fragment_size": {
             "display_name": "RSeQC RNA Fragment Size",
             "category": "rna_seq",
@@ -3797,6 +3804,43 @@ def test_rseqc_inner_distance_renders_insert_size_command_and_outputs(tmp_path: 
         tmp_path / "rseqc_inner_distance" / "output.inner_distance_plot.pdf",
         tmp_path / "rseqc_inner_distance" / "output.inner_distance.txt",
         tmp_path / "rseqc_inner_distance" / "output.inner_distance_freq.txt",
+    ]
+
+
+def test_rseqc_insertion_profile_renders_inserted_base_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("rseqc_insertion_profile")
+    info = _registry().object_info()["rseqc_insertion_profile"]
+
+    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
+    assert info["output_name"] == ["insertion_profile_plot", "insertion_profile", "r_script"]
+    assert node_class.render_command(
+        {
+            "input": "aligned.bam",
+            "mapq": 20,
+            "layout": "PE",
+            "rscript_output": True,
+            "output": "/work/rseqc_insertion_profile",
+        }
+    ) == [
+        "insertion_profile.py",
+        "-i",
+        "aligned.bam",
+        "-o",
+        "/work/rseqc_insertion_profile/output",
+        "-q",
+        "20",
+        "-s",
+        "PE",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
+        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.pdf",
+        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.xls",
+        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.r",
+    ]
+    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
+        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.pdf",
+        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.xls",
     ]
 
 
