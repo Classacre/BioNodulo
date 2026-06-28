@@ -1646,6 +1646,47 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/ncomms11257'],
     citation_text: 'Fast and sensitive taxonomic classification for metagenomics with Kaiju.',
   },
+  metaphlan: {
+    name: 'metaphlan',
+    display_name: 'MetaPhlAn',
+    category: 'metagenomics',
+    description: 'Profile microbial community composition with MetaPhlAn 4 marker genes.',
+    search_aliases: ['Galaxy', 'MetaPhlAn', 'metagenomic profiling', 'relative abundance', 'marker abundance', 'VSC breadth', 'Krona', 'BIOM'],
+    input: {
+      required: {
+        reads: { type: 'FASTQ_LIST' },
+        bt2_db: { type: 'DIRECTORY' },
+        index: { type: 'STRING', default: 'mpa_vJun23_CHOCOPhlAnSGB_202403' },
+        threads: { type: 'INT', default: 8 },
+      },
+      optional: {
+        input_selector: { type: 'STRING', default: 'raw', options: ['raw', 'sam', 'mapout'] },
+        raw_selector: { type: 'STRING', default: 'single', options: ['single', 'multiple', 'paired', 'paired_collection'] },
+        input_type: { type: 'STRING', default: 'fastq', options: ['fastq', 'fasta', 'sam', 'mapout'] },
+        input_ext: { type: 'STRING', default: 'fastq' },
+        paired: { type: 'BOOLEAN', default: false },
+        db_selector: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        custom_marker_sequences: { type: 'FASTA', default: '' },
+        custom_marker_metadata: { type: 'JSON', default: '' },
+        analysis_type: { type: 'STRING', default: 'rel_ab', options: ['rel_ab', 'rel_ab_w_read_stats', 'clade_profiles', 'marker_ab_table', 'marker_pres_table'] },
+        tax_lev: { type: 'STRING', default: 'a', options: ['a', 'k', 'p', 'c', 'o', 'f', 'g', 's'] },
+        split_levels: { type: 'BOOLEAN', default: false },
+        organism_profiling: { type: 'STRING', default: [], list: true },
+        biom_format_output: { type: 'BOOLEAN', default: false },
+        krona_output: { type: 'BOOLEAN', default: false },
+        profile_vsc: { type: 'BOOLEAN', default: false },
+        subsample_mode: { type: 'STRING', default: 'no', options: ['no', 'single', 'paired'] },
+      },
+    },
+    output: ['METAPHLAN_PROFILE', 'TSV', 'SAM', 'BIOM', 'DIRECTORY', 'TSV', 'TSV', 'FASTQ', 'DIRECTORY'],
+    output_name: ['profile', 'mapout', 'sam_output', 'biom_output', 'split_levels', 'krona_output', 'vsc_breadth_coverage', 'subsampled_reads', 'subsampled_paired_reads'],
+    required_executables: ['metaphlan'],
+    required_conda_packages: ['metaphlan'],
+    documentation_url: 'https://github.com/biobakery/MetaPhlAn',
+    citation_dois: ['10.1038/s41587-023-01688-w'],
+    citation_urls: ['https://doi.org/10.1038/s41587-023-01688-w'],
+    citation_text: 'Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4.',
+  },
   krakentools_combine_kreports: {
     name: 'krakentools_combine_kreports',
     display_name: 'Krakentools Combine Kraken Reports',
@@ -4771,7 +4812,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('202 nodes available')).toBeVisible();
+  await expect(page.getByText('203 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4841,6 +4882,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Krona import', name: 'Kaiju2Krona', category: 'taxonomy' },
     { query: 'conflict resolution', name: 'Kaiju Merge Outputs', category: 'taxonomy' },
     { query: 'minimum reporting percentage', name: 'Kaiju2Table', category: 'taxonomy' },
+    { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
     { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },
