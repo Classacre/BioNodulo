@@ -2706,6 +2706,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["lofreq"],
             "doi": "10.1093/nar/gks918",
         },
+        "lofreq_viterbi": {
+            "display_name": "LoFreq Viterbi Realignment",
+            "category": "variant",
+            "required_executables": ["lofreq", "samtools"],
+            "required_conda_packages": ["lofreq", "samtools"],
+            "doi": "10.1093/nar/gks918",
+        },
         "ivar_variants": {
             "display_name": "iVar Variants",
             "category": "variant",
@@ -3281,6 +3288,86 @@ def test_lofreq_filter_renders_quality_coverage_af_and_strand_bias_filters(tmp_p
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_filter" / "filtered.vcf"]
+
+
+def test_lofreq_viterbi_renders_realignment_sort_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("lofreq_viterbi")
+    info = _registry().object_info()["lofreq_viterbi"]
+
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["realigned_reads"]
+    assert "10.1093/nar/gks918" in info["citation_dois"]
+    assert info["input"]["optional"]["defqual"][1]["displayOptions"] == {
+        "show": {"replace_bq2": ["fixed"]},
+    }
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "reference": "ref.fa",
+            "keepflags": True,
+            "replace_bq2": "fixed",
+            "defqual": 17,
+            "threads": 8,
+            "output": "/work/lofreq_viterbi",
+        }
+    ) == [
+        "lofreq",
+        "viterbi",
+        "--ref",
+        "ref.fa",
+        "--keepflags",
+        "--defqual",
+        "17",
+        "--out",
+        "/work/lofreq_viterbi/tmp.bam",
+        "reads.bam",
+        "&&",
+        "samtools",
+        "sort",
+        "--no-PG",
+        "-T",
+        "${TMPDIR:-.}",
+        "-@",
+        "8",
+        "-O",
+        "BAM",
+        "-o",
+        "/work/lofreq_viterbi/realigned.bam",
+        "/work/lofreq_viterbi/tmp.bam",
+    ]
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "reference": "ref.fa",
+            "replace_bq2": "dynamic",
+            "output": "/work/lofreq_viterbi",
+        }
+    ) == [
+        "lofreq",
+        "viterbi",
+        "--ref",
+        "ref.fa",
+        "--defqual",
+        "-1",
+        "--out",
+        "/work/lofreq_viterbi/tmp.bam",
+        "reads.bam",
+        "&&",
+        "samtools",
+        "sort",
+        "--no-PG",
+        "-T",
+        "${TMPDIR:-.}",
+        "-@",
+        "1",
+        "-O",
+        "BAM",
+        "-o",
+        "/work/lofreq_viterbi/realigned.bam",
+        "/work/lofreq_viterbi/tmp.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_viterbi" / "realigned.bam"]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

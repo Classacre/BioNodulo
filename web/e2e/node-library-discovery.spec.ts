@@ -1188,6 +1188,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gks918'],
     citation_text: 'LoFreq filters sequence-quality-aware variant calls using configurable quality, coverage, allele-frequency, and strand-bias criteria.',
   },
+  lofreq_viterbi: {
+    name: 'lofreq_viterbi',
+    display_name: 'LoFreq Viterbi Realignment',
+    category: 'variant',
+    description: 'Probabilistically realign mapped Illumina reads with LoFreq viterbi and emit a coordinate-sorted BAM.',
+    search_aliases: ['Galaxy', 'lofreq', 'lofreq viterbi', 'realign reads', 'read realignment', 'Viterbi realignment', 'mapping error correction', 'variant preprocessing'],
+    input: {
+      required: {
+        reads: { type: 'BAM' },
+        reference: { type: 'FASTA' },
+      },
+      optional: {
+        keepflags: { type: 'BOOLEAN', default: false },
+        replace_bq2: { type: 'STRING', default: 'keep', options: ['keep', 'dynamic', 'fixed'] },
+        defqual: { type: 'INT', default: 2, displayOptions: { show: { replace_bq2: ['fixed'] } } },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['realigned_reads'],
+    required_executables: ['lofreq', 'samtools'],
+    required_conda_packages: ['lofreq', 'samtools'],
+    documentation_url: 'https://csb5.github.io/lofreq/commands/',
+    citation_dois: ['10.1093/nar/gks918'],
+    citation_urls: ['https://doi.org/10.1093/nar/gks918'],
+    citation_text: 'LoFreq viterbi performs probabilistic realignment of mapped reads to correct mapping errors before variant calling.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -3700,7 +3727,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('167 nodes available')).toBeVisible();
+  await expect(page.getByText('168 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3758,6 +3785,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'lofreq alnqual', name: 'LoFreq Alignment Quality', category: 'variant' },
     { query: 'Dindel indel quality', name: 'LoFreq Indel Quality', category: 'variant' },
     { query: 'lofreq strand bias filter', name: 'LoFreq Filter', category: 'variant' },
+    { query: 'lofreq read realignment', name: 'LoFreq Viterbi Realignment', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },

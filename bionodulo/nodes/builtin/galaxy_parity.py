@@ -5431,6 +5431,124 @@ class LoFreqFilterNode(CommandNode):
         }
 
 
+class LoFreqViterbiNode(CommandNode):
+    """Realign mapped reads probabilistically with LoFreq viterbi."""
+
+    NODE_ID = "lofreq_viterbi"
+    DISPLAY_NAME = "LoFreq Viterbi Realignment"
+    REQUIRED_CONDA_PACKAGES = ["lofreq", "samtools"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Probabilistically realign mapped Illumina reads with LoFreq viterbi and emit a coordinate-sorted BAM."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "lofreq",
+        "lofreq viterbi",
+        "realign reads",
+        "read realignment",
+        "Viterbi realignment",
+        "mapping error correction",
+        "variant preprocessing",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("realigned_reads",)
+    REQUIRED_EXECUTABLES = ["lofreq", "samtools"]
+    DOCUMENTATION_URL = "https://csb5.github.io/lofreq/commands/"
+    CITATION_DOIS = ["10.1093/nar/gks918"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/nar/gks918"]
+    CITATION_TEXT = "LoFreq viterbi performs probabilistic realignment of mapped reads to correct mapping errors before variant calling."
+    VERSION = "2.1.5"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        replace_bq2 = str(inputs.get("replace_bq2", "keep"))
+        defqual = {"keep": 2, "dynamic": -1}.get(replace_bq2, inputs.get("defqual", 2))
+        cmd = [
+            "lofreq",
+            "viterbi",
+            "--ref",
+            str(inputs.get("reference", "")),
+        ]
+        if inputs.get("keepflags"):
+            cmd.append("--keepflags")
+        cmd.extend(
+            [
+                "--defqual",
+                str(defqual),
+                "--out",
+                f"{out}/tmp.bam",
+                str(inputs.get("reads", "")),
+                "&&",
+                "samtools",
+                "sort",
+                "--no-PG",
+                "-T",
+                "${TMPDIR:-.}",
+                "-@",
+                str(inputs.get("threads", 1)),
+                "-O",
+                "BAM",
+                "-o",
+                f"{out}/realigned.bam",
+                f"{out}/tmp.bam",
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "realigned.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("BAM", {"description": "Mapped reads in BAM format to realign"}),
+                "reference": ("FASTA", {"description": "Reference genome FASTA"}),
+            },
+            "optional": {
+                "keepflags": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Keep MC, MD, NM, and A tags instead of resetting alignment-dependent values",
+                    },
+                ),
+                "replace_bq2": (
+                    "STRING",
+                    {
+                        "default": "keep",
+                        "options": ["keep", "dynamic", "fixed"],
+                        "description": "How to handle Illumina pre-1.8 base qualities of 2",
+                    },
+                ),
+                "defqual": (
+                    "INT",
+                    {
+                        "default": 2,
+                        "min": 0,
+                        "description": "Fixed replacement quality for bases with quality 2",
+                        "displayOptions": {"show": {"replace_bq2": ["fixed"]}},
+                    },
+                ),
+                "threads": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 128,
+                        "display": "slider",
+                        "description": "Threads for samtools sort after realignment",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarVariantsNode(CommandNode):
     """Call viral amplicon variants from samtools mpileup using iVar."""
 
