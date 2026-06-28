@@ -4767,6 +4767,150 @@ class HMMERHmmconvertNode(CommandNode):
         }
 
 
+class HMMERHmmemitNode(CommandNode):
+    """Sample sequences or consensus output from a profile HMM."""
+
+    NODE_ID = "hmmer_hmmemit"
+    DISPLAY_NAME = "HMMER hmmemit"
+    REQUIRED_CONDA_PACKAGES = ["hmmer"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Sample sequences or consensus output from a profile HMM."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hmmer",
+        "hmmemit",
+        "emit sequences",
+        "consensus sequence",
+        "profile sampling",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("emitted_sequences",)
+    REQUIRED_EXECUTABLES = ["hmmemit"]
+    DOCUMENTATION_URL = "http://hmmer.org/documentation.html"
+    CITATION_DOIS = ["10.1093/nar/gkr367"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkr367"]
+    CITATION_TEXT = "HMMER web server: interactive sequence similarity searching."
+    VERSION = "3.4"
+    SHELL = True
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        return "emitted.sto" if str(inputs.get("output_mode", "fasta")) == "aln" else "emitted.fasta"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output_mode = str(inputs.get("output_mode", "fasta"))
+        cmd = ["hmmemit"]
+        if output_mode == "aln":
+            _add_if_value(cmd, "-N", inputs.get("n_alignment", 1))
+            cmd.append("-a")
+        elif output_mode == "mrcs":
+            cmd.append("-c")
+        elif output_mode == "mrcsf":
+            _add_if_value(cmd, "--minl", inputs.get("minl", 0.7))
+            _add_if_value(cmd, "--minu", inputs.get("minu", 0.2))
+            cmd.append("-C")
+        elif output_mode == "sample":
+            _add_if_value(cmd, "-N", inputs.get("n_sample", 1))
+            cmd.append("-p")
+            _add_if_value(cmd, "-L", inputs.get("length"))
+            emission_profile = str(inputs.get("emission_profile", "--local"))
+            if emission_profile:
+                cmd.append(emission_profile)
+        else:
+            _add_if_value(cmd, "-N", inputs.get("n_fasta", 1))
+        _add_if_value(cmd, "--seed", inputs.get("seed", 42))
+        cmd.append(str(inputs.get("hmmfile", "")))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/{cls._output_name(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "hmmfile": ("FILE", {"description": "Profile HMM file"}),
+                "output_mode": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "aln", "mrcs", "mrcsf", "sample"],
+                        "description": "Emit FASTA, alignment, consensus, or profile-sampled sequences",
+                    },
+                ),
+            },
+            "optional": {
+                "n_fasta": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "description": "Number of FASTA sequences to generate",
+                        "displayOptions": {"show": {"output_mode": ["fasta"]}},
+                    },
+                ),
+                "n_alignment": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "description": "Number of sequences to include in the emitted alignment",
+                        "displayOptions": {"show": {"output_mode": ["aln"]}},
+                    },
+                ),
+                "n_sample": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "description": "Number of profile-sampled sequences to generate",
+                        "displayOptions": {"show": {"output_mode": ["sample"]}},
+                    },
+                ),
+                "minl": (
+                    "FLOAT",
+                    {
+                        "default": 0.7,
+                        "description": "Fancier consensus lower probability threshold",
+                        "displayOptions": {"show": {"output_mode": ["mrcsf"]}},
+                    },
+                ),
+                "minu": (
+                    "FLOAT",
+                    {
+                        "default": 0.2,
+                        "description": "Fancier consensus uppercase probability threshold",
+                        "displayOptions": {"show": {"output_mode": ["mrcsf"]}},
+                    },
+                ),
+                "length": (
+                    "INT",
+                    {
+                        "default": "",
+                        "description": "Expected target length for profile sampling",
+                        "displayOptions": {"show": {"output_mode": ["sample"]}},
+                    },
+                ),
+                "emission_profile": (
+                    "STRING",
+                    {
+                        "default": "--local",
+                        "options": ["--local", "--unilocal", "--glocal", "--uniglocal"],
+                        "description": "Search-profile alignment mode for sampled sequences",
+                        "displayOptions": {"show": {"output_mode": ["sample"]}},
+                    },
+                ),
+                "seed": ("INT", {"default": 42, "min": 0, "description": "Random seed; 0 chooses a random seed"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HMMERHmmsearchNode(CommandNode):
     """Search sequence databases with profile HMMs using hmmsearch."""
 

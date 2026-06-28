@@ -1021,6 +1021,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
     citation_text: 'HMMER web server: interactive sequence similarity searching.',
   },
+  hmmer_hmmemit: {
+    name: 'hmmer_hmmemit',
+    display_name: 'HMMER hmmemit',
+    category: 'annotation',
+    description: 'Sample sequences or consensus output from a profile HMM.',
+    search_aliases: ['Galaxy', 'hmmer', 'hmmemit', 'emit sequences', 'consensus sequence', 'profile sampling'],
+    input: {
+      required: {
+        hmmfile: { type: 'FILE' },
+        output_mode: { type: 'STRING', default: 'fasta', options: ['fasta', 'aln', 'mrcs', 'mrcsf', 'sample'] },
+      },
+      optional: {
+        n_fasta: { type: 'INT', default: 1 },
+        n_alignment: { type: 'INT', default: 1 },
+        n_sample: { type: 'INT', default: 1 },
+        minl: { type: 'FLOAT', default: 0.7 },
+        minu: { type: 'FLOAT', default: 0.2 },
+        length: { type: 'INT', default: '', displayOptions: { show: { output_mode: ['sample'] } } },
+        emission_profile: { type: 'STRING', default: '--local', options: ['--local', '--unilocal', '--glocal', '--uniglocal'] },
+        seed: { type: 'INT', default: 42 },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['emitted_sequences'],
+    required_executables: ['hmmemit'],
+    required_conda_packages: ['hmmer'],
+    documentation_url: 'http://hmmer.org/documentation.html',
+    citation_dois: ['10.1093/nar/gkr367'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkr367'],
+    citation_text: 'HMMER web server: interactive sequence similarity searching.',
+  },
   hmmer_alimask: {
     name: 'hmmer_alimask',
     display_name: 'HMMER alimask',
@@ -3945,7 +3976,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('176 nodes available')).toBeVisible();
+  await expect(page.getByText('177 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3996,6 +4027,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },
     { query: 'hmmbuild', name: 'HMMER hmmbuild', category: 'annotation' },
     { query: 'hmmconvert', name: 'HMMER hmmconvert', category: 'annotation' },
+    { query: 'hmmemit', name: 'HMMER hmmemit', category: 'annotation' },
     { query: 'hmmer alignment mask', name: 'HMMER alimask', category: 'annotation' },
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },

@@ -275,6 +275,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/nar/gkr367",
         },
+        "hmmer_hmmemit": {
+            "display_name": "HMMER hmmemit",
+            "category": "annotation",
+            "required_executables": ["hmmemit"],
+            "required_conda_packages": ["hmmer"],
+            "doi": "10.1093/nar/gkr367",
+        },
         "hmmer_alimask": {
             "display_name": "HMMER alimask",
             "category": "annotation",
@@ -2837,6 +2844,107 @@ def test_hmmer_hmmconvert_renders_conversion_command_and_output(tmp_path: Path) 
     ]
     assert node_class.PLAN_OUTPUTS({"format": "-2"}, tmp_path) == [tmp_path / "hmmer_hmmconvert" / "converted.hmm2"]
     assert node_class.PLAN_OUTPUTS({"format": "-a"}, tmp_path) == [tmp_path / "hmmer_hmmconvert" / "converted.hmm3"]
+
+
+def test_hmmer_hmmemit_renders_sampling_command_and_dynamic_output(tmp_path: Path) -> None:
+    node_class = _node_class("hmmer_hmmemit")
+    info = _registry().object_info()["hmmer_hmmemit"]
+
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["emitted_sequences"]
+    assert "10.1093/nar/gkr367" in info["citation_dois"]
+    assert info["input"]["required"]["output_mode"][1]["options"] == ["fasta", "aln", "mrcs", "mrcsf", "sample"]
+    assert info["input"]["optional"]["length"][1]["displayOptions"] == {
+        "show": {"output_mode": ["sample"]},
+    }
+    assert node_class.render_command(
+        {
+            "hmmfile": "globins4.hmm",
+            "output_mode": "fasta",
+            "n_fasta": 3,
+            "seed": 4,
+            "output": "/work/hmmemit",
+        }
+    ) == [
+        "hmmemit",
+        "-N",
+        "3",
+        "--seed",
+        "4",
+        "globins4.hmm",
+        ">",
+        "/work/hmmemit/emitted.fasta",
+    ]
+
+    assert node_class.render_command(
+        {
+            "hmmfile": "globins4.hmm",
+            "output_mode": "aln",
+            "n_alignment": 10,
+            "seed": 4,
+            "output": "/work/hmmemit",
+        }
+    ) == [
+        "hmmemit",
+        "-N",
+        "10",
+        "-a",
+        "--seed",
+        "4",
+        "globins4.hmm",
+        ">",
+        "/work/hmmemit/emitted.sto",
+    ]
+
+    assert node_class.render_command(
+        {
+            "hmmfile": "profile.hmm",
+            "output_mode": "mrcsf",
+            "minl": 0.75,
+            "minu": 0.35,
+            "seed": 42,
+            "output": "/work/hmmemit",
+        }
+    ) == [
+        "hmmemit",
+        "--minl",
+        "0.75",
+        "--minu",
+        "0.35",
+        "-C",
+        "--seed",
+        "42",
+        "profile.hmm",
+        ">",
+        "/work/hmmemit/emitted.fasta",
+    ]
+
+    assert node_class.render_command(
+        {
+            "hmmfile": "profile.hmm",
+            "output_mode": "sample",
+            "n_sample": 2,
+            "length": 600,
+            "emission_profile": "--uniglocal",
+            "seed": 7,
+            "output": "/work/hmmemit",
+        }
+    ) == [
+        "hmmemit",
+        "-N",
+        "2",
+        "-p",
+        "-L",
+        "600",
+        "--uniglocal",
+        "--seed",
+        "7",
+        "profile.hmm",
+        ">",
+        "/work/hmmemit/emitted.fasta",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_mode": "aln"}, tmp_path) == [tmp_path / "hmmer_hmmemit" / "emitted.sto"]
+    assert node_class.PLAN_OUTPUTS({"output_mode": "mrcs"}, tmp_path) == [tmp_path / "hmmer_hmmemit" / "emitted.fasta"]
 
 
 def test_hmmer_nodes_render_table_outputs() -> None:
