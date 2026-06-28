@@ -2692,6 +2692,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["lofreq"],
             "doi": "10.1093/nar/gks918",
         },
+        "lofreq_indelqual": {
+            "display_name": "LoFreq Indel Quality",
+            "category": "variant",
+            "required_executables": ["lofreq"],
+            "required_conda_packages": ["lofreq"],
+            "doi": "10.1101/gr.112326.110",
+        },
         "ivar_variants": {
             "display_name": "iVar Variants",
             "category": "variant",
@@ -3098,6 +3105,69 @@ def test_lofreq_alnqual_renders_alignment_quality_command_and_output(tmp_path: P
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_alnqual" / "alnqual.bam"]
+
+
+def test_lofreq_indelqual_renders_uniform_and_dindel_commands_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("lofreq_indelqual")
+    info = _registry().object_info()["lofreq_indelqual"]
+
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["reads_with_indel_qualities"]
+    assert "10.1093/nar/gks918" in info["citation_dois"]
+    assert "10.1101/gr.112326.110" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "strategy": "uniform",
+            "insertions": 20,
+            "deletions": 30,
+            "output": "/work/lofreq_indelqual",
+        }
+    ) == [
+        "lofreq",
+        "indelqual",
+        "--uniform",
+        "20,30",
+        "-o",
+        "/work/lofreq_indelqual/indelqual.bam",
+        "reads.bam",
+    ]
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "strategy": "uniform",
+            "insertions": 20,
+            "deletions": "",
+            "output": "/work/lofreq_indelqual",
+        }
+    ) == [
+        "lofreq",
+        "indelqual",
+        "--uniform",
+        "20",
+        "-o",
+        "/work/lofreq_indelqual/indelqual.bam",
+        "reads.bam",
+    ]
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "strategy": "dindel",
+            "reference": "ref.fa",
+            "output": "/work/lofreq_indelqual",
+        }
+    ) == [
+        "lofreq",
+        "indelqual",
+        "--dindel",
+        "--ref",
+        "ref.fa",
+        "-o",
+        "/work/lofreq_indelqual/indelqual.bam",
+        "reads.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_indelqual" / "indelqual.bam"]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

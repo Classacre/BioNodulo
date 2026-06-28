@@ -5087,6 +5087,91 @@ class LoFreqAlnQualNode(CommandNode):
         }
 
 
+class LoFreqIndelQualNode(CommandNode):
+    """Insert indel quality tags into BAM reads for LoFreq indel calling."""
+
+    NODE_ID = "lofreq_indelqual"
+    DISPLAY_NAME = "LoFreq Indel Quality"
+    REQUIRED_CONDA_PACKAGES = ["lofreq"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Insert indel qualities into mapped reads using uniform values or Dindel-based estimates for LoFreq indel calling."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "lofreq",
+        "lofreq indelqual",
+        "indel quality",
+        "indel qualities",
+        "Dindel",
+        "BI BD tags",
+        "variant preprocessing",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("reads_with_indel_qualities",)
+    REQUIRED_EXECUTABLES = ["lofreq"]
+    DOCUMENTATION_URL = "https://csb5.github.io/lofreq/commands/"
+    CITATION_DOIS = ["10.1093/nar/gks918", "10.1101/gr.112326.110"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/nar/gks918", f"{DOI_URL}10.1101/gr.112326.110"]
+    CITATION_TEXT = "LoFreq indel quality insertion supports Dindel-based estimates for accurate short-read indel calling."
+    VERSION = "2.1.5"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["lofreq", "indelqual"]
+        if str(inputs.get("strategy", "uniform")) == "dindel":
+            cmd.extend(["--dindel", "--ref", str(inputs.get("reference", ""))])
+        else:
+            insertions = str(inputs.get("insertions", 30))
+            deletions = str(inputs.get("deletions", "") or "")
+            uniform_qualities = f"{insertions},{deletions}" if deletions else insertions
+            cmd.extend(["--uniform", uniform_qualities])
+        cmd.extend(["-o", f"{out}/indelqual.bam", str(inputs.get("reads", ""))])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "indelqual.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("BAM", {"description": "Mapped reads in BAM format"}),
+                "strategy": ("STRING", {"default": "uniform", "options": ["uniform", "dindel"], "description": "Indel quality calculation approach"}),
+            },
+            "optional": {
+                "insertions": (
+                    "INT",
+                    {
+                        "default": 30,
+                        "min": 0,
+                        "description": "Uniform insertion quality to add",
+                        "displayOptions": {"show": {"strategy": ["uniform"]}},
+                    },
+                ),
+                "deletions": (
+                    "INT",
+                    {
+                        "default": "",
+                        "min": 0,
+                        "description": "Optional separate uniform deletion quality; blank reuses insertion quality",
+                        "displayOptions": {"show": {"strategy": ["uniform"]}},
+                    },
+                ),
+                "reference": (
+                    "FASTA",
+                    {
+                        "description": "Reference genome FASTA used by Dindel-based indel quality estimation",
+                        "displayOptions": {"show": {"strategy": ["dindel"]}},
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarVariantsNode(CommandNode):
     """Call viral amplicon variants from samtools mpileup using iVar."""
 

@@ -1118,6 +1118,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gks918'],
     citation_text: 'LoFreq: a sequence-quality aware, ultra-sensitive variant caller for high-throughput sequencing datasets.',
   },
+  lofreq_indelqual: {
+    name: 'lofreq_indelqual',
+    display_name: 'LoFreq Indel Quality',
+    category: 'variant',
+    description: 'Insert indel qualities into mapped reads using uniform values or Dindel-based estimates for LoFreq indel calling.',
+    search_aliases: ['Galaxy', 'lofreq', 'lofreq indelqual', 'indel quality', 'indel qualities', 'Dindel', 'BI BD tags', 'variant preprocessing'],
+    input: {
+      required: {
+        reads: { type: 'BAM' },
+        strategy: { type: 'STRING', default: 'uniform', options: ['uniform', 'dindel'] },
+      },
+      optional: {
+        insertions: { type: 'INT', default: 30, displayOptions: { show: { strategy: ['uniform'] } } },
+        deletions: { type: 'INT', default: '', displayOptions: { show: { strategy: ['uniform'] } } },
+        reference: { type: 'FASTA', displayOptions: { show: { strategy: ['dindel'] } } },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['reads_with_indel_qualities'],
+    required_executables: ['lofreq'],
+    required_conda_packages: ['lofreq'],
+    documentation_url: 'https://csb5.github.io/lofreq/commands/',
+    citation_dois: ['10.1093/nar/gks918', '10.1101/gr.112326.110'],
+    citation_urls: ['https://doi.org/10.1093/nar/gks918', 'https://doi.org/10.1101/gr.112326.110'],
+    citation_text: 'LoFreq indel quality insertion supports Dindel-based estimates for accurate short-read indel calling.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -3630,7 +3656,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('165 nodes available')).toBeVisible();
+  await expect(page.getByText('166 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3686,6 +3712,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'average nucleotide identity', name: 'FastANI', category: 'genomics' },
     { query: 'lofreq low frequency variants', name: 'LoFreq Call', category: 'variant' },
     { query: 'lofreq alnqual', name: 'LoFreq Alignment Quality', category: 'variant' },
+    { query: 'Dindel indel quality', name: 'LoFreq Indel Quality', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },
