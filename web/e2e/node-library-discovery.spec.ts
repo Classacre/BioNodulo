@@ -1092,6 +1092,32 @@ const objectInfo = {
     citation_dois: ['10.1093/nar/gks918'],
     citation_urls: ['https://doi.org/10.1093/nar/gks918'],
   },
+  lofreq_alnqual: {
+    name: 'lofreq_alnqual',
+    display_name: 'LoFreq Alignment Quality',
+    category: 'variant',
+    description: 'Compute base and indel alignment quality scores for mapped reads and store them as LoFreq BAM tags.',
+    search_aliases: ['Galaxy', 'lofreq', 'lofreq alnqual', 'alignment quality', 'BAQ', 'IDAQ', 'base alignment quality', 'indel alignment quality', 'variant preprocessing'],
+    input: {
+      required: {
+        reads: { type: 'BAM' },
+        reference: { type: 'FASTA' },
+      },
+      optional: {
+        alnquals_to_use: { type: 'STRING', default: '' },
+        extended_baq: { type: 'BOOLEAN', default: true, displayOptions: { show: { alnquals_to_use: ['', '-A'] } } },
+        recompute_all: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['reads_with_alignment_qualities'],
+    required_executables: ['lofreq'],
+    required_conda_packages: ['lofreq'],
+    documentation_url: 'https://csb5.github.io/lofreq/commands/',
+    citation_dois: ['10.1093/nar/gks918'],
+    citation_urls: ['https://doi.org/10.1093/nar/gks918'],
+    citation_text: 'LoFreq: a sequence-quality aware, ultra-sensitive variant caller for high-throughput sequencing datasets.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -3604,7 +3630,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('164 nodes available')).toBeVisible();
+  await expect(page.getByText('165 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -3659,6 +3685,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mash screen containment', name: 'Mash Screen', category: 'genomics' },
     { query: 'average nucleotide identity', name: 'FastANI', category: 'genomics' },
     { query: 'lofreq low frequency variants', name: 'LoFreq Call', category: 'variant' },
+    { query: 'lofreq alnqual', name: 'LoFreq Alignment Quality', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'gtdbtk taxonomy', name: 'GTDB-Tk Classify', category: 'taxonomy' },
     { query: 'rseqc strandedness', name: 'RSeQC Infer Experiment', category: 'rna_seq' },

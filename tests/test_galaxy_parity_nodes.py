@@ -2685,6 +2685,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["lofreq"],
             "doi": "10.1093/nar/gks918",
         },
+        "lofreq_alnqual": {
+            "display_name": "LoFreq Alignment Quality",
+            "category": "variant",
+            "required_executables": ["lofreq"],
+            "required_conda_packages": ["lofreq"],
+            "doi": "10.1093/nar/gks918",
+        },
         "ivar_variants": {
             "display_name": "iVar Variants",
             "category": "variant",
@@ -3020,6 +3027,77 @@ def test_lofreq_call_renders_configured_variant_call_command_and_output(tmp_path
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_call" / "variants.vcf"]
+
+
+def test_lofreq_alnqual_renders_alignment_quality_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("lofreq_alnqual")
+    info = _registry().object_info()["lofreq_alnqual"]
+
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["reads_with_alignment_qualities"]
+    assert info["input"]["optional"]["extended_baq"][1]["displayOptions"] == {
+        "show": {"alnquals_to_use": ["", "-A"]},
+    }
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "reference": "ref.fa",
+            "alnquals_to_use": "",
+            "extended_baq": True,
+            "recompute_all": False,
+            "output": "/work/lofreq_alnqual",
+        }
+    ) == [
+        "lofreq",
+        "alnqual",
+        "-b",
+        "",
+        "reads.bam",
+        "ref.fa",
+        ">",
+        "/work/lofreq_alnqual/alnqual.bam",
+    ]
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "reference": "ref.fa",
+            "alnquals_to_use": "-B",
+            "recompute_all": True,
+            "output": "/work/lofreq_alnqual",
+        }
+    ) == [
+        "lofreq",
+        "alnqual",
+        "-b",
+        "",
+        "-B",
+        "-r",
+        "reads.bam",
+        "ref.fa",
+        ">",
+        "/work/lofreq_alnqual/alnqual.bam",
+    ]
+    assert node_class.render_command(
+        {
+            "reads": "reads.bam",
+            "reference": "ref.fa",
+            "alnquals_to_use": "-B",
+            "extended_baq": False,
+            "output": "/work/lofreq_alnqual",
+        }
+    ) == [
+        "lofreq",
+        "alnqual",
+        "-b",
+        "",
+        "-B",
+        "reads.bam",
+        "ref.fa",
+        ">",
+        "/work/lofreq_alnqual/alnqual.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_alnqual" / "alnqual.bam"]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

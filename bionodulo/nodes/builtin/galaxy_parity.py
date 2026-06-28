@@ -4996,6 +4996,97 @@ class LoFreqCallNode(CommandNode):
         }
 
 
+class LoFreqAlnQualNode(CommandNode):
+    """Add LoFreq base and indel alignment quality tags to reads."""
+
+    NODE_ID = "lofreq_alnqual"
+    DISPLAY_NAME = "LoFreq Alignment Quality"
+    REQUIRED_CONDA_PACKAGES = ["lofreq"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Compute base and indel alignment quality scores for mapped reads and store them as LoFreq BAM tags."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "lofreq",
+        "lofreq alnqual",
+        "alignment quality",
+        "BAQ",
+        "IDAQ",
+        "base alignment quality",
+        "indel alignment quality",
+        "variant preprocessing",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("reads_with_alignment_qualities",)
+    REQUIRED_EXECUTABLES = ["lofreq"]
+    DOCUMENTATION_URL = "https://csb5.github.io/lofreq/commands/"
+    CITATION_DOIS = ["10.1093/nar/gks918"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/nar/gks918"]
+    CITATION_TEXT = "LoFreq: a sequence-quality aware, ultra-sensitive variant caller for high-throughput sequencing datasets."
+    VERSION = "2.1.5"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        alnquals_to_use = str(inputs.get("alnquals_to_use", "") or "")
+        cmd = [
+            "lofreq",
+            "alnqual",
+            "-b",
+            "" if alnquals_to_use == "-B" or inputs.get("extended_baq", True) else "-e",
+        ]
+        if alnquals_to_use:
+            cmd.extend(alnquals_to_use.split())
+        if inputs.get("recompute_all"):
+            cmd.append("-r")
+        cmd.extend(
+            [
+                str(inputs.get("reads", "")),
+                str(inputs.get("reference", "")),
+            ]
+        )
+        _add_shell_redirect(cmd, f"{out}/alnqual.bam")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "alnqual.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reads": ("BAM", {"description": "Mapped reads in BAM format"}),
+                "reference": ("FASTA", {"description": "Reference genome FASTA"}),
+            },
+            "optional": {
+                "alnquals_to_use": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "-A", "-B"],
+                        "description": "Alignment quality scores to add: base and indel qualities, base-only, or indel-only",
+                    },
+                ),
+                "extended_baq": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "description": "Use extended BAQ when base alignment qualities are computed",
+                        "displayOptions": {"show": {"alnquals_to_use": ["", "-A"]}},
+                    },
+                ),
+                "recompute_all": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Overwrite existing alignment quality tags with newly computed values"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarVariantsNode(CommandNode):
     """Call viral amplicon variants from samtools mpileup using iVar."""
 
