@@ -1353,6 +1353,40 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41467-018-04964-5'],
     citation_text: 'Clustering huge protein sequence sets in linear time.',
   },
+  mmseqs2_easy_linsearch: {
+    name: 'mmseqs2_easy_linsearch',
+    display_name: 'MMseqs2 Easy Linsearch',
+    category: 'alignment',
+    description: 'Run fast linear-time homology searches against large MMseqs2 target databases.',
+    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-linsearch', 'linsearch', 'linear homology search'],
+    input: {
+      required: {
+        query_fasta: { type: 'FASTA' },
+        target_source: { type: 'STRING', default: 'history', options: ['history', 'cached'] },
+        target_fasta: { type: 'FASTA', default: '' },
+        target_database: { type: 'FILE', default: '' },
+      },
+      optional: {
+        dbtype: { type: 'STRING', default: '0', options: ['0', '1', '2'] },
+        search_type: { type: 'STRING', default: '0', options: ['0', '1', '2', '3', '4'] },
+        evalue: { type: 'FLOAT', default: 0.001 },
+        min_seq_id: { type: 'FLOAT', default: 0 },
+        cov: { type: 'FLOAT', default: 0 },
+        cov_mode: { type: 'STRING', default: '0', options: ['0', '1', '2', '3', '4', '5'] },
+        kmer_per_seq: { type: 'INT', default: 21 },
+        format_mode: { type: 'STRING', default: '0', options: ['0', '4', '2', '1', '3'] },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['search_results'],
+    required_executables: ['mmseqs'],
+    required_conda_packages: ['mmseqs2'],
+    documentation_url: 'https://github.com/soedinglab/MMseqs2/wiki',
+    citation_dois: ['10.1038/nbt.3988'],
+    citation_urls: ['https://doi.org/10.1038/nbt.3988'],
+    citation_text: 'MMseqs2 enables sensitive protein sequence searching for the analysis of massive data sets.',
+  },
   mash_dist: {
     name: 'mash_dist',
     display_name: 'Mash Dist',
@@ -4229,7 +4263,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('184 nodes available')).toBeVisible();
+  await expect(page.getByText('185 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -4290,6 +4324,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mmseqs easy-search', name: 'MMseqs2 Easy Search', category: 'alignment' },
     { query: 'mmseqs easy-cluster', name: 'MMseqs2 Easy Cluster', category: 'clustering' },
     { query: 'mmseqs linclust', name: 'MMseqs2 Easy Linclust', category: 'clustering' },
+    { query: 'mmseqs linsearch', name: 'MMseqs2 Easy Linsearch', category: 'alignment' },
     { query: 'mash dist', name: 'Mash Dist', category: 'genomics' },
     { query: 'mash sketch', name: 'Mash Sketch', category: 'genomics' },
     { query: 'mash paste', name: 'Mash Paste', category: 'genomics' },
