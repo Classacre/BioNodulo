@@ -3416,6 +3416,112 @@ def test_bbtools_bbduk_renders_filtering_command_and_outputs(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "outputs_select": "outu"}) is True
 
 
+def test_bbtools_bbmerge_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["bbtools_bbmerge"]
+
+    assert node_info["display_name"] == "BBTools BBMerge"
+    assert node_info["category"] == "trimming"
+    assert node_info["description"].startswith("Merge overlapping paired-end reads")
+    assert node_info["output"] == ["FASTQ", "FASTQ", "TSV"]
+    assert node_info["output_name"] == ["merged_reads", "unmerged_reads", "insert_length_histogram"]
+    assert node_info["required_executables"] == ["bbmerge.sh"]
+    assert node_info["required_conda_packages"] == ["bbmap", "samtools"]
+    assert node_info["documentation_url"] == (
+        "https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbmerge-guide/"
+    )
+    assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
+    assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "overlapping mates" in node_info["search_aliases"]
+
+
+def test_bbtools_bbmerge_renders_merge_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bbtools_bbmerge")
+
+    assert node_class.render_command(
+        {
+            "input_type": "pair",
+            "read1": "sample R1.fastq.gz",
+            "read2": "sample R2.fastq.gz",
+            "qtrim": "lr",
+            "trimq": 12,
+            "minlength_after_trim": 75,
+            "qt_usequality": False,
+            "ecco": True,
+            "trimnonoverlapping": True,
+            "mininsert": 40,
+            "minoverlap": 14,
+            "minq": 10,
+            "maxq": 42,
+            "entropy": False,
+            "efilter": 7,
+            "pfilter": 0.001,
+            "kfilter": 0,
+            "merge_usequality": False,
+            "adapter1": "AAA",
+            "adapter2": "TTT",
+            "merge_mode": "Flat mode",
+            "margin": 4,
+            "mismatches": 2,
+            "requireratiomatch": True,
+            "strictness": "loose",
+            "threads": 8,
+            "memory_mb": 8192,
+            "output": "/work/bbmerge",
+        }
+    ) == (
+        "ln -s 'sample R1.fastq.gz' /work/bbmerge/forward.fastq.gz && "
+        "ln -s 'sample R2.fastq.gz' /work/bbmerge/reverse.fastq.gz && "
+        'if [[ "${_JAVA_OPTIONS}" != *-Xmx* && "${JAVA_TOOL_OPTIONS}" != *-Xmx* ]]; then '
+        'export _JAVA_OPTIONS="${_JAVA_OPTIONS} -Xmx${GALAXY_MEMORY_MB:-8192}m -Xms256m"; fi && '
+        'bbmerge.sh tmpdir="$TMPDIR" t="${GALAXY_SLOTS:-8}" '
+        "in1=/work/bbmerge/forward.fastq.gz in2=/work/bbmerge/reverse.fastq.gz interleaved=f "
+        "out=/work/bbmerge/merged.fastq outu=/work/bbmerge/unmerged.fastq "
+        "ihist=/work/bbmerge/ihist.tabular touppercase=t qtrim=lr trimq=12 minlength=75 usequality=f "
+        "usejni=f ecco=t trimnonoverlapping=t mininsert=40 minoverlap=14 minq=10 maxq=42 "
+        "entropy=f efilter=7 pfilter=0.001 kfilter=0 usequality=f adapter1=AAA adapter2=TTT "
+        "margin=4 mismatches=2 requireratiomatch=t loose=t"
+    )
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "read1": "reads.fastq",
+            "output": "/work/bbmerge",
+        }
+    ) == (
+        "ln -s reads.fastq /work/bbmerge/forward.fastq && "
+        'if [[ "${_JAVA_OPTIONS}" != *-Xmx* && "${JAVA_TOOL_OPTIONS}" != *-Xmx* ]]; then '
+        'export _JAVA_OPTIONS="${_JAVA_OPTIONS} -Xmx${GALAXY_MEMORY_MB:-4096}m -Xms256m"; fi && '
+        'bbmerge.sh tmpdir="$TMPDIR" t="${GALAXY_SLOTS:-2}" '
+        "in=/work/bbmerge/forward.fastq interleaved=t out=/work/bbmerge/merged.fastq "
+        "outu=/work/bbmerge/unmerged.fastq ihist=/work/bbmerge/ihist.tabular touppercase=t "
+        "qtrim=f trimq=6 minlength=60 usequality=t usejni=f ecco=f trimnonoverlapping=f "
+        "mininsert=35 minoverlap=12 minq=9 maxq=41 entropy=t efilter=6 pfilter=0.00004 "
+        "kfilter=41 usequality=t maxratio=0.09 ratiomargin=5.5 ratiooffset=0.55 "
+        "maxmismatches=20 ratiominoverlapreduction=0 minsecondratio=0.1 default=t"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bbtools_bbmerge" / "merged.fastq",
+        tmp_path / "bbtools_bbmerge" / "unmerged.fastq",
+        tmp_path / "bbtools_bbmerge" / "ihist.tabular",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": ""}) == "read1 FASTQ is required"
+    assert node_class.VALIDATE_INPUTS({"input_type": "pair", "read1": "r1.fq", "read2": ""}) == (
+        "read2 FASTQ is required for paired input"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "bad", "read1": "reads.fq"}) == (
+        "input_type must be one of: single, pair, paired"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "threads": 0}) == (
+        "threads must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "pfilter": -1}) == (
+        "pfilter must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq"}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 

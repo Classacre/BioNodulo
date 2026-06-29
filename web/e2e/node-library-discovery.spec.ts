@@ -1063,6 +1063,50 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
     citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
   },
+  bbtools_bbmerge: {
+    name: 'bbtools_bbmerge',
+    display_name: 'BBTools BBMerge',
+    category: 'trimming',
+    description: 'Merge overlapping paired-end reads with BBMerge and report unmerged reads plus insert-length histograms.',
+    search_aliases: ['Galaxy', 'BBTools', 'BBMerge', 'bbmerge', 'bbtools_bbmerge', 'overlapping mates', 'paired-end merge', 'read merging', 'insert length histogram', 'error correction'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired'] },
+        read1: { type: 'FASTQ' },
+      },
+      optional: {
+        read2: { type: 'FASTQ', default: '' },
+        reads_collection: { type: 'FASTQ_LIST', default: '' },
+        qtrim: { type: 'STRING', default: 'f', options: ['f', 'l', 'r', 'lr'] },
+        trimq: { type: 'INT', default: 6, min: 0 },
+        minlength_after_trim: { type: 'INT', default: 60, min: 0 },
+        qt_usequality: { type: 'BOOLEAN', default: true },
+        ecco: { type: 'BOOLEAN', default: false },
+        trimnonoverlapping: { type: 'BOOLEAN', default: false },
+        mininsert: { type: 'INT', default: 35, min: 0 },
+        minoverlap: { type: 'INT', default: 12, min: 1 },
+        minq: { type: 'INT', default: 9, min: 0 },
+        maxq: { type: 'INT', default: 41, min: 0 },
+        entropy: { type: 'BOOLEAN', default: true },
+        efilter: { type: 'INT', default: 6 },
+        pfilter: { type: 'FLOAT', default: 0.00004, min: 0 },
+        kfilter: { type: 'INT', default: 41, min: 0 },
+        merge_usequality: { type: 'BOOLEAN', default: true },
+        merge_mode: { type: 'STRING', default: 'Ratio mode', options: ['Ratio mode', 'Flat mode'] },
+        strictness: { type: 'STRING', default: 'default', options: ['default', 'fast', 'loose', 'strict', 'uloose', 'ustrict', 'vloose', 'vstrict', 'xloose', 'xstrict'] },
+        threads: { type: 'INT', default: 2, min: 1, max: 128 },
+        memory_mb: { type: 'INT', default: 4096, min: 1 },
+      },
+    },
+    output: ['FASTQ', 'FASTQ', 'TSV'],
+    output_name: ['merged_reads', 'unmerged_reads', 'insert_length_histogram'],
+    required_executables: ['bbmerge.sh'],
+    required_conda_packages: ['bbmap', 'samtools'],
+    documentation_url: 'https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbmerge-guide/',
+    citation_dois: ['10.1371/journal.pone.0185056'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
+    citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7355,7 +7399,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('266 nodes available')).toBeVisible();
+  await expect(page.getByText('267 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7416,6 +7460,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'metagenomic eukaryotes', name: 'EukRep', category: 'metagenomics' },
     { query: 'metagenomic coverage', name: 'Nonpareil', category: 'metagenomics' },
     { query: 'entropy filtering', name: 'BBTools BBDuk', category: 'trimming' },
+    { query: 'overlapping mates', name: 'BBTools BBMerge', category: 'trimming' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },

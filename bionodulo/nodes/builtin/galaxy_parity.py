@@ -4780,6 +4780,250 @@ class BBToolsBBDukNode(CommandNode):
         }
 
 
+class BBToolsBBMergeNode(CommandNode):
+    """Merge paired reads with BBTools BBMerge."""
+
+    NODE_ID = "bbtools_bbmerge"
+    DISPLAY_NAME = "BBTools BBMerge"
+    REQUIRED_CONDA_PACKAGES = ["bbmap", "samtools"]
+    CATEGORY = "trimming"
+    DESCRIPTION = "Merge overlapping paired-end reads with BBMerge and report unmerged reads plus insert-length histograms."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BBTools",
+        "BBMerge",
+        "bbmerge",
+        "bbtools_bbmerge",
+        "overlapping mates",
+        "paired-end merge",
+        "read merging",
+        "insert length histogram",
+        "error correction",
+    ]
+    RETURN_TYPES = ("FASTQ", "FASTQ", "TSV")
+    RETURN_NAMES = ("merged_reads", "unmerged_reads", "insert_length_histogram")
+    REQUIRED_EXECUTABLES = ["bbmerge.sh"]
+    DOCUMENTATION_URL = "https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbmerge-guide/"
+    CITATION_DOIS = [BBTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BBTOOLS_CITATION_DOI}"]
+    CITATION_TEXT = BBTOOLS_CITATION_TEXT
+    VERSION = "39.08"
+    SHELL = True
+
+    STRICTNESS_OPTIONS = {"xstrict", "ustrict", "vstrict", "strict", "default", "loose", "vloose", "uloose", "xloose", "fast"}
+
+    @classmethod
+    def _input_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_type", "single") or "single")
+
+    @classmethod
+    def _read_pair(cls, inputs: dict[str, Any]) -> tuple[str, str]:
+        input_type = cls._input_type(inputs)
+        if input_type == "paired":
+            collection = inputs.get("reads_collection")
+            if isinstance(collection, dict):
+                return str(collection.get("forward", "")), str(collection.get("reverse", ""))
+            reads = _as_list(collection or inputs.get("reads"))
+            return (reads[0] if reads else "", reads[1] if len(reads) > 1 else "")
+        return str(inputs.get("read1", "")), str(inputs.get("read2", ""))
+
+    @classmethod
+    def _fastq_ext(cls, path: str) -> str:
+        return ".fastq.gz" if str(path).endswith(".gz") else ".fastq"
+
+    @classmethod
+    def _bool_value(cls, inputs: dict[str, Any], key: str, default: bool) -> str:
+        value = inputs.get(key, default)
+        if isinstance(value, str):
+            if value in {"t", "f"}:
+                return value
+            return "t" if value.lower() in {"true", "yes", "1"} else "f"
+        return "t" if bool(value) else "f"
+
+    @classmethod
+    def _java_memory_guard(cls, inputs: dict[str, Any]) -> str:
+        memory = inputs.get("memory_mb", 4096)
+        return (
+            'if [[ "${_JAVA_OPTIONS}" != *-Xmx* && "${JAVA_TOOL_OPTIONS}" != *-Xmx* ]]; then '
+            f'export _JAVA_OPTIONS="${{_JAVA_OPTIONS}} -Xmx${{GALAXY_MEMORY_MB:-{memory}}}m -Xms256m"; fi'
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_type = cls._input_type(inputs)
+        read1, read2 = cls._read_pair(inputs)
+        read1_file = f"{out}/forward{cls._fastq_ext(read1)}"
+        setup = [f"ln -s {shlex.quote(read1)} {shlex.quote(read1_file)}"]
+        if input_type in {"pair", "paired"}:
+            read2_file = f"{out}/reverse{cls._fastq_ext(read1)}"
+            setup.append(f"ln -s {shlex.quote(read2)} {shlex.quote(read2_file)}")
+        else:
+            read2_file = ""
+
+        slots = f"${{GALAXY_SLOTS:-{inputs.get('threads', 2)}}}"
+        cmd = ["bbmerge.sh", 'tmpdir="$TMPDIR"', f't="{slots}"']
+        if input_type == "single":
+            cmd.extend([f"in={read1_file}", "interleaved=t"])
+        else:
+            cmd.extend([f"in1={read1_file}", f"in2={read2_file}", "interleaved=f"])
+        cmd.extend(
+            [
+                f"out={out}/merged.fastq",
+                f"outu={out}/unmerged.fastq",
+                f"ihist={out}/ihist.tabular",
+                "touppercase=t",
+                f"qtrim={inputs.get('qtrim', 'f')}",
+                f"trimq={inputs.get('trimq', 6)}",
+                f"minlength={inputs.get('minlength_after_trim', 60)}",
+                f"usequality={cls._bool_value(inputs, 'qt_usequality', True)}",
+                "usejni=f",
+                f"ecco={cls._bool_value(inputs, 'ecco', False)}",
+                f"trimnonoverlapping={cls._bool_value(inputs, 'trimnonoverlapping', False)}",
+                f"mininsert={inputs.get('mininsert', 35)}",
+                f"minoverlap={inputs.get('minoverlap', 12)}",
+                f"minq={inputs.get('minq', 9)}",
+                f"maxq={inputs.get('maxq', 41)}",
+                f"entropy={cls._bool_value(inputs, 'entropy', True)}",
+                f"efilter={inputs.get('efilter', 6)}",
+                f"pfilter={inputs.get('pfilter', '0.00004')}",
+                f"kfilter={inputs.get('kfilter', 41)}",
+                f"usequality={cls._bool_value(inputs, 'merge_usequality', True)}",
+            ]
+        )
+        if inputs.get("adapter1") not in (None, "") or inputs.get("adapter2") not in (None, ""):
+            cmd.extend([f"adapter1={inputs.get('adapter1', '')}", f"adapter2={inputs.get('adapter2', '')}"])
+        if str(inputs.get("merge_mode", "Ratio mode")) == "Flat mode":
+            cmd.extend(
+                [
+                    f"margin={inputs.get('margin', 2)}",
+                    f"mismatches={inputs.get('mismatches', 3)}",
+                    f"requireratiomatch={cls._bool_value(inputs, 'requireratiomatch', False)}",
+                ]
+            )
+        else:
+            cmd.extend(
+                [
+                    f"maxratio={inputs.get('maxratio', 0.09)}",
+                    f"ratiomargin={inputs.get('ratiomargin', 5.5)}",
+                    f"ratiooffset={inputs.get('ratiooffset', 0.55)}",
+                    f"maxmismatches={inputs.get('maxmismatches', 20)}",
+                    "ratiominoverlapreduction=0",
+                    f"minsecondratio={inputs.get('minsecondratio', 0.1)}",
+                ]
+            )
+        cmd.append(f"{inputs.get('strictness', 'default')}=t")
+        command = _shell_join(cmd)
+        command = command.replace(shlex.quote('tmpdir="$TMPDIR"'), 'tmpdir="$TMPDIR"')
+        command = command.replace(shlex.quote(f't="{slots}"'), f't="{slots}"')
+        return " && ".join(setup + [cls._java_memory_guard(inputs), command])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "merged.fastq", out / "unmerged.fastq", out / "ihist.tabular"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        input_type = cls._input_type(inputs)
+        if input_type not in {"single", "pair", "paired"}:
+            return "input_type must be one of: single, pair, paired"
+        read1, read2 = cls._read_pair(inputs)
+        if not read1:
+            return "read1 FASTQ is required"
+        if input_type in {"pair", "paired"} and not read2:
+            return "read2 FASTQ is required for paired input"
+        if str(inputs.get("strictness", "default")) not in cls.STRICTNESS_OPTIONS:
+            return "strictness must be one of the BBMerge strictness modes"
+        for key, default in (
+            ("threads", 2),
+            ("memory_mb", 4096),
+            ("trimq", 6),
+            ("minlength_after_trim", 60),
+            ("mininsert", 35),
+            ("minoverlap", 12),
+            ("minq", 9),
+            ("maxq", 41),
+            ("efilter", 6),
+            ("kfilter", 41),
+            ("maxmismatches", 20),
+            ("margin", 2),
+            ("mismatches", 3),
+        ):
+            try:
+                value = int(inputs.get(key, default))
+            except (TypeError, ValueError):
+                return f"{key} must be an integer"
+            if value < 1 and key in {"threads", "memory_mb", "minoverlap"}:
+                return f"{key} must be >= 1"
+            if value < 0 and key not in {"efilter"}:
+                return f"{key} must be >= 0"
+        for key, default in (
+            ("pfilter", 0.00004),
+            ("maxratio", 0.09),
+            ("ratiomargin", 5.5),
+            ("ratiooffset", 0.55),
+            ("minsecondratio", 0.1),
+        ):
+            try:
+                value = float(inputs.get(key, default))
+            except (TypeError, ValueError):
+                return f"{key} must be a number"
+            if value < 0:
+                return f"{key} must be >= 0"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_type": (
+                    "STRING",
+                    {"default": "single", "options": ["single", "pair", "paired"], "description": "Galaxy input mode"},
+                ),
+                "read1": ("FASTQ", {"description": "Single interleaved, forward, or paired-collection forward FASTQ"}),
+            },
+            "optional": {
+                "read2": ("FASTQ", {"default": "", "description": "Reverse FASTQ reads for paired input"}),
+                "reads_collection": ("FASTQ_LIST", {"default": "", "description": "Paired collection mapping or [forward, reverse]"}),
+                "qtrim": ("STRING", {"default": "f", "options": ["f", "l", "r", "lr"], "description": "Quality trim mode"}),
+                "trimq": ("INT", {"default": 6, "min": 0, "description": "Trim below this average quality"}),
+                "minlength_after_trim": ("INT", {"default": 60, "min": 0, "description": "Minimum length after trimming"}),
+                "qt_usequality": ("BOOLEAN", {"default": True, "description": "Use quality scores for trimming seeds"}),
+                "ecco": ("BOOLEAN", {"default": False, "description": "Error-correct overlapping portions without merging"}),
+                "trimnonoverlapping": ("BOOLEAN", {"default": False, "description": "Trim all non-overlapping sequence"}),
+                "mininsert": ("INT", {"default": 35, "min": 0, "description": "Minimum insert size"}),
+                "minoverlap": ("INT", {"default": 12, "min": 1, "description": "Minimum overlap length"}),
+                "minq": ("INT", {"default": 9, "min": 0, "description": "Ignore bases below this quality"}),
+                "maxq": ("INT", {"default": 41, "min": 0, "description": "Cap output qualities"}),
+                "entropy": ("BOOLEAN", {"default": True, "description": "Increase overlap requirement for low-complexity reads"}),
+                "efilter": ("INT", {"default": 6, "description": "Expected-error overlap filter; -1 disables"}),
+                "pfilter": ("FLOAT", {"default": 0.00004, "min": 0, "description": "Probability filter for improbable overlaps"}),
+                "kfilter": ("INT", {"default": 41, "min": 0, "description": "Low-count k-mer overlap filter"}),
+                "merge_usequality": ("BOOLEAN", {"default": True, "description": "Use quality values in overlap detection"}),
+                "adapter1": ("STRING", {"default": "", "description": "Left adapter sequence"}),
+                "adapter2": ("STRING", {"default": "", "description": "Right adapter sequence"}),
+                "merge_mode": ("STRING", {"default": "Ratio mode", "options": ["Ratio mode", "Flat mode"], "description": "Overlap scoring mode"}),
+                "maxratio": ("FLOAT", {"default": 0.09, "min": 0, "description": "Ratio-mode maximum error rate"}),
+                "ratiomargin": ("FLOAT", {"default": 5.5, "min": 0, "description": "Ratio-mode margin"}),
+                "ratiooffset": ("FLOAT", {"default": 0.55, "min": 0, "description": "Ratio-mode offset"}),
+                "maxmismatches": ("INT", {"default": 20, "min": 0, "description": "Ratio-mode maximum mismatches"}),
+                "minsecondratio": ("FLOAT", {"default": 0.1, "min": 0, "description": "Ratio-mode second-best cutoff"}),
+                "margin": ("INT", {"default": 2, "min": 0, "description": "Flat-mode best-overlap margin"}),
+                "mismatches": ("INT", {"default": 3, "min": 0, "description": "Flat-mode maximum mismatches"}),
+                "requireratiomatch": ("BOOLEAN", {"default": False, "description": "Require ratio and flat modes to agree"}),
+                "strictness": ("STRING", {"default": "default", "options": sorted(cls.STRICTNESS_OPTIONS), "description": "BBMerge strictness preset"}),
+                "threads": ("INT", {"default": 2, "min": 1, "max": 128}),
+                "memory_mb": ("INT", {"default": 4096, "min": 1, "description": "Fallback Java heap in MB"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 PLASCLASS_CITATION_DOI = "10.1371/journal.pcbi.1007781"
 PLASCLASS_CITATION_TEXT = "PlasClass improves plasmid sequence classification."
 
