@@ -1231,6 +1231,117 @@ class SeqTKCompNode(CommandNode):
         }
 
 
+class SeqTKCutNNode(CommandNode):
+    """Split FASTA/Q records at long N tracts with seqtk cutN."""
+
+    NODE_ID = "seqtk_cutN"
+    DISPLAY_NAME = "SeqTK CutN"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Split FASTA or FASTQ records at long N tracts with seqtk cutN."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk cutN",
+        "SeqTK cutN",
+        "seqtk split at N",
+        "split at N",
+        "long N tracts",
+        "assembly gaps",
+        "gaps BED",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTQ", "BED")
+    RETURN_NAMES = ("split_sequences", "split_reads", "gaps_bed")
+    REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _input_ext(cls, inputs: dict[str, Any]) -> str:
+        explicit = str(inputs.get("input_ext", "") or "").strip().lstrip(".")
+        if explicit:
+            return explicit
+        suffixes = Path(str(inputs.get("in_file", ""))).suffixes
+        if len(suffixes) >= 2 and suffixes[-1] == ".gz":
+            return f"{suffixes[-2].lstrip('.')}.gz"
+        if suffixes:
+            return suffixes[-1].lstrip(".")
+        return "fasta"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        if inputs.get("g"):
+            return "gaps.bed"
+        ext = cls._input_ext(inputs)
+        if ext in {"fa", "fna"}:
+            ext = "fasta"
+        elif ext in {"fq", "fastqsanger"}:
+            ext = "fastq"
+        elif ext in {"fa.gz", "fna.gz"}:
+            ext = "fasta.gz"
+        elif ext in {"fq.gz", "fastqsanger.gz"}:
+            ext = "fastq.gz"
+        return f"cutN.{ext}"
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._output_name(inputs)}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "seqtk",
+            "cutN",
+            "-n",
+            str(inputs.get("n", 1000)),
+            "-p",
+            str(inputs.get("p", 10)),
+        ]
+        if inputs.get("g"):
+            cmd.append("-g")
+        cmd.append(str(inputs.get("in_file", "")))
+        if not inputs.get("g") and cls._input_ext(inputs).endswith(".gz"):
+            return (
+                f"{_shell_join(cmd)} | "
+                f"pigz -p ${{GALAXY_SLOTS:-1}} --no-name --no-time "
+                f"> {shlex.quote(cls._out_path(inputs))}"
+            )
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._out_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+            },
+            "optional": {
+                "n": ("INT", {"default": 1000, "min": 1, "description": "Minimum size of N tract"}),
+                "p": ("INT", {"default": 10, "min": 0, "description": "Penalty for a non-N base"}),
+                "g": ("BOOLEAN", {"default": False, "description": "Print gaps only as BED instead of split sequence"}),
+                "input_ext": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "fastq", "fasta.gz", "fastq.gz"],
+                        "description": "Input/output sequence format used to mirror Galaxy format_source",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 

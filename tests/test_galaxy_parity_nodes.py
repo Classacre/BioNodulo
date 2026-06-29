@@ -1046,6 +1046,82 @@ def test_seqtk_comp_renders_bed_restricted_composition_command() -> None:
     )
 
 
+def test_seqtk_cutn_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_cutN"]
+
+    assert info["display_name"] == "SeqTK CutN"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Split FASTA or FASTQ records at long N tracts with seqtk cutN."
+    assert info["output"] == ["FASTA", "FASTQ", "BED"]
+    assert info["output_name"] == ["split_sequences", "split_reads", "gaps_bed"]
+    assert info["required_executables"] == ["seqtk", "pigz"]
+    assert info["required_conda_packages"] == ["seqtk", "pigz"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk cutN" in info["search_aliases"]
+    assert "seqtk split at N" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["n"][1]["default"] == 1000
+    assert info["input"]["optional"]["p"][1]["default"] == 10
+    assert info["input"]["optional"]["g"][0] == "BOOLEAN"
+
+
+def test_seqtk_cutn_renders_sequence_split_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_cutN")
+
+    assert node_class.render_command(
+        {
+            "in_file": "contigs.fa",
+            "n": 1,
+            "p": 10,
+            "output": "/work/seqtk_cutN",
+        }
+    ) == "seqtk cutN -n 1 -p 10 contigs.fa > /work/seqtk_cutN/cutN.fasta"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "seqtk_cutN" / "cutN.fasta",
+    ]
+
+
+def test_seqtk_cutn_renders_gzip_sequence_split_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_cutN")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq.gz",
+            "input_ext": "fastq.gz",
+            "n": 100,
+            "p": 5,
+            "output": "/work/seqtk_cutN",
+        }
+    ) == (
+        "seqtk cutN -n 100 -p 5 reads.fastq.gz | "
+        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_cutN/cutN.fastq.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqtk_cutN" / "cutN.fastq.gz",
+    ]
+
+
+def test_seqtk_cutn_renders_gaps_only_bed_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_cutN")
+
+    assert node_class.render_command(
+        {
+            "in_file": "contigs.fasta.gz",
+            "input_ext": "fasta.gz",
+            "n": 250,
+            "p": 12,
+            "g": True,
+            "output": "/work/seqtk_cutN",
+        }
+    ) == "seqtk cutN -n 250 -p 12 -g contigs.fasta.gz > /work/seqtk_cutN/gaps.bed"
+    assert node_class.PLAN_OUTPUTS({"g": True, "input_ext": "fasta.gz"}, tmp_path) == [
+        tmp_path / "seqtk_cutN" / "gaps.bed",
+    ]
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

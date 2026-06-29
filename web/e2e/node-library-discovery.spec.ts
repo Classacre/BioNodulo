@@ -478,6 +478,32 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_cutN: {
+    name: 'seqtk_cutN',
+    display_name: 'SeqTK CutN',
+    category: 'sequence',
+    description: 'Split FASTA or FASTQ records at long N tracts with seqtk cutN.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk cutN', 'SeqTK cutN', 'seqtk split at N', 'split at N', 'long N tracts', 'assembly gaps', 'gaps BED'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        n: { type: 'INT', default: 1000 },
+        p: { type: 'INT', default: 10 },
+        g: { type: 'BOOLEAN', default: false },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq', 'fasta.gz', 'fastq.gz'] },
+      },
+    },
+    output: ['FASTA', 'FASTQ', 'BED'],
+    output_name: ['split_sequences', 'split_reads', 'gaps_bed'],
+    required_executables: ['seqtk', 'pigz'],
+    required_conda_packages: ['seqtk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -10816,7 +10842,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('370 nodes available')).toBeVisible();
+  await expect(page.getByText('371 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10843,6 +10869,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
     { query: 'seqtk composition', name: 'SeqTK Composition', category: 'sequence' },
+    { query: 'seqtk split at N', name: 'SeqTK CutN', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
