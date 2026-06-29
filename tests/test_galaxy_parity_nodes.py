@@ -25697,6 +25697,56 @@ def test_bedops_sort_bed_validates_inputs_and_filter_modes() -> None:
     )
 
 
+def test_bwa_mem2_idx_exposes_galaxy_metadata_and_bwa_citations() -> None:
+    node_info = _registry().object_info()["bwa_mem2_idx"]
+
+    assert node_info["display_name"] == "BWA-MEM2 Indexer"
+    assert node_info["category"] == "alignment"
+    assert node_info["description"] == "Build a BWA-MEM2 reference index from a FASTA sequence."
+    assert node_info["output"] == ["BWA_MEM2_INDEX"]
+    assert node_info["output_name"] == ["index"]
+    assert node_info["required_executables"] == ["bwa-mem2"]
+    assert node_info["required_conda_packages"] == ["bwa-mem2"]
+    assert node_info["documentation_url"] == "https://github.com/bwa-mem2/bwa-mem2"
+    assert node_info["citation_dois"] == [
+        "10.1109/IPDPS.2019.00041",
+        "10.1093/bioinformatics/btp324",
+        "10.1093/bioinformatics/btp698",
+    ]
+    assert "http://arxiv.org/abs/1303.3997" in node_info["citation_urls"]
+    assert "BWA-MEM2 acceleration of the BWA-MEM algorithm" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "BWA-MEM2 reference index" in node_info["search_aliases"]
+
+
+def test_bwa_mem2_idx_renders_galaxy_index_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bwa_mem2_idx")
+
+    assert node_class.render_command({"reference": "ref.fa", "output": "/work/bwa_mem2_idx"}) == [
+        "mkdir",
+        "-p",
+        "/work/bwa_mem2_idx/index",
+        "&&",
+        "cd",
+        "/work/bwa_mem2_idx/index",
+        "&&",
+        "bwa-mem2",
+        "index",
+        "-p",
+        "reference",
+        "ref.fa",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa_mem2_idx" / "index"]
+
+
+def test_bwa_mem2_idx_validates_reference_input() -> None:
+    node_class = _node_class("bwa_mem2_idx")
+
+    assert node_class.VALIDATE_INPUTS({}) == "reference is required"
+    assert node_class.VALIDATE_INPUTS({"reference": ""}) == "reference is required"
+    assert node_class.VALIDATE_INPUTS({"reference": "ref.fa"}) is True
+
+
 def test_bamleftalign_exposes_freebayes_citation_and_dependency_metadata() -> None:
     node_info = _registry().object_info()["bamleftalign"]
 

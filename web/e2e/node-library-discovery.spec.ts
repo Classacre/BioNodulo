@@ -9396,6 +9396,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.48550/arXiv.1207.3907', 'http://arxiv.org/abs/1207.3907'],
     citation_text: 'Haplotype-based variant detection from short-read sequencing.',
   },
+  bwa_mem2_idx: {
+    name: 'bwa_mem2_idx',
+    display_name: 'BWA-MEM2 Indexer',
+    category: 'alignment',
+    description: 'Build a BWA-MEM2 reference index from a FASTA sequence.',
+    search_aliases: ['Galaxy', 'BWA-MEM2', 'bwa_mem2_idx', 'BWA-MEM2 reference index', 'reference index', 'bwa-mem2 index'],
+    input: {
+      required: {
+        reference: { type: 'FASTA' },
+      },
+    },
+    output: ['BWA_MEM2_INDEX'],
+    output_name: ['index'],
+    required_executables: ['bwa-mem2'],
+    required_conda_packages: ['bwa-mem2'],
+    documentation_url: 'https://github.com/bwa-mem2/bwa-mem2',
+    citation_dois: ['10.1109/IPDPS.2019.00041', '10.1093/bioinformatics/btp324', '10.1093/bioinformatics/btp698'],
+    citation_urls: [
+      'https://doi.org/10.1109/IPDPS.2019.00041',
+      'https://doi.org/10.1093/bioinformatics/btp324',
+      'https://doi.org/10.1093/bioinformatics/btp698',
+      'http://arxiv.org/abs/1303.3997',
+    ],
+    citation_text:
+      'BWA-MEM2 acceleration of the BWA-MEM algorithm; Fast and accurate short read alignment with Burrows-Wheeler Transform; Fast and accurate long-read alignment with Burrows-Wheeler Transform; Aligning sequence reads, clone sequences and assembly contigs with BWA-MEM.',
+  },
   bcftools_stats: {
     name: 'bcftools_stats',
     display_name: 'BCFtools Stats',
@@ -10691,7 +10717,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('366 nodes available')).toBeVisible();
+  await expect(page.getByText('367 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11002,6 +11028,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genotype likelihoods', name: 'BCFtools Mpileup', category: 'variant' },
     { query: 'fixed-threshold filters', name: 'BCFtools Filter', category: 'variant' },
     { query: 'left realignment', name: 'BamLeftAlign', category: 'variant' },
+    { query: 'BWA-MEM2 reference index', name: 'BWA-MEM2 Indexer', category: 'alignment' },
     { query: 'plot-vcfstats', name: 'BCFtools Stats', category: 'variant' },
     { query: 'left-align indels', name: 'BCFtools Norm', category: 'variant' },
     { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },

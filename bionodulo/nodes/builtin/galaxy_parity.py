@@ -77,6 +77,20 @@ FREEBAYES_CITATION_URLS = [
     "http://arxiv.org/abs/1207.3907",
 ]
 FREEBAYES_CITATION_TEXT = "Haplotype-based variant detection from short-read sequencing."
+BWA_MEM2_CITATION_DOIS = [
+    "10.1109/IPDPS.2019.00041",
+    "10.1093/bioinformatics/btp324",
+    "10.1093/bioinformatics/btp698",
+]
+BWA_MEM2_CITATION_URLS = [f"{DOI_URL}{doi}" for doi in BWA_MEM2_CITATION_DOIS] + [
+    "http://arxiv.org/abs/1303.3997",
+]
+BWA_MEM2_CITATION_TEXT = (
+    "BWA-MEM2 acceleration of the BWA-MEM algorithm; "
+    "Fast and accurate short read alignment with Burrows-Wheeler Transform; "
+    "Fast and accurate long-read alignment with Burrows-Wheeler Transform; "
+    "Aligning sequence reads, clone sequences and assembly contigs with BWA-MEM."
+)
 ADD_INPUT_NAME_AS_COLUMN_CITATION_URL = (
     "https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column"
 )
@@ -40495,6 +40509,77 @@ class BEDOPSSortBedNode(CommandNode):
                     {"description": "Temporary directory for sorting files larger than memory", "advanced": True},
                 ),
             },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BWAMem2IndexNode(CommandNode):
+    """Build a BWA-MEM2 reference index from a FASTA sequence."""
+
+    NODE_ID = "bwa_mem2_idx"
+    DISPLAY_NAME = "BWA-MEM2 Indexer"
+    REQUIRED_CONDA_PACKAGES = ["bwa-mem2"]
+    CATEGORY = "alignment"
+    DESCRIPTION = "Build a BWA-MEM2 reference index from a FASTA sequence."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BWA-MEM2",
+        "bwa_mem2_idx",
+        "BWA-MEM2 reference index",
+        "reference index",
+        "bwa-mem2 index",
+    ]
+    RETURN_TYPES = ("BWA_MEM2_INDEX",)
+    RETURN_NAMES = ("index",)
+    REQUIRED_EXECUTABLES = ["bwa-mem2"]
+    DOCUMENTATION_URL = "https://github.com/bwa-mem2/bwa-mem2"
+    CITATION_DOIS = BWA_MEM2_CITATION_DOIS
+    CITATION_URLS = BWA_MEM2_CITATION_URLS
+    CITATION_TEXT = BWA_MEM2_CITATION_TEXT
+    VERSION = "2.3+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _index_dir(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/index"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        index_dir = cls._index_dir(inputs)
+        return [
+            "mkdir",
+            "-p",
+            index_dir,
+            "&&",
+            "cd",
+            index_dir,
+            "&&",
+            "bwa-mem2",
+            "index",
+            "-p",
+            "reference",
+            str(inputs.get("reference", "")),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID / "index"
+        out.mkdir(parents=True, exist_ok=True)
+        return [out]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("reference", "")).strip():
+            return "reference is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "FASTA genome sequence to index with BWA-MEM2"}),
+            },
+            "optional": {},
             "hidden": {"output": ("STRING", {})},
         }
 
