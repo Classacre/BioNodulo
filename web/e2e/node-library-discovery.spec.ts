@@ -5364,6 +5364,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41589-019-0400-9'],
     citation_text: 'BiG-SCAPE and CORASON identify biosynthetic gene cluster families.',
   },
+  compleasm: {
+    name: 'compleasm',
+    display_name: 'compleasm',
+    category: 'assembly',
+    description: 'Assess genome assembly completeness with compleasm using cached BUSCO lineage data.',
+    search_aliases: ['Galaxy', 'compleasm', 'compleasm genome completeness', 'BUSCO lineage', 'assembly completeness', 'miniprot', 'single-copy orthologs'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+        busco_database_path: { type: 'DIRECTORY' },
+        lineage_dataset: { type: 'STRING' },
+      },
+      optional: {
+        mode: { type: 'STRING', default: 'busco', options: ['busco', 'lite'] },
+        specified_contigs: { type: 'STRING', default: '' },
+        outputs: { type: 'STRING_LIST', default: ['full_table_busco'], options: ['full_table_busco', 'full_table', 'miniprot', 'translated_protein', 'summary'] },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV', 'TSV', 'GFF', 'FASTA', 'TXT'],
+    output_name: ['full_table_busco', 'full_table', 'miniprot', 'translated_protein', 'summary'],
+    required_executables: ['compleasm'],
+    required_conda_packages: ['compleasm'],
+    documentation_url: 'https://github.com/huangnengCSU/compleasm',
+    citation_dois: ['10.1101/2023.06.03.543588'],
+    citation_urls: ['https://doi.org/10.1101/2023.06.03.543588'],
+    citation_text: 'Compleasm: a faster and more accurate reimplementation of the BUSCO lineage assessment.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8109,7 +8137,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('289 nodes available')).toBeVisible();
+  await expect(page.getByText('290 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8279,6 +8307,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'breseq mutation detection', name: 'breseq', category: 'variant' },
     { query: 'BiSCoT optical map', name: 'BiSCoT', category: 'assembly' },
     { query: 'BiG-SCAPE gene cluster families', name: 'BiG-SCAPE', category: 'secondary_metabolism' },
+    { query: 'compleasm genome completeness', name: 'compleasm', category: 'assembly' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

@@ -13031,6 +13031,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["bigscape"],
             "doi": "10.1038/s41589-019-0400-9",
         },
+        "compleasm": {
+            "display_name": "compleasm",
+            "category": "assembly",
+            "required_executables": ["compleasm"],
+            "required_conda_packages": ["compleasm"],
+            "doi": "10.1101/2023.06.03.543588",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15363,6 +15370,105 @@ def test_bigscape_renders_network_command_outputs_and_validation(tmp_path: Path)
         "cutoff values must be between 0.1 and 1.0"
     )
     assert node_class.VALIDATE_INPUTS({"inputdir": ["cluster.gbk"], "pfam_dir": "Pfam-A.hmm"}) is True
+
+
+def test_compleasm_renders_completeness_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("compleasm")
+    info = _registry().object_info()["compleasm"]
+
+    assert info["output"] == ["TSV", "TSV", "GFF", "FASTA", "TXT"]
+    assert info["output_name"] == ["full_table_busco", "full_table", "miniprot", "translated_protein", "summary"]
+    assert info["input"]["optional"]["outputs"][1]["options"] == [
+        "full_table_busco",
+        "full_table",
+        "miniprot",
+        "translated_protein",
+        "summary",
+    ]
+    assert "10.1101/2023.06.03.543588" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input": "genome assembly.fa",
+            "busco_database_path": "/db/busco",
+            "lineage_dataset": "entomoplasmatales_odb10",
+            "mode": "lite",
+            "specified_contigs": "chr1 chr2",
+            "outputs": ["summary", "full_table", "miniprot"],
+            "threads": 5,
+            "output": "/work/compleasm",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/compleasm/galaxy_db",
+        "&&",
+        "ln",
+        "-s",
+        "/db/busco/lineages/entomoplasmatales_odb10",
+        "/work/compleasm/galaxy_db/entomoplasmatales_odb10",
+        "&&",
+        "touch",
+        "/work/compleasm/galaxy_db/entomoplasmatales_odb10.done",
+        "&&",
+        "compleasm",
+        "run",
+        "-a",
+        "genome assembly.fa",
+        "-o",
+        "/work/compleasm/galaxy_output",
+        "--mode",
+        "lite",
+        "-L",
+        "/work/compleasm/galaxy_db",
+        "-l",
+        "entomoplasmatales_odb10",
+        "-t",
+        "${GALAXY_SLOTS:-5}",
+        "--specified_contigs",
+        "chr1 chr2",
+        "&&",
+        "cp",
+        "/work/compleasm/galaxy_output/entomoplasmatales_odb10/full_table.tsv",
+        "/work/compleasm/full_table.tsv",
+        "&&",
+        "cp",
+        "/work/compleasm/galaxy_output/entomoplasmatales_odb10/miniprot_output.gff",
+        "/work/compleasm/miniprot.gff",
+        "&&",
+        "cp",
+        "/work/compleasm/galaxy_output/summary.txt",
+        "/work/compleasm/summary.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"outputs": ["summary", "full_table", "miniprot"]}, tmp_path) == [
+        tmp_path / "compleasm" / "full_table.tsv",
+        tmp_path / "compleasm" / "miniprot.gff",
+        tmp_path / "compleasm" / "summary.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "compleasm" / "full_table_busco.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"busco_database_path": "/db/busco", "lineage_dataset": "lineage_odb10"}) == (
+        "input genome FASTA is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genome.fa", "lineage_dataset": "lineage_odb10"}) == (
+        "BUSCO database path is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genome.fa", "busco_database_path": "/db/busco"}) == (
+        "lineage_dataset is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "genome.fa", "busco_database_path": "/db/busco", "lineage_dataset": "lineage_odb10", "outputs": ["bad"]}
+    ) == "unknown compleasm output: bad"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "genome.fa",
+            "busco_database_path": "/db/busco",
+            "lineage_dataset": "lineage_odb10",
+            "specified_contigs": "chr1;rm",
+        }
+    ) == "specified_contigs may contain only letters, numbers, underscores, and spaces"
+    assert node_class.VALIDATE_INPUTS({"input": "genome.fa", "busco_database_path": "/db/busco", "lineage_dataset": "lineage_odb10"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
