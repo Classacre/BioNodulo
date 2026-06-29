@@ -13164,6 +13164,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["fastspar"],
             "doi": "10.1093/bioinformatics/bty734",
         },
+        "fastspar_pvalues": {
+            "display_name": "FastSpar: estimate p-values",
+            "category": "metagenomics",
+            "required_executables": ["fastspar", "fastspar_bootstrap", "fastspar_pvalues", "parallel"],
+            "required_conda_packages": ["fastspar", "parallel"],
+            "doi": "10.1093/bioinformatics/bty734",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -17021,6 +17028,89 @@ def test_fastspar_reduce_renders_sparse_filter_command_outputs_and_validation(tm
         {"correlation_table": "cor.tsv", "pvalue_table": "p.tsv", "pvalue": -0.01}
     ) == "pvalue must be between 0 and 1"
     assert node_class.VALIDATE_INPUTS({"correlation_table": "cor.tsv", "pvalue_table": "p.tsv"}) is True
+
+
+def test_fastspar_pvalues_renders_bootstrap_pipeline_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("fastspar_pvalues")
+    info = _registry().object_info()["fastspar_pvalues"]
+
+    assert info["display_name"] == "FastSpar: estimate p-values"
+    assert info["description"] == "Estimate empirical p-values for FastSpar correlations with bootstrap resampling."
+    assert info["input"]["required"]["otu_table"][0] == "TSV"
+    assert info["input"]["optional"]["correlation_mode"][1]["default"] == "original"
+    assert info["input"]["optional"]["correlation_mode"][1]["options"] == ["new", "original"]
+    assert info["input"]["optional"]["number"][1]["default"] == 1000
+    assert info["input"]["optional"]["pseudo"][1]["default"] is False
+    assert info["output"] == ["TSV", "TSV", "TSV"]
+    assert info["output_name"] == ["correlation", "covariance", "pvalues"]
+    assert "10.1093/bioinformatics/bty734" in info["citation_dois"]
+    assert "10.1371/journal.pcbi.1002687" in info["citation_dois"]
+
+    assert node_class.render_command(
+        {
+            "otu_table": "absolute otu counts.tsv",
+            "correlation_mode": "original",
+            "correlation_file": "median correlation.tsv",
+            "number": 10,
+            "iterations": 100,
+            "exclude_iterations": 20,
+            "threshold": 0.2,
+            "seed": 7,
+            "pseudo": True,
+            "threads": 8,
+            "output": "/work/fastspar_pvalues",
+        }
+    ) == (
+        "mkdir -p /work/fastspar_pvalues bootstrap_counts bootstrap_correlation && "
+        "fastspar_bootstrap --otu_table 'absolute otu counts.tsv' --number 10 --prefix bootstrap_counts/data "
+        "--seed 7 --threads ${GALAXY_SLOTS:-8} && "
+        "parallel --max-procs ${GALAXY_SLOTS:-8} fastspar --otu_table {} --correlation "
+        "bootstrap_correlation/cor_{/} --covariance bootstrap_correlation/cov_{/} --iterations 100 "
+        "--exclude_iterations 20 --threshold 0.2 --seed 7 ::: bootstrap_counts/* && "
+        "fastspar_pvalues --otu_table 'absolute otu counts.tsv' --correlation 'median correlation.tsv' "
+        "--prefix bootstrap_correlation/cor_data_ --permutations 10 --pseudo --threads ${GALAXY_SLOTS:-8} "
+        "--outfile /work/fastspar_pvalues/pvalues.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "otu_table": "otu.tsv",
+            "correlation_mode": "new",
+            "number": 10,
+            "output": "/work/fastspar_pvalues",
+        }
+    ) == (
+        "mkdir -p /work/fastspar_pvalues bootstrap_counts bootstrap_correlation && "
+        "fastspar --otu_table otu.tsv --iterations 50 --exclude_iterations 10 --threshold 0.1 --seed 1 "
+        "--correlation /work/fastspar_pvalues/median_correlation.tsv --covariance "
+        "/work/fastspar_pvalues/median_covariance.tsv --threads ${GALAXY_SLOTS:-1} --yes && "
+        "fastspar_bootstrap --otu_table otu.tsv --number 10 --prefix bootstrap_counts/data --seed 1 "
+        "--threads ${GALAXY_SLOTS:-1} && "
+        "parallel --max-procs ${GALAXY_SLOTS:-1} fastspar --otu_table {} --correlation "
+        "bootstrap_correlation/cor_{/} --covariance bootstrap_correlation/cov_{/} --iterations 50 "
+        "--exclude_iterations 10 --threshold 0.1 --seed 1 ::: bootstrap_counts/* && "
+        "fastspar_pvalues --otu_table otu.tsv --correlation /work/fastspar_pvalues/median_correlation.tsv "
+        "--prefix bootstrap_correlation/cor_data_ --permutations 10 --threads ${GALAXY_SLOTS:-1} "
+        "--outfile /work/fastspar_pvalues/pvalues.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"correlation_mode": "original"}, tmp_path) == [
+        tmp_path / "fastspar_pvalues" / "pvalues.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"correlation_mode": "new"}, tmp_path) == [
+        tmp_path / "fastspar_pvalues" / "median_correlation.tsv",
+        tmp_path / "fastspar_pvalues" / "median_covariance.tsv",
+        tmp_path / "fastspar_pvalues" / "pvalues.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "otu_table is required"
+    assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "correlation_mode": "original"}) == (
+        "correlation_file is required when correlation_mode is original"
+    )
+    assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "correlation_mode": "new", "number": 9}) == (
+        "number must be between 10 and 10000"
+    )
+    assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "correlation_mode": "new", "threshold": -0.1}) == (
+        "threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "correlation_mode": "new", "number": 10}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

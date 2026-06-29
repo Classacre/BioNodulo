@@ -6074,6 +6074,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/bty734', 'https://doi.org/10.1371/journal.pcbi.1002687'],
     citation_text: 'FastSpar: rapid and scalable correlation estimation for compositional data; Sparse correlations for compositional data.',
   },
+  fastspar_pvalues: {
+    name: 'fastspar_pvalues',
+    display_name: 'FastSpar: estimate p-values',
+    category: 'metagenomics',
+    description: 'Estimate empirical p-values for FastSpar correlations with bootstrap resampling.',
+    search_aliases: ['Galaxy', 'FastSpar p-values', 'FastSpar: estimate p-values', 'FastSpar bootstrap p-values', 'SparCC empirical p-values', 'microbiome correlation significance'],
+    input: {
+      required: {
+        otu_table: { type: 'TSV' },
+      },
+      optional: {
+        correlation_mode: { type: 'STRING', default: 'original', options: ['new', 'original'] },
+        correlation_file: { type: 'TSV', default: '' },
+        number: { type: 'INT', default: 1000 },
+        iterations: { type: 'INT', default: 50 },
+        exclude_iterations: { type: 'INT', default: 10 },
+        threshold: { type: 'FLOAT', default: 0.1 },
+        seed: { type: 'INT', default: 1 },
+        pseudo: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV', 'TSV', 'TSV'],
+    output_name: ['correlation', 'covariance', 'pvalues'],
+    required_executables: ['fastspar', 'fastspar_bootstrap', 'fastspar_pvalues', 'parallel'],
+    required_conda_packages: ['fastspar', 'parallel'],
+    documentation_url: 'https://github.com/scwatts/fastspar',
+    citation_dois: ['10.1093/bioinformatics/bty734', '10.1371/journal.pcbi.1002687'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bty734', 'https://doi.org/10.1371/journal.pcbi.1002687'],
+    citation_text: 'FastSpar: rapid and scalable correlation estimation for compositional data; Sparse correlations for compositional data.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8819,7 +8850,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('308 nodes available')).toBeVisible();
+  await expect(page.getByText('309 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9008,6 +9039,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MetaBAT2 depth matrix', name: 'Calculate contig depths', category: 'metagenomics' },
     { query: 'FastSpar correlation', name: 'FastSpar', category: 'metagenomics' },
     { query: 'FastSpar sparse filter', name: 'FastSpar: Reduce correlation table', category: 'metagenomics' },
+    { query: 'FastSpar bootstrap p-values', name: 'FastSpar: estimate p-values', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
