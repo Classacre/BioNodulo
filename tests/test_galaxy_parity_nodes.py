@@ -7576,6 +7576,132 @@ def test_ampvis2_subset_taxa_renders_script_outputs_and_validates(tmp_path: Path
     ) is True
 
 
+def test_ampvis2_timeseries_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_timeseries"]
+
+    assert info["display_name"] == "ampvis2 timeseries plot"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate ampvis2 time-series plots of relative read abundance over time."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["required"]["time_variable"][0] == "STRING"
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["group_by"][0] == "STRING"
+    assert info["input"]["optional"]["tax_aggregate"][1]["default"] == "OTU"
+    assert info["input"]["optional"]["tax_add"][1]["multiple"] is True
+    assert info["input"]["optional"]["tax_show_mode"][1]["options"] == ["number", "explicit"]
+    assert info["input"]["optional"]["tax_show"][1]["default"] == 6
+    assert info["input"]["optional"]["tax_empty"][1]["options"] == ["remove", "best", "OTU"]
+    assert info["input"]["optional"]["split"][1]["default"] is False
+    assert info["input"]["optional"]["scales"][1]["default"] == "free_y"
+    assert info["input"]["optional"]["normalise"][1]["default"] is True
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_timeseries.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 timeseries plot" in info["search_aliases"]
+    assert "amp_timeseries" in info["search_aliases"]
+    assert "time-series abundance" in info["search_aliases"]
+
+
+def test_ampvis2_timeseries_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_timeseries")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "time_variable": "Date",
+            "group_by": "Plant",
+            "tax_aggregate": "Family",
+            "tax_add": ["Phylum", "Class"],
+            "tax_show_mode": "explicit",
+            "taxonomy_list": "AalborgWWTPs-taxonomy.list",
+            "tax_show": ["f__Caldilineaceae", "p__Elusimicrobia"],
+            "tax_empty": "OTU",
+            "split": True,
+            "scales": "free",
+            "normalise": False,
+            "out_format": "svg",
+            "plot_width": 13,
+            "plot_height": 7.5,
+            "output": "/work/ampvis2_timeseries",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_timeseries/timeseries.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_timeseries(" in command
+    assert 'time_variable = "Date",' in command
+    assert 'group_by = "Plant",' in command
+    assert 'tax_aggregate = "Family",' in command
+    assert 'tax_add = c("Phylum", "Class"),' in command
+    assert 'tax_show = c("f__Caldilineaceae", "p__Elusimicrobia"),' in command
+    assert "tax_class = NULL," in command
+    assert 'tax_empty = "OTU",' in command
+    assert "split = TRUE," in command
+    assert 'scales = "free",' in command
+    assert "normalise = FALSE," in command
+    assert "plotly = FALSE," in command
+    assert 'format = "%Y-%m-%d"' in command
+    assert 'ggsave("/work/ampvis2_timeseries/plot.svg",' in command
+    assert 'device = "svg"' in command
+    assert "    width = 13," in command
+    assert "    height = 7.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_timeseries/timeseries.R")
+
+    default_command = node_class.render_command(
+        {"data": "AalborgWWTPs.rds", "time_variable": "Date", "output": "/work/ampvis2_timeseries"}
+    )
+    assert "group_by =" not in default_command
+    assert 'tax_aggregate = "OTU",' in default_command
+    assert "tax_add = NULL," in default_command
+    assert "tax_show = 6," in default_command
+    assert 'tax_empty = "best",' in default_command
+    assert "split = FALSE," in default_command
+    assert 'scales = "free_y",' in default_command
+    assert "normalise = TRUE," in default_command
+    assert 'device = "pdf"' in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "png"}, tmp_path) == [
+        tmp_path / "ampvis2_timeseries" / "plot.png",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_timeseries" / "plot.pdf",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": "", "time_variable": "Date"}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": ""}) == "time_variable is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": "Date", "tax_aggregate": "bad"}) == (
+        "tax_aggregate must be one of: OTU, Species, Genus, Family, Order, Class, Phylum, Kingdom"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": "Date", "tax_add": ["bad"]}) == (
+        "tax_add contains unsupported values: bad"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": "Date", "tax_show": 0}) == (
+        "tax_show must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "time_variable": "Date", "tax_show_mode": "explicit", "tax_show": []}
+    ) == "tax_show must include at least one taxon when tax_show_mode is explicit"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": "Date", "scales": "bad"}) == (
+        "scales must be one of: fixed, free, free_x, free_y"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": "Date", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": "Date", "plot_height": 0.5}) == (
+        "plot_height must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": "Date"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

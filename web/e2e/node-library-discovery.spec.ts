@@ -1925,6 +1925,43 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_timeseries: {
+    name: 'ampvis2_timeseries',
+    display_name: 'ampvis2 timeseries plot',
+    category: 'metagenomics',
+    description: 'Generate ampvis2 time-series plots of relative read abundance over time.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 timeseries plot', 'amp_timeseries', 'time-series abundance', 'relative read abundance over time', 'date metadata', 'taxon facets', 'microbiome time series'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+        time_variable: { type: 'STRING' },
+      },
+      optional: {
+        metadata_list: { type: 'TSV', default: '' },
+        group_by: { type: 'STRING', default: '' },
+        tax_aggregate: { type: 'STRING', default: 'OTU', options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        tax_add: { type: 'STRING', default: [], multiple: true, options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        tax_show_mode: { type: 'STRING', default: 'number', options: ['number', 'explicit'] },
+        taxonomy_list: { type: 'TSV', default: '' },
+        tax_show: { type: 'STRING', default: 6 },
+        tax_empty: { type: 'STRING', default: 'best', options: ['remove', 'best', 'OTU'] },
+        split: { type: 'BOOLEAN', default: false },
+        scales: { type: 'STRING', default: 'free_y', options: ['fixed', 'free', 'free_x', 'free_y'] },
+        normalise: { type: 'BOOLEAN', default: true },
+        out_format: { type: 'STRING', default: 'pdf', options: ['pdf', 'png', 'svg'] },
+        plot_width: { type: 'FLOAT', default: '', min: 1 },
+        plot_height: { type: 'FLOAT', default: '', min: 1 },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['plot'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_timeseries.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -10429,7 +10466,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('357 nodes available')).toBeVisible();
+  await expect(page.getByText('358 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10503,6 +10540,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ampvis2 set metadata', name: 'ampvis2 set metadata', category: 'metagenomics' },
     { query: 'ampvis2 subset samples', name: 'ampvis2 subset samples', category: 'metagenomics' },
     { query: 'ampvis2 subset data', name: 'ampvis2 subset data', category: 'metagenomics' },
+    { query: 'ampvis2 timeseries plot', name: 'ampvis2 timeseries plot', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
