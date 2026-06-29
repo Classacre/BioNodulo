@@ -12954,6 +12954,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["abyss", "bwa"],
             "doi": "10.1101/gr.214346.116",
         },
+        "bayescan": {
+            "display_name": "BayeScan",
+            "category": "population_genetics",
+            "required_executables": ["bayescan2"],
+            "required_conda_packages": ["bayescan"],
+            "doi": "10.1534/genetics.108.092221",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14180,6 +14187,90 @@ def test_abyss_pe_renders_paired_and_long_read_assembly_command_outputs(tmp_path
         tmp_path / "abyss_pe" / "abyss-unitigs.fa",
         tmp_path / "abyss_pe" / "abyss-indel.fa",
         tmp_path / "abyss_pe" / "abyss-stats.tab",
+    ]
+
+
+def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bayescan")
+    info = _registry().object_info()["bayescan"]
+
+    assert info["output"] == ["TXT", "TXT", "TXT", "TXT", "TXT", "TXT"]
+    assert info["output_name"] == ["log", "selection", "verification", "acceptance_rate", "pilot_runs", "allele_frequencies"]
+    assert "10.1534/genetics.108.092221" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input": "population genotypes.txt",
+            "discard_loci_file": "discard loci.tsv",
+            "snp_genotypes_matrix": True,
+            "fstats": True,
+            "sample_size": 7000,
+            "thinning_interval": 20,
+            "num_pilot_runs": 25,
+            "length_pilot_run": 6000,
+            "burn": 55000,
+            "prior_odds": 12,
+            "lower_prior": 0.05,
+            "higher_prior": 0.95,
+            "threshold": 0.2,
+            "pilot_runs": True,
+            "allele_frequency": True,
+            "output": "/work/bayescan",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/bayescan/output_dir",
+        "&&",
+        "bayescan2",
+        "population genotypes.txt",
+        "-od",
+        "/work/bayescan/output_dir",
+        "-d",
+        "discard loci.tsv",
+        "-fstat",
+        "-snp",
+        "-out_pilot",
+        "-out_freq",
+        "-o",
+        "bayescan",
+        "-n",
+        "7000",
+        "-thin",
+        "20",
+        "-nbp",
+        "25",
+        "-pilot",
+        "6000",
+        "-burn",
+        "55000",
+        "-pr_odds",
+        "12",
+        "-lb_fis",
+        "0.05",
+        "-hb_fis",
+        "0.95",
+        "-aflp_pc",
+        "0.2",
+        ">",
+        "/work/bayescan/bayescan.log",
+    ]
+
+    assert node_class.PLAN_OUTPUTS(
+        {"pilot_runs": True, "allele_frequency": True},
+        tmp_path,
+    ) == [
+        tmp_path / "bayescan" / "bayescan.log",
+        tmp_path / "bayescan" / "output_dir" / "bayescan.sel",
+        tmp_path / "bayescan" / "output_dir" / "bayescan_Verif.txt",
+        tmp_path / "bayescan" / "output_dir" / "bayescan_AccRte.txt",
+        tmp_path / "bayescan" / "output_dir" / "bayescan_prop.txt",
+        tmp_path / "bayescan" / "output_dir" / "bayescan_freq.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bayescan" / "bayescan.log",
+        tmp_path / "bayescan" / "output_dir" / "bayescan.sel",
+        tmp_path / "bayescan" / "output_dir" / "bayescan_Verif.txt",
+        tmp_path / "bayescan" / "output_dir" / "bayescan_AccRte.txt",
     ]
 
 
