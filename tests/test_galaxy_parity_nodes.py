@@ -199,6 +199,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["art"],
             "doi": "10.1093/bioinformatics/btr708",
         },
+        "amplican": {
+            "display_name": "AmpliCan",
+            "category": "crispr",
+            "required_executables": ["Rscript"],
+            "required_conda_packages": ["bioconductor-amplican"],
+            "doi": "10.1101/gr.244293.118",
+        },
         "assembly_stats": {
             "display_name": "Assembly Stats",
             "category": "assembly",
@@ -4789,6 +4796,148 @@ def test_art_solid_renders_paired_and_mate_commands_outputs_and_validates(tmp_pa
         }
     ) == "read_pairs_per_amplicon must be >= 0"
     assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "mate_pair"}) is True
+
+
+def test_amplican_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["amplican"]
+
+    assert info["display_name"] == "AmpliCan"
+    assert info["category"] == "crispr"
+    assert info["description"].startswith("Analyze CRISPR and other genome editing amplicon sequencing")
+    assert info["input"]["required"]["config_file"][0] == "STRING"
+    assert info["input"]["required"]["fastq_files"][0] == "FASTQ_LIST"
+    assert info["input"]["required"]["fastq_files"][1]["multiple"] is True
+    assert info["input"]["optional"]["outputs"][1]["multiple"] is True
+    assert info["input"]["optional"]["outputs"][1]["default"] == [
+        "config_summary",
+        "barcode_reads",
+        "knit_reports",
+        "alignments_rds",
+        "events_filtered_shifted",
+        "events_filtered_shifted_normalized",
+        "raw_events",
+        "unassigned_reads",
+    ]
+    assert info["input"]["optional"]["write_alignment_format"][1]["options"] == ["None", "txt", "fasta"]
+    assert info["output"] == ["CSV", "TSV", "HTML_REPORT", "TXT", "FILE", "FASTA", "TXT", "CSV", "CSV", "CSV", "CSV"]
+    assert info["output_name"] == [
+        "config_summary",
+        "barcode_reads",
+        "output_html",
+        "parameters",
+        "alignments_rds",
+        "alignments_fasta",
+        "alignments_txt",
+        "events_filtered_shifted",
+        "events_filtered_shifted_normalized",
+        "raw_events",
+        "unassigned_reads",
+    ]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["bioconductor-amplican"]
+    assert info["documentation_url"] == "https://bioconductor.org/packages/amplican"
+    assert info["citation_dois"] == ["10.1101/gr.244293.118"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.244293.118"]
+    assert "Accurate analysis of genuine CRISPR editing events with ampliCan" in info["citation_text"]
+    assert "Genome Research" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "CRISPR editing analysis" in info["search_aliases"]
+
+
+def test_amplican_renders_pipeline_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("amplican")
+
+    command = node_class.render_command(
+        {
+            "config_file": "config.csv",
+            "fastq_files": ["R1_001.fastq", "R2_001.fastq"],
+            "fastq_identifiers": ["R1_001.fastq", "R2_001.fastq"],
+            "average_quality": 5,
+            "min_quality": 25,
+            "gap_opening": 20,
+            "gap_extension": 1,
+            "primer_mismatch": 2,
+            "donor_mismatch": 4,
+            "match_scoring": 6,
+            "mismatch_scoring": -3,
+            "base_only": False,
+            "scoring_type": "RNA",
+            "fastq_use": "0.5",
+            "primer_dimer": 25,
+            "event_filter": False,
+            "cut_buffer": 6,
+            "promiscuous_consensus": False,
+            "write_alignment_format": "txt",
+            "outputs": ["config_summary", "knit_reports", "alignments_rds", "raw_events"],
+            "output": "/work/amplican",
+        }
+    )
+    assert command.startswith("mkdir -p /work/amplican/fastq_folder /work/amplican/output_folder && ")
+    assert "ln -s R1_001.fastq /work/amplican/fastq_folder/R1_001.fastq" in command
+    assert "ln -s R2_001.fastq /work/amplican/fastq_folder/R2_001.fastq" in command
+    assert "cat > /work/amplican/amplican_script.R <<'RSCRIPT'" in command
+    assert "amplicanPipeline(" in command
+    assert "  config.csv," in command
+    assert "write_alignments_format = \"txt\"" in command
+    assert "average_quality = 5" in command
+    assert "min_quality = 25" in command
+    assert "match = 6" in command
+    assert "mismatch = -3" in command
+    assert "baseOnly = FALSE" in command
+    assert "type = \"RNA\"" in command
+    assert "fastqfiles = 0.5" in command
+    assert "primer_mismatch = 2" in command
+    assert "donor_mismatch = 4" in command
+    assert "event_filter = FALSE" in command
+    assert "cut_buffer = 6" in command
+    assert "promiscuous_consensus = FALSE" in command
+    assert "Rscript /work/amplican/amplican_script.R" in command
+    assert "mv /work/amplican/output_folder/reports/amplicon_report.html /work/amplican/output_html_extra_files" in command
+
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "outputs": ["config_summary", "knit_reports", "alignments_rds", "raw_events"],
+            "write_alignment_format": "txt",
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "amplican" / "config_summary.csv",
+        tmp_path / "amplican" / "reports" / "index.html",
+        tmp_path / "amplican" / "alignments" / "AlignmentsExperimentSet.rds",
+        tmp_path / "amplican" / "alignments" / "raw_events.csv",
+        tmp_path / "amplican" / "alignments" / "alignments.txt",
+    ]
+
+
+def test_amplican_reduced_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("amplican")
+
+    assert node_class.PLAN_OUTPUTS({"outputs": ["config_summary"], "write_alignment_format": "fasta"}, tmp_path) == [
+        tmp_path / "amplican" / "config_summary.csv",
+        tmp_path / "amplican" / "alignments" / "alignments.fasta",
+    ]
+    assert node_class.PLAN_OUTPUTS({"outputs": ["config_summary"], "write_alignment_format": "None"}, tmp_path) == [
+        tmp_path / "amplican" / "config_summary.csv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"config_file": "", "fastq_files": ["reads.fastq"]}) == (
+        "config_file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"config_file": "config.csv", "fastq_files": []}) == (
+        "at least one FASTQ file is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"config_file": "config.csv", "fastq_files": ["reads.fastq"], "fastq_identifiers": ["bad name.fastq"]}
+    ) == "fastq_identifiers may contain only letters, numbers, underscores, hyphens, and dots"
+    assert node_class.VALIDATE_INPUTS({"config_file": "config.csv", "fastq_files": ["reads.fastq"], "min_quality": 94}) == (
+        "min_quality must be between 0 and 93"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"config_file": "config.csv", "fastq_files": ["reads.fastq"], "write_alignment_format": "bad"}
+    ) == "write_alignment_format must be one of: None, txt, fasta"
+    assert node_class.VALIDATE_INPUTS(
+        {"config_file": "config.csv", "fastq_files": ["reads.fastq"], "outputs": ["bad"]}
+    ) == "outputs contains unsupported values: bad"
+    assert node_class.VALIDATE_INPUTS({"config_file": "config.csv", "fastq_files": ["reads.fastq"]}) is True
 
 
 def test_miniasm_exposes_galaxy_metadata_and_citation() -> None:

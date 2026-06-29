@@ -1011,6 +1011,47 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btr708'],
     citation_text: 'ART: a next-generation sequencing read simulator.',
   },
+  amplican: {
+    name: 'amplican',
+    display_name: 'AmpliCan',
+    category: 'crispr',
+    description: 'Analyze CRISPR and other genome editing amplicon sequencing experiments with ampliCan.',
+    search_aliases: ['Galaxy', 'AmpliCan', 'amplican', 'CRISPR editing analysis', 'genome editing amplicons', 'amplicon sequencing', 'HDR repair', 'base editing'],
+    input: {
+      required: {
+        config_file: { type: 'STRING' },
+        fastq_files: { type: 'FASTQ_LIST', multiple: true },
+      },
+      optional: {
+        fastq_identifiers: { type: 'STRING_LIST', default: [], multiple: true },
+        average_quality: { type: 'INT', default: 0, min: 0, max: 93 },
+        min_quality: { type: 'INT', default: 20, min: 0, max: 93 },
+        gap_opening: { type: 'INT', default: 25, min: 0, max: 40 },
+        gap_extension: { type: 'INT', default: 0, min: 0, max: 40 },
+        primer_mismatch: { type: 'INT', default: 0, min: 0, max: 40 },
+        donor_mismatch: { type: 'INT', default: 3, min: 0, max: 40 },
+        match_scoring: { type: 'INT', default: 5, min: 0, max: 20 },
+        mismatch_scoring: { type: 'INT', default: -4, min: -20, max: 0 },
+        base_only: { type: 'BOOLEAN', default: true },
+        scoring_type: { type: 'STRING', default: 'DNA', options: ['DNA', 'RNA'] },
+        fastq_use: { type: 'STRING', default: '0', options: ['0', '0.5', '1', '2'] },
+        primer_dimer: { type: 'INT', default: 30, min: 0, max: 50 },
+        event_filter: { type: 'BOOLEAN', default: true },
+        cut_buffer: { type: 'INT', default: 5, min: 0, max: 30 },
+        promiscuous_consensus: { type: 'BOOLEAN', default: true },
+        write_alignment_format: { type: 'STRING', default: 'txt', options: ['None', 'txt', 'fasta'] },
+        outputs: { type: 'STRING_LIST', default: ['config_summary', 'barcode_reads', 'knit_reports', 'alignments_rds', 'events_filtered_shifted', 'events_filtered_shifted_normalized', 'raw_events', 'unassigned_reads'], multiple: true, options: ['config_summary', 'barcode_reads', 'knit_reports', 'parameters', 'alignments_rds', 'events_filtered_shifted', 'events_filtered_shifted_normalized', 'raw_events', 'unassigned_reads'] },
+      },
+    },
+    output: ['CSV', 'TSV', 'HTML_REPORT', 'TXT', 'FILE', 'FASTA', 'TXT', 'CSV', 'CSV', 'CSV', 'CSV'],
+    output_name: ['config_summary', 'barcode_reads', 'output_html', 'parameters', 'alignments_rds', 'alignments_fasta', 'alignments_txt', 'events_filtered_shifted', 'events_filtered_shifted_normalized', 'raw_events', 'unassigned_reads'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['bioconductor-amplican'],
+    documentation_url: 'https://bioconductor.org/packages/amplican',
+    citation_dois: ['10.1101/gr.244293.118'],
+    citation_urls: ['https://doi.org/10.1101/gr.244293.118'],
+    citation_text: 'Accurate analysis of genuine CRISPR editing events with ampliCan. Genome Research.',
+  },
   plasflow: {
     name: 'plasflow',
     display_name: 'PlasFlow',
@@ -9226,7 +9267,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('320 nodes available')).toBeVisible();
+  await expect(page.getByText('321 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9273,6 +9314,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Illumina read simulator', name: 'ART Illumina', category: 'simulation' },
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },
     { query: 'SOLiD read simulator', name: 'ART SOLiD', category: 'simulation' },
+    { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'noisy long reads', name: 'Miniasm', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },
