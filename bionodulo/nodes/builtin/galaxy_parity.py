@@ -1830,6 +1830,109 @@ class SeqTKMergePENode(CommandNode):
         }
 
 
+class SeqTKMutFANode(CommandNode):
+    """Apply point mutations to FASTA/Q records with seqtk mutfa."""
+
+    NODE_ID = "seqtk_mutfa"
+    DISPLAY_NAME = "SeqTK Mutate FASTA"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Apply point mutations from a tabular SNP file to FASTA or FASTQ sequences."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk mutfa",
+        "SeqTK mutfa",
+        "point mutations",
+        "SNP mutations",
+        "mutate FASTA",
+        "mutate FASTQ",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTQ")
+    RETURN_NAMES = ("mutated_sequences",)
+    REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _input_ext(cls, inputs: dict[str, Any]) -> str:
+        explicit = str(inputs.get("input_ext", "") or "").strip().lstrip(".")
+        if explicit:
+            return explicit
+        suffixes = Path(str(inputs.get("in_file", ""))).suffixes
+        if len(suffixes) >= 2 and suffixes[-1] == ".gz":
+            return f"{suffixes[-2].lstrip('.')}.gz"
+        if suffixes:
+            return suffixes[-1].lstrip(".")
+        return "fasta"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        ext = cls._input_ext(inputs)
+        if ext in {"fa", "fna"}:
+            ext = "fasta"
+        elif ext in {"fq", "fastqsanger"}:
+            ext = "fastq"
+        elif ext in {"fa.gz", "fna.gz"}:
+            ext = "fasta.gz"
+        elif ext in {"fq.gz", "fastqsanger.gz"}:
+            ext = "fastq.gz"
+        return f"mutated.{ext}"
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._output_name(inputs)}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["seqtk", "mutfa", str(inputs.get("in_file", "")), str(inputs.get("in_snp", ""))]
+        if cls._input_ext(inputs).endswith(".gz"):
+            return (
+                f"{_shell_join(cmd)} | "
+                f"pigz -p ${{GALAXY_SLOTS:-1}} --no-name --no-time "
+                f"> {shlex.quote(cls._out_path(inputs))}"
+            )
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._out_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+                "in_snp": (
+                    "TSV",
+                    {
+                        "description": (
+                            "SNP table with chromosome, 1-based position, placeholder, and replacement base columns"
+                        ),
+                    },
+                ),
+            },
+            "optional": {
+                "input_ext": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "fastq", "fasta.gz", "fastq.gz"],
+                        "description": "Input/output sequence format used to mirror Galaxy format_source metadata",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 
