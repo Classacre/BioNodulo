@@ -1079,6 +1079,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s12859-014-0356-4', 'https://doi.org/10.7717/peerj.10947'],
     citation_text: 'ANGSD: Analysis of Next Generation Sequencing Data; Reproducible, portable, and efficient ancient genome reconstruction with nf-core/eager.',
   },
+  angsd_contamination: {
+    name: 'angsd_contamination',
+    display_name: 'ANGSD X-Contamination',
+    category: 'population_genetics',
+    description: 'Estimate nuclear contamination on the X chromosome for biologically male samples.',
+    search_aliases: ['Galaxy', 'ANGSD X-Contamination', 'angsd_contamination', 'X chromosome contamination', 'nuclear contamination', 'ancient DNA contamination', 'HapMap ChrX', 'EAGER contamination'],
+    input: {
+      required: {
+        icnts_file: { type: 'FILE' },
+        hapmap_file: { type: 'FILE' },
+      },
+      optional: {
+        generate_json: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV', 'JSON'],
+    output_name: ['contamination_report', 'multiqc_json'],
+    required_executables: ['contamination', 'python3'],
+    required_conda_packages: ['angsd', 'samtools', 'python'],
+    documentation_url: 'https://nf-co.re/modules/angsd_contamination/',
+    citation_dois: ['10.1186/s12859-014-0356-4', '10.7717/peerj.10947'],
+    citation_urls: ['https://doi.org/10.1186/s12859-014-0356-4', 'https://doi.org/10.7717/peerj.10947'],
+    citation_text: 'ANGSD: Analysis of Next Generation Sequencing Data; Reproducible, portable, and efficient ancient genome reconstruction with nf-core/eager.',
+  },
   plasflow: {
     name: 'plasflow',
     display_name: 'PlasFlow',
@@ -9294,7 +9318,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('322 nodes available')).toBeVisible();
+  await expect(page.getByText('323 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9343,6 +9367,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'SOLiD read simulator', name: 'ART SOLiD', category: 'simulation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ANGSD internal counts', name: 'ANGSD', category: 'population_genetics' },
+    { query: 'ANGSD X-Contamination', name: 'ANGSD X-Contamination', category: 'population_genetics' },
     { query: 'noisy long reads', name: 'Miniasm', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },

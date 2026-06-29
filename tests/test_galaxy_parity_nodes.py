@@ -213,6 +213,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["angsd", "samtools"],
             "doi": "10.1186/s12859-014-0356-4",
         },
+        "angsd_contamination": {
+            "display_name": "ANGSD X-Contamination",
+            "category": "population_genetics",
+            "required_executables": ["contamination", "python3"],
+            "required_conda_packages": ["angsd", "samtools", "python"],
+            "doi": "10.7717/peerj.10947",
+        },
         "assembly_stats": {
             "display_name": "Assembly Stats",
             "category": "assembly",
@@ -5033,6 +5040,72 @@ def test_angsd_renders_internal_counts_command_outputs_and_validates(tmp_path: P
         {"input_bams": ["sample.bam", "sample2.bam"], "bam_indices": ["sample.bam.bai"], "region": "chr1"}
     ) == "bam_indices must be empty or match input_bams length"
     assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "region": "chr1"}) is True
+
+
+def test_angsd_contamination_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["angsd_contamination"]
+
+    assert info["display_name"] == "ANGSD X-Contamination"
+    assert info["category"] == "population_genetics"
+    assert info["description"] == "Estimate nuclear contamination on the X chromosome for biologically male samples."
+    assert info["input"]["required"]["icnts_file"][0] == "FILE"
+    assert info["input"]["required"]["hapmap_file"][0] == "FILE"
+    assert info["input"]["optional"]["generate_json"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["generate_json"][1]["default"] is False
+    assert info["output"] == ["TSV", "JSON"]
+    assert info["output_name"] == ["contamination_report", "multiqc_json"]
+    assert info["required_executables"] == ["contamination", "python3"]
+    assert info["required_conda_packages"] == ["angsd", "samtools", "python"]
+    assert info["documentation_url"] == "https://nf-co.re/modules/angsd_contamination/"
+    assert info["citation_dois"] == ["10.1186/s12859-014-0356-4", "10.7717/peerj.10947"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1186/s12859-014-0356-4",
+        "https://doi.org/10.7717/peerj.10947",
+    ]
+    assert "ANGSD: Analysis of Next Generation Sequencing Data" in info["citation_text"]
+    assert "nf-core/eager" in info["citation_text"]
+    assert "ANGSD X-Contamination" in info["search_aliases"]
+    assert "nuclear contamination" in info["search_aliases"]
+
+
+def test_angsd_contamination_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("angsd_contamination")
+
+    command = node_class.render_command(
+        {
+            "icnts_file": "output.icnts.gz",
+            "hapmap_file": "HapMap ChrX.gz",
+            "generate_json": True,
+            "output": "/work/angsd_contamination",
+        }
+    )
+    assert command == (
+        "mkdir -p /work/angsd_contamination && "
+        "ln -s output.icnts.gz /work/angsd_contamination/counts.icnts.gz && "
+        "ln -s 'HapMap ChrX.gz' /work/angsd_contamination/hapmap.gz && "
+        "cd /work/angsd_contamination && "
+        "contamination -a counts.icnts.gz -h hapmap.gz 2> contamination_report.out && "
+        "python3 print_x_contamination.py contamination_report.out"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"generate_json": False}, tmp_path) == [
+        tmp_path / "angsd_contamination" / "nuclear_contamination.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"generate_json": True}, tmp_path) == [
+        tmp_path / "angsd_contamination" / "nuclear_contamination.txt",
+        tmp_path / "angsd_contamination" / "nuclear_contamination_mqc.json",
+    ]
+    assert node_class.VALIDATE_INPUTS({"icnts_file": "", "hapmap_file": "hapmap.gz"}) == "icnts_file is required"
+    assert node_class.VALIDATE_INPUTS({"icnts_file": "counts.icnts.gz", "hapmap_file": ""}) == (
+        "hapmap_file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"icnts_file": "counts.icnts", "hapmap_file": "hapmap.gz"}) == (
+        "icnts_file must be a .gz file"
+    )
+    assert node_class.VALIDATE_INPUTS({"icnts_file": "counts.icnts.gz", "hapmap_file": "hapmap.txt"}) == (
+        "hapmap_file must be a .gz file"
+    )
+    assert node_class.VALIDATE_INPUTS({"icnts_file": "counts.icnts.gz", "hapmap_file": "hapmap.gz"}) is True
 
 
 def test_miniasm_exposes_galaxy_metadata_and_citation() -> None:
