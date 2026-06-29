@@ -3240,6 +3240,59 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection.',
   },
+  hyphy_fel: {
+    name: 'hyphy_fel',
+    display_name: 'HyPhy-FEL',
+    category: 'phylogeny',
+    description: 'Detect pervasive site-level selection with HyPhy Fixed Effects Likelihood.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'FEL',
+      'Fixed Effects Likelihood',
+      'pervasive selection',
+      'site-level selection',
+      'diversifying selection',
+      'purifying selection',
+      'synonymous rate variation',
+      'multiple nucleotide substitutions',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE', default: '' },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        gencodeid: { type: 'STRING', default: 'Universal' },
+        branch_sel: { type: 'STRING', default: 'All', options: ['All', 'Internal', 'Leaves', 'Unlabeled-branches', 'specify'] },
+        branch_label: { type: 'STRING', default: '' },
+        multiple_hits: { type: 'STRING', default: 'None', options: ['None', 'Double', 'Double+Triple'] },
+        site_multihit: { type: 'STRING', default: 'Estimate', options: ['Estimate', 'No'] },
+        srv: { type: 'STRING', default: 'Yes', options: ['Yes', 'No'] },
+        pvalue: { type: 'FLOAT', default: 0.1 },
+        ci: { type: 'BOOLEAN', default: false },
+        resample: { type: 'INT', default: 0 },
+        restrict_sites: { type: 'BOOLEAN', default: false },
+        limit_to_sites: { type: 'STRING', default: 'null' },
+        save_lf_for_sites: { type: 'STRING', default: 'null' },
+        precision: { type: 'STRING', default: 'standard', options: ['standard', 'reduced'] },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes', options: ['Yes', 'Constrain', 'No'] },
+        full_model: { type: 'BOOLEAN', default: true },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['fel_output', 'fel_md_report'],
+    required_executables: ['HYPHYMPI', 'mpirun'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://hyphy.org/methods/selection-methods/#FEL',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/msi105'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/msi105'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Not So Different After All: A Comparison of Methods for Detecting Amino Acid Sites Under Selection.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6210,7 +6263,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('233 nodes available')).toBeVisible();
+  await expect(page.getByText('234 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6317,6 +6370,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'CodonToProtein amino acid translation', name: 'HyPhy-Conv', category: 'phylogeny' },
     { query: 'CleanStopCodons duplicate sequences', name: 'HyPhy-CLN', category: 'phylogeny' },
     { query: 'directional selection', name: 'HyPhy-FADE', category: 'phylogeny' },
+    { query: 'Fixed Effects Likelihood', name: 'HyPhy-FEL', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

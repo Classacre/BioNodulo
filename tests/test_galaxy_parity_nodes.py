@@ -611,6 +611,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/mst030",
         },
+        "hyphy_fel": {
+            "display_name": "HyPhy-FEL",
+            "category": "phylogeny",
+            "required_executables": ["HYPHYMPI", "mpirun"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msi105",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -8087,6 +8094,200 @@ def test_hyphy_fade_validates_wrapper_inputs() -> None:
             "method": "Variational-Bayes",
             "grid": 20,
             "concentration_parameter": 0.5,
+        }
+    ) is True
+
+
+def test_hyphy_fel_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_fel"]
+
+    assert info["display_name"] == "HyPhy-FEL"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Detect pervasive site-level selection with HyPhy Fixed Effects Likelihood."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "FEL",
+        "Fixed Effects Likelihood",
+        "pervasive selection",
+        "site-level selection",
+        "diversifying selection",
+        "purifying selection",
+        "synonymous rate variation",
+        "multiple nucleotide substitutions",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["fel_output", "fel_md_report"]
+    assert info["required_executables"] == ["HYPHYMPI", "mpirun"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://hyphy.org/methods/selection-methods/#FEL"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/molbev/msi105"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/msi105",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Not So Different After All: A Comparison of Methods for Detecting Amino Acid Sites Under Selection."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["branch_sel"][1]["default"] == "All"
+    assert info["input"]["optional"]["branch_sel"][1]["options"] == [
+        "All",
+        "Internal",
+        "Leaves",
+        "Unlabeled-branches",
+        "specify",
+    ]
+    assert info["input"]["optional"]["multiple_hits"][1]["default"] == "None"
+    assert info["input"]["optional"]["multiple_hits"][1]["options"] == ["None", "Double", "Double+Triple"]
+    assert info["input"]["optional"]["site_multihit"][1]["default"] == "Estimate"
+    assert info["input"]["optional"]["site_multihit"][1]["options"] == ["Estimate", "No"]
+    assert info["input"]["optional"]["srv"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["srv"][1]["options"] == ["Yes", "No"]
+    assert info["input"]["optional"]["pvalue"][1]["default"] == 0.1
+    assert info["input"]["optional"]["ci"][1]["default"] is False
+    assert info["input"]["optional"]["resample"][1]["default"] == 0
+    assert info["input"]["optional"]["restrict_sites"][1]["default"] is False
+    assert info["input"]["optional"]["limit_to_sites"][1]["default"] == "null"
+    assert info["input"]["optional"]["save_lf_for_sites"][1]["default"] == "null"
+    assert info["input"]["optional"]["precision"][1]["default"] == "standard"
+    assert info["input"]["optional"]["precision"][1]["options"] == ["standard", "reduced"]
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+    assert info["input"]["optional"]["full_model"][1]["default"] is True
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_fel_renders_default_mpi_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_fel")
+
+    assert node_class.render_command(
+        {
+            "input_file": "absrel-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "absrel-in1.nhx",
+            "output": "/work/hyphy_fel",
+        }
+    ) == (
+        "ln -s absrel-in1.nhx input.nhx && "
+        "ln -s absrel-in1.fa input.fasta && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 4} '
+        "HYPHYMPI fel --alignment ./input.fasta --tree input.nhx --code Universal "
+        "--multiple-hits None --branches All --srv Yes --pvalue 0.1 --precision standard "
+        "--output /work/hyphy_fel/fel_output.json --kill-zero-lengths Yes --full-model Yes "
+        "> /work/hyphy_fel/fel_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_fel" / "fel_output.json",
+        tmp_path / "hyphy_fel" / "fel_stdout.md",
+    ]
+
+
+def test_hyphy_fel_renders_advanced_mpi_command_without_tree() -> None:
+    node_class = _node_class("hyphy_fel")
+
+    command = node_class.render_command(
+        {
+            "input_file": "codon alignment.nex",
+            "input_ext": "nex",
+            "gencodeid": "Vertebrate-mtDNA",
+            "branch_sel": "specify",
+            "branch_label": "Foreground clade",
+            "multiple_hits": "Double+Triple",
+            "site_multihit": "No",
+            "srv": "No",
+            "pvalue": 0.05,
+            "ci": True,
+            "resample": 25,
+            "restrict_sites": True,
+            "limit_to_sites": "1,2,3",
+            "save_lf_for_sites": "4,5",
+            "precision": "reduced",
+            "kill_zero_lengths": "Constrain",
+            "full_model": False,
+            "threads": 8,
+            "output": "/work/hyphy_fel",
+        }
+    )
+
+    assert command == (
+        "ln -s 'codon alignment.nex' input.nex && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 8} '
+        "HYPHYMPI fel --alignment ./input.nex --code Vertebrate-mtDNA --multiple-hits Double+Triple "
+        "--branches 'Foreground clade' --srv No --pvalue 0.05 --resample 25 --limit-to-sites 1,2,3 "
+        "--save-lf-for-sites 4,5 --precision reduced --ci Yes --output /work/hyphy_fel/fel_output.json "
+        "--site-multihit No --kill-zero-lengths Constrain > /work/hyphy_fel/fel_stdout.md"
+    )
+    assert "--tree" not in command
+    assert "--full-model" not in command
+
+
+def test_hyphy_fel_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_fel")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-FEL alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "input_ext": "stockholm"}) == (
+        "Unsupported HyPhy-FEL input extension: stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "Foreground"}) == (
+        "Unsupported HyPhy-FEL branch selection: Foreground"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "specify"}) == (
+        "HyPhy-FEL custom branch selection requires a branch label"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "multiple_hits": "Triple"}) == (
+        "Unsupported HyPhy-FEL multiple-hits mode: Triple"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "multiple_hits": "Double", "site_multihit": "Global"}
+    ) == "Unsupported HyPhy-FEL site-multihit mode: Global"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "srv": "Maybe"}) == (
+        "Unsupported HyPhy-FEL synonymous rate variation setting: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "pvalue": 1.1}) == (
+        "HyPhy-FEL p-value threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "resample": 1001}) == (
+        "HyPhy-FEL resampling replicates must be between 0 and 1000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "precision": "exact"}) == (
+        "Unsupported HyPhy-FEL optimization precision: exact"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-FEL zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-FEL threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "input_ext": "fasta",
+            "gencodeid": "Universal",
+            "branch_sel": "Internal",
+            "multiple_hits": "Double",
+            "site_multihit": "Estimate",
+            "srv": "Yes",
+            "pvalue": 0.1,
+            "resample": 0,
+            "precision": "standard",
+            "kill_zero_lengths": "Yes",
+            "threads": 4,
         }
     ) is True
 
