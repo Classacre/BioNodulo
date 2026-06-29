@@ -2613,6 +2613,66 @@ def test_flash_renders_collection_reads_command_and_validates_inputs(tmp_path: P
     )
 
 
+def test_fraggenescan_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["fraggenescan"]
+
+    assert node_info["display_name"] == "FragGeneScan"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Find complete and fragmented genes")
+    assert node_info["output"] == ["TSV", "FASTA", "FASTA", "GFF"]
+    assert node_info["output_name"] == ["coordinates", "nucleotide_sequences", "protein_sequences", "gff"]
+    assert node_info["required_executables"] == ["run_FragGeneScan.pl"]
+    assert node_info["required_conda_packages"] == ["fraggenescan"]
+    assert node_info["documentation_url"] == "https://omics.informatics.indiana.edu/FragGeneScan/"
+    assert node_info["citation_dois"] == ["10.1093/nar/gkq747"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/nar/gkq747"]
+    assert "FragGeneScan" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "fragmented genes" in node_info["search_aliases"]
+
+
+def test_fraggenescan_renders_prediction_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("fraggenescan")
+
+    assert node_class.render_command(
+        {
+            "genome": "short reads.fasta",
+            "complete": False,
+            "train": "illumina_10",
+            "threads": 6,
+            "output": "/work/fraggenescan",
+        }
+    ) == [
+        "run_FragGeneScan.pl",
+        "-genome",
+        "short reads.fasta",
+        "-out",
+        "/work/fraggenescan/output_file_name",
+        "-complete",
+        "0",
+        "-train",
+        "illumina_10",
+        "-thread=${GALAXY_SLOTS:-6}",
+    ]
+    assert node_class.render_command(
+        {
+            "genome": "complete-genome.fna",
+            "complete": True,
+            "train": "complete",
+            "output": "/work/fraggenescan",
+        }
+    )[-3:] == ["-train", "complete", "-thread=${GALAXY_SLOTS:-4}"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "fraggenescan" / "output_file_name.out",
+        tmp_path / "fraggenescan" / "output_file_name.ffn",
+        tmp_path / "fraggenescan" / "output_file_name.faa",
+        tmp_path / "fraggenescan" / "output_file_name.gff",
+    ]
+    assert node_class.VALIDATE_INPUTS({"genome": ""}) == "input FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"genome": "reads.fa", "threads": 0}) == "threads must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"genome": "reads.fa", "threads": 1}) is True
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 

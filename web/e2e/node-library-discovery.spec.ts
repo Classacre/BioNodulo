@@ -975,6 +975,53 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btr507'],
     citation_text: 'FLASH: fast length adjustment of short reads to improve genome assemblies.',
   },
+  fraggenescan: {
+    name: 'fraggenescan',
+    display_name: 'FragGeneScan',
+    category: 'annotation',
+    description: 'Find complete and fragmented genes in short reads, incomplete assemblies, or complete genomes.',
+    search_aliases: ['Galaxy', 'FragGeneScan', 'fraggenescan', 'run_FragGeneScan.pl', 'fragmented genes', 'gene prediction', 'short reads', 'prokaryotic genes'],
+    input: {
+      required: {
+        genome: { type: 'FASTA' },
+      },
+      optional: {
+        complete: { type: 'BOOLEAN', default: false },
+        train: {
+          type: 'STRING',
+          default: 'complete',
+          options: [
+            '454_5',
+            '454_10',
+            '454_30',
+            'complete',
+            'gene',
+            'illumina_1',
+            'illumina_5',
+            'illumina_10',
+            'noncoding',
+            'pwm',
+            'rgene',
+            'sanger_5',
+            'sanger_10',
+            'start',
+            'start1',
+            'stop',
+            'stop1',
+          ],
+        },
+        threads: { type: 'INT', default: 4, min: 1, max: 64 },
+      },
+    },
+    output: ['TSV', 'FASTA', 'FASTA', 'GFF'],
+    output_name: ['coordinates', 'nucleotide_sequences', 'protein_sequences', 'gff'],
+    required_executables: ['run_FragGeneScan.pl'],
+    required_conda_packages: ['fraggenescan'],
+    documentation_url: 'https://omics.informatics.indiana.edu/FragGeneScan/',
+    citation_dois: ['10.1093/nar/gkq747'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkq747'],
+    citation_text: 'FragGeneScan: predicting genes in short and error-prone reads.',
+  },
   prinseq: {
     name: 'prinseq',
     display_name: 'PRINSEQ',
@@ -6879,7 +6926,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('252 nodes available')).toBeVisible();
+  await expect(page.getByText('253 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6928,6 +6975,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
     { query: 'clustalw2', name: 'ClustalW', category: 'phylogeny' },
     { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
+    { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },
