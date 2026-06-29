@@ -2620,6 +2620,75 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.3732/apps.1600016'],
     citation_text: 'HybPiper: Extracting coding sequence and introns for phylogenetics from high-throughput sequencing reads using target enrichment.',
   },
+  hyphy_absrel: {
+    name: 'hyphy_absrel',
+    display_name: 'HyPhy-aBSREL',
+    category: 'phylogeny',
+    description: 'Detect episodic diversifying selection with adaptive Branch-Site Random Effects Likelihood.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'aBSREL',
+      'adaptive branch-site random effects likelihood',
+      'episodic diversifying selection',
+      'selection',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE', default: '' },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        gencodeid: {
+          type: 'STRING',
+          default: 'Universal',
+          options: [
+            'Universal',
+            'Vertebrate-mtDNA',
+            'Yeast-mtDNA',
+            'Mold-Protozoan-mtDNA',
+            'Invertebrate-mtDNA',
+            'Ciliate-Nuclear',
+            'Echinoderm-mtDNA',
+            'Euplotid-Nuclear',
+            'Alt-Yeast-Nuclear',
+            'Ascidian-mtDNA',
+            'Flatworm-mtDNA',
+            'Blepharisma-Nuclear',
+            'Chlorophycean-mtDNA',
+            'Trematode-mtDNA',
+            'Scenedesmus-obliquus-mtDNA',
+            'Thraustochytrium-mtDNA',
+            'Pterobranchia-mtDNA',
+            'SR1-and-Gracilibacteria',
+            'Pachysolen-Nuclear',
+            'Mesodinium-Nuclear',
+            'Peritrich-Nuclear',
+            'Cephalodiscidae-mtDNA',
+          ],
+        },
+        branch_sel: { type: 'STRING', default: 'All', options: ['All', 'Internal', 'Leaves', 'Unlabeled-branches', 'specify'] },
+        branch_label: { type: 'STRING', default: '' },
+        multiple_hits: { type: 'STRING', default: 'None', options: ['None', 'Double', 'Double+Triple'] },
+        blb: { type: 'FLOAT', default: 1.0 },
+        srv_enabled: { type: 'BOOLEAN', default: true },
+        syn_rates: { type: 'INT', default: 3 },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes', options: ['Yes', 'Constrain', 'No'] },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['TEXT', 'JSON'],
+    output_name: ['absrel_md_report', 'absrel_output'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://www.hyphy.org/methods/selection-methods/#absrel',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/msv022'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/msv022'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Less Is More: an adaptive branch-site random effects model for efficient detection of episodic diversifying selection.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5590,7 +5659,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('224 nodes available')).toBeVisible();
+  await expect(page.getByText('225 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5688,6 +5757,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'pathway abundance', name: 'HUMAnN Unpack Pathways', category: 'metagenomics' },
     { query: 'focal feature', name: 'HUMAnN Barplot', category: 'metagenomics' },
     { query: 'targeted sequence capture', name: 'HybPiper', category: 'phylogeny' },
+    { query: 'episodic diversifying selection', name: 'HyPhy-aBSREL', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

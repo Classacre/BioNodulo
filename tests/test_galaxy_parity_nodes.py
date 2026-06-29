@@ -576,6 +576,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hybpiper"],
             "doi": "10.3732/apps.1600016",
         },
+        "hyphy_absrel": {
+            "display_name": "HyPhy-aBSREL",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msv022",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -7162,6 +7169,187 @@ def test_hybpiper_validates_wrapper_inputs() -> None:
             "paired_forward": "R1.fastq",
             "paired_reverse": "R2.fastq",
             "sample_name": "NZ874",
+        }
+    ) is True
+
+
+def test_hyphy_absrel_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_absrel"]
+
+    assert info["display_name"] == "HyPhy-aBSREL"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == (
+        "Detect episodic diversifying selection with adaptive Branch-Site Random Effects Likelihood."
+    )
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "aBSREL",
+        "adaptive branch-site random effects likelihood",
+        "episodic diversifying selection",
+        "selection",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["TEXT", "JSON"]
+    assert info["output_name"] == ["absrel_md_report", "absrel_output"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://www.hyphy.org/methods/selection-methods/#absrel"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/molbev/msv022"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/msv022",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Less Is More: an adaptive branch-site random effects model for efficient detection of "
+        "episodic diversifying selection."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["gencodeid"][1]["options"] == [
+        "Universal",
+        "Vertebrate-mtDNA",
+        "Yeast-mtDNA",
+        "Mold-Protozoan-mtDNA",
+        "Invertebrate-mtDNA",
+        "Ciliate-Nuclear",
+        "Echinoderm-mtDNA",
+        "Euplotid-Nuclear",
+        "Alt-Yeast-Nuclear",
+        "Ascidian-mtDNA",
+        "Flatworm-mtDNA",
+        "Blepharisma-Nuclear",
+        "Chlorophycean-mtDNA",
+        "Trematode-mtDNA",
+        "Scenedesmus-obliquus-mtDNA",
+        "Thraustochytrium-mtDNA",
+        "Pterobranchia-mtDNA",
+        "SR1-and-Gracilibacteria",
+        "Pachysolen-Nuclear",
+        "Mesodinium-Nuclear",
+        "Peritrich-Nuclear",
+        "Cephalodiscidae-mtDNA",
+    ]
+    assert info["input"]["optional"]["branch_sel"][1]["default"] == "All"
+    assert info["input"]["optional"]["branch_sel"][1]["options"] == [
+        "All",
+        "Internal",
+        "Leaves",
+        "Unlabeled-branches",
+        "specify",
+    ]
+    assert info["input"]["optional"]["multiple_hits"][1]["default"] == "None"
+    assert info["input"]["optional"]["multiple_hits"][1]["options"] == ["None", "Double", "Double+Triple"]
+    assert info["input"]["optional"]["srv_enabled"][1]["default"] is True
+    assert info["input"]["optional"]["syn_rates"][1]["default"] == 3
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+
+
+def test_hyphy_absrel_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_absrel")
+
+    assert node_class.render_command(
+        {
+            "input_file": "absrel-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "absrel-in1.nhx",
+            "output": "/work/hyphy_absrel",
+        }
+    ) == (
+        "ln -s absrel-in1.nhx input.nhx && "
+        "ln -s absrel-in1.fa input.fasta && "
+        "ln -s /work/hyphy_absrel/absrel_output.json input.fasta.aBSREL.json && "
+        "hyphy CPU=4 absrel --alignment ./input.fasta --tree input.nhx --code Universal "
+        "--branches All --output /work/hyphy_absrel/absrel_output.json --multiple-hits None "
+        "--srv Yes --syn-rates 3 --blb 1.0 --kill-zero-lengths Yes > /work/hyphy_absrel/absrel_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_absrel" / "absrel_stdout.md",
+        tmp_path / "hyphy_absrel" / "absrel_output.json",
+    ]
+
+
+def test_hyphy_absrel_renders_custom_branch_command_without_tree_or_srv() -> None:
+    node_class = _node_class("hyphy_absrel")
+
+    command = node_class.render_command(
+        {
+            "input_file": "codon alignment.nex",
+            "input_ext": "nex",
+            "gencodeid": "Vertebrate-mtDNA",
+            "branch_sel": "specify",
+            "branch_label": "Foreground clade",
+            "multiple_hits": "Double+Triple",
+            "srv_enabled": False,
+            "blb": 0.5,
+            "kill_zero_lengths": "Constrain",
+            "threads": 8,
+            "output": "/work/hyphy_absrel",
+        }
+    )
+
+    assert command == (
+        "ln -s 'codon alignment.nex' input.nex && "
+        "ln -s /work/hyphy_absrel/absrel_output.json input.nex.aBSREL.json && "
+        "hyphy CPU=8 absrel --alignment ./input.nex --code Vertebrate-mtDNA "
+        "--branches 'Foreground clade' --output /work/hyphy_absrel/absrel_output.json "
+        "--multiple-hits Double+Triple --blb 0.5 --kill-zero-lengths Constrain "
+        "> /work/hyphy_absrel/absrel_stdout.md"
+    )
+    assert "--tree" not in command
+    assert "--srv" not in command
+    assert "--syn-rates" not in command
+
+
+def test_hyphy_absrel_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_absrel")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-aBSREL alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "Foreground"}) == (
+        "Unsupported HyPhy-aBSREL branch selection: Foreground"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "specify"}) == (
+        "HyPhy-aBSREL custom branch selection requires a branch label"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "multiple_hits": "Triple"}) == (
+        "Unsupported HyPhy-aBSREL multiple-hits mode: Triple"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "srv_enabled": True, "syn_rates": 0}) == (
+        "HyPhy-aBSREL synonymous rate classes must be between 1 and 10"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-aBSREL zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-aBSREL threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "blb": -0.1}) == (
+        "HyPhy-aBSREL BLB resampling value must be non-negative"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "branch_sel": "specify",
+            "branch_label": "Foreground",
+            "gencodeid": "Universal",
+            "multiple_hits": "Double",
+            "srv_enabled": True,
+            "syn_rates": 3,
+            "kill_zero_lengths": "Yes",
+            "threads": 4,
+            "blb": 1.0,
         }
     ) is True
 
