@@ -7966,6 +7966,225 @@ class AlphaGenomeIntervalPredictorNode(CommandNode):
         }
 
 
+class AlphaGenomeISMScannerNode(CommandNode):
+    """Perform in-silico saturation mutagenesis with AlphaGenome."""
+
+    NODE_ID = "alphagenome_ism_scanner"
+    DISPLAY_NAME = "AlphaGenome ISM Scanner"
+    REQUIRED_CONDA_PACKAGES = ["alphagenome", "cyvcf2", "pandas"]
+    CATEGORY = "ai"
+    DESCRIPTION = "Perform in-silico saturation mutagenesis with AlphaGenome."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AlphaGenome",
+        "alphagenome",
+        "AlphaGenome saturation mutagenesis",
+        "in-silico saturation mutagenesis",
+        "ISM scanner",
+        "score_ism_variants",
+        "variant scorer",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("ism_scores",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://www.alphagenomedocs.com/"
+    CITATION_DOIS = [ALPHAGENOME_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{ALPHAGENOME_CITATION_DOI}"]
+    CITATION_TEXT = ALPHAGENOME_CITATION_TEXT
+    VERSION = "0.6.1+galaxy1"
+    SHELL = True
+
+    ORGANISMS = ["human", "mouse"]
+    SCORERS = [
+        "RNA_SEQ",
+        "RNA_SEQ_ACTIVE",
+        "ATAC",
+        "ATAC_ACTIVE",
+        "DNASE",
+        "DNASE_ACTIVE",
+        "CAGE",
+        "CAGE_ACTIVE",
+        "PROCAP",
+        "PROCAP_ACTIVE",
+        "CHIP_TF",
+        "CHIP_TF_ACTIVE",
+        "CHIP_HISTONE",
+        "CHIP_HISTONE_ACTIVE",
+        "SPLICE_SITES",
+        "SPLICE_SITE_USAGE",
+        "SPLICE_JUNCTIONS",
+        "CONTACT_MAPS",
+        "POLYADENYLATION",
+    ]
+    SEQUENCE_LENGTHS = ["16KB", "128KB", "512KB", "1MB"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/ism_scores.tsv"
+
+    @classmethod
+    def _scorers(cls, inputs: dict[str, Any], *, use_default: bool = True) -> list[str]:
+        if "scorers" not in inputs:
+            return ["RNA_SEQ", "ATAC"] if use_default else []
+        return _as_list(inputs.get("scorers"))
+
+    @classmethod
+    def _int_range(
+        cls,
+        inputs: dict[str, Any],
+        name: str,
+        default: int,
+        minimum: int,
+        maximum: int,
+    ) -> bool | str:
+        try:
+            value = int(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if value < minimum or value > maximum:
+            return f"{name} must be between {minimum} and {maximum}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        max_workers = inputs.get("max_workers", 1) or 1
+        slots = f"${{GALAXY_SLOTS:-{max_workers}}}"
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "alphagenome_ism_scanner.py")),
+            "--input",
+            str(inputs.get("input_bed", "")),
+            "--output",
+            cls._output_path(inputs),
+            "--organism",
+            str(inputs.get("organism", "human") or "human"),
+            "--scorers",
+            *cls._scorers(inputs),
+            "--sequence-length",
+            str(inputs.get("sequence_length", "1MB") or "1MB"),
+            "--max-regions",
+            str(inputs.get("max_regions", 10)),
+            "--max-region-width",
+            str(inputs.get("max_region_width", 200)),
+            "--max-workers",
+            slots,
+        ]
+        _add_if_value(cmd, "--test-fixture", inputs.get("test_fixture"))
+        _add_if_value(cmd, "--mock-ism-results", inputs.get("mock_ism_results"))
+        return _shell_join(cmd).replace(shlex.quote(slots), slots)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "ism_scores.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_bed", "")).strip():
+            return "input_bed is required"
+        scorers = cls._scorers(inputs, use_default=True)
+        if not scorers:
+            return "at least one scorer is required"
+        unsupported = [value for value in scorers if value not in cls.SCORERS]
+        if unsupported:
+            return f"scorers contains unsupported values: {', '.join(unsupported)}"
+        organism = str(inputs.get("organism", "human") or "human")
+        if organism not in cls.ORGANISMS:
+            return f"organism must be one of: {', '.join(cls.ORGANISMS)}"
+        sequence_length = str(inputs.get("sequence_length", "1MB") or "1MB")
+        if sequence_length not in cls.SEQUENCE_LENGTHS:
+            return f"sequence_length must be one of: {', '.join(cls.SEQUENCE_LENGTHS)}"
+        for name, default, minimum, maximum in [
+            ("max_regions", 10, 1, 100),
+            ("max_region_width", 200, 1, 1000),
+            ("max_workers", 1, 1, 128),
+        ]:
+            result = cls._int_range(inputs, name, default, minimum, maximum)
+            if result is not True:
+                return result
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bed": ("BED", {"description": "BED regions to scan with AlphaGenome saturation mutagenesis"}),
+            },
+            "optional": {
+                "organism": (
+                    "STRING",
+                    {"default": "human", "options": cls.ORGANISMS, "description": "AlphaGenome organism assembly context"},
+                ),
+                "scorers": (
+                    "STRING_LIST",
+                    {
+                        "default": ["RNA_SEQ", "ATAC"],
+                        "multiple": True,
+                        "options": cls.SCORERS,
+                        "description": "AlphaGenome recommended variant scorers to run",
+                    },
+                ),
+                "sequence_length": (
+                    "STRING",
+                    {
+                        "default": "1MB",
+                        "options": cls.SEQUENCE_LENGTHS,
+                        "description": "Prediction window size around each scanned region",
+                    },
+                ),
+                "max_regions": (
+                    "INT",
+                    {"default": 10, "min": 1, "max": 100, "description": "Maximum BED regions to scan"},
+                ),
+                "max_region_width": (
+                    "INT",
+                    {
+                        "default": 200,
+                        "min": 1,
+                        "max": 1000,
+                        "description": "Maximum width per scanned region before center trimming",
+                    },
+                ),
+                "max_workers": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 128,
+                        "advanced": True,
+                        "description": "Fallback worker count used when GALAXY_SLOTS is unset",
+                    },
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "alphagenome_ism_scanner.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy AlphaGenome ISM scanner wrapper script",
+                    },
+                ),
+                "test_fixture": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Optional fixture JSON that bypasses the AlphaGenome API",
+                    },
+                ),
+                "mock_ism_results": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Optional mock AnnData JSON for exercising ISM post-processing",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",

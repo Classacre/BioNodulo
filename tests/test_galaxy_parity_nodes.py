@@ -227,6 +227,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["alphagenome", "cyvcf2", "pandas"],
             "doi": "10.1038/s41586-025-10014-0",
         },
+        "alphagenome_ism_scanner": {
+            "display_name": "AlphaGenome ISM Scanner",
+            "category": "ai",
+            "required_executables": ["python"],
+            "required_conda_packages": ["alphagenome", "cyvcf2", "pandas"],
+            "doi": "10.1038/s41586-025-10014-0",
+        },
         "ancombc": {
             "display_name": "ANCOM-BC",
             "category": "metagenomics",
@@ -5393,6 +5400,133 @@ def test_alphagenome_interval_predictor_renders_command_outputs_and_validates(tm
         "ontology_terms may contain only letters, numbers, colons, commas, and spaces"
     )
     assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "output_types": ["RNA_SEQ"]}) is True
+
+
+def test_alphagenome_ism_scanner_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["alphagenome_ism_scanner"]
+
+    assert info["display_name"] == "AlphaGenome ISM Scanner"
+    assert info["category"] == "ai"
+    assert info["description"] == "Perform in-silico saturation mutagenesis with AlphaGenome."
+    assert info["input"]["required"]["input_bed"][0] == "BED"
+    assert info["input"]["optional"]["organism"][1]["default"] == "human"
+    assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
+    assert info["input"]["optional"]["scorers"][0] == "STRING"
+    assert info["input"]["optional"]["scorers"][1]["default"] == ["RNA_SEQ", "ATAC"]
+    assert info["input"]["optional"]["scorers"][1]["multiple"] is True
+    assert info["input"]["optional"]["scorers"][1]["options"] == [
+        "RNA_SEQ",
+        "RNA_SEQ_ACTIVE",
+        "ATAC",
+        "ATAC_ACTIVE",
+        "DNASE",
+        "DNASE_ACTIVE",
+        "CAGE",
+        "CAGE_ACTIVE",
+        "PROCAP",
+        "PROCAP_ACTIVE",
+        "CHIP_TF",
+        "CHIP_TF_ACTIVE",
+        "CHIP_HISTONE",
+        "CHIP_HISTONE_ACTIVE",
+        "SPLICE_SITES",
+        "SPLICE_SITE_USAGE",
+        "SPLICE_JUNCTIONS",
+        "CONTACT_MAPS",
+        "POLYADENYLATION",
+    ]
+    assert info["input"]["optional"]["sequence_length"][1]["default"] == "1MB"
+    assert info["input"]["optional"]["sequence_length"][1]["options"] == ["16KB", "128KB", "512KB", "1MB"]
+    assert info["input"]["optional"]["max_regions"][1]["default"] == 10
+    assert info["input"]["optional"]["max_regions"][1]["min"] == 1
+    assert info["input"]["optional"]["max_regions"][1]["max"] == 100
+    assert info["input"]["optional"]["max_region_width"][1]["default"] == 200
+    assert info["input"]["optional"]["max_region_width"][1]["min"] == 1
+    assert info["input"]["optional"]["max_region_width"][1]["max"] == 1000
+    assert info["input"]["optional"]["max_workers"][1]["default"] == 1
+    assert info["input"]["optional"]["max_workers"][1]["advanced"] is True
+    assert info["input"]["optional"]["script_path"][1]["default"] == "alphagenome_ism_scanner.py"
+    assert info["input"]["optional"]["script_path"][1]["advanced"] is True
+    assert info["input"]["optional"]["test_fixture"][1]["default"] == ""
+    assert info["input"]["optional"]["mock_ism_results"][1]["default"] == ""
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["ism_scores"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["alphagenome", "cyvcf2", "pandas"]
+    assert info["documentation_url"] == "https://www.alphagenomedocs.com/"
+    assert info["citation_dois"] == ["10.1038/s41586-025-10014-0"]
+    assert info["citation_urls"] == ["https://doi.org/10.1038/s41586-025-10014-0"]
+    assert "Advancing regulatory variant effect prediction with AlphaGenome" in info["citation_text"]
+    assert "AlphaGenome saturation mutagenesis" in info["search_aliases"]
+
+
+def test_alphagenome_ism_scanner_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("alphagenome_ism_scanner")
+
+    assert node_class.render_command(
+        {
+            "input_bed": "regions.bed",
+            "organism": "mouse",
+            "scorers": ["RNA_SEQ", "ATAC_ACTIVE"],
+            "sequence_length": "128KB",
+            "max_regions": 2,
+            "max_region_width": 25,
+            "max_workers": 8,
+            "script_path": "/tools/alphagenome/alphagenome_ism_scanner.py",
+            "test_fixture": "test-data/fixture_ism_scanner.json",
+            "mock_ism_results": "test-data/mock_ism_multi_region.json",
+            "output": "/work/alphagenome_ism_scanner",
+        }
+    ) == (
+        "python /tools/alphagenome/alphagenome_ism_scanner.py --input regions.bed "
+        "--output /work/alphagenome_ism_scanner/ism_scores.tsv --organism mouse "
+        "--scorers RNA_SEQ ATAC_ACTIVE --sequence-length 128KB --max-regions 2 "
+        "--max-region-width 25 --max-workers ${GALAXY_SLOTS:-8} "
+        "--test-fixture test-data/fixture_ism_scanner.json "
+        "--mock-ism-results test-data/mock_ism_multi_region.json"
+    )
+
+    default_command = node_class.render_command(
+        {
+            "input_bed": "regions with space.bed",
+            "output": "/work/alphagenome_ism_scanner",
+        }
+    )
+    assert default_command == (
+        "python alphagenome_ism_scanner.py --input 'regions with space.bed' "
+        "--output /work/alphagenome_ism_scanner/ism_scores.tsv --organism human "
+        "--scorers RNA_SEQ ATAC --sequence-length 1MB --max-regions 10 "
+        "--max-region-width 200 --max-workers ${GALAXY_SLOTS:-1}"
+    )
+    assert "--test-fixture" not in default_command
+    assert "--mock-ism-results" not in default_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "alphagenome_ism_scanner" / "ism_scores.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_bed": "", "scorers": ["RNA_SEQ"]}) == "input_bed is required"
+    assert node_class.VALIDATE_INPUTS({"input_bed": "regions.bed", "scorers": []}) == (
+        "at least one scorer is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "regions.bed", "scorers": ["BAD"]}) == (
+        "scorers contains unsupported values: BAD"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "regions.bed", "organism": "rat"}) == (
+        "organism must be one of: human, mouse"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "regions.bed", "sequence_length": "2MB"}) == (
+        "sequence_length must be one of: 16KB, 128KB, 512KB, 1MB"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "regions.bed", "max_regions": 0}) == (
+        "max_regions must be between 1 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "regions.bed", "max_region_width": 1001}) == (
+        "max_region_width must be between 1 and 1000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "regions.bed", "max_workers": 0}) == (
+        "max_workers must be between 1 and 128"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "regions.bed", "scorers": ["RNA_SEQ"]}) is True
 
 
 def test_ancombc_exposes_galaxy_metadata_and_citation() -> None:
