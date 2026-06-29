@@ -7285,6 +7285,90 @@ def test_ampvis2_rarecurve_renders_script_outputs_and_validates(tmp_path: Path) 
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_setmetadata_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_setmetadata"]
+
+    assert info["display_name"] == "ampvis2 set metadata"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Manually set ampvis2 sample metadata column types and regenerate the metadata list."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["required"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["character"][1]["multiple"] is True
+    assert info["input"]["optional"]["numbers"][1]["multiple"] is True
+    assert info["input"]["optional"]["integers"][1]["multiple"] is True
+    assert info["input"]["optional"]["dates"][1]["multiple"] is True
+    assert info["output"] == ["FILE", "TSV"]
+    assert info["output_name"] == ["ampvis", "metadata_list_out"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq", "r-lubridate"]
+    assert (
+        info["documentation_url"]
+        == "https://github.com/galaxyproject/tools-iuc/blob/main/tools/ampvis2/setmetadata.xml"
+    )
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 set metadata" in info["search_aliases"]
+    assert "metadata type conversion" in info["search_aliases"]
+    assert "lubridate as_date" in info["search_aliases"]
+
+
+def test_ampvis2_setmetadata_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_setmetadata")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "character": ["Plant"],
+            "numbers": ["Year", "Temperature"],
+            "integers": ["Replicate"],
+            "dates": ["Date"],
+            "output": "/work/ampvis2_setmetadata",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_setmetadata/setmetadata.R <<'RSCRIPT'\n")
+    assert "library(lubridate, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "data$metadata$Year <- as.numeric(data$metadata$Year)" in command
+    assert "data$metadata$Temperature <- as.numeric(data$metadata$Temperature)" in command
+    assert "data$metadata$Replicate <- as.integer(data$metadata$Replicate)" in command
+    assert "data$metadata$Date <- as_date(data$metadata$Date)" in command
+    assert "data$metadata$Plant <- as.character(data$metadata$Plant)" in command
+    assert 'saveRDS(data, "/work/ampvis2_setmetadata/ampvis.rds")' in command
+    assert 'file="/work/ampvis2_setmetadata/metadata_list.tsv"' in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_setmetadata/setmetadata.R")
+
+    default_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "output": "/work/ampvis2_setmetadata",
+        }
+    )
+    assert "as.numeric" not in default_command
+    assert "as.integer" not in default_command
+    assert "as_date" not in default_command
+    assert "as.character" not in default_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_setmetadata" / "ampvis.rds",
+        tmp_path / "ampvis2_setmetadata" / "metadata_list.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": "", "metadata_list": "metadata.list"}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": ""}) == "metadata_list is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "numbers": ["Year"], "integers": ["Year"]}
+    ) == "metadata columns can only be assigned to one type: Year"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "dates": ["", "Date"]}
+    ) == "metadata column names must be non-empty"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "metadata.list"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 
