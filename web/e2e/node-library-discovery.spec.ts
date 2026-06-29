@@ -5626,6 +5626,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41467-023-44290-z'],
     citation_text: 'COMEBin enables accurate and robust binning of metagenomic contigs using contrastive multi-view representation learning.',
   },
+  comebin_bam: {
+    name: 'comebin_bam',
+    display_name: 'Generate BAM file for COMEBin',
+    category: 'metagenomics',
+    description: 'Generate a COMEBin-compatible BAM coverage file from reads using the COMEBin MetaWRAP-derived helper.',
+    search_aliases: ['Galaxy', 'COMEBin BAM', 'COMEBin BAM generation', 'gen_cov_file.sh', 'COMEBin coverage BAM', 'metagenomic coverage'],
+    input: {
+      required: {
+        assembly: { type: 'FASTA' },
+        read_type: { type: 'STRING', default: 'normal', options: ['normal', 'single'] },
+      },
+      optional: {
+        input_type: { type: 'STRING', default: 'paired', options: ['paired', 'single'] },
+        paired_reads: { type: 'FASTQ_LIST', default: '' },
+        forward: { type: 'FASTQ', default: '' },
+        reverse: { type: 'FASTQ', default: '' },
+        single_reads: { type: 'FASTQ', default: '' },
+        length: { type: 'INT', default: 1000 },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['bam_file'],
+    required_executables: ['gen_cov_file.sh'],
+    required_conda_packages: ['comebin'],
+    documentation_url: 'https://github.com/ziyewang/COMEBin',
+    citation_dois: ['10.1038/s41467-023-44290-z'],
+    citation_urls: ['https://doi.org/10.1038/s41467-023-44290-z'],
+    citation_text: 'COMEBin enables accurate and robust binning of metagenomic contigs using contrastive multi-view representation learning.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8371,7 +8401,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('297 nodes available')).toBeVisible();
+  await expect(page.getByText('298 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8549,6 +8579,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'exonerate pairwise sequence comparison', name: 'Exonerate', category: 'alignment' },
     { query: 'EvidenceModeler gene structure consensus', name: 'EVidenceModeler', category: 'annotation' },
     { query: 'COMEBin metagenomic binning', name: 'COMEBin', category: 'metagenomics' },
+    { query: 'COMEBin BAM generation', name: 'Generate BAM file for COMEBin', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

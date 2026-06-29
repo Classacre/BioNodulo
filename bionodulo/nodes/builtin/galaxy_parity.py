@@ -24920,6 +24920,155 @@ class COMEBinNode(CommandNode):
         return super().VALIDATE_INPUTS(inputs)
 
 
+class COMEBinBamNode(CommandNode):
+    """Generate a COMEBin-compatible BAM file from reads and an assembly."""
+
+    NODE_ID = "comebin_bam"
+    DISPLAY_NAME = "Generate BAM file for COMEBin"
+    REQUIRED_CONDA_PACKAGES = ["comebin"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Generate a COMEBin-compatible BAM coverage file from reads using the COMEBin MetaWRAP-derived helper."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "COMEBin BAM",
+        "COMEBin BAM generation",
+        "gen_cov_file.sh",
+        "COMEBin coverage BAM",
+        "metagenomic coverage",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("bam_file",)
+    REQUIRED_EXECUTABLES = ["gen_cov_file.sh"]
+    DOCUMENTATION_URL = "https://github.com/ziyewang/COMEBin"
+    CITATION_DOIS = ["10.1038/s41467-023-44290-z"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/s41467-023-44290-z"]
+    CITATION_TEXT = "COMEBin enables accurate and robust binning of metagenomic contigs using contrastive multi-view representation learning."
+    VERSION = "1.0.4"
+    SHELL = True
+
+    @classmethod
+    def _read_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("read_type", inputs.get("is_select", "normal")) or "normal")
+
+    @classmethod
+    def _input_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_type", inputs.get("input_typ", "paired")) or "paired")
+
+    @staticmethod
+    def _is_gz(path: Any) -> bool:
+        return str(path).endswith(".gz")
+
+    @classmethod
+    def _paired_reads(cls, inputs: dict[str, Any]) -> tuple[str, str]:
+        reads = inputs.get("paired_reads")
+        if isinstance(reads, dict):
+            return str(reads.get("forward", "")), str(reads.get("reverse", ""))
+        parts = _as_list(reads)
+        if len(parts) >= 2:
+            return parts[0], parts[1]
+        return str(inputs.get("forward", "")), str(inputs.get("reverse", ""))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        commands = [_shell_join(["mkdir", "-p", "outputs", out])]
+        assembly = str(inputs.get("assembly", ""))
+        if cls._is_gz(assembly):
+            commands.append(_shell_join(["ln", "-s", assembly, "assembly.fasta.gz"]))
+            commands.append(_shell_join(["gunzip", "assembly.fasta.gz"]))
+        else:
+            commands.append(_shell_join(["ln", "-s", assembly, "assembly.fasta"]))
+        read_type = cls._read_type(inputs)
+        if read_type == "normal":
+            forward, reverse = cls._paired_reads(inputs)
+            if cls._is_gz(forward):
+                commands.append(_shell_join(["ln", "-s", forward, "read_1.fastq.gz"]))
+                commands.append(_shell_join(["ln", "-s", reverse, "read_2.fastq.gz"]))
+                commands.append(_shell_join(["gunzip", "read_1.fastq.gz"]))
+                commands.append(_shell_join(["gunzip", "read_2.fastq.gz"]))
+            else:
+                commands.append(_shell_join(["ln", "-s", forward, "read_1.fastq"]))
+                commands.append(_shell_join(["ln", "-s", reverse, "read_2.fastq"]))
+        else:
+            single_reads = str(inputs.get("single_reads", ""))
+            if cls._is_gz(single_reads):
+                commands.append(_shell_join(["ln", "-s", single_reads, "read.fastq.gz"]))
+                commands.append(_shell_join(["gunzip", "read.fastq.gz"]))
+            else:
+                commands.append(_shell_join(["ln", "-s", single_reads, "read.fastq"]))
+        cmd = [
+            "gen_cov_file.sh",
+            "-a",
+            "assembly.fasta",
+            "-o",
+            "outputs",
+            "-t",
+            f"${{GALAXY_SLOTS:-{inputs.get('threads', 1)}}}",
+            "-l",
+            str(inputs.get("length", 1000)),
+        ]
+        if read_type == "normal":
+            cmd.extend(["read_1.fastq", "read_2.fastq"])
+        else:
+            cmd.extend(["--single-end", "read.fastq"])
+        commands.append(_shell_join(cmd).replace("'${GALAXY_SLOTS:-", "${GALAXY_SLOTS:-").replace("}'", "}"))
+        commands.append(_shell_join(["mv", "outputs/work_files/read.bam", f"{out}/bam_file.bam"]))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "bam_file.bam"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "assembly": ("FASTA", {"description": "Assembly FASTA or FASTA.GZ"}),
+                "read_type": ("STRING", {"default": "normal", "options": ["normal", "single"], "description": "Paired-end or single-end reads"}),
+            },
+            "optional": {
+                "input_type": ("STRING", {"default": "paired", "options": ["paired", "single"], "description": "Paired collection or separate reads"}),
+                "paired_reads": ("FASTQ_LIST", {"default": "", "description": "Paired read collection or [forward, reverse]"}),
+                "forward": ("FASTQ", {"default": "", "description": "Forward FASTQ for separate paired reads"}),
+                "reverse": ("FASTQ", {"default": "", "description": "Reverse FASTQ for separate paired reads"}),
+                "single_reads": ("FASTQ", {"default": "", "description": "Single-end FASTQ"}),
+                "length": ("INT", {"default": 1000, "min": 1, "description": "Minimum contig length"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("assembly", "")).strip():
+            return "assembly is required"
+        read_type = cls._read_type(inputs)
+        if read_type not in {"normal", "single"}:
+            return "read_type must be one of: normal, single"
+        if read_type == "normal":
+            input_type = cls._input_type(inputs)
+            if input_type not in {"paired", "single"}:
+                return "input_type must be one of: paired, single"
+            forward, reverse = cls._paired_reads(inputs)
+            if not forward or not reverse:
+                return "forward and reverse reads are required"
+        elif not str(inputs.get("single_reads", "")).strip():
+            return "single_reads is required"
+        for name in ["length", "threads"]:
+            raw = inputs.get(name)
+            if raw is None or str(raw) == "":
+                continue
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < 1:
+                return f"{name} must be >= 1"
+        return super().VALIDATE_INPUTS(inputs)
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 

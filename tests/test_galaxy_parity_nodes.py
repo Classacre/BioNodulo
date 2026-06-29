@@ -13087,6 +13087,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["comebin"],
             "doi": "10.1038/s41467-023-44290-z",
         },
+        "comebin_bam": {
+            "display_name": "Generate BAM file for COMEBin",
+            "category": "metagenomics",
+            "required_executables": ["gen_cov_file.sh"],
+            "required_conda_packages": ["comebin"],
+            "doi": "10.1038/s41467-023-44290-z",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16120,6 +16127,76 @@ def test_comebin_renders_binning_command_outputs_and_validation(tmp_path: Path) 
         "loss must be > 0"
     )
     assert node_class.VALIDATE_INPUTS({"assembly_file": "assembly.fa", "bam_files": ["sample.bam"]}) is True
+
+
+def test_comebin_bam_renders_coverage_bam_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("comebin_bam")
+    info = _registry().object_info()["comebin_bam"]
+
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["bam_file"]
+    assert info["input"]["required"]["assembly"][0] == "FASTA"
+    assert info["input"]["required"]["read_type"][1]["options"] == ["normal", "single"]
+    assert "10.1038/s41467-023-44290-z" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "assembly": "assembly.fa.gz",
+            "read_type": "normal",
+            "input_type": "paired",
+            "paired_reads": {"forward": "reads R1.fastq.gz", "reverse": "reads R2.fastq.gz"},
+            "length": 1500,
+            "threads": 4,
+            "output": "/work/comebin_bam",
+        }
+    ) == (
+        "mkdir -p outputs /work/comebin_bam && ln -s assembly.fa.gz assembly.fasta.gz && gunzip assembly.fasta.gz && "
+        "ln -s 'reads R1.fastq.gz' read_1.fastq.gz && ln -s 'reads R2.fastq.gz' read_2.fastq.gz && "
+        "gunzip read_1.fastq.gz && gunzip read_2.fastq.gz && gen_cov_file.sh -a assembly.fasta -o outputs "
+        "-t ${GALAXY_SLOTS:-4} -l 1500 read_1.fastq read_2.fastq && "
+        "mv outputs/work_files/read.bam /work/comebin_bam/bam_file.bam"
+    )
+    assert node_class.render_command(
+        {
+            "assembly": "assembly.fa",
+            "read_type": "normal",
+            "input_type": "single",
+            "forward": "R1.fastq",
+            "reverse": "R2.fastq",
+            "output": "/work/comebin_bam",
+        }
+    ) == (
+        "mkdir -p outputs /work/comebin_bam && ln -s assembly.fa assembly.fasta && "
+        "ln -s R1.fastq read_1.fastq && ln -s R2.fastq read_2.fastq && "
+        "gen_cov_file.sh -a assembly.fasta -o outputs -t ${GALAXY_SLOTS:-1} -l 1000 read_1.fastq read_2.fastq && "
+        "mv outputs/work_files/read.bam /work/comebin_bam/bam_file.bam"
+    )
+    assert node_class.render_command(
+        {
+            "assembly": "assembly.fa",
+            "read_type": "single",
+            "single_reads": "single.fastq.gz",
+            "output": "/work/comebin_bam",
+        }
+    ) == (
+        "mkdir -p outputs /work/comebin_bam && ln -s assembly.fa assembly.fasta && "
+        "ln -s single.fastq.gz read.fastq.gz && gunzip read.fastq.gz && "
+        "gen_cov_file.sh -a assembly.fasta -o outputs -t ${GALAXY_SLOTS:-1} -l 1000 --single-end read.fastq && "
+        "mv outputs/work_files/read.bam /work/comebin_bam/bam_file.bam"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "comebin_bam" / "bam_file.bam",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "assembly is required"
+    assert node_class.VALIDATE_INPUTS({"assembly": "assembly.fa", "read_type": "normal", "input_type": "single", "forward": "R1.fastq"}) == (
+        "forward and reverse reads are required"
+    )
+    assert node_class.VALIDATE_INPUTS({"assembly": "assembly.fa", "read_type": "single"}) == "single_reads is required"
+    assert node_class.VALIDATE_INPUTS({"assembly": "assembly.fa", "read_type": "single", "single_reads": "reads.fastq", "length": 0}) == (
+        "length must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"assembly": "assembly.fa", "read_type": "normal", "input_type": "single", "forward": "R1.fastq", "reverse": "R2.fastq"}
+    ) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
