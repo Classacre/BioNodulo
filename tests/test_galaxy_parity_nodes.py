@@ -213,6 +213,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["bioconductor-aldex2", "r-data.table", "r-optparse", "r-qgraph"],
             "doi": "10.1371/journal.pone.0067019",
         },
+        "ancombc": {
+            "display_name": "ANCOM-BC",
+            "category": "metagenomics",
+            "required_executables": ["Rscript"],
+            "required_conda_packages": ["bioconductor-ancombc", "r-data.table", "r-optparse"],
+            "doi": "10.1038/s41467-020-17041-7",
+        },
         "angsd": {
             "display_name": "ANGSD",
             "category": "population_genetics",
@@ -5130,6 +5137,106 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
         }
     ) == "feature_name is required for aldex_plot_feature"
     assert node_class.VALIDATE_INPUTS({"reads": "reads.tsv", "group_names": ["NS"], "num_cols": [1]}) is True
+
+
+def test_ancombc_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ancombc"]
+
+    assert info["display_name"] == "ANCOM-BC"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Differential abundance analysis for microbiome compositions with bias correction."
+    assert info["input"]["required"]["phyloseq"][0] == "FILE"
+    assert info["input"]["required"]["formula"][0] == "STRING"
+    assert info["input"]["optional"]["p_adj_method"][1]["options"] == [
+        "holm",
+        "hochberg",
+        "hommel",
+        "bonferroni",
+        "BH",
+        "BY",
+        "fdr",
+        "none",
+    ]
+    assert info["input"]["optional"]["zero_cut"][1]["default"] == 0.1
+    assert info["input"]["optional"]["zero_cut"][1]["min"] == 0
+    assert info["input"]["optional"]["zero_cut"][1]["max"] == 1
+    assert info["input"]["optional"]["global_test"][0] == "BOOLEAN"
+    assert info["output"] == ["DIRECTORY"]
+    assert info["output_name"] == ["output_collection"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["bioconductor-ancombc", "r-data.table", "r-optparse"]
+    assert info["documentation_url"] == "https://bioconductor.org/packages/ANCOMBC"
+    assert info["citation_dois"] == ["10.1038/s41467-020-17041-7", "10.3402/mehd.v26.27663"]
+    assert "Analysis of compositions of microbiomes with bias correction" in info["citation_text"]
+    assert "Analysis of composition of microbiomes: a novel method" in info["citation_text"]
+    assert "ANCOM-BC differential abundance" in info["search_aliases"]
+
+
+def test_ancombc_renders_wrapper_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ancombc")
+
+    assert node_class.render_command(
+        {
+            "phyloseq": "input data.phyloseq",
+            "formula": "patient_status + batch",
+            "p_adj_method": "fdr",
+            "zero_cut": 0.9,
+            "lib_cut": 10,
+            "group": "patient_status",
+            "struc_zero": True,
+            "neg_lb": True,
+            "tol": 0.00001,
+            "max_iter": 200,
+            "conserve": True,
+            "alpha": 0.01,
+            "global_test": True,
+            "script_path": "/tools/ancombc/ancombc.R",
+            "output": "/work/ancombc",
+        }
+    ) == (
+        "mkdir -p /work/ancombc/output_collection && Rscript /tools/ancombc/ancombc.R "
+        "--phyloseq 'input data.phyloseq' --formula 'patient_status + batch' --p_adj_method fdr "
+        "--zero_cut 0.9 --lib_cut 10 --group patient_status --struc_zero true --neg_lb true --tol 1e-05 "
+        "--max_iter 200 --conserve true --alpha 0.01 --global true --output_dir /work/ancombc/output_collection"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ancombc" / "output_collection"]
+    assert node_class.expected_output_files() == [
+        "feature_table.tabular",
+        "zero_ind.tabular",
+        "samp_frac.tabular",
+        "resid.tabular",
+        "delta_em.tabular",
+        "delta_wls.tabular",
+        "res_beta.tabular",
+        "res_se.tabular",
+        "res_W.tabular",
+        "res_p_val.tabular",
+        "res_q_val.tabular",
+        "res_diff_abn.tabular",
+        "res_global.tabular",
+    ]
+    assert node_class.VALIDATE_INPUTS({"phyloseq": "", "formula": "patient_status"}) == "phyloseq is required"
+    assert node_class.VALIDATE_INPUTS({"phyloseq": "input.phyloseq", "formula": ""}) == "formula is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"phyloseq": "input.phyloseq", "formula": "patient_status", "p_adj_method": "bad"}
+    ) == "p_adj_method must be one of: holm, hochberg, hommel, bonferroni, BH, BY, fdr, none"
+    assert node_class.VALIDATE_INPUTS(
+        {"phyloseq": "input.phyloseq", "formula": "patient_status", "zero_cut": 1.2}
+    ) == "zero_cut must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"phyloseq": "input.phyloseq", "formula": "patient_status", "lib_cut": -1}
+    ) == "lib_cut must be >= 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"phyloseq": "input.phyloseq", "formula": "patient_status", "max_iter": 0}
+    ) == "max_iter must be >= 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"phyloseq": "input.phyloseq", "formula": "patient_status", "tol": -0.1}
+    ) == "tol must be >= 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"phyloseq": "input.phyloseq", "formula": "patient_status", "alpha": -0.01}
+    ) == "alpha must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"phyloseq": "input.phyloseq", "formula": "patient_status"}) is True
 
 
 def test_angsd_exposes_galaxy_metadata_and_citation() -> None:

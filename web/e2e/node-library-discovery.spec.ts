@@ -1095,6 +1095,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0067019', 'https://doi.org/10.1186/2049-2618-2-15', 'https://doi.org/10.1080/10618600.2015.1131161'],
     citation_text: 'ANOVA-Like Differential Expression (ALDEx) Analysis for Mixed Population RNA-Seq; Unifying the analysis of high-throughput sequencing datasets: characterizing RNA-seq, 16S rRNA gene sequencing and selective growth experiments by compositional data analysis; Displaying Variation in Large Datasets: Plotting a Visual Summary of Effect Sizes.',
   },
+  ancombc: {
+    name: 'ancombc',
+    display_name: 'ANCOM-BC',
+    category: 'metagenomics',
+    description: 'Differential abundance analysis for microbiome compositions with bias correction.',
+    search_aliases: ['Galaxy', 'ANCOM-BC', 'ANCOMBC', 'ancombc', 'ANCOM-BC differential abundance', 'microbiome composition', 'bias correction', 'phyloseq', 'structural zeros', 'global test'],
+    input: {
+      required: {
+        phyloseq: { type: 'FILE' },
+        formula: { type: 'STRING', default: '' },
+      },
+      optional: {
+        p_adj_method: { type: 'STRING', default: 'holm', options: ['holm', 'hochberg', 'hommel', 'bonferroni', 'BH', 'BY', 'fdr', 'none'] },
+        zero_cut: { type: 'FLOAT', default: 0.1, min: 0, max: 1 },
+        lib_cut: { type: 'INT', default: 0, min: 0 },
+        group: { type: 'STRING', default: '' },
+        struc_zero: { type: 'BOOLEAN', default: false },
+        neg_lb: { type: 'BOOLEAN', default: false },
+        tol: { type: 'FLOAT', default: 0.00001, min: 0 },
+        max_iter: { type: 'INT', default: 100, min: 1 },
+        conserve: { type: 'BOOLEAN', default: false },
+        alpha: { type: 'FLOAT', default: 0.05, min: 0 },
+        global_test: { type: 'BOOLEAN', default: false },
+        script_path: { type: 'FILE', default: 'ancombc.R' },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['output_collection'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['bioconductor-ancombc', 'r-data.table', 'r-optparse'],
+    documentation_url: 'https://bioconductor.org/packages/ANCOMBC',
+    citation_dois: ['10.1038/s41467-020-17041-7', '10.3402/mehd.v26.27663'],
+    citation_urls: ['https://doi.org/10.1038/s41467-020-17041-7', 'https://doi.org/10.3402/mehd.v26.27663'],
+    citation_text: 'Analysis of compositions of microbiomes with bias correction; Analysis of composition of microbiomes: a novel method for studying microbial composition.',
+  },
   angsd: {
     name: 'angsd',
     display_name: 'ANGSD',
@@ -9361,7 +9396,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('324 nodes available')).toBeVisible();
+  await expect(page.getByText('325 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9410,6 +9445,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'SOLiD read simulator', name: 'ART SOLiD', category: 'simulation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
+    { query: 'ANCOM-BC differential abundance', name: 'ANCOM-BC', category: 'metagenomics' },
     { query: 'ANGSD internal counts', name: 'ANGSD', category: 'population_genetics' },
     { query: 'ANGSD X-Contamination', name: 'ANGSD X-Contamination', category: 'population_genetics' },
     { query: 'noisy long reads', name: 'Miniasm', category: 'assembly' },
