@@ -624,6 +624,30 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_mergepe: {
+    name: 'seqtk_mergepe',
+    display_name: 'SeqTK Merge Paired-End',
+    category: 'sequence',
+    description: 'Interleave two unpaired FASTA or FASTQ files into a paired-end FASTA/Q file.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk mergepe', 'SeqTK mergepe', 'interleaved paired-end', 'paired-end interleave', 'merge paired reads', 'paired FASTQ'],
+    input: {
+      required: {
+        in_fq1: { type: 'FASTQ_LIST' },
+        in_fq2: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'fastq', options: ['fasta', 'fastq', 'fasta.gz', 'fastq.gz'] },
+      },
+    },
+    output: ['FASTQ', 'FASTA'],
+    output_name: ['interleaved_pairs'],
+    required_executables: ['seqtk', 'pigz'],
+    required_conda_packages: ['seqtk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -10962,7 +10986,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('376 nodes available')).toBeVisible();
+  await expect(page.getByText('377 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10995,6 +11019,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk regional heterozygosity', name: 'SeqTK Heterozygosity', category: 'sequence' },
     { query: 'seqtk heterozygous bases', name: 'SeqTK List Heterozygous Bases', category: 'sequence' },
     { query: 'seqtk IUPAC ambiguity merge', name: 'SeqTK Merge FASTA', category: 'sequence' },
+    { query: 'seqtk interleaved paired-end', name: 'SeqTK Merge Paired-End', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
