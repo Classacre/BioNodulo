@@ -647,6 +647,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1371/journal.pgen.1002764",
         },
+        "hyphy_prime": {
+            "display_name": "HyPhy-PRIME",
+            "category": "phylogeny",
+            "required_executables": ["HYPHYMPI", "mpirun"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.64898/2026.03.09.710461",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -8995,6 +9002,195 @@ def test_hyphy_meme_validates_wrapper_inputs() -> None:
             "multiple_hits": "Double",
             "site_multihit": "Estimate",
             "precision": "standard",
+            "kill_zero_lengths": "Yes",
+            "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_prime_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_prime"]
+
+    assert info["display_name"] == "HyPhy-PRIME"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Model site-level physicochemical selection with HyPhy PRIME."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "PRIME",
+        "Property Informed Models of Evolution",
+        "PRoperty Informed Models of Evolution",
+        "physicochemical selection",
+        "biochemical properties",
+        "amino-acid properties",
+        "property-informed codon model",
+        "site-level constraints",
+        "protein evolution",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT", "JSON"]
+    assert info["output_name"] == ["prime_output", "prime_md_report", "intermediate_fits"]
+    assert info["required_executables"] == ["HYPHYMPI", "mpirun"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://hyphy.org/methods/selection-methods/#PRIME"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.64898/2026.03.09.710461"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.64898/2026.03.09.710461",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Characterizing Physicochemical Selection in Protein Evolution with Property-Informed Models (PRIME)."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["branch_sel"][1]["default"] == "All"
+    assert info["input"]["optional"]["branch_sel"][1]["options"] == [
+        "All",
+        "Internal",
+        "Leaves",
+        "Unlabeled-branches",
+        "specify",
+    ]
+    assert info["input"]["optional"]["prop_source_type"][1]["default"] == "builtin"
+    assert info["input"]["optional"]["prop_source_type"][1]["options"] == ["builtin", "custom"]
+    assert info["input"]["optional"]["prop_set"][1]["default"] == "3PROP"
+    assert info["input"]["optional"]["prop_set"][1]["options"] == [
+        "Atchley",
+        "2PROP",
+        "3PROP",
+        "4PROP",
+        "5PROP",
+        "Random-2",
+        "Random-3",
+        "Random-4",
+        "Random-5",
+    ]
+    assert info["input"]["optional"]["property_file"][0] == "JSON"
+    assert info["input"]["optional"]["p_value"][1]["default"] == 0.1
+    assert info["input"]["optional"]["p_value"][1]["min"] == 0
+    assert info["input"]["optional"]["p_value"][1]["max"] == 1
+    assert info["input"]["optional"]["impute_states"][1]["default"] is False
+    assert info["input"]["optional"]["save_intermediate"][1]["default"] is False
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_prime_renders_default_mpi_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_prime")
+
+    assert node_class.render_command(
+        {
+            "input_file": "prime-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "prime-in1.nhx",
+            "output": "/work/hyphy_prime",
+        }
+    ) == (
+        "ln -s prime-in1.nhx input.nhx && "
+        "ln -s prime-in1.fa input.fasta && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 4} '
+        "HYPHYMPI prime --alignment ./input.fasta --tree input.nhx --code Universal --branches All "
+        "--property-set 3PROP --pvalue 0.1 --impute-states No --kill-zero-lengths Yes "
+        "--output /work/hyphy_prime/prime_output.json > /work/hyphy_prime/prime_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_prime" / "prime_output.json",
+        tmp_path / "hyphy_prime" / "prime_stdout.md",
+    ]
+
+
+def test_hyphy_prime_renders_custom_property_command_with_intermediate_fits(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_prime")
+
+    command = node_class.render_command(
+        {
+            "input_file": "codon alignment.nex",
+            "input_ext": "nex",
+            "gencodeid": "Vertebrate-mtDNA",
+            "branch_sel": "specify",
+            "branch_label": "Foreground clade",
+            "prop_source_type": "custom",
+            "property_file": "property weights.json",
+            "p_value": 0.05,
+            "impute_states": True,
+            "save_intermediate": True,
+            "kill_zero_lengths": "Constrain",
+            "threads": 8,
+            "output": "/work/hyphy_prime",
+        }
+    )
+
+    assert command == (
+        "ln -s 'codon alignment.nex' input.nex && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 8} '
+        "HYPHYMPI prime --alignment ./input.nex --code Vertebrate-mtDNA --branches 'Foreground clade' "
+        "--property-set Custom --property-file 'property weights.json' --pvalue 0.05 --impute-states Yes "
+        "--intermediate-fits /work/hyphy_prime/intermediate_fits.json --kill-zero-lengths Constrain "
+        "--output /work/hyphy_prime/prime_output.json > /work/hyphy_prime/prime_stdout.md"
+    )
+    assert "--tree" not in command
+
+    assert node_class.PLAN_OUTPUTS({"save_intermediate": True}, tmp_path) == [
+        tmp_path / "hyphy_prime" / "prime_output.json",
+        tmp_path / "hyphy_prime" / "prime_stdout.md",
+        tmp_path / "hyphy_prime" / "intermediate_fits.json",
+    ]
+
+
+def test_hyphy_prime_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_prime")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-PRIME alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "input_ext": "stockholm"}) == (
+        "Unsupported HyPhy-PRIME input extension: stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "Foreground"}) == (
+        "Unsupported HyPhy-PRIME branch selection: Foreground"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "specify"}) == (
+        "HyPhy-PRIME custom branch selection requires a branch label"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "prop_source_type": "remote"}) == (
+        "Unsupported HyPhy-PRIME property source: remote"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "prop_set": "6PROP"}) == (
+        "Unsupported HyPhy-PRIME property set: 6PROP"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "prop_source_type": "custom"}) == (
+        "HyPhy-PRIME custom property source requires a property JSON file"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "p_value": 1.1}) == (
+        "HyPhy-PRIME p-value threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-PRIME zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-PRIME threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "input_ext": "fasta",
+            "gencodeid": "Universal",
+            "branch_sel": "Internal",
+            "prop_source_type": "builtin",
+            "prop_set": "Atchley",
+            "p_value": 0.1,
             "kill_zero_lengths": "Yes",
             "threads": 4,
         }

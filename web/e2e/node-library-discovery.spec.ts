@@ -3482,6 +3482,54 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Detecting Individual Sites Subject to Episodic Diversifying Selection.',
   },
+  hyphy_prime: {
+    name: 'hyphy_prime',
+    display_name: 'HyPhy-PRIME',
+    category: 'phylogeny',
+    description: 'Model site-level physicochemical selection with HyPhy PRIME.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'PRIME',
+      'Property Informed Models of Evolution',
+      'PRoperty Informed Models of Evolution',
+      'physicochemical selection',
+      'biochemical properties',
+      'amino-acid properties',
+      'property-informed codon model',
+      'site-level constraints',
+      'protein evolution',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE' },
+        input_ext: { type: 'STRING', default: 'fasta' },
+        gencodeid: { type: 'STRING', default: 'Universal' },
+        branch_sel: { type: 'STRING', default: 'All' },
+        prop_source_type: { type: 'STRING', default: 'builtin' },
+        prop_set: { type: 'STRING', default: '3PROP' },
+        property_file: { type: 'JSON', default: '' },
+        p_value: { type: 'FLOAT', default: 0.1 },
+        impute_states: { type: 'BOOLEAN', default: false },
+        save_intermediate: { type: 'BOOLEAN', default: false },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes' },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['JSON', 'TEXT', 'JSON'],
+    output_name: ['prime_output', 'prime_md_report', 'intermediate_fits'],
+    required_executables: ['HYPHYMPI', 'mpirun'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://hyphy.org/methods/selection-methods/#PRIME',
+    citation_dois: ['10.1093/molbev/msz197', '10.64898/2026.03.09.710461'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.64898/2026.03.09.710461'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Characterizing Physicochemical Selection in Protein Evolution with Property-Informed Models (PRIME).',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6452,7 +6500,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('238 nodes available')).toBeVisible();
+  await expect(page.getByText('239 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6564,6 +6612,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'recombination breakpoints', name: 'HyPhy-GARD', category: 'phylogeny' },
     { query: 'hypergeometric scan statistic', name: 'HyPhy-Infer Stasis Clusters', category: 'phylogeny' },
     { query: 'Mixed Effects Model of Evolution', name: 'HyPhy-MEME', category: 'phylogeny' },
+    { query: 'Property Informed Models of Evolution', name: 'HyPhy-PRIME', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
