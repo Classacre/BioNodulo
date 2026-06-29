@@ -27818,6 +27818,352 @@ def test_bwa_validates_reference_reads_modes_and_options() -> None:
     assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq"}) is True
 
 
+def test_bowtie2_exposes_galaxy_metadata_inputs_and_citation() -> None:
+    node_info = _registry().object_info()["bowtie2"]
+
+    assert node_info["display_name"] == "Bowtie2"
+    assert node_info["category"] == "alignment"
+    assert node_info["description"].startswith("Map reads against a reference genome")
+    assert node_info["output"] == ["BAM", "TXT", "FASTQ", "FASTQ", "FASTQ", "FASTQ"]
+    assert node_info["output_name"] == [
+        "alignments",
+        "mapping_stats",
+        "unaligned_reads",
+        "aligned_reads",
+        "unaligned_read_pairs",
+        "aligned_read_pairs",
+    ]
+    assert node_info["required_executables"] == ["bowtie2", "bowtie2-build", "samtools"]
+    assert node_info["required_conda_packages"] == ["bowtie2", "samtools"]
+    assert node_info["documentation_url"] == "https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml"
+    assert node_info["citation_dois"] == ["10.1038/nmeth.1923"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1038/nmeth.1923"]
+    assert "Fast gapped-read alignment with Bowtie 2" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "bowtie2" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["ref_file"][0] == "BOWTIE2_INDEX"
+    assert node_info["input"]["required"]["library_type"][1]["options"] == ["single", "paired_collection"]
+    assert node_info["input"]["optional"]["preset"][1]["options"] == [
+        "no_presets",
+        "--very-fast",
+        "--fast",
+        "--sensitive",
+        "--very-sensitive",
+        "--very-fast-local",
+        "--fast-local",
+        "--sensitive-local",
+        "--very-sensitive-local",
+    ]
+    assert node_info["input"]["optional"]["sam_output_format"][1]["options"] == ["bam", "sam", "qname_input_sorted_bam"]
+
+
+def test_bowtie2_index_type_is_file_compatible() -> None:
+    assert BioType.BOWTIE2_INDEX.value == "BOWTIE2_INDEX"
+    assert is_compatible("BOWTIE2_INDEX", "DIRECTORY")
+    assert is_compatible("BOWTIE2_INDEX", "STRING")
+    assert file_extension_for("BOWTIE2_INDEX") == ".bowtie2_index"
+
+
+def test_bowtie2_renders_single_history_reference_with_stats_and_unaligned_output(tmp_path: Path) -> None:
+    node_class = _node_class("bowtie2")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "history",
+            "ref_file": "genome.fa",
+            "library_type": "single",
+            "input_1": "reads.fq",
+            "preset": "--very-sensitive",
+            "save_mapping_stats": True,
+            "unaligned_file": True,
+            "output": "/work/bowtie2",
+        }
+    ) == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "bowtie2-build",
+        "--threads",
+        "${GALAXY_SLOTS:-4}",
+        "genome.fa",
+        "genome",
+        "&&",
+        "bowtie2",
+        "-p",
+        "${GALAXY_SLOTS:-1}",
+        "-x",
+        "genome",
+        "-U",
+        "reads.fq",
+        "--un",
+        "/work/bowtie2/unaligned_reads.fastq",
+        "--very-sensitive",
+        "2>",
+        "/work/bowtie2/mapping_stats.txt",
+        "|",
+        "samtools",
+        "sort",
+        "-l",
+        "0",
+        "-T",
+        "${TMPDIR:-.}",
+        "-O",
+        "bam",
+        "|",
+        "samtools",
+        "view",
+        "--no-PG",
+        "-O",
+        "bam",
+        "-@",
+        "${GALAXY_SLOTS:-1}",
+        "-o",
+        "/work/bowtie2/alignments.bam",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"save_mapping_stats": True, "unaligned_file": True},
+        tmp_path,
+    ) == [
+        tmp_path / "bowtie2" / "alignments.bam",
+        tmp_path / "bowtie2" / "mapping_stats.txt",
+        tmp_path / "bowtie2" / "unaligned_reads.fastq",
+    ]
+
+
+def test_bowtie2_renders_paired_cached_index_full_options_read_group_and_sam_output() -> None:
+    node_class = _node_class("bowtie2")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "indexed",
+            "ref_file": "/indexes/hg38/bowtie2",
+            "library_type": "paired_collection",
+            "input_1": {"forward": "R1.fa", "reverse": "R2.fa"},
+            "reads_format": "fasta",
+            "aligned_file": True,
+            "paired_options_selector": "yes",
+            "I": 20,
+            "X": 900,
+            "fr_rf_ff": "--rf",
+            "no_mixed": True,
+            "no_discordant": True,
+            "dovetail": True,
+            "analysis_type_selector": "full",
+            "input_options_selector": "yes",
+            "skip": 3,
+            "qupto": 100,
+            "trim5": 2,
+            "trim3": 4,
+            "qv_encoding": "--phred64",
+            "alignment_options_selector": "yes",
+            "N": 1,
+            "seed_L": 18,
+            "i": "S,1,1.25",
+            "n_ceil": "L,0,0.10",
+            "dpad": 12,
+            "gbar": 3,
+            "ignore_quals": True,
+            "nofw": True,
+            "align_mode_selector": "local",
+            "score_min_loc": "G,18,7",
+            "scoring_options_selector": "yes",
+            "ma": 3,
+            "mp": "7,3",
+            "np": 2,
+            "rdg_read_open": 6,
+            "rdg_read_extend": 2,
+            "rfg_ref_open": 7,
+            "rfg_ref_extend": 3,
+            "reporting_options_selector": "k",
+            "k": 5,
+            "effort_options_selector": "yes",
+            "D": 20,
+            "R": 4,
+            "d": True,
+            "other_options_selector": "yes",
+            "seed": 42,
+            "non_deterministic": True,
+            "rg_selector": "set",
+            "rg_id": "rg1",
+            "rg_sm": "sample1",
+            "rg_pl": "ILLUMINA",
+            "rg_lb": "lib1",
+            "sam_options_selector": "yes",
+            "sam_output_format": "sam",
+            "no_unal": True,
+            "omit_sec_seq": True,
+            "xeq": True,
+            "output": "/work/bowtie2",
+        }
+    ) == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "bowtie2",
+        "-p",
+        "${GALAXY_SLOTS:-1}",
+        "-x",
+        "/indexes/hg38/bowtie2",
+        "-f",
+        "-1",
+        "R1.fa",
+        "-2",
+        "R2.fa",
+        "--al-conc",
+        "/work/bowtie2/aligned_reads",
+        "-I",
+        "20",
+        "-X",
+        "900",
+        "--rf",
+        "--no-mixed",
+        "--no-discordant",
+        "--dovetail",
+        "--rg-id",
+        "rg1",
+        "--rg",
+        "SM:sample1",
+        "--rg",
+        "PL:ILLUMINA",
+        "--rg",
+        "LB:lib1",
+        "--skip",
+        "3",
+        "--qupto",
+        "100",
+        "--trim5",
+        "2",
+        "--trim3",
+        "4",
+        "--phred64",
+        "-N",
+        "1",
+        "-L",
+        "18",
+        "-i",
+        "S,1,1.25",
+        "--n-ceil",
+        "L,0,0.10",
+        "--dpad",
+        "12",
+        "--gbar",
+        "3",
+        "--ignore-quals",
+        "--nofw",
+        "--local",
+        "--score-min",
+        "G,18,7",
+        "--ma",
+        "3",
+        "--mp",
+        "7,3",
+        "--np",
+        "2",
+        "--rdg",
+        "6,2",
+        "--rfg",
+        "7,3",
+        "-k",
+        "5",
+        "-D",
+        "20",
+        "-R",
+        "4",
+        "-d",
+        "--non-deterministic",
+        "--seed",
+        "42",
+        "--no-unal",
+        "--omit-sec-seq",
+        "--xeq",
+        ">",
+        "/work/bowtie2/alignments.sam",
+    ]
+
+
+def test_bowtie2_renders_reordered_bam_with_paired_collection_outputs() -> None:
+    node_class = _node_class("bowtie2")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "indexed",
+            "ref_file": "/indexes/mm10/bowtie2",
+            "library_type": "paired_collection",
+            "input_1": ["reads_R1.fq.gz", "reads_R2.fq.gz"],
+            "reads_compression": "gz",
+            "unaligned_file": True,
+            "aligned_file": True,
+            "sam_options_selector": "yes",
+            "sam_output_format": "qname_input_sorted_bam",
+            "output": "/work/bowtie2",
+        }
+    ) == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "bowtie2",
+        "-p",
+        "${GALAXY_SLOTS:-1}",
+        "-x",
+        "/indexes/mm10/bowtie2",
+        "-1",
+        "reads_R1.fq.gz",
+        "-2",
+        "reads_R2.fq.gz",
+        "--un-conc-gz",
+        "/work/bowtie2/unaligned_reads",
+        "--al-conc-gz",
+        "/work/bowtie2/aligned_reads",
+        "--reorder",
+        "|",
+        "samtools",
+        "view",
+        "--no-PG",
+        "-b",
+        "-o",
+        "/work/bowtie2/alignments.bam",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"library_type": "paired_collection", "unaligned_file": True, "aligned_file": True},
+        Path("/tmp/out"),
+    ) == [
+        Path("/tmp/out/bowtie2/alignments.bam"),
+        Path("/tmp/out/bowtie2/unaligned_reads.1.fastq"),
+        Path("/tmp/out/bowtie2/unaligned_reads.2.fastq"),
+        Path("/tmp/out/bowtie2/aligned_reads.1.fastq"),
+        Path("/tmp/out/bowtie2/aligned_reads.2.fastq"),
+    ]
+
+
+def test_bowtie2_validates_reference_reads_modes_and_options() -> None:
+    node_class = _node_class("bowtie2")
+
+    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "input_1 is required"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "library_type": "bad"}) == (
+        "library_type must be one of: single, paired_collection"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "reference_source_selector": "bad"}) == (
+        "reference_source_selector must be one of: indexed, history"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "analysis_type_selector": "bad"}) == (
+        "analysis_type_selector must be one of: simple, full"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"ref_file": "ref.fa", "input_1": "r1.fq", "paired_options_selector": "yes", "I": -1}
+    ) == "I must be at least 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"ref_file": "ref.fa", "input_1": "r1.fq", "analysis_type_selector": "full", "N": 2}
+    ) == "N must be at most 1"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "sam_output_format": "cram"}) == (
+        "sam_output_format must be one of: bam, sam, qname_input_sorted_bam"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq"}) is True
+
+
 def test_bamleftalign_exposes_freebayes_citation_and_dependency_metadata() -> None:
     node_info = _registry().object_info()["bamleftalign"]
 

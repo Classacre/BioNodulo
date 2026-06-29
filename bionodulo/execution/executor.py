@@ -1797,7 +1797,7 @@ class WorkflowExecutor:
     # Types that indicate a file or directory path parameter
     _FILE_TYPES: set[str] = {
         "FASTQ_LIST", "FASTA", "FASTQ", "BAM", "SAM", "VCF", "GFF", "GTF",
-        "BED", "WIG", "BIGWIG", "FILE", "DIR", "PATH", "INDEX_DIR", "BWA_MEM2_INDEX",
+        "BED", "WIG", "BIGWIG", "FILE", "DIR", "PATH", "INDEX_DIR", "BWA_MEM2_INDEX", "BOWTIE2_INDEX",
         "REFERENCE", "READS", "ASSEMBLY", "CONTIGS", "ALIGNMENT",
         "GFA", "ODGI", "REPORT", "PLOT", "IMAGE", "TABLE", "MATRIX", "TREE",
     }

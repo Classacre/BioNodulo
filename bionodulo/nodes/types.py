@@ -34,6 +34,7 @@ class BioType(str, Enum):
     CRAM = "CRAM"
     INDEX_DIR = "INDEX_DIR"
     BWA_MEM2_INDEX = "BWA_MEM2_INDEX"
+    BOWTIE2_INDEX = "BOWTIE2_INDEX"
 
     # Variants
     VCF = "VCF"
@@ -121,6 +122,7 @@ _COMPATIBILITY: dict[BioType, set[BioType]] = {
     BioType.CRAM: {BioType.FILE, BioType.STRING, BioType.BAM},
     BioType.INDEX_DIR: {BioType.DIRECTORY, BioType.STRING},
     BioType.BWA_MEM2_INDEX: {BioType.DIRECTORY, BioType.STRING, BioType.INDEX_DIR},
+    BioType.BOWTIE2_INDEX: {BioType.DIRECTORY, BioType.STRING, BioType.INDEX_DIR},
     BioType.VCF: {BioType.FILE, BioType.STRING},
     BioType.VCF_GZ: {BioType.FILE, BioType.STRING, BioType.VCF},
     BioType.BCF: {BioType.FILE, BioType.STRING, BioType.VCF, BioType.VCF_GZ},
@@ -242,6 +244,7 @@ def file_extension_for(biotype: str | BioType) -> str:
         BioType.BAI: ".bam.bai",
         BioType.CRAM: ".cram",
         BioType.BWA_MEM2_INDEX: ".bwa_mem2_index",
+        BioType.BOWTIE2_INDEX: ".bowtie2_index",
         BioType.VCF: ".vcf",
         BioType.VCF_GZ: ".vcf.gz",
         BioType.BCF: ".bcf",

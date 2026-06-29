@@ -10048,6 +10048,50 @@ const objectInfo = {
     citation_text:
       'Fast and accurate short read alignment with Burrows-Wheeler Transform; Fast and accurate long-read alignment with Burrows-Wheeler Transform.',
   },
+  bowtie2: {
+    name: 'bowtie2',
+    display_name: 'Bowtie2',
+    category: 'alignment',
+    description: 'Map reads against a reference genome with Bowtie2 and emit BAM or SAM alignments.',
+    search_aliases: ['Galaxy', 'Bowtie2', 'bowtie2', 'bowtie2-build', 'read mapping', 'paired-end alignment', 'BAM output', 'SAM output'],
+    input: {
+      required: {
+        ref_file: { type: 'BOWTIE2_INDEX' },
+        library_type: { type: 'STRING', default: 'single', options: ['single', 'paired_collection'] },
+        input_1: { type: 'FASTQ' },
+      },
+      optional: {
+        reference_source_selector: { type: 'STRING', default: 'indexed', options: ['indexed', 'history'] },
+        reads_format: { type: 'STRING', default: 'fastq', options: ['fastq', 'fasta'] },
+        reads_compression: { type: 'STRING', default: '', options: ['', 'gz', 'bz2'] },
+        unaligned_file: { type: 'BOOLEAN', default: false },
+        aligned_file: { type: 'BOOLEAN', default: false },
+        paired_options_selector: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        analysis_type_selector: { type: 'STRING', default: 'simple', options: ['simple', 'full'] },
+        preset: {
+          type: 'STRING',
+          default: 'no_presets',
+          options: ['no_presets', '--very-fast', '--fast', '--sensitive', '--very-sensitive', '--very-fast-local', '--fast-local', '--sensitive-local', '--very-sensitive-local'],
+        },
+        rg_selector: { type: 'STRING', default: 'do_not_set', options: ['do_not_set', 'set'] },
+        rg_id: { type: 'STRING', default: '' },
+        rg_sm: { type: 'STRING', default: '' },
+        rg_pl: { type: 'STRING', default: '' },
+        rg_lb: { type: 'STRING', default: '' },
+        sam_options_selector: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        sam_output_format: { type: 'STRING', default: 'bam', options: ['bam', 'sam', 'qname_input_sorted_bam'] },
+        save_mapping_stats: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['BAM', 'TXT', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ'],
+    output_name: ['alignments', 'mapping_stats', 'unaligned_reads', 'aligned_reads', 'unaligned_read_pairs', 'aligned_read_pairs'],
+    required_executables: ['bowtie2', 'bowtie2-build', 'samtools'],
+    required_conda_packages: ['bowtie2', 'samtools'],
+    documentation_url: 'https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml',
+    citation_dois: ['10.1038/nmeth.1923'],
+    citation_urls: ['https://doi.org/10.1038/nmeth.1923'],
+    citation_text: 'Fast gapped-read alignment with Bowtie 2.',
+  },
   bcftools_stats: {
     name: 'bcftools_stats',
     display_name: 'BCFtools Stats',
@@ -11343,7 +11387,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('390 nodes available')).toBeVisible();
+  await expect(page.getByText('391 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11678,6 +11722,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BWA-MEM2 reference index', name: 'BWA-MEM2 Indexer', category: 'alignment' },
     { query: 'bwa-mem2 mem', name: 'BWA-MEM2', category: 'alignment' },
     { query: 'bwa aln', name: 'Map with BWA', category: 'alignment' },
+    { query: 'bowtie2-build', name: 'Bowtie2', category: 'alignment' },
     { query: 'plot-vcfstats', name: 'BCFtools Stats', category: 'variant' },
     { query: 'left-align indels', name: 'BCFtools Norm', category: 'variant' },
     { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },

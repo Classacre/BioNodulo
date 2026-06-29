@@ -571,6 +571,7 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "VCF_GZ",
         "BCF",
         "BWA_MEM2_INDEX",
+        "BOWTIE2_INDEX",
         "VCF_INDEX",
         "GFF",
         "GTF",
