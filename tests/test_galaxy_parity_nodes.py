@@ -2384,6 +2384,58 @@ def test_add_input_name_as_column_renders_commands_outputs_and_validates(tmp_pat
     assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": "sample"}) is True
 
 
+def test_add_input_name_as_column_galaxy_id_exposes_existing_metadata() -> None:
+    node_info = _registry().object_info()
+
+    canonical_info = node_info["add_input_name_as_column"]
+    galaxy_info = node_info["addName"]
+
+    assert galaxy_info["display_name"] == "Add input name as column (Galaxy)"
+    assert galaxy_info["category"] == canonical_info["category"]
+    assert galaxy_info["description"] == canonical_info["description"]
+    assert galaxy_info["output"] == canonical_info["output"]
+    assert galaxy_info["output_name"] == canonical_info["output_name"]
+    assert galaxy_info["required_executables"] == canonical_info["required_executables"]
+    assert galaxy_info["required_conda_packages"] == canonical_info["required_conda_packages"]
+    assert galaxy_info["documentation_url"] == canonical_info["documentation_url"]
+    assert galaxy_info["citation_dois"] == []
+    assert galaxy_info["citation_urls"] == canonical_info["citation_urls"]
+    assert galaxy_info["citation_text"] == canonical_info["citation_text"]
+    assert "addName" in galaxy_info["search_aliases"]
+
+
+def test_add_input_name_as_column_galaxy_id_renders_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("addName")
+
+    assert node_class.render_command(
+        {
+            "input": "signature table.tab",
+            "label": "history sample",
+            "contains_header": "no",
+            "prepend": True,
+            "output": "/work/addName",
+        }
+    ) == (
+        "python add_input_name_as_column.py --input 'signature table.tab' --label 'history sample' "
+        "--output /work/addName/output.tsv --prepend"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "addName" / "output.tsv",
+    ]
+
+
+def test_add_input_name_as_column_galaxy_id_inherits_validation() -> None:
+    node_class = _node_class("addName")
+
+    assert node_class.VALIDATE_INPUTS({"input": "", "label": "sample"}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": ""}) == "label is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "signature.tab", "label": "sample", "contains_header": "maybe"}
+    ) == "contains_header must be one of: yes, no"
+    assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": "sample"}) is True
+
+
 def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["aegean_canongff3"]
 

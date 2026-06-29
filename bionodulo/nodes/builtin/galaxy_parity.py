@@ -226,6 +226,23 @@ class AddInputNameAsColumnNode(CommandNode):
         }
 
 
+class AddInputNameAsColumnGalaxyNode(AddInputNameAsColumnNode):
+    """Galaxy wrapper-ID compatible alias for Add input name as column."""
+
+    NODE_ID = "addName"
+    DISPLAY_NAME = "Add input name as column (Galaxy)"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "addName",
+        "Add input name as column",
+        "add_input_name_as_column",
+        "dataset collection labels",
+        "history dataset name",
+        "sample label column",
+        "tabular label column",
+    ]
+
+
 class AegeanCanonGff3Node(CommandNode):
     """Canonicalize GFF3 files with AEGeAn CanonGFF3."""
 
