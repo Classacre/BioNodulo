@@ -11077,6 +11077,310 @@ class Ampvis2HeatmapNode(CommandNode):
         }
 
 
+class Ampvis2LoadNode(CommandNode):
+    """Load OTU, ASV, BIOM, or phyloseq data into an ampvis2 object."""
+
+    NODE_ID = "ampvis2_load"
+    DISPLAY_NAME = "ampvis2 load"
+    REQUIRED_CONDA_PACKAGES = ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Load OTU, ASV, BIOM, or phyloseq data into an ampvis2 RDS object."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ampvis2",
+        "ampvis2 load",
+        "amp_load",
+        "OTU table",
+        "ASV table",
+        "BIOM",
+        "phyloseq",
+        "metadata list",
+        "taxonomy list",
+    ]
+    RETURN_TYPES = ("FILE", "TSV", "TSV")
+    RETURN_NAMES = ("ampvis", "metadata_list_out", "taxonomy_list_out")
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://kasperskytte.github.io/ampvis2/reference/amp_load.html"
+    CITATION_DOIS = [AMPVIS2_CITATION_DOIS[0]]
+    CITATION_URLS = [f"{DOI_URL}{AMPVIS2_CITATION_DOIS[0]}"]
+    CITATION_TEXT = AMPVIS2_CITATION_TEXT
+    VERSION = "2.8.11+galaxy2"
+    SHELL = True
+
+    OTUTABLE_TYPES = ["tabular", "dada2_sequencetable", "biom1", "biom2", "phyloseq"]
+    WRITE_LIST_OPTIONS = ["tax", "metadata"]
+    DEFAULT_WRITE_LISTS = ["tax", "metadata"]
+    LIST_OUTPUT_FILES = {
+        "tax": "taxonomy_list.tsv",
+        "metadata": "metadata_list.tsv",
+    }
+
+    @classmethod
+    def _r_bool(cls, value: Any, default: bool = False) -> str:
+        if value in (None, ""):
+            value = default
+        if isinstance(value, str):
+            return "FALSE" if value.lower() in {"false", "0", "no"} else "TRUE"
+        return "TRUE" if bool(value) else "FALSE"
+
+    @classmethod
+    def _otutable_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("otutable_type", "tabular") or "tabular")
+
+    @classmethod
+    def _selected_write_lists(cls, inputs: dict[str, Any]) -> list[str]:
+        if "write_lists" in inputs:
+            return _as_list(inputs.get("write_lists"))
+        return cls.DEFAULT_WRITE_LISTS.copy()
+
+    @classmethod
+    def _staging_commands(cls, inputs: dict[str, Any]) -> list[str]:
+        otutable_type = cls._otutable_type(inputs)
+        commands = []
+        if otutable_type in {"biom1", "biom2"}:
+            commands.append(_shell_join(["ln", "-s", str(inputs.get("otutable", "")), "otutable.biom"]))
+        elif otutable_type != "phyloseq":
+            if inputs.get("asv_otu_col_empty"):
+                commands.append(
+                    _shell_join(["sed", "-e", "1 s/^\\t/ASV\\t/", str(inputs.get("otutable", "")), ">", "otutable.tsv"])
+                )
+            else:
+                commands.append(_shell_join(["ln", "-s", str(inputs.get("otutable", "")), "otutable.tsv"]))
+        if str(inputs.get("taxonomy", "")).strip():
+            if inputs.get("asv_otu_col_empty"):
+                commands.append(
+                    _shell_join(["sed", "-e", "1 s/^\\t/ASV\\t/", str(inputs.get("taxonomy", "")), ">", "taxonomy.tsv"])
+                )
+            else:
+                commands.append(_shell_join(["ln", "-s", str(inputs.get("taxonomy", "")), "taxonomy.tsv"]))
+        return commands
+
+    @classmethod
+    def _metadata_lines(cls, inputs: dict[str, Any]) -> list[str]:
+        metadata = str(inputs.get("metadata", "")).strip()
+        if not metadata:
+            return []
+        return [
+            f'metadata <- read.table("{metadata}", header = TRUE, sep = "\\t", colClasses = "character", check.names=F)',
+            'if(colnames(metadata)[1] == ""){',
+            '    colnames(metadata)[1] <- "SampleID"',
+            "}",
+            'if(exists("SampleID", where = metadata)){',
+            '    rownames(metadata) <- metadata[["SampleID"]]',
+            "}else{",
+            "    rownames(metadata) <- metadata[[1]]",
+            "}",
+            "",
+        ]
+
+    @classmethod
+    def _amp_load_otutable_line(cls, inputs: dict[str, Any]) -> str:
+        otutable_type = cls._otutable_type(inputs)
+        if otutable_type == "phyloseq":
+            return "    otutable = otutable,"
+        if otutable_type in {"biom1", "biom2"}:
+            return '    otutable = "otutable.biom",'
+        return '    otutable = "otutable.tsv",'
+
+    @classmethod
+    def _amp_load_lines(cls, inputs: dict[str, Any]) -> list[str]:
+        lines = [
+            "data <- amp_load(",
+            cls._amp_load_otutable_line(inputs),
+        ]
+        if str(inputs.get("metadata", "")).strip():
+            lines.append("    metadata = metadata,")
+        if str(inputs.get("taxonomy", "")).strip():
+            lines.append('    taxonomy = "taxonomy.tsv",')
+        if str(inputs.get("fasta", "")).strip():
+            lines.append(f'    fasta = "{inputs.get("fasta")}",')
+        if str(inputs.get("tree", "")).strip():
+            lines.append(f'    tree = "{inputs.get("tree")}",')
+        if str(inputs.get("otutable_OTUcolname", "")).strip():
+            lines.append(f'    otutable_OTUcolname = c("{inputs.get("otutable_OTUcolname")}"),')
+        if str(inputs.get("taxonomy_OTUcolname", "")).strip():
+            lines.append(f'    taxonomy_OTUcolname = c("{inputs.get("taxonomy_OTUcolname")}"),')
+        lines.extend(
+            [
+                f"    pruneSingletons = {cls._r_bool(inputs.get('pruneSingletons'), False)}",
+                ")",
+            ]
+        )
+        return lines
+
+    @classmethod
+    def _asv_sequence_lines(cls, inputs: dict[str, Any]) -> list[str]:
+        if not inputs.get("asv_sequences"):
+            return []
+        return [
+            "",
+            "library(ape, quietly = TRUE)",
+            "",
+            'seq <- as.DNAbin(strsplit(rownames(data$abund), ""))',
+            'names(seq) <- paste0("ASV", seq_along(seq))',
+            "data$refseq <- seq",
+            "data <- matchOTUs(data, seq)",
+        ]
+
+    @classmethod
+    def _metadata_list_lines(cls, out: str) -> list[str]:
+        return [
+            "classes <- sapply(data$metadata, class)",
+            'data$metadata[is.na(data$metadata)] <- "NA"',
+            "for(name in names(data$metadata)){",
+            '    if(classes[[name]] == "character" && all(data$metadata[[name]] == rownames(data$metadata))){',
+            "        sample_names <- TRUE;",
+            "    }else{",
+            "        sample_names <- FALSE;",
+            "    }",
+            "    for(m in unique(data$metadata[[name]])){",
+            f'        write(paste(name, m, sample_names, classes[[name]], sep="\\t"), file="{out}/metadata_list.tsv", append=T);',
+            "    }",
+            "}",
+        ]
+
+    @classmethod
+    def _taxonomy_list_lines(cls, out: str) -> list[str]:
+        return [
+            "for(level in colnames(data$tax)){",
+            "    for(u in unique(data$tax[level])){",
+            f'        write(paste(u, level, sep="\\t"), file="{out}/taxonomy_list.tsv", append=T)',
+            "    }",
+            "}",
+        ]
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any], out: str) -> str:
+        lines = [
+            "library(ampvis2, quietly = TRUE)",
+            "library(readr, quietly = TRUE)",
+            "",
+            *cls._metadata_lines(inputs),
+        ]
+        if cls._otutable_type(inputs) == "phyloseq":
+            lines.extend(
+                [
+                    f'otutable <- readRDS("{inputs.get("otutable", "")}")',
+                    "print(class(otutable))",
+                    "",
+                ]
+            )
+        lines.extend(cls._amp_load_lines(inputs))
+        lines.extend(cls._asv_sequence_lines(inputs))
+        if cls._r_bool(inputs.get("guess_column_types"), True) == "TRUE":
+            lines.extend(
+                [
+                    "",
+                    "data$metadata <- readr::type_convert(data$metadata, guess_integer=TRUE)",
+                ]
+            )
+        lines.extend(
+            [
+                "",
+                f'saveRDS(data, "{out}/ampvis.rds")',
+            ]
+        )
+        for list_name in cls._selected_write_lists(inputs):
+            if list_name == "metadata":
+                lines.extend(["", *cls._metadata_list_lines(out)])
+            elif list_name == "tax":
+                lines.extend(["", *cls._taxonomy_list_lines(out)])
+        lines.extend(["", "data"])
+        return "\n".join(lines)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = f"{out}/load.R"
+        commands = [
+            *cls._staging_commands(inputs),
+            f"cat > {shlex.quote(script_path)} <<'RSCRIPT'\n{cls._script_body(inputs, out)}\nRSCRIPT",
+            _shell_join(["Rscript", script_path]),
+        ]
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "ampvis.rds"]
+        selected_lists = set(cls._selected_write_lists(inputs))
+        outputs.extend(
+            out / cls.LIST_OUTPUT_FILES[list_name]
+            for list_name in ("metadata", "tax")
+            if list_name in selected_lists
+        )
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("otutable", "")).strip():
+            return "otutable is required"
+        otutable_type = cls._otutable_type(inputs)
+        if otutable_type not in cls.OTUTABLE_TYPES:
+            return f"otutable_type must be one of: {', '.join(cls.OTUTABLE_TYPES)}"
+        unsupported_lists = [name for name in _as_list(inputs.get("write_lists")) if name not in cls.WRITE_LIST_OPTIONS]
+        if unsupported_lists:
+            return f"write_lists contains unsupported values: {', '.join(unsupported_lists)}"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "otutable": ("FILE", {"description": "OTU, ASV, BIOM, or phyloseq dataset"}),
+            },
+            "optional": {
+                "otutable_type": (
+                    "STRING",
+                    {
+                        "default": "tabular",
+                        "options": cls.OTUTABLE_TYPES,
+                        "description": "Galaxy datatype of the OTU table input",
+                    },
+                ),
+                "asv_sequences": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Treat ASV identifiers as ASV sequences and store them in the ampvis2 object"},
+                ),
+                "metadata": ("TSV", {"default": "", "description": "Optional sample metadata table"}),
+                "guess_column_types": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Guess metadata column types with readr::type_convert"},
+                ),
+                "taxonomy": ("TSV", {"default": "", "description": "Optional taxonomy table"}),
+                "fasta": ("FASTA", {"default": "", "description": "Optional FASTA file containing OTU or ASV sequences"}),
+                "tree": ("FILE", {"default": "", "description": "Optional phylogenetic tree in Newick format"}),
+                "pruneSingletons": ("BOOLEAN", {"default": False, "description": "Remove singleton OTUs"}),
+                "write_lists": (
+                    "STRING_LIST",
+                    {
+                        "default": cls.DEFAULT_WRITE_LISTS.copy(),
+                        "multiple": True,
+                        "options": cls.WRITE_LIST_OPTIONS,
+                        "description": "Auxiliary metadata and taxonomy list outputs for downstream ampvis2 tools",
+                    },
+                ),
+                "asv_otu_col_empty": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Replace an empty OTU/ASV column header with ASV before loading"},
+                ),
+                "otutable_OTUcolname": (
+                    "STRING",
+                    {"default": "", "description": "OTU column name in the OTU table"},
+                ),
+                "taxonomy_OTUcolname": (
+                    "STRING",
+                    {"default": "", "description": "OTU column name in the taxonomy table"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",

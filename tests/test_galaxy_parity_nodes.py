@@ -6391,6 +6391,153 @@ def test_ampvis2_heatmap_renders_script_outputs_and_validates(tmp_path: Path) ->
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_load_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_load"]
+
+    assert info["display_name"] == "ampvis2 load"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Load OTU, ASV, BIOM, or phyloseq data into an ampvis2 RDS object."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["otutable"][0] == "FILE"
+    assert info["input"]["optional"]["otutable_type"][1]["default"] == "tabular"
+    assert info["input"]["optional"]["otutable_type"][1]["options"] == [
+        "tabular",
+        "dada2_sequencetable",
+        "biom1",
+        "biom2",
+        "phyloseq",
+    ]
+    assert info["input"]["optional"]["asv_sequences"][1]["default"] is False
+    assert info["input"]["optional"]["metadata"][0] == "TSV"
+    assert info["input"]["optional"]["guess_column_types"][1]["default"] is True
+    assert info["input"]["optional"]["taxonomy"][0] == "TSV"
+    assert info["input"]["optional"]["fasta"][0] == "FASTA"
+    assert info["input"]["optional"]["tree"][0] == "FILE"
+    assert info["input"]["optional"]["pruneSingletons"][1]["default"] is False
+    assert info["input"]["optional"]["write_lists"][1]["multiple"] is True
+    assert info["input"]["optional"]["write_lists"][1]["default"] == ["tax", "metadata"]
+    assert info["input"]["optional"]["write_lists"][1]["options"] == ["tax", "metadata"]
+    assert info["input"]["optional"]["asv_otu_col_empty"][1]["default"] is False
+    assert info["input"]["optional"]["otutable_OTUcolname"][1]["default"] == ""
+    assert info["input"]["optional"]["taxonomy_OTUcolname"][1]["default"] == ""
+    assert info["output"] == ["FILE", "TSV", "TSV"]
+    assert info["output_name"] == ["ampvis", "metadata_list_out", "taxonomy_list_out"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_load.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 load" in info["search_aliases"]
+    assert "amp_load" in info["search_aliases"]
+    assert "BIOM" in info["search_aliases"]
+
+
+def test_ampvis2_load_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_load")
+
+    command = node_class.render_command(
+        {
+            "otutable": "dada2 table.tsv",
+            "otutable_type": "dada2_sequencetable",
+            "asv_sequences": True,
+            "metadata": "metadata.tsv",
+            "guess_column_types": True,
+            "taxonomy": "taxonomy.tsv",
+            "fasta": "sequences.fa",
+            "tree": "tree.nwk",
+            "pruneSingletons": True,
+            "write_lists": ["metadata", "tax"],
+            "asv_otu_col_empty": True,
+            "otutable_OTUcolname": "custom",
+            "taxonomy_OTUcolname": "custom2",
+            "output": "/work/ampvis2_load",
+        }
+    )
+
+    assert command.startswith(
+        "sed -e '1 s/^\\t/ASV\\t/' 'dada2 table.tsv' > otutable.tsv && "
+        "sed -e '1 s/^\\t/ASV\\t/' taxonomy.tsv > taxonomy.tsv && "
+        "cat > /work/ampvis2_load/load.R <<'RSCRIPT'\n"
+    )
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert "library(readr, quietly = TRUE)" in command
+    assert 'metadata <- read.table("metadata.tsv", header = TRUE, sep = "\\t", colClasses = "character", check.names=F)' in command
+    assert 'colnames(metadata)[1] <- "SampleID"' in command
+    assert 'rownames(metadata) <- metadata[["SampleID"]]' in command
+    assert 'otutable = "otutable.tsv",' in command
+    assert "metadata = metadata," in command
+    assert 'taxonomy = "taxonomy.tsv",' in command
+    assert 'fasta = "sequences.fa",' in command
+    assert 'tree = "tree.nwk",' in command
+    assert 'otutable_OTUcolname = c("custom"),' in command
+    assert 'taxonomy_OTUcolname = c("custom2"),' in command
+    assert "pruneSingletons = TRUE" in command
+    assert "library(ape, quietly = TRUE)" in command
+    assert 'names(seq) <- paste0("ASV", seq_along(seq))' in command
+    assert "data <- matchOTUs(data, seq)" in command
+    assert "data$metadata <- readr::type_convert(data$metadata, guess_integer=TRUE)" in command
+    assert 'saveRDS(data, "/work/ampvis2_load/ampvis.rds")' in command
+    assert 'file="/work/ampvis2_load/metadata_list.tsv"' in command
+    assert 'file="/work/ampvis2_load/taxonomy_list.tsv"' in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_load/load.R")
+
+    biom_command = node_class.render_command(
+        {
+            "otutable": "rich dense.biom",
+            "otutable_type": "biom1",
+            "guess_column_types": False,
+            "write_lists": [],
+            "output": "/work/ampvis2_load",
+        }
+    )
+    assert biom_command.startswith(
+        "ln -s 'rich dense.biom' otutable.biom && cat > /work/ampvis2_load/load.R <<'RSCRIPT'\n"
+    )
+    assert 'otutable = "otutable.biom",' in biom_command
+    assert "metadata = metadata" not in biom_command
+    assert "readr::type_convert" not in biom_command
+    assert "metadata_list.tsv" not in biom_command
+    assert "taxonomy_list.tsv" not in biom_command
+    assert "library(ape" not in biom_command
+
+    phyloseq_command = node_class.render_command(
+        {
+            "otutable": "output.phyloseq",
+            "otutable_type": "phyloseq",
+            "output": "/work/ampvis2_load",
+        }
+    )
+    assert phyloseq_command.startswith("cat > /work/ampvis2_load/load.R <<'RSCRIPT'\n")
+    assert 'otutable <- readRDS("output.phyloseq")' in phyloseq_command
+    assert "print(class(otutable))" in phyloseq_command
+    assert "otutable = otutable," in phyloseq_command
+    assert "ln -s" not in phyloseq_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_load" / "ampvis.rds",
+        tmp_path / "ampvis2_load" / "metadata_list.tsv",
+        tmp_path / "ampvis2_load" / "taxonomy_list.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"write_lists": ["metadata"]}, tmp_path) == [
+        tmp_path / "ampvis2_load" / "ampvis.rds",
+        tmp_path / "ampvis2_load" / "metadata_list.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"write_lists": []}, tmp_path) == [
+        tmp_path / "ampvis2_load" / "ampvis.rds",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"otutable": ""}) == "otutable is required"
+    assert node_class.VALIDATE_INPUTS({"otutable": "otu.tsv", "otutable_type": "bad"}) == (
+        "otutable_type must be one of: tabular, dada2_sequencetable, biom1, biom2, phyloseq"
+    )
+    assert node_class.VALIDATE_INPUTS({"otutable": "otu.tsv", "write_lists": ["bad"]}) == (
+        "write_lists contains unsupported values: bad"
+    )
+    assert node_class.VALIDATE_INPUTS({"otutable": "otu.tsv", "write_lists": []}) is True
+    assert node_class.VALIDATE_INPUTS({"otutable": "otu.tsv"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

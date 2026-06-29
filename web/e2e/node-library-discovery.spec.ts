@@ -1585,6 +1585,40 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_load: {
+    name: 'ampvis2_load',
+    display_name: 'ampvis2 load',
+    category: 'metagenomics',
+    description: 'Load OTU, ASV, BIOM, or phyloseq data into an ampvis2 RDS object.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 load', 'amp_load', 'OTU table', 'ASV table', 'BIOM', 'phyloseq', 'metadata list', 'taxonomy list'],
+    input: {
+      required: {
+        otutable: { type: 'FILE' },
+      },
+      optional: {
+        otutable_type: { type: 'STRING', default: 'tabular', options: ['tabular', 'dada2_sequencetable', 'biom1', 'biom2', 'phyloseq'] },
+        asv_sequences: { type: 'BOOLEAN', default: false },
+        metadata: { type: 'TSV', default: '' },
+        guess_column_types: { type: 'BOOLEAN', default: true },
+        taxonomy: { type: 'TSV', default: '' },
+        fasta: { type: 'FASTA', default: '' },
+        tree: { type: 'FILE', default: '' },
+        pruneSingletons: { type: 'BOOLEAN', default: false },
+        write_lists: { type: 'STRING', default: ['tax', 'metadata'], multiple: true, options: ['tax', 'metadata'] },
+        asv_otu_col_empty: { type: 'BOOLEAN', default: false },
+        otutable_OTUcolname: { type: 'STRING', default: '' },
+        taxonomy_OTUcolname: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['FILE', 'TSV', 'TSV'],
+    output_name: ['ampvis', 'metadata_list_out', 'taxonomy_list_out'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_load.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -10089,7 +10123,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('346 nodes available')).toBeVisible();
+  await expect(page.getByText('347 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10152,6 +10186,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ampvis2 export otu', name: 'ampvis2 export otu', category: 'metagenomics' },
     { query: 'ampvis2 frequency plot', name: 'ampvis2 frequency plot', category: 'metagenomics' },
     { query: 'ampvis2 heatmap', name: 'ampvis2 heatmap', category: 'metagenomics' },
+    { query: 'ampvis2 load', name: 'ampvis2 load', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
