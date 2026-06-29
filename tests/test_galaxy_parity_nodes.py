@@ -12961,6 +12961,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["bayescan"],
             "doi": "10.1534/genetics.108.092221",
         },
+        "bellerophon": {
+            "display_name": "Bellerophon",
+            "category": "assembly",
+            "required_executables": ["bellerophon", "samtools"],
+            "required_conda_packages": ["bellerophon", "samtools"],
+            "doi": "10.1038/s41586-021-03451-0",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14271,6 +14278,63 @@ def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Pa
         tmp_path / "bayescan" / "output_dir" / "bayescan.sel",
         tmp_path / "bayescan" / "output_dir" / "bayescan_Verif.txt",
         tmp_path / "bayescan" / "output_dir" / "bayescan_AccRte.txt",
+    ]
+
+
+def test_bellerophon_renders_chimeric_read_filter_merge_command_output(tmp_path: Path) -> None:
+    node_class = _node_class("bellerophon")
+    info = _registry().object_info()["bellerophon"]
+
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["merged_bam"]
+    assert "10.1038/s41586-021-03451-0" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "forward": "forward reads.bam",
+            "reverse": "reverse reads.sam",
+            "forward_format": "bam",
+            "reverse_format": "sam",
+            "quality": 12,
+            "threads": 6,
+            "output": "/work/bellerophon",
+        }
+    ) == [
+        "ln",
+        "-s",
+        "forward reads.bam",
+        "/work/bellerophon/forward_input.bam",
+        "&&",
+        "ln",
+        "-s",
+        "reverse reads.sam",
+        "/work/bellerophon/reverse_input.sam",
+        "&&",
+        "bellerophon",
+        "--forward",
+        "/work/bellerophon/forward_input.bam",
+        "--reverse",
+        "/work/bellerophon/reverse_input.sam",
+        "--quality",
+        "12",
+        "--output",
+        "/work/bellerophon/merged_out.bam",
+        "--threads",
+        "${GALAXY_SLOTS:-6}",
+        "&&",
+        "samtools",
+        "sort",
+        "--no-PG",
+        "-O",
+        "BAM",
+        "-o",
+        "/work/bellerophon/merged.bam",
+        "-@",
+        "${GALAXY_SLOTS:-6}",
+        "/work/bellerophon/merged_out.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bellerophon" / "merged.bam",
     ]
 
 

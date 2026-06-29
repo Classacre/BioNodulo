@@ -5041,6 +5041,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1534/genetics.108.092221'],
     citation_text: 'A genome-scan method to identify selected loci appropriate for both dominant and codominant markers.',
   },
+  bellerophon: {
+    name: 'bellerophon',
+    display_name: 'Bellerophon',
+    category: 'assembly',
+    description: 'Filter mapped reads spanning Arima Genomics junctions, keep the 5-prime read, merge mates, and sort the BAM output.',
+    search_aliases: ['Galaxy', 'Bellerophon', 'Arima Genomics', 'chimeric reads', 'Hi-C', 'junction-spanning reads', 'qname sorted BAM', 'genome assembly'],
+    input: {
+      required: {
+        forward: { type: 'BAM' },
+        reverse: { type: 'BAM' },
+        quality: { type: 'INT', default: 20 },
+      },
+      optional: {
+        forward_format: { type: 'STRING', default: 'bam', options: ['bam', 'sam'] },
+        reverse_format: { type: 'STRING', default: 'bam', options: ['bam', 'sam'] },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['merged_bam'],
+    required_executables: ['bellerophon', 'samtools'],
+    required_conda_packages: ['bellerophon', 'samtools'],
+    documentation_url: 'https://github.com/ArimaGenomics/bellerophon',
+    citation_dois: ['10.1038/s41586-021-03451-0'],
+    citation_urls: ['https://doi.org/10.1038/s41586-021-03451-0'],
+    citation_text: 'Semi-automated assembly of high-quality diploid human reference genomes.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7786,7 +7813,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('279 nodes available')).toBeVisible();
+  await expect(page.getByText('280 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7946,6 +7973,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'preseq yield extrapolation', name: 'Preseq lc_extrap', category: 'qc' },
     { query: 'abyss paired-end assembly', name: 'ABySS', category: 'assembly' },
     { query: 'bayescan natural selection', name: 'BayeScan', category: 'population_genetics' },
+    { query: 'Arima chimeric reads', name: 'Bellerophon', category: 'assembly' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
