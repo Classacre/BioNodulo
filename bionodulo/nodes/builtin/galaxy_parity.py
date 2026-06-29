@@ -7761,6 +7761,211 @@ class AllegroNode(CommandNode):
         }
 
 
+ALPHAGENOME_CITATION_DOI = "10.1038/s41586-025-10014-0"
+ALPHAGENOME_CITATION_TEXT = "Advancing regulatory variant effect prediction with AlphaGenome."
+
+
+class AlphaGenomeIntervalPredictorNode(CommandNode):
+    """Predict regulatory tracks for genomic intervals with AlphaGenome."""
+
+    NODE_ID = "alphagenome_interval_predictor"
+    DISPLAY_NAME = "AlphaGenome Interval Predictor"
+    REQUIRED_CONDA_PACKAGES = ["alphagenome", "cyvcf2", "pandas"]
+    CATEGORY = "ai"
+    DESCRIPTION = "Predict regulatory tracks for genomic intervals with AlphaGenome."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AlphaGenome",
+        "alphagenome",
+        "AlphaGenome interval prediction",
+        "regulatory track prediction",
+        "predict_interval",
+        "chromatin prediction",
+        "expression prediction",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("predictions",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://www.alphagenomedocs.com/"
+    CITATION_DOIS = [ALPHAGENOME_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{ALPHAGENOME_CITATION_DOI}"]
+    CITATION_TEXT = ALPHAGENOME_CITATION_TEXT
+    VERSION = "0.6.1+galaxy1"
+    SHELL = True
+
+    ORGANISMS = ["human", "mouse"]
+    OUTPUT_TYPES = ["RNA_SEQ", "ATAC", "CAGE", "DNASE", "CHIP_HISTONE", "CHIP_TF", "SPLICE_SITES", "PROCAP"]
+    SEQUENCE_LENGTHS = ["16KB", "128KB", "512KB", "1MB"]
+    OUTPUT_MODES = ["summary", "binned"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/predictions.tsv"
+
+    @classmethod
+    def _output_types(cls, inputs: dict[str, Any], *, use_default: bool = True) -> list[str]:
+        if "output_types" not in inputs:
+            return ["RNA_SEQ"] if use_default else []
+        return _as_list(inputs.get("output_types"))
+
+    @classmethod
+    def _int_range(
+        cls,
+        inputs: dict[str, Any],
+        name: str,
+        default: int,
+        minimum: int,
+        maximum: int,
+    ) -> bool | str:
+        try:
+            value = int(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if value < minimum or value > maximum:
+            return f"{name} must be between {minimum} and {maximum}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        output_mode = str(inputs.get("output_mode", "summary") or "summary")
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "alphagenome_interval_predictor.py")),
+            "--input",
+            str(inputs.get("input_bed", "")),
+            "--output",
+            cls._output_path(inputs),
+            "--organism",
+            str(inputs.get("organism", "human") or "human"),
+            "--output-types",
+            *cls._output_types(inputs),
+            "--sequence-length",
+            str(inputs.get("sequence_length", "1MB") or "1MB"),
+            "--max-intervals",
+            str(inputs.get("max_intervals", 50)),
+            "--output-mode",
+            output_mode,
+        ]
+        if output_mode == "binned":
+            cmd.extend(["--bin-size", str(inputs.get("bin_size", 128))])
+        _add_if_value(cmd, "--ontology-terms", inputs.get("ontology_terms"))
+        _add_if_value(cmd, "--test-fixture", inputs.get("test_fixture"))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "predictions.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_bed", "")).strip():
+            return "input_bed is required"
+        output_types = cls._output_types(inputs, use_default=True)
+        if not output_types:
+            return "at least one output type is required"
+        unsupported = [value for value in output_types if value not in cls.OUTPUT_TYPES]
+        if unsupported:
+            return f"output_types contains unsupported values: {', '.join(unsupported)}"
+        organism = str(inputs.get("organism", "human") or "human")
+        if organism not in cls.ORGANISMS:
+            return f"organism must be one of: {', '.join(cls.ORGANISMS)}"
+        sequence_length = str(inputs.get("sequence_length", "1MB") or "1MB")
+        if sequence_length not in cls.SEQUENCE_LENGTHS:
+            return f"sequence_length must be one of: {', '.join(cls.SEQUENCE_LENGTHS)}"
+        output_mode = str(inputs.get("output_mode", "summary") or "summary")
+        if output_mode not in cls.OUTPUT_MODES:
+            return f"output_mode must be one of: {', '.join(cls.OUTPUT_MODES)}"
+        max_intervals = cls._int_range(inputs, "max_intervals", 50, 1, 1000)
+        if max_intervals is not True:
+            return max_intervals
+        if output_mode == "binned":
+            bin_size = cls._int_range(inputs, "bin_size", 128, 1, 4096)
+            if bin_size is not True:
+                return bin_size
+        ontology_terms = str(inputs.get("ontology_terms", "") or "")
+        if ontology_terms and not re.fullmatch(r"[A-Za-z0-9:, ]*", ontology_terms):
+            return "ontology_terms may contain only letters, numbers, colons, commas, and spaces"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bed": ("BED", {"description": "BED intervals to characterize with AlphaGenome predict_interval"}),
+            },
+            "optional": {
+                "organism": (
+                    "STRING",
+                    {"default": "human", "options": cls.ORGANISMS, "description": "AlphaGenome organism assembly context"},
+                ),
+                "output_types": (
+                    "STRING_LIST",
+                    {
+                        "default": ["RNA_SEQ"],
+                        "multiple": True,
+                        "options": cls.OUTPUT_TYPES,
+                        "description": "AlphaGenome output tracks to predict",
+                    },
+                ),
+                "ontology_terms": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Optional comma-separated UBERON or CL ontology terms for tissue context",
+                    },
+                ),
+                "sequence_length": (
+                    "STRING",
+                    {
+                        "default": "1MB",
+                        "options": cls.SEQUENCE_LENGTHS,
+                        "description": "Prediction window size around each interval",
+                    },
+                ),
+                "max_intervals": (
+                    "INT",
+                    {"default": 50, "min": 1, "max": 1000, "description": "Maximum BED intervals to submit"},
+                ),
+                "output_mode": (
+                    "STRING",
+                    {
+                        "default": "summary",
+                        "options": cls.OUTPUT_MODES,
+                        "description": "Write compact interval summaries or binned signal profiles",
+                    },
+                ),
+                "bin_size": (
+                    "INT",
+                    {
+                        "default": 128,
+                        "min": 1,
+                        "max": 4096,
+                        "description": "Bin size in base pairs when output_mode is binned",
+                    },
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "alphagenome_interval_predictor.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy AlphaGenome interval predictor wrapper script",
+                    },
+                ),
+                "test_fixture": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Optional test fixture JSON that bypasses the AlphaGenome API",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",

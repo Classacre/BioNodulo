@@ -1148,6 +1148,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/ng1005-1015', 'https://doi.org/10.1038/75514'],
     citation_text: 'Allegro version 2; Allegro, a new computer program for multipoint linkage analysis.',
   },
+  alphagenome_interval_predictor: {
+    name: 'alphagenome_interval_predictor',
+    display_name: 'AlphaGenome Interval Predictor',
+    category: 'ai',
+    description: 'Predict regulatory tracks for genomic intervals with AlphaGenome.',
+    search_aliases: ['Galaxy', 'AlphaGenome', 'alphagenome', 'AlphaGenome interval prediction', 'regulatory track prediction', 'predict_interval', 'chromatin prediction', 'expression prediction'],
+    input: {
+      required: {
+        input_bed: { type: 'BED' },
+      },
+      optional: {
+        organism: { type: 'STRING', default: 'human', options: ['human', 'mouse'] },
+        output_types: { type: 'STRING', default: ['RNA_SEQ'], multiple: true, options: ['RNA_SEQ', 'ATAC', 'CAGE', 'DNASE', 'CHIP_HISTONE', 'CHIP_TF', 'SPLICE_SITES', 'PROCAP'] },
+        ontology_terms: { type: 'STRING', default: '' },
+        sequence_length: { type: 'STRING', default: '1MB', options: ['16KB', '128KB', '512KB', '1MB'] },
+        max_intervals: { type: 'INT', default: 50, min: 1, max: 1000 },
+        output_mode: { type: 'STRING', default: 'summary', options: ['summary', 'binned'] },
+        bin_size: { type: 'INT', default: 128, min: 1, max: 4096 },
+        script_path: { type: 'FILE', default: 'alphagenome_interval_predictor.py' },
+        test_fixture: { type: 'FILE', default: '' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['predictions'],
+    required_executables: ['python'],
+    required_conda_packages: ['alphagenome', 'cyvcf2', 'pandas'],
+    documentation_url: 'https://www.alphagenomedocs.com/',
+    citation_dois: ['10.1038/s41586-025-10014-0'],
+    citation_urls: ['https://doi.org/10.1038/s41586-025-10014-0'],
+    citation_text: 'Advancing regulatory variant effect prediction with AlphaGenome.',
+  },
   ancombc: {
     name: 'ancombc',
     display_name: 'ANCOM-BC',
@@ -9449,7 +9480,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('326 nodes available')).toBeVisible();
+  await expect(page.getByText('327 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9499,6 +9530,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
+    { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
     { query: 'ANCOM-BC differential abundance', name: 'ANCOM-BC', category: 'metagenomics' },
     { query: 'ANGSD internal counts', name: 'ANGSD', category: 'population_genetics' },
     { query: 'ANGSD X-Contamination', name: 'ANGSD X-Contamination', category: 'population_genetics' },

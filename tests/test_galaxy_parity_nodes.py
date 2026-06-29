@@ -220,6 +220,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["allegro"],
             "doi": "10.1038/ng1005-1015",
         },
+        "alphagenome_interval_predictor": {
+            "display_name": "AlphaGenome Interval Predictor",
+            "category": "ai",
+            "required_executables": ["python"],
+            "required_conda_packages": ["alphagenome", "cyvcf2", "pandas"],
+            "doi": "10.1038/s41586-025-10014-0",
+        },
         "ancombc": {
             "display_name": "ANCOM-BC",
             "category": "metagenomics",
@@ -5266,6 +5273,126 @@ def test_allegro_renders_config_command_outputs_and_validates(tmp_path: Path) ->
         {"inp_ped": "pedin.21", "inp_dat": "datain.21", "analysis_mode": "linkage", "steps": 0}
     ) == "steps must be >= 1"
     assert node_class.VALIDATE_INPUTS({"inp_ped": "pedin.21", "inp_dat": "datain.21"}) is True
+
+
+def test_alphagenome_interval_predictor_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["alphagenome_interval_predictor"]
+
+    assert info["display_name"] == "AlphaGenome Interval Predictor"
+    assert info["category"] == "ai"
+    assert info["description"] == "Predict regulatory tracks for genomic intervals with AlphaGenome."
+    assert info["input"]["required"]["input_bed"][0] == "BED"
+    assert info["input"]["optional"]["organism"][1]["default"] == "human"
+    assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
+    assert info["input"]["optional"]["output_types"][0] == "STRING"
+    assert info["input"]["optional"]["output_types"][1]["default"] == ["RNA_SEQ"]
+    assert info["input"]["optional"]["output_types"][1]["multiple"] is True
+    assert info["input"]["optional"]["output_types"][1]["options"] == [
+        "RNA_SEQ",
+        "ATAC",
+        "CAGE",
+        "DNASE",
+        "CHIP_HISTONE",
+        "CHIP_TF",
+        "SPLICE_SITES",
+        "PROCAP",
+    ]
+    assert info["input"]["optional"]["ontology_terms"][1]["default"] == ""
+    assert info["input"]["optional"]["sequence_length"][1]["default"] == "1MB"
+    assert info["input"]["optional"]["sequence_length"][1]["options"] == ["16KB", "128KB", "512KB", "1MB"]
+    assert info["input"]["optional"]["max_intervals"][1]["default"] == 50
+    assert info["input"]["optional"]["max_intervals"][1]["min"] == 1
+    assert info["input"]["optional"]["max_intervals"][1]["max"] == 1000
+    assert info["input"]["optional"]["output_mode"][1]["default"] == "summary"
+    assert info["input"]["optional"]["output_mode"][1]["options"] == ["summary", "binned"]
+    assert info["input"]["optional"]["bin_size"][1]["default"] == 128
+    assert info["input"]["optional"]["bin_size"][1]["min"] == 1
+    assert info["input"]["optional"]["bin_size"][1]["max"] == 4096
+    assert info["input"]["optional"]["script_path"][1]["default"] == "alphagenome_interval_predictor.py"
+    assert info["input"]["optional"]["script_path"][1]["advanced"] is True
+    assert info["input"]["optional"]["test_fixture"][1]["default"] == ""
+    assert info["input"]["optional"]["test_fixture"][1]["advanced"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["predictions"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["alphagenome", "cyvcf2", "pandas"]
+    assert info["documentation_url"] == "https://www.alphagenomedocs.com/"
+    assert info["citation_dois"] == ["10.1038/s41586-025-10014-0"]
+    assert info["citation_urls"] == ["https://doi.org/10.1038/s41586-025-10014-0"]
+    assert "Advancing regulatory variant effect prediction with AlphaGenome" in info["citation_text"]
+    assert "AlphaGenome interval prediction" in info["search_aliases"]
+
+
+def test_alphagenome_interval_predictor_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("alphagenome_interval_predictor")
+
+    assert node_class.render_command(
+        {
+            "input_bed": "intervals.bed",
+            "organism": "human",
+            "output_types": ["RNA_SEQ", "ATAC"],
+            "ontology_terms": "UBERON:0002107,CL:0000746",
+            "sequence_length": "16KB",
+            "max_intervals": 3,
+            "output_mode": "binned",
+            "bin_size": 256,
+            "script_path": "/tools/alphagenome/alphagenome_interval_predictor.py",
+            "test_fixture": "test-data/fixture_interval_predictor.json",
+            "output": "/work/alphagenome_interval_predictor",
+        }
+    ) == (
+        "python /tools/alphagenome/alphagenome_interval_predictor.py --input intervals.bed "
+        "--output /work/alphagenome_interval_predictor/predictions.tsv --organism human "
+        "--output-types RNA_SEQ ATAC --sequence-length 16KB --max-intervals 3 "
+        "--output-mode binned --bin-size 256 --ontology-terms UBERON:0002107,CL:0000746 "
+        "--test-fixture test-data/fixture_interval_predictor.json"
+    )
+
+    summary_command = node_class.render_command(
+        {
+            "input_bed": "region with space.bed",
+            "output_types": ["RNA_SEQ"],
+            "output": "/work/alphagenome_interval_predictor",
+        }
+    )
+    assert summary_command == (
+        "python alphagenome_interval_predictor.py --input 'region with space.bed' "
+        "--output /work/alphagenome_interval_predictor/predictions.tsv --organism human "
+        "--output-types RNA_SEQ --sequence-length 1MB --max-intervals 50 --output-mode summary"
+    )
+    assert "--bin-size" not in summary_command
+    assert "--ontology-terms" not in summary_command
+    assert "--test-fixture" not in summary_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "alphagenome_interval_predictor" / "predictions.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_bed": "", "output_types": ["RNA_SEQ"]}) == "input_bed is required"
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "output_types": []}) == (
+        "at least one output type is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "output_types": ["BAD"]}) == (
+        "output_types contains unsupported values: BAD"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "organism": "rat"}) == (
+        "organism must be one of: human, mouse"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "sequence_length": "2MB"}) == (
+        "sequence_length must be one of: 16KB, 128KB, 512KB, 1MB"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "output_mode": "tracks"}) == (
+        "output_mode must be one of: summary, binned"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "max_intervals": 0}) == (
+        "max_intervals must be between 1 and 1000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "output_mode": "binned", "bin_size": 0}) == (
+        "bin_size must be between 1 and 4096"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "ontology_terms": "UBERON:0002107;rm"}) == (
+        "ontology_terms may contain only letters, numbers, colons, commas, and spaces"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bed": "intervals.bed", "output_types": ["RNA_SEQ"]}) is True
 
 
 def test_ancombc_exposes_galaxy_metadata_and_citation() -> None:
