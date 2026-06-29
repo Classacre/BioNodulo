@@ -2900,6 +2900,61 @@ def test_plasclass_renders_classification_command_and_output(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"fasta": "contigs.fa", "threads": 1}) is True
 
 
+def test_minia_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["minia"]
+
+    assert node_info["display_name"] == "Minia"
+    assert node_info["category"] == "assembly"
+    assert node_info["description"].startswith("Assemble short reads")
+    assert node_info["output"] == ["FASTA"]
+    assert node_info["output_name"] == ["contigs"]
+    assert node_info["required_executables"] == ["minia"]
+    assert node_info["required_conda_packages"] == ["minia"]
+    assert node_info["documentation_url"] == "https://github.com/GATB/minia"
+    assert node_info["citation_dois"] == ["10.1186/1748-7188-8-22"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/1748-7188-8-22"]
+    assert "de Bruijn graph" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "Bloom filter" in node_info["search_aliases"]
+
+
+def test_minia_renders_assembly_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("minia")
+
+    assert node_class.render_command(
+        {
+            "in": "reads sample.fastq.gz",
+            "kmer_size": 55,
+            "abundance_min": 3,
+            "abundance_max": 120,
+            "threads": 6,
+            "output": "/work/minia",
+        }
+    ) == (
+        "ln -s 'reads sample.fastq.gz' infile.fastq.gz && "
+        "minia -in infile.fastq.gz -kmer-size 55 -abundance-min 3 -abundance-max 120 "
+        "-nb-cores ${GALAXY_SLOTS:-6} -out /work/minia/output"
+    )
+    assert node_class.render_command(
+        {
+            "in": "reads.fa",
+            "kmer_size": 31,
+            "output": "/work/minia",
+        }
+    ) == (
+        "ln -s reads.fa infile.fa && "
+        "minia -in infile.fa -kmer-size 31 -nb-cores ${GALAXY_SLOTS:-1} -out /work/minia/output"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "minia" / "output.contigs.fa",
+    ]
+    assert node_class.VALIDATE_INPUTS({"in": ""}) == "input reads are required"
+    assert node_class.VALIDATE_INPUTS({"in": "reads.fa", "kmer_size": 0}) == "kmer_size must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"in": "reads.fa", "abundance_min": -1}) == "abundance_min must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"in": "reads.fa", "threads": 0}) == "threads must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"in": "reads.fa", "kmer_size": 31, "threads": 1}) is True
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 

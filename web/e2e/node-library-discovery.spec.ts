@@ -806,6 +806,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.5281/zenodo.322347'],
     citation_text: 'rjchallis/assembly-stats 17.02.',
   },
+  minia: {
+    name: 'minia',
+    display_name: 'Minia',
+    category: 'assembly',
+    description: 'Assemble short reads into contigs with Minia, a compact de Bruijn graph assembler.',
+    search_aliases: ['Galaxy', 'Minia', 'minia', 'short-read assembler', 'de Bruijn graph', 'Bloom filter', 'contig assembly', 'k-mer assembler'],
+    input: {
+      required: {
+        in: { type: 'FASTQ' },
+      },
+      optional: {
+        kmer_size: { type: 'INT', default: 31, min: 1 },
+        abundance_min: { type: 'INT', default: '', min: 0 },
+        abundance_max: { type: 'INT', default: '', min: 0 },
+        threads: { type: 'INT', default: 1, min: 1, max: 64 },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['contigs'],
+    required_executables: ['minia'],
+    required_conda_packages: ['minia'],
+    documentation_url: 'https://github.com/GATB/minia',
+    citation_dois: ['10.1186/1748-7188-8-22'],
+    citation_urls: ['https://doi.org/10.1186/1748-7188-8-22'],
+    citation_text: 'Space-efficient and exact de Bruijn graph representation based on a Bloom filter.',
+  },
   amas_summary: {
     name: 'amas_summary',
     display_name: 'AMAS Summary',
@@ -7036,7 +7062,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('256 nodes available')).toBeVisible();
+  await expect(page.getByText('257 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7078,6 +7104,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
     { query: 'trim_Ns_DNAnexus.py', name: 'TrimN', category: 'trimming' },
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
+    { query: 'Bloom filter', name: 'Minia', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },
     { query: 'amas split', name: 'AMAS Split', category: 'phylogeny' },
