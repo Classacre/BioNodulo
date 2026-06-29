@@ -5157,6 +5157,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.5281/zenodo.7684307'],
     citation_text: 'AmpliGone: find and remove primers from NGS amplicon reads.',
   },
+  binette: {
+    name: 'binette',
+    display_name: 'Binette',
+    category: 'metagenomics',
+    description: 'Refine multiple contig-to-bin tables into high-quality metagenome-assembled genomes with quality reports.',
+    search_aliases: ['Galaxy', 'Binette', 'Binette binning refinement', 'binning refinement', 'metagenomic binning', 'MAG refinement', 'CheckM2 database', 'contig-to-bin tables'],
+    input: {
+      required: {
+        contig2bin_tables: { type: 'TSV', multiple: true, min_items: 2 },
+        contigs: { type: 'FASTA' },
+      },
+      optional: {
+        proteins: { type: 'FASTA', default: '' },
+        min_completeness: { type: 'INT', default: 40 },
+        contamination_weight: { type: 'INT', default: 2 },
+        database_type: { type: 'STRING', default: 'cached', options: ['cached', 'his'] },
+        checkm2_db: { type: 'FILE', default: '' },
+        checkm2_db_path: { type: 'FILE', default: '' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['DIRECTORY', 'DIRECTORY', 'TSV'],
+    output_name: ['bins', 'quality_reports', 'final_quality_report'],
+    required_executables: ['binette'],
+    required_conda_packages: ['binette'],
+    documentation_url: 'https://github.com/genotoul-bioinfo/Binette',
+    citation_dois: ['10.21105/joss.06782'],
+    citation_urls: ['https://doi.org/10.21105/joss.06782'],
+    citation_text: 'Binette: a fast and accurate binning refinement tool to construct high-quality MAGs.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7902,7 +7932,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('283 nodes available')).toBeVisible();
+  await expect(page.getByText('284 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8066,6 +8096,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Chromeister dotplot', name: 'Chromeister', category: 'comparative_genomics' },
     { query: 'BigWig coverage outliers', name: 'Bigwig outliers to bed features', category: 'genomics' },
     { query: 'AmpliGone primer removal', name: 'AmpliGone', category: 'sequence' },
+    { query: 'Binette binning refinement', name: 'Binette', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

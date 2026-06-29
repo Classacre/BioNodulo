@@ -12989,6 +12989,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["AmpliGone"],
             "doi": "10.5281/zenodo.7684307",
         },
+        "binette": {
+            "display_name": "Binette",
+            "category": "metagenomics",
+            "required_executables": ["binette"],
+            "required_conda_packages": ["binette"],
+            "doi": "10.21105/joss.06782",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14590,6 +14597,157 @@ def test_ampligone_renders_primer_removal_command_and_optional_export(tmp_path: 
     assert node_class.PLAN_OUTPUTS({"input_ext": "bam", "primers_ext": "bed", "export_primers": True}, tmp_path) == [
         tmp_path / "ampligone" / "cleaned_reads.fastq",
     ]
+
+
+def test_binette_renders_binning_refinement_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("binette")
+    info = _registry().object_info()["binette"]
+
+    assert info["output"] == ["DIRECTORY", "DIRECTORY", "TSV"]
+    assert info["output_name"] == ["bins", "quality_reports", "final_quality_report"]
+    assert info["input"]["required"]["contig2bin_tables"][1]["multiple"] is True
+    assert info["input"]["required"]["contig2bin_tables"][1]["min_items"] == 2
+    assert "10.21105/joss.06782" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "contig2bin_tables": ["A bins.tsv", "B bins.tsv", "C bins.tsv"],
+            "contigs": "all contigs.fasta.gz",
+            "proteins": "predicted proteins.faa.gz",
+            "min_completeness": 5,
+            "contamination_weight": 0,
+            "database_type": "his",
+            "checkm2_db": "checkm2 tiny database.dmnd",
+            "threads": 6,
+            "output": "/work/binette",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/binette/input",
+        "/work/binette/output",
+        "&&",
+        "ln",
+        "-s",
+        "A bins.tsv",
+        "/work/binette/input/bin_table_0.tsv",
+        "&&",
+        "ln",
+        "-s",
+        "B bins.tsv",
+        "/work/binette/input/bin_table_1.tsv",
+        "&&",
+        "ln",
+        "-s",
+        "C bins.tsv",
+        "/work/binette/input/bin_table_2.tsv",
+        "&&",
+        "ln",
+        "-s",
+        "all contigs.fasta.gz",
+        "/work/binette/input_contigs.fasta",
+        "&&",
+        "ln",
+        "-s",
+        "checkm2 tiny database.dmnd",
+        "/work/binette/input_database.dmnd",
+        "&&",
+        "ln",
+        "-s",
+        "predicted proteins.faa.gz",
+        "/work/binette/input_proteins.fasta",
+        "&&",
+        "binette",
+        "-b",
+        "/work/binette/input/*.tsv",
+        "-c",
+        "/work/binette/input_contigs.fasta",
+        "-p",
+        "/work/binette/input_proteins.fasta",
+        "--min_completeness",
+        "5",
+        "-t",
+        "${GALAXY_SLOTS:-6}",
+        "-o",
+        "/work/binette/output/",
+        "-w",
+        "0",
+        "--checkm2_db",
+        "/work/binette/input_database.dmnd",
+    ]
+
+    assert node_class.render_command(
+        {
+            "contig2bin_tables": ["A.tsv", "B.tsv"],
+            "contigs": "assembly.fa",
+            "min_completeness": 40,
+            "contamination_weight": 2,
+            "database_type": "cached",
+            "checkm2_db_path": "/db/checkm2/current.dmnd",
+            "threads": 2,
+            "output": "/work/binette",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/binette/input",
+        "/work/binette/output",
+        "&&",
+        "ln",
+        "-s",
+        "A.tsv",
+        "/work/binette/input/bin_table_0.tsv",
+        "&&",
+        "ln",
+        "-s",
+        "B.tsv",
+        "/work/binette/input/bin_table_1.tsv",
+        "&&",
+        "ln",
+        "-s",
+        "assembly.fa",
+        "/work/binette/input_contigs.fasta",
+        "&&",
+        "binette",
+        "-b",
+        "/work/binette/input/*.tsv",
+        "-c",
+        "/work/binette/input_contigs.fasta",
+        "--min_completeness",
+        "40",
+        "-t",
+        "${GALAXY_SLOTS:-2}",
+        "-o",
+        "/work/binette/output/",
+        "-w",
+        "2",
+        "--checkm2_db",
+        "/db/checkm2/current.dmnd",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "binette" / "output" / "final_bins",
+        tmp_path / "binette" / "output" / "input_bins_quality_reports",
+        tmp_path / "binette" / "output" / "final_bins_quality_reports.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"contig2bin_tables": ["A.tsv"], "contigs": "assembly.fa"}) == (
+        "at least two contig-to-bin tables are required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "contig2bin_tables": ["A.tsv", "B.tsv"],
+            "contigs": "assembly.fa",
+            "database_type": "his",
+            "checkm2_db": "",
+        }
+    ) == "CheckM2 DIAMOND database is required for history database mode"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "contig2bin_tables": ["A.tsv", "B.tsv"],
+            "contigs": "assembly.fa",
+            "database_type": "cached",
+            "checkm2_db_path": "/db/checkm2/current.dmnd",
+        }
+    ) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
