@@ -3588,6 +3588,50 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; RELAX: Detecting Relaxed Selection in a Phylogenetic Framework.',
   },
+  hyphy_slac: {
+    name: 'hyphy_slac',
+    display_name: 'HyPhy-SLAC',
+    category: 'phylogeny',
+    description: 'Detect pervasive site-level selection with HyPhy SLAC.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'SLAC',
+      'Single Likelihood Ancestor Counting',
+      'pervasive selection',
+      'site-level selection',
+      'ancestral state reconstruction',
+      'synonymous substitutions',
+      'nonsynonymous substitutions',
+      'positive selection',
+      'purifying selection',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE' },
+        input_ext: { type: 'STRING', default: 'fasta' },
+        gencodeid: { type: 'STRING', default: 'Universal' },
+        branch_sel: { type: 'STRING', default: 'All' },
+        p_value: { type: 'FLOAT', default: 0.1 },
+        number_of_samples: { type: 'INT', default: 0 },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes' },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['TEXT', 'JSON'],
+    output_name: ['slac_md_report', 'slac_output'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://hyphy.org/methods/selection-methods/#SLAC',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/msi105'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/msi105'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Not So Different After All: A Comparison of Methods for Detecting Amino Acid Sites Under Selection.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6558,7 +6602,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('240 nodes available')).toBeVisible();
+  await expect(page.getByText('241 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6672,6 +6716,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Mixed Effects Model of Evolution', name: 'HyPhy-MEME', category: 'phylogeny' },
     { query: 'Property Informed Models of Evolution', name: 'HyPhy-PRIME', category: 'phylogeny' },
     { query: 'relaxed selection', name: 'HyPhy-RELAX', category: 'phylogeny' },
+    { query: 'Single Likelihood Ancestor Counting', name: 'HyPhy-SLAC', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

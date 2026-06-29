@@ -661,6 +661,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/msu400",
         },
+        "hyphy_slac": {
+            "display_name": "HyPhy-SLAC",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msi105",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -9432,6 +9439,162 @@ def test_hyphy_relax_validates_wrapper_inputs() -> None:
             "input_type": "multiple",
             "input_data_and_tree": [{"input_file": "alignment.fa", "input_ext": "fasta"}],
             "test": "TEST",
+        }
+    ) is True
+
+
+def test_hyphy_slac_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_slac"]
+
+    assert info["display_name"] == "HyPhy-SLAC"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Detect pervasive site-level selection with HyPhy SLAC."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "SLAC",
+        "Single Likelihood Ancestor Counting",
+        "pervasive selection",
+        "site-level selection",
+        "ancestral state reconstruction",
+        "synonymous substitutions",
+        "nonsynonymous substitutions",
+        "positive selection",
+        "purifying selection",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["TEXT", "JSON"]
+    assert info["output_name"] == ["slac_md_report", "slac_output"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://hyphy.org/methods/selection-methods/#SLAC"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/molbev/msi105"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/msi105",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Not So Different After All: A Comparison of Methods for Detecting Amino Acid Sites Under Selection."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["branch_sel"][1]["default"] == "All"
+    assert info["input"]["optional"]["branch_sel"][1]["options"] == [
+        "All",
+        "Internal",
+        "Leaves",
+        "Unlabeled-branches",
+        "specify",
+    ]
+    assert info["input"]["optional"]["p_value"][1]["default"] == 0.1
+    assert info["input"]["optional"]["p_value"][1]["min"] == 0
+    assert info["input"]["optional"]["p_value"][1]["max"] == 1
+    assert info["input"]["optional"]["number_of_samples"][1]["default"] == 0
+    assert info["input"]["optional"]["number_of_samples"][1]["min"] == 0
+    assert info["input"]["optional"]["number_of_samples"][1]["max"] == 10000
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_slac_renders_default_hyphy_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_slac")
+
+    assert node_class.render_command(
+        {
+            "input_file": "slac-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "slac-in1.nhx",
+            "output": "/work/hyphy_slac",
+        }
+    ) == (
+        "ln -s slac-in1.nhx input.nhx && "
+        "ln -s slac-in1.fa input.fasta && "
+        "hyphy CPU=4 slac --alignment ./input.fasta --tree input.nhx --code Universal --branches All "
+        "--samples 0 --pvalue 0.1 --output /work/hyphy_slac/slac_output.json --kill-zero-lengths Yes "
+        "> /work/hyphy_slac/slac_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_slac" / "slac_stdout.md",
+        tmp_path / "hyphy_slac" / "slac_output.json",
+    ]
+
+
+def test_hyphy_slac_renders_advanced_hyphy_command_without_tree() -> None:
+    node_class = _node_class("hyphy_slac")
+
+    command = node_class.render_command(
+        {
+            "input_file": "codon alignment.nex",
+            "input_ext": "nex",
+            "gencodeid": "Vertebrate-mtDNA",
+            "branch_sel": "specify",
+            "branch_label": "Foreground clade",
+            "p_value": 0.05,
+            "number_of_samples": 100,
+            "kill_zero_lengths": "Constrain",
+            "threads": 8,
+            "output": "/work/hyphy_slac",
+        }
+    )
+
+    assert command == (
+        "ln -s 'codon alignment.nex' input.nex && "
+        "hyphy CPU=8 slac --alignment ./input.nex --code Vertebrate-mtDNA --branches 'Foreground clade' "
+        "--samples 100 --pvalue 0.05 --output /work/hyphy_slac/slac_output.json "
+        "--kill-zero-lengths Constrain > /work/hyphy_slac/slac_stdout.md"
+    )
+    assert "--tree" not in command
+
+
+def test_hyphy_slac_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_slac")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-SLAC alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "input_ext": "stockholm"}) == (
+        "Unsupported HyPhy-SLAC input extension: stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "Foreground"}) == (
+        "Unsupported HyPhy-SLAC branch selection: Foreground"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "specify"}) == (
+        "HyPhy-SLAC custom branch selection requires a branch label"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "p_value": 1.1}) == (
+        "HyPhy-SLAC p-value threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "number_of_samples": 10001}) == (
+        "HyPhy-SLAC ancestral reconstruction samples must be between 0 and 10000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-SLAC zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-SLAC threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "input_ext": "fasta",
+            "gencodeid": "Universal",
+            "branch_sel": "Internal",
+            "p_value": 0.1,
+            "number_of_samples": 0,
+            "kill_zero_lengths": "Yes",
+            "threads": 4,
         }
     ) is True
 
