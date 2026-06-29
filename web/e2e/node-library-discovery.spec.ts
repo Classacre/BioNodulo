@@ -2991,6 +2991,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1016/j.jgg.2021.03.006'],
     citation_text: 'TaxonKit: a practical and efficient NCBI taxonomy toolkit.',
   },
+  taxonkit_profile2cami: {
+    name: 'taxonkit_profile2cami',
+    display_name: 'Profile2CAMI',
+    category: 'taxonomy',
+    description: 'Convert metagenomic taxonomic profile tables to CAMI format with TaxonKit.',
+    search_aliases: ['Galaxy', 'TaxonKit', 'Profile2CAMI', 'TaxonKit profile2cami', 'CAMI profile format', 'taxonomic profile conversion'],
+    input: {
+      required: {
+        input_file: { type: 'TSV' },
+        taxonomy: { type: 'DIRECTORY' },
+      },
+      optional: {
+        abundance_field: { type: 'INT', default: 2 },
+        taxid_field: { type: 'INT', default: 1 },
+        percentage: { type: 'BOOLEAN', default: false },
+        recompute_abd: { type: 'BOOLEAN', default: false },
+        keep_zero: { type: 'BOOLEAN', default: false },
+        no_sum_up: { type: 'BOOLEAN', default: false },
+        sample_id: { type: 'STRING', default: '' },
+        taxonomy_id: { type: 'STRING', default: '' },
+        ranks: { type: 'STRING', default: [], multiple: true, options: ['superkingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species', 'strain'] },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['cami_output'],
+    required_executables: ['taxonkit'],
+    required_conda_packages: ['taxonkit'],
+    documentation_url: 'https://bioinf.shenwei.me/taxonkit/',
+    citation_dois: ['10.1016/j.jgg.2021.03.006'],
+    citation_urls: ['https://doi.org/10.1016/j.jgg.2021.03.006'],
+    citation_text: 'TaxonKit: a practical and efficient NCBI taxonomy toolkit.',
+  },
   humann_join_tables: {
     name: 'humann_join_tables',
     display_name: 'HUMAnN Join Tables',
@@ -8878,7 +8910,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('310 nodes available')).toBeVisible();
+  await expect(page.getByText('311 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8989,6 +9021,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
     { query: 'taxonomic profile standardisation', name: 'Taxpasta', category: 'taxonomy' },
     { query: 'TaxonKit name2taxid', name: 'Name2taxid', category: 'taxonomy' },
+    { query: 'TaxonKit profile2cami', name: 'Profile2CAMI', category: 'taxonomy' },
     { query: 'multi-sample table', name: 'HUMAnN Join Tables', category: 'metagenomics' },
     { query: 'copies per million', name: 'HUMAnN Renormalize Table', category: 'metagenomics' },
     { query: 'one file per sample', name: 'HUMAnN Split Table', category: 'metagenomics' },

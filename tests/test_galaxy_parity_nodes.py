@@ -13178,6 +13178,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["taxonkit", "tar"],
             "doi": "10.1016/j.jgg.2021.03.006",
         },
+        "taxonkit_profile2cami": {
+            "display_name": "Profile2CAMI",
+            "category": "taxonomy",
+            "required_executables": ["taxonkit"],
+            "required_conda_packages": ["taxonkit"],
+            "doi": "10.1016/j.jgg.2021.03.006",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -17176,6 +17183,65 @@ def test_taxonkit_name2taxid_renders_taxonomy_setup_command_outputs_and_validati
     assert node_class.VALIDATE_INPUTS(
         {"input": "names.tsv", "name_field": 1, "data_source": "cached", "taxonomy_dir": "/ref/taxonomy"}
     ) is True
+
+
+def test_taxonkit_profile2cami_renders_conversion_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("taxonkit_profile2cami")
+    info = _registry().object_info()["taxonkit_profile2cami"]
+
+    assert info["display_name"] == "Profile2CAMI"
+    assert info["description"] == "Convert metagenomic taxonomic profile tables to CAMI format with TaxonKit."
+    assert info["input"]["required"]["input_file"][0] == "TSV"
+    assert info["input"]["required"]["taxonomy"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["abundance_field"][1]["default"] == 2
+    assert info["input"]["optional"]["taxid_field"][1]["default"] == 1
+    assert info["input"]["optional"]["ranks"][1]["multiple"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["cami_output"]
+    assert "10.1016/j.jgg.2021.03.006" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_file": "abundance.tsv",
+            "taxonomy": "/ref/ncbi_taxonomy",
+            "output": "/work/profile2cami",
+        }
+    ) == (
+        "taxonkit profile2cami --data-dir /ref/ncbi_taxonomy --abundance-field 2 --taxid-field 1 "
+        "abundance.tsv > /work/profile2cami/cami_profile.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "input_file": "profile table.tsv",
+            "taxonomy": "/ref/ncbi taxonomy",
+            "abundance_field": 4,
+            "taxid_field": 2,
+            "percentage": True,
+            "recompute_abd": True,
+            "keep_zero": True,
+            "no_sum_up": True,
+            "sample_id": "sample A",
+            "taxonomy_id": "NCBI 2024",
+            "ranks": ["superkingdom", "phylum", "species"],
+            "output": "/work/profile2cami",
+        }
+    ) == (
+        "taxonkit profile2cami --data-dir '/ref/ncbi taxonomy' --abundance-field 4 --taxid-field 2 "
+        "-p -R -0 -S -s 'sample A' -t 'NCBI 2024' --show-rank superkingdom,phylum,species "
+        "'profile table.tsv' > /work/profile2cami/cami_profile.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "taxonkit_profile2cami" / "cami_profile.tsv"]
+    assert node_class.VALIDATE_INPUTS({}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "profile.tsv"}) == "taxonomy is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "profile.tsv", "taxonomy": "/ref/taxonomy", "abundance_field": 0}) == (
+        "abundance_field must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "profile.tsv", "taxonomy": "/ref/taxonomy", "taxid_field": "x"}) == (
+        "taxid_field must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "profile.tsv", "taxonomy": "/ref/taxonomy", "ranks": ["species", "bad_rank"]}
+    ) == "ranks contains unsupported values: bad_rank"
+    assert node_class.VALIDATE_INPUTS({"input_file": "profile.tsv", "taxonomy": "/ref/taxonomy"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
