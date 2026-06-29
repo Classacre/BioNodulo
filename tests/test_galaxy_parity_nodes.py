@@ -520,6 +520,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "humann_split_table": {
+            "display_name": "HUMAnN Split Table",
+            "category": "metagenomics",
+            "required_executables": ["humann_split_table"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6107,6 +6114,96 @@ def test_humann_renorm_table_validates_wrapper_inputs() -> None:
         "Unsupported HUMAnN normalization mode: samplewise"
     )
     assert node_class.VALIDATE_INPUTS({"input": "pathabundance.tsv"}) is True
+
+
+def test_humann_split_table_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_split_table"]
+
+    assert info["display_name"] == "HUMAnN Split Table"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Split a merged HUMAnN feature table into one table per sample."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_split_table",
+        "Split",
+        "merged table",
+        "one file per sample",
+        "taxonomy index",
+        "PICRUSt",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["DIRECTORY"]
+    assert info["output_name"] == ["split_tables"]
+    assert info["required_executables"] == ["humann_split_table"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["description"] == "Merged HUMAnN gene or pathway table"
+    assert info["input"]["optional"]["taxonomy_index"][0] == "INT"
+    assert info["input"]["optional"]["taxonomy_index"][1]["default"] == ""
+    assert info["input"]["optional"]["taxonomy_level"][1]["options"] == [
+        "Kingdom",
+        "Phylum",
+        "Class",
+        "Order",
+        "Family",
+        "Genus",
+        "Species",
+    ]
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_split_table_renders_split_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("humann_split_table")
+
+    assert node_class.render_command(
+        {
+            "input": "demo joined pathabundance pathcoverage.tsv",
+            "output": "/work/humann_split_table",
+        }
+    ) == (
+        "humann_split_table --input 'demo joined pathabundance pathcoverage.tsv' "
+        "-o /work/humann_split_table/split_tables"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "picrust_metagenome.tsv",
+            "taxonomy_index": 4,
+            "taxonomy_level": "Genus",
+            "output": "/work/humann_split_table",
+        }
+    ) == (
+        "humann_split_table --input picrust_metagenome.tsv -o /work/humann_split_table/split_tables "
+        "--taxonomy_index 4 --taxonomy_level Genus"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "humann_split_table" / "split_tables",
+    ]
+
+
+def test_humann_split_table_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_split_table")
+
+    assert node_class.VALIDATE_INPUTS({}) == "Merged HUMAnN table is required"
+    assert node_class.VALIDATE_INPUTS({"input": "merged.tsv", "taxonomy_level": "Strain"}) == (
+        "Unsupported HUMAnN taxonomy level: Strain"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "merged.tsv", "taxonomy_index": "gene"}) == (
+        "Taxonomy index must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "merged.tsv", "taxonomy_index": -1}) == (
+        "Taxonomy index must be zero or greater"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "merged.tsv", "taxonomy_index": 0}) is True
 
 
 def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:

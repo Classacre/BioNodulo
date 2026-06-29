@@ -10248,6 +10248,107 @@ class HUMAnNRenormTableNode(CommandNode):
         }
 
 
+class HUMAnNSplitTableNode(CommandNode):
+    """Split a merged HUMAnN table into one file per sample."""
+
+    NODE_ID = "humann_split_table"
+    DISPLAY_NAME = "HUMAnN Split Table"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Split a merged HUMAnN feature table into one table per sample."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_split_table",
+        "Split",
+        "merged table",
+        "one file per sample",
+        "taxonomy index",
+        "PICRUSt",
+    ]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("split_tables",)
+    REQUIRED_EXECUTABLES = ["humann_split_table"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+    TAXONOMY_LEVELS = ["Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/split_tables"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "humann_split_table",
+            "--input",
+            str(inputs.get("input", "")),
+            "-o",
+            cls._output_path(inputs),
+        ]
+        taxonomy_index = inputs.get("taxonomy_index")
+        if taxonomy_index is not None and str(taxonomy_index) != "":
+            cmd.extend(["--taxonomy_index", str(taxonomy_index)])
+        taxonomy_level = inputs.get("taxonomy_level")
+        if taxonomy_level is not None and str(taxonomy_level) != "":
+            cmd.extend(["--taxonomy_level", str(taxonomy_level)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID / "split_tables"
+        out.mkdir(parents=True, exist_ok=True)
+        return [out]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "Merged HUMAnN table is required"
+        taxonomy_level = str(inputs.get("taxonomy_level", ""))
+        if taxonomy_level and taxonomy_level not in cls.TAXONOMY_LEVELS:
+            return f"Unsupported HUMAnN taxonomy level: {taxonomy_level}"
+        taxonomy_index = inputs.get("taxonomy_index")
+        if taxonomy_index is not None and str(taxonomy_index) != "":
+            try:
+                parsed_index = int(taxonomy_index)
+            except (TypeError, ValueError):
+                return "Taxonomy index must be an integer"
+            if parsed_index < 0:
+                return "Taxonomy index must be zero or greater"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "Merged HUMAnN gene or pathway table"}),
+            },
+            "optional": {
+                "taxonomy_index": (
+                    "INT",
+                    {
+                        "default": "",
+                        "min": 0,
+                        "description": "Index of the gene in taxonomy data when splitting PICRUSt-style tables",
+                    },
+                ),
+                "taxonomy_level": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": cls.TAXONOMY_LEVELS,
+                        "description": "Taxonomy level to use for PICRUSt metagenome contribution output",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MergeMetaPhlAnTablesNode(CommandNode):
     """Merge multiple MetaPhlAn relative abundance tables."""
 
