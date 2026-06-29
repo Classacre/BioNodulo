@@ -77,6 +77,10 @@ ADD_INPUT_NAME_AS_COLUMN_CITATION_URL = (
 ADD_INPUT_NAME_AS_COLUMN_CITATION_TEXT = "Add input name as column on an existing tabular file."
 AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
 AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
+LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
+LOCUSPOCUS_CITATION_TEXT = (
+    "Interval locus concepts and associated LocusPocus/Fidibus software for comparative genome annotation."
+)
 
 
 def _bedtools_common_output(node_id: str, filename: str, output_dir: str | Path) -> Path:
@@ -452,6 +456,193 @@ class AegeanGaevalNode(CommandNode):
                         "min": 0,
                         "max": 1000,
                         "description": "Expected 3 prime UTR length in base pairs",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class AegeanLocusPocusNode(CommandNode):
+    """Calculate interval loci from GFF3 annotations with AEGeAn LocusPocus."""
+
+    NODE_ID = "aegean_locuspocus"
+    DISPLAY_NAME = "AEGeAn LocusPocus"
+    REQUIRED_CONDA_PACKAGES = ["aegean"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Calculate interval locus coordinates from GFF3 gene annotations."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AEGeAn",
+        "LocusPocus",
+        "locuspocus",
+        "aegean_locuspocus",
+        "iLoci",
+        "interval loci",
+        "gene locus coordinates",
+    ]
+    RETURN_TYPES = ("GFF3", "TSV", "TSV", "TSV")
+    RETURN_NAMES = ("output", "output_ilens", "output_genemap", "output_transmap")
+    REQUIRED_EXECUTABLES = ["locuspocus"]
+    DOCUMENTATION_URL = AEGEAN_CITATION_URL
+    CITATION_DOIS = [LOCUSPOCUS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{LOCUSPOCUS_CITATION_DOI}"]
+    CITATION_TEXT = LOCUSPOCUS_CITATION_TEXT
+    VERSION = "0.16.0+galaxy2"
+
+    MODES = ["", "--skipends", "--endsonly"]
+    REFINE_OPTIONS = ["", "--refine"]
+    OUTPUT_FILES = ["ilens", "genemap", "transmap"]
+    OPTIONAL_OUTPUT_NAMES = {
+        "ilens": "ilens.tsv",
+        "genemap": "genemap.tsv",
+        "transmap": "transmap.tsv",
+    }
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/loci.gff3"
+
+    @classmethod
+    def _selected_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("outputfiles"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = [
+            "locuspocus",
+            str(inputs.get("genesgff3", "")),
+            "-l",
+            str(inputs.get("delta", 500)),
+        ]
+        mode = str(inputs.get("mode", "") or "")
+        if mode:
+            cmd.append(mode)
+        if inputs.get("skipiloci"):
+            cmd.append("--skipiiloci")
+        if str(inputs.get("refine", "") or "") == "--refine" and inputs.get("cds"):
+            cmd.append("--cds")
+        cmd.extend(["-m", str(inputs.get("minoverlap", 1))])
+        cmd.extend(["-f", str(inputs.get("filter", "gene") or "gene")])
+        _add_if_value(cmd, "-p", inputs.get("parent"))
+        if inputs.get("pseudo"):
+            cmd.append("--pseudo")
+        selected = cls._selected_outputs(inputs)
+        for output_name in cls.OUTPUT_FILES:
+            if output_name in selected:
+                cmd.extend([f"--{output_name}", f"{out}/{cls.OPTIONAL_OUTPUT_NAMES[output_name]}"])
+        _add_if_value(cmd, "-n", inputs.get("namefmt"))
+        if inputs.get("retainids"):
+            cmd.append("--retainids")
+        cmd.extend(["-o", cls._output_path(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "loci.gff3"]
+        selected = cls._selected_outputs(inputs)
+        for output_name in cls.OUTPUT_FILES:
+            if output_name in selected:
+                outputs.append(out / cls.OPTIONAL_OUTPUT_NAMES[output_name])
+        return outputs
+
+    @classmethod
+    def _validate_int_range(cls, inputs: dict[str, Any], key: str, minimum: int, maximum: int) -> bool | str:
+        value = inputs.get(key)
+        if value is None or value == "":
+            return True
+        try:
+            integer = int(value)
+        except (TypeError, ValueError):
+            return f"{key} must be an integer"
+        if integer < minimum or integer > maximum:
+            return f"{key} must be between {minimum} and {maximum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("genesgff3", "")).strip():
+            return "genesgff3 is required"
+        for key, minimum, maximum in (("delta", 0, 1000), ("minoverlap", 1, 20)):
+            result = cls._validate_int_range(inputs, key, minimum, maximum)
+            if result is not True:
+                return result
+        mode = str(inputs.get("mode", "") or "")
+        if mode not in cls.MODES:
+            return f"mode must be one of: {', '.join(cls.MODES)}"
+        refine = str(inputs.get("refine", "") or "")
+        if refine not in cls.REFINE_OPTIONS:
+            return f"refine must be one of: {', '.join(cls.REFINE_OPTIONS)}"
+        unsupported_outputs = [value for value in cls._selected_outputs(inputs) if value not in cls.OUTPUT_FILES]
+        if unsupported_outputs:
+            return f"outputfiles contains unsupported values: {', '.join(unsupported_outputs)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "genesgff3": ("GFF3", {"description": "Gene annotation GFF3 file"}),
+            },
+            "optional": {
+                "delta": (
+                    "INT",
+                    {"default": 500, "min": 0, "max": 1000, "description": "Gene locus extension in base pairs"},
+                ),
+                "mode": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": cls.MODES,
+                        "description": "Mode for reporting unannotated interval loci at sequence ends",
+                    },
+                ),
+                "skipiloci": ("BOOLEAN", {"default": False, "description": "Do not report intergenic iLoci"}),
+                "refine": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": cls.REFINE_OPTIONS,
+                        "description": "Enable refine mode for overlapping genes",
+                    },
+                ),
+                "cds": (
+                    "BOOLEAN",
+                    {"default": False, "description": "In refine mode, use CDS rather than UTRs for overlap handling"},
+                ),
+                "minoverlap": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 20,
+                        "description": "Minimum overlapping nucleotides for grouping genes in one iLocus",
+                    },
+                ),
+                "filter": (
+                    "STRING",
+                    {"default": "gene", "description": "Comma-separated feature types used to annotate intervals"},
+                ),
+                "parent": (
+                    "STRING",
+                    {"default": "", "description": "Create missing parent features with a child:parent type mapping"},
+                ),
+                "pseudo": ("BOOLEAN", {"default": False, "description": "Correct erroneously labeled pseudogenes"}),
+                "retainids": ("BOOLEAN", {"default": False, "description": "Retain original feature IDs"}),
+                "namefmt": (
+                    "STRING",
+                    {"default": "", "description": "Format string for newly created locus IDs, such as locus%lu"},
+                ),
+                "outputfiles": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "options": cls.OUTPUT_FILES,
+                        "description": "Optional LocusPocus side-output tables to emit",
                     },
                 ),
             },

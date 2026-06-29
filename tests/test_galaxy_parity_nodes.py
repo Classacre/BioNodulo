@@ -1485,6 +1485,93 @@ def test_aegean_gaeval_renders_commands_outputs_and_validates(tmp_path: Path) ->
     assert node_class.VALIDATE_INPUTS({"alignmentgff3": "align.gff3", "genesgff3": "genes.gff3"}) is True
 
 
+def test_aegean_locuspocus_exposes_galaxy_metadata_with_iloci_doi() -> None:
+    info = _registry().object_info()["aegean_locuspocus"]
+
+    assert info["display_name"] == "AEGeAn LocusPocus"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Calculate interval locus coordinates from GFF3 gene annotations."
+    assert info["input"]["required"]["genesgff3"][0] == "STRING"
+    assert info["input"]["optional"]["delta"][1]["default"] == 500
+    assert info["input"]["optional"]["mode"][1]["options"] == ["", "--skipends", "--endsonly"]
+    assert info["input"]["optional"]["skipiloci"][1]["default"] is False
+    assert info["input"]["optional"]["refine"][1]["options"] == ["", "--refine"]
+    assert info["input"]["optional"]["cds"][1]["default"] is False
+    assert info["input"]["optional"]["minoverlap"][1]["default"] == 1
+    assert info["input"]["optional"]["filter"][1]["default"] == "gene"
+    assert info["input"]["optional"]["outputfiles"][1]["options"] == ["ilens", "genemap", "transmap"]
+    assert info["input"]["optional"]["outputfiles"][1]["multiple"] is True
+    assert info["output"] == ["GFF3", "TSV", "TSV", "TSV"]
+    assert info["output_name"] == ["output", "output_ilens", "output_genemap", "output_transmap"]
+    assert info["required_executables"] == ["locuspocus"]
+    assert info["required_conda_packages"] == ["aegean"]
+    assert info["citation_dois"] == ["10.1093/nargab/lqac013"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/nargab/lqac013"]
+    assert "interval locus" in info["citation_text"].lower()
+    assert "iLoci" in info["search_aliases"]
+
+
+def test_aegean_locuspocus_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("aegean_locuspocus")
+
+    assert node_class.render_command(
+        {
+            "genesgff3": "TAIR10_GFF3_genes.gff3",
+            "delta": 400,
+            "mode": "--skipends",
+            "skipiloci": True,
+            "refine": "--refine",
+            "cds": True,
+            "minoverlap": 5,
+            "filter": "gene,intron",
+            "parent": "mRNA:gene",
+            "pseudo": True,
+            "outputfiles": ["ilens", "genemap", "transmap"],
+            "namefmt": "test%lu",
+            "retainids": True,
+            "output": "/work/aegean_locuspocus",
+        }
+    ) == (
+        "locuspocus TAIR10_GFF3_genes.gff3 -l 400 --skipends --skipiiloci --cds -m 5 -f gene,intron "
+        "-p mRNA:gene --pseudo --ilens /work/aegean_locuspocus/ilens.tsv "
+        "--genemap /work/aegean_locuspocus/genemap.tsv --transmap /work/aegean_locuspocus/transmap.tsv "
+        "-n test%lu --retainids -o /work/aegean_locuspocus/loci.gff3"
+    )
+
+    assert node_class.render_command(
+        {"genesgff3": "genes with spaces.gff3", "output": "/work/aegean_locuspocus"}
+    ) == (
+        "locuspocus 'genes with spaces.gff3' -l 500 -m 1 -f gene "
+        "-o /work/aegean_locuspocus/loci.gff3"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "aegean_locuspocus" / "loci.gff3",
+    ]
+    assert node_class.PLAN_OUTPUTS({"outputfiles": ["ilens", "genemap"]}, tmp_path) == [
+        tmp_path / "aegean_locuspocus" / "loci.gff3",
+        tmp_path / "aegean_locuspocus" / "ilens.tsv",
+        tmp_path / "aegean_locuspocus" / "genemap.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "genesgff3 is required"
+    assert node_class.VALIDATE_INPUTS({"genesgff3": "genes.gff3", "delta": -1}) == (
+        "delta must be between 0 and 1000"
+    )
+    assert node_class.VALIDATE_INPUTS({"genesgff3": "genes.gff3", "mode": "--middle"}) == (
+        "mode must be one of: , --skipends, --endsonly"
+    )
+    assert node_class.VALIDATE_INPUTS({"genesgff3": "genes.gff3", "refine": "yes"}) == (
+        "refine must be one of: , --refine"
+    )
+    assert node_class.VALIDATE_INPUTS({"genesgff3": "genes.gff3", "minoverlap": 0}) == (
+        "minoverlap must be between 1 and 20"
+    )
+    assert node_class.VALIDATE_INPUTS({"genesgff3": "genes.gff3", "outputfiles": ["ilens", "bad"]}) == (
+        "outputfiles contains unsupported values: bad"
+    )
+    assert node_class.VALIDATE_INPUTS({"genesgff3": "genes.gff3"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

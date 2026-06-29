@@ -136,6 +136,49 @@ const objectInfo = {
     citation_urls: ['https://github.com/BrendelGroup/AEGeAn'],
     citation_text: 'AEGeAn genome annotation toolkit.',
   },
+  aegean_locuspocus: {
+    name: 'aegean_locuspocus',
+    display_name: 'AEGeAn LocusPocus',
+    category: 'annotation',
+    description: 'Calculate interval locus coordinates from GFF3 gene annotations.',
+    search_aliases: [
+      'Galaxy',
+      'AEGeAn',
+      'LocusPocus',
+      'locuspocus',
+      'aegean_locuspocus',
+      'iLoci',
+      'interval loci',
+      'gene locus coordinates',
+    ],
+    input: {
+      required: {
+        genesgff3: { type: 'STRING' },
+      },
+      optional: {
+        delta: { type: 'INT', default: 500, min: 0, max: 1000 },
+        mode: { type: 'STRING', default: '', options: ['', '--skipends', '--endsonly'] },
+        skipiloci: { type: 'BOOLEAN', default: false },
+        refine: { type: 'STRING', default: '', options: ['', '--refine'] },
+        cds: { type: 'BOOLEAN', default: false },
+        minoverlap: { type: 'INT', default: 1, min: 1, max: 20 },
+        filter: { type: 'STRING', default: 'gene' },
+        parent: { type: 'STRING', default: '' },
+        pseudo: { type: 'BOOLEAN', default: false },
+        retainids: { type: 'BOOLEAN', default: false },
+        namefmt: { type: 'STRING', default: '' },
+        outputfiles: { type: 'STRING', default: [], multiple: true, options: ['ilens', 'genemap', 'transmap'] },
+      },
+    },
+    output: ['GFF3', 'TSV', 'TSV', 'TSV'],
+    output_name: ['output', 'output_ilens', 'output_genemap', 'output_transmap'],
+    required_executables: ['locuspocus'],
+    required_conda_packages: ['aegean'],
+    documentation_url: 'https://github.com/BrendelGroup/AEGeAn',
+    citation_dois: ['10.1093/nargab/lqac013'],
+    citation_urls: ['https://doi.org/10.1093/nargab/lqac013'],
+    citation_text: 'Interval locus concepts and associated LocusPocus/Fidibus software for comparative genome annotation.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -9774,7 +9817,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('337 nodes available')).toBeVisible();
+  await expect(page.getByText('338 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9783,6 +9826,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
+    { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },
