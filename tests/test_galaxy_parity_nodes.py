@@ -6181,6 +6181,216 @@ def test_ampvis2_frequency_renders_script_outputs_and_validates(tmp_path: Path) 
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_heatmap_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_heatmap"]
+
+    assert info["display_name"] == "ampvis2 heatmap"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate ampvis2 heatmaps from metadata-grouped samples and aggregated OTUs."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["group_by"][1]["default"] == ""
+    assert info["input"]["optional"]["facet_by"][1]["default"] == ""
+    assert info["input"]["optional"]["normalise"][1]["default"] is True
+    assert info["input"]["optional"]["normalise_by_mode"][1]["options"] == ["no", "variable", "sample"]
+    assert info["input"]["optional"]["tax_aggregate"][1]["default"] == "Phylum"
+    assert info["input"]["optional"]["tax_add"][1]["multiple"] is True
+    assert info["input"]["optional"]["tax_show_mode"][1]["options"] == ["number", "explicit"]
+    assert info["input"]["optional"]["tax_show"][1]["default"] == 10
+    assert info["input"]["optional"]["showRemainingTaxa"][1]["default"] is False
+    assert info["input"]["optional"]["tax_empty"][1]["options"] == ["remove", "best", "OTU"]
+    assert info["input"]["optional"]["order_x_by"][1]["default"] is False
+    assert info["input"]["optional"]["order_y_by"][1]["default"] is False
+    assert info["input"]["optional"]["plot_values"][1]["default"] is True
+    assert info["input"]["optional"]["plot_values_size"][1]["default"] == 4
+    assert info["input"]["optional"]["plot_colorscale"][1]["options"] == ["sqrt", "log10"]
+    assert info["input"]["optional"]["plot_na"][1]["default"] is False
+    assert info["input"]["optional"]["measure"][1]["options"] == ["mean", "max", "median"]
+    assert info["input"]["optional"]["min_abundance"][1]["default"] == 0.1
+    assert info["input"]["optional"]["sort_by_mode"][1]["options"] == ["no", "group", "sample"]
+    assert info["input"]["optional"]["plot_functions_mode"][1]["options"] == ["no", "midasfieldguide", "file"]
+    assert info["input"]["optional"]["functions"][1]["multiple"] is True
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg", "tabular"]
+    assert info["output"] == ["PDF", "TSV"]
+    assert info["output_name"] == ["plot", "plot_raw"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_heatmap.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 heatmap" in info["search_aliases"]
+    assert "amp_heatmap" in info["search_aliases"]
+
+
+def test_ampvis2_heatmap_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_heatmap")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "group_by": "Plant",
+            "facet_by": "Year",
+            "normalise": False,
+            "normalise_by_mode": "variable",
+            "normalise_by": "Aalborg West",
+            "tax_aggregate": "Genus",
+            "tax_add": ["Phylum", "Class"],
+            "tax_show_mode": "explicit",
+            "tax_show": ["Nitrospira", "Accumulibacter"],
+            "showRemainingTaxa": True,
+            "tax_empty": "remove",
+            "order_x_by": True,
+            "order_y_by": True,
+            "plot_values": True,
+            "plot_values_size": 6,
+            "plot_colorscale": "sqrt",
+            "plot_na": True,
+            "measure": "median",
+            "min_abundance": 0.2,
+            "max_abundance": 90,
+            "sort_by_mode": "group",
+            "sort_by": "Winter",
+            "scale_by": "Depth",
+            "color_palette_start": "#ff0000",
+            "color_palette_end": "#ffff00",
+            "plot_functions_mode": "file",
+            "function_data": "functions.tsv",
+            "functions": ["Foo", "Bar"],
+            "out_format": "svg",
+            "plot_width": 14,
+            "plot_height": 9.5,
+            "output": "/work/ampvis2_heatmap",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_heatmap/heatmap.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'd <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_heatmap(" in command
+    assert 'group_by = "Plant",' in command
+    assert 'facet_by = "Year",' in command
+    assert "normalise = FALSE," in command
+    assert 'normalise_by = "Aalborg West",' in command
+    assert 'tax_aggregate = "Genus",' in command
+    assert 'tax_add = c("Phylum", "Class"),' in command
+    assert 'tax_show = c("Nitrospira", "Accumulibacter"),' in command
+    assert "showRemainingTaxa = TRUE," in command
+    assert 'tax_empty = "remove",' in command
+    assert 'order_x_by = "cluster",' in command
+    assert 'order_y_by = "cluster",' in command
+    assert "plot_values = TRUE," in command
+    assert "plot_values_size = 6," in command
+    assert 'plot_colorscale = "sqrt",' in command
+    assert "plot_na = TRUE," in command
+    assert 'measure = "median",' in command
+    assert "min_abundance = 0.2," in command
+    assert "max_abundance = 90," in command
+    assert 'sort_by = "Winter",' in command
+    assert 'scale_by = "Depth",' in command
+    assert 'color_vector = c("#ff0000", "#ffff00"),' in command
+    assert "textmap = FALSE," in command
+    assert "plot_functions = TRUE," in command
+    assert 'function_data = read.table("functions.tsv", header = TRUE, sep = "\\t"),' in command
+    assert 'functions = c("Foo", "Bar"),' in command
+    assert "rel_widths = c(0.75, 0.25)" in command
+    assert 'ggsave("/work/ampvis2_heatmap/plot.svg",' in command
+    assert 'device = "svg"' in command
+    assert ", width = 14" in command
+    assert ", height = 9.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_heatmap/heatmap.R")
+
+    raw_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "out_format": "tabular",
+            "normalise_by_mode": "no",
+            "sort_by_mode": "no",
+            "plot_functions_mode": "no",
+            "output": "/work/ampvis2_heatmap",
+        }
+    )
+    assert "raw <- amp_heatmap(" in raw_command
+    assert "plot <- amp_heatmap(" not in raw_command
+    assert "normalise_by = NULL," in raw_command
+    assert "sort_by =" not in raw_command
+    assert "plot_functions = TRUE" not in raw_command
+    assert "textmap = TRUE," in raw_command
+    assert 'write.table(raw, file = "/work/ampvis2_heatmap/plot_raw.tsv", sep = "\\t")' in raw_command
+    assert "ggsave(" not in raw_command
+
+    default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_heatmap"})
+    assert "group_by =" not in default_command
+    assert "facet_by =" not in default_command
+    assert "normalise = TRUE," in default_command
+    assert 'tax_aggregate = "Phylum",' in default_command
+    assert "tax_add = NULL," in default_command
+    assert "tax_show = 10," in default_command
+    assert "showRemainingTaxa = FALSE," in default_command
+    assert 'tax_empty = "best",' in default_command
+    assert "order_x_by =" not in default_command
+    assert "order_y_by =" not in default_command
+    assert "plot_values = TRUE," in default_command
+    assert "plot_values_size = 4," in default_command
+    assert 'plot_colorscale = "log10",' in default_command
+    assert "plot_na = FALSE," in default_command
+    assert 'measure = "mean",' in default_command
+    assert "min_abundance = 0.1," in default_command
+    assert "max_abundance =" not in default_command
+    assert "normalise_by = NULL," in default_command
+    assert 'color_vector = c("", ""),' in default_command
+    assert "plot_functions = TRUE" not in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "svg"}, tmp_path) == [
+        tmp_path / "ampvis2_heatmap" / "plot.svg",
+    ]
+    assert node_class.PLAN_OUTPUTS({"out_format": "tabular"}, tmp_path) == [
+        tmp_path / "ampvis2_heatmap" / "plot_raw.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_heatmap" / "plot.pdf",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "normalise_by_mode": "bad"}) == (
+        "normalise_by_mode must be one of: no, variable, sample"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_aggregate": "bad"}) == (
+        "tax_aggregate must be one of: OTU, Species, Genus, Family, Order, Class, Phylum, Kingdom"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_show_mode": "explicit", "tax_show": []}) == (
+        "tax_show must include at least one taxon when tax_show_mode is explicit"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_show": 0}) == "tax_show must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_values_size": 0}) == (
+        "plot_values_size must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_colorscale": "linear"}) == (
+        "plot_colorscale must be one of: sqrt, log10"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "measure": "sum"}) == (
+        "measure must be one of: mean, max, median"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "min_abundance": -0.1}) == (
+        "min_abundance must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "sort_by_mode": "bad"}) == (
+        "sort_by_mode must be one of: no, group, sample"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_functions_mode": "file"}) == (
+        "function_data is required when plot_functions_mode is file"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_functions_mode": "file", "function_data": "f.tsv"}) == (
+        "functions must include at least one value when plot_functions_mode is file"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg, tabular"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_height": 0.5}) == "plot_height must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

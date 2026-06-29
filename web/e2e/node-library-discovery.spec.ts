@@ -1530,6 +1530,61 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_heatmap: {
+    name: 'ampvis2_heatmap',
+    display_name: 'ampvis2 heatmap',
+    category: 'metagenomics',
+    description: 'Generate ampvis2 heatmaps from metadata-grouped samples and aggregated OTUs.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 heatmap', 'amp_heatmap', 'microbiome heatmap', 'amplicon heatmap', 'taxonomy abundance heatmap'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+      },
+      optional: {
+        metadata_list: { type: 'TSV', default: '' },
+        group_by: { type: 'STRING', default: '' },
+        facet_by: { type: 'STRING', default: '' },
+        normalise: { type: 'BOOLEAN', default: true },
+        normalise_by_mode: { type: 'STRING', default: 'no', options: ['no', 'variable', 'sample'] },
+        normalise_by: { type: 'STRING', default: '' },
+        tax_aggregate: { type: 'STRING', default: 'Phylum', options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        tax_add: { type: 'STRING', default: [], multiple: true, options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        tax_show_mode: { type: 'STRING', default: 'number', options: ['number', 'explicit'] },
+        taxonomy_list: { type: 'TSV', default: '' },
+        tax_show: { type: 'STRING', default: 10 },
+        showRemainingTaxa: { type: 'BOOLEAN', default: false },
+        tax_empty: { type: 'STRING', default: 'best', options: ['remove', 'best', 'OTU'] },
+        order_x_by: { type: 'BOOLEAN', default: false },
+        order_y_by: { type: 'BOOLEAN', default: false },
+        plot_values: { type: 'BOOLEAN', default: true },
+        plot_values_size: { type: 'INT', default: 4, min: 1 },
+        plot_colorscale: { type: 'STRING', default: 'log10', options: ['sqrt', 'log10'] },
+        plot_na: { type: 'BOOLEAN', default: false },
+        measure: { type: 'STRING', default: 'mean', options: ['mean', 'max', 'median'] },
+        min_abundance: { type: 'FLOAT', default: 0.1, min: 0 },
+        max_abundance: { type: 'FLOAT', default: '', min: 0 },
+        sort_by_mode: { type: 'STRING', default: 'no', options: ['no', 'group', 'sample'] },
+        sort_by: { type: 'STRING', default: '' },
+        color_palette_start: { type: 'STRING', default: '' },
+        color_palette_end: { type: 'STRING', default: '' },
+        scale_by: { type: 'STRING', default: '' },
+        plot_functions_mode: { type: 'STRING', default: 'no', options: ['no', 'midasfieldguide', 'file'] },
+        function_data: { type: 'TSV', default: '' },
+        functions: { type: 'STRING', default: [], multiple: true },
+        out_format: { type: 'STRING', default: 'pdf', options: ['pdf', 'png', 'svg', 'tabular'] },
+        plot_width: { type: 'FLOAT', default: '', min: 1 },
+        plot_height: { type: 'FLOAT', default: '', min: 1 },
+      },
+    },
+    output: ['PDF', 'TSV'],
+    output_name: ['plot', 'plot_raw'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_heatmap.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -10034,7 +10089,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('345 nodes available')).toBeVisible();
+  await expect(page.getByText('346 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10096,6 +10151,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ampvis2 export fasta', name: 'ampvis2 export fasta', category: 'metagenomics' },
     { query: 'ampvis2 export otu', name: 'ampvis2 export otu', category: 'metagenomics' },
     { query: 'ampvis2 frequency plot', name: 'ampvis2 frequency plot', category: 'metagenomics' },
+    { query: 'ampvis2 heatmap', name: 'ampvis2 heatmap', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
