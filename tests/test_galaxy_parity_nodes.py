@@ -13094,6 +13094,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["comebin"],
             "doi": "10.1038/s41467-023-44290-z",
         },
+        "drep_compare": {
+            "display_name": "dRep compare",
+            "category": "metagenomics",
+            "required_executables": ["dRep"],
+            "required_conda_packages": ["drep"],
+            "doi": "10.1038/ismej.2017.126",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16197,6 +16204,108 @@ def test_comebin_bam_renders_coverage_bam_command_outputs_and_validation(tmp_pat
     assert node_class.VALIDATE_INPUTS(
         {"assembly": "assembly.fa", "read_type": "normal", "input_type": "single", "forward": "R1.fastq", "reverse": "R2.fastq"}
     ) is True
+
+
+def test_drep_compare_renders_genome_comparison_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("drep_compare")
+    info = _registry().object_info()["drep_compare"]
+
+    assert info["output"] == ["TXT", "TXT", "PDF", "PDF", "PDF", "PDF", "CSV", "CSV", "CSV", "CSV"]
+    assert info["output_name"] == [
+        "log",
+        "warnings",
+        "primary_clustering_dendrogram",
+        "secondary_clustering_dendrograms",
+        "secondary_clustering_mds",
+        "clustering_scatterplots",
+        "bdb",
+        "cdb",
+        "mdb",
+        "ndb",
+    ]
+    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][1]["multiple"] is True
+    assert info["input"]["required"]["genomes"][1]["min"] == 2
+    assert info["input"]["optional"]["comparison_steps"][1]["options"] == ["default", "SkipMash", "SkipSecondary"]
+    assert "10.1038/ismej.2017.126" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "genomes": ["Genome A.fa", "sample/B.fna"],
+            "genome_identifiers": ["Genome A", "sample/B"],
+            "threads": 6,
+            "output": "/work/drep_compare",
+        }
+    ) == (
+        "mkdir -p /work/drep_compare && ln -s 'Genome A.fa' Genome_A.fasta && ln -s sample/B.fna sample_B.fasta && "
+        "dRep compare outdir -g Genome_A.fasta sample_B.fasta --MASH_sketch 1000 --P_ani 0.9 "
+        "--primary_chunksize 5000 --S_algorithm ANImf --n_PRESET normal --coverage_method larger --S_ani 0.99 "
+        "--cov_thresh 0.1 --clusterAlg average --warn_dist 0.25 --warn_sim 0.98 --warn_aln 0.25 "
+        "--processors ${GALAXY_SLOTS:-6} && cp outdir/log/logger.log /work/drep_compare/log.txt && "
+        "cp outdir/log/warnings.txt /work/drep_compare/warnings.txt && "
+        "cp outdir/figures/Primary_clustering_dendrogram.pdf /work/drep_compare/Primary_clustering_dendrogram.pdf && "
+        "cp outdir/figures/Clustering_scatterplots.pdf /work/drep_compare/Clustering_scatterplots.pdf"
+    )
+    assert node_class.render_command(
+        {
+            "genomes": ["001", "002", "003"],
+            "comparison_steps": "SkipMash",
+            "S_algorithm": "fastANI",
+            "greedy_secondary_clustering": True,
+            "clusterAlg": "single",
+            "run_tertiary_clustering": True,
+            "warn_dist": 0.2,
+            "warn_sim": 0.97,
+            "warn_aln": 0.3,
+            "select_outputs": ["log", "Cdb", "Ndb"],
+            "output": "/work/drep_compare",
+        }
+    ) == (
+        "mkdir -p /work/drep_compare && ln -s 001 001.fasta && ln -s 002 002.fasta && ln -s 003 003.fasta && "
+        "dRep compare outdir -g 001.fasta 002.fasta 003.fasta --SkipMash --S_algorithm fastANI "
+        "--greedy_secondary_clustering --S_ani 0.99 --cov_thresh 0.1 --clusterAlg single --run_tertiary_clustering "
+        "--warn_dist 0.2 --warn_sim 0.97 --warn_aln 0.3 --processors ${GALAXY_SLOTS:-1} && "
+        "cp outdir/log/logger.log /work/drep_compare/log.txt && "
+        "cp outdir/data_tables/Cdb.csv /work/drep_compare/Cdb.csv && cp outdir/data_tables/Ndb.csv /work/drep_compare/Ndb.csv"
+    )
+    assert node_class.render_command(
+        {
+            "genomes": ["a.fa", "b.fa"],
+            "comparison_steps": "SkipSecondary",
+            "MASH_sketch": 2000,
+            "P_ani": 0.85,
+            "multiround_primary_clustering": True,
+            "primary_chunksize": 200,
+            "select_outputs": ["log", "Mdb"],
+            "output": "/work/drep_compare",
+        }
+    ) == (
+        "mkdir -p /work/drep_compare && ln -s a.fa a.fa.fasta && ln -s b.fa b.fa.fasta && "
+        "dRep compare outdir -g a.fa.fasta b.fa.fasta --MASH_sketch 2000 --P_ani 0.85 "
+        "--multiround_primary_clustering --primary_chunksize 200 --SkipSecondary --clusterAlg average "
+        "--warn_dist 0.25 --warn_sim 0.98 --warn_aln 0.25 --processors ${GALAXY_SLOTS:-1} && "
+        "cp outdir/log/logger.log /work/drep_compare/log.txt && cp outdir/data_tables/Mdb.csv /work/drep_compare/Mdb.csv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "drep_compare" / "log.txt",
+        tmp_path / "drep_compare" / "warnings.txt",
+        tmp_path / "drep_compare" / "Primary_clustering_dendrogram.pdf",
+        tmp_path / "drep_compare" / "Clustering_scatterplots.pdf",
+    ]
+    assert node_class.PLAN_OUTPUTS({"select_outputs": ["log", "Cdb", "Ndb"]}, tmp_path) == [
+        tmp_path / "drep_compare" / "log.txt",
+        tmp_path / "drep_compare" / "Cdb.csv",
+        tmp_path / "drep_compare" / "Ndb.csv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "at least two genome FASTA files are required"
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "comparison_steps": "bad"}) == (
+        "comparison_steps must be one of: default, SkipMash, SkipSecondary"
+    )
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "S_algorithm": "bad"}) == (
+        "S_algorithm must be one of: fastANI, ANImf, ANIn, gANI, goANI"
+    )
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "P_ani": 1.2}) == "P_ani must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "MASH_sketch": -1}) == "MASH_sketch must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"]}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

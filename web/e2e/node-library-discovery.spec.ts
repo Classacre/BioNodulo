@@ -5656,6 +5656,73 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41467-023-44290-z'],
     citation_text: 'COMEBin enables accurate and robust binning of metagenomic contigs using contrastive multi-view representation learning.',
   },
+  drep_compare: {
+    name: 'drep_compare',
+    display_name: 'dRep compare',
+    category: 'metagenomics',
+    description: 'Compare genome sets with dRep using Mash primary clustering and optional secondary ANI clustering.',
+    search_aliases: ['Galaxy', 'dRep', 'dRep compare', 'dRep genome comparison', 'genome dereplication', 'average nucleotide identity', 'Mash ANI clustering'],
+    input: {
+      required: {
+        genomes: { type: 'STRING', multiple: true, min: 2 },
+      },
+      optional: {
+        genome_identifiers: { type: 'STRING', default: [], multiple: true },
+        comparison_steps: { type: 'STRING', default: 'default', options: ['default', 'SkipMash', 'SkipSecondary'] },
+        MASH_sketch: { type: 'INT', default: 1000 },
+        P_ani: { type: 'FLOAT', default: 0.9 },
+        multiround_primary_clustering: { type: 'BOOLEAN', default: false },
+        primary_chunksize: { type: 'INT', default: 5000 },
+        S_algorithm: { type: 'STRING', default: 'ANImf', options: ['fastANI', 'ANImf', 'ANIn', 'gANI', 'goANI'] },
+        greedy_secondary_clustering: { type: 'BOOLEAN', default: false },
+        n_PRESET: { type: 'STRING', default: 'normal', options: ['normal', 'tight'] },
+        coverage_method: { type: 'STRING', default: 'larger', options: ['larger', 'total'] },
+        S_ani: { type: 'FLOAT', default: 0.99 },
+        cov_thresh: { type: 'FLOAT', default: 0.1 },
+        clusterAlg: { type: 'STRING', default: 'average', options: ['average', 'ward', 'single', 'median', 'centroid', 'weighted'] },
+        run_tertiary_clustering: { type: 'BOOLEAN', default: false },
+        warn_dist: { type: 'FLOAT', default: 0.25 },
+        warn_sim: { type: 'FLOAT', default: 0.98 },
+        warn_aln: { type: 'FLOAT', default: 0.25 },
+        select_outputs: {
+          type: 'STRING_LIST',
+          default: ['log', 'warnings', 'Primary_clustering_dendrogram', 'Clustering_scatterplots'],
+          options: [
+            'log',
+            'warnings',
+            'Primary_clustering_dendrogram',
+            'Secondary_clustering_dendrograms',
+            'Secondary_clustering_MDS',
+            'Clustering_scatterplots',
+            'Bdb',
+            'Cdb',
+            'Mdb',
+            'Ndb',
+          ],
+        },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TXT', 'TXT', 'PDF', 'PDF', 'PDF', 'PDF', 'CSV', 'CSV', 'CSV', 'CSV'],
+    output_name: [
+      'log',
+      'warnings',
+      'primary_clustering_dendrogram',
+      'secondary_clustering_dendrograms',
+      'secondary_clustering_mds',
+      'clustering_scatterplots',
+      'bdb',
+      'cdb',
+      'mdb',
+      'ndb',
+    ],
+    required_executables: ['dRep'],
+    required_conda_packages: ['drep'],
+    documentation_url: 'https://drep.readthedocs.io/en/latest/overview.html',
+    citation_dois: ['10.1038/ismej.2017.126'],
+    citation_urls: ['https://doi.org/10.1038/ismej.2017.126'],
+    citation_text: 'dRep: a tool for fast and accurate genomic comparisons that enables improved genome recovery from metagenomes through de-replication.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8401,7 +8468,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('298 nodes available')).toBeVisible();
+  await expect(page.getByText('299 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8580,6 +8647,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'EvidenceModeler gene structure consensus', name: 'EVidenceModeler', category: 'annotation' },
     { query: 'COMEBin metagenomic binning', name: 'COMEBin', category: 'metagenomics' },
     { query: 'COMEBin BAM generation', name: 'Generate BAM file for COMEBin', category: 'metagenomics' },
+    { query: 'dRep genome comparison', name: 'dRep compare', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
