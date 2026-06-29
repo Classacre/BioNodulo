@@ -3293,6 +3293,57 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Not So Different After All: A Comparison of Methods for Detecting Amino Acid Sites Under Selection.',
   },
+  hyphy_fubar: {
+    name: 'hyphy_fubar',
+    display_name: 'HyPhy-FUBAR',
+    category: 'phylogeny',
+    description: 'Detect pervasive site-level selection with HyPhy FUBAR.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'FUBAR',
+      'Fast Unconstrained Bayesian AppRoximation',
+      'pervasive selection',
+      'site-level selection',
+      'diversifying selection',
+      'purifying selection',
+      'posterior probability',
+      'empirical Bayes factor',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE', default: '' },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        gencodeid: { type: 'STRING', default: 'Universal' },
+        method: {
+          type: 'STRING',
+          default: 'Variational-Bayes',
+          options: ['Variational-Bayes', 'Metropolis-Hastings', 'Collapsed-Gibbs'],
+        },
+        grid: { type: 'INT', default: 20 },
+        concentration_parameter: { type: 'FLOAT', default: 0.5 },
+        non_zero: { type: 'BOOLEAN', default: false },
+        chains: { type: 'INT', default: 5 },
+        chain_length: { type: 'INT', default: 2000000 },
+        burn_in: { type: 'INT', default: 1000000 },
+        samples: { type: 'INT', default: 100 },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes', options: ['Yes', 'Constrain', 'No'] },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['fubar_output', 'fubar_md_report'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://hyphy.org/methods/selection-methods/#FUBAR',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/mst030'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/mst030'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6263,7 +6314,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('234 nodes available')).toBeVisible();
+  await expect(page.getByText('235 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6371,6 +6422,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'CleanStopCodons duplicate sequences', name: 'HyPhy-CLN', category: 'phylogeny' },
     { query: 'directional selection', name: 'HyPhy-FADE', category: 'phylogeny' },
     { query: 'Fixed Effects Likelihood', name: 'HyPhy-FEL', category: 'phylogeny' },
+    { query: 'Fast Unconstrained Bayesian AppRoximation', name: 'HyPhy-FUBAR', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
