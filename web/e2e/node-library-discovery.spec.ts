@@ -1211,6 +1211,57 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btaf173'],
     citation_text: 'argNorm: a tool to normalize antibiotic resistance gene annotation across different databases.',
   },
+  cd_hit: {
+    name: 'cd_hit',
+    display_name: 'cd-hit',
+    category: 'clustering',
+    description: 'Cluster or compare biological sequence datasets with CD-HIT.',
+    search_aliases: ['Galaxy', 'cd-hit', 'cd_hit', 'CD-HIT', 'cd-hit-est', 'cd-hit-2d', 'cd-hit-est-2d', 'sequence clustering', 'non-redundant sequences', 'representative sequences'],
+    input: {
+      required: {
+        fasta_in: { type: 'FASTA' },
+      },
+      optional: {
+        operation: { type: 'STRING', default: 'cluster', options: ['cluster', '2d'] },
+        fasta_in2: { type: 'FASTA', default: '' },
+        sequence_type: { type: 'STRING', default: 'protein', options: ['protein', 'nucleotide'] },
+        similarity: { type: 'FLOAT', default: 0.9, min: 0.4, max: 1.0 },
+        protein_wordsize: { type: 'INT', default: 5, min: 2, max: 5 },
+        nucleotide_wordsize: { type: 'INT', default: 10, min: 4, max: 11 },
+        redtol: { type: 'INT', default: 2 },
+        compare_both_strands: { type: 'BOOLEAN', default: false },
+        mask: { type: 'STRING', default: '' },
+        match: { type: 'INT', default: 2 },
+        mismatch: { type: 'INT', default: -2 },
+        gap: { type: 'INT', default: -6 },
+        gap_ext: { type: 'INT', default: -1 },
+        band_width: { type: 'INT', default: 20, min: 1 },
+        throw_away_len: { type: 'INT', default: 10, min: 1 },
+        identity_style: { type: 'STRING', default: 'global', options: ['global', 'local'] },
+        align_coverage_long: { type: 'FLOAT', default: 0.0, min: 0, max: 1 },
+        align_coverage_short: { type: 'FLOAT', default: 0.0, min: 0, max: 1 },
+        cutoff_diff_len: { type: 'FLOAT', default: 0.0, min: 0, max: 1 },
+        cutoff_diff_len2: { type: 'FLOAT', default: 1.0, min: 0, max: 1 },
+        max_unmatched_per_l: { type: 'FLOAT', default: 1.0, min: 0, max: 1 },
+        max_unmatched_per_s: { type: 'FLOAT', default: 1.0, min: 0, max: 1 },
+        max_unmatched_len: { type: 'INT', default: 99999999, min: 0 },
+        accurate: { type: 'BOOLEAN', default: false },
+        inram: { type: 'BOOLEAN', default: true },
+        sort_cluster: { type: 'BOOLEAN', default: false },
+        sort_fasta: { type: 'BOOLEAN', default: false },
+        print_alignment_overlap: { type: 'BOOLEAN', default: false },
+        desclen: { type: 'INT', default: 20, min: 0 },
+      },
+    },
+    output: ['TXT', 'FASTA'],
+    output_name: ['clusters_out', 'fasta_out'],
+    required_executables: ['cd-hit', 'cd-hit-est', 'cd-hit-2d', 'cd-hit-est-2d'],
+    required_conda_packages: ['cd-hit'],
+    documentation_url: 'http://weizhongli-lab.org/cd-hit/',
+    citation_dois: ['10.1093/bioinformatics/btl158', '10.1093/bioinformatics/bts565'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btl158', 'https://doi.org/10.1093/bioinformatics/bts565'],
+    citation_text: 'CD-HIT: a fast program for clustering and comparing large sets of protein or nucleotide sequences; CD-HIT Suite: a web server for clustering and comparing biological sequences.',
+  },
   chopper: {
     name: 'chopper',
     display_name: 'Chopper',
@@ -11664,7 +11715,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('400 nodes available')).toBeVisible();
+  await expect(page.getByText('401 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11720,6 +11771,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
+    { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
     { query: 'Graphical Fragment Assembly', name: 'GFA to FASTA', category: 'assembly' },

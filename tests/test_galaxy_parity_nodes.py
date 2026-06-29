@@ -190,6 +190,130 @@ def test_argnorm_validates_tool_and_conditional_database_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "results.tsv", "tool": "hamronization", "hamronized": True}) is True
 
 
+def test_cd_hit_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
+    node_info = _registry().object_info()["cd_hit"]
+
+    assert node_info["display_name"] == "cd-hit"
+    assert node_info["category"] == "clustering"
+    assert node_info["description"] == "Cluster or compare biological sequence datasets with CD-HIT."
+    assert node_info["output"] == ["TXT", "FASTA"]
+    assert node_info["output_name"] == ["clusters_out", "fasta_out"]
+    assert node_info["required_executables"] == ["cd-hit", "cd-hit-est", "cd-hit-2d", "cd-hit-est-2d"]
+    assert node_info["required_conda_packages"] == ["cd-hit"]
+    assert node_info["documentation_url"] == "http://weizhongli-lab.org/cd-hit/"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btl158", "10.1093/bioinformatics/bts565"]
+    assert node_info["citation_urls"] == [
+        "https://doi.org/10.1093/bioinformatics/btl158",
+        "https://doi.org/10.1093/bioinformatics/bts565",
+    ]
+    assert "CD-HIT" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "cd-hit-est-2d" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["fasta_in"][0] == "FASTA"
+    assert node_info["input"]["optional"]["sequence_type"][1]["default"] == "protein"
+    assert node_info["input"]["optional"]["sequence_type"][1]["options"] == ["protein", "nucleotide"]
+    assert node_info["input"]["optional"]["operation"][1]["options"] == ["cluster", "2d"]
+    assert node_info["input"]["optional"]["similarity"][1]["default"] == 0.9
+    assert node_info["input"]["optional"]["protein_wordsize"][1]["max"] == 5
+    assert node_info["input"]["optional"]["nucleotide_wordsize"][1]["max"] == 11
+    assert node_info["input"]["optional"]["identity_style"][1]["options"] == ["global", "local"]
+    assert node_info["input"]["optional"]["print_alignment_overlap"][1]["default"] is False
+
+
+def test_cd_hit_renders_default_protein_cluster_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("cd_hit")
+
+    assert node_class.render_command(
+        {
+            "fasta_in": "proteins.fasta",
+            "output": "/work/cd_hit",
+        }
+    ) == (
+        "cd-hit -i proteins.fasta -o /work/cd_hit/rep_seq -c 0.9 -n 5 -t 2 "
+        "-b 20 -l 10 -uL 1.0 -uS 1.0 -U 99999999 -g 0 -B 0 -sc 0 -sf 0 "
+        "-M ${GALAXY_MEMORY_MB:-0} -T ${GALAXY_SLOTS:-1}"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cd_hit" / "rep_seq.clstr",
+        tmp_path / "cd_hit" / "rep_seq",
+    ]
+
+
+def test_cd_hit_renders_est_2d_local_alignment_command() -> None:
+    node_class = _node_class("cd_hit")
+
+    assert node_class.render_command(
+        {
+            "sequence_type": "nucleotide",
+            "operation": "2d",
+            "fasta_in": "db1 fasta.fa",
+            "fasta_in2": "db2.fa",
+            "similarity": 0.92,
+            "nucleotide_wordsize": 9,
+            "compare_both_strands": True,
+            "mask": "NX",
+            "match": 2,
+            "mismatch": -3,
+            "gap": -7,
+            "gap_ext": -2,
+            "identity_style": "local",
+            "align_coverage_long": 0.8,
+            "align_coverage_long_control": 100,
+            "align_coverage_short": 0.9,
+            "align_coverage_short_control": 50,
+            "align_coverage_min": 25,
+            "cutoff_diff_len": 0.7,
+            "aa_cutoff_diff_len": 120,
+            "cutoff_diff_len2": 0.95,
+            "aa_cutoff_diff_len2": 10,
+            "max_unmatched_per_l": 0.1,
+            "max_unmatched_per_s": 0.2,
+            "max_unmatched_len": 30,
+            "accurate": True,
+            "inram": False,
+            "sort_cluster": True,
+            "sort_fasta": True,
+            "print_alignment_overlap": True,
+            "desclen": 40,
+            "output": "/work/cd_hit",
+        }
+    ) == (
+        "cd-hit-est-2d -i 'db1 fasta.fa' -o /work/cd_hit/rep_seq -c 0.92 -n 9 "
+        "-r 1 -mask NX -match 2 -mismatch -3 -gap -7 -gap-ext -2 -i2 db2.fa "
+        "-s2 0.95 -S2 10 -b 20 -l 10 -G 0 -aL 0.8 -AL 100 -aS 0.9 -AS 50 "
+        "-A 25 -s 0.7 -S 120 -uL 0.1 -uS 0.2 -U 30 -g 1 -B 1 -sc 1 -sf 1 "
+        "-p 1 -d 40 -M ${GALAXY_MEMORY_MB:-0} -T ${GALAXY_SLOTS:-1}"
+    )
+
+
+def test_cd_hit_validates_modes_ranges_and_required_second_input() -> None:
+    node_class = _node_class("cd_hit")
+
+    assert node_class.VALIDATE_INPUTS({}) == "fasta_in is required"
+    assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "sequence_type": "bad"}) == (
+        "sequence_type must be one of: protein, nucleotide"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "operation": "bad"}) == (
+        "operation must be one of: cluster, 2d"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "operation": "2d"}) == (
+        "fasta_in2 is required when operation is 2d"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "similarity": 0.3}) == (
+        "similarity must be between 0.4 and 1.0 for protein sequences"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "sequence_type": "nucleotide", "similarity": 0.7}) == (
+        "similarity must be between 0.8 and 1.0 for nucleotide sequences"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "protein_wordsize": 6}) == (
+        "protein_wordsize must be between 2 and 5"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "sequence_type": "nucleotide", "nucleotide_wordsize": 3}) == (
+        "nucleotide_wordsize must be between 4 and 11"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "identity_style": "local", "align_coverage_short": 0.8}) is True
+
+
 class _RecordingCommandContext:
     def __init__(self, node_dir: Path) -> None:
         self.node_dir = node_dir
