@@ -7477,6 +7477,105 @@ def test_ampvis2_subset_samples_renders_script_outputs_and_validates(tmp_path: P
     ) is True
 
 
+def test_ampvis2_subset_taxa_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_subset_taxa"]
+
+    assert info["display_name"] == "ampvis2 subset data"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Subset ampvis2 data by matching taxa across taxonomy ranks."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["required"]["select_param"][1]["options"] == [
+        "option_input_file",
+        "option_input_selected_file",
+    ]
+    assert info["input"]["optional"]["taxonomy_list"][0] == "TSV"
+    assert info["input"]["optional"]["tax_vector"][1]["multiple"] is True
+    assert info["input"]["optional"]["selected_taxonomy_list"][0] == "TSV"
+    assert info["input"]["optional"]["normalise"][1]["default"] is False
+    assert info["input"]["optional"]["remove"][1]["default"] is False
+    assert info["output"] == ["FILE", "TSV"]
+    assert info["output_name"] == ["ampvis", "taxonomy_list_out"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_filter_taxa.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 subset data" in info["search_aliases"]
+    assert "amp_subset_taxa" in info["search_aliases"]
+    assert "taxonomy filtering" in info["search_aliases"]
+
+
+def test_ampvis2_subset_taxa_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_subset_taxa")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "select_param": "option_input_file",
+            "taxonomy_list": "AalborgWWTPs-taxonomy.list",
+            "tax_vector": ["f__Caldilineaceae", "p__Elusimicrobia"],
+            "normalise": True,
+            "remove": True,
+            "output": "/work/ampvis2_subset_taxa",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_subset_taxa/subset_taxa.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert 'tax_vector <- c("f__Caldilineaceae", "p__Elusimicrobia")' in command
+    assert "data <- amp_subset_taxa(" in command
+    assert "    tax_vector = tax_vector," in command
+    assert "    normalise = TRUE," in command
+    assert "    remove = TRUE" in command
+    assert 'saveRDS(data, "/work/ampvis2_subset_taxa/ampvis.rds")' in command
+    assert 'file="/work/ampvis2_subset_taxa/taxonomy_list.tsv"' in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_subset_taxa/subset_taxa.R")
+
+    file_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "select_param": "option_input_selected_file",
+            "selected_taxonomy_list": "selected_taxa.tsv",
+            "output": "/work/ampvis2_subset_taxa",
+        }
+    )
+    assert 'file_path <- "selected_taxa.tsv"' in file_command
+    assert "lines <- readLines(file_path)" in file_command
+    assert "tax_vector <- trimws(lines)" in file_command
+    assert "normalise = FALSE," in file_command
+    assert "remove = FALSE" in file_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_subset_taxa" / "ampvis.rds",
+        tmp_path / "ampvis2_subset_taxa" / "taxonomy_list.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": "", "select_param": "option_input_file", "tax_vector": ["f__A"]}) == (
+        "data is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "select_param": "bad", "tax_vector": ["f__A"]}) == (
+        "select_param must be one of: option_input_file, option_input_selected_file"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "select_param": "option_input_file", "taxonomy_list": ""}) == (
+        "taxonomy_list is required when select_param is option_input_file"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "select_param": "option_input_file", "taxonomy_list": "tax.list", "tax_vector": []}
+    ) == "tax_vector must include at least one taxon"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "select_param": "option_input_file", "taxonomy_list": "tax.list", "tax_vector": [""]}
+    ) == "tax_vector values must be non-empty"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "select_param": "option_input_selected_file", "selected_taxonomy_list": ""}
+    ) == "selected_taxonomy_list is required when select_param is option_input_selected_file"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "select_param": "option_input_file", "taxonomy_list": "tax.list", "tax_vector": ["f__A"]}
+    ) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 
