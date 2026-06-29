@@ -2566,6 +2566,60 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
     citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
   },
+  hybpiper: {
+    name: 'hybpiper',
+    display_name: 'HybPiper',
+    category: 'phylogeny',
+    description: 'Analyse targeted sequence capture data with HybPiper.',
+    search_aliases: [
+      'Galaxy',
+      'HybPiper',
+      'targeted sequence capture',
+      'target loci assembly',
+      'check targetfile',
+      'fix targetfile',
+      'retrieve sequences',
+      'recovery heatmap',
+      'paralog warnings',
+    ],
+    input: {
+      required: {
+        targetfile_dna: { type: 'FASTA' },
+      },
+      optional: {
+        hybpiper_job: { type: 'STRING', default: 'assemble', options: ['check_and_fix_targetfile', 'assemble', 'stats'] },
+        paired_forward: { type: 'FASTQ', default: '' },
+        paired_reverse: { type: 'FASTQ', default: '' },
+        sample_name: { type: 'STRING', default: '' },
+        threads: { type: 'INT', default: 1 },
+        hybpiper_results: { type: 'FILE', default: [], list: true },
+        sample_names: { type: 'STRING', default: [], list: true },
+        stats_type_select: { type: 'STRING', default: ['gene'], options: ['gene', 'supercontig'], list: true },
+        heatmap: { type: 'BOOLEAN', default: false },
+        sequence_type_select: { type: 'STRING', default: ['dna'], options: ['dna', 'aa', 'intron', 'supercontig'], list: true },
+      },
+    },
+    output: ['FASTA', 'TEXT', 'TSV', 'FILE', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'TEXT'],
+    output_name: [
+      'fixed_targetfile',
+      'targetfile_ctl_file',
+      'targetfile_report',
+      'hybpiper_archive',
+      'hybpiper_stats',
+      'hybpiper_heatmaps',
+      'dna_sequences',
+      'aa_sequences',
+      'intron_sequences',
+      'supercontig_sequences',
+      'dummy_output',
+    ],
+    required_executables: ['hybpiper'],
+    required_conda_packages: ['hybpiper'],
+    documentation_url: 'https://github.com/mossmatters/HybPiper',
+    citation_dois: ['10.3732/apps.1600016'],
+    citation_urls: ['https://doi.org/10.3732/apps.1600016'],
+    citation_text: 'HybPiper: Extracting coding sequence and introns for phylogenetics from high-throughput sequencing reads using target enrichment.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5536,7 +5590,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('223 nodes available')).toBeVisible();
+  await expect(page.getByText('224 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5633,6 +5687,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'feature names', name: 'HUMAnN Rename Table', category: 'metagenomics' },
     { query: 'pathway abundance', name: 'HUMAnN Unpack Pathways', category: 'metagenomics' },
     { query: 'focal feature', name: 'HUMAnN Barplot', category: 'metagenomics' },
+    { query: 'targeted sequence capture', name: 'HybPiper', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

@@ -569,6 +569,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "hybpiper": {
+            "display_name": "HybPiper",
+            "category": "phylogeny",
+            "required_executables": ["hybpiper"],
+            "required_conda_packages": ["hybpiper"],
+            "doi": "10.3732/apps.1600016",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6885,6 +6892,276 @@ def test_humann_barplot_validates_wrapper_inputs() -> None:
             "focal_feature": "PWY",
             "sort": ["braycurtis_w"],
             "remove_zeros": True,
+        }
+    ) is True
+
+
+def test_hybpiper_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hybpiper"]
+
+    assert info["display_name"] == "HybPiper"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Analyse targeted sequence capture data with HybPiper."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HybPiper",
+        "targeted sequence capture",
+        "target loci assembly",
+        "check targetfile",
+        "fix targetfile",
+        "retrieve sequences",
+        "recovery heatmap",
+        "paralog warnings",
+    ]
+    assert info["version"] == "2.1.6"
+    assert info["output"] == [
+        "FASTA",
+        "TEXT",
+        "TSV",
+        "FILE",
+        "DIRECTORY",
+        "DIRECTORY",
+        "DIRECTORY",
+        "DIRECTORY",
+        "DIRECTORY",
+        "DIRECTORY",
+        "TEXT",
+    ]
+    assert info["output_name"] == [
+        "fixed_targetfile",
+        "targetfile_ctl_file",
+        "targetfile_report",
+        "hybpiper_archive",
+        "hybpiper_stats",
+        "hybpiper_heatmaps",
+        "dna_sequences",
+        "aa_sequences",
+        "intron_sequences",
+        "supercontig_sequences",
+        "dummy_output",
+    ]
+    assert info["required_executables"] == ["hybpiper"]
+    assert info["required_conda_packages"] == ["hybpiper"]
+    assert info["documentation_url"] == "https://github.com/mossmatters/HybPiper"
+    assert info["citation_dois"] == ["10.3732/apps.1600016"]
+    assert info["citation_urls"] == ["https://doi.org/10.3732/apps.1600016"]
+    assert info["citation_text"] == (
+        "HybPiper: Extracting coding sequence and introns for phylogenetics from "
+        "high-throughput sequencing reads using target enrichment."
+    )
+
+    assert info["input"]["required"]["targetfile_dna"][0] == "FASTA"
+    assert info["input"]["optional"]["hybpiper_job"][1]["default"] == "assemble"
+    assert info["input"]["optional"]["hybpiper_job"][1]["options"] == [
+        "check_and_fix_targetfile",
+        "assemble",
+        "stats",
+    ]
+    assert info["input"]["optional"]["paired_forward"][0] == "FASTQ"
+    assert info["input"]["optional"]["paired_reverse"][0] == "FASTQ"
+    assert info["input"]["optional"]["sample_name"][0] == "STRING"
+    assert info["input"]["optional"]["hybpiper_results"][0] == "FILE"
+    assert info["input"]["optional"]["hybpiper_results"][1]["multiple"] is True
+    assert info["input"]["optional"]["sample_names"][1]["multiple"] is True
+    assert info["input"]["optional"]["stats_type_select"][1]["default"] == ["gene"]
+    assert info["input"]["optional"]["stats_type_select"][1]["options"] == ["gene", "supercontig"]
+    assert info["input"]["optional"]["heatmap"][1]["default"] is False
+    assert info["input"]["optional"]["sequence_type_select"][1]["default"] == ["dna"]
+    assert info["input"]["optional"]["sequence_type_select"][1]["options"] == [
+        "dna",
+        "aa",
+        "intron",
+        "supercontig",
+    ]
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_hybpiper_renders_check_fix_and_assemble_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hybpiper")
+
+    assert node_class.render_command(
+        {
+            "targetfile_dna": "targets/test targets.fasta.gz",
+            "hybpiper_job": "check_and_fix_targetfile",
+            "output": "/work/hybpiper",
+        }
+    ) == (
+        "ln -s 'targets/test targets.fasta.gz' ./target_file.fasta && "
+        "hybpiper check_targetfile --targetfile_dna target_file.fasta && "
+        "mv fix_targetfile*.ctl hybpiper.ctl && "
+        "hybpiper fix_targetfile --targetfile_dna target_file.fasta --allow_gene_removal hybpiper.ctl"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"hybpiper_job": "check_and_fix_targetfile"}, tmp_path) == [
+        tmp_path / "hybpiper" / "target_file_fixed.fasta",
+        tmp_path / "hybpiper" / "hybpiper.ctl",
+        tmp_path / "hybpiper" / "fix_targetfile_report.tsv",
+    ]
+
+    assert node_class.render_command(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "assemble",
+            "paired_forward": "reads/NZ874_R1.fastq.gz",
+            "paired_reverse": "reads/NZ874_R2.fastq.gz",
+            "sample_name": "NZ874",
+            "threads": 12,
+            "output": "/work/hybpiper",
+        }
+    ) == (
+        "ln -s targets.fasta ./target_file.fasta && "
+        "hybpiper assemble --readfiles reads/NZ874_R1.fastq.gz reads/NZ874_R2.fastq.gz "
+        "--targetfile_dna target_file.fasta --diamond --cpu 12 --prefix NZ874 && "
+        "tar -cvf /work/hybpiper/hybpiper_archive.tar --directory=NZ874 ."
+    )
+
+    assert node_class.PLAN_OUTPUTS({"hybpiper_job": "assemble"}, tmp_path) == [
+        tmp_path / "hybpiper" / "hybpiper_archive.tar",
+    ]
+
+
+def test_hybpiper_renders_stats_command_and_dynamic_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hybpiper")
+
+    assert node_class.render_command(
+        {
+            "targetfile_dna": "test_targets.fasta.gz",
+            "hybpiper_job": "stats",
+            "hybpiper_results": ["NZ874.tar.gz", "sample two.tar"],
+            "sample_names": ["NZ874", "sample-two"],
+            "stats_type_select": ["gene", "supercontig"],
+            "heatmap": True,
+            "sequence_type_select": ["dna", "aa", "intron", "supercontig"],
+            "output": "/work/hybpiper",
+        }
+    ) == (
+        "ln -s test_targets.fasta.gz ./target_file.fasta && "
+        "mkdir -p NZ874 && tar -xf NZ874.tar.gz -C NZ874 && echo NZ874 >> namelist.txt && "
+        "mkdir -p sample-two && tar -xf 'sample two.tar' -C sample-two && echo sample-two >> namelist.txt && "
+        "hybpiper stats --targetfile_dna target_file.fasta --stats_filename stats.gene "
+        "--seq_lengths_filename seq_lengths.gene gene namelist.txt && "
+        "hybpiper recovery_heatmap --heatmap_filename heatmap.gene --heatmap_filetype svg "
+        "seq_lengths.gene.tsv && "
+        "hybpiper stats --targetfile_dna target_file.fasta --stats_filename stats.supercontig "
+        "--seq_lengths_filename seq_lengths.supercontig supercontig namelist.txt && "
+        "hybpiper recovery_heatmap --heatmap_filename heatmap.supercontig --heatmap_filetype svg "
+        "seq_lengths.supercontig.tsv && "
+        "mkdir fasta.dna && hybpiper retrieve_sequences --targetfile_dna target_file.fasta "
+        "--sample_names namelist.txt --fasta_dir fasta.dna dna && "
+        "mkdir fasta.aa && hybpiper retrieve_sequences --targetfile_dna target_file.fasta "
+        "--sample_names namelist.txt --fasta_dir fasta.aa aa && "
+        "mkdir fasta.intron && hybpiper retrieve_sequences --targetfile_dna target_file.fasta "
+        "--sample_names namelist.txt --fasta_dir fasta.intron intron && "
+        "mkdir fasta.supercontig && hybpiper retrieve_sequences --targetfile_dna target_file.fasta "
+        "--sample_names namelist.txt --fasta_dir fasta.supercontig supercontig && "
+        "mkdir -p /work/hybpiper/hybpiper_stats && "
+        "cp stats.gene.tsv /work/hybpiper/hybpiper_stats/stats.gene.tsv && "
+        "cp seq_lengths.gene.tsv /work/hybpiper/hybpiper_stats/seq_lengths.gene.tsv && "
+        "cp stats.supercontig.tsv /work/hybpiper/hybpiper_stats/stats.supercontig.tsv && "
+        "cp seq_lengths.supercontig.tsv /work/hybpiper/hybpiper_stats/seq_lengths.supercontig.tsv && "
+        "mkdir -p /work/hybpiper/hybpiper_heatmaps && "
+        "cp heatmap.gene.svg /work/hybpiper/hybpiper_heatmaps/heatmap.gene.svg && "
+        "cp heatmap.supercontig.svg /work/hybpiper/hybpiper_heatmaps/heatmap.supercontig.svg && "
+        "cp -r fasta.dna /work/hybpiper/dna_sequences && "
+        "cp -r fasta.aa /work/hybpiper/aa_sequences && "
+        "cp -r fasta.intron /work/hybpiper/intron_sequences && "
+        "cp -r fasta.supercontig /work/hybpiper/supercontig_sequences"
+    )
+
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "hybpiper_job": "stats",
+            "stats_type_select": ["gene", "supercontig"],
+            "heatmap": True,
+            "sequence_type_select": ["dna", "aa", "intron", "supercontig"],
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "hybpiper" / "hybpiper_stats",
+        tmp_path / "hybpiper" / "hybpiper_heatmaps",
+        tmp_path / "hybpiper" / "dna_sequences",
+        tmp_path / "hybpiper" / "aa_sequences",
+        tmp_path / "hybpiper" / "intron_sequences",
+        tmp_path / "hybpiper" / "supercontig_sequences",
+    ]
+
+
+def test_hybpiper_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hybpiper")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HybPiper target FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"targetfile_dna": "targets.fasta", "hybpiper_job": "download"}) == (
+        "Unsupported HybPiper job: download"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"targetfile_dna": "targets.fasta", "hybpiper_job": "assemble", "paired_forward": "R1.fastq"}
+    ) == "HybPiper assemble requires paired forward and reverse reads"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "assemble",
+            "paired_forward": "R1.fastq",
+            "paired_reverse": "R2.fastq",
+            "sample_name": "NZ 874",
+        }
+    ) == "HybPiper sample identifiers may only contain letters, numbers, underscores, and hyphens"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "stats",
+            "hybpiper_results": [],
+        }
+    ) == "At least one HybPiper assemble archive is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "stats",
+            "hybpiper_results": ["NZ874.tar.gz"],
+            "sample_names": ["NZ 874"],
+        }
+    ) == "HybPiper sample identifiers may only contain letters, numbers, underscores, and hyphens"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "stats",
+            "hybpiper_results": ["NZ874.tar.gz"],
+            "stats_type_select": [],
+            "sequence_type_select": [],
+        }
+    ) == "At least one HybPiper statistics or sequence output must be selected"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "stats",
+            "hybpiper_results": ["NZ874.tar.gz"],
+            "stats_type_select": [],
+            "heatmap": True,
+            "sequence_type_select": ["dna"],
+        }
+    ) == "HybPiper heatmap requires at least one statistics output"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "stats",
+            "hybpiper_results": ["NZ874.tar.gz"],
+            "stats_type_select": ["gene", "exon"],
+        }
+    ) == "Unsupported HybPiper statistics output: exon"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "stats",
+            "hybpiper_results": ["NZ874.tar.gz"],
+            "sequence_type_select": ["dna", "protein"],
+        }
+    ) == "Unsupported HybPiper sequence output: protein"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "targetfile_dna": "targets.fasta",
+            "hybpiper_job": "assemble",
+            "paired_forward": "R1.fastq",
+            "paired_reverse": "R2.fastq",
+            "sample_name": "NZ874",
         }
     ) is True
 
