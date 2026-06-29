@@ -13066,6 +13066,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["graphlan"],
             "doi": "10.7717/peerj.1029",
         },
+        "exonerate": {
+            "display_name": "Exonerate",
+            "category": "alignment",
+            "required_executables": ["exonerate", "python"],
+            "required_conda_packages": ["exonerate", "python", "bcbiogff"],
+            "doi": "10.1186/1471-2105-6-31",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15873,6 +15880,85 @@ def test_graphlan_renders_tree_image_command_outputs_and_validation(tmp_path: Pa
     assert node_class.VALIDATE_INPUTS({"input_tree": "tree.xml", "size": 0}) == "size must be >= 1"
     assert node_class.VALIDATE_INPUTS({"input_tree": "tree.xml", "image_format": "png", "dpi": 0}) == "dpi must be >= 1"
     assert node_class.VALIDATE_INPUTS({"input_tree": "tree.xml", "image_format": "svg"}) is True
+
+
+def test_exonerate_renders_pairwise_alignment_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("exonerate")
+    info = _registry().object_info()["exonerate"]
+
+    assert info["output"] == ["GFF", "GFF3", "TXT"]
+    assert info["output_name"] == ["output_gff", "output_gff3", "output_ali"]
+    assert info["input"]["required"]["query"][0] == "FASTA"
+    assert info["input"]["optional"]["model"][1]["options"] == ["ungapped", "est2genome", "protein2genome", "coding2coding"]
+    assert "10.1186/1471-2105-6-31" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "query": "transcriptome.fa",
+            "target": "genome.fa",
+            "model": "est2genome",
+            "outformat": "targetgff",
+            "score": 150,
+            "percent": 70.5,
+            "bestn": 3,
+            "minintron": 100,
+            "maxintron": 200,
+            "threads": 6,
+            "gff3_converter": "/tools/exonerate/exonerategff_to_gff3.py",
+            "output": "/work/exonerate",
+        }
+    ) == (
+        "exonerate --query transcriptome.fa --target genome.fa --score 150 --percent 70.5 --bestn 3 --verbose 0 "
+        "--model est2genome --querytype dna --targettype dna --minintron 100 --maxintron 200 "
+        "--cores ${GALAXY_SLOTS:-6} --showalignment no --showvulgar no --showtargetgff yes --showquerygff no "
+        "> /work/exonerate/output.gff && python /tools/exonerate/exonerategff_to_gff3.py "
+        "/work/exonerate/output.gff > /work/exonerate/output.gff3"
+    )
+    assert node_class.render_command(
+        {
+            "query": "query.fa",
+            "target": "target.fa",
+            "model": "ungapped",
+            "outformat": "alignment",
+            "output": "/work/exonerate",
+        }
+    ) == (
+        "exonerate --query query.fa --target target.fa --score 100 --percent 0.0 --bestn 0 --verbose 0 "
+        "--cores ${GALAXY_SLOTS:-1} --showalignment yes --showvulgar no > /work/exonerate/output.txt"
+    )
+    assert node_class.render_command(
+        {
+            "query": "query.fa",
+            "target": "target.fa",
+            "model": "protein2genome",
+            "outformat": "querygff",
+            "output": "/work/exonerate",
+        }
+    ) == (
+        "exonerate --query query.fa --target target.fa --score 100 --percent 0.0 --bestn 0 --verbose 0 "
+        "--model protein2genome --querytype protein --targettype dna --cores ${GALAXY_SLOTS:-1} "
+        "--showalignment no --showvulgar no --showtargetgff no --showquerygff yes > /work/exonerate/output.gff "
+        "&& python exonerategff_to_gff3.py /work/exonerate/output.gff > /work/exonerate/output.gff3"
+    )
+    assert node_class.PLAN_OUTPUTS({"outformat": "targetgff"}, tmp_path) == [
+        tmp_path / "exonerate" / "output.gff",
+        tmp_path / "exonerate" / "output.gff3",
+    ]
+    assert node_class.PLAN_OUTPUTS({"outformat": "alignment"}, tmp_path) == [
+        tmp_path / "exonerate" / "output.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "query FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"query": "query.fa"}) == "target FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"query": "query.fa", "target": "target.fa", "model": "bad"}) == (
+        "model must be one of: ungapped, est2genome, protein2genome, coding2coding"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "query.fa", "target": "target.fa", "outformat": "bad"}) == (
+        "outformat must be one of: targetgff, querygff, alignment"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "query.fa", "target": "target.fa", "score": -1}) == "score must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"query": "query.fa", "target": "target.fa", "percent": 101}) == (
+        "percent must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "query.fa", "target": "target.fa", "model": "est2genome"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

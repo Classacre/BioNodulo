@@ -5528,6 +5528,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.1029'],
     citation_text: 'Compact graphical representation of phylogenetic data and metadata with GraPhlAn.',
   },
+  exonerate: {
+    name: 'exonerate',
+    display_name: 'Exonerate',
+    category: 'alignment',
+    description: 'Run pairwise sequence comparison with Exonerate alignment models and Galaxy-style GFF outputs.',
+    search_aliases: ['Galaxy', 'Exonerate', 'exonerate pairwise sequence comparison', 'est2genome', 'protein2genome', 'coding2coding', 'target GFF', 'query GFF'],
+    input: {
+      required: {
+        query: { type: 'FASTA' },
+        target: { type: 'FASTA' },
+      },
+      optional: {
+        model: { type: 'STRING', default: 'ungapped', options: ['ungapped', 'est2genome', 'protein2genome', 'coding2coding'] },
+        outformat: { type: 'STRING', default: 'targetgff', options: ['targetgff', 'querygff', 'alignment'] },
+        score: { type: 'INT', default: 100 },
+        percent: { type: 'FLOAT', default: 0 },
+        bestn: { type: 'INT', default: 0 },
+        minintron: { type: 'INT', default: '' },
+        maxintron: { type: 'INT', default: '' },
+        threads: { type: 'INT', default: 1 },
+        gff3_converter: { type: 'FILE', default: 'exonerategff_to_gff3.py' },
+      },
+    },
+    output: ['GFF', 'GFF3', 'TXT'],
+    output_name: ['output_gff', 'output_gff3', 'output_ali'],
+    required_executables: ['exonerate', 'python'],
+    required_conda_packages: ['exonerate', 'python', 'bcbiogff'],
+    documentation_url: 'https://www.ebi.ac.uk/about/vertebrate-genomics/software/exonerate',
+    citation_dois: ['10.1186/1471-2105-6-31'],
+    citation_urls: ['https://doi.org/10.1186/1471-2105-6-31'],
+    citation_text: 'Exonerate: a generic tool for sequence comparison.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8273,7 +8305,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('294 nodes available')).toBeVisible();
+  await expect(page.getByText('295 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8448,6 +8480,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'export2graphlan GraPhlAn conversion', name: 'Export to GraPhlAn', category: 'visualization' },
     { query: 'graphlan_annotate tree annotation', name: 'GraPhlAn Annotate', category: 'visualization' },
     { query: 'graphlan circular tree rendering', name: 'GraPhlAn', category: 'visualization' },
+    { query: 'exonerate pairwise sequence comparison', name: 'Exonerate', category: 'alignment' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
