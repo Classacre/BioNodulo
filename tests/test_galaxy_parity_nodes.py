@@ -7369,6 +7369,114 @@ def test_ampvis2_setmetadata_renders_script_outputs_and_validates(tmp_path: Path
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "metadata.list"}) is True
 
 
+def test_ampvis2_subset_samples_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_subset_samples"]
+
+    assert info["display_name"] == "ampvis2 subset samples"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Subset ampvis2 samples by sample metadata values."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["required"]["metadata_list"][0] == "TSV"
+    assert info["input"]["required"]["var"][0] == "STRING"
+    assert info["input"]["required"]["vals"][1]["multiple"] is True
+    assert info["input"]["optional"]["invert"][1]["default"] is False
+    assert info["input"]["optional"]["minreads"][1]["default"] == 0
+    assert info["input"]["optional"]["minreads"][1]["min"] == 0
+    assert info["input"]["optional"]["rarefy"][1]["default"] == ""
+    assert info["input"]["optional"]["rarefy"][1]["min"] == 0
+    assert info["input"]["optional"]["normalise"][1]["default"] is False
+    assert info["input"]["optional"]["removeAbsents"][1]["default"] is True
+    assert info["output"] == ["FILE", "TSV"]
+    assert info["output_name"] == ["ampvis", "metadata_list_out"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_filter_samples.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 subset samples" in info["search_aliases"]
+    assert "amp_subset_samples" in info["search_aliases"]
+    assert "sample metadata filtering" in info["search_aliases"]
+
+
+def test_ampvis2_subset_samples_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_subset_samples")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "var": "Plant",
+            "vals": ["Aalborg East", "Aalborg West"],
+            "invert": True,
+            "minreads": 1000,
+            "rarefy": 5000,
+            "normalise": True,
+            "removeAbsents": False,
+            "output": "/work/ampvis2_subset_samples",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_subset_samples/subset_samples.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "data <- amp_subset_samples(" in command
+    assert '    ! Plant %in% c("Aalborg East", "Aalborg West"),' in command
+    assert "    minreads = 1000," in command
+    assert "    rarefy = 5000," in command
+    assert "    normalise = TRUE," in command
+    assert "    removeAbsents = FALSE" in command
+    assert 'saveRDS(data, "/work/ampvis2_subset_samples/ampvis.rds")' in command
+    assert 'file="/work/ampvis2_subset_samples/metadata_list.tsv"' in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_subset_samples/subset_samples.R")
+
+    default_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "var": "Plant",
+            "vals": ["Aalborg East"],
+            "output": "/work/ampvis2_subset_samples",
+        }
+    )
+    assert '    Plant %in% c("Aalborg East"),' in default_command
+    assert "rarefy =" not in default_command
+    assert "    minreads = 0," in default_command
+    assert "    normalise = FALSE," in default_command
+    assert "    removeAbsents = TRUE" in default_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_subset_samples" / "ampvis.rds",
+        tmp_path / "ampvis2_subset_samples" / "metadata_list.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": "", "metadata_list": "metadata.list", "var": "Plant", "vals": ["A"]}) == (
+        "data is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "", "var": "Plant", "vals": ["A"]}) == (
+        "metadata_list is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "metadata.list", "var": "", "vals": ["A"]}) == (
+        "var is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "metadata.list", "var": "Plant", "vals": []}) == (
+        "vals must include at least one metadata value"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "var": "Plant", "vals": [""], "minreads": 0}
+    ) == "metadata values must be non-empty"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "var": "Plant", "vals": ["A"], "minreads": -1}
+    ) == "minreads must be >= 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "var": "Plant", "vals": ["A"], "rarefy": -1}
+    ) == "rarefy must be >= 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "var": "Plant", "vals": ["A"]}
+    ) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

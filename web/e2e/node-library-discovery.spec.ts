@@ -1867,6 +1867,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_subset_samples: {
+    name: 'ampvis2_subset_samples',
+    display_name: 'ampvis2 subset samples',
+    category: 'metagenomics',
+    description: 'Subset ampvis2 samples by sample metadata values.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 subset samples', 'amp_subset_samples', 'amp_filter_samples', 'sample metadata filtering', 'metadata values', 'rarefy samples', 'remove absent OTUs'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+        metadata_list: { type: 'TSV' },
+        var: { type: 'STRING' },
+        vals: { type: 'STRING', multiple: true },
+      },
+      optional: {
+        invert: { type: 'BOOLEAN', default: false },
+        minreads: { type: 'INT', default: 0, min: 0 },
+        rarefy: { type: 'INT', default: '', min: 0 },
+        normalise: { type: 'BOOLEAN', default: false },
+        removeAbsents: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['FILE', 'TSV'],
+    output_name: ['ampvis', 'metadata_list_out'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_filter_samples.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -10371,7 +10401,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('355 nodes available')).toBeVisible();
+  await expect(page.getByText('356 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10443,6 +10473,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ampvis2 rank abundance plot', name: 'ampvis2 rank abundance plot', category: 'metagenomics' },
     { query: 'ampvis2 rarefaction curve', name: 'ampvis2 rarefaction curve', category: 'metagenomics' },
     { query: 'ampvis2 set metadata', name: 'ampvis2 set metadata', category: 'metagenomics' },
+    { query: 'ampvis2 subset samples', name: 'ampvis2 subset samples', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
