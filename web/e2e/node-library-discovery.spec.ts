@@ -2394,6 +2394,47 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
     citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
   },
+  humann_regroup_table: {
+    name: 'humann_regroup_table',
+    display_name: 'HUMAnN Regroup Table',
+    category: 'metagenomics',
+    description: 'Regroup HUMAnN gene-family features into functional categories.',
+    search_aliases: [
+      'Galaxy',
+      'HUMAnN',
+      'humann_regroup_table',
+      'Regroup',
+      'gene families',
+      'MetaCyc reactions',
+      'UniRef90',
+      'custom mapping',
+      'UNGROUPED',
+    ],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+      },
+      optional: {
+        function: { type: 'STRING', default: 'sum', options: ['sum', 'mean'] },
+        grouping_type: { type: 'STRING', default: 'standard', options: ['standard', 'large', 'custom'] },
+        groups: { type: 'STRING', default: 'uniref90_rxn', options: ['uniref90_rxn', 'uniref50_rxn'] },
+        grouping: { type: 'FILE', default: '' },
+        custom: { type: 'TSV', default: '' },
+        reversed: { type: 'BOOLEAN', default: false },
+        precision: { type: 'INT', default: 3 },
+        ungrouped: { type: 'BOOLEAN', default: true },
+        protected: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['humann_regroup_table'],
+    required_conda_packages: ['humann'],
+    documentation_url: 'https://huttenhower.sph.harvard.edu/humann/',
+    citation_dois: ['10.7554/eLife.65088', '10.1371/journal.pcbi.1002358'],
+    citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
+    citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5364,7 +5405,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('219 nodes available')).toBeVisible();
+  await expect(page.getByText('220 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5457,6 +5498,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'one file per sample', name: 'HUMAnN Split Table', category: 'metagenomics' },
     { query: 'unstratified table', name: 'HUMAnN Split Stratified Table', category: 'metagenomics' },
     { query: 'row-wise summary', name: 'HUMAnN Reduce Table', category: 'metagenomics' },
+    { query: 'MetaCyc reactions', name: 'HUMAnN Regroup Table', category: 'metagenomics' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

@@ -541,6 +541,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "humann_regroup_table": {
+            "display_name": "HUMAnN Regroup Table",
+            "category": "metagenomics",
+            "required_executables": ["humann_regroup_table"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6378,6 +6385,130 @@ def test_humann_reduce_table_validates_wrapper_inputs() -> None:
         "Unsupported HUMAnN reduce sort option: sample"
     )
     assert node_class.VALIDATE_INPUTS({"input": "joined.tsv", "function": "sum", "sort_by": "level"}) is True
+
+
+def test_humann_regroup_table_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_regroup_table"]
+
+    assert info["display_name"] == "HUMAnN Regroup Table"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Regroup HUMAnN gene-family features into functional categories."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_regroup_table",
+        "Regroup",
+        "gene families",
+        "MetaCyc reactions",
+        "UniRef90",
+        "custom mapping",
+        "UNGROUPED",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["humann_regroup_table"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["description"] == "HUMAnN gene families table"
+    assert info["input"]["optional"]["function"][1]["default"] == "sum"
+    assert info["input"]["optional"]["function"][1]["options"] == ["sum", "mean"]
+    assert info["input"]["optional"]["grouping_type"][1]["default"] == "standard"
+    assert info["input"]["optional"]["grouping_type"][1]["options"] == ["standard", "large", "custom"]
+    assert info["input"]["optional"]["groups"][1]["options"] == ["uniref90_rxn", "uniref50_rxn"]
+    assert info["input"]["optional"]["grouping"][0] == "FILE"
+    assert info["input"]["optional"]["custom"][0] == "TSV"
+    assert info["input"]["optional"]["precision"][1]["default"] == 3
+    assert info["input"]["optional"]["ungrouped"][1]["default"] is True
+    assert info["input"]["optional"]["protected"][1]["default"] is True
+    assert info["input"]["optional"]["reversed"][1]["default"] is False
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_regroup_table_renders_standard_large_and_custom_commands(tmp_path: Path) -> None:
+    node_class = _node_class("humann_regroup_table")
+
+    assert node_class.render_command(
+        {
+            "input": "demo genefamilies.tsv",
+            "output": "/work/humann_regroup_table",
+        }
+    ) == (
+        "humann_regroup_table --input 'demo genefamilies.tsv' "
+        "--output /work/humann_regroup_table/regrouped_table.tsv --function sum "
+        "--groups uniref90_rxn --precision 3 --ungrouped Y --protected Y"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "demo_genefamilies.tsv",
+            "function": "mean",
+            "grouping_type": "large",
+            "grouping": "utility_mapping-full-map_go_uniref90-3.0.0-29042021",
+            "reversed": True,
+            "precision": 4,
+            "ungrouped": False,
+            "protected": False,
+            "output": "/work/humann_regroup_table",
+        }
+    ) == (
+        "humann_regroup_table --input demo_genefamilies.tsv "
+        "--output /work/humann_regroup_table/regrouped_table.tsv --function mean "
+        "--custom utility_mapping-full-map_go_uniref90-3.0.0-29042021 --reversed "
+        "--precision 4 --ungrouped N --protected N"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "demo_genefamilies.tsv",
+            "grouping_type": "custom",
+            "custom": "map go uniref90.txt",
+            "reversed": False,
+            "output": "/work/humann_regroup_table",
+        }
+    ) == (
+        "humann_regroup_table --input demo_genefamilies.tsv "
+        "--output /work/humann_regroup_table/regrouped_table.tsv --function sum "
+        "--custom 'map go uniref90.txt' --precision 3 --ungrouped Y --protected Y"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "humann_regroup_table" / "regrouped_table.tsv",
+    ]
+
+
+def test_humann_regroup_table_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_regroup_table")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HUMAnN gene families table is required"
+    assert node_class.VALIDATE_INPUTS({"input": "genefamilies.tsv", "function": "max"}) == (
+        "Unsupported HUMAnN regroup function: max"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genefamilies.tsv", "grouping_type": "database"}) == (
+        "Unsupported HUMAnN grouping type: database"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genefamilies.tsv", "groups": "uniref90_go"}) == (
+        "Unsupported HUMAnN built-in grouping: uniref90_go"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genefamilies.tsv", "grouping_type": "large"}) == (
+        "HUMAnN utility mapping file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genefamilies.tsv", "grouping_type": "custom"}) == (
+        "Custom HUMAnN grouping file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genefamilies.tsv", "precision": -1}) == (
+        "Precision must be zero or greater"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "genefamilies.tsv", "grouping_type": "custom", "custom": "map.tsv", "precision": 0}
+    ) is True
 
 
 def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:

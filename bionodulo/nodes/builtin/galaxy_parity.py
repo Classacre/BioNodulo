@@ -10525,6 +10525,189 @@ class HUMAnNReduceTableNode(CommandNode):
         }
 
 
+class HUMAnNRegroupTableNode(CommandNode):
+    """Regroup HUMAnN gene-family features into functional categories."""
+
+    NODE_ID = "humann_regroup_table"
+    DISPLAY_NAME = "HUMAnN Regroup Table"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Regroup HUMAnN gene-family features into functional categories."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_regroup_table",
+        "Regroup",
+        "gene families",
+        "MetaCyc reactions",
+        "UniRef90",
+        "custom mapping",
+        "UNGROUPED",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["humann_regroup_table"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+    FUNCTIONS = ["sum", "mean"]
+    GROUPING_TYPES = ["standard", "large", "custom"]
+    STANDARD_GROUPS = ["uniref90_rxn", "uniref50_rxn"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/regrouped_table.tsv"
+
+    @staticmethod
+    def _yn(value: Any, default: bool = True) -> str:
+        if value is None:
+            value = default
+        if isinstance(value, str):
+            return "Y" if value.upper() == "Y" or value.lower() in {"true", "1", "yes"} else "N"
+        return "Y" if bool(value) else "N"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "humann_regroup_table",
+            "--input",
+            str(inputs.get("input", "")),
+            "--output",
+            cls._output_path(inputs),
+            "--function",
+            str(inputs.get("function", "sum")),
+        ]
+        grouping_type = str(inputs.get("grouping_type", "standard"))
+        if grouping_type == "standard":
+            cmd.extend(["--groups", str(inputs.get("groups", "uniref90_rxn"))])
+        elif grouping_type == "large":
+            cmd.extend(["--custom", str(inputs.get("grouping", ""))])
+            if inputs.get("reversed", False):
+                cmd.append("--reversed")
+        else:
+            cmd.extend(["--custom", str(inputs.get("custom", ""))])
+            if inputs.get("reversed", False):
+                cmd.append("--reversed")
+        cmd.extend(
+            [
+                "--precision",
+                str(inputs.get("precision", 3)),
+                "--ungrouped",
+                cls._yn(inputs.get("ungrouped"), default=True),
+                "--protected",
+                cls._yn(inputs.get("protected"), default=True),
+            ]
+        )
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "regrouped_table.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "HUMAnN gene families table is required"
+        function = str(inputs.get("function", "sum"))
+        if function not in cls.FUNCTIONS:
+            return f"Unsupported HUMAnN regroup function: {function}"
+        grouping_type = str(inputs.get("grouping_type", "standard"))
+        if grouping_type not in cls.GROUPING_TYPES:
+            return f"Unsupported HUMAnN grouping type: {grouping_type}"
+        if grouping_type == "standard":
+            groups = str(inputs.get("groups", "uniref90_rxn"))
+            if groups not in cls.STANDARD_GROUPS:
+                return f"Unsupported HUMAnN built-in grouping: {groups}"
+        elif grouping_type == "large" and not str(inputs.get("grouping", "")).strip():
+            return "HUMAnN utility mapping file is required"
+        elif grouping_type == "custom" and not str(inputs.get("custom", "")).strip():
+            return "Custom HUMAnN grouping file is required"
+        try:
+            precision = int(inputs.get("precision", 3))
+        except (TypeError, ValueError):
+            return "Precision must be an integer"
+        if precision < 0:
+            return "Precision must be zero or greater"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "HUMAnN gene families table"}),
+            },
+            "optional": {
+                "function": (
+                    "STRING",
+                    {
+                        "default": "sum",
+                        "options": cls.FUNCTIONS,
+                        "description": "Combine grouped features by sum or mean",
+                    },
+                ),
+                "grouping_type": (
+                    "STRING",
+                    {
+                        "default": "standard",
+                        "options": cls.GROUPING_TYPES,
+                        "description": "Use built-in, installed utility mapping, or custom grouping",
+                    },
+                ),
+                "groups": (
+                    "STRING",
+                    {
+                        "default": "uniref90_rxn",
+                        "options": cls.STANDARD_GROUPS,
+                        "description": "Built-in regrouping from UniRef families to MetaCyc reactions",
+                        "displayOptions": {"show": {"grouping_type": ["standard"]}},
+                    },
+                ),
+                "grouping": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "description": "Installed HUMAnN utility mapping file for large regrouping",
+                        "displayOptions": {"show": {"grouping_type": ["large"]}},
+                    },
+                ),
+                "custom": (
+                    "TSV",
+                    {
+                        "default": "",
+                        "description": "Custom groups mapping file",
+                        "displayOptions": {"show": {"grouping_type": ["custom"]}},
+                    },
+                ),
+                "reversed": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Treat the mapping as feature-to-groups instead of groups-to-features",
+                        "displayOptions": {"show": {"grouping_type": ["large", "custom"]}},
+                    },
+                ),
+                "precision": (
+                    "INT",
+                    {"default": 3, "min": 0, "description": "Decimal places to round grouped abundances"},
+                ),
+                "ungrouped": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Include UNGROUPED for features that did not map to a group"},
+                ),
+                "protected": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Carry through protected features such as UNMAPPED"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MergeMetaPhlAnTablesNode(CommandNode):
     """Merge multiple MetaPhlAn relative abundance tables."""
 
