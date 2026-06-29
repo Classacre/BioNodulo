@@ -13129,6 +13129,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["cami-amber"],
             "doi": "10.1093/gigascience/giy069",
         },
+        "fargene": {
+            "display_name": "fargene",
+            "category": "annotation",
+            "required_executables": ["fargene", "tar"],
+            "required_conda_packages": ["fargene", "tar"],
+            "doi": "10.1186/s40168-019-0670-1",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16626,6 +16633,102 @@ def test_cami_amber_convert_renders_biobox_conversion_command_outputs_and_valida
         "file_identifiers count must match files count"
     )
     assert node_class.VALIDATE_INPUTS({"files": ["a.fa"], "work": "single"}) is True
+
+
+def test_fargene_renders_arg_prediction_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("fargene")
+    info = _registry().object_info()["fargene"]
+
+    assert info["output"] == ["TXT", "TGZ", "TXT", "DIRECTORY", "DIRECTORY"]
+    assert info["output_name"] == ["summary", "retrieved_fragments", "fargene_log", "hmmsearchresults", "predicted_genes"]
+    assert info["input"]["required"]["input_type"][1]["options"] == ["paired", "collection", "sequence"]
+    assert info["input"]["required"]["models"][1]["options"] == ["class_a", "class_b_1_2", "class_b_3", "class_c", "class_d_1", "class_d_2", "qnr"]
+    assert "10.1186/s40168-019-0670-1" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_type": "paired",
+            "R1": "reads R1.fastq.gz",
+            "R2": "reads R2.fastq.gz",
+            "R1_identifier": "reads R1",
+            "R2_identifier": "reads R2",
+            "models": "class_b_1_2",
+            "meta_score": 0.4,
+            "score": 12,
+            "protein": True,
+            "min_orf_length": 120,
+            "retrieve_whole": True,
+            "no_quality_filtering": True,
+            "threads": 8,
+            "output": "/work/fargene",
+        }
+    ) == (
+        "mkdir -p /work/fargene && ln -fs 'reads R1.fastq.gz' reads_R1.fastq && "
+        "ln -fs 'reads R2.fastq.gz' reads_R2.fastq && fargene --infiles '*.fastq' --meta --hmm-model class_b_1_2 "
+        "--output fargene_output --tmp-dir tmp -p ${GALAXY_SLOTS:-8} --meta-score 0.4 --score 12 --protein "
+        "--min-orf-length 120 --retrieve-whole --no-quality-filtering && tar -czf retrievedFragments.tar.gz "
+        "fargene_output/retrievedFragments 2>&1 && cp fargene_output/results_summary.txt /work/fargene/results_summary.txt && "
+        "cp retrievedFragments.tar.gz /work/fargene/retrievedFragments.tar.gz && cp fargene_analysis.log /work/fargene/fargene_analysis.log && "
+        "cp -r fargene_output/hmmsearchresults /work/fargene/hmmsearchresults && cp -r fargene_output/predictedGenes /work/fargene/predictedGenes"
+    )
+    assert node_class.render_command(
+        {
+            "input_type": "collection",
+            "input_collection": [
+                {"forward": "pair1_R1.fastq", "reverse": "pair1_R2.fastq", "identifier": "Pair 1"},
+                {"forward": "pair2_R1.fastq", "reverse": "pair2_R2.fastq", "identifier": "Pair 2"},
+            ],
+            "models": "qnr",
+            "output": "/work/fargene",
+        }
+    ).startswith(
+        "mkdir -p /work/fargene && ln -fs pair1_R1.fastq Pair_1_1.fastq && ln -fs pair1_R2.fastq Pair_1_2.fastq && "
+        "ln -fs pair2_R1.fastq Pair_2_1.fastq && ln -fs pair2_R2.fastq Pair_2_2.fastq && "
+        "fargene --infiles '*.fastq' --meta --hmm-model qnr"
+    )
+    assert node_class.render_command(
+        {
+            "input_type": "sequence",
+            "input_sequence": ["klebsiella plasmid.fasta", "contigs.fa"],
+            "sequence_identifiers": ["klebsiella plasmid", "contigs.fa"],
+            "models": "class_a",
+            "no_orf_predict": True,
+            "orf_finder": True,
+            "store_peptides": True,
+            "output": "/work/fargene",
+        }
+    ) == (
+        "mkdir -p /work/fargene && ln -fs 'klebsiella plasmid.fasta' klebsiella_plasmid.fasta && "
+        "ln -fs contigs.fa contigs.fa.fasta && fargene --infiles '*.fasta' --hmm-model class_a --output fargene_output "
+        "--tmp-dir tmp -p ${GALAXY_SLOTS:-4} --no-orf-predict --orf-finder --store-peptides 2>&1 && "
+        "cp fargene_output/results_summary.txt /work/fargene/results_summary.txt && "
+        "cp fargene_analysis.log /work/fargene/fargene_analysis.log && "
+        "cp -r fargene_output/hmmsearchresults /work/fargene/hmmsearchresults && "
+        "cp -r fargene_output/predictedGenes /work/fargene/predictedGenes"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_type": "paired"}, tmp_path) == [
+        tmp_path / "fargene" / "results_summary.txt",
+        tmp_path / "fargene" / "retrievedFragments.tar.gz",
+        tmp_path / "fargene" / "fargene_analysis.log",
+        tmp_path / "fargene" / "hmmsearchresults",
+        tmp_path / "fargene" / "predictedGenes",
+    ]
+    assert node_class.PLAN_OUTPUTS({"input_type": "sequence"}, tmp_path) == [
+        tmp_path / "fargene" / "results_summary.txt",
+        tmp_path / "fargene" / "fargene_analysis.log",
+        tmp_path / "fargene" / "hmmsearchresults",
+        tmp_path / "fargene" / "predictedGenes",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input_type must be one of: paired, collection, sequence"
+    assert node_class.VALIDATE_INPUTS({"input_type": "paired", "R1": "r1.fastq"}) == "R1 and R2 are required for paired input"
+    assert node_class.VALIDATE_INPUTS({"input_type": "collection"}) == "input_collection is required for collection input"
+    assert node_class.VALIDATE_INPUTS({"input_type": "sequence"}) == "input_sequence is required for sequence input"
+    assert node_class.VALIDATE_INPUTS({"input_type": "sequence", "input_sequence": ["a.fa"], "models": "bad"}) == (
+        "models must be one of: class_a, class_b_1_2, class_b_3, class_c, class_d_1, class_d_2, qnr"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "sequence", "input_sequence": ["a.fa"], "models": "class_a", "score": -1}) == (
+        "score must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "sequence", "input_sequence": ["a.fa"], "models": "class_a"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

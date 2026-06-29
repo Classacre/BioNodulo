@@ -5899,6 +5899,47 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giy069'],
     citation_text: 'AMBER: Assessment of Metagenome BinnERs.',
   },
+  fargene: {
+    name: 'fargene',
+    display_name: 'fargene',
+    category: 'annotation',
+    description: 'Identify and reconstruct antibiotic resistance genes from metagenomic reads or contigs with fARGene.',
+    search_aliases: ['Galaxy', 'fARGene', 'fragmented antibiotic resistance genes', 'antibiotic resistance gene identifier', 'ARG prediction', 'metagenomic resistance genes'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', options: ['paired', 'collection', 'sequence'] },
+        models: { type: 'STRING', default: 'class_a', options: ['class_a', 'class_b_1_2', 'class_b_3', 'class_c', 'class_d_1', 'class_d_2', 'qnr'] },
+      },
+      optional: {
+        R1: { type: 'FASTQ', default: '' },
+        R2: { type: 'FASTQ', default: '' },
+        R1_identifier: { type: 'STRING', default: '' },
+        R2_identifier: { type: 'STRING', default: '' },
+        input_collection: { type: 'FASTQ_LIST', default: [], multiple: true },
+        input_sequence: { type: 'FASTA', default: [], multiple: true },
+        sequence_identifiers: { type: 'STRING', default: [], multiple: true },
+        score: { type: 'FLOAT', default: 0.0 },
+        meta_score: { type: 'FLOAT', default: 0.0 },
+        protein: { type: 'BOOLEAN', default: false },
+        min_orf_length: { type: 'INT', default: 90 },
+        retrieve_whole: { type: 'BOOLEAN', default: false },
+        no_orf_predict: { type: 'BOOLEAN', default: false },
+        no_quality_filtering: { type: 'BOOLEAN', default: false },
+        no_assembly: { type: 'BOOLEAN', default: false },
+        orf_finder: { type: 'BOOLEAN', default: false },
+        store_peptides: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['TXT', 'TGZ', 'TXT', 'DIRECTORY', 'DIRECTORY'],
+    output_name: ['summary', 'retrieved_fragments', 'fargene_log', 'hmmsearchresults', 'predicted_genes'],
+    required_executables: ['fargene', 'tar'],
+    required_conda_packages: ['fargene', 'tar'],
+    documentation_url: 'https://github.com/fannyhb/fargene',
+    citation_dois: ['10.1186/s40168-019-0670-1'],
+    citation_urls: ['https://doi.org/10.1186/s40168-019-0670-1'],
+    citation_text: 'Identification and reconstruction of novel antibiotic resistance genes from metagenomes.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8644,7 +8685,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('303 nodes available')).toBeVisible();
+  await expect(page.getByText('304 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8828,6 +8869,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'AMBER metagenome binning evaluation', name: 'CAMI AMBER', category: 'metagenomics' },
     { query: 'AMBER gold standard length', name: 'CAMI AMBER add length column', category: 'metagenomics' },
     { query: 'AMBER biobox conversion', name: 'CAMI AMBER convert to biobox', category: 'metagenomics' },
+    { query: 'fragmented antibiotic resistance genes', name: 'fargene', category: 'annotation' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
