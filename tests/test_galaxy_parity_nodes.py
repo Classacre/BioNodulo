@@ -89,6 +89,107 @@ def test_anndata2ri_validates_required_input_and_direction() -> None:
     assert node_class.VALIDATE_INPUTS({"input_object": "cells.h5ad", "direction": "anndata2sce"}) is True
 
 
+def test_argnorm_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["argnorm"]
+
+    assert node_info["display_name"] == "argNorm"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"] == (
+        "Normalize antibiotic resistance gene annotations by mapping them to the Antibiotic Resistance Ontology."
+    )
+    assert node_info["output"] == ["TSV"]
+    assert node_info["output_name"] == ["output"]
+    assert node_info["required_executables"] == ["argnorm"]
+    assert node_info["required_conda_packages"] == ["argnorm"]
+    assert node_info["documentation_url"] == "https://github.com/BigDataBiology/argNorm"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btaf173"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btaf173"]
+    assert "antibiotic resistance gene annotation" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "ARO" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input"][0] == "TSV"
+    assert node_info["input"]["optional"]["tool"][1]["default"] == "deeparg"
+    assert node_info["input"]["optional"]["tool"][1]["options"] == [
+        "deeparg",
+        "argsoap",
+        "abricate",
+        "resfinder",
+        "amrfinderplus",
+        "groot",
+        "hamronization",
+    ]
+    assert node_info["input"]["optional"]["abricate_db"][1]["options"] == [
+        "sarg",
+        "ncbi",
+        "resfinder",
+        "resfinderfg",
+        "deeparg",
+        "megares",
+        "argannot",
+    ]
+    assert node_info["input"]["optional"]["hamronized"][1]["default"] is False
+
+
+def test_argnorm_renders_default_deeparg_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("argnorm")
+
+    assert node_class.render_command(
+        {
+            "input": "deeparg.tsv",
+            "output": "/work/argnorm",
+        }
+    ) == "argnorm deeparg -i deeparg.tsv -o /work/argnorm/argnorm.tsv"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "argnorm" / "argnorm.tsv"]
+
+
+def test_argnorm_renders_database_and_hamronization_options() -> None:
+    node_class = _node_class("argnorm")
+
+    assert node_class.render_command(
+        {
+            "tool": "abricate",
+            "abricate_db": "megares",
+            "input": "abricate results.tsv",
+            "output": "/work/argnorm",
+        }
+    ) == "argnorm abricate --db megares -i 'abricate results.tsv' -o /work/argnorm/argnorm.tsv"
+    assert node_class.render_command(
+        {
+            "tool": "groot",
+            "groot_db": "groot-card",
+            "input": "groot.tsv",
+            "output": "/work/argnorm",
+        }
+    ) == "argnorm groot --db groot-card -i groot.tsv -o /work/argnorm/argnorm.tsv"
+    assert node_class.render_command(
+        {
+            "tool": "hamronization",
+            "hamronized": True,
+            "input": "hamronized.tsv",
+            "output": "/work/argnorm",
+        }
+    ) == (
+        "argnorm hamronization -i hamronized.tsv -o /work/argnorm/argnorm.tsv "
+        "--hamronization_skip_unsupported_tool"
+    )
+
+
+def test_argnorm_validates_tool_and_conditional_database_options() -> None:
+    node_class = _node_class("argnorm")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "results.tsv", "tool": "bad"}) == (
+        "tool must be one of: deeparg, argsoap, abricate, resfinder, amrfinderplus, groot, hamronization"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "results.tsv", "tool": "abricate", "abricate_db": "bad"}) == (
+        "abricate_db must be one of: sarg, ncbi, resfinder, resfinderfg, deeparg, megares, argannot"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "results.tsv", "tool": "groot", "groot_db": "bad"}) == (
+        "groot_db must be one of: groot-resfinder, groot-argannot, groot-card, groot-db, groot-core-db"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "results.tsv", "tool": "hamronization", "hamronized": True}) is True
+
+
 class _RecordingCommandContext:
     def __init__(self, node_dir: Path) -> None:
         self.node_dir = node_dir

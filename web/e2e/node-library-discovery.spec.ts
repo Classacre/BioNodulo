@@ -1185,6 +1185,32 @@ const objectInfo = {
     citation_urls: ['https://github.com/theislab/anndata2ri'],
     citation_text: 'Convert between AnnData and SingleCellExperiment objects.',
   },
+  argnorm: {
+    name: 'argnorm',
+    display_name: 'argNorm',
+    category: 'annotation',
+    description: 'Normalize antibiotic resistance gene annotations by mapping them to the Antibiotic Resistance Ontology.',
+    search_aliases: ['Galaxy', 'argnorm', 'argNorm', 'antibiotic resistance genes', 'ARG normalization', 'Antibiotic Resistance Ontology', 'ARO', 'CARD', 'hAMRonization'],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+      },
+      optional: {
+        tool: { type: 'STRING', default: 'deeparg', options: ['deeparg', 'argsoap', 'abricate', 'resfinder', 'amrfinderplus', 'groot', 'hamronization'] },
+        abricate_db: { type: 'STRING', default: 'sarg', options: ['sarg', 'ncbi', 'resfinder', 'resfinderfg', 'deeparg', 'megares', 'argannot'] },
+        groot_db: { type: 'STRING', default: 'groot-resfinder', options: ['groot-resfinder', 'groot-argannot', 'groot-card', 'groot-db', 'groot-core-db'] },
+        hamronized: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['argnorm'],
+    required_conda_packages: ['argnorm'],
+    documentation_url: 'https://github.com/BigDataBiology/argNorm',
+    citation_dois: ['10.1093/bioinformatics/btaf173'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btaf173'],
+    citation_text: 'argNorm: a tool to normalize antibiotic resistance gene annotation across different databases.',
+  },
   chopper: {
     name: 'chopper',
     display_name: 'Chopper',
@@ -11638,7 +11664,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('399 nodes available')).toBeVisible();
+  await expect(page.getByText('400 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11693,6 +11719,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
+    { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
     { query: 'Graphical Fragment Assembly', name: 'GFA to FASTA', category: 'assembly' },
