@@ -25803,6 +25803,113 @@ class CamiAmberAddNode(CommandNode):
         return super().VALIDATE_INPUTS(inputs)
 
 
+class CamiAmberConvertNode(CommandNode):
+    """Convert FASTA bins to CAMI AMBER biobox format."""
+
+    NODE_ID = "cami_amber_convert"
+    DISPLAY_NAME = "CAMI AMBER convert to biobox"
+    REQUIRED_CONDA_PACKAGES = ["cami-amber"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Convert one or more FASTA bin files to CAMI AMBER biobox binning TSV format."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CAMI AMBER convert to biobox",
+        "AMBER biobox conversion",
+        "convert_fasta_bins_to_biobox_format.py",
+        "FASTA bins to biobox",
+        "binning TSV",
+    ]
+    RETURN_TYPES = ("TSV", "DIRECTORY")
+    RETURN_NAMES = ("binning_file", "binning_collection")
+    REQUIRED_EXECUTABLES = ["convert_fasta_bins_to_biobox_format.py"]
+    DOCUMENTATION_URL = "https://github.com/CAMI-challenge/AMBER"
+    CITATION_DOIS = ["10.1093/gigascience/giy069"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/gigascience/giy069"]
+    CITATION_TEXT = "AMBER: Assessment of Metagenome BinnERs."
+    VERSION = "2.0.7"
+    SHELL = True
+
+    WORK_OPTIONS = ["single", "all"]
+
+    @classmethod
+    def _files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("files"))
+
+    @classmethod
+    def _file_identifiers(cls, inputs: dict[str, Any], files: list[str]) -> list[str]:
+        identifiers = _as_list(inputs.get("file_identifiers", inputs.get("element_identifiers")))
+        if not identifiers:
+            identifiers = [Path(path).name for path in files]
+        identifiers.extend(Path(path).name for path in files[len(identifiers) :])
+        return [_safe_identifier(identifier) for identifier in identifiers[: len(files)]]
+
+    @staticmethod
+    def _single_output_name(identifier: str) -> str:
+        return f"{identifier.split('.')[0]}.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        files = cls._files(inputs)
+        identifiers = cls._file_identifiers(inputs, files)
+        commands = [_shell_join(["mkdir", "-p", "output", out])]
+        for path, identifier in zip(files, identifiers, strict=False):
+            commands.append(_shell_join(["ln", "-s", path, identifier]))
+        work = str(inputs.get("work", "single") or "single")
+        if work == "single":
+            for identifier in identifiers:
+                commands.append(
+                    _shell_join(
+                        [
+                            "convert_fasta_bins_to_biobox_format.py",
+                            "-o",
+                            f"output/{cls._single_output_name(identifier)}",
+                            identifier,
+                        ]
+                    )
+                )
+            commands.append(_shell_join(["cp", "-r", "output", f"{out}/binning_collection"]))
+        else:
+            commands.append(_shell_join(["convert_fasta_bins_to_biobox_format.py", "-o", "output/binning.tsv", *identifiers]))
+            commands.append(_shell_join(["cp", "output/binning.tsv", f"{out}/binning.tsv"]))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        if str(inputs.get("work", "single") or "single") == "all":
+            return [out / "binning.tsv"]
+        (out / "binning_collection").mkdir(parents=True, exist_ok=True)
+        return [out / "binning_collection"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "work": ("STRING", {"default": "single", "options": cls.WORK_OPTIONS, "description": "Convert each bin separately or merge all bins"}),
+                "files": ("FASTA", {"multiple": True, "description": "FASTA bin files"}),
+            },
+            "optional": {
+                "file_identifiers": ("STRING", {"default": [], "multiple": True, "advanced": True, "description": "Galaxy element identifiers"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        files = cls._files(inputs)
+        if not files:
+            return "at least one FASTA file is required"
+        work = str(inputs.get("work", "single") or "single")
+        if work not in cls.WORK_OPTIONS:
+            return "work must be one of: single, all"
+        identifiers = _as_list(inputs.get("file_identifiers", inputs.get("element_identifiers")))
+        if identifiers and len(identifiers) != len(files):
+            return "file_identifiers count must match files count"
+        return super().VALIDATE_INPUTS(inputs)
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 

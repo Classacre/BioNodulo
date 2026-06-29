@@ -13122,6 +13122,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["cami-amber"],
             "doi": "10.1093/gigascience/giy069",
         },
+        "cami_amber_convert": {
+            "display_name": "CAMI AMBER convert to biobox",
+            "category": "metagenomics",
+            "required_executables": ["convert_fasta_bins_to_biobox_format.py"],
+            "required_conda_packages": ["cami-amber"],
+            "doi": "10.1093/gigascience/giy069",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16571,6 +16578,54 @@ def test_cami_amber_add_renders_length_column_command_outputs_and_validation(tmp
     assert node_class.VALIDATE_INPUTS({}) == "gold_standard_file is required"
     assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv"}) == "fasta_file is required"
     assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "fasta_file": "reads.fa.gz"}) is True
+
+
+def test_cami_amber_convert_renders_biobox_conversion_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cami_amber_convert")
+    info = _registry().object_info()["cami_amber_convert"]
+
+    assert info["output"] == ["TSV", "DIRECTORY"]
+    assert info["output_name"] == ["binning_file", "binning_collection"]
+    assert info["input"]["required"]["files"][0] == "FASTA"
+    assert info["input"]["required"]["files"][1]["multiple"] is True
+    assert info["input"]["required"]["work"][1]["options"] == ["single", "all"]
+    assert "10.1093/gigascience/giy069" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "work": "single",
+            "files": ["test add1.fasta", "test_add2.fasta"],
+            "file_identifiers": ["test add1.fasta", "test_add2.fasta"],
+            "output": "/work/cami_amber_convert",
+        }
+    ) == (
+        "mkdir -p output /work/cami_amber_convert && ln -s 'test add1.fasta' test_add1.fasta && "
+        "ln -s test_add2.fasta test_add2.fasta && convert_fasta_bins_to_biobox_format.py -o output/test_add1.tsv "
+        "test_add1.fasta && convert_fasta_bins_to_biobox_format.py -o output/test_add2.tsv test_add2.fasta && "
+        "cp -r output /work/cami_amber_convert/binning_collection"
+    )
+    assert node_class.render_command(
+        {
+            "work": "all",
+            "files": ["test_add1.fasta", "test_add2.fasta"],
+            "output": "/work/cami_amber_convert",
+        }
+    ) == (
+        "mkdir -p output /work/cami_amber_convert && ln -s test_add1.fasta test_add1.fasta && "
+        "ln -s test_add2.fasta test_add2.fasta && convert_fasta_bins_to_biobox_format.py -o output/binning.tsv "
+        "test_add1.fasta test_add2.fasta && cp output/binning.tsv /work/cami_amber_convert/binning.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"work": "all"}, tmp_path) == [
+        tmp_path / "cami_amber_convert" / "binning.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"work": "single", "files": ["test_add1.fasta", "test_add2.fasta"]}, tmp_path) == [
+        tmp_path / "cami_amber_convert" / "binning_collection",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "at least one FASTA file is required"
+    assert node_class.VALIDATE_INPUTS({"files": ["a.fa"], "work": "bad"}) == "work must be one of: single, all"
+    assert node_class.VALIDATE_INPUTS({"files": ["a.fa"], "work": "single", "file_identifiers": ["a", "b"]}) == (
+        "file_identifiers count must match files count"
+    )
+    assert node_class.VALIDATE_INPUTS({"files": ["a.fa"], "work": "single"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
