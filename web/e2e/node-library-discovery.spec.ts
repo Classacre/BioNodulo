@@ -1208,6 +1208,46 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
     citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
   },
+  bbtools_bbmap: {
+    name: 'bbtools_bbmap',
+    display_name: 'BBTools BBMap',
+    category: 'alignment',
+    description: 'Map short reads to a reference genome with BBMap and emit all, unmapped, and mapped BAM files.',
+    search_aliases: ['Galaxy', 'BBTools', 'BBMap', 'bbmap', 'bbtools_bbmap', 'short-read aligner', 'read mapping', 'BAM output', 'mapped reads'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired'] },
+        read1: { type: 'FASTQ' },
+        reference: { type: 'FASTA' },
+      },
+      optional: {
+        read2: { type: 'FASTQ', default: '' },
+        reads_collection: { type: 'FASTQ_LIST', default: '' },
+        output_sort: { type: 'STRING', default: 'coordinate', options: ['coordinate', 'name', 'unsorted'] },
+        maxindel: { type: 'INT', default: 16000 },
+        strictmaxindel: { type: 'BOOLEAN', default: false },
+        tipsearch: { type: 'INT', default: 100 },
+        minid: { type: 'FLOAT', default: 0.76, min: 0, max: 1 },
+        minhits: { type: 'INT', default: 1, min: 1 },
+        local: { type: 'BOOLEAN', default: false },
+        ambiguous: { type: 'STRING', default: 'best', options: ['best', 'toss', 'random', 'all'] },
+        qtrim: { type: 'STRING', default: 'f', options: ['f', 'l', 'r', 'lr'] },
+        trimq: { type: 'INT', default: 6 },
+        secondary: { type: 'BOOLEAN', default: false },
+        maxsites: { type: 'INT', default: 5, min: 1 },
+        idfilter: { type: 'INT', default: 0, min: 0, max: 1 },
+        threads: { type: 'INT', default: 4, min: 1, max: 128 },
+      },
+    },
+    output: ['BAM', 'BAM', 'BAM'],
+    output_name: ['all_reads', 'unmapped_reads', 'mapped_reads'],
+    required_executables: ['bbmap.sh', 'samtools'],
+    required_conda_packages: ['bbmap', 'samtools'],
+    documentation_url: 'https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbmap-guide/',
+    citation_dois: ['10.1371/journal.pone.0185056'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
+    citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7500,7 +7540,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('270 nodes available')).toBeVisible();
+  await expect(page.getByText('271 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7565,6 +7605,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'coverage normalization', name: 'BBTools BBNorm', category: 'qc' },
     { query: 'kmer assembler', name: 'BBTools Tadpole', category: 'assembly' },
     { query: 'variant caller', name: 'BBTools CallVariants', category: 'variant' },
+    { query: 'short-read aligner', name: 'BBTools BBMap', category: 'alignment' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },

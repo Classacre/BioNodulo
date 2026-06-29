@@ -3815,6 +3815,99 @@ def test_bbtools_callvariants_renders_variant_command_and_outputs(tmp_path: Path
     assert node_class.VALIDATE_INPUTS({"input": "mapped.bam", "reference": "ref.fa"}) is True
 
 
+def test_bbtools_bbmap_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["bbtools_bbmap"]
+
+    assert node_info["display_name"] == "BBTools BBMap"
+    assert node_info["category"] == "alignment"
+    assert node_info["description"].startswith("Map short reads")
+    assert node_info["output"] == ["BAM", "BAM", "BAM"]
+    assert node_info["output_name"] == ["all_reads", "unmapped_reads", "mapped_reads"]
+    assert node_info["required_executables"] == ["bbmap.sh", "samtools"]
+    assert node_info["required_conda_packages"] == ["bbmap", "samtools"]
+    assert node_info["documentation_url"] == "https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbmap-guide/"
+    assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
+    assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "short-read aligner" in node_info["search_aliases"]
+
+
+def test_bbtools_bbmap_renders_alignment_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bbtools_bbmap")
+
+    assert node_class.render_command(
+        {
+            "input_type": "pair",
+            "read1": "sample R1.fastq.gz",
+            "read2": "sample R2.fastq.gz",
+            "reference": "reference genome.fa",
+            "output_sort": "unsorted",
+            "maxindel": 20000,
+            "strictmaxindel": True,
+            "minid": 0.85,
+            "local": True,
+            "ambiguous": "all",
+            "qtrim": "lr",
+            "trimq": 12,
+            "secondary": True,
+            "maxsites": 9,
+            "idfilter": 1,
+            "threads": 6,
+            "output": "/work/bbmap",
+        }
+    ) == (
+        "ln -s 'sample R1.fastq.gz' /work/bbmap/forward.fastq.gz && "
+        "ln -s 'sample R2.fastq.gz' /work/bbmap/reverse.fastq.gz && "
+        "bbmap.sh nodisk=f 'ref=reference genome.fa' k=13 usemodulo=f rebuild=f "
+        "in=/work/bbmap/forward.fastq.gz in2=/work/bbmap/reverse.fastq.gz "
+        "fastareadlen=500 unpigz=f touppercase=t reads=-1 samplerate=1 skipreads=0 "
+        "maxindel=20000 strictmaxindel=t tipsearch=100 minid=0.85 minhits=1 local=t "
+        "perfectmode=f semiperfectmode=f threads=${GALAXY_SLOTS:-6} ambiguous=all "
+        "samestrandpairs=f requirecorrectstrand=t killbadpairs=f pairedonly=f rcomp=f rcompmate=f "
+        "pairlen=32000 rescuedist=1200 rescuemismatches=32 averagepairdist=100 deterministic=f "
+        "bandwidthratio=0 bandwidth=0 usejni=f maxsites2=800 ignorefrequentkmers=t excludefraction=0.03 "
+        "greedy=t kfilter=0 qin=auto qout=auto qtrim=lr untrim=f trimq=12 mintrimlength=60 "
+        "fakefastaquality=-1 ignorebadquality=f usequality=t minaveragequality=0 maqb=0 idfilter=1 "
+        "subfilter=-1 insfilter=-1 delfilter=-1 indelfilter=-1 editfilter=-1 inslenfilter=-1 "
+        "dellenfilter=-1 nfilter=-1 secondary=t maxsites=9 sssr=0.95 ssao=f quickmatch=f "
+        "trimreaddescriptions=f machineout=f printunmappedcount=f renamebyinsert=f "
+        "out=all_reads.bam outu=unmapped_reads.bam outm=mapped_reads.bam && "
+        "mv all_reads.bam /work/bbmap/all_reads.bam && "
+        "mv unmapped_reads.bam /work/bbmap/unmapped_reads.bam && "
+        "mv mapped_reads.bam /work/bbmap/mapped_reads.bam"
+    )
+    coordinate_command = node_class.render_command(
+        {
+            "input_type": "single",
+            "read1": "reads.fastq",
+            "reference": "ref.fa",
+            "output_sort": "coordinate",
+            "output": "/work/bbmap",
+        }
+    )
+    assert "samtools sort --no-PG -@${GALAXY_SLOTS:-4}" in coordinate_command
+    assert "-o /work/bbmap/all_reads.bam all_reads.bam" in coordinate_command
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bbtools_bbmap" / "all_reads.bam",
+        tmp_path / "bbtools_bbmap" / "unmapped_reads.bam",
+        tmp_path / "bbtools_bbmap" / "mapped_reads.bam",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "", "reference": "ref.fa"}) == (
+        "read1 FASTQ is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "pair", "read1": "r1.fq", "read2": "", "reference": "ref.fa"}) == (
+        "read2 FASTQ is required for paired input"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "reference": ""}) == (
+        "reference FASTA is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "reference": "ref.fa", "output_sort": "bad"}) == (
+        "output_sort must be one of: coordinate, name, unsorted"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "reference": "ref.fa"}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 
