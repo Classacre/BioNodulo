@@ -1179,6 +1179,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
     citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
   },
+  bbtools_callvariants: {
+    name: 'bbtools_callvariants',
+    display_name: 'BBTools CallVariants',
+    category: 'variant',
+    description: 'Call variants from aligned BAM files with BBTools CallVariants.',
+    search_aliases: ['Galaxy', 'BBTools', 'CallVariants', 'callvariants', 'bbtools_callvariants', 'variant caller', 'BAM variants', 'ploidy', 'variant score histogram'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        reference: { type: 'FASTA' },
+      },
+      optional: {
+        ploidy: { type: 'INT', default: 1, min: 1 },
+        output_format: { type: 'STRING', default: 'vcf', options: ['vcf', 'gff', 'txt'] },
+        output_variant_score_hist: { type: 'BOOLEAN', default: false },
+        output_zygosity_hist: { type: 'BOOLEAN', default: false },
+        output_quality_hist: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 4, min: 1, max: 128 },
+      },
+    },
+    output: ['VCF', 'TSV', 'TSV', 'TSV'],
+    output_name: ['variants', 'score_histogram', 'zygosity_histogram', 'quality_histogram'],
+    required_executables: ['callvariants.sh'],
+    required_conda_packages: ['bbmap', 'samtools'],
+    documentation_url: 'https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/callvariants-guide/',
+    citation_dois: ['10.1371/journal.pone.0185056'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
+    citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7471,7 +7500,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('269 nodes available')).toBeVisible();
+  await expect(page.getByText('270 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7535,6 +7564,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'overlapping mates', name: 'BBTools BBMerge', category: 'trimming' },
     { query: 'coverage normalization', name: 'BBTools BBNorm', category: 'qc' },
     { query: 'kmer assembler', name: 'BBTools Tadpole', category: 'assembly' },
+    { query: 'variant caller', name: 'BBTools CallVariants', category: 'variant' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },

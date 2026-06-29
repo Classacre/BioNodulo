@@ -3735,6 +3735,86 @@ def test_bbtools_tadpole_renders_mode_command_and_outputs(tmp_path: Path) -> Non
     assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq"}) is True
 
 
+def test_bbtools_callvariants_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["bbtools_callvariants"]
+
+    assert node_info["display_name"] == "BBTools CallVariants"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Call variants from aligned BAM files")
+    assert node_info["output"] == ["VCF", "TSV", "TSV", "TSV"]
+    assert node_info["output_name"] == ["variants", "score_histogram", "zygosity_histogram", "quality_histogram"]
+    assert node_info["required_executables"] == ["callvariants.sh"]
+    assert node_info["required_conda_packages"] == ["bbmap", "samtools"]
+    assert node_info["documentation_url"] == "https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/callvariants-guide/"
+    assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
+    assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "variant caller" in node_info["search_aliases"]
+
+
+def test_bbtools_callvariants_renders_variant_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bbtools_callvariants")
+
+    assert node_class.render_command(
+        {
+            "input": "sample alignments.bam",
+            "reference": "reference genome.fa",
+            "ploidy": 2,
+            "output_format": "vcf",
+            "output_variant_score_hist": True,
+            "output_zygosity_hist": True,
+            "output_quality_hist": True,
+            "threads": 7,
+            "output": "/work/callvariants",
+        }
+    ) == (
+        "ln -s 'sample alignments.bam' /work/callvariants/sample_alignments.bam.bam && "
+        "callvariants.sh in=/work/callvariants/sample_alignments.bam.bam threads=${GALAXY_SLOTS:-7} "
+        "'ref=reference genome.fa' ploidy=2 shist=/work/callvariants/score_histogram.tsv "
+        "zhist=/work/callvariants/zygosity_histogram.tsv qhist=/work/callvariants/quality_histogram.tsv "
+        "vcf=out.vcf && mv out.vcf /work/callvariants/variants.vcf"
+    )
+    assert node_class.render_command(
+        {
+            "input": "mapped.bam",
+            "reference": "ref.fa",
+            "output_format": "gff",
+            "output": "/work/callvariants",
+        }
+    ) == (
+        "ln -s mapped.bam /work/callvariants/mapped.bam.bam && "
+        "callvariants.sh in=/work/callvariants/mapped.bam.bam threads=${GALAXY_SLOTS:-4} "
+        "ref=ref.fa ploidy=1 outgff=out.gff && mv out.gff /work/callvariants/variants.gff"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "output_format": "vcf",
+            "output_variant_score_hist": True,
+            "output_zygosity_hist": True,
+            "output_quality_hist": True,
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "bbtools_callvariants" / "variants.vcf",
+        tmp_path / "bbtools_callvariants" / "score_histogram.tsv",
+        tmp_path / "bbtools_callvariants" / "zygosity_histogram.tsv",
+        tmp_path / "bbtools_callvariants" / "quality_histogram.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_format": "txt"}, tmp_path) == [
+        tmp_path / "bbtools_callvariants" / "variants.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input": "", "reference": "ref.fa"}) == "input BAM is required"
+    assert node_class.VALIDATE_INPUTS({"input": "mapped.bam", "reference": ""}) == "reference FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input": "mapped.bam", "reference": "ref.fa", "ploidy": 0}) == (
+        "ploidy must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "mapped.bam", "reference": "ref.fa", "output_format": "bad"}) == (
+        "output_format must be one of: vcf, gff, txt"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "mapped.bam", "reference": "ref.fa"}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 
