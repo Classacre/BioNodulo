@@ -64,6 +64,39 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column'],
     citation_text: 'Add input name as column on an existing tabular file.',
   },
+  aegean_canongff3: {
+    name: 'aegean_canongff3',
+    display_name: 'AEGeAn CanonGFF3',
+    category: 'annotation',
+    description: 'Clean GFF3 annotations so they contain canonical protein-coding gene features.',
+    search_aliases: [
+      'Galaxy',
+      'AEGeAn',
+      'CanonGFF3',
+      'canon-gff3',
+      'aegean_canongff3',
+      'canonical protein-coding genes',
+      'GFF3 cleanup',
+      'infer gene features',
+    ],
+    input: {
+      required: {
+        gff3file: { type: 'STRING', multiple: true },
+      },
+      optional: {
+        infer: { type: 'BOOLEAN', default: false },
+        source: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['GFF3'],
+    output_name: ['output'],
+    required_executables: ['canon-gff3'],
+    required_conda_packages: ['aegean'],
+    documentation_url: 'https://github.com/BrendelGroup/AEGeAn',
+    citation_dois: [],
+    citation_urls: ['https://github.com/BrendelGroup/AEGeAn'],
+    citation_text: 'AEGeAn genome annotation toolkit.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -9702,13 +9735,14 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('335 nodes available')).toBeVisible();
+  await expect(page.getByText('336 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
     { query: 'flow control', name: 'If Condition', category: 'flow_control' },
     { query: 'data transform', name: 'Filter Rows', category: 'data_transform' },
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
+    { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },

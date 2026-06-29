@@ -1359,6 +1359,57 @@ def test_add_input_name_as_column_renders_commands_outputs_and_validates(tmp_pat
     assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": "sample"}) is True
 
 
+def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None:
+    info = _registry().object_info()["aegean_canongff3"]
+
+    assert info["display_name"] == "AEGeAn CanonGFF3"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Clean GFF3 annotations so they contain canonical protein-coding gene features."
+    assert info["input"]["required"]["gff3file"][0] == "STRING"
+    assert info["input"]["required"]["gff3file"][1]["multiple"] is True
+    assert info["input"]["optional"]["infer"][1]["default"] is False
+    assert info["input"]["optional"]["source"][1]["default"] == ""
+    assert info["output"] == ["GFF3"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["canon-gff3"]
+    assert info["required_conda_packages"] == ["aegean"]
+    assert info["documentation_url"] == "https://github.com/BrendelGroup/AEGeAn"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/BrendelGroup/AEGeAn"]
+    assert "AEGeAn genome annotation toolkit" in info["citation_text"]
+    assert "canonical protein-coding genes" in info["search_aliases"]
+
+
+def test_aegean_canongff3_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("aegean_canongff3")
+
+    assert node_class.render_command(
+        {
+            "gff3file": ["TAIR10_GFF3_genes.gff3", "extra genes.gff3"],
+            "infer": True,
+            "source": "test_source",
+            "output": "/work/aegean_canongff3",
+        }
+    ) == (
+        "canon-gff3 TAIR10_GFF3_genes.gff3 'extra genes.gff3' --infer "
+        "-s test_source -o /work/aegean_canongff3/canonical.gff3"
+    )
+
+    assert node_class.render_command(
+        {"gff3file": "genes.gff3", "source": "", "output": "/work/aegean_canongff3"}
+    ) == "canon-gff3 genes.gff3 -o /work/aegean_canongff3/canonical.gff3"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "aegean_canongff3" / "canonical.gff3",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "at least one GFF3 input file is required"
+    assert node_class.VALIDATE_INPUTS({"gff3file": []}) == "at least one GFF3 input file is required"
+    assert node_class.VALIDATE_INPUTS({"gff3file": "genes.gff3", "source": "bad source"}) == (
+        "source may only contain letters, numbers, and underscores"
+    )
+    assert node_class.VALIDATE_INPUTS({"gff3file": "genes.gff3", "source": "TAIR10"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

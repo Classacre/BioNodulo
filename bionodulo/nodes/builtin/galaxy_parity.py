@@ -75,6 +75,8 @@ ADD_INPUT_NAME_AS_COLUMN_CITATION_URL = (
     "https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column"
 )
 ADD_INPUT_NAME_AS_COLUMN_CITATION_TEXT = "Add input name as column on an existing tabular file."
+AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
+AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
 
 
 def _bedtools_common_output(node_id: str, filename: str, output_dir: str | Path) -> Path:
@@ -183,6 +185,94 @@ class AddInputNameAsColumnNode(CommandNode):
                         "default": "add_input_name_as_column.py",
                         "advanced": True,
                         "description": "Path to the Galaxy add_input_name_as_column.py helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class AegeanCanonGff3Node(CommandNode):
+    """Canonicalize GFF3 files with AEGeAn CanonGFF3."""
+
+    NODE_ID = "aegean_canongff3"
+    DISPLAY_NAME = "AEGeAn CanonGFF3"
+    REQUIRED_CONDA_PACKAGES = ["aegean"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Clean GFF3 annotations so they contain canonical protein-coding gene features."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AEGeAn",
+        "CanonGFF3",
+        "canon-gff3",
+        "aegean_canongff3",
+        "canonical protein-coding genes",
+        "GFF3 cleanup",
+        "infer gene features",
+    ]
+    RETURN_TYPES = ("GFF3",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["canon-gff3"]
+    DOCUMENTATION_URL = AEGEAN_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [AEGEAN_CITATION_URL]
+    CITATION_TEXT = AEGEAN_CITATION_TEXT
+    VERSION = "0.16.0+galaxy2"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/canonical.gff3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["canon-gff3"]
+        cmd.extend(_as_list(inputs.get("gff3file")))
+        if inputs.get("infer"):
+            cmd.append("--infer")
+        _add_if_value(cmd, "-s", inputs.get("source"))
+        cmd.extend(["-o", cls._output_path(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "canonical.gff3"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not _as_list(inputs.get("gff3file")):
+            return "at least one GFF3 input file is required"
+        source = str(inputs.get("source", "") or "")
+        if source and re.fullmatch(r"\w+", source) is None:
+            return "source may only contain letters, numbers, and underscores"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "gff3file": (
+                    "GFF3_LIST",
+                    {
+                        "multiple": True,
+                        "description": "One or more GFF3 annotation files to canonicalize",
+                    },
+                ),
+            },
+            "optional": {
+                "infer": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Infer missing gene features for transcripts lacking an explicit parent gene",
+                    },
+                ),
+                "source": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Reset the source column of each feature to this alphanumeric or underscore label",
                     },
                 ),
             },
