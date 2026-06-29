@@ -33819,6 +33819,22 @@ class ABySSPENode(CommandNode):
         }
 
 
+class ABySSPEGalaxyNode(ABySSPENode):
+    """Galaxy wrapper ID for the ABySS paired-end pipeline."""
+
+    NODE_ID = "abyss-pe"
+    DISPLAY_NAME = "ABySS (Galaxy)"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ABySS",
+        "abyss-pe",
+        "de novo assembler",
+        "short read assembly",
+        "paired-end assembly",
+        "genome assembler",
+    ]
+
+
 class BayeScanNode(CommandNode):
     """Detect loci under selection from population genotype data with BayeScan."""
 

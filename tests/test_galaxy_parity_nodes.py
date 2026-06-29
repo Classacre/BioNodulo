@@ -21128,6 +21128,64 @@ def test_abyss_pe_renders_paired_and_long_read_assembly_command_outputs(tmp_path
     ]
 
 
+def test_abyss_pe_galaxy_id_exposes_existing_metadata() -> None:
+    node_info = _registry().object_info()
+
+    canonical_info = node_info["abyss_pe"]
+    galaxy_info = node_info["abyss-pe"]
+
+    assert galaxy_info["display_name"] == "ABySS (Galaxy)"
+    assert galaxy_info["category"] == canonical_info["category"]
+    assert galaxy_info["description"] == canonical_info["description"]
+    assert galaxy_info["output"] == canonical_info["output"]
+    assert galaxy_info["output_name"] == canonical_info["output_name"]
+    assert galaxy_info["required_executables"] == canonical_info["required_executables"]
+    assert galaxy_info["required_conda_packages"] == canonical_info["required_conda_packages"]
+    assert galaxy_info["documentation_url"] == canonical_info["documentation_url"]
+    assert galaxy_info["citation_dois"] == canonical_info["citation_dois"]
+    assert galaxy_info["citation_urls"] == canonical_info["citation_urls"]
+    assert galaxy_info["citation_text"] == canonical_info["citation_text"]
+    assert "abyss-pe" in galaxy_info["search_aliases"]
+
+
+def test_abyss_pe_galaxy_id_renders_single_end_command_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("abyss-pe")
+
+    assert node_class.render_command(
+        {
+            "libraries": [{"type": "se", "reads": ["reads 1.fastq.gz", "reads 2.fastq.gz"]}],
+            "k": 50,
+            "output": "/work/abyss-pe",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "reads 1.fastq.gz",
+        "/work/abyss-pe/se_0_0.fastq.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "reads 2.fastq.gz",
+        "/work/abyss-pe/se_0_1.fastq.gz",
+        "&&",
+        "abyss-pe",
+        "name=abyss",
+        "j=${GALAXY_SLOTS:-1}",
+        "B=$(( ${GALAXY_MEMORY_MB:-2048} * 9 / 10 ))M",
+        "k=50",
+        "se=/work/abyss-pe/se_0_0.fastq.gz /work/abyss-pe/se_0_1.fastq.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS(
+        {"libraries": [{"type": "se", "reads": ["reads 1.fastq.gz", "reads 2.fastq.gz"]}]},
+        tmp_path,
+    ) == [
+        tmp_path / "abyss-pe" / "abyss-unitigs.fa",
+        tmp_path / "abyss-pe" / "abyss-indel.fa",
+        tmp_path / "abyss-pe" / "abyss-stats.tab",
+    ]
+
+
 def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Path) -> None:
     node_class = _node_class("bayescan")
     info = _registry().object_info()["bayescan"]
