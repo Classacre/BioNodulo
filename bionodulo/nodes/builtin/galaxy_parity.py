@@ -10339,6 +10339,89 @@ class Ampvis2CoreNode(CommandNode):
         }
 
 
+class Ampvis2ExportFastaNode(CommandNode):
+    """Export sequences from ampvis2 datasets as FASTA."""
+
+    NODE_ID = "ampvis2_export_fasta"
+    DISPLAY_NAME = "ampvis2 export fasta"
+    REQUIRED_CONDA_PACKAGES = ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Export sequences from an ampvis2 RDS dataset as FASTA."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ampvis2",
+        "ampvis2 export fasta",
+        "amp_export_fasta",
+        "export FASTA",
+        "amplicon sequences",
+        "taxonomy FASTA headers",
+    ]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://kasperskytte.github.io/ampvis2/reference/amp_export_fasta.html"
+    CITATION_DOIS = [AMPVIS2_CITATION_DOIS[0]]
+    CITATION_URLS = [f"{DOI_URL}{AMPVIS2_CITATION_DOIS[0]}"]
+    CITATION_TEXT = AMPVIS2_CITATION_TEXT
+    VERSION = "2.8.11+galaxy2"
+    SHELL = True
+
+    @classmethod
+    def _r_bool(cls, value: Any, default: bool = False) -> str:
+        if value in (None, ""):
+            value = default
+        if isinstance(value, str):
+            return "FALSE" if value.lower() in {"false", "0", "no"} else "TRUE"
+        return "TRUE" if bool(value) else "FALSE"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.fasta"
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any]) -> str:
+        return "\n".join(
+            [
+                "library(ampvis2, quietly = TRUE)",
+                f'data <- readRDS("{inputs.get("data", "")}")',
+                f'amp_export_fasta(data, filename = "{cls._output_path(inputs)}", tax = {cls._r_bool(inputs.get("tax"), False)})',
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = f"{out}/export_fasta.R"
+        return f"cat > {shlex.quote(script_path)} <<'RSCRIPT'\n{cls._script_body(inputs)}\nRSCRIPT && {_shell_join(['Rscript', script_path])}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.fasta"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("data", "")).strip():
+            return "data is required"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": ("FILE", {"description": "Ampvis2 RDS dataset containing sequence information"}),
+            },
+            "optional": {
+                "tax": ("BOOLEAN", {"default": False, "description": "Append taxonomic strings to FASTA headers"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",

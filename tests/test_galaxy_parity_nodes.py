@@ -5931,6 +5931,60 @@ def test_ampvis2_core_renders_script_outputs_and_validates(tmp_path: Path) -> No
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"]}) is True
 
 
+def test_ampvis2_export_fasta_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_export_fasta"]
+
+    assert info["display_name"] == "ampvis2 export fasta"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Export sequences from an ampvis2 RDS dataset as FASTA."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["optional"]["tax"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["tax"][1]["default"] is False
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_export_fasta.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 export fasta" in info["search_aliases"]
+    assert "amp_export_fasta" in info["search_aliases"]
+
+
+def test_ampvis2_export_fasta_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_export_fasta")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs-complete.rds",
+            "tax": True,
+            "output": "/work/ampvis2_export_fasta",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_export_fasta/export_fasta.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs-complete.rds")' in command
+    assert 'amp_export_fasta(data, filename = "/work/ampvis2_export_fasta/output.fasta", tax = TRUE)' in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_export_fasta/export_fasta.R")
+
+    default_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs-complete.rds",
+            "output": "/work/ampvis2_export_fasta",
+        }
+    )
+    assert 'tax = FALSE)' in default_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_export_fasta" / "output.fasta",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 
