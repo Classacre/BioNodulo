@@ -668,6 +668,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/msi105",
         },
+        "hyphy_sm19": {
+            "display_name": "HyPhy-SM2019",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/genetics/123.3.603",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -9594,6 +9601,182 @@ def test_hyphy_slac_validates_wrapper_inputs() -> None:
             "p_value": 0.1,
             "number_of_samples": 0,
             "kill_zero_lengths": "Yes",
+            "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_sm19_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_sm19"]
+
+    assert info["display_name"] == "HyPhy-SM2019"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Partition trees using the modified Slatkin-Maddison test with HyPhy SM2019."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "SM2019",
+        "SM19",
+        "Structured Slatkin-Maddison",
+        "Modified Slatkin-Maddison Test",
+        "population segregation",
+        "gene flow",
+        "migration events",
+        "compartmentalization",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["sm19_output", "sm19_md_report"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "https://github.com/veg/hyphy-analyses/tree/master/SlatkinMaddison"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/genetics/123.3.603"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/genetics/123.3.603",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "A cladistic measure of gene flow inferred from the phylogenies of alleles."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "STRING"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Newick, NHX, or NEXUS tree whose leaf names can be partitioned by regular expression"
+    )
+    assert info["input"]["required"]["partitions"][0] == "JSON"
+    assert info["input"]["required"]["partitions"][1]["description"] == (
+        "List of partition objects with label and regex fields"
+    )
+    assert info["input"]["required"]["partitions"][1]["default"] == [
+        {"label": "Partition 1", "regex": "P1[0-9]+"},
+        {"label": "Partition 2", "regex": "P2[0-9]+"},
+    ]
+    assert info["input"]["required"]["partitions"][1]["min_items"] == 2
+    assert info["input"]["required"]["partitions"][1]["max_items"] == 50
+    assert info["input"]["optional"]["replicates"][1]["default"] == 100
+    assert info["input"]["optional"]["replicates"][1]["min"] == 1
+    assert info["input"]["optional"]["replicates"][1]["max"] == 1000000
+    assert info["input"]["optional"]["weight"][1]["default"] == 0.2
+    assert info["input"]["optional"]["weight"][1]["min"] == 0
+    assert info["input"]["optional"]["weight"][1]["max"] == 1
+    assert info["input"]["optional"]["use_bootstrap"][1]["default"] is True
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_sm19_renders_default_hyphy_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_sm19")
+
+    assert node_class.render_command(
+        {
+            "input_file": "sm19-in1.nhx",
+            "partitions": [
+                {"label": "Blood", "regex": "B[0-9]+"},
+                {"label": "Semen", "regex": "S[0-9]+"},
+            ],
+            "replicates": 1000,
+            "weight": 0.2,
+            "use_bootstrap": True,
+            "output": "/work/hyphy_sm19",
+        }
+    ) == (
+        "ln -s sm19-in1.nhx sm19_input.nhx && "
+        "hyphy CPU=4 sm --tree ./sm19_input.nhx --groups 2 --description-1 Blood --regexp-1 'B[0-9]+' "
+        "--description-2 Semen --regexp-2 'S[0-9]+' --replicates 1000 --weight 0.2 "
+        "--use-bootstrap Yes --output /work/hyphy_sm19/sm19_output.json > /work/hyphy_sm19/sm19_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_sm19" / "sm19_output.json",
+        tmp_path / "hyphy_sm19" / "sm19_stdout.md",
+    ]
+
+
+def test_hyphy_sm19_renders_advanced_hyphy_command_without_bootstrap() -> None:
+    node_class = _node_class("hyphy_sm19")
+
+    assert node_class.render_command(
+        {
+            "input_file": "tree with spaces.nexus",
+            "partitions": [
+                {"label": "Compartment A", "regex": "^A(1|2)$"},
+                {"label": "Compartment B", "regex": "^B[0-9]+$"},
+                {"label": "Compartment C", "regex": "C sample"},
+            ],
+            "replicates": 50,
+            "weight": 0,
+            "use_bootstrap": "No",
+            "threads": 8,
+            "output": "/work/hyphy_sm19",
+        }
+    ) == (
+        "ln -s 'tree with spaces.nexus' sm19_input.nhx && "
+        "hyphy CPU=8 sm --tree ./sm19_input.nhx --groups 3 --description-1 'Compartment A' "
+        "--regexp-1 '^A(1|2)$' --description-2 'Compartment B' --regexp-2 '^B[0-9]+$' "
+        "--description-3 'Compartment C' --regexp-3 'C sample' --replicates 50 --weight 0 "
+        "--use-bootstrap No --output /work/hyphy_sm19/sm19_output.json > /work/hyphy_sm19/sm19_stdout.md"
+    )
+
+
+def test_hyphy_sm19_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_sm19")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-SM2019 input tree is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "tree.nhx", "partitions": []}) == (
+        "HyPhy-SM2019 requires between 2 and 50 partitions"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "tree.nhx",
+            "partitions": [{"label": "Blood", "regex": "B[0-9]+"}],
+        }
+    ) == "HyPhy-SM2019 requires between 2 and 50 partitions"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "tree.nhx",
+            "partitions": [{"label": f"P{i}", "regex": f"P{i}"} for i in range(51)],
+        }
+    ) == "HyPhy-SM2019 requires between 2 and 50 partitions"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "tree.nhx",
+            "partitions": [{"label": "Blood", "regex": "B"}, {"label": "", "regex": "S"}],
+        }
+    ) == "HyPhy-SM2019 partition labels and regular expressions are required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "tree.nhx",
+            "partitions": [{"label": "Blood", "regex": "B"}, {"label": "Semen", "regex": ""}],
+        }
+    ) == "HyPhy-SM2019 partition labels and regular expressions are required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "tree.nhx",
+            "partitions": [{"label": "Blood", "regex": "B"}, {"label": "Semen", "regex": "S"}],
+            "replicates": 0,
+        }
+    ) == "HyPhy-SM2019 bootstrap replicates must be between 1 and 1000000"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "tree.nhx",
+            "partitions": [{"label": "Blood", "regex": "B"}, {"label": "Semen", "regex": "S"}],
+            "weight": 1.1,
+        }
+    ) == "HyPhy-SM2019 structured permutation weight must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "tree.nhx",
+            "partitions": [{"label": "Blood", "regex": "B"}, {"label": "Semen", "regex": "S"}],
+            "threads": 0,
+        }
+    ) == "HyPhy-SM2019 threads must be a positive integer"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "tree.nhx",
+            "partitions": [{"label": "Blood", "regex": "B"}, {"label": "Semen", "regex": "S"}],
+            "replicates": 100,
+            "weight": 0.2,
             "threads": 4,
         }
     ) is True

@@ -3632,6 +3632,46 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Not So Different After All: A Comparison of Methods for Detecting Amino Acid Sites Under Selection.',
   },
+  hyphy_sm19: {
+    name: 'hyphy_sm19',
+    display_name: 'HyPhy-SM2019',
+    category: 'phylogeny',
+    description: 'Partition trees using the modified Slatkin-Maddison test with HyPhy SM2019.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'SM2019',
+      'SM19',
+      'Structured Slatkin-Maddison',
+      'Modified Slatkin-Maddison Test',
+      'population segregation',
+      'gene flow',
+      'migration events',
+      'compartmentalization',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'STRING' },
+        partitions: { type: 'JSON' },
+      },
+      optional: {
+        replicates: { type: 'INT', default: 100 },
+        weight: { type: 'FLOAT', default: 0.2 },
+        use_bootstrap: { type: 'BOOLEAN', default: true },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['sm19_output', 'sm19_md_report'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'https://github.com/veg/hyphy-analyses/tree/master/SlatkinMaddison',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/genetics/123.3.603'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/genetics/123.3.603'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; A cladistic measure of gene flow inferred from the phylogenies of alleles.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6602,7 +6642,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('241 nodes available')).toBeVisible();
+  await expect(page.getByText('242 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6717,6 +6757,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Property Informed Models of Evolution', name: 'HyPhy-PRIME', category: 'phylogeny' },
     { query: 'relaxed selection', name: 'HyPhy-RELAX', category: 'phylogeny' },
     { query: 'Single Likelihood Ancestor Counting', name: 'HyPhy-SLAC', category: 'phylogeny' },
+    { query: 'Structured Slatkin-Maddison', name: 'HyPhy-SM2019', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
