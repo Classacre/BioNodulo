@@ -1226,6 +1226,67 @@ def test_seqtk_fqchk_renders_all_quality_values_command() -> None:
     )
 
 
+def test_seqtk_hety_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_hety"]
+
+    assert info["display_name"] == "SeqTK Heterozygosity"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Report regional heterozygosity across FASTA or FASTQ data with seqtk hety."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["heterozygous_regions"]
+    assert info["required_executables"] == ["seqtk", "awk"]
+    assert info["required_conda_packages"] == ["seqtk", "gawk"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk hety" in info["search_aliases"]
+    assert "regional heterozygosity" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["w"][1]["default"] == 50000
+    assert info["input"]["optional"]["t"][1]["default"] == 5
+    assert info["input"]["optional"]["m"][0] == "BOOLEAN"
+
+
+def test_seqtk_hety_renders_regional_heterozygosity_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_hety")
+
+    assert node_class.render_command(
+        {
+            "in_file": "contigs.fa.gz",
+            "w": 50000,
+            "t": 5,
+            "m": False,
+            "output": "/work/seqtk_hety",
+        }
+    ) == (
+        "seqtk hety -w 50000 -t 5 contigs.fa.gz | "
+        "awk 'BEGIN{print \"#chr\\tstart\\tend\\tA\\tB\\tnum_het\"}1' "
+        "> /work/seqtk_hety/heterozygous_regions.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "seqtk_hety" / "heterozygous_regions.tsv",
+    ]
+
+
+def test_seqtk_hety_renders_masked_lowercase_command() -> None:
+    node_class = _node_class("seqtk_hety")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq",
+            "w": 8,
+            "t": 3,
+            "m": True,
+            "output": "/work/seqtk_hety",
+        }
+    ) == (
+        "seqtk hety -w 8 -t 3 -m reads.fastq | "
+        "awk 'BEGIN{print \"#chr\\tstart\\tend\\tA\\tB\\tnum_het\"}1' "
+        "> /work/seqtk_hety/heterozygous_regions.tsv"
+    )
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

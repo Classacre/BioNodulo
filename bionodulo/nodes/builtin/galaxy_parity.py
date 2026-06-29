@@ -1496,6 +1496,80 @@ class SeqTKFqchkNode(CommandNode):
         }
 
 
+class SeqTKHetyNode(CommandNode):
+    """Report regional heterozygosity with seqtk hety."""
+
+    NODE_ID = "seqtk_hety"
+    DISPLAY_NAME = "SeqTK Heterozygosity"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Report regional heterozygosity across FASTA or FASTQ data with seqtk hety."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk hety",
+        "SeqTK hety",
+        "regional heterozygosity",
+        "heterozygous regions",
+        "masked lowercase",
+        "FASTA heterozygosity",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("heterozygous_regions",)
+    REQUIRED_EXECUTABLES = ["seqtk", "awk"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    HEADER = r"#chr\tstart\tend\tA\tB\tnum_het"
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/heterozygous_regions.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "seqtk",
+            "hety",
+            "-w",
+            str(inputs.get("w", 50000)),
+            "-t",
+            str(inputs.get("t", 5)),
+        ]
+        if inputs.get("m"):
+            cmd.append("-m")
+        cmd.append(str(inputs.get("in_file", "")))
+        return (
+            f"{_shell_join(cmd)} | "
+            f"awk 'BEGIN{{print \"{cls.HEADER}\"}}1' "
+            f"> {shlex.quote(cls._out_path(inputs))}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "heterozygous_regions.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+            },
+            "optional": {
+                "w": ("INT", {"default": 50000, "min": 1, "description": "Window size"}),
+                "t": ("INT", {"default": 5, "min": 1, "description": "Number of start positions in a window"}),
+                "m": ("BOOLEAN", {"default": False, "description": "Treat lowercase bases as masked"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 

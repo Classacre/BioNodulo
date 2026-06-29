@@ -550,6 +550,31 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_hety: {
+    name: 'seqtk_hety',
+    display_name: 'SeqTK Heterozygosity',
+    category: 'sequence',
+    description: 'Report regional heterozygosity across FASTA or FASTQ data with seqtk hety.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk hety', 'SeqTK hety', 'regional heterozygosity', 'heterozygous regions', 'masked lowercase', 'FASTA heterozygosity'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        w: { type: 'INT', default: 50000 },
+        t: { type: 'INT', default: 5 },
+        m: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['heterozygous_regions'],
+    required_executables: ['seqtk', 'awk'],
+    required_conda_packages: ['seqtk', 'gawk'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -10888,7 +10913,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('373 nodes available')).toBeVisible();
+  await expect(page.getByText('374 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10918,6 +10943,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk split at N', name: 'SeqTK CutN', category: 'sequence' },
     { query: 'seqtk remove unpaired reads', name: 'SeqTK DropSE', category: 'sequence' },
     { query: 'seqtk base quality summary', name: 'SeqTK FASTQ Check', category: 'qc' },
+    { query: 'seqtk regional heterozygosity', name: 'SeqTK Heterozygosity', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
