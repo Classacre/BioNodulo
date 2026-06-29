@@ -5212,6 +5212,53 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btx086'],
     citation_text: 'Binning_refiner improves genome bins through the combination of different binning programs.',
   },
+  beagle: {
+    name: 'beagle',
+    display_name: 'Beagle',
+    category: 'variant',
+    description: 'Phase genotypes and impute ungenotyped markers from VCF genotype data using Beagle.',
+    search_aliases: ['Galaxy', 'Beagle', 'Beagle genotype imputation', 'genotype phasing', 'impute ungenotyped markers', 'haplotype phasing', 'VCF imputation', 'GWAS'],
+    input: {
+      required: {
+        gt: { type: 'VCF' },
+      },
+      optional: {
+        gt_ext: { type: 'STRING', default: 'vcf', options: ['vcf', 'vcf_bgzip'] },
+        ref: { type: 'VCF', default: '' },
+        ref_ext: { type: 'STRING', default: 'vcf', options: ['vcf', 'vcf_bgzip', 'bref3'] },
+        map: { type: 'TXT', default: '' },
+        chrom: { type: 'STRING', default: '' },
+        excludesamples: { type: 'TXT', default: '' },
+        excludemarkers: { type: 'TXT', default: '' },
+        ne: { type: 'INT', default: 1000000 },
+        window: { type: 'FLOAT', default: 40.0 },
+        overlap: { type: 'FLOAT', default: 2.0 },
+        err: { type: 'FLOAT', default: '' },
+        seed: { type: 'INT', default: '' },
+        output_log: { type: 'BOOLEAN', default: false },
+        burnin: { type: 'INT', default: 3 },
+        iterations: { type: 'INT', default: 12 },
+        phase_states: { type: 'INT', default: 280 },
+        impute: { type: 'BOOLEAN', default: true },
+        imp_states: { type: 'INT', default: 1600 },
+        imp_segment: { type: 'FLOAT', default: 6.0 },
+        imp_step: { type: 'FLOAT', default: 0.1 },
+        cluster: { type: 'FLOAT', default: 0.005 },
+        ap: { type: 'BOOLEAN', default: false },
+        gp: { type: 'BOOLEAN', default: false },
+        out_format: { type: 'STRING', default: 'vcf', options: ['vcf', 'vcf_bgzip'] },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['VCF', 'TXT'],
+    output_name: ['vcf_file', 'log_file'],
+    required_executables: ['beagle'],
+    required_conda_packages: ['beagle'],
+    documentation_url: 'https://faculty.washington.edu/browning/beagle/beagle.html',
+    citation_dois: ['10.1016/j.ajhg.2018.07.015', '10.1086/521987'],
+    citation_urls: ['https://doi.org/10.1016/j.ajhg.2018.07.015', 'https://doi.org/10.1086/521987'],
+    citation_text: 'Beagle supports genotype phasing, genotype imputation, and haplotype inference from genotype data.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7957,7 +8004,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('285 nodes available')).toBeVisible();
+  await expect(page.getByText('286 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8123,6 +8170,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'AmpliGone primer removal', name: 'AmpliGone', category: 'sequence' },
     { query: 'Binette binning refinement', name: 'Binette', category: 'metagenomics' },
     { query: 'Binning refiner metagenome bins', name: 'Binning refiner', category: 'metagenomics' },
+    { query: 'Beagle genotype imputation', name: 'Beagle', category: 'variant' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

@@ -13003,6 +13003,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["binning_refiner"],
             "doi": "10.1093/bioinformatics/btx086",
         },
+        "beagle": {
+            "display_name": "Beagle",
+            "category": "variant",
+            "required_executables": ["beagle"],
+            "required_conda_packages": ["beagle"],
+            "doi": "10.1016/j.ajhg.2018.07.015",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14793,6 +14800,133 @@ def test_bin_refiner_renders_refinement_command_outputs_and_validation(tmp_path:
     assert node_class.VALIDATE_INPUTS({"input_bins": []}) == "at least one binned FASTA is required"
     assert node_class.VALIDATE_INPUTS({"input_bins": ["bin.fa"], "m": 0}) == "minimum refined bin size must be >= 1 Kbp"
     assert node_class.VALIDATE_INPUTS({"input_bins": ["bin.fa"], "m": 1}) is True
+
+
+def test_beagle_renders_phasing_imputation_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("beagle")
+    info = _registry().object_info()["beagle"]
+
+    assert info["output"] == ["VCF", "TXT"]
+    assert info["output_name"] == ["vcf_file", "log_file"]
+    assert "10.1016/j.ajhg.2018.07.015" in info["citation_dois"]
+    assert "10.1086/521987" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "gt": "target genotypes.vcf.gz",
+            "gt_ext": "vcf_bgzip",
+            "ref": "reference panel.vcf.gz",
+            "ref_ext": "vcf_bgzip",
+            "map": "plink genetic.map",
+            "chrom": "22:100-",
+            "excludesamples": "excluded samples.txt",
+            "excludemarkers": "excluded markers.txt",
+            "ne": 500000,
+            "window": 30.0,
+            "overlap": 3.0,
+            "seed": 42,
+            "err": 0.02,
+            "burnin": 4,
+            "iterations": 10,
+            "phase_states": 250,
+            "impute": False,
+            "imp_states": 1200,
+            "imp_segment": 5.0,
+            "imp_step": 0.2,
+            "cluster": 0.01,
+            "ap": True,
+            "gp": True,
+            "out_format": "vcf",
+            "threads": 8,
+            "output": "/work/beagle",
+        }
+    ) == [
+        "ln",
+        "-s",
+        "reference panel.vcf.gz",
+        "/work/beagle/ref.vcf_bgzip",
+        "&&",
+        "ln",
+        "-s",
+        "target genotypes.vcf.gz",
+        "/work/beagle/tmp.gz",
+        "&&",
+        "beagle",
+        "gt=/work/beagle/tmp.gz",
+        "ref=/work/beagle/ref.vcf_bgzip",
+        "map=plink genetic.map",
+        "chrom=22:100-",
+        "excludesamples=excluded samples.txt",
+        "excludemarkers=excluded markers.txt",
+        "ne=500000",
+        "window=30.0",
+        "overlap=3.0",
+        "seed=42",
+        "err=0.02",
+        "burnin=4",
+        "iterations=10",
+        "phase-states=250",
+        "impute=false",
+        "imp-states=1200",
+        "imp-segment=5.0",
+        "imp-step=0.2",
+        "cluster=0.01",
+        "ap=true",
+        "gp=true",
+        "out=/work/beagle/out",
+        "nthreads=${GALAXY_SLOTS:-8}",
+        "&&",
+        "gunzip",
+        "/work/beagle/out.vcf.gz",
+        "&&",
+        "mv",
+        "/work/beagle/out.vcf",
+        "/work/beagle/phased_imputed.vcf",
+    ]
+
+    assert node_class.render_command(
+        {
+            "gt": "study.vcf",
+            "out_format": "vcf_bgzip",
+            "threads": 2,
+            "output": "/work/beagle",
+        }
+    ) == [
+        "beagle",
+        "gt=study.vcf",
+        "ne=1000000",
+        "window=40.0",
+        "overlap=2.0",
+        "burnin=3",
+        "iterations=12",
+        "phase-states=280",
+        "impute=true",
+        "imp-states=1600",
+        "imp-segment=6.0",
+        "imp-step=0.1",
+        "cluster=0.005",
+        "ap=false",
+        "gp=false",
+        "out=/work/beagle/out",
+        "nthreads=${GALAXY_SLOTS:-2}",
+        "&&",
+        "mv",
+        "/work/beagle/out.vcf.gz",
+        "/work/beagle/phased_imputed.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "vcf_bgzip", "output_log": True}, tmp_path) == [
+        tmp_path / "beagle" / "phased_imputed.vcf.gz",
+        tmp_path / "beagle" / "out.log",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "beagle" / "phased_imputed.vcf",
+    ]
+    assert node_class.VALIDATE_INPUTS({"gt": ""}) == "VCF genotype input is required"
+    assert node_class.VALIDATE_INPUTS({"gt": "study.vcf", "window": 2.0, "overlap": 2.0}) == (
+        "window must be at least 1.1 times overlap"
+    )
+    assert node_class.VALIDATE_INPUTS({"gt": "study.vcf", "err": 1.2}) == "err must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"gt": "study.vcf"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
