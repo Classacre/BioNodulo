@@ -12947,6 +12947,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["preseq"],
             "doi": "10.1038/nmeth.2375",
         },
+        "abyss_pe": {
+            "display_name": "ABySS",
+            "category": "assembly",
+            "required_executables": ["abyss-pe"],
+            "required_conda_packages": ["abyss", "bwa"],
+            "doi": "10.1101/gr.214346.116",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14102,6 +14109,77 @@ def test_preseq_lc_extrap_renders_library_yield_extrapolation_command_and_output
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "preseq_lc_extrap" / "yield_extrapolation.tsv",
+    ]
+
+
+def test_abyss_pe_renders_paired_and_long_read_assembly_command_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("abyss_pe")
+    info = _registry().object_info()["abyss_pe"]
+
+    assert info["output"] == ["FASTA", "FASTA", "FASTA", "FASTA", "FASTA", "TSV"]
+    assert info["output_name"] == ["unitigs", "contigs", "scaffolds", "long_scaffolds", "indels", "stats"]
+    assert "10.1101/gr.214346.116" in info["citation_dois"]
+    assert "10.1101/gr.089532.108" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "libraries": [
+                {"type": "lib", "forward": "reads R1.fastq.gz", "reverse": "reads R2.fastq.gz"},
+                {"type": "long", "reads": ["long reads.fa"]},
+            ],
+            "k": 50,
+            "K": 25,
+            "q": 4,
+            "SS": True,
+            "s": 500,
+            "N": "15-20",
+            "threads": 8,
+            "memory_mb": 16000,
+            "output": "/work/abyss_pe",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "reads R1.fastq.gz",
+        "/work/abyss_pe/lib_forward_0.fastq.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "reads R2.fastq.gz",
+        "/work/abyss_pe/lib_reverse_0.fastq.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "long reads.fa",
+        "/work/abyss_pe/long_1.fa",
+        "&&",
+        "abyss-pe",
+        "name=abyss",
+        "j=${GALAXY_SLOTS:-8}",
+        "B=$(( ${GALAXY_MEMORY_MB:-16000} * 9 / 10 ))M",
+        "k=50",
+        "K=25",
+        "q=4",
+        "SS=--SS",
+        "s=500",
+        "N=15-20",
+        "lib=lib0",
+        "long=long1",
+        "lib0=/work/abyss_pe/lib_forward_0.fastq.gz /work/abyss_pe/lib_reverse_0.fastq.gz",
+        "long1=/work/abyss_pe/long_1.fa",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"libraries": [{"type": "lib"}, {"type": "long"}]}, tmp_path) == [
+        tmp_path / "abyss_pe" / "abyss-unitigs.fa",
+        tmp_path / "abyss_pe" / "abyss-contigs.fa",
+        tmp_path / "abyss_pe" / "abyss-scaffolds.fa",
+        tmp_path / "abyss_pe" / "abyss-long-scaffs.fa",
+        tmp_path / "abyss_pe" / "abyss-indel.fa",
+        tmp_path / "abyss_pe" / "abyss-stats.tab",
+    ]
+    assert node_class.PLAN_OUTPUTS({"libraries": [{"type": "se", "reads": ["reads.fastq.gz"]}]}, tmp_path) == [
+        tmp_path / "abyss_pe" / "abyss-unitigs.fa",
+        tmp_path / "abyss_pe" / "abyss-indel.fa",
+        tmp_path / "abyss_pe" / "abyss-stats.tab",
     ]
 
 

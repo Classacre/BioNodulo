@@ -4962,6 +4962,49 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/nmeth.2375'],
     citation_text: 'Predicting the molecular complexity of sequencing libraries.',
   },
+  abyss_pe: {
+    name: 'abyss_pe',
+    display_name: 'ABySS',
+    category: 'assembly',
+    description: 'Run the ABySS de novo assembler pipeline for paired-end, mate-pair, single-end, or long-read libraries.',
+    search_aliases: ['Galaxy', 'ABySS', 'abyss-pe', 'de novo assembler', 'short read assembly', 'paired-end assembly', 'genome assembler'],
+    input: {
+      required: {
+        libraries: { type: 'JSON' },
+        k: { type: 'INT', default: 41 },
+      },
+      optional: {
+        K: { type: 'INT', default: '' },
+        q: { type: 'INT', default: 3 },
+        Q: { type: 'INT', default: 0 },
+        e: { type: 'INT', default: '' },
+        E: { type: 'INT', default: '' },
+        t: { type: 'INT', default: '' },
+        c: { type: 'FLOAT', default: '' },
+        b: { type: 'INT', default: '' },
+        SS: { type: 'BOOLEAN', default: false },
+        m: { type: 'INT', default: '' },
+        p: { type: 'FLOAT', default: 0.9 },
+        a: { type: 'INT', default: 2 },
+        l: { type: 'INT', default: '' },
+        s: { type: 'INT', default: 200 },
+        n: { type: 'INT', default: 10 },
+        d: { type: 'INT', default: 6 },
+        S: { type: 'STRING', default: '' },
+        N: { type: 'STRING', default: '' },
+        threads: { type: 'INT', default: 1 },
+        memory_mb: { type: 'INT', default: 2048 },
+      },
+    },
+    output: ['FASTA', 'FASTA', 'FASTA', 'FASTA', 'FASTA', 'TSV'],
+    output_name: ['unitigs', 'contigs', 'scaffolds', 'long_scaffolds', 'indels', 'stats'],
+    required_executables: ['abyss-pe'],
+    required_conda_packages: ['abyss', 'bwa'],
+    documentation_url: 'https://github.com/bcgsc/abyss',
+    citation_dois: ['10.1101/gr.214346.116', '10.1101/gr.089532.108'],
+    citation_urls: ['https://doi.org/10.1101/gr.214346.116', 'https://doi.org/10.1101/gr.089532.108'],
+    citation_text: 'ABySS 2.0: resource-efficient assembly of large genomes using a Bloom filter; ABySS: a parallel assembler for short read sequence data.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7707,7 +7750,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('277 nodes available')).toBeVisible();
+  await expect(page.getByText('278 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7865,6 +7908,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'freyja lineage abundance dashboard', name: 'Freyja Aggregate Plot', category: 'variant' },
     { query: 'preseq library complexity', name: 'Preseq c_curve', category: 'qc' },
     { query: 'preseq yield extrapolation', name: 'Preseq lc_extrap', category: 'qc' },
+    { query: 'abyss paired-end assembly', name: 'ABySS', category: 'assembly' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
