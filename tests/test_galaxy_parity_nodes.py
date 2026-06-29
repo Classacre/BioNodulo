@@ -1862,6 +1862,71 @@ def test_seqtk_subseq_validates_source_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "name", "name_list": "ids.txt"}) is True
 
 
+def test_seqtk_telo_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_telo"]
+
+    assert info["display_name"] == "SeqTK Telomere"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Find telomeric repeat regions in FASTA or FASTQ sequences."
+    assert info["output"] == ["BED"]
+    assert info["output_name"] == ["telomeres"]
+    assert info["required_executables"] == ["seqtk"]
+    assert info["required_conda_packages"] == ["seqtk", "pigz"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk telo" in info["search_aliases"]
+    assert "telomere repeat" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["m"][1]["default"] == "CCCTAA"
+    assert info["input"]["optional"]["p"][1]["default"] == 1
+    assert info["input"]["optional"]["d"][1]["default"] == 2000
+    assert info["input"]["optional"]["s"][1]["default"] == 300
+    assert info["input"]["optional"]["P"][0] == "BOOLEAN"
+
+
+def test_seqtk_telo_renders_default_telomere_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_telo")
+
+    assert node_class.render_command(
+        {
+            "in_file": "contigs.fa",
+            "output": "/work/seqtk_telo",
+        }
+    ) == "seqtk telo -m CCCTAA -p 1 -d 2000 -s 300 contigs.fa > /work/seqtk_telo/telomeres.bed"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "seqtk_telo" / "telomeres.bed",
+    ]
+
+
+def test_seqtk_telo_renders_custom_scoring_and_print_scoring_flag() -> None:
+    node_class = _node_class("seqtk_telo")
+
+    assert node_class.render_command(
+        {
+            "in_file": "contigs.fastq",
+            "m": "TTAGGG",
+            "p": 2,
+            "d": 1500,
+            "s": 450,
+            "P": True,
+            "output": "/work/seqtk_telo",
+        }
+    ) == "seqtk telo -m TTAGGG -p 2 -d 1500 -s 450 -P contigs.fastq > /work/seqtk_telo/telomeres.bed"
+
+
+def test_seqtk_telo_renders_gzip_input_without_gzip_output_pipe() -> None:
+    node_class = _node_class("seqtk_telo")
+
+    assert node_class.render_command(
+        {
+            "in_file": "contigs.fa.gz",
+            "output": "/work/seqtk_telo",
+        }
+    ) == "seqtk telo -m CCCTAA -p 1 -d 2000 -s 300 contigs.fa.gz > /work/seqtk_telo/telomeres.bed"
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

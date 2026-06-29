@@ -2482,6 +2482,87 @@ class SeqTKSubseqNode(CommandNode):
         }
 
 
+class SeqTKTeloNode(CommandNode):
+    """Find telomeric repeats with seqtk telo."""
+
+    NODE_ID = "seqtk_telo"
+    DISPLAY_NAME = "SeqTK Telomere"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Find telomeric repeat regions in FASTA or FASTQ sequences."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk telo",
+        "SeqTK telo",
+        "telomere",
+        "telomere repeat",
+        "vertebrate repeat",
+        "CCCTAA",
+        "telomeric regions",
+    ]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("telomeres",)
+    REQUIRED_EXECUTABLES = ["seqtk"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    @staticmethod
+    def _bool_value(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on", "-p"}
+        return bool(value)
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/telomeres.bed"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "seqtk",
+            "telo",
+            "-m",
+            str(inputs.get("m", "CCCTAA")),
+            "-p",
+            str(inputs.get("p", 1)),
+            "-d",
+            str(inputs.get("d", 2000)),
+            "-s",
+            str(inputs.get("s", 300)),
+        ]
+        if cls._bool_value(inputs.get("P", False)):
+            cmd.append("-P")
+        cmd.append(str(inputs.get("in_file", "")))
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._out_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "telomeres.bed"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+            },
+            "optional": {
+                "m": ("STRING", {"default": "CCCTAA", "description": "Telomere repeat motif to search for"}),
+                "p": ("INT", {"default": 1, "description": "Penalty for a non-repeat"}),
+                "d": ("INT", {"default": 2000, "description": "Maximum score drop"}),
+                "s": ("INT", {"default": 300, "description": "Minimum telomere score"}),
+                "P": ("BOOLEAN", {"default": False, "description": "Print scoring information"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 

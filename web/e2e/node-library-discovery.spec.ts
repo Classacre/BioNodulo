@@ -789,6 +789,33 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_telo: {
+    name: 'seqtk_telo',
+    display_name: 'SeqTK Telomere',
+    category: 'sequence',
+    description: 'Find telomeric repeat regions in FASTA or FASTQ sequences.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk telo', 'SeqTK telo', 'telomere', 'telomere repeat', 'vertebrate repeat', 'CCCTAA', 'telomeric regions'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        m: { type: 'STRING', default: 'CCCTAA' },
+        p: { type: 'INT', default: 1 },
+        d: { type: 'INT', default: 2000 },
+        s: { type: 'INT', default: 300 },
+        P: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['BED'],
+    output_name: ['telomeres'],
+    required_executables: ['seqtk'],
+    required_conda_packages: ['seqtk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -11127,7 +11154,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('382 nodes available')).toBeVisible();
+  await expect(page.getByText('383 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11166,6 +11193,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk subsample reads', name: 'SeqTK Sample', category: 'sequence' },
     { query: 'seqtk reverse complement', name: 'SeqTK Seq', category: 'sequence' },
     { query: 'seqtk extract subsequences', name: 'SeqTK Subsequence', category: 'sequence' },
+    { query: 'seqtk telomere repeat', name: 'SeqTK Telomere', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
