@@ -26040,6 +26040,302 @@ def test_bwa_mem2_validates_reference_reads_modes_and_options() -> None:
     assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq"}) is True
 
 
+def test_bwa_exposes_galaxy_metadata_inputs_and_bwa_citations() -> None:
+    node_info = _registry().object_info()["bwa"]
+
+    assert node_info["display_name"] == "Map with BWA"
+    assert node_info["category"] == "alignment"
+    assert node_info["description"].startswith("Map short reads")
+    assert node_info["output"] == ["BAM"]
+    assert node_info["output_name"] == ["bam_output"]
+    assert node_info["required_executables"] == ["bwa", "samtools"]
+    assert node_info["required_conda_packages"] == ["bwa", "samtools"]
+    assert node_info["documentation_url"] == "https://bio-bwa.sourceforge.net/bwa.shtml"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btp324", "10.1093/bioinformatics/btp698"]
+    assert "https://doi.org/10.1093/bioinformatics/btp324" in node_info["citation_urls"]
+    assert "Burrows-Wheeler Transform" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "bwa aln" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input_type_selector"][1]["options"] == [
+        "paired",
+        "paired_collection",
+        "single",
+        "paired_bam",
+        "single_bam",
+    ]
+    assert node_info["input"]["optional"]["analysis_type_selector"][1]["options"] == ["illumina", "full"]
+    assert node_info["input"]["optional"]["index_a"][1]["options"] == ["auto", "is", "bwtsw"]
+
+
+def test_bwa_renders_single_fastq_history_reference_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bwa")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "history",
+            "ref_file": "ref.fa",
+            "index_a": "bwtsw",
+            "input_type_selector": "single",
+            "fastq_input1": "reads.fa",
+            "analysis_type_selector": "illumina",
+            "output": "/work/bwa",
+        }
+    ) == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "ln",
+        "-s",
+        "ref.fa",
+        "localref.fa",
+        "&&",
+        "bwa",
+        "index",
+        "-a",
+        "bwtsw",
+        "localref.fa",
+        "&&",
+        "bwa",
+        "aln",
+        "-t",
+        "${GALAXY_SLOTS:-1}",
+        "localref.fa",
+        "reads.fa",
+        ">",
+        "first.sai",
+        "&&",
+        "bwa",
+        "samse",
+        "localref.fa",
+        "first.sai",
+        "reads.fa",
+        "|",
+        "samtools",
+        "sort",
+        "-@${GALAXY_SLOTS:-2}",
+        "-T",
+        "${TMPDIR:-.}",
+        "-O",
+        "bam",
+        "-o",
+        "/work/bwa/aligned.bam",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa" / "aligned.bam"]
+
+
+def test_bwa_renders_paired_fastq_full_options_and_read_group() -> None:
+    node_class = _node_class("bwa")
+
+    command = node_class.render_command(
+        {
+            "reference_source_selector": "cached",
+            "ref_file": "/refs/hg19/bwa",
+            "input_type_selector": "paired",
+            "fastq_input1": "r1.fq",
+            "fastq_input2": "r2.fq",
+            "analysis_type_selector": "full",
+            "n": "0.02",
+            "o": 2,
+            "e": 1,
+            "i": 4,
+            "d": 8,
+            "l": 28,
+            "k": 1,
+            "m": 1000000,
+            "M": 4,
+            "O": 10,
+            "E": 3,
+            "R": 20,
+            "q": 5,
+            "B": 6,
+            "L": 1.2,
+            "adv_pe_options_selector": "set",
+            "a": 700,
+            "pe_o": 90000,
+            "pe_n": 4,
+            "N": 12,
+            "c": 0.0001,
+            "rg_selector": "set",
+            "rg_id": "rg1",
+            "rg_sm": "sample1",
+            "rg_pl": "CAPILLARY",
+            "rg_lb": "lib1",
+            "output": "/work/bwa",
+        }
+    )
+
+    assert command[:50] == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "bwa",
+        "aln",
+        "-t",
+        "${GALAXY_SLOTS:-1}",
+        "-n",
+        "0.02",
+        "-o",
+        "2",
+        "-e",
+        "1",
+        "-i",
+        "4",
+        "-d",
+        "8",
+        "-l",
+        "28",
+        "-k",
+        "1",
+        "-m",
+        "1000000",
+        "-M",
+        "4",
+        "-O",
+        "10",
+        "-E",
+        "3",
+        "-R",
+        "20",
+        "-q",
+        "5",
+        "-B",
+        "6",
+        "-L",
+        "1.2",
+        "/refs/hg19/bwa",
+        "r1.fq",
+        ">",
+        "first.sai",
+        "&&",
+        "bwa",
+        "aln",
+        "-t",
+        "${GALAXY_SLOTS:-1}",
+        "-n",
+        "0.02",
+        "-o",
+    ]
+    assert command[command.index("sampe") - 1 : command.index("|")] == [
+        "bwa",
+        "sampe",
+        "-a",
+        "700",
+        "-o",
+        "90000",
+        "-n",
+        "4",
+        "-N",
+        "12",
+        "-c",
+        "0.0001",
+        "-r",
+        "@RG\\tID:rg1\\tSM:sample1\\tPL:CAPILLARY\\tLB:lib1",
+        "/refs/hg19/bwa",
+        "first.sai",
+        "second.sai",
+        "r1.fq",
+        "r2.fq",
+    ]
+    assert command[-10:] == [
+        "|",
+        "samtools",
+        "sort",
+        "-@${GALAXY_SLOTS:-2}",
+        "-T",
+        "${TMPDIR:-.}",
+        "-O",
+        "bam",
+        "-o",
+        "/work/bwa/aligned.bam",
+    ]
+
+
+def test_bwa_renders_bam_input_modes() -> None:
+    node_class = _node_class("bwa")
+
+    paired = node_class.render_command(
+        {
+            "reference_source_selector": "cached",
+            "ref_file": "/refs/hg19/bwa",
+            "input_type_selector": "paired_bam",
+            "bam_input": "unaligned.bam",
+            "analysis_type_selector": "illumina",
+            "output": "/work/bwa",
+        }
+    )
+    assert paired[:23] == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "bwa",
+        "aln",
+        "-t",
+        "${GALAXY_SLOTS:-1}",
+        "-b",
+        "-1",
+        "/refs/hg19/bwa",
+        "unaligned.bam",
+        ">",
+        "first.sai",
+        "&&",
+        "bwa",
+        "aln",
+        "-t",
+        "${GALAXY_SLOTS:-1}",
+        "-b",
+        "-2",
+        "/refs/hg19/bwa",
+        "unaligned.bam",
+    ]
+    assert ["bwa", "sampe", "/refs/hg19/bwa", "first.sai", "second.sai", "unaligned.bam", "unaligned.bam"] == paired[
+        paired.index("sampe") - 1 : paired.index("|")
+    ]
+
+    single = node_class.render_command(
+        {
+            "reference_source_selector": "cached",
+            "ref_file": "/refs/hg19/bwa",
+            "input_type_selector": "single_bam",
+            "bam_input": "unaligned.bam",
+            "analysis_type_selector": "illumina",
+            "output": "/work/bwa",
+        }
+    )
+    assert single[4:13] == ["bwa", "aln", "-t", "${GALAXY_SLOTS:-1}", "-b", "-0", "/refs/hg19/bwa", "unaligned.bam", ">"]
+    assert ["bwa", "samse", "/refs/hg19/bwa", "first.sai", "unaligned.bam"] == single[
+        single.index("samse") - 1 : single.index("|")
+    ]
+
+
+def test_bwa_validates_reference_reads_modes_and_options() -> None:
+    node_class = _node_class("bwa")
+
+    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "fastq_input1 is required"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_type_selector": "bad", "fastq_input1": "r1.fq"}) == (
+        "input_type_selector must be one of: paired, paired_collection, single, paired_bam, single_bam"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"ref_file": "ref.fa", "input_type_selector": "paired", "fastq_input1": "r1.fq"}
+    ) == "fastq_input2 is required for paired input"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_type_selector": "paired_bam"}) == (
+        "bam_input is required for BAM input"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "bad"}) == (
+        "analysis_type_selector must be one of: illumina, full"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "index_a": "bad"}) == (
+        "index_a must be one of: auto, is, bwtsw"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "full", "o": 0}
+    ) == "o must be at least 1"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq"}) is True
+
+
 def test_bamleftalign_exposes_freebayes_citation_and_dependency_metadata() -> None:
     node_info = _registry().object_info()["bamleftalign"]
 

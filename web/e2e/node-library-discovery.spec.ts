@@ -9463,6 +9463,41 @@ const objectInfo = {
     citation_text:
       'BWA-MEM2 acceleration of the BWA-MEM algorithm; Fast and accurate short read alignment with Burrows-Wheeler Transform; Fast and accurate long-read alignment with Burrows-Wheeler Transform; Aligning sequence reads, clone sequences and assembly contigs with BWA-MEM.',
   },
+  bwa: {
+    name: 'bwa',
+    display_name: 'Map with BWA',
+    category: 'alignment',
+    description: 'Map short reads against a reference genome with BWA aln and emit coordinate-sorted BAM.',
+    search_aliases: ['Galaxy', 'BWA', 'bwa', 'bwa aln', 'bwa samse', 'bwa sampe', 'short read mapping', 'BAM output'],
+    input: {
+      required: {
+        ref_file: { type: 'FASTA' },
+        input_type_selector: { type: 'STRING', default: 'paired', options: ['paired', 'paired_collection', 'single', 'paired_bam', 'single_bam'] },
+        fastq_input1: { type: 'FASTQ' },
+      },
+      optional: {
+        fastq_input2: { type: 'FASTQ', default: '' },
+        bam_input: { type: 'BAM', default: '' },
+        reference_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        index_a: { type: 'STRING', default: 'auto', options: ['auto', 'is', 'bwtsw'] },
+        analysis_type_selector: { type: 'STRING', default: 'illumina', options: ['illumina', 'full'] },
+        rg_selector: { type: 'STRING', default: 'do_not_set', options: ['do_not_set', 'set'] },
+        rg_id: { type: 'STRING', default: '' },
+        rg_sm: { type: 'STRING', default: '' },
+        rg_pl: { type: 'STRING', default: '' },
+        rg_lb: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['bam_output'],
+    required_executables: ['bwa', 'samtools'],
+    required_conda_packages: ['bwa', 'samtools'],
+    documentation_url: 'https://bio-bwa.sourceforge.net/bwa.shtml',
+    citation_dois: ['10.1093/bioinformatics/btp324', '10.1093/bioinformatics/btp698'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btp324', 'https://doi.org/10.1093/bioinformatics/btp698'],
+    citation_text:
+      'Fast and accurate short read alignment with Burrows-Wheeler Transform; Fast and accurate long-read alignment with Burrows-Wheeler Transform.',
+  },
   bcftools_stats: {
     name: 'bcftools_stats',
     display_name: 'BCFtools Stats',
@@ -10758,7 +10793,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('368 nodes available')).toBeVisible();
+  await expect(page.getByText('369 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11071,6 +11106,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'left realignment', name: 'BamLeftAlign', category: 'variant' },
     { query: 'BWA-MEM2 reference index', name: 'BWA-MEM2 Indexer', category: 'alignment' },
     { query: 'bwa-mem2 mem', name: 'BWA-MEM2', category: 'alignment' },
+    { query: 'bwa aln', name: 'Map with BWA', category: 'alignment' },
     { query: 'plot-vcfstats', name: 'BCFtools Stats', category: 'variant' },
     { query: 'left-align indels', name: 'BCFtools Norm', category: 'variant' },
     { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },
