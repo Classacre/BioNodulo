@@ -13038,6 +13038,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["compleasm"],
             "doi": "10.1101/2023.06.03.543588",
         },
+        "eastr": {
+            "display_name": "EASTR",
+            "category": "rna_seq",
+            "required_executables": ["eastr", "bowtie2-build"],
+            "required_conda_packages": ["eastr-cpp", "bowtie2"],
+            "doi": "10.1038/s41467-023-43017-4",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15469,6 +15476,165 @@ def test_compleasm_renders_completeness_command_outputs_and_validation(tmp_path:
         }
     ) == "specified_contigs may contain only letters, numbers, underscores, and spaces"
     assert node_class.VALIDATE_INPUTS({"input": "genome.fa", "busco_database_path": "/db/busco", "lineage_dataset": "lineage_odb10"}) is True
+
+
+def test_eastr_renders_splice_junction_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("eastr")
+    info = _registry().object_info()["eastr"]
+
+    assert info["output"] == ["BED", "BAM", "BED", "BED", "TXT"]
+    assert info["output_name"] == ["removed_junctions", "filtered_bam", "kept_junctions", "original_junctions", "log"]
+    assert info["input"]["required"]["input_select"][1]["options"] == ["bam", "gtf", "bed"]
+    assert "10.1038/s41467-023-43017-4" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_select": "bam",
+            "input": "aligned reads.bam",
+            "bam_index": "aligned reads.bam.bai",
+            "reference": "genome reference.fa",
+            "optional_outputs": ["kept", "original"],
+            "bt2_k": 12,
+            "overhang": 60,
+            "anchor": 9,
+            "min_duplicate_exon_length": 31,
+            "min_junc_score": 2,
+            "match_score": 4,
+            "mismatch_penalty": 5,
+            "kmer": 4,
+            "window": 3,
+            "min_chain_score": 30,
+            "trusted_bed": "trusted junctions.bed",
+            "log": True,
+            "threads": 7,
+            "output": "/work/eastr",
+        }
+    ) == [
+        "ln",
+        "-s",
+        "genome reference.fa",
+        "/work/eastr/reference.fa",
+        "&&",
+        "ln",
+        "-s",
+        "aligned reads.bam",
+        "/work/eastr/input.bam",
+        "&&",
+        "ln",
+        "-s",
+        "aligned reads.bam.bai",
+        "/work/eastr/input.bam.bai",
+        "&&",
+        "eastr",
+        "-r",
+        "/work/eastr/reference.fa",
+        "-p",
+        "${GALAXY_SLOTS:-7}",
+        "--bam",
+        "/work/eastr/input.bam",
+        "--out_filtered_bam",
+        "/work/eastr/filtered.bam",
+        "--out_removed_junctions",
+        "/work/eastr/removed_junctions.bed",
+        "--out_kept_junctions",
+        "/work/eastr/kept_junctions.bed",
+        "--out_original_junctions",
+        "/work/eastr/original_junctions.bed",
+        "--bt2_k",
+        "12",
+        "-o",
+        "60",
+        "-a",
+        "9",
+        "--min_duplicate_exon_length",
+        "31",
+        "--min_junc_score",
+        "2",
+        "-A",
+        "4",
+        "-B",
+        "5",
+        "-k",
+        "4",
+        "-w",
+        "3",
+        "-m",
+        "30",
+        "--trusted_bed",
+        "trusted junctions.bed",
+        "--verbose",
+        "2>",
+        "/work/eastr/eastr.log",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_select": "gtf",
+            "input": "annotation.gtf",
+            "reference": "genome.fa",
+            "optional_outputs": "kept,original",
+            "output": "/work/eastr",
+        }
+    ) == [
+        "ln",
+        "-s",
+        "genome.fa",
+        "/work/eastr/reference.fa",
+        "&&",
+        "eastr",
+        "-r",
+        "/work/eastr/reference.fa",
+        "-p",
+        "${GALAXY_SLOTS:-1}",
+        "--gtf",
+        "annotation.gtf",
+        "--out_removed_junctions",
+        "/work/eastr/removed_junctions.bed",
+        "--out_kept_junctions",
+        "/work/eastr/kept_junctions.bed",
+        "--out_original_junctions",
+        "/work/eastr/original_junctions.bed",
+        "--bt2_k",
+        "10",
+        "-o",
+        "50",
+        "-a",
+        "7",
+        "--min_duplicate_exon_length",
+        "27",
+        "--min_junc_score",
+        "1",
+        "-A",
+        "3",
+        "-B",
+        "4",
+        "-k",
+        "3",
+        "-w",
+        "2",
+        "-m",
+        "25",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"input_select": "bam", "optional_outputs": ["kept", "original"], "log": True}, tmp_path) == [
+        tmp_path / "eastr" / "removed_junctions.bed",
+        tmp_path / "eastr" / "filtered.bam",
+        tmp_path / "eastr" / "kept_junctions.bed",
+        tmp_path / "eastr" / "original_junctions.bed",
+        tmp_path / "eastr" / "eastr.log",
+    ]
+    assert node_class.PLAN_OUTPUTS({"input_select": "bed"}, tmp_path) == [
+        tmp_path / "eastr" / "removed_junctions.bed",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input": "reads.bam", "reference": "reference.fa"}) == "input_select is required"
+    assert node_class.VALIDATE_INPUTS({"input_select": "bam", "reference": "reference.fa"}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input_select": "bam", "input": "reads.bam"}) == "reference FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input_select": "bam", "input": "reads.bam", "reference": "reference.fa", "bt2_k": 0}) == (
+        "bt2_k must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_select": "vcf", "input": "input.vcf", "reference": "reference.fa"}) == (
+        "input_select must be one of: bam, gtf, bed"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_select": "bed", "input": "introns.bed", "reference": "reference.fa"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

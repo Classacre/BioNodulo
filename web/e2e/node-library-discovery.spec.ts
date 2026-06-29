@@ -5392,6 +5392,45 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/2023.06.03.543588'],
     citation_text: 'Compleasm: a faster and more accurate reimplementation of the BUSCO lineage assessment.',
   },
+  eastr: {
+    name: 'eastr',
+    display_name: 'EASTR',
+    category: 'rna_seq',
+    description: 'Emend spliced transcript read alignments by identifying and removing spurious splice junctions.',
+    search_aliases: ['Galaxy', 'EASTR', 'EASTR splice junction filtering', 'spurious splice junctions', 'spliced transcript reads', 'filtered BAM', 'Bowtie2 junction screening'],
+    input: {
+      required: {
+        input_select: { type: 'STRING', default: 'bam', options: ['bam', 'gtf', 'bed'] },
+        input: { type: 'FILE' },
+        reference: { type: 'FASTA' },
+      },
+      optional: {
+        bam_index: { type: 'FILE', default: '' },
+        optional_outputs: { type: 'STRING_LIST', default: [], options: ['kept', 'original'] },
+        bt2_k: { type: 'INT', default: 10 },
+        overhang: { type: 'INT', default: 50 },
+        anchor: { type: 'INT', default: 7 },
+        min_duplicate_exon_length: { type: 'INT', default: 27 },
+        min_junc_score: { type: 'INT', default: 1 },
+        match_score: { type: 'INT', default: 3 },
+        mismatch_penalty: { type: 'INT', default: 4 },
+        kmer: { type: 'INT', default: 3 },
+        window: { type: 'INT', default: 2 },
+        min_chain_score: { type: 'INT', default: 25 },
+        trusted_bed: { type: 'BED', default: '' },
+        log: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['BED', 'BAM', 'BED', 'BED', 'TXT'],
+    output_name: ['removed_junctions', 'filtered_bam', 'kept_junctions', 'original_junctions', 'log'],
+    required_executables: ['eastr', 'bowtie2-build'],
+    required_conda_packages: ['eastr-cpp', 'bowtie2'],
+    documentation_url: 'https://github.com/iepertea/EASTR',
+    citation_dois: ['10.1038/s41467-023-43017-4'],
+    citation_urls: ['https://doi.org/10.1038/s41467-023-43017-4'],
+    citation_text: 'EASTR: identifying and eliminating systematic spurious spliced alignments in RNA-seq data.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8137,7 +8176,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('290 nodes available')).toBeVisible();
+  await expect(page.getByText('291 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8308,6 +8347,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BiSCoT optical map', name: 'BiSCoT', category: 'assembly' },
     { query: 'BiG-SCAPE gene cluster families', name: 'BiG-SCAPE', category: 'secondary_metabolism' },
     { query: 'compleasm genome completeness', name: 'compleasm', category: 'assembly' },
+    { query: 'EASTR splice junction filtering', name: 'EASTR', category: 'rna_seq' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
