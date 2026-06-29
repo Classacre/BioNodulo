@@ -6774,6 +6774,198 @@ def test_ampvis2_octave_renders_script_outputs_and_validates(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_ordinate_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_ordinate"]
+
+    assert info["display_name"] == "ampvis2 ordination plot"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate ampvis2 ordination plots for comparing microbial communities."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["filter_species"][1]["default"] == 0.1
+    assert info["input"]["optional"]["filter_species"][1]["min"] == 0
+    assert info["input"]["optional"]["type"][1]["default"] == "PCA"
+    assert info["input"]["optional"]["type"][1]["options"] == ["PCA", "RDA", "CA", "CCA", "DCA", "NMDS", "MMDS"]
+    assert info["input"]["optional"]["distmeasure"][1]["default"] == "bray"
+    assert "wunifrac" in info["input"]["optional"]["distmeasure"][1]["options"]
+    assert "robust.aitchison" in info["input"]["optional"]["distmeasure"][1]["options"]
+    assert info["input"]["optional"]["transform"][1]["default"] == ""
+    assert "hellinger" in info["input"]["optional"]["transform"][1]["options"]
+    assert info["input"]["optional"]["constrain"][1]["multiple"] is True
+    assert info["input"]["optional"]["print_caption"][1]["default"] is False
+    assert info["input"]["optional"]["sample_color_by"][0] == "STRING"
+    assert info["input"]["optional"]["sample_shape_by"][0] == "STRING"
+    assert info["input"]["optional"]["sample_colorframe"][0] == "STRING"
+    assert info["input"]["optional"]["sample_colorframe_label"][0] == "STRING"
+    assert info["input"]["optional"]["sample_label_by"][0] == "STRING"
+    assert info["input"]["optional"]["sample_trajectory"][0] == "STRING"
+    assert info["input"]["optional"]["sample_trajectory_group"][0] == "STRING"
+    assert info["input"]["optional"]["species_plot"][1]["default"] is False
+    assert info["input"]["optional"]["species_nlabels"][1]["default"] == 10
+    assert info["input"]["optional"]["species_label_taxonomy"][1]["default"] == "Genus"
+    assert info["input"]["optional"]["species_label_size"][1]["default"] == 3
+    assert info["input"]["optional"]["envfit_factor"][0] == "STRING"
+    assert info["input"]["optional"]["envfit_numeric"][0] == "STRING"
+    assert info["input"]["optional"]["envfit_signif_level"][1]["default"] == 0.005
+    assert info["input"]["optional"]["repel_labels"][1]["default"] is False
+    assert info["input"]["optional"]["opacity"][1]["default"] == 0.8
+    assert info["input"]["optional"]["tax_empty"][1]["default"] == "best"
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["input"]["optional"]["output_screeplot"][1]["default"] is False
+    assert info["output"] == ["PDF", "PDF"]
+    assert info["output_name"] == ["plot", "screeplot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_ordinate.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 ordination plot" in info["search_aliases"]
+    assert "amp_ordinate" in info["search_aliases"]
+    assert "vegan ordination" in info["search_aliases"]
+
+
+def test_ampvis2_ordinate_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_ordinate")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "filter_species": 0.2,
+            "type": "RDA",
+            "transform": "chi.square",
+            "constrain": ["Plant", "Year"],
+            "print_caption": True,
+            "sample_color_by": "Year",
+            "sample_shape_by": "Plant",
+            "sample_colorframe": "Year",
+            "sample_colorframe_label": "Plant",
+            "sample_label_by": "SampleID",
+            "sample_trajectory": "Month",
+            "sample_trajectory_group": "Plant",
+            "species_plot": True,
+            "species_nlabels": 2,
+            "species_label_taxonomy": "Family",
+            "species_label_size": 4,
+            "envfit_factor": "Plant",
+            "envfit_numeric": "Year",
+            "envfit_signif_level": 0.01,
+            "repel_labels": True,
+            "opacity": 0.6,
+            "tax_empty": "OTU",
+            "out_format": "svg",
+            "plot_width": 14,
+            "plot_height": 9.5,
+            "output_screeplot": True,
+            "output": "/work/ampvis2_ordinate",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_ordinate/ordinate.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "details <- amp_ordinate(" in command
+    assert "filter_species = 0.2," in command
+    assert 'type = "RDA",' in command
+    assert "distmeasure =" not in command
+    assert 'transform = "chi.square",' in command
+    assert 'constrain = c("Plant", "Year"),' in command
+    assert "print_caption = TRUE," in command
+    assert 'sample_color_by = "Year",' in command
+    assert 'sample_shape_by = "Plant",' in command
+    assert 'sample_colorframe = "Year",' in command
+    assert 'sample_colorframe_label = "Plant",' in command
+    assert 'sample_label_by = "SampleID",' in command
+    assert 'sample_trajectory = "Month",' in command
+    assert 'sample_trajectory_group = "Plant",' in command
+    assert "species_plot = TRUE," in command
+    assert "species_nlabels = 2," in command
+    assert 'species_label_taxonomy = "Family",' in command
+    assert "species_label_size = 4," in command
+    assert 'envfit_factor = "Plant",' in command
+    assert 'envfit_numeric = "Year",' in command
+    assert "envfit_signif_level = 0.01," in command
+    assert "repel_labels = TRUE," in command
+    assert "opacity = 0.6," in command
+    assert 'tax_empty = "OTU",' in command
+    assert "detailed_output = TRUE" in command
+    assert "plot <- details$plot" in command
+    assert 'ggsave("/work/ampvis2_ordinate/plot.svg",' in command
+    assert 'device = "svg"' in command
+    assert ", width = 14" in command
+    assert ", height = 9.5" in command
+    assert 'ggsave("/work/ampvis2_ordinate/screeplot.svg", print(details$screeplot), device = "svg")' in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_ordinate/ordinate.R")
+
+    nmds_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "type": "NMDS",
+            "distmeasure": "unifrac",
+            "sample_trajectory_group": "Plant",
+            "output": "/work/ampvis2_ordinate",
+        }
+    )
+    assert 'type = "NMDS",' in nmds_command
+    assert 'distmeasure = "unifrac",' in nmds_command
+    assert 'transform = "none",' in nmds_command
+    assert "constrain =" not in nmds_command
+    assert 'sample_trajectory_group = "Plant",' in nmds_command
+    assert "species_plot =" not in nmds_command
+    assert "screeplot" not in nmds_command
+
+    default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_ordinate"})
+    assert 'type = "PCA",' in default_command
+    assert 'transform = "hellinger",' in default_command
+    assert "distmeasure =" not in default_command
+    assert "constrain =" not in default_command
+    assert "print_caption = FALSE," in default_command
+    assert "repel_labels = FALSE," in default_command
+    assert 'tax_empty = "best",' in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "png", "output_screeplot": True}, tmp_path) == [
+        tmp_path / "ampvis2_ordinate" / "plot.png",
+        tmp_path / "ampvis2_ordinate" / "screeplot.png",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_ordinate" / "plot.pdf",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "type": "bad"}) == (
+        "type must be one of: PCA, RDA, CA, CCA, DCA, NMDS, MMDS"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "type": "NMDS", "distmeasure": "bad"}) == (
+        "distmeasure must be one of: wunifrac, unifrac, jsd, manhattan, euclidean, canberra, bray, kulczynski, "
+        "jaccard, gower, altGower, morisita, horn, mountford, raup, binomial, chao, cao, mahalanobis, clark, "
+        "chisq, chord, hellinger, aitchison, robust.aitchison"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "transform": "bad"}) == (
+        "transform must be one of: none, total, max, freq, normalize, range, standardize, pa, chi.square, "
+        "hellinger, log, sqrt"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "type": "RDA", "constrain": []}) == (
+        "constrain must include at least one metadata variable for RDA/CCA"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "filter_species": -0.1}) == (
+        "filter_species must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "species_label_taxonomy": "bad"}) == (
+        "species_label_taxonomy must be one of: OTU, Species, Genus, Family, Order, Class, Phylum, Kingdom"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "envfit_signif_level": 2}) == (
+        "envfit_signif_level must be <= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "opacity": -0.1}) == "opacity must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "type": "CCA", "constrain": ["Plant"]}) is True
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 
