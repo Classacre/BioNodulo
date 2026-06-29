@@ -1211,6 +1211,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btaf173'],
     citation_text: 'argNorm: a tool to normalize antibiotic resistance gene annotation across different databases.',
   },
+  'autobigs-cli': {
+    name: 'autobigs-cli',
+    display_name: 'autoBIGS.cli',
+    category: 'typing',
+    description: 'Automated MLST typing with BIGSdb sequence definition databases.',
+    search_aliases: ['Galaxy', 'autobigs', 'autobigs-cli', 'autoBIGS', 'autoBIGS.cli', 'MLST', 'BIGSdb', 'PubMLST', 'Institut Pasteur', 'sequence typing', 'scheme'],
+    input: {
+      required: {
+        bigsdb: { type: 'STRING' },
+      },
+      optional: {
+        database_origin: { type: 'STRING', default: 'pubmlst', options: ['pubmlst', 'institutpasteur'] },
+        operation: { type: 'STRING', default: 'st', options: ['st', 'info'] },
+        fasta: { type: 'FASTA', default: [], is_list: true },
+        scheme: { type: 'STRING', default: 'MLST' },
+      },
+    },
+    output: ['CSV', 'CSV'],
+    output_name: ['mlst_profiles_output', 'info_schemes_out'],
+    required_executables: ['autoBIGS'],
+    required_conda_packages: ['autobigs-cli'],
+    documentation_url: 'https://github.com/Syph-and-VPD-Lab/autoBIGS.cli',
+    citation_dois: [],
+    citation_urls: ['https://github.com/Syph-and-VPD-Lab/autoBIGS.cli'],
+    citation_text: 'Syph-and-VPD-Lab/autoBIGS.cli: automated MLST typing against BIGSdb databases.',
+  },
   cd_hit: {
     name: 'cd_hit',
     display_name: 'cd-hit',
@@ -11715,7 +11741,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('401 nodes available')).toBeVisible();
+  await expect(page.getByText('402 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11771,6 +11797,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
+    { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'target bases', name: 'filtlong', category: 'trimming' },

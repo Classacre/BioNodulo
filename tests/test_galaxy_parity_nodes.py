@@ -190,6 +190,84 @@ def test_argnorm_validates_tool_and_conditional_database_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "results.tsv", "tool": "hamronization", "hamronized": True}) is True
 
 
+def test_autobigs_cli_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["autobigs-cli"]
+
+    assert node_info["display_name"] == "autoBIGS.cli"
+    assert node_info["category"] == "typing"
+    assert node_info["description"] == "Automated MLST typing with BIGSdb sequence definition databases."
+    assert node_info["output"] == ["CSV", "CSV"]
+    assert node_info["output_name"] == ["mlst_profiles_output", "info_schemes_out"]
+    assert node_info["required_executables"] == ["autoBIGS"]
+    assert node_info["required_conda_packages"] == ["autobigs-cli"]
+    assert node_info["documentation_url"] == "https://github.com/Syph-and-VPD-Lab/autoBIGS.cli"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/Syph-and-VPD-Lab/autoBIGS.cli"]
+    assert "Syph-and-VPD-Lab/autoBIGS.cli" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "MLST" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["bigsdb"][0] == "STRING"
+    assert node_info["input"]["optional"]["operation"][1]["default"] == "st"
+    assert node_info["input"]["optional"]["operation"][1]["options"] == ["st", "info"]
+    assert node_info["input"]["optional"]["database_origin"][1]["options"] == ["pubmlst", "institutpasteur"]
+    assert node_info["input"]["optional"]["scheme"][1]["default"] == "MLST"
+    assert node_info["input"]["optional"]["fasta"][1]["is_list"] is True
+
+
+def test_autobigs_cli_renders_sequence_typing_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("autobigs-cli")
+
+    assert node_class.render_command(
+        {
+            "bigsdb": "pubmlst_bordetella_seqdef",
+            "fasta": ["tohama I.fasta", "B3921.fasta"],
+            "scheme": "MLST",
+            "output": "/work/autobigs-cli",
+        }
+    ) == (
+        "autoBIGS st --scheme-name MLST 'tohama I.fasta' B3921.fasta "
+        "pubmlst_bordetella_seqdef /work/autobigs-cli/mlst_profiles_output.csv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "autobigs-cli" / "mlst_profiles_output.csv",
+        tmp_path / "autobigs-cli" / "info_schemes_out.csv",
+    ]
+
+
+def test_autobigs_cli_renders_info_command() -> None:
+    node_class = _node_class("autobigs-cli")
+
+    assert node_class.render_command(
+        {
+            "operation": "info",
+            "database_origin": "institutpasteur",
+            "bigsdb": "pubmlst_bordetella_seqdef",
+            "output": "/work/autobigs-cli",
+        }
+    ) == (
+        "autoBIGS info --retrieve-bigsdb-schemes pubmlst_bordetella_seqdef "
+        "--csv /work/autobigs-cli/info_schemes_out.csv"
+    )
+
+
+def test_autobigs_cli_validates_operation_database_and_mode_inputs() -> None:
+    node_class = _node_class("autobigs-cli")
+
+    assert node_class.VALIDATE_INPUTS({}) == "bigsdb is required"
+    assert node_class.VALIDATE_INPUTS({"bigsdb": "pubmlst_bordetella_seqdef", "operation": "bad"}) == (
+        "operation must be one of: st, info"
+    )
+    assert node_class.VALIDATE_INPUTS({"bigsdb": "pubmlst_bordetella_seqdef", "database_origin": "bad"}) == (
+        "database_origin must be one of: pubmlst, institutpasteur"
+    )
+    assert node_class.VALIDATE_INPUTS({"bigsdb": "pubmlst_bordetella_seqdef"}) == "fasta is required for st operation"
+    assert node_class.VALIDATE_INPUTS({"bigsdb": "pubmlst_bordetella_seqdef", "fasta": "sample.fasta", "scheme": ""}) == (
+        "scheme is required for st operation"
+    )
+    assert node_class.VALIDATE_INPUTS({"operation": "info", "bigsdb": "pubmlst_bordetella_seqdef"}) is True
+    assert node_class.VALIDATE_INPUTS({"bigsdb": "pubmlst_bordetella_seqdef", "fasta": "sample.fasta"}) is True
+
+
 def test_cd_hit_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
     node_info = _registry().object_info()["cd_hit"]
 
