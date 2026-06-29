@@ -192,6 +192,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["art"],
             "doi": "10.1093/bioinformatics/btr708",
         },
+        "art_solid": {
+            "display_name": "ART SOLiD",
+            "category": "simulation",
+            "required_executables": ["art_SOLiD"],
+            "required_conda_packages": ["art"],
+            "doi": "10.1093/bioinformatics/btr708",
+        },
         "assembly_stats": {
             "display_name": "Assembly Stats",
             "category": "assembly",
@@ -4630,6 +4637,158 @@ def test_art_454_renders_paired_command_outputs_and_validates(tmp_path: Path) ->
         }
     ) == "read_pairs_per_amplicon must be >= 0"
     assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "paired_end"}) is True
+
+
+def test_art_solid_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["art_solid"]
+
+    assert node_info["display_name"] == "ART SOLiD"
+    assert node_info["category"] == "simulation"
+    assert node_info["description"].startswith("Simulate SOLiD sequencing reads")
+    assert node_info["input"]["required"]["input_seq_file"][0] == "FASTA"
+    assert node_info["input"]["required"]["generate_choice"][1]["options"] == [
+        "single_end",
+        "paired_end",
+        "mate_pair",
+    ]
+    assert node_info["input"]["optional"]["LEN_READ"][1]["default"] == 100
+    assert node_info["input"]["optional"]["LEN_READ_F3"][1]["default"] == 100
+    assert node_info["input"]["optional"]["LEN_READ_F5"][1]["default"] == 100
+    assert node_info["input"]["optional"]["rndSeed"][1]["default"] == -1
+    assert node_info["output"] == ["FASTQ", "FASTQ", "FASTQ", "FASTQ", "FASTQ", "SAM"]
+    assert node_info["output_name"] == [
+        "output_fq1_single",
+        "output_fq1_paired",
+        "output_fq2_paired",
+        "output_fq1_mate",
+        "output_fq2_mate",
+        "output_sam",
+    ]
+    assert node_info["required_executables"] == ["art_SOLiD"]
+    assert node_info["required_conda_packages"] == ["art"]
+    assert node_info["documentation_url"] == "https://www.niehs.nih.gov/research/resources/software/biostatistics/art"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btr708"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btr708"]
+    assert "ART: a next-generation sequencing read simulator" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "SOLiD read simulator" in node_info["search_aliases"]
+
+
+def test_art_solid_renders_single_end_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("art_solid")
+
+    assert node_class.render_command(
+        {
+            "input_seq_file": "reference.fa",
+            "fold_coverage": 10,
+            "generate_choice": "single_end",
+            "LEN_READ": 25,
+            "sam": True,
+            "rndSeed": 42,
+            "output": "/work/art_solid",
+        }
+    ) == "art_SOLiD -s -r 42 reference.fa /work/art_solid/output 25 10"
+    assert node_class.render_command(
+        {
+            "input_seq_file": "reference.fa",
+            "fold_coverage": 20,
+            "generate_choice": "single_end",
+            "LEN_READ": 100,
+            "amplicon": True,
+            "reads_per_amplicon": 80,
+            "sam": False,
+            "rndSeed": -1,
+            "output": "/work/art_solid",
+        }
+    ) == "art_SOLiD -A s reference.fa /work/art_solid/output 100 20 80"
+    assert node_class.PLAN_OUTPUTS({"generate_choice": "single_end", "sam": True}, tmp_path) == [
+        tmp_path / "art_solid" / "output.fq",
+        tmp_path / "art_solid" / "output.sam",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "", "generate_choice": "single_end"}) == (
+        "input_seq_file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "bad"}) == (
+        "generate_choice must be one of: single_end, paired_end, mate_pair"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "single_end", "LEN_READ": 0}) == (
+        "LEN_READ must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_seq_file": "ref.fa", "generate_choice": "single_end", "amplicon": True, "reads_per_amplicon": -1}
+    ) == "reads_per_amplicon must be >= 0"
+
+
+def test_art_solid_renders_paired_and_mate_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("art_solid")
+
+    assert node_class.render_command(
+        {
+            "input_seq_file": "reference genome.fa",
+            "fold_coverage": 20,
+            "generate_choice": "paired_end",
+            "LEN_READ_F3": 50,
+            "LEN_READ_F5": 45,
+            "fragment_size": 75,
+            "fragment_sd": 10,
+            "amplicon": True,
+            "read_pairs_per_amplicon": 120,
+            "sam": True,
+            "rndSeed": 42,
+            "output": "/work/art_solid",
+        }
+    ) == (
+        "art_SOLiD -s -r 42 -A p 'reference genome.fa' /work/art_solid/output "
+        "50 45 20 75 10 120"
+    )
+    assert node_class.render_command(
+        {
+            "input_seq_file": "reference.fa",
+            "fold_coverage": 30,
+            "generate_choice": "mate_pair",
+            "LEN_READ": 60,
+            "fragment_size": 500,
+            "fragment_sd": 25,
+            "amplicon": True,
+            "read_pairs_per_amplicon": 90,
+            "sam": False,
+            "rndSeed": -1,
+            "output": "/work/art_solid",
+        }
+    ) == "art_SOLiD -A m reference.fa /work/art_solid/output 60 30 500 25 90"
+    assert node_class.PLAN_OUTPUTS({"generate_choice": "paired_end", "sam": True}, tmp_path) == [
+        tmp_path / "art_solid" / "output_F3.fq",
+        tmp_path / "art_solid" / "output_F5.fq",
+        tmp_path / "art_solid" / "output.sam",
+    ]
+    assert node_class.PLAN_OUTPUTS({"generate_choice": "mate_pair", "sam": False}, tmp_path) == [
+        tmp_path / "art_solid" / "output_F3.fq",
+        tmp_path / "art_solid" / "output_R3.fq",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "paired_end", "fold_coverage": 0}) == (
+        "fold_coverage must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "paired_end", "LEN_READ_F3": 0}) == (
+        "LEN_READ_F3 must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "paired_end", "LEN_READ_F5": 0}) == (
+        "LEN_READ_F5 must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_seq_file": "ref.fa", "generate_choice": "mate_pair", "fragment_size": 0}
+    ) == "fragment_size must be >= 1 for mate_pair input"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_seq_file": "ref.fa", "generate_choice": "paired_end", "fragment_sd": -1}
+    ) == "fragment_sd must be >= 0 for paired_end input"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_seq_file": "ref.fa",
+            "generate_choice": "mate_pair",
+            "amplicon": True,
+            "read_pairs_per_amplicon": -1,
+        }
+    ) == "read_pairs_per_amplicon must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "mate_pair"}) is True
 
 
 def test_miniasm_exposes_galaxy_metadata_and_citation() -> None:
