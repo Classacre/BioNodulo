@@ -1136,6 +1136,31 @@ const objectInfo = {
     citation_urls: ['https://github.com/tseemann/barrnap'],
     citation_text: 'barrnap: rapid ribosomal RNA prediction.',
   },
+  'fasta-stats': {
+    name: 'fasta-stats',
+    display_name: 'Fasta Statistics',
+    category: 'qc',
+    description: 'Display summary statistics for a FASTA or Multi-FASTA file.',
+    search_aliases: ['Galaxy', 'fasta-stats', 'Fasta Statistics', 'FASTA statistics', 'Multi-FASTA', 'N50', 'NG50', 'GC content', 'gap stats', 'BED gaps'],
+    input: {
+      required: {
+        fasta: { type: 'FASTA' },
+      },
+      optional: {
+        genome_size: { type: 'INT', default: '', min: 0 },
+        gaps_option: { type: 'BOOLEAN', default: false },
+        script_path: { type: 'FILE', default: 'fasta-stats.py' },
+      },
+    },
+    output: ['TSV', 'BED'],
+    output_name: ['stats_output', 'gaps_output'],
+    required_executables: ['python'],
+    required_conda_packages: ['python', 'numpy', 'biopython'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/fasta_stats',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/fasta_stats'],
+    citation_text: 'Fasta Statistics: Display summary statistics for a fasta file.',
+  },
   checkm2: {
     name: 'checkm2',
     display_name: 'CheckM2',
@@ -11415,7 +11440,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('392 nodes available')).toBeVisible();
+  await expect(page.getByText('393 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11468,6 +11493,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'split by length', name: 'SeqKit Split2', category: 'sequence' },
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
+    { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },

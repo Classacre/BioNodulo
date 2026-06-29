@@ -3850,6 +3850,86 @@ def test_barrnap_validates_inputs_and_numeric_thresholds() -> None:
     assert node_class.VALIDATE_INPUTS({"fasta_file": "contigs.fa"}) is True
 
 
+def test_fasta_stats_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["fasta-stats"]
+
+    assert node_info["display_name"] == "Fasta Statistics"
+    assert node_info["category"] == "qc"
+    assert node_info["description"] == "Display summary statistics for a FASTA or Multi-FASTA file."
+    assert node_info["output"] == ["TSV", "BED"]
+    assert node_info["output_name"] == ["stats_output", "gaps_output"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["python", "numpy", "biopython"]
+    assert node_info["documentation_url"] == (
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/fasta_stats"
+    )
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == [
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/fasta_stats"
+    ]
+    assert "Fasta Statistics: Display summary statistics for a fasta file" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "NG50" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["fasta"][0] == "FASTA"
+    assert node_info["input"]["optional"]["genome_size"][0] == "INT"
+    assert node_info["input"]["optional"]["genome_size"][1]["min"] == 0
+    assert node_info["input"]["optional"]["gaps_option"][1]["default"] is False
+    assert node_info["input"]["optional"]["script_path"][1]["default"] == "fasta-stats.py"
+    assert node_info["input"]["optional"]["script_path"][1]["advanced"] is True
+
+
+def test_fasta_stats_renders_default_stats_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("fasta-stats")
+
+    assert node_class.render_command(
+        {
+            "fasta": "assembly.fa",
+            "output": "/work/fasta-stats",
+        }
+    ) == (
+        "python fasta-stats.py --fasta assembly.fa --stats_output "
+        "/work/fasta-stats/stats.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "fasta-stats" / "stats.tsv",
+    ]
+
+
+def test_fasta_stats_renders_gap_stats_and_genome_size(tmp_path: Path) -> None:
+    node_class = _node_class("fasta-stats")
+
+    assert node_class.render_command(
+        {
+            "fasta": "assembly with Ns.fasta",
+            "genome_size": 4000,
+            "gaps_option": True,
+            "script_path": "/tools/fasta_stats/fasta-stats.py",
+            "output": "/work/fasta-stats",
+        }
+    ) == (
+        "python /tools/fasta_stats/fasta-stats.py --fasta 'assembly with Ns.fasta' "
+        "--stats_output /work/fasta-stats/stats.tsv --gaps_output "
+        "/work/fasta-stats/gaps.bed --genome_size 4000"
+    )
+    assert node_class.PLAN_OUTPUTS({"gaps_option": True}, tmp_path) == [
+        tmp_path / "fasta-stats" / "stats.tsv",
+        tmp_path / "fasta-stats" / "gaps.bed",
+    ]
+
+
+def test_fasta_stats_validates_required_fasta_and_genome_size() -> None:
+    node_class = _node_class("fasta-stats")
+
+    assert node_class.VALIDATE_INPUTS({}) == "fasta is required"
+    assert node_class.VALIDATE_INPUTS({"fasta": "assembly.fa", "genome_size": -1}) == (
+        "genome_size must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta": "assembly.fa", "genome_size": "large"}) == (
+        "genome_size must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta": "assembly.fa"}) is True
+
+
 def test_assembly_stats_exposes_galaxy_aligned_outputs() -> None:
     info = _registry().object_info()["assembly_stats"]
 
