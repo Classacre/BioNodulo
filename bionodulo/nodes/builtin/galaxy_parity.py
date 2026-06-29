@@ -71,12 +71,123 @@ BCFTOOLS_CITATION_TEXT = (
     "Twelve years of SAMtools and BCFtools; "
     "The Sequence Alignment/Map format and SAMtools."
 )
+ADD_INPUT_NAME_AS_COLUMN_CITATION_URL = (
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column"
+)
+ADD_INPUT_NAME_AS_COLUMN_CITATION_TEXT = "Add input name as column on an existing tabular file."
 
 
 def _bedtools_common_output(node_id: str, filename: str, output_dir: str | Path) -> Path:
     out = Path(output_dir) / node_id
     out.mkdir(parents=True, exist_ok=True)
     return out / filename
+
+
+class AddInputNameAsColumnNode(CommandNode):
+    """Add the input dataset name as an appended or prepended tabular column."""
+
+    NODE_ID = "add_input_name_as_column"
+    DISPLAY_NAME = "Add input name as column"
+    REQUIRED_CONDA_PACKAGES = ["python"]
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Add the input dataset name as an appended or prepended tabular column."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Add input name as column",
+        "add_input_name_as_column",
+        "dataset collection labels",
+        "history dataset name",
+        "sample label column",
+        "tabular label column",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = ADD_INPUT_NAME_AS_COLUMN_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [ADD_INPUT_NAME_AS_COLUMN_CITATION_URL]
+    CITATION_TEXT = ADD_INPUT_NAME_AS_COLUMN_CITATION_TEXT
+    VERSION = "0.3.0"
+    SHELL = True
+
+    HEADER_OPTIONS = ["yes", "no"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "add_input_name_as_column.py")),
+            "--input",
+            str(inputs.get("input", "")),
+            "--label",
+            str(inputs.get("label", "")),
+            "--output",
+            cls._output_path(inputs),
+        ]
+        if str(inputs.get("contains_header", "yes") or "yes") == "yes":
+            cmd.extend(["--header", str(inputs.get("colname", "sample") or "sample")])
+        if inputs.get("prepend"):
+            cmd.append("--prepend")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        if not str(inputs.get("label", "")).strip():
+            return "label is required"
+        contains_header = str(inputs.get("contains_header", "yes") or "yes")
+        if contains_header not in cls.HEADER_OPTIONS:
+            return f"contains_header must be one of: {', '.join(cls.HEADER_OPTIONS)}"
+        if contains_header == "yes" and not str(inputs.get("colname", "sample") or "").strip():
+            return "colname is required when contains_header is yes"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TXT", {"description": "Text or tabular dataset to annotate with its input label"}),
+                "label": ("STRING", {"description": "Dataset label to add, matching Galaxy's input element identifier"}),
+            },
+            "optional": {
+                "contains_header": (
+                    "STRING",
+                    {
+                        "default": "yes",
+                        "options": cls.HEADER_OPTIONS,
+                        "description": "Whether the first line should receive a column header instead of the dataset label",
+                    },
+                ),
+                "colname": (
+                    "STRING",
+                    {"default": "sample", "description": "Column name added to the first line when the input has a header"},
+                ),
+                "prepend": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Prepend the label column instead of appending it"},
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "add_input_name_as_column.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy add_input_name_as_column.py helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
 
 
 def _bedtools_add_genome(cmd: list[str], inputs: dict[str, Any]) -> None:

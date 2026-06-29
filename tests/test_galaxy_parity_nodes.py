@@ -1286,6 +1286,79 @@ def test_abricate_summary_renders_summary_command_outputs_and_validates(tmp_path
     assert node_class.VALIDATE_INPUTS({"abricate_reports": ["card.tsv", "megares.tsv"]}) is True
 
 
+def test_add_input_name_as_column_exposes_galaxy_metadata_without_citation_doi() -> None:
+    info = _registry().object_info()["add_input_name_as_column"]
+
+    assert info["display_name"] == "Add input name as column"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Add the input dataset name as an appended or prepended tabular column."
+    assert info["input"]["required"]["input"][0] == "STRING"
+    assert info["input"]["required"]["label"][0] == "STRING"
+    assert info["input"]["optional"]["contains_header"][1]["default"] == "yes"
+    assert info["input"]["optional"]["contains_header"][1]["options"] == ["yes", "no"]
+    assert info["input"]["optional"]["colname"][1]["default"] == "sample"
+    assert info["input"]["optional"]["prepend"][1]["default"] is False
+    assert info["input"]["optional"]["script_path"][1]["default"] == "add_input_name_as_column.py"
+    assert info["input"]["optional"]["script_path"][1]["advanced"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["python"]
+    assert info["documentation_url"] == (
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column"
+    )
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == [
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column"
+    ]
+    assert "Add input name as column on an existing tabular file" in info["citation_text"]
+    assert "dataset collection labels" in info["search_aliases"]
+
+
+def test_add_input_name_as_column_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("add_input_name_as_column")
+
+    assert node_class.render_command(
+        {
+            "input": "signature.tab",
+            "label": "signature.tab",
+            "contains_header": "yes",
+            "colname": "sample",
+            "script_path": "/tools/add_input_name_as_column/add_input_name_as_column.py",
+            "output": "/work/add_input_name_as_column",
+        }
+    ) == (
+        "python /tools/add_input_name_as_column/add_input_name_as_column.py --input signature.tab "
+        "--label signature.tab --output /work/add_input_name_as_column/output.tsv --header sample"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "signature table.tab",
+            "label": "history sample",
+            "contains_header": "no",
+            "prepend": True,
+            "output": "/work/add_input_name_as_column",
+        }
+    ) == (
+        "python add_input_name_as_column.py --input 'signature table.tab' --label 'history sample' "
+        "--output /work/add_input_name_as_column/output.tsv --prepend"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "add_input_name_as_column" / "output.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input": "", "label": "sample"}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": ""}) == "label is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "signature.tab", "label": "sample", "contains_header": "maybe"}
+    ) == "contains_header must be one of: yes, no"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "signature.tab", "label": "sample", "contains_header": "yes", "colname": ""}
+    ) == "colname is required when contains_header is yes"
+    assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": "sample"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 
