@@ -47,6 +47,10 @@ def _safe_identifier(value: str) -> str:
     return sub(r"[^\w\-.]", "_", value.strip())
 
 
+def _safe_element_identifier(value: str) -> str:
+    return sub(r"[^\w\-_.]", "_", Path(value).name)
+
+
 def _bedtools_ext(path: Any, default: str = "bed") -> str:
     suffixes = Path(str(path or "")).suffixes
     if not suffixes:
@@ -1409,6 +1413,140 @@ class AMRFinderPlusNode(CommandNode):
                 "add_version_columns": ("BOOLEAN", {"default": False, "description": "Append database and tool version columns to tabular reports"}),
                 "database_name": ("STRING", {"default": "", "description": "Fallback database label when database/version.txt is unavailable", "advanced": True}),
                 "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+ABRICATE_CITATION_TEXT = "ABRicate: mass screening of contigs for antibiotic resistance genes."
+ABRICATE_CITATION_URL = "https://github.com/tseemann/abricate"
+
+
+class ABRicateNode(CommandNode):
+    """Mass screen contigs for antimicrobial resistance and virulence genes with ABRicate."""
+
+    NODE_ID = "abricate"
+    DISPLAY_NAME = "ABRicate"
+    REQUIRED_CONDA_PACKAGES = ["abricate"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Mass screen contigs for antimicrobial resistance and virulence genes with ABRicate."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ABRicate",
+        "abricate",
+        "antimicrobial resistance",
+        "AMR genes",
+        "virulence genes",
+        "ResFinder",
+        "CARD",
+        "PlasmidFinder",
+        "VFDB",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("report",)
+    REQUIRED_EXECUTABLES = ["abricate"]
+    DOCUMENTATION_URL = ABRICATE_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [ABRICATE_CITATION_URL]
+    CITATION_TEXT = ABRICATE_CITATION_TEXT
+    VERSION = "1.4.0"
+    SHELL = True
+
+    DATABASES = [
+        "argannot",
+        "card",
+        "ecoh",
+        "ncbi",
+        "resfinder",
+        "plasmidfinder",
+        "vfdb",
+        "megares",
+        "ecoli_vf",
+        "upec_expec_vf",
+    ]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/report.tsv"
+
+    @classmethod
+    def _percent_range(cls, inputs: dict[str, Any], name: str, default: float) -> bool | str:
+        try:
+            value = float(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be a number"
+        if value < 0 or value > 100:
+            return f"{name} must be between 0 and 100"
+        return True
+
+    @classmethod
+    def _format_number(cls, value: Any, default: float) -> str:
+        parsed = float(value if value not in (None, "") else default)
+        return str(int(parsed)) if parsed.is_integer() else str(parsed)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        sample_name = _safe_element_identifier(str(inputs.get("file_input", "")))
+        cmd = ["abricate", sample_name]
+        if inputs.get("no_header"):
+            cmd.append("--noheader")
+        cmd.append(f"--minid={cls._format_number(inputs.get('min_dna_id'), 80)}")
+        cmd.append(f"--mincov={cls._format_number(inputs.get('min_cov'), 80)}")
+        cmd.append(f"--db={str(inputs.get('db', 'ncbi') or 'ncbi')}")
+        return (
+            f"ln -sf {shlex.quote(str(inputs.get('file_input', '')))} {shlex.quote(sample_name)} && "
+            f"{_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "report.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("file_input", "")).strip():
+            return "file_input is required"
+        db = str(inputs.get("db", "ncbi") or "ncbi")
+        if db not in cls.DATABASES:
+            return f"db must be one of: {', '.join(cls.DATABASES)}"
+        for name in ["min_dna_id", "min_cov"]:
+            result = cls._percent_range(inputs, name, 80)
+            if result is not True:
+                return result
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "file_input": (
+                    "FILE",
+                    {"description": "FASTA, GenBank, or EMBL contigs to screen for AMR and virulence genes"},
+                ),
+            },
+            "optional": {
+                "db": (
+                    "STRING",
+                    {
+                        "default": "ncbi",
+                        "options": cls.DATABASES,
+                        "description": "ABRicate AMR, plasmid, or virulence database to search",
+                    },
+                ),
+                "no_header": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Suppress the ABRicate tabular header"},
+                ),
+                "min_dna_id": (
+                    "FLOAT",
+                    {"default": 80, "min": 0, "max": 100, "description": "Minimum nucleotide percent identity"},
+                ),
+                "min_cov": (
+                    "FLOAT",
+                    {"default": 80, "min": 0, "max": 100, "description": "Minimum gene percent coverage"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }

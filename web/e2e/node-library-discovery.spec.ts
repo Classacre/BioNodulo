@@ -1011,6 +1011,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btr708'],
     citation_text: 'ART: a next-generation sequencing read simulator.',
   },
+  abricate: {
+    name: 'abricate',
+    display_name: 'ABRicate',
+    category: 'annotation',
+    description: 'Mass screen contigs for antimicrobial resistance and virulence genes with ABRicate.',
+    search_aliases: ['Galaxy', 'ABRicate', 'abricate', 'antimicrobial resistance', 'AMR genes', 'virulence genes', 'ResFinder', 'CARD', 'PlasmidFinder', 'VFDB'],
+    input: {
+      required: {
+        file_input: { type: 'FILE' },
+      },
+      optional: {
+        db: { type: 'STRING', default: 'ncbi', options: ['argannot', 'card', 'ecoh', 'ncbi', 'resfinder', 'plasmidfinder', 'vfdb', 'megares', 'ecoli_vf', 'upec_expec_vf'] },
+        no_header: { type: 'BOOLEAN', default: false },
+        min_dna_id: { type: 'FLOAT', default: 80, min: 0, max: 100 },
+        min_cov: { type: 'FLOAT', default: 80, min: 0, max: 100 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['report'],
+    required_executables: ['abricate'],
+    required_conda_packages: ['abricate'],
+    documentation_url: 'https://github.com/tseemann/abricate',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/abricate'],
+    citation_text: 'ABRicate: mass screening of contigs for antibiotic resistance genes.',
+  },
   amplican: {
     name: 'amplican',
     display_name: 'AmpliCan',
@@ -9599,7 +9625,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('331 nodes available')).toBeVisible();
+  await expect(page.getByText('332 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9646,6 +9672,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Illumina read simulator', name: 'ART Illumina', category: 'simulation' },
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },
     { query: 'SOLiD read simulator', name: 'ART SOLiD', category: 'simulation' },
+    { query: 'abricate antimicrobial resistance', name: 'ABRicate', category: 'annotation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },

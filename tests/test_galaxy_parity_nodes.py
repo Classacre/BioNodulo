@@ -1110,6 +1110,92 @@ def test_seqkit_head_renders_head_command_and_output(tmp_path: Path) -> None:
     ]
 
 
+def test_abricate_exposes_galaxy_aligned_metadata_and_software_citation() -> None:
+    info = _registry().object_info()["abricate"]
+
+    assert info["display_name"] == "ABRicate"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Mass screen contigs for antimicrobial resistance and virulence genes with ABRicate."
+    assert info["input"]["required"]["file_input"][0] == "FILE"
+    assert info["input"]["optional"]["db"][1]["default"] == "ncbi"
+    assert info["input"]["optional"]["db"][1]["options"] == [
+        "argannot",
+        "card",
+        "ecoh",
+        "ncbi",
+        "resfinder",
+        "plasmidfinder",
+        "vfdb",
+        "megares",
+        "ecoli_vf",
+        "upec_expec_vf",
+    ]
+    assert info["input"]["optional"]["no_header"][1]["default"] is False
+    assert info["input"]["optional"]["min_dna_id"][1]["default"] == 80
+    assert info["input"]["optional"]["min_dna_id"][1]["min"] == 0
+    assert info["input"]["optional"]["min_dna_id"][1]["max"] == 100
+    assert info["input"]["optional"]["min_cov"][1]["default"] == 80
+    assert info["input"]["optional"]["min_cov"][1]["min"] == 0
+    assert info["input"]["optional"]["min_cov"][1]["max"] == 100
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["report"]
+    assert info["required_executables"] == ["abricate"]
+    assert info["required_conda_packages"] == ["abricate"]
+    assert info["documentation_url"] == "https://github.com/tseemann/abricate"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/tseemann/abricate"]
+    assert "ABRicate: mass screening of contigs for antibiotic resistance genes" in info["citation_text"]
+    assert "antimicrobial resistance" in info["search_aliases"]
+
+
+def test_abricate_renders_scan_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("abricate")
+
+    assert node_class.render_command(
+        {
+            "file_input": "MRSA 0252.fna.gz",
+            "db": "card",
+            "no_header": True,
+            "min_dna_id": 95.5,
+            "min_cov": 90,
+            "output": "/work/abricate",
+        }
+    ) == (
+        "ln -sf 'MRSA 0252.fna.gz' MRSA_0252.fna.gz && "
+        "abricate MRSA_0252.fna.gz --noheader --minid=95.5 --mincov=90 --db=card "
+        "> /work/abricate/report.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "file_input": "assembly.fa",
+            "output": "/work/abricate",
+        }
+    ) == (
+        "ln -sf assembly.fa assembly.fa && "
+        "abricate assembly.fa --minid=80 --mincov=80 --db=ncbi > /work/abricate/report.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "abricate" / "report.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"file_input": ""}) == "file_input is required"
+    assert node_class.VALIDATE_INPUTS({"file_input": "assembly.fa", "db": "bad"}) == (
+        "db must be one of: argannot, card, ecoh, ncbi, resfinder, plasmidfinder, vfdb, megares, ecoli_vf, "
+        "upec_expec_vf"
+    )
+    assert node_class.VALIDATE_INPUTS({"file_input": "assembly.fa", "min_dna_id": -1}) == (
+        "min_dna_id must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"file_input": "assembly.fa", "min_cov": 101}) == (
+        "min_cov must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"file_input": "assembly.fa", "min_cov": "many"}) == (
+        "min_cov must be a number"
+    )
+    assert node_class.VALIDATE_INPUTS({"file_input": "assembly.fa", "db": "card"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 
