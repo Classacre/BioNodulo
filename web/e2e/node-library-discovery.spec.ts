@@ -5502,6 +5502,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.1029'],
     citation_text: 'Compact graphical representation of phylogenetic data and metadata with GraPhlAn.',
   },
+  graphlan: {
+    name: 'graphlan',
+    display_name: 'GraPhlAn',
+    category: 'visualization',
+    description: 'Produce graphical circular representations of taxonomic or phylogenetic trees with GraPhlAn.',
+    search_aliases: ['Galaxy', 'GraPhlAn', 'graphlan circular tree rendering', 'phylogenetic tree visualization', 'taxonomic tree image', 'publication-ready tree plot'],
+    input: {
+      required: {
+        input_tree: { type: 'STRING' },
+      },
+      optional: {
+        image_format: { type: 'STRING', default: 'png', options: ['png', 'pdf', 'ps', 'eps', 'svg'] },
+        size: { type: 'INT', default: 7 },
+        pad: { type: 'INT', default: '' },
+        dpi: { type: 'INT', default: '', displayOptions: { show: { image_format: ['png'] } } },
+      },
+    },
+    output: ['IMAGE'],
+    output_name: ['image'],
+    required_executables: ['graphlan.py'],
+    required_conda_packages: ['graphlan'],
+    documentation_url: 'https://github.com/biobakery/graphlan',
+    citation_dois: ['10.7717/peerj.1029'],
+    citation_urls: ['https://doi.org/10.7717/peerj.1029'],
+    citation_text: 'Compact graphical representation of phylogenetic data and metadata with GraPhlAn.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8247,7 +8273,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('293 nodes available')).toBeVisible();
+  await expect(page.getByText('294 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8421,6 +8447,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'EASTR splice junction filtering', name: 'EASTR', category: 'rna_seq' },
     { query: 'export2graphlan GraPhlAn conversion', name: 'Export to GraPhlAn', category: 'visualization' },
     { query: 'graphlan_annotate tree annotation', name: 'GraPhlAn Annotate', category: 'visualization' },
+    { query: 'graphlan circular tree rendering', name: 'GraPhlAn', category: 'visualization' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

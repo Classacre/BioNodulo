@@ -13059,6 +13059,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["graphlan"],
             "doi": "10.7717/peerj.1029",
         },
+        "graphlan": {
+            "display_name": "GraPhlAn",
+            "category": "visualization",
+            "required_executables": ["graphlan.py"],
+            "required_conda_packages": ["graphlan"],
+            "doi": "10.7717/peerj.1029",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15807,6 +15814,65 @@ def test_graphlan_annotate_renders_annotation_command_outputs_and_validation(tmp
     ]
     assert node_class.VALIDATE_INPUTS({}) == "input_tree is required"
     assert node_class.VALIDATE_INPUTS({"input_tree": "tree.nwk"}) is True
+
+
+def test_graphlan_renders_tree_image_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("graphlan")
+    info = _registry().object_info()["graphlan"]
+
+    assert info["output"] == ["IMAGE"]
+    assert info["output_name"] == ["image"]
+    assert info["input"]["required"]["input_tree"][0] == "STRING"
+    assert info["input"]["optional"]["image_format"][1]["options"] == ["png", "pdf", "ps", "eps", "svg"]
+    assert "10.7717/peerj.1029" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_tree": "intermediary_tree.xml",
+            "image_format": "png",
+            "dpi": 100,
+            "size": 7,
+            "pad": 2,
+            "output": "/work/graphlan",
+        }
+    ) == [
+        "graphlan.py",
+        "--format",
+        "png",
+        "--size",
+        "7",
+        "--pad",
+        "2",
+        "--dpi",
+        "100",
+        "intermediary_tree.xml",
+        "/work/graphlan/image.png",
+    ]
+    assert node_class.render_command(
+        {
+            "input_tree": "intermediary_tree.xml",
+            "image_format": "svg",
+            "size": 10,
+            "output": "/work/graphlan",
+        }
+    ) == [
+        "graphlan.py",
+        "--format",
+        "svg",
+        "--size",
+        "10",
+        "intermediary_tree.xml",
+        "/work/graphlan/image.svg",
+    ]
+    assert node_class.PLAN_OUTPUTS({"image_format": "pdf"}, tmp_path) == [
+        tmp_path / "graphlan" / "image.pdf",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input_tree is required"
+    assert node_class.VALIDATE_INPUTS({"input_tree": "tree.xml", "image_format": "jpg"}) == (
+        "image_format must be one of: png, pdf, ps, eps, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tree": "tree.xml", "size": 0}) == "size must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input_tree": "tree.xml", "image_format": "png", "dpi": 0}) == "dpi must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input_tree": "tree.xml", "image_format": "svg"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
