@@ -5289,6 +5289,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1007/978-1-4939-0554-6_12'],
     citation_text: 'Identification of mutations in laboratory-evolved microbes from next-generation sequencing data using breseq.',
   },
+  biscot: {
+    name: 'biscot',
+    display_name: 'BiSCoT',
+    category: 'assembly',
+    description: 'Correct Bionano optical-map scaffolds by merging contigs, re-estimating gaps, and writing FASTA and AGP scaffolds.',
+    search_aliases: ['Galaxy', 'BiSCoT', 'BiSCoT optical map', 'Bionano scaffolding correction', 'optical maps', 'CMAP', 'XMAP', 'AGP scaffolds'],
+    input: {
+      required: {
+        cmap_ref: { type: 'FILE' },
+        cmap_1: { type: 'FILE' },
+        xmap_1: { type: 'FILE' },
+        key: { type: 'TSV' },
+        contigs: { type: 'FASTA' },
+      },
+      optional: {
+        secondary_map_cmap_2: { type: 'FILE', default: '' },
+        secondary_map_xmap_2: { type: 'FILE', default: '' },
+        xmap_2enz: { type: 'FILE', default: '' },
+        only_confirmed_pos: { type: 'BOOLEAN', default: false },
+        log_file: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TXT', 'FASTA', 'AGP'],
+    output_name: ['log', 'fasta', 'agp'],
+    required_executables: ['biscot'],
+    required_conda_packages: ['biscot', 'blat', 'ucsc-pslsort', 'ucsc-pslreps'],
+    documentation_url: 'https://github.com/institut-de-genomique/biscot',
+    citation_dois: ['10.7717/peerj.10150'],
+    citation_urls: ['https://doi.org/10.7717/peerj.10150'],
+    citation_text: 'BiSCoT: improving large eukaryotic genome assemblies with optical maps.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8034,7 +8065,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('287 nodes available')).toBeVisible();
+  await expect(page.getByText('288 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8202,6 +8233,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Binning refiner metagenome bins', name: 'Binning refiner', category: 'metagenomics' },
     { query: 'Beagle genotype imputation', name: 'Beagle', category: 'variant' },
     { query: 'breseq mutation detection', name: 'breseq', category: 'variant' },
+    { query: 'BiSCoT optical map', name: 'BiSCoT', category: 'assembly' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

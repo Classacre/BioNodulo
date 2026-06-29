@@ -13017,6 +13017,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["breseq", "tar"],
             "doi": "10.1007/978-1-4939-0554-6_12",
         },
+        "biscot": {
+            "display_name": "BiSCoT",
+            "category": "assembly",
+            "required_executables": ["biscot"],
+            "required_conda_packages": ["biscot", "blat", "ucsc-pslsort", "ucsc-pslreps"],
+            "doi": "10.7717/peerj.10150",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15085,6 +15092,119 @@ def test_breseq_renders_detect_annotate_commands_outputs_and_validation(tmp_path
         "compare mode requires at least two GenomeDiff inputs"
     )
     assert node_class.VALIDATE_INPUTS({"mode": "annotate", "references": ["lambda.gbk"], "gds": ["a.gd"]}) is True
+
+
+def test_biscot_renders_scaffolding_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("biscot")
+    info = _registry().object_info()["biscot"]
+
+    assert info["output"] == ["TXT", "FASTA", "AGP"]
+    assert info["output_name"] == ["log", "fasta", "agp"]
+    assert info["input"]["optional"]["secondary_map_cmap_2"][1]["default"] == ""
+    assert "10.7717/peerj.10150" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "cmap_ref": "anchor reference.cmap",
+            "cmap_1": "query map.cmap",
+            "xmap_1": "primary alignment.xmap",
+            "key": "bionano key.tsv",
+            "contigs": "assembly contigs.fa",
+            "log_file": True,
+            "output": "/work/biscot",
+        }
+    ) == [
+        "biscot",
+        "--cmap-ref",
+        "anchor reference.cmap",
+        "--cmap-1",
+        "query map.cmap",
+        "--xmap-1",
+        "primary alignment.xmap",
+        "--key",
+        "bionano key.tsv",
+        "--contigs",
+        "assembly contigs.fa",
+        "&&",
+        "cp",
+        "biscot/biscot.log",
+        "/work/biscot/biscot.log",
+        "&&",
+        "cp",
+        "biscot/scaffolds.fasta",
+        "/work/biscot/scaffolds.fasta",
+        "&&",
+        "cp",
+        "biscot/scaffolds.agp",
+        "/work/biscot/scaffolds.agp",
+    ]
+
+    assert node_class.render_command(
+        {
+            "cmap_ref": "ref.cmap",
+            "cmap_1": "enzyme A.cmap",
+            "xmap_1": "enzyme A.xmap",
+            "secondary_map_cmap_2": "enzyme B.cmap",
+            "secondary_map_xmap_2": "enzyme B.xmap",
+            "xmap_2enz": "both enzymes.xmap",
+            "only_confirmed_pos": True,
+            "key": "bionano.tsv",
+            "contigs": "contigs.fa",
+            "output": "/work/biscot",
+        }
+    ) == [
+        "biscot",
+        "--cmap-ref",
+        "ref.cmap",
+        "--cmap-1",
+        "enzyme A.cmap",
+        "--xmap-1",
+        "enzyme A.xmap",
+        "--key",
+        "bionano.tsv",
+        "--contigs",
+        "contigs.fa",
+        "--cmap-2",
+        "enzyme B.cmap",
+        "--xmap-2",
+        "enzyme B.xmap",
+        "--xmap-2enz",
+        "both enzymes.xmap",
+        "--only-confirmed-pos",
+        "&&",
+        "cp",
+        "biscot/scaffolds.fasta",
+        "/work/biscot/scaffolds.fasta",
+        "&&",
+        "cp",
+        "biscot/scaffolds.agp",
+        "/work/biscot/scaffolds.agp",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"log_file": True}, tmp_path) == [
+        tmp_path / "biscot" / "biscot.log",
+        tmp_path / "biscot" / "scaffolds.fasta",
+        tmp_path / "biscot" / "scaffolds.agp",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "biscot" / "scaffolds.fasta",
+        tmp_path / "biscot" / "scaffolds.agp",
+    ]
+    assert node_class.VALIDATE_INPUTS({"cmap_1": "query.cmap", "xmap_1": "query.xmap", "key": "key.tsv", "contigs": "contigs.fa"}) == (
+        "cmap_ref is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "cmap_ref": "ref.cmap",
+            "cmap_1": "query.cmap",
+            "xmap_1": "query.xmap",
+            "secondary_map_cmap_2": "second.cmap",
+            "key": "key.tsv",
+            "contigs": "contigs.fa",
+        }
+    ) == "secondary_map_xmap_2 is required when secondary_map_cmap_2 is provided"
+    assert node_class.VALIDATE_INPUTS(
+        {"cmap_ref": "ref.cmap", "cmap_1": "query.cmap", "xmap_1": "query.xmap", "key": "key.tsv", "contigs": "contigs.fa"}
+    ) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
