@@ -5259,6 +5259,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1016/j.ajhg.2018.07.015', 'https://doi.org/10.1086/521987'],
     citation_text: 'Beagle supports genotype phasing, genotype imputation, and haplotype inference from genotype data.',
   },
+  breseq: {
+    name: 'breseq',
+    display_name: 'breseq',
+    category: 'variant',
+    description: 'Find mutations in haploid microbial genomes and annotate GenomeDiff variants with breseq and gdtools.',
+    search_aliases: ['Galaxy', 'breseq', 'breseq mutation detection', 'GenomeDiff', 'gdtools ANNOTATE', 'microbial resequencing', 'haploid microbial genomes', 'laboratory evolution'],
+    input: {
+      required: {
+        references: { type: 'FILE_LIST', multiple: true },
+      },
+      optional: {
+        mode: { type: 'STRING', default: 'detect', options: ['detect', 'annotate', 'compare'] },
+        fastqs: { type: 'FASTQ_LIST' },
+        gds: { type: 'TSV_LIST' },
+        formats: { type: 'STRING_LIST' },
+        polymorphism_prediction: { type: 'BOOLEAN', default: false },
+        name: { type: 'STRING', default: '' },
+        predict_junctions: { type: 'BOOLEAN', default: true },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['HTML_REPORT', 'HTML_REPORT', 'TSV', 'TSV', 'ZIP', 'TXT', 'TSV', 'PHYLIP', 'JSON'],
+    output_name: ['report', 'annreport', 'output', 'genomediff', 'zip_output', 'log', 'tabdelim', 'phylipout', 'jsonout'],
+    required_executables: ['breseq', 'gdtools', 'tar'],
+    required_conda_packages: ['breseq', 'tar'],
+    documentation_url: 'https://barricklab.org/twiki/bin/view/Lab/ToolsBacterialGenomeResequencing',
+    citation_dois: ['10.1007/978-1-4939-0554-6_12'],
+    citation_urls: ['https://doi.org/10.1007/978-1-4939-0554-6_12'],
+    citation_text: 'Identification of mutations in laboratory-evolved microbes from next-generation sequencing data using breseq.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8004,7 +8034,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('286 nodes available')).toBeVisible();
+  await expect(page.getByText('287 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8171,6 +8201,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Binette binning refinement', name: 'Binette', category: 'metagenomics' },
     { query: 'Binning refiner metagenome bins', name: 'Binning refiner', category: 'metagenomics' },
     { query: 'Beagle genotype imputation', name: 'Beagle', category: 'variant' },
+    { query: 'breseq mutation detection', name: 'breseq', category: 'variant' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

@@ -13010,6 +13010,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["beagle"],
             "doi": "10.1016/j.ajhg.2018.07.015",
         },
+        "breseq": {
+            "display_name": "breseq",
+            "category": "variant",
+            "required_executables": ["breseq", "gdtools", "tar"],
+            "required_conda_packages": ["breseq", "tar"],
+            "doi": "10.1007/978-1-4939-0554-6_12",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14927,6 +14934,157 @@ def test_beagle_renders_phasing_imputation_command_outputs_and_validation(tmp_pa
     )
     assert node_class.VALIDATE_INPUTS({"gt": "study.vcf", "err": 1.2}) == "err must be between 0 and 1"
     assert node_class.VALIDATE_INPUTS({"gt": "study.vcf"}) is True
+
+
+def test_breseq_renders_detect_annotate_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("breseq")
+    info = _registry().object_info()["breseq"]
+
+    assert info["output"] == ["HTML_REPORT", "HTML_REPORT", "TSV", "TSV", "ZIP", "TXT", "TSV", "PHYLIP", "JSON"]
+    assert info["output_name"] == [
+        "report",
+        "annreport",
+        "output",
+        "genomediff",
+        "zip_output",
+        "log",
+        "tabdelim",
+        "phylipout",
+        "jsonout",
+    ]
+    assert "10.1007/978-1-4939-0554-6_12" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "mode": "detect",
+            "references": ["lambda.gbk", "mobile element.gb"],
+            "fastqs": ["reads R1.fastq.gz", "reads R2.fastq.gz"],
+            "name": "smallest",
+            "polymorphism_prediction": True,
+            "predict_junctions": False,
+            "formats": ["html", "log", "gd", "zip"],
+            "threads": 6,
+            "output": "/work/breseq",
+        }
+    ) == [
+        "breseq",
+        "--num-processors",
+        "${GALAXY_SLOTS:-6}",
+        "-o",
+        "/work/breseq/results",
+        "--reference",
+        "lambda.gbk",
+        "--reference",
+        "mobile element.gb",
+        "reads R1.fastq.gz",
+        "reads R2.fastq.gz",
+        "--name",
+        "smallest",
+        "--polymorphism-prediction",
+        "--no-junction-prediction",
+        "&&",
+        "cp",
+        "/work/breseq/results/output/output.gd",
+        "/work/breseq/output.gd",
+        "&&",
+        "cp",
+        "/work/breseq/results/output/index.html",
+        "/work/breseq/report.html",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/breseq/report_extra_files",
+        "&&",
+        "cp",
+        "-R",
+        "/work/breseq/results/output/.",
+        "/work/breseq/report_extra_files",
+        "&&",
+        "tar",
+        "-zcf",
+        "/work/breseq/results.tar.gz",
+        "/work/breseq/results",
+        "&&",
+        "cp",
+        "/work/breseq/results/output/log.txt",
+        "/work/breseq/log.txt",
+    ]
+
+    assert node_class.render_command(
+        {
+            "mode": "annotate",
+            "references": ["lambda.gbk"],
+            "gds": ["sample A.gd", "sample B.gd"],
+            "formats": ["html", "gd", "tsv", "json"],
+            "output": "/work/breseq",
+        }
+    ) == [
+        "gdtools",
+        "ANNOTATE",
+        "--format",
+        "html",
+        "-o",
+        "/work/breseq/annotated_report.html",
+        "--reference",
+        "lambda.gbk",
+        "sample A.gd",
+        "sample B.gd",
+        "&&",
+        "gdtools",
+        "ANNOTATE",
+        "--format",
+        "gd",
+        "-o",
+        "/work/breseq/annotated.gd",
+        "--reference",
+        "lambda.gbk",
+        "sample A.gd",
+        "sample B.gd",
+        "&&",
+        "gdtools",
+        "ANNOTATE",
+        "--format",
+        "tsv",
+        "-o",
+        "/work/breseq/annotated.tsv",
+        "--reference",
+        "lambda.gbk",
+        "sample A.gd",
+        "sample B.gd",
+        "&&",
+        "gdtools",
+        "ANNOTATE",
+        "--format",
+        "json",
+        "-o",
+        "/work/breseq/annotated.json",
+        "--reference",
+        "lambda.gbk",
+        "sample A.gd",
+        "sample B.gd",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"mode": "detect", "formats": ["html", "log", "gd", "zip"]}, tmp_path) == [
+        tmp_path / "breseq" / "report.html",
+        tmp_path / "breseq" / "output.gd",
+        tmp_path / "breseq" / "results.tar.gz",
+        tmp_path / "breseq" / "log.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"mode": "annotate", "formats": ["html", "gd", "tsv", "json"]}, tmp_path) == [
+        tmp_path / "breseq" / "annotated_report.html",
+        tmp_path / "breseq" / "annotated.gd",
+        tmp_path / "breseq" / "annotated.tsv",
+        tmp_path / "breseq" / "annotated.json",
+    ]
+    assert node_class.VALIDATE_INPUTS({"mode": "detect", "fastqs": ["reads.fq"]}) == (
+        "at least one reference genome is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "detect", "references": ["lambda.gbk"]}) == (
+        "at least one FASTQ read file is required for detect mode"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "compare", "references": ["lambda.gbk"], "gds": ["a.gd"]}) == (
+        "compare mode requires at least two GenomeDiff inputs"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "annotate", "references": ["lambda.gbk"], "gds": ["a.gd"]}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
