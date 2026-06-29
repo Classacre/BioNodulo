@@ -4816,6 +4816,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41586-022-05049-6'],
     citation_text: 'Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission.',
   },
+  freyja_demix: {
+    name: 'freyja_demix',
+    display_name: 'Freyja Demix',
+    category: 'variant',
+    description: 'Estimate mixed viral lineage abundances from Freyja variant calls and sequencing depths.',
+    search_aliases: ['Galaxy', 'Freyja', 'freyja demix', 'lineage abundances', 'wastewater variants', 'deconvolution', 'UShER barcodes'],
+    input: {
+      required: {
+        variants_in: { type: 'TSV' },
+        depth_file: { type: 'TSV' },
+      },
+      optional: {
+        sample_name_source: { type: 'STRING', default: 'auto', options: ['auto', 'manual'] },
+        sample_name: { type: 'STRING', default: '', displayOptions: { show: { sample_name_source: ['manual'] } } },
+        barcodes_source: { type: 'STRING', default: 'repo', options: ['repo', 'custom'] },
+        usher_barcodes: { type: 'CSV', displayOptions: { show: { barcodes_source: ['custom'] } } },
+        meta: { type: 'JSON', default: '' },
+        eps: { type: 'FLOAT', default: '' },
+        confirmedonly: { type: 'BOOLEAN', default: false },
+        wgisaid: { type: 'BOOLEAN', default: false },
+        depth_cutoff: { type: 'INT', default: 10 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['abundances'],
+    required_executables: ['freyja', 'sed'],
+    required_conda_packages: ['freyja', 'sed'],
+    documentation_url: 'https://github.com/andersen-lab/Freyja',
+    citation_dois: ['10.1038/s41586-022-05049-6'],
+    citation_urls: ['https://doi.org/10.1038/s41586-022-05049-6'],
+    citation_text: 'Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7561,7 +7593,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('272 nodes available')).toBeVisible();
+  await expect(page.getByText('273 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7714,6 +7746,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'lofreq strand bias filter', name: 'LoFreq Filter', category: 'variant' },
     { query: 'lofreq read realignment', name: 'LoFreq Viterbi Realignment', category: 'variant' },
     { query: 'freyja wastewater sequencing', name: 'Freyja Variants', category: 'variant' },
+    { query: 'freyja lineage abundances', name: 'Freyja Demix', category: 'variant' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

@@ -12912,6 +12912,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["freyja"],
             "doi": "10.1038/s41586-022-05049-6",
         },
+        "freyja_demix": {
+            "display_name": "Freyja Demix",
+            "category": "variant",
+            "required_executables": ["freyja", "sed"],
+            "required_conda_packages": ["freyja", "sed"],
+            "doi": "10.1038/s41586-022-05049-6",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -13733,6 +13740,80 @@ def test_freyja_variants_renders_variant_and_depth_command_outputs(tmp_path: Pat
         tmp_path / "freyja_variants" / "variants.tsv",
         tmp_path / "freyja_variants" / "depths.tsv",
     ]
+
+
+def test_freyja_demix_renders_lineage_abundance_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("freyja_demix")
+    info = _registry().object_info()["freyja_demix"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["abundances"]
+    assert "10.1038/s41586-022-05049-6" in info["citation_dois"]
+    assert info["input"]["optional"]["usher_barcodes"][1]["displayOptions"] == {
+        "show": {"barcodes_source": ["custom"]},
+    }
+    assert node_class.render_command(
+        {
+            "variants_in": "variants.tsv",
+            "depth_file": "depths.tsv",
+            "sample_name_source": "manual",
+            "sample_name": "Sample One",
+            "barcodes_source": "custom",
+            "usher_barcodes": "barcodes.csv",
+            "meta": "lineage_meta.json",
+            "eps": 0.0001,
+            "confirmedonly": True,
+            "wgisaid": True,
+            "depth_cutoff": 20,
+            "output": "/work/freyja_demix",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "barcodes.csv",
+        "/work/freyja_demix/usher_barcodes.csv",
+        "&&",
+        "ln",
+        "-sf",
+        "variants.tsv",
+        "/work/freyja_demix/Sample_One.tsv",
+        "&&",
+        "freyja",
+        "demix",
+        "/work/freyja_demix/Sample_One.tsv",
+        "depths.tsv",
+        "--eps",
+        "0.0001",
+        "--meta",
+        "lineage_meta.json",
+        "--confirmedonly",
+        "--wgisaid",
+        "--barcodes",
+        "/work/freyja_demix/usher_barcodes.csv",
+        "--covcut",
+        "20",
+        "--output",
+        "/work/freyja_demix/abundances_raw.tsv",
+        "&&",
+        "sed",
+        "s/Sample_One.tsv/Sample One/",
+        "/work/freyja_demix/abundances_raw.tsv",
+        ">",
+        "/work/freyja_demix/abundances.tsv",
+    ]
+
+    auto_cmd = node_class.render_command(
+        {
+            "variants_in": "/inputs/wastewater-sample.vcf",
+            "depth_file": "depths.tsv",
+            "barcodes_source": "repo",
+            "output": "/work/freyja_demix",
+        }
+    )
+    assert "/work/freyja_demix/wastewater-sample.vcf" in auto_cmd
+    assert "--barcodes" not in auto_cmd
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "freyja_demix" / "abundances.tsv"]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

@@ -21459,6 +21459,126 @@ class FreyjaVariantsNode(CommandNode):
         }
 
 
+class FreyjaDemixNode(CommandNode):
+    """Estimate lineage abundances from Freyja variant and depth tables."""
+
+    NODE_ID = "freyja_demix"
+    DISPLAY_NAME = "Freyja Demix"
+    REQUIRED_CONDA_PACKAGES = ["freyja", "sed"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Estimate mixed viral lineage abundances from Freyja variant calls and sequencing depths."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Freyja",
+        "freyja demix",
+        "lineage abundances",
+        "wastewater variants",
+        "deconvolution",
+        "UShER barcodes",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("abundances",)
+    REQUIRED_EXECUTABLES = ["freyja", "sed"]
+    DOCUMENTATION_URL = "https://github.com/andersen-lab/Freyja"
+    CITATION_DOIS = ["10.1038/s41586-022-05049-6"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/s41586-022-05049-6"]
+    CITATION_TEXT = "Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission."
+    VERSION = "2.0.1"
+    SHELL = True
+
+    @classmethod
+    def _sample_name(cls, inputs: dict[str, Any]) -> str:
+        if str(inputs.get("sample_name_source", "auto")) == "manual":
+            return str(inputs.get("sample_name", "sample") or "sample")
+        return Path(str(inputs.get("variants_in", "sample.tsv") or "sample.tsv")).name
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        sample_name = cls._sample_name(inputs)
+        if str(inputs.get("sample_name_source", "auto")) == "manual":
+            ext = Path(str(inputs.get("variants_in", ""))).suffix.lstrip(".") or "tsv"
+            staged_name = f"{_safe_identifier(sample_name)}.{ext}"
+        else:
+            staged_name = _safe_name(sample_name)
+        staged_variants = f"{out}/{staged_name}"
+        cmd: list[str] = []
+        if str(inputs.get("barcodes_source", "repo")) == "custom":
+            cmd.extend(["ln", "-sf", str(inputs.get("usher_barcodes", "")), f"{out}/usher_barcodes.csv", "&&"])
+        cmd.extend([
+            "ln",
+            "-sf",
+            str(inputs.get("variants_in", "")),
+            staged_variants,
+            "&&",
+            "freyja",
+            "demix",
+            staged_variants,
+            str(inputs.get("depth_file", "")),
+        ])
+        _add_if_value(cmd, "--eps", inputs.get("eps"))
+        _add_if_value(cmd, "--meta", inputs.get("meta"))
+        if inputs.get("confirmedonly"):
+            cmd.append("--confirmedonly")
+        if inputs.get("wgisaid"):
+            cmd.append("--wgisaid")
+        if str(inputs.get("barcodes_source", "repo")) == "custom":
+            cmd.extend(["--barcodes", f"{out}/usher_barcodes.csv"])
+        cmd.extend([
+            "--covcut",
+            str(inputs.get("depth_cutoff", 10)),
+            "--output",
+            f"{out}/abundances_raw.tsv",
+            "&&",
+            "sed",
+            f"s/{staged_name}/{sample_name}/",
+            f"{out}/abundances_raw.tsv",
+            ">",
+            f"{out}/abundances.tsv",
+        ])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "abundances.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "variants_in": ("TSV", {"description": "Freyja variants TSV or compatible VCF/tabular variant calls"}),
+                "depth_file": ("TSV", {"description": "Genome-wide sequencing depth table"}),
+            },
+            "optional": {
+                "sample_name_source": ("STRING", {"default": "auto", "options": ["auto", "manual"], "description": "Use input filename or explicit sample name"}),
+                "sample_name": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Sample name to write into the demixed abundance table",
+                        "displayOptions": {"show": {"sample_name_source": ["manual"]}},
+                    },
+                ),
+                "barcodes_source": ("STRING", {"default": "repo", "options": ["repo", "custom"], "description": "Use Freyja's bundled or a provided UShER barcode table"}),
+                "usher_barcodes": (
+                    "CSV",
+                    {
+                        "description": "Custom UShER barcodes CSV",
+                        "displayOptions": {"show": {"barcodes_source": ["custom"]}},
+                    },
+                ),
+                "meta": ("JSON", {"default": "", "description": "Optional custom lineage metadata JSON"}),
+                "eps": ("FLOAT", {"default": "", "min": 0, "description": "Minimum lineage abundance to include"}),
+                "confirmedonly": ("BOOLEAN", {"default": False, "description": "Remove unconfirmed lineages"}),
+                "wgisaid": ("BOOLEAN", {"default": False, "description": "Use the larger non-public GISAID lineage library"}),
+                "depth_cutoff": ("INT", {"default": 10, "min": 0, "description": "Depth cutoff for coverage estimate"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 
