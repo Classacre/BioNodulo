@@ -13206,6 +13206,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["tracy"],
             "doi": "10.1186/s12864-020-6635-8",
         },
+        "tracy_decompose": {
+            "display_name": "tracy Decompose",
+            "category": "variant",
+            "required_executables": ["tracy", "bgzip"],
+            "required_conda_packages": ["tracy"],
+            "doi": "10.1186/s12864-020-6635-8",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -17488,6 +17495,95 @@ def test_tracy_assemble_renders_trace_assembly_command_outputs_and_validation(tm
     assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "called": -0.1}) == "called must be >= 0"
     assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "gapext": 1}) == "gapext must be <= 0"
     assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1", "input2.scf"], "format": "fastq"}) is True
+
+
+def test_tracy_decompose_renders_heterozygous_decomposition_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("tracy_decompose")
+    info = _registry().object_info()["tracy_decompose"]
+
+    assert info["display_name"] == "tracy Decompose"
+    assert info["description"] == "Decompose heterozygous Sanger chromatogram mutations and optionally call variants with Tracy."
+    assert info["input"]["required"]["genome"][0] == "FILE"
+    assert info["input"]["required"]["tracefile"][0] == "FILE"
+    assert info["input"]["optional"]["index_genome"][1]["default"] is False
+    assert info["input"]["optional"]["callVariants"][1]["default"] is False
+    assert info["input"]["optional"]["optional_outputs"][1]["multiple"] is True
+    assert info["input"]["optional"]["optional_outputs"][1]["options"] == ["json", "tabular"]
+    assert info["output"] == ["FASTA", "FASTA", "FASTA", "JSON", "TSV", "BCF"]
+    assert info["output_name"] == ["allele1", "allele2", "both_alleles", "json", "stats", "variants"]
+    assert info["documentation_url"] == "https://www.gear-genomics.com/docs/tracy/cli/#deconvolution-of-heterozygous-mutations"
+    assert info["citation_dois"] == ["10.1186/s12864-020-6635-8"]
+    assert "Sanger chromatogram trace files" in info["citation_text"]
+    assert "tracy heterozygous deconvolution" in info["search_aliases"]
+    assert node_class.render_command(
+        {
+            "genome": "reference.fa",
+            "tracefile": "input1_r.ab1",
+            "output": "/work/tracy_decompose",
+        }
+    ) == (
+        "tracy decompose --genome reference.fa --pratio 0.33 --kmer 15 --support 3 --maxindel 1000 "
+        "--trim 0 --trimLeft 50 --trimRight 50 --linelimit 60 --gapopen -10 --gapext -4 --match 3 "
+        "--mismatch -5 --output /work/tracy_decompose input1_r.ab1"
+    )
+    assert node_class.render_command(
+        {
+            "genome": "large genome.fa",
+            "tracefile": "trace file.scf",
+            "index_genome": True,
+            "callVariants": True,
+            "pratio": 0.2,
+            "kmer": 17,
+            "support": 4,
+            "maxindel": 500,
+            "trim": 3,
+            "trimLeft": 20,
+            "trimRight": 25,
+            "linelimit": 80,
+            "gapopen": -12,
+            "gapext": -3,
+            "match": 4,
+            "mismatch": -6,
+            "optional_outputs": ["json", "tabular"],
+            "output": "/work/tracy decompose",
+        }
+    ) == (
+        "bgzip -c 'large genome.fa' > '/work/tracy decompose/genome.fasta.gz' && "
+        "tracy index -o '/work/tracy decompose/genome.fasta.fm9' '/work/tracy decompose/genome.fasta.gz' && "
+        "tracy decompose --genome '/work/tracy decompose/genome.fasta.gz' --callVariants --pratio 0.2 --kmer 17 "
+        "--support 4 --maxindel 500 --trim 3 --trimLeft 20 --trimRight 25 --linelimit 80 --gapopen -12 "
+        "--gapext -3 --match 4 --mismatch -6 --output '/work/tracy decompose' 'trace file.scf'"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "tracy_decompose" / "out.align1",
+        tmp_path / "tracy_decompose" / "out.align2",
+        tmp_path / "tracy_decompose" / "out.align3",
+    ]
+    assert node_class.PLAN_OUTPUTS({"callVariants": True, "optional_outputs": ["json", "tabular"]}, tmp_path) == [
+        tmp_path / "tracy_decompose" / "out.align1",
+        tmp_path / "tracy_decompose" / "out.align2",
+        tmp_path / "tracy_decompose" / "out.align3",
+        tmp_path / "tracy_decompose" / "out.json",
+        tmp_path / "tracy_decompose" / "out.abif",
+        tmp_path / "tracy_decompose" / "out.bcf",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "genome is required"
+    assert node_class.VALIDATE_INPUTS({"genome": "reference.fa"}) == "tracefile is required"
+    assert node_class.VALIDATE_INPUTS({"genome": "reference.fa", "tracefile": "trace.ab1", "pratio": "bad"}) == (
+        "pratio must be a number"
+    )
+    assert node_class.VALIDATE_INPUTS({"genome": "reference.fa", "tracefile": "trace.ab1", "kmer": 0}) == (
+        "kmer must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"genome": "reference.fa", "tracefile": "trace.ab1", "gapopen": 1}) == (
+        "gapopen must be <= 0"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "reference.fa", "tracefile": "trace.ab1", "optional_outputs": ["xml"]}
+    ) == "optional_outputs contains unsupported values: xml"
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "reference.fa", "tracefile": "trace.ab1", "optional_outputs": ["json"], "callVariants": True}
+    ) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
