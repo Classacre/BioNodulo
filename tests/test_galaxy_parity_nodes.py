@@ -25701,6 +25701,13 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
     info = _registry().object_info()
 
     expected = {
+        "bcftools_annotate": {
+            "display_name": "BCFtools Annotate",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#annotate",
+            "output": ["VCF_GZ"],
+            "required_executables": ["bcftools", "bgzip", "tabix"],
+            "search_alias": "annotate vcf",
+        },
         "bcftools_concat": {
             "display_name": "BCFtools Concat",
             "documentation_url": "https://www.htslib.org/doc/bcftools.html#concat",
@@ -25744,7 +25751,7 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
         assert node_info["display_name"] == metadata["display_name"]
         assert node_info["category"] == "variant"
         assert node_info["output"] == metadata["output"]
-        assert node_info["required_executables"] == ["bcftools"]
+        assert node_info["required_executables"] == metadata.get("required_executables", ["bcftools"])
         assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
         assert node_info["documentation_url"] == metadata["documentation_url"]
         assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
@@ -25753,6 +25760,176 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
         assert "https://doi.org/10.1093/bioinformatics/btp352" in node_info["citation_urls"]
         assert "Galaxy" in node_info["search_aliases"]
         assert metadata["search_alias"] in node_info["search_aliases"]
+
+
+def test_bcftools_annotate_renders_tabular_annotation_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_annotate")
+
+    assert node_class.render_command(
+        {
+            "input_file": "calls.vcf",
+            "annotation_format": "tab",
+            "annotations": "regions.bed",
+            "columns": "CHROM,FROM,TO,INFO/GENE",
+            "header_file": "gene_header.hdr",
+            "set_id": "+%CHROM\\_%POS\\_%REF\\_%FIRST_ALT",
+            "mark_sites": "+HAS_GENE",
+            "min_overlap": "0.5:0.5",
+            "rename_chrs": "chr_map.tsv",
+            "remove": "INFO/OLD",
+            "rename_annots": "rename_annots.tsv",
+            "collapse": "snps",
+            "regions": "chr1:1-1000",
+            "regions_overlap": "1",
+            "targets": "targets.bed",
+            "targets_overlap": "0",
+            "samples": "S1,S2",
+            "include": "QUAL>30",
+            "exclude": "FILTER='LowQual'",
+            "output_type": "v",
+            "threads": 8,
+            "output": "/work/bcftools_annotate",
+        }
+    ) == [
+        "bgzip",
+        "-c",
+        "regions.bed",
+        ">",
+        "/work/bcftools_annotate/annotations.bed.gz",
+        "&&",
+        "tabix",
+        "-s",
+        "1",
+        "-b",
+        "2",
+        "-e",
+        "3",
+        "/work/bcftools_annotate/annotations.bed.gz",
+        "&&",
+        "bcftools",
+        "annotate",
+        "--columns",
+        "CHROM,FROM,TO,INFO/GENE",
+        "--annotations",
+        "/work/bcftools_annotate/annotations.bed.gz",
+        "--header-lines",
+        "gene_header.hdr",
+        "--set-id",
+        "+%CHROM\\_%POS\\_%REF\\_%FIRST_ALT",
+        "--mark-sites",
+        "+HAS_GENE",
+        "--min-overlap",
+        "0.5:0.5",
+        "--rename-chrs",
+        "chr_map.tsv",
+        "--remove",
+        "INFO/OLD",
+        "--rename-annots",
+        "rename_annots.tsv",
+        "--collapse",
+        "snps",
+        "--regions",
+        "chr1:1-1000",
+        "--regions-overlap",
+        "1",
+        "--targets",
+        "targets.bed",
+        "--targets-overlap",
+        "0",
+        "--samples",
+        "S1,S2",
+        "--include",
+        "QUAL>30",
+        "--exclude",
+        "FILTER='LowQual'",
+        "--output-type",
+        "v",
+        "--threads",
+        "8",
+        "calls.vcf",
+        ">",
+        "/work/bcftools_annotate/annotated.vcf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
+        tmp_path / "bcftools_annotate" / "annotated.vcf",
+    ]
+
+
+def test_bcftools_annotate_renders_vcf_annotation_and_removal_modes(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_annotate")
+
+    assert node_class.render_command(
+        {
+            "input_file": "calls.bcf",
+            "annotation_format": "vcf",
+            "annotations": "annots.vcf",
+            "columns": "ID,QUAL,FILTER,INFO,FMT",
+            "header_lines": '##INFO=<ID=SCORE,Number=1,Type=Float,Description="Score">',
+            "output_type": "b",
+            "output": "/work/bcftools_annotate",
+        }
+    ) == (
+        "cat > /work/bcftools_annotate/annotation.hdr <<'EOF'\n"
+        "##INFO=<ID=SCORE,Number=1,Type=Float,Description=\"Score\">\n"
+        "EOF\n"
+        "bgzip -c annots.vcf > /work/bcftools_annotate/annotations.vcf.gz && "
+        "bcftools index /work/bcftools_annotate/annotations.vcf.gz && "
+        "bcftools annotate --columns ID,QUAL,FILTER,INFO,FMT --annotations "
+        "/work/bcftools_annotate/annotations.vcf.gz --header-lines "
+        "/work/bcftools_annotate/annotation.hdr --output-type b calls.bcf > "
+        "/work/bcftools_annotate/annotated.bcf"
+    )
+
+    assert node_class.render_command(
+        {
+            "input_file": "calls.vcf.gz",
+            "annotation_format": "none",
+            "remove": "FORMAT",
+            "output": "/work/bcftools_annotate",
+        }
+    ) == [
+        "bcftools",
+        "annotate",
+        "--remove",
+        "FORMAT",
+        "--output-type",
+        "z",
+        "calls.vcf.gz",
+        ">",
+        "/work/bcftools_annotate/annotated.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_type": "b"}, tmp_path) == [
+        tmp_path / "bcftools_annotate" / "annotated.bcf",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_annotate" / "annotated.vcf.gz",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "calls.vcf", "annotation_format": "tab"}) == (
+        "annotations is required when annotation_format is tab"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "calls.vcf", "annotation_format": "tab", "annotations": "annots.tsv"}
+    ) == "columns is required when annotation_format is tab"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "calls.vcf", "annotation_format": "none", "output_type": "bad"}
+    ) == "output_type must be one of: b, u, z, v"
+    assert node_class.VALIDATE_INPUTS({"input_file": "calls.vcf", "annotation_format": "bad"}) == (
+        "annotation_format must be one of: none, vcf, tab"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input_file": "calls.vcf",
+                "annotation_format": "tab",
+                "annotations": "annots.tsv",
+                "columns": "CHROM,POS,INFO/TAG",
+            }
+        )
+        is True
+    )
 
 
 def test_bcftools_concat_renders_ligate_overlap_command_and_output(tmp_path: Path) -> None:

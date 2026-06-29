@@ -9256,6 +9256,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bcftools_annotate: {
+    name: 'bcftools_annotate',
+    display_name: 'BCFtools Annotate',
+    category: 'variant',
+    description: 'Annotate and edit VCF/BCF records using BED, tabular, VCF, or BCF annotation sources.',
+    search_aliases: ['Galaxy', 'bcftools', 'annotate', 'annotate vcf', 'edit vcf annotations', 'custom annotation', 'bed annotation', 'remove annotations'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+      optional: {
+        annotation_format: { type: 'STRING', default: 'none', options: ['none', 'vcf', 'tab'] },
+        annotations: { type: 'FILE', default: '' },
+        columns: { type: 'STRING', default: '' },
+        header_lines: { type: 'STRING', default: '' },
+        remove: { type: 'STRING', default: '' },
+        output_type: { type: 'STRING', default: 'z', options: ['b', 'u', 'z', 'v'] },
+        threads: { type: 'INT', default: 4, min: 1, max: 128 },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['annotated_vcf'],
+    required_executables: ['bcftools', 'bgzip', 'tabix'],
+    required_conda_packages: ['bcftools', 'htslib'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#annotate',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   bcftools_concat: {
     name: 'bcftools_concat',
     display_name: 'BCFtools Concat',
@@ -10497,7 +10526,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('359 nodes available')).toBeVisible();
+  await expect(page.getByText('360 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10803,6 +10832,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'linksbed ucsc', name: 'BEDTools LinksBed', category: 'genomics' },
     { query: 'overlapbed custom score', name: 'BEDTools OverlapBed', category: 'genomics' },
     { query: 'tagbed bam tags', name: 'BEDTools TagBed', category: 'genomics' },
+    { query: 'annotate vcf', name: 'BCFtools Annotate', category: 'variant' },
     { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },
     { query: 'consensus fasta', name: 'BCFtools Consensus', category: 'variant' },
     { query: 'extract fields', name: 'BCFtools Query', category: 'variant' },

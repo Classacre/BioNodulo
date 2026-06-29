@@ -584,20 +584,26 @@ def test_bcftools_annotate_is_registered_for_frontend_discovery() -> None:
     info = registry.object_info()
 
     node_info = info["bcftools_annotate"]
-    assert node_info["display_name"] == "bcftools Annotate"
-    assert node_info["category"] == "annotation"
-    assert node_info["description"].startswith("Annotate VCF with custom annotations")
+    assert node_info["display_name"] == "BCFtools Annotate"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Annotate and edit VCF/BCF records")
     assert node_info["output"] == ["VCF_GZ"]
     assert node_info["output_name"] == ["annotated_vcf"]
-    assert node_info["required_executables"] == ["bcftools"]
-    assert node_info["required_conda_packages"] == ["bcftools"]
+    assert node_info["required_executables"] == ["bcftools", "bgzip", "tabix"]
+    assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
+    assert node_info["documentation_url"] == "https://www.htslib.org/doc/bcftools.html#annotate"
+    assert node_info["citation_dois"] == ["10.1093/gigascience/giab008", "10.1093/bioinformatics/btp352"]
     assert "bcftools" in node_info["search_aliases"]
     assert "annotate" in node_info["search_aliases"]
     assert "custom annotation" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"vcf", "annotations"}
-    assert set(inputs["optional"]) == {"columns", "header_lines", "threads"}
+    assert set(inputs["required"]) == {"input_file"}
+    assert "annotations" in inputs["optional"]
+    assert "columns" in inputs["optional"]
+    assert "remove" in inputs["optional"]
+    assert "vcf" in inputs["optional"]
+    assert "annotation_columns" in inputs["optional"]
 
 
 def test_bcftools_annotate_renders_custom_annotation_command() -> None:
@@ -613,25 +619,36 @@ def test_bcftools_annotate_renders_custom_annotation_command() -> None:
     })
 
     assert cmd == [
-        "bcftools",
-        "annotate",
-        "-a",
-        "genes.bed.gz",
+        "bgzip",
         "-c",
-        "CHROM,FROM,TO,GENE",
-        "-h",
-        "genes.hdr",
-        "--threads",
-        "8",
-        "-Oz",
-        "-o",
-        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
-        "variants.vcf.gz",
+        "genes.bed.gz",
+        ">",
+        "/tmp/run/bcftools_annotate/annotations.bed.gz",
+        "&&",
+        "tabix",
+        "-s",
+        "1",
+        "-b",
+        "2",
+        "-e",
+        "3",
+        "/tmp/run/bcftools_annotate/annotations.bed.gz",
         "&&",
         "bcftools",
-        "index",
-        "-t",
-        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
+        "annotate",
+        "--columns",
+        "CHROM,FROM,TO,GENE",
+        "--annotations",
+        "/tmp/run/bcftools_annotate/annotations.bed.gz",
+        "--header-lines",
+        "genes.hdr",
+        "--output-type",
+        "z",
+        "--threads",
+        "8",
+        "variants.vcf.gz",
+        ">",
+        "/tmp/run/bcftools_annotate/annotated.vcf.gz",
     ]
 
 
@@ -647,23 +664,34 @@ def test_bcftools_annotate_omits_empty_optional_flags() -> None:
         "output": "/tmp/run/bcftools_annotate",
     })
 
-    assert "-c" not in cmd
-    assert "-h" not in cmd
+    assert "--columns" not in cmd
+    assert "--header-lines" not in cmd
     assert "--threads" not in cmd
     assert cmd == [
-        "bcftools",
-        "annotate",
-        "-a",
+        "bgzip",
+        "-c",
         "annotations.tsv.gz",
-        "-Oz",
-        "-o",
-        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
-        "variants.vcf.gz",
+        ">",
+        "/tmp/run/bcftools_annotate/annotations.tab.gz",
+        "&&",
+        "tabix",
+        "-s",
+        "1",
+        "-b",
+        "2",
+        "-e",
+        "2",
+        "/tmp/run/bcftools_annotate/annotations.tab.gz",
         "&&",
         "bcftools",
-        "index",
-        "-t",
-        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
+        "annotate",
+        "--annotations",
+        "/tmp/run/bcftools_annotate/annotations.tab.gz",
+        "--output-type",
+        "z",
+        "variants.vcf.gz",
+        ">",
+        "/tmp/run/bcftools_annotate/annotated.vcf.gz",
     ]
 
 
@@ -673,7 +701,7 @@ def test_bcftools_annotate_plans_outputs() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == [
-        "/tmp/run/bcftools_annotate/annotated_vcf.vcf.gz",
+        "/tmp/run/bcftools_annotate/annotated.vcf.gz",
     ]
 
 
