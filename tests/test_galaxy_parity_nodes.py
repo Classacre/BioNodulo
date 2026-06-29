@@ -13080,6 +13080,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["evidencemodeler"],
             "doi": "10.1186/gb-2008-9-1-r7",
         },
+        "comebin": {
+            "display_name": "COMEBin",
+            "category": "metagenomics",
+            "required_executables": ["run_comebin.sh"],
+            "required_conda_packages": ["comebin"],
+            "doi": "10.1038/s41467-023-44290-z",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16058,6 +16065,61 @@ def test_evidencemodeler_renders_gene_structure_command_outputs_and_validation(t
             "input_proteins": "protein.gff3",
         }
     ) is True
+
+
+def test_comebin_renders_binning_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("comebin")
+    info = _registry().object_info()["comebin"]
+
+    assert info["output"] == ["DIRECTORY"]
+    assert info["output_name"] == ["bins"]
+    assert info["input"]["required"]["assembly_file"][0] == "FASTA"
+    assert info["input"]["required"]["bam_files"][1]["multiple"] is True
+    assert "10.1038/s41467-023-44290-z" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "assembly_file": "assembly file.fa",
+            "assembly_identifier": "Sample Assembly 1",
+            "bam_files": ["sample A.bam", "sample/B.bam"],
+            "bam_identifiers": ["sample A", "sample/B"],
+            "learning": 8,
+            "loss": 0.07,
+            "emb_comebin": 1024,
+            "emb_cov": 512,
+            "batch": 256,
+            "threads": 10,
+            "output": "/work/comebin",
+        }
+    ) == (
+        "mkdir -p /work/comebin outputs bam_files && ln -s 'assembly file.fa' Sample_Assembly_1.fasta && "
+        "ln -s 'sample A.bam' ./bam_files/sample_A.bam && ln -s sample/B.bam ./bam_files/sample_B.bam && "
+        "run_comebin.sh -a Sample_Assembly_1.fasta -o outputs -p bam_files -t ${GALAXY_SLOTS:-10} "
+        "-l 0.07 -n 8 -e 1024 -c 512 -b 256 && cp -r outputs/comebin_res/comebin_res_bins /work/comebin/bins"
+    )
+    assert node_class.render_command(
+        {
+            "assembly_file": "assembly.fa",
+            "bam_files": "sample.bam",
+            "output": "/work/comebin",
+        }
+    ) == (
+        "mkdir -p /work/comebin outputs bam_files && ln -s assembly.fa assembly.fa.fasta && "
+        "ln -s sample.bam ./bam_files/sample.bam && run_comebin.sh -a assembly.fa.fasta -o outputs -p bam_files "
+        "-t ${GALAXY_SLOTS:-12} -l 0.15 -n 6 -e 2048 -c 2048 -b 1024 && "
+        "cp -r outputs/comebin_res/comebin_res_bins /work/comebin/bins"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "comebin" / "bins",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "assembly_file is required"
+    assert node_class.VALIDATE_INPUTS({"assembly_file": "assembly.fa"}) == "at least one BAM file is required"
+    assert node_class.VALIDATE_INPUTS({"assembly_file": "assembly.fa", "bam_files": ["sample.bam"], "learning": 0}) == (
+        "learning must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"assembly_file": "assembly.fa", "bam_files": ["sample.bam"], "loss": 0}) == (
+        "loss must be > 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"assembly_file": "assembly.fa", "bam_files": ["sample.bam"]}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

@@ -5595,6 +5595,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/gb-2008-9-1-r7', 'https://doi.org/10.1080/21501203.2011.606851'],
     citation_text: 'Automated eukaryotic gene structure annotation using EVidenceModeler and the Program to Assemble Spliced Alignments; Eukaryotic genome annotation using EVidenceModeler and the Program to Assemble Spliced Alignments.',
   },
+  comebin: {
+    name: 'comebin',
+    display_name: 'COMEBin',
+    category: 'metagenomics',
+    description: 'Bin metagenomic contigs using contrastive multi-view representation learning with COMEBin.',
+    search_aliases: ['Galaxy', 'COMEBin', 'COMEBin metagenomic binning', 'contrastive multi-view binning', 'metagenome bins', 'contig binning', 'coverage embeddings'],
+    input: {
+      required: {
+        assembly_file: { type: 'FASTA' },
+        bam_files: { type: 'BAM_LIST', multiple: true },
+      },
+      optional: {
+        assembly_identifier: { type: 'STRING', default: '' },
+        bam_identifiers: { type: 'STRING', default: [], multiple: true },
+        learning: { type: 'INT', default: 6 },
+        loss: { type: 'FLOAT', default: 0.15 },
+        emb_comebin: { type: 'INT', default: 2048 },
+        emb_cov: { type: 'INT', default: 2048 },
+        batch: { type: 'INT', default: 1024 },
+        threads: { type: 'INT', default: 12 },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['bins'],
+    required_executables: ['run_comebin.sh'],
+    required_conda_packages: ['comebin'],
+    documentation_url: 'https://github.com/ziyewang/COMEBin',
+    citation_dois: ['10.1038/s41467-023-44290-z'],
+    citation_urls: ['https://doi.org/10.1038/s41467-023-44290-z'],
+    citation_text: 'COMEBin enables accurate and robust binning of metagenomic contigs using contrastive multi-view representation learning.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8340,7 +8371,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('296 nodes available')).toBeVisible();
+  await expect(page.getByText('297 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8517,6 +8548,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'graphlan circular tree rendering', name: 'GraPhlAn', category: 'visualization' },
     { query: 'exonerate pairwise sequence comparison', name: 'Exonerate', category: 'alignment' },
     { query: 'EvidenceModeler gene structure consensus', name: 'EVidenceModeler', category: 'annotation' },
+    { query: 'COMEBin metagenomic binning', name: 'COMEBin', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

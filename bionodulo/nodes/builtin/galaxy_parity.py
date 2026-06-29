@@ -24788,6 +24788,138 @@ class EvidenceModelerNode(CommandNode):
         return super().VALIDATE_INPUTS(inputs)
 
 
+class COMEBinNode(CommandNode):
+    """Bin metagenomic contigs with COMEBin."""
+
+    NODE_ID = "comebin"
+    DISPLAY_NAME = "COMEBin"
+    REQUIRED_CONDA_PACKAGES = ["comebin"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Bin metagenomic contigs using contrastive multi-view representation learning with COMEBin."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "COMEBin",
+        "COMEBin metagenomic binning",
+        "contrastive multi-view binning",
+        "metagenome bins",
+        "contig binning",
+        "coverage embeddings",
+    ]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("bins",)
+    REQUIRED_EXECUTABLES = ["run_comebin.sh"]
+    DOCUMENTATION_URL = "https://github.com/ziyewang/COMEBin"
+    CITATION_DOIS = ["10.1038/s41467-023-44290-z"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/s41467-023-44290-z"]
+    CITATION_TEXT = "COMEBin enables accurate and robust binning of metagenomic contigs using contrastive multi-view representation learning."
+    VERSION = "1.0.4"
+    SHELL = True
+
+    @classmethod
+    def _bam_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("bam_files"))
+
+    @classmethod
+    def _assembly_identifier(cls, inputs: dict[str, Any]) -> str:
+        return _safe_identifier(str(inputs.get("assembly_identifier", Path(str(inputs.get("assembly_file", "assembly"))).name or "assembly")))
+
+    @classmethod
+    def _bam_identifiers(cls, inputs: dict[str, Any], bam_files: list[str]) -> list[str]:
+        identifiers = _as_list(inputs.get("bam_identifiers"))
+        if identifiers:
+            return [_safe_identifier(identifier) for identifier in identifiers]
+        return [_safe_identifier(Path(path).stem) for path in bam_files]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        bam_files = cls._bam_files(inputs)
+        assembly = f"{cls._assembly_identifier(inputs)}.fasta"
+        commands = [
+            _shell_join(["mkdir", "-p", out, "outputs", "bam_files"]),
+            _shell_join(["ln", "-s", str(inputs.get("assembly_file", "")), assembly]),
+        ]
+        for path, identifier in zip(bam_files, cls._bam_identifiers(inputs, bam_files), strict=False):
+            commands.append(_shell_join(["ln", "-s", path, f"./bam_files/{identifier}.bam"]))
+        cmd = [
+            "run_comebin.sh",
+            "-a",
+            assembly,
+            "-o",
+            "outputs",
+            "-p",
+            "bam_files",
+            "-t",
+            f"${{GALAXY_SLOTS:-{inputs.get('threads', 12)}}}",
+            "-l",
+            str(inputs.get("loss", 0.15)),
+            "-n",
+            str(inputs.get("learning", 6)),
+            "-e",
+            str(inputs.get("emb_comebin", 2048)),
+            "-c",
+            str(inputs.get("emb_cov", 2048)),
+            "-b",
+            str(inputs.get("batch", 1024)),
+        ]
+        commands.append(_shell_join(cmd).replace("'${GALAXY_SLOTS:-", "${GALAXY_SLOTS:-").replace("}'", "}"))
+        commands.append(_shell_join(["cp", "-r", "outputs/comebin_res/comebin_res_bins", f"{out}/bins"]))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        (out / "bins").mkdir(parents=True, exist_ok=True)
+        return [out / "bins"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "assembly_file": ("FASTA", {"description": "Metagenomic assembly FASTA"}),
+                "bam_files": ("BAM_LIST", {"multiple": True, "description": "BAM files aligned to the assembly"}),
+            },
+            "optional": {
+                "assembly_identifier": (
+                    "STRING",
+                    {"default": "", "advanced": True, "description": "Galaxy collection element identifier for the assembly"},
+                ),
+                "bam_identifiers": (
+                    "STRING",
+                    {"default": [], "multiple": True, "advanced": True, "description": "Galaxy collection element identifiers for BAMs"},
+                ),
+                "learning": ("INT", {"default": 6, "min": 1, "description": "Views for contrastive multi-view learning"}),
+                "loss": ("FLOAT", {"default": 0.15, "min": 0, "description": "Temperature in the contrastive loss function"}),
+                "emb_comebin": ("INT", {"default": 2048, "min": 1, "description": "Embedding size for the COMEBin network"}),
+                "emb_cov": ("INT", {"default": 2048, "min": 1, "description": "Embedding size for the coverage network"}),
+                "batch": ("INT", {"default": 1024, "min": 1, "description": "Batch size"}),
+                "threads": ("INT", {"default": 12, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("assembly_file", "")).strip():
+            return "assembly_file is required"
+        if not cls._bam_files(inputs):
+            return "at least one BAM file is required"
+        for name in ["learning", "emb_comebin", "emb_cov", "batch", "threads"]:
+            raw = inputs.get(name)
+            if raw is None or str(raw) == "":
+                continue
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < 1:
+                return f"{name} must be >= 1"
+        loss = float(inputs.get("loss", 0.15))
+        if loss <= 0:
+            return "loss must be > 0"
+        return super().VALIDATE_INPUTS(inputs)
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 
