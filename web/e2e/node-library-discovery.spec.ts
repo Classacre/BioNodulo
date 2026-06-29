@@ -1052,6 +1052,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.244293.118'],
     citation_text: 'Accurate analysis of genuine CRISPR editing events with ampliCan. Genome Research.',
   },
+  angsd: {
+    name: 'angsd',
+    display_name: 'ANGSD',
+    category: 'population_genetics',
+    description: 'Extract internal counts for ANGSD X-contamination analysis.',
+    search_aliases: ['Galaxy', 'ANGSD', 'angsd', 'ANGSD internal counts', 'X-contamination', 'low coverage sequencing', 'population genetics', 'BAM internal counts'],
+    input: {
+      required: {
+        input_bams: { type: 'BAM', multiple: true },
+        region: { type: 'STRING' },
+      },
+      optional: {
+        bam_indices: { type: 'FILE', default: [], multiple: true },
+        min_mapq: { type: 'INT', default: 20, min: 0 },
+        min_q: { type: 'INT', default: 20, min: 0 },
+        threads: { type: 'INT', default: 1, min: 1, max: 128 },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['internal_counts'],
+    required_executables: ['angsd', 'samtools'],
+    required_conda_packages: ['angsd', 'samtools'],
+    documentation_url: 'http://www.popgen.dk/angsd/index.php/ANGSD',
+    citation_dois: ['10.1186/s12859-014-0356-4', '10.7717/peerj.10947'],
+    citation_urls: ['https://doi.org/10.1186/s12859-014-0356-4', 'https://doi.org/10.7717/peerj.10947'],
+    citation_text: 'ANGSD: Analysis of Next Generation Sequencing Data; Reproducible, portable, and efficient ancient genome reconstruction with nf-core/eager.',
+  },
   plasflow: {
     name: 'plasflow',
     display_name: 'PlasFlow',
@@ -9267,7 +9294,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('321 nodes available')).toBeVisible();
+  await expect(page.getByText('322 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9315,6 +9342,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },
     { query: 'SOLiD read simulator', name: 'ART SOLiD', category: 'simulation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
+    { query: 'ANGSD internal counts', name: 'ANGSD', category: 'population_genetics' },
     { query: 'noisy long reads', name: 'Miniasm', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },

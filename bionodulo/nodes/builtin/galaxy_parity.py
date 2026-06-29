@@ -7464,6 +7464,158 @@ class AmpliCanNode(CommandNode):
         }
 
 
+ANGSD_CITATION_DOIS = ["10.1186/s12859-014-0356-4", "10.7717/peerj.10947"]
+ANGSD_CITATION_TEXT = (
+    "ANGSD: Analysis of Next Generation Sequencing Data; "
+    "Reproducible, portable, and efficient ancient genome reconstruction with nf-core/eager."
+)
+
+
+class ANGSDNode(CommandNode):
+    """Generate ANGSD internal counts for X-contamination analysis."""
+
+    NODE_ID = "angsd"
+    DISPLAY_NAME = "ANGSD"
+    REQUIRED_CONDA_PACKAGES = ["angsd", "samtools"]
+    CATEGORY = "population_genetics"
+    DESCRIPTION = "Extract internal counts for ANGSD X-contamination analysis."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ANGSD",
+        "angsd",
+        "ANGSD internal counts",
+        "X-contamination",
+        "low coverage sequencing",
+        "population genetics",
+        "BAM internal counts",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("internal_counts",)
+    REQUIRED_EXECUTABLES = ["angsd", "samtools"]
+    DOCUMENTATION_URL = "http://www.popgen.dk/angsd/index.php/ANGSD"
+    CITATION_DOIS = ANGSD_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in ANGSD_CITATION_DOIS]
+    CITATION_TEXT = ANGSD_CITATION_TEXT
+    VERSION = "0.940+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _bam_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("input_bams"))
+
+    @classmethod
+    def _bam_indices(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("bam_indices"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        bam_filelist = f"{out}/bam.filelist"
+        commands = [_shell_join(["mkdir", "-p", out]), f"touch {shlex.quote(bam_filelist)}"]
+        bam_indices = cls._bam_indices(inputs)
+        for index, bam in enumerate(cls._bam_files(inputs)):
+            staged_bam = f"{out}/sample_{index}.bam"
+            commands.append(_shell_join(["ln", "-s", bam, staged_bam]))
+            if bam_indices:
+                commands.append(_shell_join(["ln", "-s", bam_indices[index], f"{staged_bam}.bai"]))
+            else:
+                commands.append(_shell_join(["samtools", "index", staged_bam]))
+            commands.append(f"echo {shlex.quote(staged_bam)} >> {shlex.quote(bam_filelist)}")
+        slots = f"${{GALAXY_SLOTS:-{inputs.get('threads', 1)}}}"
+        cmd = [
+            "angsd",
+            "-bam",
+            bam_filelist,
+            "-out",
+            f"{out}/output",
+            "-nThreads",
+            slots,
+            "-doCounts",
+            "1",
+            "-iCounts",
+            "1",
+            "-minMapQ",
+            str(inputs.get("min_mapq", 20)),
+            "-minQ",
+            str(inputs.get("min_q", 20)),
+            "-r",
+            str(inputs.get("region", "")),
+        ]
+        commands.append(_shell_join(cmd).replace(shlex.quote(slots), slots))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.icnts.gz"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        input_bams = cls._bam_files(inputs)
+        if not input_bams:
+            return "at least one input BAM is required"
+        region = str(inputs.get("region", "")).strip()
+        if not region:
+            return "region is required"
+        if not re.fullmatch(r"[\w\d\._:-]+", region):
+            return "region format must be like 'chr' or 'chr:start-end'"
+        bam_indices = cls._bam_indices(inputs)
+        if bam_indices and len(bam_indices) != len(input_bams):
+            return "bam_indices must be empty or match input_bams length"
+        for name, default, minimum in (
+            ("min_mapq", 20, 0),
+            ("min_q", 20, 0),
+            ("threads", 1, 1),
+        ):
+            try:
+                value = int(inputs.get(name, default))
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < minimum:
+                return f"{name} must be >= {minimum}"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bams": ("BAM", {"multiple": True, "description": "Coordinate-sorted BAM files"}),
+                "region": (
+                    "STRING",
+                    {
+                        "description": "Target region in ANGSD format, such as chr or chr:start-end",
+                        "regex": r"^[\w\d\._:-]+$",
+                    },
+                ),
+            },
+            "optional": {
+                "bam_indices": (
+                    "FILE",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "advanced": True,
+                        "description": "Optional BAM index files aligned with input_bams",
+                    },
+                ),
+                "min_mapq": (
+                    "INT",
+                    {"default": 20, "min": 0, "description": "Discard reads below this mapping quality"},
+                ),
+                "min_q": (
+                    "INT",
+                    {"default": 20, "min": 0, "description": "Discard bases below this quality"},
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "description": "ANGSD thread count"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 MINIASM_CITATION_DOI = "10.1093/bioinformatics/btw152"
 MINIASM_CITATION_TEXT = "Minimap and miniasm: fast mapping and de novo assembly for noisy long sequences."
 

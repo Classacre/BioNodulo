@@ -206,6 +206,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["bioconductor-amplican"],
             "doi": "10.1101/gr.244293.118",
         },
+        "angsd": {
+            "display_name": "ANGSD",
+            "category": "population_genetics",
+            "required_executables": ["angsd", "samtools"],
+            "required_conda_packages": ["angsd", "samtools"],
+            "doi": "10.1186/s12859-014-0356-4",
+        },
         "assembly_stats": {
             "display_name": "Assembly Stats",
             "category": "assembly",
@@ -4938,6 +4945,94 @@ def test_amplican_reduced_outputs_and_validation(tmp_path: Path) -> None:
         {"config_file": "config.csv", "fastq_files": ["reads.fastq"], "outputs": ["bad"]}
     ) == "outputs contains unsupported values: bad"
     assert node_class.VALIDATE_INPUTS({"config_file": "config.csv", "fastq_files": ["reads.fastq"]}) is True
+
+
+def test_angsd_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["angsd"]
+
+    assert info["display_name"] == "ANGSD"
+    assert info["category"] == "population_genetics"
+    assert info["description"] == "Extract internal counts for ANGSD X-contamination analysis."
+    assert info["input"]["required"]["input_bams"][0] == "BAM"
+    assert info["input"]["required"]["input_bams"][1]["multiple"] is True
+    assert info["input"]["required"]["region"][0] == "STRING"
+    assert info["input"]["optional"]["bam_indices"][0] == "FILE"
+    assert info["input"]["optional"]["bam_indices"][1]["multiple"] is True
+    assert info["input"]["optional"]["min_mapq"][1]["default"] == 20
+    assert info["input"]["optional"]["min_q"][1]["default"] == 20
+    assert info["input"]["optional"]["threads"][1]["default"] == 1
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["internal_counts"]
+    assert info["required_executables"] == ["angsd", "samtools"]
+    assert info["required_conda_packages"] == ["angsd", "samtools"]
+    assert info["documentation_url"] == "http://www.popgen.dk/angsd/index.php/ANGSD"
+    assert info["citation_dois"] == ["10.1186/s12859-014-0356-4", "10.7717/peerj.10947"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1186/s12859-014-0356-4",
+        "https://doi.org/10.7717/peerj.10947",
+    ]
+    assert "ANGSD: Analysis of Next Generation Sequencing Data" in info["citation_text"]
+    assert "nf-core/eager" in info["citation_text"]
+    assert "ANGSD internal counts" in info["search_aliases"]
+
+
+def test_angsd_renders_internal_counts_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("angsd")
+
+    command = node_class.render_command(
+        {
+            "input_bams": ["sample A.bam", "sampleB.bam"],
+            "bam_indices": ["sample A.bam.bai", "sampleB.bam.bai"],
+            "min_mapq": 30,
+            "min_q": 25,
+            "region": "X:5000000-154900000",
+            "threads": 4,
+            "output": "/work/angsd",
+        }
+    )
+    assert command == (
+        "mkdir -p /work/angsd && touch /work/angsd/bam.filelist && "
+        "ln -s 'sample A.bam' /work/angsd/sample_0.bam && "
+        "ln -s 'sample A.bam.bai' /work/angsd/sample_0.bam.bai && "
+        "echo /work/angsd/sample_0.bam >> /work/angsd/bam.filelist && "
+        "ln -s sampleB.bam /work/angsd/sample_1.bam && "
+        "ln -s sampleB.bam.bai /work/angsd/sample_1.bam.bai && "
+        "echo /work/angsd/sample_1.bam >> /work/angsd/bam.filelist && "
+        "angsd -bam /work/angsd/bam.filelist -out /work/angsd/output -nThreads ${GALAXY_SLOTS:-4} "
+        "-doCounts 1 -iCounts 1 -minMapQ 30 -minQ 25 -r X:5000000-154900000"
+    )
+
+    command_without_indices = node_class.render_command(
+        {
+            "input_bams": ["sample.bam"],
+            "min_mapq": 20,
+            "min_q": 20,
+            "region": "chr1",
+            "output": "/work/angsd",
+        }
+    )
+    assert "samtools index /work/angsd/sample_0.bam" in command_without_indices
+    assert "-nThreads ${GALAXY_SLOTS:-1}" in command_without_indices
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "angsd" / "output.icnts.gz"]
+    assert node_class.VALIDATE_INPUTS({"input_bams": [], "region": "chr1"}) == "at least one input BAM is required"
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "region": ""}) == "region is required"
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "region": "chr 1"}) == (
+        "region format must be like 'chr' or 'chr:start-end'"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "region": "chr1", "min_mapq": -1}) == (
+        "min_mapq must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "region": "chr1", "min_q": -1}) == (
+        "min_q must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "region": "chr1", "threads": 0}) == (
+        "threads must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_bams": ["sample.bam", "sample2.bam"], "bam_indices": ["sample.bam.bai"], "region": "chr1"}
+    ) == "bam_indices must be empty or match input_bams length"
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "region": "chr1"}) is True
 
 
 def test_miniasm_exposes_galaxy_metadata_and_citation() -> None:
