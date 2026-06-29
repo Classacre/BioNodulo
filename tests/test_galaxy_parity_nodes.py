@@ -3770,6 +3770,86 @@ def test_trimn_galaxy_id_inherits_validation() -> None:
     assert node_class.VALIDATE_INPUTS({"fasta_in": ""}) == "fasta_in is required"
 
 
+def test_barrnap_exposes_galaxy_metadata_inputs_and_citation_url() -> None:
+    node_info = _registry().object_info()["barrnap"]
+
+    assert node_info["display_name"] == "barrnap"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Locate 5S, 16S, and 23S")
+    assert node_info["output"] == ["GFF", "FASTA"]
+    assert node_info["output_name"] == ["rrna_gff", "rrna_sequences"]
+    assert node_info["required_executables"] == ["barrnap"]
+    assert node_info["required_conda_packages"] == ["barrnap"]
+    assert node_info["documentation_url"] == "https://github.com/tseemann/barrnap"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/tseemann/barrnap"]
+    assert "rapid ribosomal RNA prediction" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "rRNA prediction" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["fasta_file"][0] == "FASTA"
+    assert node_info["input"]["optional"]["kingdom"][1]["options"] == ["bac", "euk", "mito", "arc"]
+
+
+def test_barrnap_renders_default_gff_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("barrnap")
+
+    assert node_class.render_command(
+        {
+            "fasta_file": "contigs.fa",
+            "kingdom": "bac",
+            "output": "/work/barrnap",
+        }
+    ) == (
+        "ln -s contigs.fa /work/barrnap/query.fa && "
+        "barrnap --quiet --threads ${GALAXY_SLOTS:-1} --reject 0.5 "
+        "--lencutoff 0.8 --evalue 1e-06 --kingdom bac /work/barrnap/query.fa "
+        "> /work/barrnap/rrna.gff3"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "barrnap" / "rrna.gff3"]
+
+
+def test_barrnap_renders_incseq_and_optional_fasta_output(tmp_path: Path) -> None:
+    node_class = _node_class("barrnap")
+
+    assert node_class.render_command(
+        {
+            "fasta_file": "assembly with spaces.fasta",
+            "kingdom": "euk",
+            "reject": 0.6,
+            "lencutoff": 0.9,
+            "evalue": "1e-08",
+            "incseq": True,
+            "outseq": True,
+            "output": "/work/barrnap",
+        }
+    ) == (
+        "ln -s 'assembly with spaces.fasta' /work/barrnap/query.fa && "
+        "barrnap --quiet --threads ${GALAXY_SLOTS:-1} --reject 0.6 "
+        "--lencutoff 0.9 --evalue 1e-08 --incseq --outseq "
+        "/work/barrnap/rrna_sequences.fasta --kingdom euk /work/barrnap/query.fa "
+        "> /work/barrnap/rrna.gff3"
+    )
+    assert node_class.PLAN_OUTPUTS({"outseq": True}, tmp_path) == [
+        tmp_path / "barrnap" / "rrna.gff3",
+        tmp_path / "barrnap" / "rrna_sequences.fasta",
+    ]
+
+
+def test_barrnap_validates_inputs_and_numeric_thresholds() -> None:
+    node_class = _node_class("barrnap")
+
+    assert node_class.VALIDATE_INPUTS({}) == "fasta_file is required"
+    assert node_class.VALIDATE_INPUTS({"fasta_file": "contigs.fa", "kingdom": "bad"}) == (
+        "kingdom must be one of: bac, euk, mito, arc"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_file": "contigs.fa", "reject": -0.1}) == "reject must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"fasta_file": "contigs.fa", "lencutoff": 1.5}) == (
+        "lencutoff must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"fasta_file": "contigs.fa", "evalue": "nope"}) == "evalue must be a number"
+    assert node_class.VALIDATE_INPUTS({"fasta_file": "contigs.fa"}) is True
+
+
 def test_assembly_stats_exposes_galaxy_aligned_outputs() -> None:
     info = _registry().object_info()["assembly_stats"]
 

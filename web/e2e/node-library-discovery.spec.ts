@@ -1108,6 +1108,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41598-021-91456-0'],
     citation_text: 'AMRFinderPlus and the Reference Gene Catalog facilitate examination of the genomic links among antimicrobial resistance, stress response, and virulence.',
   },
+  barrnap: {
+    name: 'barrnap',
+    display_name: 'barrnap',
+    category: 'annotation',
+    description: 'Locate 5S, 16S, and 23S ribosomal RNA genes in FASTA sequences and emit GFF3 annotations.',
+    search_aliases: ['Galaxy', 'barrnap', 'BActerial Ribosomal RNA Predictor', 'rRNA prediction', 'ribosomal RNA', '5S 16S 23S', 'GFF3 rRNA', 'NHMMER'],
+    input: {
+      required: {
+        fasta_file: { type: 'FASTA' },
+      },
+      optional: {
+        kingdom: { type: 'STRING', default: 'bac', options: ['bac', 'euk', 'mito', 'arc'] },
+        reject: { type: 'FLOAT', default: 0.5, min: 0, max: 1 },
+        lencutoff: { type: 'FLOAT', default: 0.8, min: 0, max: 1 },
+        evalue: { type: 'FLOAT', default: 1e-6, min: 0 },
+        incseq: { type: 'BOOLEAN', default: false },
+        outseq: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['GFF', 'FASTA'],
+    output_name: ['rrna_gff', 'rrna_sequences'],
+    required_executables: ['barrnap'],
+    required_conda_packages: ['barrnap'],
+    documentation_url: 'https://github.com/tseemann/barrnap',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/barrnap'],
+    citation_text: 'barrnap: rapid ribosomal RNA prediction.',
+  },
   checkm2: {
     name: 'checkm2',
     display_name: 'CheckM2',
@@ -11387,7 +11415,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('391 nodes available')).toBeVisible();
+  await expect(page.getByText('392 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11439,6 +11467,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'DNA to protein', name: 'SeqKit Translate', category: 'sequence' },
     { query: 'split by length', name: 'SeqKit Split2', category: 'sequence' },
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
+    { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
