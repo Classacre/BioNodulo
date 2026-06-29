@@ -3187,6 +3187,59 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/molbev/msz197'],
     citation_text: 'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies.',
   },
+  hyphy_fade: {
+    name: 'hyphy_fade',
+    display_name: 'HyPhy-FADE',
+    category: 'phylogeny',
+    description: 'Test a protein alignment for directional selection with HyPhy FADE.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'FADE',
+      'FUBAR Approach to Directional Evolution',
+      'directional selection',
+      'protein alignment',
+      'amino acid substitution bias',
+      'empirical Bayes factor',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE', default: '' },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        branch_sel: { type: 'STRING', default: 'All', options: ['All', 'Internal', 'Leaves', 'Unlabeled-branches', 'specify'] },
+        branch_label: { type: 'STRING', default: '' },
+        model: {
+          type: 'STRING',
+          default: 'GTR',
+          options: ['LG', 'WAG', 'JTT', 'JC69', 'mtMet', 'mtVer', 'mtInv', 'gcpREV', 'HIVBm', 'HIVWm', 'GTR'],
+        },
+        method: {
+          type: 'STRING',
+          default: 'Variational-Bayes',
+          options: ['Variational-Bayes', 'Metropolis-Hastings', 'Collapsed-Gibbs'],
+        },
+        grid: { type: 'INT', default: 20 },
+        concentration_parameter: { type: 'FLOAT', default: 0.5 },
+        chains: { type: 'INT', default: 5 },
+        chain_length: { type: 'INT', default: 2000000 },
+        burn_in: { type: 'INT', default: 1000000 },
+        samples: { type: 'INT', default: 100 },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['fade_output', 'fade_md_report'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://hyphy.org/methods/selection-methods/#FADE',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/mst030'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/mst030'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6157,7 +6210,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('232 nodes available')).toBeVisible();
+  await expect(page.getByText('233 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6263,6 +6316,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Contrast-FEL branch sets', name: 'HyPhy-CFEL', category: 'phylogeny' },
     { query: 'CodonToProtein amino acid translation', name: 'HyPhy-Conv', category: 'phylogeny' },
     { query: 'CleanStopCodons duplicate sequences', name: 'HyPhy-CLN', category: 'phylogeny' },
+    { query: 'directional selection', name: 'HyPhy-FADE', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

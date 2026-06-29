@@ -604,6 +604,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/bioinformatics/btn313",
         },
+        "hyphy_fade": {
+            "display_name": "HyPhy-FADE",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/mst030",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -7899,6 +7906,187 @@ def test_hyphy_bgm_validates_wrapper_inputs() -> None:
             "parents": 1,
             "min_subs": 1,
             "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_fade_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_fade"]
+
+    assert info["display_name"] == "HyPhy-FADE"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Test a protein alignment for directional selection with HyPhy FADE."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "FADE",
+        "FUBAR Approach to Directional Evolution",
+        "directional selection",
+        "protein alignment",
+        "amino acid substitution bias",
+        "empirical Bayes factor",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["fade_output", "fade_md_report"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://hyphy.org/methods/selection-methods/#FADE"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/molbev/mst030"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/mst030",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Protein alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["branch_sel"][1]["default"] == "All"
+    assert info["input"]["optional"]["branch_sel"][1]["options"] == [
+        "All",
+        "Internal",
+        "Leaves",
+        "Unlabeled-branches",
+        "specify",
+    ]
+    assert info["input"]["optional"]["model"][1]["default"] == "GTR"
+    assert info["input"]["optional"]["model"][1]["options"] == [
+        "LG",
+        "WAG",
+        "JTT",
+        "JC69",
+        "mtMet",
+        "mtVer",
+        "mtInv",
+        "gcpREV",
+        "HIVBm",
+        "HIVWm",
+        "GTR",
+    ]
+    assert info["input"]["optional"]["method"][1]["default"] == "Variational-Bayes"
+    assert info["input"]["optional"]["method"][1]["options"] == [
+        "Variational-Bayes",
+        "Metropolis-Hastings",
+        "Collapsed-Gibbs",
+    ]
+    assert info["input"]["optional"]["grid"][1]["default"] == 20
+    assert info["input"]["optional"]["concentration_parameter"][1]["default"] == 0.5
+    assert info["input"]["optional"]["chains"][1]["default"] == 5
+    assert info["input"]["optional"]["chain_length"][1]["default"] == 2000000
+    assert info["input"]["optional"]["burn_in"][1]["default"] == 1000000
+    assert info["input"]["optional"]["samples"][1]["default"] == 100
+
+
+def test_hyphy_fade_renders_default_variational_bayes_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_fade")
+
+    assert node_class.render_command(
+        {
+            "input_file": "fade-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "fade-in1.nhx",
+            "output": "/work/hyphy_fade",
+        }
+    ) == (
+        "ln -s fade-in1.nhx input.nhx && "
+        "ln -s fade-in1.fa input.fasta && "
+        "hyphy fade --alignment input.fasta --tree input.nhx --branches All "
+        "--model GTR --method Variational-Bayes --grid 20 --concentration_parameter 0.5 "
+        "--output /work/hyphy_fade/fade_output.json > /work/hyphy_fade/fade_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_fade" / "fade_output.json",
+        tmp_path / "hyphy_fade" / "fade_stdout.md",
+    ]
+
+
+def test_hyphy_fade_renders_mcmc_command_with_custom_branch_without_tree() -> None:
+    node_class = _node_class("hyphy_fade")
+
+    command = node_class.render_command(
+        {
+            "input_file": "protein alignment.nex",
+            "input_ext": "nex",
+            "branch_sel": "specify",
+            "branch_label": "Directional clade",
+            "model": "WAG",
+            "method": "Metropolis-Hastings",
+            "chains": 7,
+            "chain_length": 3000000,
+            "burn_in": 1200000,
+            "samples": 250,
+            "grid": 35,
+            "concentration_parameter": 0.75,
+            "output": "/work/hyphy_fade",
+        }
+    )
+
+    assert command == (
+        "ln -s 'protein alignment.nex' input.nex && "
+        "hyphy fade --alignment input.nex --branches 'Directional clade' "
+        "--model WAG --method Metropolis-Hastings --chains 7 --chain-length 3000000 "
+        "--burn-in 1200000 --samples 250 --grid 35 --concentration_parameter 0.75 "
+        "--output /work/hyphy_fade/fade_output.json > /work/hyphy_fade/fade_stdout.md"
+    )
+    assert "--tree" not in command
+
+
+def test_hyphy_fade_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_fade")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-FADE protein alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "input_ext": "stockholm"}) == (
+        "Unsupported HyPhy-FADE input extension: stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "Foreground"}) == (
+        "Unsupported HyPhy-FADE branch selection: Foreground"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "specify"}) == (
+        "HyPhy-FADE custom branch selection requires a branch label"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "model": "PAM250"}) == (
+        "Unsupported HyPhy-FADE amino-acid substitution model: PAM250"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "method": "Bootstrap"}) == (
+        "Unsupported HyPhy-FADE posterior estimation method: Bootstrap"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "grid": 4}) == (
+        "HyPhy-FADE grid points must be between 5 and 50"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "concentration_parameter": 1.5}) == (
+        "HyPhy-FADE concentration parameter must be between 0.001 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "method": "Metropolis-Hastings", "chains": 1}) == (
+        "HyPhy-FADE chains must be between 2 and 20"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "method": "Collapsed-Gibbs", "chain_length": 499999}
+    ) == "HyPhy-FADE chain length must be between 500000 and 50000000"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "method": "Collapsed-Gibbs", "burn_in": 99999}
+    ) == "HyPhy-FADE burn-in samples must be between 100000 and 1900000"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "method": "Collapsed-Gibbs", "samples": 49}) == (
+        "HyPhy-FADE samples per chain must be between 50 and 1000000"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "input_ext": "fasta",
+            "branch_sel": "Internal",
+            "model": "GTR",
+            "method": "Variational-Bayes",
+            "grid": 20,
+            "concentration_parameter": 0.5,
         }
     ) is True
 
