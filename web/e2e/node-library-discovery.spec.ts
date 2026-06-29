@@ -1150,6 +1150,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
     citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
   },
+  bbtools_tadpole: {
+    name: 'bbtools_tadpole',
+    display_name: 'BBTools Tadpole',
+    category: 'assembly',
+    description: 'Assemble, extend, or correct reads with Tadpole k-mer processing from BBTools.',
+    search_aliases: ['Galaxy', 'BBTools', 'Tadpole', 'tadpole', 'bbtools_tadpole', 'kmer assembler', 'error correction', 'read extension', 'contig mode', 'fastadump'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired'] },
+        read1: { type: 'FASTQ' },
+      },
+      optional: {
+        read2: { type: 'FASTQ', default: '' },
+        reads_collection: { type: 'FASTQ_LIST', default: '' },
+        mode: { type: 'STRING', default: 'contig', options: ['contig', 'extend', 'correct'] },
+        fastadump: { type: 'BOOLEAN', default: true },
+        mincounttodump: { type: 'INT', default: 1, min: 1 },
+        threads: { type: 'INT', default: 4, min: 1, max: 128 },
+      },
+    },
+    output: ['FASTQ', 'FASTQ', 'FASTA'],
+    output_name: ['output', 'reverse_output', 'fastadump'],
+    required_executables: ['tadpole.sh'],
+    required_conda_packages: ['bbmap', 'samtools'],
+    documentation_url: 'https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/tadpole-guide/',
+    citation_dois: ['10.1371/journal.pone.0185056'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
+    citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7442,7 +7471,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('268 nodes available')).toBeVisible();
+  await expect(page.getByText('269 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7505,6 +7534,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'entropy filtering', name: 'BBTools BBDuk', category: 'trimming' },
     { query: 'overlapping mates', name: 'BBTools BBMerge', category: 'trimming' },
     { query: 'coverage normalization', name: 'BBTools BBNorm', category: 'qc' },
+    { query: 'kmer assembler', name: 'BBTools Tadpole', category: 'assembly' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },

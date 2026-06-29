@@ -3660,6 +3660,81 @@ def test_bbtools_bbnorm_renders_normalization_command_and_outputs(tmp_path: Path
     assert node_class.VALIDATE_INPUTS({"input_type": "single_end", "read1": "reads.fq"}) is True
 
 
+def test_bbtools_tadpole_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["bbtools_tadpole"]
+
+    assert node_info["display_name"] == "BBTools Tadpole"
+    assert node_info["category"] == "assembly"
+    assert node_info["description"].startswith("Assemble, extend, or correct reads")
+    assert node_info["output"] == ["FASTQ", "FASTQ", "FASTA"]
+    assert node_info["output_name"] == ["output", "reverse_output", "fastadump"]
+    assert node_info["required_executables"] == ["tadpole.sh"]
+    assert node_info["required_conda_packages"] == ["bbmap", "samtools"]
+    assert node_info["documentation_url"] == "https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/tadpole-guide/"
+    assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
+    assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "kmer assembler" in node_info["search_aliases"]
+
+
+def test_bbtools_tadpole_renders_mode_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bbtools_tadpole")
+
+    assert node_class.render_command(
+        {
+            "input_type": "pair",
+            "read1": "sample R1.fastq.gz",
+            "read2": "sample R2.fastq.gz",
+            "mode": "correct",
+            "fastadump": True,
+            "mincounttodump": 3,
+            "threads": 9,
+            "output": "/work/tadpole",
+        }
+    ) == (
+        "ln -s 'sample R1.fastq.gz' /work/tadpole/forward.fastq.gz && "
+        "ln -s 'sample R2.fastq.gz' /work/tadpole/reverse.fastq.gz && "
+        "tadpole.sh in=/work/tadpole/forward.fastq.gz in2=/work/tadpole/reverse.fastq.gz "
+        "fastadump=t mincounttodump=3 dump=/work/tadpole/fastadump.fasta "
+        "out=/work/tadpole/output.fastq out2=/work/tadpole/reverse_output.fastq "
+        "mode=correct threads=${GALAXY_SLOTS:-9} overwrite=true"
+    )
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "read1": "reads.fastq",
+            "mode": "contig",
+            "fastadump": False,
+            "output": "/work/tadpole",
+        }
+    ) == (
+        "ln -s reads.fastq /work/tadpole/forward.fastq && "
+        "tadpole.sh in=/work/tadpole/forward.fastq fastadump=f mincounttodump=1 "
+        "out=/work/tadpole/output.fastq mode=contig threads=${GALAXY_SLOTS:-4} overwrite=true"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_type": "pair", "mode": "correct", "fastadump": True}, tmp_path) == [
+        tmp_path / "bbtools_tadpole" / "output.fastq",
+        tmp_path / "bbtools_tadpole" / "reverse_output.fastq",
+        tmp_path / "bbtools_tadpole" / "fastadump.fasta",
+    ]
+    assert node_class.PLAN_OUTPUTS({"input_type": "pair", "mode": "contig", "fastadump": True}, tmp_path) == [
+        tmp_path / "bbtools_tadpole" / "output.fastq",
+        tmp_path / "bbtools_tadpole" / "fastadump.fasta",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": ""}) == "read1 FASTQ is required"
+    assert node_class.VALIDATE_INPUTS({"input_type": "pair", "read1": "r1.fq", "read2": ""}) == (
+        "read2 FASTQ is required for paired input"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "mode": "bad"}) == (
+        "mode must be one of: contig, extend, correct"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "mincounttodump": 0}) == (
+        "mincounttodump must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq"}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 
