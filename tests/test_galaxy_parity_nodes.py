@@ -6966,6 +6966,135 @@ def test_ampvis2_ordinate_renders_script_outputs_and_validates(tmp_path: Path) -
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_otu_network_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_otu_network"]
+
+    assert info["display_name"] == "ampvis2 OTU network plot"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate network plots connecting taxa and samples from an ampvis2 RDS dataset."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["min_abundance"][1]["default"] == 0
+    assert info["input"]["optional"]["min_abundance"][1]["min"] == 0
+    assert info["input"]["optional"]["color_by"][0] == "STRING"
+    assert info["input"]["optional"]["tax_aggregate"][1]["default"] == "Phylum"
+    assert info["input"]["optional"]["tax_aggregate"][1]["options"] == [
+        "OTU",
+        "Species",
+        "Genus",
+        "Family",
+        "Order",
+        "Class",
+        "Phylum",
+        "Kingdom",
+    ]
+    assert info["input"]["optional"]["tax_add"][1]["multiple"] is True
+    assert info["input"]["optional"]["tax_show_mode"][1]["default"] == "number"
+    assert info["input"]["optional"]["tax_show_mode"][1]["options"] == ["number", "explicit"]
+    assert info["input"]["optional"]["taxonomy_list"][0] == "TSV"
+    assert info["input"]["optional"]["tax_show"][1]["default"] == 10
+    assert info["input"]["optional"]["tax_empty"][1]["default"] == "best"
+    assert info["input"]["optional"]["tax_empty"][1]["options"] == ["remove", "best", "OTU"]
+    assert info["input"]["optional"]["normalise"][1]["default"] is True
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["input"]["optional"]["plot_width"][1]["min"] == 1
+    assert info["input"]["optional"]["plot_height"][1]["min"] == 1
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_otu_network.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 OTU network plot" in info["search_aliases"]
+    assert "amp_otu_network" in info["search_aliases"]
+    assert "ggnet2" in info["search_aliases"]
+
+
+def test_ampvis2_otu_network_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_otu_network")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "min_abundance": 0.25,
+            "color_by": "Plant",
+            "tax_aggregate": "Genus",
+            "tax_add": ["Family", "Phylum"],
+            "tax_show_mode": "explicit",
+            "tax_show": ["Nitrospira", "Accumulibacter"],
+            "taxonomy_list": "AalborgWWTPs-taxonomy.list",
+            "tax_empty": "OTU",
+            "normalise": False,
+            "out_format": "svg",
+            "plot_width": 12,
+            "plot_height": 8.5,
+            "output": "/work/ampvis2_otu_network",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_otu_network/otu_network.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_otu_network(" in command
+    assert "min_abundance = 0.25," in command
+    assert 'color_by = "Plant",' in command
+    assert 'tax_aggregate = "Genus",' in command
+    assert 'tax_add = c("Family", "Phylum"),' in command
+    assert 'tax_show = c("Nitrospira", "Accumulibacter"),' in command
+    assert "tax_class = NULL," in command
+    assert 'tax_empty = "OTU",' in command
+    assert "normalise = FALSE" in command
+    assert 'ggsave("/work/ampvis2_otu_network/plot.svg",' in command
+    assert 'device = "svg"' in command
+    assert ", width = 12" in command
+    assert ", height = 8.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_otu_network/otu_network.R")
+
+    default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_otu_network"})
+    assert "min_abundance = 0," in default_command
+    assert "color_by =" not in default_command
+    assert 'tax_aggregate = "Phylum",' in default_command
+    assert "tax_add = NULL," in default_command
+    assert "tax_show = 10," in default_command
+    assert 'tax_empty = "best",' in default_command
+    assert "normalise = TRUE" in default_command
+    assert 'device = "pdf"' in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "png"}, tmp_path) == [
+        tmp_path / "ampvis2_otu_network" / "plot.png",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_otu_network" / "plot.pdf",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "min_abundance": -0.1}) == (
+        "min_abundance must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_aggregate": "bad"}) == (
+        "tax_aggregate must be one of: OTU, Species, Genus, Family, Order, Class, Phylum, Kingdom"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_add": ["bad"]}) == (
+        "tax_add contains unsupported values: bad"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_show_mode": "explicit", "tax_show": []}) == (
+        "tax_show must include at least one taxon when tax_show_mode is explicit"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_show": 0}) == "tax_show must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_empty": "bad"}) == (
+        "tax_empty must be one of: remove, best, OTU"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_height": 0.5}) == "plot_height must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

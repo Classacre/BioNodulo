@@ -1746,6 +1746,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_otu_network: {
+    name: 'ampvis2_otu_network',
+    display_name: 'ampvis2 OTU network plot',
+    category: 'metagenomics',
+    description: 'Generate network plots connecting taxa and samples from an ampvis2 RDS dataset.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 OTU network plot', 'amp_otu_network', 'OTU network', 'taxa sample network', 'ggnet2', 'microbiome network'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+      },
+      optional: {
+        metadata_list: { type: 'TSV', default: '' },
+        min_abundance: { type: 'FLOAT', default: 0, min: 0 },
+        color_by: { type: 'STRING', default: '' },
+        tax_aggregate: { type: 'STRING', default: 'Phylum', options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        tax_add: { type: 'STRING', default: [], multiple: true, options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        tax_show_mode: { type: 'STRING', default: 'number', options: ['number', 'explicit'] },
+        taxonomy_list: { type: 'TSV', default: '' },
+        tax_show: { type: 'STRING', default: 10 },
+        tax_empty: { type: 'STRING', default: 'best', options: ['remove', 'best', 'OTU'] },
+        normalise: { type: 'BOOLEAN', default: true },
+        out_format: { type: 'STRING', default: 'pdf', options: ['pdf', 'png', 'svg'] },
+        plot_width: { type: 'FLOAT', default: '', min: 1 },
+        plot_height: { type: 'FLOAT', default: '', min: 1 },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['plot'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_otu_network.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -10250,7 +10285,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('351 nodes available')).toBeVisible();
+  await expect(page.getByText('352 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10318,6 +10353,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ampvis2 merge replicates', name: 'ampvis2 merge replicates', category: 'metagenomics' },
     { query: 'ampvis2 octave plot', name: 'ampvis2 octave plot', category: 'metagenomics' },
     { query: 'ampvis2 ordination plot', name: 'ampvis2 ordination plot', category: 'metagenomics' },
+    { query: 'ampvis2 OTU network plot', name: 'ampvis2 OTU network plot', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
