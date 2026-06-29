@@ -672,6 +672,29 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_randbase: {
+    name: 'seqtk_randbase',
+    display_name: 'SeqTK Random Base',
+    category: 'sequence',
+    description: 'Randomly resolve ambiguous IUPAC bases in FASTA or FASTQ sequences.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk randbase', 'SeqTK randbase', 'ambiguous bases', 'IUPAC ambiguity', 'random base', 'resolve heterozygous bases'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq', 'fasta.gz', 'fastq.gz'] },
+      },
+    },
+    output: ['FASTA', 'FASTQ'],
+    output_name: ['unambiguous_sequences'],
+    required_executables: ['seqtk', 'pigz'],
+    required_conda_packages: ['seqtk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -11010,7 +11033,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('378 nodes available')).toBeVisible();
+  await expect(page.getByText('379 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11045,6 +11068,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk IUPAC ambiguity merge', name: 'SeqTK Merge FASTA', category: 'sequence' },
     { query: 'seqtk interleaved paired-end', name: 'SeqTK Merge Paired-End', category: 'sequence' },
     { query: 'seqtk point mutations', name: 'SeqTK Mutate FASTA', category: 'sequence' },
+    { query: 'seqtk ambiguous bases', name: 'SeqTK Random Base', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
