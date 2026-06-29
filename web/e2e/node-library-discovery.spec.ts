@@ -3391,6 +3391,45 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Automated Phylogenetic Detection of Recombination Using a Genetic Algorithm.',
   },
+  hyphy_infer_stasis_clusters: {
+    name: 'hyphy_infer_stasis_clusters',
+    display_name: 'HyPhy-Infer Stasis Clusters',
+    category: 'phylogeny',
+    description: 'Identify regional footprints of extreme purifying selection from B-STILL results.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'B-STILL',
+      'Infer Stasis Clusters',
+      'stasis clusters',
+      'purifying selection',
+      'Empirical Bayes Factor',
+      'hypergeometric scan statistic',
+      'family-wise error rate',
+      'protein domains',
+    ],
+    input: {
+      required: {
+        input_json: { type: 'JSON' },
+      },
+      optional: {
+        ebf: { type: 'FLOAT', default: 10.0 },
+        permutations: { type: 'INT', default: 10000 },
+        alpha: { type: 'FLOAT', default: 0.05 },
+        max_cluster: { type: 'INT', default: 30 },
+        merge: { type: 'INT', default: 15 },
+        script_path: { type: 'FILE' },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['output_json', 'output_log'],
+    required_executables: ['python3'],
+    required_conda_packages: ['python', 'numpy', 'scipy'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/hyphy',
+    citation_dois: ['10.1093/molbev/msz197'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197'],
+    citation_text: 'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6361,7 +6400,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('236 nodes available')).toBeVisible();
+  await expect(page.getByText('237 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6471,6 +6510,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Fixed Effects Likelihood', name: 'HyPhy-FEL', category: 'phylogeny' },
     { query: 'Fast Unconstrained Bayesian AppRoximation', name: 'HyPhy-FUBAR', category: 'phylogeny' },
     { query: 'recombination breakpoints', name: 'HyPhy-GARD', category: 'phylogeny' },
+    { query: 'hypergeometric scan statistic', name: 'HyPhy-Infer Stasis Clusters', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import shlex
 import sys
 from pathlib import Path
 from typing import Any
@@ -631,6 +632,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_executables": ["HYPHYMPI", "mpirun"],
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/msl051",
+        },
+        "hyphy_infer_stasis_clusters": {
+            "display_name": "HyPhy-Infer Stasis Clusters",
+            "category": "phylogeny",
+            "required_executables": ["python3"],
+            "required_conda_packages": ["python", "numpy", "scipy"],
+            "doi": "10.1093/molbev/msz197",
         },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
@@ -8654,6 +8662,135 @@ def test_hyphy_gard_validates_wrapper_inputs() -> None:
             "max_breakpoints": 10000,
             "mode": "Normal",
             "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_infer_stasis_clusters_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_infer_stasis_clusters"]
+
+    assert info["display_name"] == "HyPhy-Infer Stasis Clusters"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Identify regional footprints of extreme purifying selection from B-STILL results."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "B-STILL",
+        "Infer Stasis Clusters",
+        "stasis clusters",
+        "purifying selection",
+        "Empirical Bayes Factor",
+        "hypergeometric scan statistic",
+        "family-wise error rate",
+        "protein domains",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["output_json", "output_log"]
+    assert info["required_executables"] == ["python3"]
+    assert info["required_conda_packages"] == ["python", "numpy", "scipy"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/hyphy"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/molbev/msz197"]
+    assert info["citation_text"] == "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies."
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_json"][0] == "JSON"
+    assert info["input"]["required"]["input_json"][1]["description"] == "JSON output file from HyPhy B-STILL analysis"
+    assert info["input"]["optional"]["ebf"][1]["default"] == 10.0
+    assert info["input"]["optional"]["ebf"][1]["min"] == 0
+    assert info["input"]["optional"]["ebf"][1]["max"] == 10000
+    assert info["input"]["optional"]["permutations"][1]["default"] == 10000
+    assert info["input"]["optional"]["permutations"][1]["min"] == 100
+    assert info["input"]["optional"]["permutations"][1]["max"] == 100000
+    assert info["input"]["optional"]["alpha"][1]["default"] == 0.05
+    assert info["input"]["optional"]["alpha"][1]["min"] == 0.001
+    assert info["input"]["optional"]["alpha"][1]["max"] == 0.5
+    assert info["input"]["optional"]["max_cluster"][1]["default"] == 30
+    assert info["input"]["optional"]["max_cluster"][1]["min"] == 3
+    assert info["input"]["optional"]["max_cluster"][1]["max"] == 100
+    assert info["input"]["optional"]["merge"][1]["default"] == 15
+    assert info["input"]["optional"]["merge"][1]["min"] == 0
+    assert info["input"]["optional"]["merge"][1]["max"] == 100
+    assert info["input"]["optional"]["script_path"][0] == "FILE"
+    assert info["input"]["optional"]["script_path"][1]["default"].endswith("infer_stasis_clusters.py")
+
+
+def test_hyphy_infer_stasis_clusters_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_infer_stasis_clusters")
+
+    command = node_class.render_command(
+        {
+            "input_json": "bstill-in1.json",
+            "output": "/work/hyphy_infer_stasis_clusters",
+        }
+    )
+
+    assert command.startswith("python3 ")
+    tokens = shlex.split(command)
+    assert tokens[0] == "python3"
+    assert tokens[1].endswith("infer_stasis_clusters.py")
+    assert tokens[2] == "bstill-in1.json"
+    assert command.endswith(
+        "--ebf 10.0 --permutations 10000 --alpha 0.05 --max-cluster 30 --merge 15 "
+        "--output /work/hyphy_infer_stasis_clusters/output_json.json "
+        "> /work/hyphy_infer_stasis_clusters/output_log.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_infer_stasis_clusters" / "output_json.json",
+        tmp_path / "hyphy_infer_stasis_clusters" / "output_log.txt",
+    ]
+
+
+def test_hyphy_infer_stasis_clusters_renders_custom_script_and_thresholds() -> None:
+    node_class = _node_class("hyphy_infer_stasis_clusters")
+
+    assert node_class.render_command(
+        {
+            "input_json": "B-STILL results.json",
+            "script_path": "/opt/galaxy tools/infer_stasis_clusters.py",
+            "ebf": 1.5,
+            "permutations": 250,
+            "alpha": 0.01,
+            "max_cluster": 12,
+            "merge": 0,
+            "output": "/work/hyphy_infer_stasis_clusters",
+        }
+    ) == (
+        "python3 '/opt/galaxy tools/infer_stasis_clusters.py' 'B-STILL results.json' "
+        "--ebf 1.5 --permutations 250 --alpha 0.01 --max-cluster 12 --merge 0 "
+        "--output /work/hyphy_infer_stasis_clusters/output_json.json "
+        "> /work/hyphy_infer_stasis_clusters/output_log.txt"
+    )
+
+
+def test_hyphy_infer_stasis_clusters_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_infer_stasis_clusters")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-Infer Stasis Clusters B-STILL JSON input is required"
+    assert node_class.VALIDATE_INPUTS({"input_json": "bstill.json", "ebf": -0.1}) == (
+        "HyPhy-Infer Stasis Clusters EBF threshold must be between 0 and 10000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_json": "bstill.json", "permutations": 99}) == (
+        "HyPhy-Infer Stasis Clusters permutations must be between 100 and 100000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_json": "bstill.json", "alpha": 0.0009}) == (
+        "HyPhy-Infer Stasis Clusters alpha must be between 0.001 and 0.5"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_json": "bstill.json", "max_cluster": 2}) == (
+        "HyPhy-Infer Stasis Clusters maximum cluster size must be between 3 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_json": "bstill.json", "merge": 101}) == (
+        "HyPhy-Infer Stasis Clusters merge distance must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_json": "bstill.json",
+            "ebf": 10.0,
+            "permutations": 10000,
+            "alpha": 0.05,
+            "max_cluster": 30,
+            "merge": 15,
         }
     ) is True
 
