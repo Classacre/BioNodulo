@@ -548,6 +548,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "humann_rename_table": {
+            "display_name": "HUMAnN Rename Table",
+            "category": "metagenomics",
+            "required_executables": ["humann_rename_table"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6508,6 +6515,123 @@ def test_humann_regroup_table_validates_wrapper_inputs() -> None:
     )
     assert node_class.VALIDATE_INPUTS(
         {"input": "genefamilies.tsv", "grouping_type": "custom", "custom": "map.tsv", "precision": 0}
+    ) is True
+
+
+def test_humann_rename_table_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_rename_table"]
+
+    assert info["display_name"] == "HUMAnN Rename Table"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Attach readable names to HUMAnN gene, pathway, or regrouped feature IDs."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_rename_table",
+        "Rename features",
+        "feature names",
+        "MetaCyc reactions",
+        "UniRef90 name",
+        "custom mapping",
+        "NO_NAME",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["humann_rename_table"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["description"] == "HUMAnN gene, pathway, or regrouped feature table"
+    assert info["input"]["optional"]["renaming_type"][1]["default"] == "standard"
+    assert info["input"]["optional"]["renaming_type"][1]["options"] == ["standard", "advanced", "custom"]
+    assert info["input"]["optional"]["names"][1]["default"] == "metacyc-rxn"
+    assert info["input"]["optional"]["names"][1]["options"] == [
+        "metacyc-rxn",
+        "metacyc-pwy",
+        "infogo1000",
+        "kegg-module",
+        "ec",
+        "go",
+        "pfam",
+        "eggnog",
+        "kegg-pathway",
+        "kegg-orthology",
+    ]
+    assert info["input"]["optional"]["advanced_names"][0] == "FILE"
+    assert info["input"]["optional"]["custom"][0] == "TSV"
+    assert info["input"]["optional"]["simplify"][1]["default"] is False
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_rename_table_renders_standard_advanced_and_custom_commands(tmp_path: Path) -> None:
+    node_class = _node_class("humann_rename_table")
+
+    assert node_class.render_command(
+        {
+            "input": "regrouped gene families.tsv",
+            "output": "/work/humann_rename_table",
+        }
+    ) == (
+        "humann_rename_table --input 'regrouped gene families.tsv' "
+        "-o /work/humann_rename_table/renamed_table.tsv --names metacyc-rxn"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "demo_genefamilies.tsv",
+            "renaming_type": "advanced",
+            "advanced_names": "utility_mapping-full-map_uniref90_name-3.0.0-29042021",
+            "simplify": True,
+            "output": "/work/humann_rename_table",
+        }
+    ) == (
+        "humann_rename_table --input demo_genefamilies.tsv "
+        "-o /work/humann_rename_table/renamed_table.tsv "
+        "--custom utility_mapping-full-map_uniref90_name-3.0.0-29042021 --simplify"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "demo_genefamilies.tsv",
+            "renaming_type": "custom",
+            "custom": "map uniref90 name.txt",
+            "output": "/work/humann_rename_table",
+        }
+    ) == (
+        "humann_rename_table --input demo_genefamilies.tsv "
+        "-o /work/humann_rename_table/renamed_table.tsv --custom 'map uniref90 name.txt'"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "humann_rename_table" / "renamed_table.tsv",
+    ]
+
+
+def test_humann_rename_table_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_rename_table")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HUMAnN feature table is required"
+    assert node_class.VALIDATE_INPUTS({"input": "features.tsv", "renaming_type": "database"}) == (
+        "Unsupported HUMAnN renaming type: database"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "features.tsv", "names": "uniref90"}) == (
+        "Unsupported HUMAnN built-in name map: uniref90"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "features.tsv", "renaming_type": "advanced"}) == (
+        "HUMAnN utility name mapping file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "features.tsv", "renaming_type": "custom"}) == (
+        "Custom HUMAnN name mapping file is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "features.tsv", "renaming_type": "custom", "custom": "names.tsv"}
     ) is True
 
 

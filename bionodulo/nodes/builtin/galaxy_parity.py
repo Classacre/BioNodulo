@@ -10708,6 +10708,144 @@ class HUMAnNRegroupTableNode(CommandNode):
         }
 
 
+class HUMAnNRenameTableNode(CommandNode):
+    """Attach readable names to HUMAnN table feature identifiers."""
+
+    NODE_ID = "humann_rename_table"
+    DISPLAY_NAME = "HUMAnN Rename Table"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Attach readable names to HUMAnN gene, pathway, or regrouped feature IDs."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_rename_table",
+        "Rename features",
+        "feature names",
+        "MetaCyc reactions",
+        "UniRef90 name",
+        "custom mapping",
+        "NO_NAME",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["humann_rename_table"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+    RENAMING_TYPES = ["standard", "advanced", "custom"]
+    STANDARD_NAMES = [
+        "metacyc-rxn",
+        "metacyc-pwy",
+        "infogo1000",
+        "kegg-module",
+        "ec",
+        "go",
+        "pfam",
+        "eggnog",
+        "kegg-pathway",
+        "kegg-orthology",
+    ]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/renamed_table.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "humann_rename_table",
+            "--input",
+            str(inputs.get("input", "")),
+            "-o",
+            cls._output_path(inputs),
+        ]
+        renaming_type = str(inputs.get("renaming_type", "standard"))
+        if renaming_type == "standard":
+            cmd.extend(["--names", str(inputs.get("names", "metacyc-rxn"))])
+        elif renaming_type == "advanced":
+            cmd.extend(["--custom", str(inputs.get("advanced_names", ""))])
+        else:
+            cmd.extend(["--custom", str(inputs.get("custom", ""))])
+        if inputs.get("simplify", False):
+            cmd.append("--simplify")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "renamed_table.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "HUMAnN feature table is required"
+        renaming_type = str(inputs.get("renaming_type", "standard"))
+        if renaming_type not in cls.RENAMING_TYPES:
+            return f"Unsupported HUMAnN renaming type: {renaming_type}"
+        if renaming_type == "standard":
+            names = str(inputs.get("names", "metacyc-rxn"))
+            if names not in cls.STANDARD_NAMES:
+                return f"Unsupported HUMAnN built-in name map: {names}"
+        elif renaming_type == "advanced" and not str(inputs.get("advanced_names", "")).strip():
+            return "HUMAnN utility name mapping file is required"
+        elif renaming_type == "custom" and not str(inputs.get("custom", "")).strip():
+            return "Custom HUMAnN name mapping file is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "HUMAnN gene, pathway, or regrouped feature table"}),
+            },
+            "optional": {
+                "renaming_type": (
+                    "STRING",
+                    {
+                        "default": "standard",
+                        "options": cls.RENAMING_TYPES,
+                        "description": "Use built-in, installed utility mapping, or custom name mapping",
+                    },
+                ),
+                "names": (
+                    "STRING",
+                    {
+                        "default": "metacyc-rxn",
+                        "options": cls.STANDARD_NAMES,
+                        "description": "Built-in feature namespace to rename",
+                        "displayOptions": {"show": {"renaming_type": ["standard"]}},
+                    },
+                ),
+                "advanced_names": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "description": "Installed HUMAnN utility name mapping file",
+                        "displayOptions": {"show": {"renaming_type": ["advanced"]}},
+                    },
+                ),
+                "custom": (
+                    "TSV",
+                    {
+                        "default": "",
+                        "description": "Custom two-column feature-to-name mapping file",
+                        "displayOptions": {"show": {"renaming_type": ["custom"]}},
+                    },
+                ),
+                "simplify": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Remove non-alphanumeric characters from names"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MergeMetaPhlAnTablesNode(CommandNode):
     """Merge multiple MetaPhlAn relative abundance tables."""
 
