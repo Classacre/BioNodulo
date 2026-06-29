@@ -920,6 +920,28 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.1660'],
     citation_text: 'AMAS: a fast tool for alignment manipulation and computing of summary statistics.',
   },
+  clustalw: {
+    name: 'clustalw',
+    display_name: 'ClustalW',
+    category: 'phylogeny',
+    description: 'Align DNA or protein FASTA sequences with ClustalW and emit the alignment plus guide tree.',
+    search_aliases: ['Galaxy', 'ClustalW', 'clustalw2', 'clustal', 'multiple sequence alignment', 'DNA alignment', 'protein alignment', 'guide tree'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+        sequence_type: { type: 'STRING', default: 'DNA', options: ['DNA', 'PROTEIN'] },
+        outform: { type: 'STRING', default: 'clustal', options: ['clustal', 'phylip', 'fasta'] },
+      },
+    },
+    output: ['ALIGNMENT', 'PHYLOGENY_TREE'],
+    output_name: ['alignment', 'guide_tree'],
+    required_executables: ['clustalw2'],
+    required_conda_packages: ['clustalw'],
+    documentation_url: 'http://www.clustal.org/clustal2/',
+    citation_dois: ['10.1093/bioinformatics/btm404'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btm404'],
+    citation_text: 'Clustal W and Clustal X version 2.0.',
+  },
   prinseq: {
     name: 'prinseq',
     display_name: 'PRINSEQ',
@@ -6824,7 +6846,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('250 nodes available')).toBeVisible();
+  await expect(page.getByText('251 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6871,6 +6893,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'amas split', name: 'AMAS Split', category: 'phylogeny' },
     { query: 'remove taxa', name: 'AMAS Remove', category: 'phylogeny' },
     { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
+    { query: 'clustalw2', name: 'ClustalW', category: 'phylogeny' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },

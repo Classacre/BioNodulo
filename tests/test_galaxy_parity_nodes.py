@@ -2365,6 +2365,108 @@ def test_amas_replicate_renders_minimal_command(tmp_path: Path) -> None:
     ]
 
 
+def test_clustalw_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["clustalw"]
+
+    assert node_info["display_name"] == "ClustalW"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"].startswith("Align DNA or protein FASTA sequences")
+    assert node_info["output"] == ["ALIGNMENT", "PHYLOGENY_TREE"]
+    assert node_info["output_name"] == ["alignment", "guide_tree"]
+    assert node_info["required_executables"] == ["clustalw2"]
+    assert node_info["required_conda_packages"] == ["clustalw"]
+    assert node_info["documentation_url"] == "http://www.clustal.org/clustal2/"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btm404"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btm404"]
+    assert node_info["citation_text"] == "Clustal W and Clustal X version 2.0."
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "multiple sequence alignment" in node_info["search_aliases"]
+
+
+def test_clustalw_renders_dna_slow_alignment_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("clustalw")
+
+    assert node_class.render_command(
+        {
+            "input": "sequences.fa",
+            "sequence_type": "DNA",
+            "outform": "fasta",
+            "out_order": "ALIGNED",
+            "range_mode": "part",
+            "seq_range_start": 5,
+            "seq_range_end": 120,
+            "outputtree": "PHYLIP",
+            "kimura": True,
+            "tossgaps": True,
+            "algorithm": "slow",
+            "pwdnamatrix": "IUB",
+            "dn_matrix": "CLUSTALW",
+            "pwgapopen": 2,
+            "pwgapext": 1.5,
+            "gapopen": 8,
+            "gapext": 0.3,
+            "endgaps": True,
+            "gapdist": 4,
+            "nopgap": True,
+            "nohgap": True,
+            "maxdiv": 30,
+            "negative": True,
+            "transweight": 0.75,
+            "output": "/work/clustalw",
+        }
+    ) == (
+        "ln -sf sequences.fa input.fasta && "
+        "clustalw2 -INFILE=input.fasta -OUTFILE=/work/clustalw/alignment.fasta -OUTORDER=ALIGNED "
+        "-TYPE=DNA -OUTPUT=FASTA -RANGE=5,120 -PWDNAMATRIX=IUB -PWGAPOPEN=2 -PWGAPEXT=1.5 "
+        "-DNAMATRIX=CLUSTALW -GAPOPEN=8 -GAPEXT=0.3 -ENDGAPS -GAPDIST=4 -NOPGAP -NOHGAP "
+        "-MAXDIV=30 -NEGATIVE -TRANSWEIGHT=0.75 -OUTPUTTREE=PHYLIP -KIMURA -TOSSGAPS && "
+        "cp input.dnd /work/clustalw/guide_tree.dnd"
+    )
+    assert node_class.PLAN_OUTPUTS({"outform": "fasta"}, tmp_path) == [
+        tmp_path / "clustalw" / "alignment.fasta",
+        tmp_path / "clustalw" / "guide_tree.dnd",
+    ]
+
+
+def test_clustalw_renders_protein_quicktree_command_and_validates_input(tmp_path: Path) -> None:
+    node_class = _node_class("clustalw")
+
+    assert node_class.render_command(
+        {
+            "input": "proteins.fa",
+            "sequence_type": "PROTEIN",
+            "outform": "clustal",
+            "out_seqnos": True,
+            "out_order": "INPUT",
+            "algorithm": "fast",
+            "ktuple": 1,
+            "topdiags": 2,
+            "window": 3,
+            "pairgap": 4,
+            "score": "ABSOLUTE",
+            "pwmatrix": "BLOSUM",
+            "matrix": "GONNET",
+            "outputtree": "NJ",
+            "output": "/work/clustalw",
+        }
+    ) == (
+        "ln -sf proteins.fa input.fasta && "
+        "clustalw2 -INFILE=input.fasta -OUTFILE=/work/clustalw/alignment.aln -OUTORDER=INPUT "
+        "-TYPE=PROTEIN -OUTPUT=CLUSTAL -SEQNOS=ON -QUICKTREE -KTUPLE=1 -TOPDIAGS=2 -WINDOW=3 "
+        "-PAIRGAP=4 -SCORE=ABSOLUTE -MATRIX=GONNET -OUTPUTTREE=NJ && "
+        "cp input.dnd /work/clustalw/guide_tree.dnd"
+    )
+    assert node_class.PLAN_OUTPUTS({"outform": "clustal"}, tmp_path) == [
+        tmp_path / "clustalw" / "alignment.aln",
+        tmp_path / "clustalw" / "guide_tree.dnd",
+    ]
+    assert node_class.PLAN_OUTPUTS({"outform": "phylip"}, tmp_path) == [
+        tmp_path / "clustalw" / "alignment.phy",
+        tmp_path / "clustalw" / "guide_tree.dnd",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input": ""}) == "input FASTA is required"
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 
