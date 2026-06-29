@@ -595,6 +595,35 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_mergefa: {
+    name: 'seqtk_mergefa',
+    display_name: 'SeqTK Merge FASTA',
+    category: 'sequence',
+    description: 'Merge two FASTA or FASTQ files into FASTA using IUPAC ambiguity codes.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk mergefa', 'SeqTK mergefa', 'merge FASTA', 'merge FASTQ', 'IUPAC ambiguity codes', 'random allele', 'suppress hets'],
+    input: {
+      required: {
+        in_fa1: { type: 'FASTQ_LIST' },
+        in_fa2: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        q: { type: 'INT', default: 0 },
+        i: { type: 'BOOLEAN', default: false },
+        m: { type: 'BOOLEAN', default: false },
+        r: { type: 'BOOLEAN', default: false },
+        h: { type: 'BOOLEAN', default: false },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq', 'fasta.gz', 'fastq.gz'] },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['merged_fasta'],
+    required_executables: ['seqtk', 'pigz'],
+    required_conda_packages: ['seqtk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -10933,7 +10962,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('375 nodes available')).toBeVisible();
+  await expect(page.getByText('376 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10965,6 +10994,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk base quality summary', name: 'SeqTK FASTQ Check', category: 'qc' },
     { query: 'seqtk regional heterozygosity', name: 'SeqTK Heterozygosity', category: 'sequence' },
     { query: 'seqtk heterozygous bases', name: 'SeqTK List Heterozygous Bases', category: 'sequence' },
+    { query: 'seqtk IUPAC ambiguity merge', name: 'SeqTK Merge FASTA', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },

@@ -1324,6 +1324,71 @@ def test_seqtk_listhet_renders_heterozygous_base_positions_command_and_output(tm
     ]
 
 
+def test_seqtk_mergefa_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_mergefa"]
+
+    assert info["display_name"] == "SeqTK Merge FASTA"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Merge two FASTA or FASTQ files into FASTA using IUPAC ambiguity codes."
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["merged_fasta"]
+    assert info["required_executables"] == ["seqtk", "pigz"]
+    assert info["required_conda_packages"] == ["seqtk", "pigz"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk mergefa" in info["search_aliases"]
+    assert "IUPAC ambiguity codes" in info["search_aliases"]
+    assert info["input"]["required"]["in_fa1"][0] == "FASTQ_LIST"
+    assert info["input"]["required"]["in_fa2"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["q"][1]["default"] == 0
+    assert info["input"]["optional"]["i"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["m"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["r"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["h"][0] == "BOOLEAN"
+
+
+def test_seqtk_mergefa_renders_plain_merge_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_mergefa")
+
+    assert node_class.render_command(
+        {
+            "in_fa1": "left.fa",
+            "in_fa2": "right.fa",
+            "q": 0,
+            "output": "/work/seqtk_mergefa",
+        }
+    ) == "seqtk mergefa -q 0 left.fa right.fa > /work/seqtk_mergefa/merged.fasta"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "seqtk_mergefa" / "merged.fasta",
+    ]
+
+
+def test_seqtk_mergefa_renders_gzip_merge_with_ambiguity_options(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_mergefa")
+
+    assert node_class.render_command(
+        {
+            "in_fa1": "left.fastq.gz",
+            "in_fa2": "right.fastq.gz",
+            "input_ext": "fastq.gz",
+            "q": 20,
+            "i": True,
+            "m": True,
+            "r": True,
+            "h": True,
+            "output": "/work/seqtk_mergefa",
+        }
+    ) == (
+        "seqtk mergefa -q 20 -i -m -r -h left.fastq.gz right.fastq.gz | "
+        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_mergefa/merged.fasta.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqtk_mergefa" / "merged.fasta.gz",
+    ]
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 
