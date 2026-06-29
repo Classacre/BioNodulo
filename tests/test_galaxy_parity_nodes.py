@@ -25728,6 +25728,14 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
             "required_conda_packages": ["bcftools", "htslib", "samtools", "matplotlib-base", "tectonic"],
             "search_alias": "plot-vcfstats",
         },
+        "bcftools_norm": {
+            "display_name": "BCFtools Norm",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#norm",
+            "output": ["VCF_GZ"],
+            "required_executables": ["bcftools", "samtools"],
+            "required_conda_packages": ["bcftools", "htslib", "samtools"],
+            "search_alias": "left-align indels",
+        },
         "bcftools_concat": {
             "display_name": "BCFtools Concat",
             "documentation_url": "https://www.htslib.org/doc/bcftools.html#concat",
@@ -25946,6 +25954,147 @@ def test_bcftools_annotate_renders_vcf_annotation_and_removal_modes(tmp_path: Pa
                 "annotation_format": "tab",
                 "annotations": "annots.tsv",
                 "columns": "CHROM,POS,INFO/TAG",
+            }
+        )
+        is True
+    )
+
+
+def test_bcftools_norm_renders_split_atomize_restrict_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_norm")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "reference": "GRCh38.fa",
+            "check_ref": "ws",
+            "normalize_indels": True,
+            "rm_dup": "snps",
+            "atomization": "--atomize --atom-overlaps .",
+            "old_rec_tag": "OLD_REC",
+            "multiallelic_mode": "-",
+            "multiallelic_types": "both",
+            "site_win": 500,
+            "sort": "lex",
+            "include": "QUAL>10",
+            "exclude": "DP<5",
+            "regions": "chr1",
+            "regions_overlap": "1",
+            "targets": "chr1:1-200",
+            "targets_overlap": "0",
+            "output_type": "v",
+            "threads": 4,
+            "output": "/work/bcftools_norm",
+        }
+    ) == [
+        "bcftools",
+        "norm",
+        "--fasta-ref",
+        "GRCh38.fa",
+        "--check-ref",
+        "ws",
+        "--rm-dup",
+        "snps",
+        "--atomize",
+        "--atom-overlaps",
+        ".",
+        "--old-rec-tag",
+        "OLD_REC",
+        "--multiallelics",
+        "-both",
+        "--site-win",
+        "500",
+        "--sort",
+        "lex",
+        "--include",
+        "QUAL>10",
+        "--exclude",
+        "DP<5",
+        "--regions",
+        "chr1",
+        "--regions-overlap",
+        "1",
+        "--targets",
+        "chr1:1-200",
+        "--targets-overlap",
+        "0",
+        "--output-type",
+        "v",
+        "--threads",
+        "4",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_norm/normalized.vcf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
+        tmp_path / "bcftools_norm" / "normalized.vcf",
+    ]
+
+
+def test_bcftools_norm_supports_join_legacy_aliases_and_default_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_norm")
+
+    assert node_class.render_command(
+        {
+            "vcf": "split.vcf.gz",
+            "reference": "GRCh38.fa",
+            "check_ref": "e",
+            "multiallelics": "join",
+            "deduplicate": "none",
+            "strict_filter": True,
+            "output": "/work/bcftools_norm",
+        }
+    ) == [
+        "bcftools",
+        "norm",
+        "--fasta-ref",
+        "GRCh38.fa",
+        "--check-ref",
+        "e",
+        "--multiallelics",
+        "+both",
+        "--strict-filter",
+        "--sort",
+        "pos",
+        "--output-type",
+        "z",
+        "split.vcf.gz",
+        ">",
+        "/work/bcftools_norm/normalized.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_norm" / "normalized.vcf.gz",
+    ]
+
+
+def test_bcftools_norm_validates_reference_modes_and_output_choices() -> None:
+    node_class = _node_class("bcftools_norm")
+
+    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "check_ref": "bad"}) == (
+        "check_ref must be one of: w, wx, ws, e"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "rm_dup": "exact"}) == (
+        "rm_dup must be one of: snps, indels, both, any"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "atomization": "--bad"}) == (
+        "atomization must be one of: --atomize, --atomize --atom-overlaps ."
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "multiallelic_mode": "bad"}) == (
+        "multiallelic_mode must be one of: -, +"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "output_type": "bad"}) == (
+        "output_type must be one of: b, u, z, v"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input_file": "cohort.vcf",
+                "reference": "",
+                "site_win": "",
+                "output_type": "z",
             }
         )
         is True

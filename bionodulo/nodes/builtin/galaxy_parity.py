@@ -41049,6 +41049,191 @@ class BCFtoolsStatsNode(CommandNode):
         }
 
 
+class BCFtoolsNormNode(CommandNode):
+    """Left-align, normalize, split, join, and atomize VCF/BCF records."""
+
+    NODE_ID = "bcftools_norm"
+    DISPLAY_NAME = "BCFtools Norm"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib", "samtools"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Left-align and normalize indels, check reference alleles, split or join multiallelic records, and atomize complex variants."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "bcftools",
+        "norm",
+        "normalize",
+        "left-align indels",
+        "split multiallelic",
+        "join multiallelic",
+        "atomize variants",
+    ]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("normalized_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools", "samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#norm"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22+galaxy0"
+    SHELL = True
+    CHECK_REF_OPTIONS = ["w", "wx", "ws", "e"]
+    RM_DUP_OPTIONS = ["", "snps", "indels", "both", "any"]
+    ATOMIZATION_OPTIONS = ["", "--atomize", "--atomize --atom-overlaps ."]
+    MULTIALLELIC_MODE_OPTIONS = ["", "-", "+"]
+    MULTIALLELIC_TYPES_OPTIONS = ["snps", "indels", "both", "any"]
+    SORT_OPTIONS = ["pos", "lex"]
+    OUTPUT_TYPES = ["b", "u", "z", "v"]
+    OVERLAP_OPTIONS = ["", "0", "1", "2"]
+    LEGACY_MULTIALLELICS = {"none": "", "split": "-", "join": "+"}
+    LEGACY_DEDUPLICATE = {"none": "", "snps": "snps", "indels": "indels", "both": "both", "all": "any"}
+    LEGACY_CHECK_REF = {"exit": "e", "warn": "w", "exclude": "wx", "set": "ws"}
+
+    @staticmethod
+    def _selected(value: Any) -> bool:
+        return value is not None and str(value) != ""
+
+    @classmethod
+    def _input_file(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_file", inputs.get("vcf", "")) or "")
+
+    @classmethod
+    def _check_ref(cls, inputs: dict[str, Any]) -> str:
+        value = str(inputs.get("check_ref", "w") or "w")
+        return cls.LEGACY_CHECK_REF.get(value, value)
+
+    @classmethod
+    def _rm_dup(cls, inputs: dict[str, Any]) -> str:
+        value = str(inputs.get("rm_dup", inputs.get("deduplicate", "")) or "")
+        return cls.LEGACY_DEDUPLICATE.get(value, value)
+
+    @classmethod
+    def _multiallelic_mode(cls, inputs: dict[str, Any]) -> str:
+        value = str(inputs.get("multiallelic_mode", inputs.get("multiallelics", "")) or "")
+        return cls.LEGACY_MULTIALLELICS.get(value, value)
+
+    @classmethod
+    def _multiallelic_types(cls, inputs: dict[str, Any], mode: str) -> str:
+        value = str(inputs.get("multiallelic_types", "") or "")
+        if value:
+            return value
+        return "both" if mode in {"-", "+"} else ""
+
+    @classmethod
+    def _add_targets(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        prefix = "^" if inputs.get("invert_targets") or inputs.get("invert_targets_file") else ""
+        if cls._selected(inputs.get("targets")):
+            cmd.extend(["--targets", f"{prefix}{inputs['targets']}"])
+        if cls._selected(inputs.get("targets_file")):
+            cmd.extend(["--targets-file", f"{prefix}{inputs['targets_file']}"])
+        _add_if_value(cmd, "--targets-overlap", inputs.get("targets_overlap"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "norm"]
+        _add_if_value(cmd, "--fasta-ref", inputs.get("reference", inputs.get("fasta_ref")))
+        cmd.extend(["--check-ref", cls._check_ref(inputs)])
+        if inputs.get("normalize_indels") is False:
+            cmd.append("--do-not-normalize")
+        _add_if_value(cmd, "--rm-dup", cls._rm_dup(inputs))
+        atomization = str(inputs.get("atomization", "") or "")
+        if atomization:
+            cmd.extend(atomization.split())
+        _add_if_value(cmd, "--old-rec-tag", inputs.get("old_rec_tag"))
+        multiallelic_mode = cls._multiallelic_mode(inputs)
+        if multiallelic_mode:
+            cmd.extend(["--multiallelics", f"{multiallelic_mode}{cls._multiallelic_types(inputs, multiallelic_mode)}"])
+        if multiallelic_mode == "+" and inputs.get("strict_filter"):
+            cmd.append("--strict-filter")
+        _add_if_value(cmd, "--site-win", inputs.get("site_win"))
+        cmd.extend(["--sort", str(inputs.get("sort", "pos") or "pos")])
+        _add_if_value(cmd, "--include", inputs.get("include"))
+        _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+        _add_if_value(cmd, "--regions", inputs.get("regions"))
+        _add_if_value(cmd, "--regions-file", inputs.get("regions_file"))
+        _add_if_value(cmd, "--regions-overlap", inputs.get("regions_overlap"))
+        cls._add_targets(cmd, inputs)
+        _bcftools_add_output_type(cmd, inputs)
+        threads = inputs.get("threads")
+        if cls._selected(threads) and str(threads) != "0":
+            cmd.extend(["--threads", str(threads)])
+        cmd.append(cls._input_file(inputs))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/normalized{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"normalized{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_file(inputs).strip():
+            return "input_file is required"
+        check_ref = cls._check_ref(inputs)
+        if check_ref not in cls.CHECK_REF_OPTIONS:
+            return f"check_ref must be one of: {', '.join(cls.CHECK_REF_OPTIONS)}"
+        rm_dup = cls._rm_dup(inputs)
+        if rm_dup not in cls.RM_DUP_OPTIONS:
+            return "rm_dup must be one of: snps, indels, both, any"
+        atomization = str(inputs.get("atomization", "") or "")
+        if atomization not in cls.ATOMIZATION_OPTIONS:
+            return "atomization must be one of: --atomize, --atomize --atom-overlaps ."
+        multiallelic_mode = cls._multiallelic_mode(inputs)
+        if multiallelic_mode not in cls.MULTIALLELIC_MODE_OPTIONS:
+            return "multiallelic_mode must be one of: -, +"
+        multiallelic_types = cls._multiallelic_types(inputs, multiallelic_mode)
+        if multiallelic_types and multiallelic_types not in cls.MULTIALLELIC_TYPES_OPTIONS:
+            return "multiallelic_types must be one of: snps, indels, both, any"
+        sort = str(inputs.get("sort", "pos") or "pos")
+        if sort not in cls.SORT_OPTIONS:
+            return f"sort must be one of: {', '.join(cls.SORT_OPTIONS)}"
+        output_type = str(inputs.get("output_type", "z") or "z")
+        if output_type not in cls.OUTPUT_TYPES:
+            return f"output_type must be one of: {', '.join(cls.OUTPUT_TYPES)}"
+        for name in ("regions_overlap", "targets_overlap"):
+            value = str(inputs.get(name, "") or "")
+            if value not in cls.OVERLAP_OPTIONS:
+                return f"{name} must be one of: 0, 1, 2"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file to normalize"}),
+            },
+            "optional": {
+                "reference": ("FASTA", {"description": "Reference FASTA for left-alignment and REF checks"}),
+                "check_ref": ("STRING", {"default": "w", "options": cls.CHECK_REF_OPTIONS, "description": "REF allele mismatch handling"}),
+                "normalize_indels": ("BOOLEAN", {"default": True, "description": "Left-align and normalize indels"}),
+                "rm_dup": ("STRING", {"default": "", "options": cls.RM_DUP_OPTIONS, "description": "Remove duplicate variant records"}),
+                "atomization": ("STRING", {"default": "", "options": cls.ATOMIZATION_OPTIONS, "description": "Atomize complex variants"}),
+                "old_rec_tag": ("STRING", {"default": "", "description": "INFO tag storing the original variant record"}),
+                "multiallelic_mode": ("STRING", {"default": "", "options": cls.MULTIALLELIC_MODE_OPTIONS, "description": "Split or join multiallelic records"}),
+                "multiallelic_types": ("STRING", {"default": "both", "options": cls.MULTIALLELIC_TYPES_OPTIONS, "description": "Variant types for split or join mode"}),
+                "strict_filter": ("BOOLEAN", {"default": False, "description": "Require all merged records to PASS"}),
+                "site_win": ("INT", {"default": "", "min": 0, "description": "Sorting buffer for changed positions"}),
+                "sort": ("STRING", {"default": "pos", "options": cls.SORT_OPTIONS, "description": "Output allele sort order"}),
+                "include": ("STRING", {"default": "", "description": "Normalize only matching records"}),
+                "exclude": ("STRING", {"default": "", "description": "Skip normalization for matching records"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict normalization to regions"}),
+                "regions_file": ("BED", {"description": "Restrict normalization to regions from file"}),
+                "regions_overlap": ("STRING", {"default": "", "options": cls.OVERLAP_OPTIONS, "description": "Region overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict normalization to targets"}),
+                "targets_file": ("TSV", {"description": "Restrict normalization to targets from file"}),
+                "invert_targets": ("BOOLEAN", {"default": False, "description": "Invert inline targets"}),
+                "invert_targets_file": ("BOOLEAN", {"default": False, "description": "Invert targets file"}),
+                "targets_overlap": ("STRING", {"default": "", "options": cls.OVERLAP_OPTIONS, "description": "Target overlap mode"}),
+                "output_type": ("STRING", {"default": "z", "options": cls.OUTPUT_TYPES, "description": "BCFtools output type"}),
+                "threads": ("INT", {"default": "", "min": 1, "max": 128, "display": "slider"}),
+                "vcf": ("VCF_GZ", {"description": "Compatibility alias for input_file", "advanced": True}),
+                "fasta_ref": ("FASTA", {"description": "Compatibility alias for reference", "advanced": True}),
+                "multiallelics": ("STRING", {"default": "", "description": "Compatibility alias for multiallelic_mode", "advanced": True}),
+                "deduplicate": ("STRING", {"default": "", "description": "Compatibility alias for rm_dup", "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BCFtoolsConcatNode(CommandNode):
     """Concatenate or combine VCF/BCF files with matching sample columns."""
 

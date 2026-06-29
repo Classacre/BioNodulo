@@ -46,19 +46,19 @@ def test_bcftools_norm_is_registered_for_frontend_discovery() -> None:
     info = registry.object_info()
 
     node_info = info["bcftools_norm"]
-    assert node_info["display_name"] == "bcftools Norm"
+    assert node_info["display_name"] == "BCFtools Norm"
     assert node_info["category"] == "variant"
-    assert node_info["description"].startswith("Normalize VCF")
+    assert node_info["description"].startswith("Left-align and normalize")
     assert node_info["output"] == ["VCF_GZ"]
     assert node_info["output_name"] == ["normalized_vcf"]
-    assert node_info["required_executables"] == ["bcftools"]
-    assert node_info["required_conda_packages"] == ["bcftools"]
-    assert "left-align" in node_info["search_aliases"]
-    assert "split multiallelic" in node_info["search_aliases"]
+    assert node_info["required_executables"] == ["bcftools", "samtools"]
+    assert node_info["required_conda_packages"] == ["bcftools", "htslib", "samtools"]
+    assert node_info["documentation_url"] == "https://www.htslib.org/doc/bcftools.html#norm"
+    assert "left-align indels" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"vcf", "reference"}
-    assert set(inputs["optional"]) == {"multiallelics", "deduplicate", "check_ref", "threads"}
+    assert set(inputs["required"]) == {"input_file"}
+    assert {"reference", "check_ref", "multiallelic_mode", "output_type", "threads"}.issubset(inputs["optional"])
 
 
 def test_bcftools_norm_renders_left_align_split_and_deduplicate_command() -> None:
@@ -68,8 +68,8 @@ def test_bcftools_norm_renders_left_align_split_and_deduplicate_command() -> Non
         "vcf": "cohort.vcf.gz",
         "reference": "GRCh38.fa",
         "multiallelics": "split",
-        "deduplicate": "exact",
-        "check_ref": "warn",
+        "deduplicate": "snps",
+        "check_ref": "w",
         "threads": 4,
         "output": "/tmp/run/bcftools_norm",
     })
@@ -77,20 +77,23 @@ def test_bcftools_norm_renders_left_align_split_and_deduplicate_command() -> Non
     assert cmd == [
         "bcftools",
         "norm",
-        "-f",
+        "--fasta-ref",
         "GRCh38.fa",
-        "-m",
-        "-any",
-        "-d",
-        "exact",
         "--check-ref",
         "w",
+        "--rm-dup",
+        "snps",
+        "--multiallelics",
+        "-both",
+        "--sort",
+        "pos",
+        "--output-type",
+        "z",
         "--threads",
         "4",
-        "-Oz",
-        "-o",
-        "/tmp/run/bcftools_norm/normalized_vcf.vcf.gz",
         "cohort.vcf.gz",
+        ">",
+        "/tmp/run/bcftools_norm/normalized.vcf.gz",
     ]
 
 
@@ -102,7 +105,7 @@ def test_bcftools_norm_supports_join_mode_without_deduplication() -> None:
         "reference": "GRCh38.fa",
         "multiallelics": "join",
         "deduplicate": "none",
-        "check_ref": "exit",
+        "check_ref": "e",
         "threads": 0,
         "output": "/tmp/run/bcftools_norm",
     })
@@ -111,18 +114,21 @@ def test_bcftools_norm_supports_join_mode_without_deduplication() -> None:
     assert cmd == [
         "bcftools",
         "norm",
-        "-f",
+        "--fasta-ref",
         "GRCh38.fa",
-        "-m",
-        "+any",
         "--check-ref",
         "e",
-        "-Oz",
-        "-o",
-        "/tmp/run/bcftools_norm/normalized_vcf.vcf.gz",
+        "--multiallelics",
+        "+both",
+        "--sort",
+        "pos",
+        "--output-type",
+        "z",
         "split.vcf.gz",
+        ">",
+        "/tmp/run/bcftools_norm/normalized.vcf.gz",
     ]
-    assert [str(path) for path in outputs] == ["/tmp/run/bcftools_norm/normalized_vcf.vcf.gz"]
+    assert [str(path) for path in outputs] == ["/tmp/run/bcftools_norm/normalized.vcf.gz"]
 
 
 def test_bcftools_norm_rejects_unsupported_modes() -> None:
@@ -132,14 +138,14 @@ def test_bcftools_norm_rejects_unsupported_modes() -> None:
         "vcf": "cohort.vcf.gz",
         "reference": "GRCh38.fa",
         "multiallelics": "explode",
-    }) == "Unsupported multiallelics mode: explode"
+    }) == "multiallelic_mode must be one of: -, +"
     assert node_class.VALIDATE_INPUTS({
         "vcf": "cohort.vcf.gz",
         "reference": "GRCh38.fa",
         "deduplicate": "records",
-    }) == "Unsupported deduplicate mode: records"
+    }) == "rm_dup must be one of: snps, indels, both, any"
     assert node_class.VALIDATE_INPUTS({
         "vcf": "cohort.vcf.gz",
         "reference": "GRCh38.fa",
         "check_ref": "ignore",
-    }) == "Unsupported check_ref mode: ignore"
+    }) == "check_ref must be one of: w, wx, ws, e"

@@ -9369,6 +9369,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  bcftools_norm: {
+    name: 'bcftools_norm',
+    display_name: 'BCFtools Norm',
+    category: 'variant',
+    description: 'Left-align and normalize indels, check reference alleles, split or join multiallelic records, and atomize complex variants.',
+    search_aliases: ['Galaxy', 'bcftools', 'norm', 'normalize', 'left-align indels', 'split multiallelic', 'join multiallelic', 'atomize variants'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+      optional: {
+        reference: { type: 'FASTA', default: '' },
+        check_ref: { type: 'STRING', default: 'w', options: ['w', 'wx', 'ws', 'e'] },
+        multiallelic_mode: { type: 'STRING', default: '', options: ['', '-', '+'] },
+        output_type: { type: 'STRING', default: 'z', options: ['b', 'u', 'z', 'v'] },
+        threads: { type: 'INT', default: '', min: 1, max: 128 },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['normalized_vcf'],
+    required_executables: ['bcftools', 'samtools'],
+    required_conda_packages: ['bcftools', 'htslib', 'samtools'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#norm',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   bcftools_concat: {
     name: 'bcftools_concat',
     display_name: 'BCFtools Concat',
@@ -10610,7 +10637,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('363 nodes available')).toBeVisible();
+  await expect(page.getByText('364 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10920,6 +10947,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'SNP indel calling', name: 'BCFtools Call', category: 'variant' },
     { query: 'fixed-threshold filters', name: 'BCFtools Filter', category: 'variant' },
     { query: 'plot-vcfstats', name: 'BCFtools Stats', category: 'variant' },
+    { query: 'left-align indels', name: 'BCFtools Norm', category: 'variant' },
     { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },
     { query: 'consensus fasta', name: 'BCFtools Consensus', category: 'variant' },
     { query: 'extract fields', name: 'BCFtools Query', category: 'variant' },
