@@ -5850,6 +5850,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giy069'],
     citation_text: 'AMBER: Assessment of Metagenome BinnERs.',
   },
+  cami_amber_add: {
+    name: 'cami_amber_add',
+    display_name: 'CAMI AMBER add length column',
+    category: 'metagenomics',
+    description: 'Create an AMBER gold standard biobox file by adding sequence lengths from matching FASTA or FASTQ records.',
+    search_aliases: ['Galaxy', 'CAMI AMBER add length column', 'AMBER gold standard length', 'add_length_column.py', 'biobox length column', 'metagenome benchmark gold standard'],
+    input: {
+      required: {
+        gold_standard_file: { type: 'TSV' },
+        fasta_file: { type: 'FILE' },
+      },
+      optional: {
+        gold_standard_identifier: { type: 'STRING', default: '' },
+        fasta_identifier: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['file'],
+    required_executables: ['add_length_column.py'],
+    required_conda_packages: ['cami-amber'],
+    documentation_url: 'https://github.com/CAMI-challenge/AMBER',
+    citation_dois: ['10.1093/gigascience/giy069'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giy069'],
+    citation_text: 'AMBER: Assessment of Metagenome BinnERs.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8595,7 +8620,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('301 nodes available')).toBeVisible();
+  await expect(page.getByText('302 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8777,6 +8802,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'dRep genome comparison', name: 'dRep compare', category: 'metagenomics' },
     { query: 'dRep genome dereplication', name: 'dRep dereplicate', category: 'metagenomics' },
     { query: 'AMBER metagenome binning evaluation', name: 'CAMI AMBER', category: 'metagenomics' },
+    { query: 'AMBER gold standard length', name: 'CAMI AMBER add length column', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

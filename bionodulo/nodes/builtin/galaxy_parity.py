@@ -25726,6 +25726,83 @@ class CamiAmberNode(CommandNode):
         return super().VALIDATE_INPUTS(inputs)
 
 
+class CamiAmberAddNode(CommandNode):
+    """Add sequence lengths to a CAMI AMBER gold standard file."""
+
+    NODE_ID = "cami_amber_add"
+    DISPLAY_NAME = "CAMI AMBER add length column"
+    REQUIRED_CONDA_PACKAGES = ["cami-amber"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Create an AMBER gold standard biobox file by adding sequence lengths from matching FASTA or FASTQ records."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CAMI AMBER add length column",
+        "AMBER gold standard length",
+        "add_length_column.py",
+        "biobox length column",
+        "metagenome benchmark gold standard",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("file",)
+    REQUIRED_EXECUTABLES = ["add_length_column.py"]
+    DOCUMENTATION_URL = "https://github.com/CAMI-challenge/AMBER"
+    CITATION_DOIS = ["10.1093/gigascience/giy069"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/gigascience/giy069"]
+    CITATION_TEXT = "AMBER: Assessment of Metagenome BinnERs."
+    VERSION = "2.0.7"
+    SHELL = True
+
+    @classmethod
+    def _staged_name(cls, inputs: dict[str, Any], path_key: str, identifier_key: str) -> str:
+        identifier = str(inputs.get(identifier_key, "") or "")
+        if identifier:
+            return _safe_identifier(identifier)
+        return _safe_identifier(Path(str(inputs.get(path_key, ""))).name)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        gold_name = cls._staged_name(inputs, "gold_standard_file", "gold_standard_identifier")
+        fasta_name = cls._staged_name(inputs, "fasta_file", "fasta_identifier")
+        commands = [
+            _shell_join(["mkdir", "-p", out]),
+            _shell_join(["ln", "-s", str(inputs.get("gold_standard_file", "")), gold_name]),
+            _shell_join(["ln", "-s", str(inputs.get("fasta_file", "")), fasta_name]),
+        ]
+        cmd = ["add_length_column.py", "-g", gold_name, "-f", fasta_name, ">", "gold_standard_file.tsv"]
+        commands.append(_shell_join(cmd))
+        commands.append(_shell_join(["cp", "gold_standard_file.tsv", f"{out}/gold_standard_file.tsv"]))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "gold_standard_file.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "gold_standard_file": ("TSV", {"description": "Input CAMI biobox gold standard file"}),
+                "fasta_file": ("FILE", {"description": "Matching FASTA/FASTQ file, optionally compressed"}),
+            },
+            "optional": {
+                "gold_standard_identifier": ("STRING", {"default": "", "advanced": True, "description": "Galaxy element identifier"}),
+                "fasta_identifier": ("STRING", {"default": "", "advanced": True, "description": "Galaxy element identifier"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("gold_standard_file", "")).strip():
+            return "gold_standard_file is required"
+        if not str(inputs.get("fasta_file", "")).strip():
+            return "fasta_file is required"
+        return super().VALIDATE_INPUTS(inputs)
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 

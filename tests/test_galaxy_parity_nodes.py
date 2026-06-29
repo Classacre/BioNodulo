@@ -13115,6 +13115,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["cami-amber"],
             "doi": "10.1093/gigascience/giy069",
         },
+        "cami_amber_add": {
+            "display_name": "CAMI AMBER add length column",
+            "category": "metagenomics",
+            "required_executables": ["add_length_column.py"],
+            "required_conda_packages": ["cami-amber"],
+            "doi": "10.1093/gigascience/giy069",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16523,6 +16530,47 @@ def test_cami_amber_renders_evaluation_command_outputs_and_validation(tmp_path: 
         "ncbi_dir is required when ncbi_mode is data"
     )
     assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "binning_files": ["bin.tsv"]}) is True
+
+
+def test_cami_amber_add_renders_length_column_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cami_amber_add")
+    info = _registry().object_info()["cami_amber_add"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["file"]
+    assert info["input"]["required"]["gold_standard_file"][0] == "TSV"
+    assert info["input"]["required"]["fasta_file"][0] == "FILE"
+    assert "10.1093/gigascience/giy069" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "gold_standard_file": "gold standard.tsv",
+            "gold_standard_identifier": "Gold Standard 1.tsv",
+            "fasta_file": "reads file.fa.gz",
+            "fasta_identifier": "reads 1.fa.gz",
+            "output": "/work/cami_amber_add",
+        }
+    ) == (
+        "mkdir -p /work/cami_amber_add && ln -s 'gold standard.tsv' Gold_Standard_1.tsv && "
+        "ln -s 'reads file.fa.gz' reads_1.fa.gz && add_length_column.py -g Gold_Standard_1.tsv -f reads_1.fa.gz "
+        "> gold_standard_file.tsv && cp gold_standard_file.tsv /work/cami_amber_add/gold_standard_file.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "gold_standard_file": "gold.tsv",
+            "fasta_file": "reads.fastq",
+            "output": "/work/cami_amber_add",
+        }
+    ) == (
+        "mkdir -p /work/cami_amber_add && ln -s gold.tsv gold.tsv && ln -s reads.fastq reads.fastq && "
+        "add_length_column.py -g gold.tsv -f reads.fastq > gold_standard_file.tsv && "
+        "cp gold_standard_file.tsv /work/cami_amber_add/gold_standard_file.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cami_amber_add" / "gold_standard_file.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "gold_standard_file is required"
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv"}) == "fasta_file is required"
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "fasta_file": "reads.fa.gz"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
