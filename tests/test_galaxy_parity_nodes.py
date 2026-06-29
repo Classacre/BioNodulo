@@ -675,6 +675,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/genetics/123.3.603",
         },
+        "hyphy_strike_ambigs": {
+            "display_name": "Replace ambiguous codons",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/bioinformatics/bti079",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -9780,6 +9787,92 @@ def test_hyphy_sm19_validates_wrapper_inputs() -> None:
             "threads": 4,
         }
     ) is True
+
+
+def test_hyphy_strike_ambigs_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_strike_ambigs"]
+
+    assert info["display_name"] == "Replace ambiguous codons"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Replace ambiguous codons in an in-frame alignment using HyPhy."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "Strike-Ambigs",
+        "Replace ambiguous codons",
+        "ambiguous codons",
+        "codon alignment",
+        "FASTA",
+        "gap codons",
+        "sequencing ambiguity",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["FASTA", "TEXT"]
+    assert info["output_name"] == ["output", "strike_ambigs_md_report"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/bioinformatics/bti079"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/bioinformatics/bti079",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "HyPhy: hypothesis testing using phylogenies."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["alignment"][0] == "FASTA"
+    assert info["input"]["required"]["alignment"][1]["description"] == "In-frame codon alignment in FASTA format"
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert "Vertebrate-mtDNA" in info["input"]["optional"]["gencodeid"][1]["options"]
+
+
+def test_hyphy_strike_ambigs_renders_hyphy_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_strike_ambigs")
+
+    assert node_class.render_command(
+        {
+            "alignment": "strike-ambigs-in1.fa",
+            "gencodeid": "Universal",
+            "output": "/work/hyphy_strike_ambigs",
+        }
+    ) == (
+        "hyphy ${HYPHY_STRIKE_AMBIGS_BF:-strike-ambigs.bf} --alignment strike-ambigs-in1.fa --code Universal "
+        "--output /work/hyphy_strike_ambigs/output.fasta > /work/hyphy_strike_ambigs/strike_ambigs_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_strike_ambigs" / "output.fasta",
+        tmp_path / "hyphy_strike_ambigs" / "strike_ambigs_stdout.md",
+    ]
+
+
+def test_hyphy_strike_ambigs_renders_advanced_hyphy_command() -> None:
+    node_class = _node_class("hyphy_strike_ambigs")
+
+    assert node_class.render_command(
+        {
+            "alignment": "codon alignment.fa",
+            "gencodeid": "Vertebrate-mtDNA",
+            "batch_file": "/opt/hyphy/scripts/strike-ambigs.bf",
+            "output": "/work/hyphy_strike_ambigs",
+        }
+    ) == (
+        "hyphy /opt/hyphy/scripts/strike-ambigs.bf --alignment 'codon alignment.fa' --code Vertebrate-mtDNA "
+        "--output /work/hyphy_strike_ambigs/output.fasta > /work/hyphy_strike_ambigs/strike_ambigs_stdout.md"
+    )
+
+
+def test_hyphy_strike_ambigs_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_strike_ambigs")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy Strike-Ambigs alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"alignment": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignment": "alignment.fa", "gencodeid": "Universal"}) is True
 
 
 def test_hyphy_busted_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:

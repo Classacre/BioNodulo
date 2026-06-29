@@ -3672,6 +3672,41 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; A cladistic measure of gene flow inferred from the phylogenies of alleles.',
   },
+  hyphy_strike_ambigs: {
+    name: 'hyphy_strike_ambigs',
+    display_name: 'Replace ambiguous codons',
+    category: 'phylogeny',
+    description: 'Replace ambiguous codons in an in-frame alignment using HyPhy.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'Strike-Ambigs',
+      'Replace ambiguous codons',
+      'ambiguous codons',
+      'codon alignment',
+      'FASTA',
+      'gap codons',
+      'sequencing ambiguity',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        alignment: { type: 'FASTA' },
+      },
+      optional: {
+        gencodeid: { type: 'STRING', default: 'Universal' },
+      },
+    },
+    output: ['FASTA', 'TEXT'],
+    output_name: ['output', 'strike_ambigs_md_report'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/bioinformatics/bti079'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/bioinformatics/bti079'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; HyPhy: hypothesis testing using phylogenies.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6642,7 +6677,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('242 nodes available')).toBeVisible();
+  await expect(page.getByText('243 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6758,6 +6793,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'relaxed selection', name: 'HyPhy-RELAX', category: 'phylogeny' },
     { query: 'Single Likelihood Ancestor Counting', name: 'HyPhy-SLAC', category: 'phylogeny' },
     { query: 'Structured Slatkin-Maddison', name: 'HyPhy-SM2019', category: 'phylogeny' },
+    { query: 'ambiguous codons', name: 'Replace ambiguous codons', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
