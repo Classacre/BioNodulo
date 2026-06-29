@@ -213,6 +213,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["bioconductor-aldex2", "r-data.table", "r-optparse", "r-qgraph"],
             "doi": "10.1371/journal.pone.0067019",
         },
+        "allegro": {
+            "display_name": "Allegro",
+            "category": "linkage",
+            "required_executables": ["allegro"],
+            "required_conda_packages": ["allegro"],
+            "doi": "10.1038/ng1005-1015",
+        },
         "ancombc": {
             "display_name": "ANCOM-BC",
             "category": "metagenomics",
@@ -5137,6 +5144,128 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
         }
     ) == "feature_name is required for aldex_plot_feature"
     assert node_class.VALIDATE_INPUTS({"reads": "reads.tsv", "group_names": ["NS"], "num_cols": [1]}) is True
+
+
+def test_allegro_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["allegro"]
+
+    assert info["display_name"] == "Allegro"
+    assert info["category"] == "linkage"
+    assert info["description"] == "Multipoint genetic linkage, haplotype, IBD sharing, and simulation analysis."
+    assert info["input"]["required"]["inp_ped"][0] == "FILE"
+    assert info["input"]["required"]["inp_dat"][0] == "FILE"
+    assert info["input"]["optional"]["inp_map"][0] == "FILE"
+    assert info["input"]["optional"]["analysis_mode"][1]["options"] == ["haplotypes", "linkage"]
+    assert info["input"]["optional"]["linkage_type"][1]["options"] == ["defaults", "allele_sharing", "classical"]
+    assert info["input"]["optional"]["steps_type"][1]["options"] == ["STEPS", "STEPFILE", "MAXSTEPLENGTH"]
+    assert info["input"]["optional"]["pairwise_type"][1]["options"] == ["all", "genotype", "affected", "informative"]
+    assert info["output"] == ["FILE", "FILE", "FILE", "TXT", "TXT"]
+    assert info["output_name"] == ["haplotypes", "linkage", "descent", "linear_expression", "combined_crossovers"]
+    assert info["required_executables"] == ["allegro"]
+    assert info["required_conda_packages"] == ["allegro"]
+    assert info["documentation_url"] == "https://www.decode.com/software/allegro/"
+    assert info["citation_dois"] == ["10.1038/ng1005-1015", "10.1038/75514"]
+    assert "Allegro version 2" in info["citation_text"]
+    assert "Allegro, a new computer program for multipoint linkage analysis" in info["citation_text"]
+    assert "multipoint linkage analysis" in info["search_aliases"]
+
+
+def test_allegro_renders_config_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("allegro")
+
+    haplotype_command = node_class.render_command(
+        {
+            "inp_ped": "pedin.21",
+            "inp_dat": "datain.21",
+            "inp_map": "map.21",
+            "analysis_mode": "haplotypes",
+            "crossover": True,
+            "entropy": True,
+            "nplexactp": False,
+            "sexspecific": True,
+            "unit": "centimorgan",
+            "output": "/work/allegro",
+        }
+    )
+    assert haplotype_command.startswith("mkdir -p /work/allegro && ")
+    assert "cat > /work/allegro/allegro.conf <<'EOF'\n" in haplotype_command
+    assert "PREFILE pedin.21\nDATFILE datain.21\nMAPFILE map.21\n" in haplotype_command
+    assert "HAPLOTYPE haplo.out /work/allegro/haplotypes.ihaplo /work/allegro/descent.out inher.out\n" in haplotype_command
+    assert "CROSSOVERRATE combined.out /work/allegro/combined_crossovers.txt\n" in haplotype_command
+    assert "SEXSPECIFIC on\nENTROPY on\nNPLEXACTP off\nMAXMEMORY 102400\nUNIT centimorgan\nUNINFORMATIVE\nEOF\n" in haplotype_command
+    assert haplotype_command.endswith("allegro /work/allegro/allegro.conf")
+
+    linkage_command = node_class.render_command(
+        {
+            "inp_ped": "pedin.21",
+            "inp_dat": "datain.21",
+            "analysis_mode": "linkage",
+            "linkage_mptspt": "spt",
+            "linkage_type": "allele_sharing",
+            "linkage_linexp": "lin",
+            "linkage_scoring": "homoz",
+            "weighting": "power:0.5",
+            "steps_type": "MAXSTEPLENGTH",
+            "max_step_length": 5,
+            "pairwise": True,
+            "pairwise_type": "affected",
+            "simulate": True,
+            "sim_dloc": 12.5,
+            "sim_npre": 2,
+            "sim_rep": 3,
+            "sim_err": 0.01,
+            "sim_yield": 0.95,
+            "sim_het": 0.25,
+            "output": "/work/allegro",
+        }
+    )
+    assert "MODEL spt lin homoz power:0.5 param.mpt /work/allegro/linear_expression.txt\n" in linkage_command
+    assert "MAXSTEPLENGTH 5\n" in linkage_command
+    assert "PAIRWISEIBD spt affected\n" in linkage_command
+    assert "SIMULATE dloc:12.5 npre:2 rep:3 err:0.01 yield:0.95 het:0.25\n" in linkage_command
+
+    assert node_class.PLAN_OUTPUTS({"analysis_mode": "haplotypes", "crossover": True}, tmp_path) == [
+        tmp_path / "allegro" / "haplotypes.ihaplo",
+        tmp_path / "allegro" / "descent.out",
+        tmp_path / "allegro" / "combined_crossovers.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"analysis_mode": "linkage", "linkage_type": "allele_sharing"}, tmp_path) == [
+        tmp_path / "allegro" / "linear_expression.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"analysis_mode": "linkage", "linkage_type": "defaults"}, tmp_path) == [
+        tmp_path / "allegro" / "linkage.fparam",
+    ]
+    assert node_class.VALIDATE_INPUTS({"inp_ped": "", "inp_dat": "datain.21"}) == "Pedigree input is required"
+    assert node_class.VALIDATE_INPUTS({"inp_ped": "pedin.21", "inp_dat": ""}) == "Recombination data input is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"inp_ped": "pedin.21", "inp_dat": "datain.21", "analysis_mode": "bad"}
+    ) == "analysis_mode must be one of: haplotypes, linkage"
+    assert node_class.VALIDATE_INPUTS(
+        {"inp_ped": "pedin.21", "inp_dat": "datain.21", "linkage_type": "bad"}
+    ) == "linkage_type must be one of: defaults, allele_sharing, classical"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "inp_ped": "pedin.21",
+            "inp_dat": "datain.21",
+            "analysis_mode": "linkage",
+            "steps_type": "STEPFILE",
+            "stepfile": "",
+        }
+    ) == "stepfile is required when steps_type is STEPFILE"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "inp_ped": "pedin.21",
+            "inp_dat": "datain.21",
+            "analysis_mode": "linkage",
+            "linkage_type": "classical",
+            "custom_freqs": True,
+            "par_freq": 1.2,
+        }
+    ) == "par_freq must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"inp_ped": "pedin.21", "inp_dat": "datain.21", "analysis_mode": "linkage", "steps": 0}
+    ) == "steps must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"inp_ped": "pedin.21", "inp_dat": "datain.21"}) is True
 
 
 def test_ancombc_exposes_galaxy_metadata_and_citation() -> None:

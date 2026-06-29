@@ -1095,6 +1095,59 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0067019', 'https://doi.org/10.1186/2049-2618-2-15', 'https://doi.org/10.1080/10618600.2015.1131161'],
     citation_text: 'ANOVA-Like Differential Expression (ALDEx) Analysis for Mixed Population RNA-Seq; Unifying the analysis of high-throughput sequencing datasets: characterizing RNA-seq, 16S rRNA gene sequencing and selective growth experiments by compositional data analysis; Displaying Variation in Large Datasets: Plotting a Visual Summary of Effect Sizes.',
   },
+  allegro: {
+    name: 'allegro',
+    display_name: 'Allegro',
+    category: 'linkage',
+    description: 'Multipoint genetic linkage, haplotype, IBD sharing, and simulation analysis.',
+    search_aliases: ['Galaxy', 'Allegro', 'allegro', 'multipoint linkage analysis', 'haplotype analysis', 'IBD sharing', 'parametric linkage', 'allele sharing', 'Genehunter'],
+    input: {
+      required: {
+        inp_ped: { type: 'FILE' },
+        inp_dat: { type: 'FILE' },
+      },
+      optional: {
+        inp_map: { type: 'FILE', default: '' },
+        analysis_mode: { type: 'STRING', default: 'linkage', options: ['haplotypes', 'linkage'] },
+        crossover: { type: 'BOOLEAN', default: false },
+        linkage_mptspt: { type: 'STRING', default: 'mpt', options: ['mpt', 'spt'] },
+        linkage_type: { type: 'STRING', default: 'defaults', options: ['defaults', 'allele_sharing', 'classical'] },
+        linkage_linexp: { type: 'STRING', default: 'lin', options: ['lin', 'exp'] },
+        linkage_scoring: { type: 'STRING', default: 'pairs', options: ['pairs', 'all', 'homoz', 'mnallele', 'robdom', 'ps:mm/mf/ff'] },
+        weighting: { type: 'STRING', default: 'equal', options: ['equal', 'power:0.5'] },
+        custom_freqs: { type: 'BOOLEAN', default: false },
+        par_freq: { type: 'FLOAT', default: 0, min: 0, max: 1 },
+        par_pen: { type: 'STRING', default: 'p0/p1/p2' },
+        par_het: { type: 'FLOAT', default: '' },
+        steps_type: { type: 'STRING', default: 'STEPS', options: ['STEPS', 'STEPFILE', 'MAXSTEPLENGTH'] },
+        steps: { type: 'INT', default: 2, min: 1 },
+        stepfile: { type: 'FILE', default: '' },
+        max_step_length: { type: 'FLOAT', default: 2, min: 1 },
+        xlinked: { type: 'STRING', default: '', options: ['', 'X'] },
+        entropy: { type: 'BOOLEAN', default: false },
+        nplexactp: { type: 'BOOLEAN', default: false },
+        pairwise: { type: 'BOOLEAN', default: false },
+        pairwise_type: { type: 'STRING', default: 'all', options: ['all', 'genotype', 'affected', 'informative'] },
+        simulate: { type: 'BOOLEAN', default: false },
+        sim_dloc: { type: 'FLOAT', default: '', min: 0 },
+        sim_npre: { type: 'INT', default: 1, min: 1 },
+        sim_rep: { type: 'INT', default: 1, min: 1 },
+        sim_err: { type: 'FLOAT', default: 0, min: 0 },
+        sim_yield: { type: 'FLOAT', default: 1, min: 0 },
+        sim_het: { type: 'FLOAT', default: 0, min: 0 },
+        sexspecific: { type: 'BOOLEAN', default: false },
+        unit: { type: 'STRING', default: 'recombination', options: ['recombination', 'centimorgan'] },
+      },
+    },
+    output: ['FILE', 'FILE', 'FILE', 'TXT', 'TXT'],
+    output_name: ['haplotypes', 'linkage', 'descent', 'linear_expression', 'combined_crossovers'],
+    required_executables: ['allegro'],
+    required_conda_packages: ['allegro'],
+    documentation_url: 'https://www.decode.com/software/allegro/',
+    citation_dois: ['10.1038/ng1005-1015', '10.1038/75514'],
+    citation_urls: ['https://doi.org/10.1038/ng1005-1015', 'https://doi.org/10.1038/75514'],
+    citation_text: 'Allegro version 2; Allegro, a new computer program for multipoint linkage analysis.',
+  },
   ancombc: {
     name: 'ancombc',
     display_name: 'ANCOM-BC',
@@ -9396,7 +9449,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('325 nodes available')).toBeVisible();
+  await expect(page.getByText('326 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9445,6 +9498,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'SOLiD read simulator', name: 'ART SOLiD', category: 'simulation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
+    { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'ANCOM-BC differential abundance', name: 'ANCOM-BC', category: 'metagenomics' },
     { query: 'ANGSD internal counts', name: 'ANGSD', category: 'population_genetics' },
     { query: 'ANGSD X-Contamination', name: 'ANGSD X-Contamination', category: 'population_genetics' },
