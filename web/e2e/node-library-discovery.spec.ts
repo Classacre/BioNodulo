@@ -2227,6 +2227,39 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.21105/joss.05627'],
     citation_text: 'TAXPASTA: TAXonomic Profile Aggregation and STAndardisation.',
   },
+  humann_join_tables: {
+    name: 'humann_join_tables',
+    display_name: 'HUMAnN Join Tables',
+    category: 'metagenomics',
+    description: 'Join gene, pathway, or taxonomy HUMAnN/MetaPhlAn tables into one table.',
+    search_aliases: [
+      'Galaxy',
+      'HUMAnN',
+      'humann_join_tables',
+      'Join merge',
+      'gene table',
+      'pathway table',
+      'taxonomy table',
+      'MetaPhlAn table',
+      'multi-sample table',
+    ],
+    input: {
+      required: {
+        inputs: { type: 'TSV', multiple: true },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['humann_join_tables'],
+    required_conda_packages: ['humann'],
+    documentation_url: 'https://huttenhower.sph.harvard.edu/humann/',
+    citation_dois: ['10.7554/eLife.65088', '10.1371/journal.pcbi.1002358'],
+    citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
+    citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5197,7 +5230,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('214 nodes available')).toBeVisible();
+  await expect(page.getByText('215 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5285,6 +5318,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MetaPhlAn-style', name: 'Krakentools Kreport2MPA', category: 'taxonomy' },
     { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
     { query: 'taxonomic profile standardisation', name: 'Taxpasta', category: 'taxonomy' },
+    { query: 'multi-sample table', name: 'HUMAnN Join Tables', category: 'metagenomics' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

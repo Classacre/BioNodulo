@@ -8994,6 +8994,11 @@ KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
 KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
 TAXPASTA_DOI = "10.21105/joss.05627"
 TAXPASTA_CITATION_TEXT = "TAXPASTA: TAXonomic Profile Aggregation and STAndardisation."
+HUMANN_CITATION_DOIS = ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+HUMANN_CITATION_TEXT = (
+    "bioBakery 3: a platform for analyzing meta'omic datasets; "
+    "HUMAnN: the HMP Unified Metabolic Analysis Network."
+)
 METAPHLAN_DOI = "10.1038/s41587-023-01688-w"
 METAPHLAN_CITATION_TEXT = (
     "Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4."
@@ -10043,6 +10048,92 @@ class TaxpastaNode(CommandNode):
                 "add_rank_lineage": (
                     "BOOLEAN",
                     {"default": False, "description": "Add semicolon-separated taxon rank lineages"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class HUMAnNJoinTablesNode(CommandNode):
+    """Join HUMAnN and MetaPhlAn tables into a multi-sample table."""
+
+    NODE_ID = "humann_join_tables"
+    DISPLAY_NAME = "HUMAnN Join Tables"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Join gene, pathway, or taxonomy HUMAnN/MetaPhlAn tables into one table."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_join_tables",
+        "Join merge",
+        "gene table",
+        "pathway table",
+        "taxonomy table",
+        "MetaPhlAn table",
+        "multi-sample table",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["humann_join_tables"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+
+    @classmethod
+    def _input_names(cls, inputs: dict[str, Any], tables: list[str]) -> list[str]:
+        labels = _as_list(inputs.get("element_identifiers"))
+        names: list[str] = []
+        for index, table in enumerate(tables):
+            label = labels[index] if index < len(labels) and labels[index] else table
+            names.append(_safe_identifier(label))
+        return names
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        tables = _as_list(inputs.get("inputs"))
+        input_names = cls._input_names(inputs, tables)
+        commands = ["mkdir tmp_dir"]
+        commands.extend(
+            _shell_join(["ln", "-s", table, f"tmp_dir/{input_name}"])
+            for table, input_name in zip(tables, input_names, strict=False)
+        )
+        commands.append(_shell_join(["humann_join_tables", "-i", "tmp_dir", "-o", f"{out}/joined_tables.tsv"]))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "joined_tables.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not _as_list(inputs.get("inputs")):
+            return "At least one HUMAnN or MetaPhlAn table is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "inputs": (
+                    "TSV",
+                    {"multiple": True, "description": "Gene, pathway, or taxonomy tables to join"},
+                ),
+            },
+            "optional": {
+                "element_identifiers": (
+                    "STRING",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional Galaxy element identifiers used to name joined samples",
+                    },
                 ),
             },
             "hidden": {"output": ("STRING", {})},

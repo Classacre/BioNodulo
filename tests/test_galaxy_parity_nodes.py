@@ -506,6 +506,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["taxpasta"],
             "doi": "10.21105/joss.05627",
         },
+        "humann_join_tables": {
+            "display_name": "HUMAnN Join Tables",
+            "category": "metagenomics",
+            "required_executables": ["humann_join_tables"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -5916,6 +5923,92 @@ def test_taxpasta_renders_merge_biom_command_and_validates_wrapper_inputs(tmp_pa
         {"infile": ["report.tsv"], "profiler": "kraken2", "taxonomy": "/db/taxonomy", "output_format": "JSON"}
     ) == "Unsupported Taxpasta output format: JSON"
     assert node_class.VALIDATE_INPUTS({"infile": ["report.tsv"], "profiler": "kraken2", "taxonomy": "/db/taxonomy"}) is True
+
+
+def test_humann_join_tables_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_join_tables"]
+
+    assert info["display_name"] == "HUMAnN Join Tables"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Join gene, pathway, or taxonomy HUMAnN/MetaPhlAn tables into one table."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_join_tables",
+        "Join merge",
+        "gene table",
+        "pathway table",
+        "taxonomy table",
+        "MetaPhlAn table",
+        "multi-sample table",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["humann_join_tables"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.7554/eLife.65088",
+        "https://doi.org/10.1371/journal.pcbi.1002358",
+    ]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["inputs"][0] == "TSV"
+    assert info["input"]["required"]["inputs"][1]["multiple"] is True
+    assert info["input"]["required"]["inputs"][1]["description"] == (
+        "Gene, pathway, or taxonomy tables to join"
+    )
+    assert info["input"]["optional"]["element_identifiers"][0] == "STRING"
+    assert info["input"]["optional"]["element_identifiers"][1]["multiple"] is True
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_join_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("humann_join_tables")
+
+    assert node_class.render_command(
+        {
+            "inputs": ["demo pathabundance.tsv", "demo/pathcoverage.tsv", "demo/metaphlan.tsv"],
+            "element_identifiers": ["humann Abundance", "humann/Coverage", "MetaPhlAn taxonomy"],
+            "output": "/work/humann_join_tables",
+        }
+    ) == (
+        "mkdir tmp_dir && "
+        "ln -s 'demo pathabundance.tsv' tmp_dir/humann_Abundance && "
+        "ln -s demo/pathcoverage.tsv tmp_dir/humann_Coverage && "
+        "ln -s demo/metaphlan.tsv tmp_dir/MetaPhlAn_taxonomy && "
+        "humann_join_tables -i tmp_dir -o /work/humann_join_tables/joined_tables.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "inputs": ["sample1.tsv", "sample 2.tsv", "sample3.tsv"],
+            "output": "/work/humann_join_tables",
+        }
+    ) == (
+        "mkdir tmp_dir && "
+        "ln -s sample1.tsv tmp_dir/sample1.tsv && "
+        "ln -s 'sample 2.tsv' tmp_dir/sample_2.tsv && "
+        "ln -s sample3.tsv tmp_dir/sample3.tsv && "
+        "humann_join_tables -i tmp_dir -o /work/humann_join_tables/joined_tables.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "humann_join_tables" / "joined_tables.tsv",
+    ]
+
+
+def test_humann_join_tables_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_join_tables")
+
+    assert node_class.VALIDATE_INPUTS({}) == "At least one HUMAnN or MetaPhlAn table is required"
+    assert node_class.VALIDATE_INPUTS({"inputs": []}) == "At least one HUMAnN or MetaPhlAn table is required"
+    assert node_class.VALIDATE_INPUTS({"inputs": ["pathabundance.tsv"]}) is True
 
 
 def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:
