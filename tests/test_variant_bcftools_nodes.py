@@ -26,13 +26,14 @@ def test_bcftools_mpileup_is_registered_for_frontend_discovery() -> None:
     assert node_info["required_conda_packages"] == ["bcftools"]
     assert "variant call" in node_info["search_aliases"]
     assert "snp calling" in node_info["search_aliases"]
-    assert info["bcftools_call"]["display_name"] == "bcftools Call"
+    assert info["bcftools_call"]["display_name"] == "BCFtools Call"
     assert info["bcftools_call"]["category"] == "variant"
     assert info["bcftools_call"]["output"] == ["VCF_GZ"]
-    assert info["bcftools_call"]["output_name"] == ["vcf"]
+    assert info["bcftools_call"]["output_name"] == ["called_vcf"]
     assert info["bcftools_call"]["required_executables"] == ["bcftools"]
-    assert info["bcftools_call"]["required_conda_packages"] == ["bcftools"]
-    assert issubclass(registry.get("bcftools_call"), registry.get("bcftools_mpileup"))
+    assert info["bcftools_call"]["required_conda_packages"] == ["bcftools", "htslib"]
+    assert info["bcftools_call"]["documentation_url"] == "https://www.htslib.org/doc/bcftools.html#call"
+    assert "SNP indel calling" in info["bcftools_call"]["search_aliases"]
 
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"bam", "reference"}

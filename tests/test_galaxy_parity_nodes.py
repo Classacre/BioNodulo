@@ -25708,6 +25708,12 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
             "required_executables": ["bcftools", "bgzip", "tabix"],
             "search_alias": "annotate vcf",
         },
+        "bcftools_call": {
+            "display_name": "BCFtools Call",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#call",
+            "output": ["VCF_GZ"],
+            "search_alias": "SNP indel calling",
+        },
         "bcftools_concat": {
             "display_name": "BCFtools Concat",
             "documentation_url": "https://www.htslib.org/doc/bcftools.html#concat",
@@ -25926,6 +25932,157 @@ def test_bcftools_annotate_renders_vcf_annotation_and_removal_modes(tmp_path: Pa
                 "annotation_format": "tab",
                 "annotations": "annots.tsv",
                 "columns": "CHROM,POS,INFO/TAG",
+            }
+        )
+        is True
+    )
+
+
+def test_bcftools_call_renders_multiallelic_alleles_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_call")
+
+    assert node_class.render_command(
+        {
+            "input_file": "mpileup.vcf.gz",
+            "method": "multiallelic",
+            "constrain": "alleles",
+            "targets_file": "known_alleles.tsv",
+            "insert_missed": True,
+            "gvcf": 0,
+            "prior_freqs": "REF_AN,REF_AC",
+            "prior": 0.0011,
+            "regions": "chr17",
+            "regions_overlap": "1",
+            "samples_file": "samples.txt",
+            "ploidy_file": "ploidy.tsv",
+            "group_samples": True,
+            "keep_alts": True,
+            "format_fields": "GQ,GP",
+            "keep_masked_ref": True,
+            "skip_variants": "indels",
+            "variants_only": True,
+            "output_tags": ["INFO/PV4", "FORMAT/GQ"],
+            "output_type": "v",
+            "threads": 4,
+            "output": "/work/bcftools_call",
+        }
+    ) == [
+        "bcftools",
+        "call",
+        "-m",
+        "--gvcf",
+        "0",
+        "--prior-freqs",
+        "REF_AN,REF_AC",
+        "--prior",
+        "0.0011",
+        "--constrain",
+        "alleles",
+        "--insert-missed",
+        "--targets-file",
+        "known_alleles.tsv",
+        "--regions",
+        "chr17",
+        "--regions-overlap",
+        "1",
+        "--samples-file",
+        "samples.txt",
+        "--ploidy-file",
+        "ploidy.tsv",
+        "--group-samples",
+        "-",
+        "--keep-alts",
+        "--format-fields",
+        "GQ,GP",
+        "--keep-masked-ref",
+        "--skip-variants",
+        "indels",
+        "--variants-only",
+        "--annotate",
+        "INFO/PV4,FORMAT/GQ",
+        "--output-type",
+        "v",
+        "--threads",
+        "4",
+        "mpileup.vcf.gz",
+        ">",
+        "/work/bcftools_call/called.vcf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
+        tmp_path / "bcftools_call" / "called.vcf",
+    ]
+
+
+def test_bcftools_call_renders_consensus_trio_command_and_default_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_call")
+
+    assert node_class.render_command(
+        {
+            "input_file": "mpileup.bcf",
+            "method": "consensus",
+            "constrain": "trio",
+            "novel_rate_snp": 0.001,
+            "novel_rate_del": 0.0001,
+            "novel_rate_ins": 0.0002,
+            "pval_threshold": 0.2,
+            "targets": "chr1:1-200",
+            "output_type": "z",
+            "output": "/work/bcftools_call",
+        }
+    ) == [
+        "bcftools",
+        "call",
+        "-c",
+        "--pval-threshold",
+        "0.2",
+        "--constrain",
+        "trio",
+        "--novel-rate",
+        "0.001,0.0001,0.0002",
+        "--targets",
+        "chr1:1-200",
+        "--output-type",
+        "z",
+        "mpileup.bcf",
+        ">",
+        "/work/bcftools_call/called.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_call" / "called.vcf.gz",
+    ]
+
+
+def test_bcftools_call_validates_required_method_constrain_and_output_type() -> None:
+    node_class = _node_class("bcftools_call")
+
+    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "mpileup.vcf", "method": "bad"}) == (
+        "method must be one of: multiallelic, consensus"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "mpileup.vcf", "method": "consensus", "constrain": "alleles"}
+    ) == "constrain must be one of: none, trio"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "mpileup.vcf", "method": "multiallelic", "constrain": "alleles"}
+    ) == "targets_file is required when constrain is alleles"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "mpileup.vcf", "method": "multiallelic", "output_type": "bad"}
+    ) == "output_type must be one of: b, u, z, v"
+    assert node_class.VALIDATE_INPUTS({"input_file": "mpileup.vcf", "method": "multiallelic"}) is True
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input_file": "mpileup.vcf",
+                "method": "multiallelic",
+                "constrain": "none",
+                "gvcf": "",
+                "prior": "",
+                "novel_rate_snp": "",
+                "novel_rate_del": "",
+                "novel_rate_ins": "",
+                "pval_threshold": "",
             }
         )
         is True

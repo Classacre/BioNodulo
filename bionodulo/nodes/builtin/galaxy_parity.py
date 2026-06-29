@@ -40493,6 +40493,218 @@ class BEDOPSSortBedNode(CommandNode):
         }
 
 
+class BCFtoolsCallNode(CommandNode):
+    """Call SNP and indel variants from genotype likelihoods in VCF/BCF."""
+
+    NODE_ID = "bcftools_call"
+    DISPLAY_NAME = "BCFtools Call"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Call SNP and indel variants from genotype likelihoods in VCF/BCF using bcftools call."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "bcftools",
+        "call",
+        "variant calling",
+        "SNP indel calling",
+        "multiallelic caller",
+        "consensus caller",
+    ]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("called_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#call"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22+galaxy0"
+    SHELL = True
+    METHODS = ["multiallelic", "consensus"]
+    MULTIALLELIC_CONSTRAINTS = ["none", "alleles", "trio"]
+    CONSENSUS_CONSTRAINTS = ["none", "trio"]
+    OUTPUT_TYPES = ["b", "u", "z", "v"]
+    PLOIDY_OPTIONS = ["", "GRCh37", "GRCh38", "X", "Y", "1"]
+    SKIP_VARIANTS_OPTIONS = ["", "indels", "snps"]
+    OUTPUT_TAG_OPTIONS = ["INFO/PV4", "FORMAT/GQ", "FORMAT/GP"]
+
+    @staticmethod
+    def _selected(value: Any) -> bool:
+        return value is not None and str(value) != ""
+
+    @classmethod
+    def _method(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("method", "multiallelic") or "multiallelic")
+
+    @classmethod
+    def _constrain(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("constrain", "none") or "none")
+
+    @classmethod
+    def _add_targets(cls, cmd: list[str], inputs: dict[str, Any], *, include_overlap: bool = True) -> None:
+        prefix = "^" if inputs.get("invert_targets") or inputs.get("invert_targets_file") else ""
+        if cls._selected(inputs.get("targets")):
+            cmd.extend(["--targets", f"{prefix}{inputs['targets']}"])
+        if cls._selected(inputs.get("targets_file")):
+            cmd.extend(["--targets-file", f"{prefix}{inputs['targets_file']}"])
+        if include_overlap:
+            _add_if_value(cmd, "--targets-overlap", inputs.get("targets_overlap"))
+
+    @classmethod
+    def _add_novel_rate(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        novel_rate = [
+            str(inputs[key])
+            for key in ("novel_rate_snp", "novel_rate_del", "novel_rate_ins")
+            if cls._selected(inputs.get(key))
+        ]
+        if novel_rate:
+            cmd.extend(["--novel-rate", ",".join(novel_rate)])
+
+    @classmethod
+    def _add_samples(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        if cls._selected(inputs.get("samples")):
+            prefix = "^" if inputs.get("invert_samples") else ""
+            cmd.extend(["--samples", f"{prefix}{inputs['samples']}"])
+        if cls._selected(inputs.get("samples_file")):
+            prefix = "^" if inputs.get("invert_samples_file") else ""
+            cmd.extend(["--samples-file", f"{prefix}{inputs['samples_file']}"])
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "call"]
+        method = cls._method(inputs)
+        constrain = cls._constrain(inputs)
+
+        if method == "consensus":
+            cmd.append("-c")
+            _add_if_value(cmd, "--pval-threshold", inputs.get("pval_threshold"))
+            if constrain == "trio":
+                cmd.extend(["--constrain", "trio"])
+                cls._add_novel_rate(cmd, inputs)
+            cls._add_targets(cmd, inputs)
+        else:
+            cmd.append("-m")
+            _add_if_value(cmd, "--gvcf", inputs.get("gvcf"))
+            _add_if_value(cmd, "--prior-freqs", inputs.get("prior_freqs"))
+            _add_if_value(cmd, "--prior", inputs.get("prior"))
+            if constrain == "alleles":
+                cmd.extend(["--constrain", "alleles"])
+                if inputs.get("insert_missed"):
+                    cmd.append("--insert-missed")
+                cls._add_targets(cmd, inputs)
+            else:
+                if constrain == "trio":
+                    cmd.extend(["--constrain", "trio"])
+                    cls._add_novel_rate(cmd, inputs)
+                cls._add_targets(cmd, inputs)
+
+        _add_if_value(cmd, "--regions", inputs.get("regions"))
+        _add_if_value(cmd, "--regions-overlap", inputs.get("regions_overlap"))
+        cls._add_samples(cmd, inputs)
+        _add_if_value(cmd, "--ploidy", inputs.get("ploidy"))
+        _add_if_value(cmd, "--ploidy-file", inputs.get("ploidy_file"))
+        if inputs.get("group_samples"):
+            cmd.extend(["--group-samples", "-"])
+        if inputs.get("keep_alts"):
+            cmd.append("--keep-alts")
+        _add_if_value(cmd, "--format-fields", inputs.get("format_fields"))
+        if inputs.get("keep_masked_ref"):
+            cmd.append("--keep-masked-ref")
+        _add_if_value(cmd, "--skip-variants", inputs.get("skip_variants"))
+        if inputs.get("variants_only"):
+            cmd.append("--variants-only")
+        output_tags = ",".join(_as_list(inputs.get("output_tags")))
+        _add_if_value(cmd, "--annotate", output_tags)
+        _bcftools_add_output_type(cmd, inputs)
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.append(str(inputs.get("input_file", "")))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/called{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"called{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_file", "")).strip():
+            return "input_file is required"
+        method = cls._method(inputs)
+        if method not in cls.METHODS:
+            return f"method must be one of: {', '.join(cls.METHODS)}"
+        constrain = cls._constrain(inputs)
+        constraints = cls.CONSENSUS_CONSTRAINTS if method == "consensus" else cls.MULTIALLELIC_CONSTRAINTS
+        if constrain not in constraints:
+            return f"constrain must be one of: {', '.join(constraints)}"
+        if method == "multiallelic" and constrain == "alleles" and not str(inputs.get("targets_file", "")).strip():
+            return "targets_file is required when constrain is alleles"
+        output_type = str(inputs.get("output_type", "z") or "z")
+        if output_type not in cls.OUTPUT_TYPES:
+            return f"output_type must be one of: {', '.join(cls.OUTPUT_TYPES)}"
+        ploidy = str(inputs.get("ploidy", "") or "")
+        if ploidy not in cls.PLOIDY_OPTIONS:
+            return f"ploidy must be one of: {', '.join(option for option in cls.PLOIDY_OPTIONS if option)}"
+        skip_variants = str(inputs.get("skip_variants", "") or "")
+        if skip_variants not in cls.SKIP_VARIANTS_OPTIONS:
+            return "skip_variants must be one of: indels, snps"
+        for output_tag in _as_list(inputs.get("output_tags")):
+            if output_tag not in cls.OUTPUT_TAG_OPTIONS:
+                return f"output_tags must contain only: {', '.join(cls.OUTPUT_TAG_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file with genotype likelihoods, usually from bcftools mpileup"}),
+            },
+            "optional": {
+                "method": (
+                    "STRING",
+                    {"default": "multiallelic", "options": cls.METHODS, "description": "Galaxy calling method"},
+                ),
+                "constrain": (
+                    "STRING",
+                    {
+                        "default": "none",
+                        "options": cls.MULTIALLELIC_CONSTRAINTS,
+                        "description": "Constrain genotypes for multiallelic or consensus calling",
+                    },
+                ),
+                "gvcf": ("INT", {"default": "", "min": 0, "description": "Minimum per-sample depth for gVCF reference blocks"}),
+                "prior_freqs": ("STRING", {"default": "", "description": "INFO tags with prior allele frequencies, for example REF_AN,REF_AC"}),
+                "prior": ("FLOAT", {"default": "", "description": "Expected substitution rate prior"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict calling to target regions"}),
+                "targets_file": ("TSV", {"description": "Target alleles or regions file"}),
+                "invert_targets": ("BOOLEAN", {"default": False, "description": "Invert inline targets"}),
+                "invert_targets_file": ("BOOLEAN", {"default": False, "description": "Invert targets file"}),
+                "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Target overlap mode"}),
+                "insert_missed": ("BOOLEAN", {"default": False, "description": "Output sites missed by mpileup but present in targets_file"}),
+                "novel_rate_snp": ("FLOAT", {"default": "", "description": "Novel SNP mutation rate for trio calling"}),
+                "novel_rate_del": ("FLOAT", {"default": "", "description": "Novel deletion mutation rate for trio calling"}),
+                "novel_rate_ins": ("FLOAT", {"default": "", "description": "Novel insertion mutation rate for trio calling"}),
+                "pval_threshold": ("FLOAT", {"default": "", "description": "Consensus caller P(ref|D) threshold"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict calling to regions"}),
+                "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Region overlap mode"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples to include or exclude"}),
+                "samples_file": ("TSV", {"description": "File of samples to include or exclude"}),
+                "invert_samples": ("BOOLEAN", {"default": False, "description": "Exclude samples listed in samples"}),
+                "invert_samples_file": ("BOOLEAN", {"default": False, "description": "Exclude samples listed in samples_file"}),
+                "ploidy": ("STRING", {"default": "", "options": cls.PLOIDY_OPTIONS, "description": "Predefined ploidy model"}),
+                "ploidy_file": ("TSV", {"description": "CHROM,FROM,TO,SEX,PLOIDY ploidy file"}),
+                "group_samples": ("BOOLEAN", {"default": False, "description": "Group samples by population for single-sample calling"}),
+                "keep_alts": ("BOOLEAN", {"default": False, "description": "Keep alternate alleles seen in alignments"}),
+                "format_fields": ("STRING", {"default": "", "description": "Comma-separated FORMAT fields such as GQ,GP"}),
+                "keep_masked_ref": ("BOOLEAN", {"default": False, "description": "Output sites where REF is N"}),
+                "skip_variants": ("STRING", {"default": "", "options": cls.SKIP_VARIANTS_OPTIONS, "description": "Skip indel or SNP sites"}),
+                "variants_only": ("BOOLEAN", {"default": False, "description": "Output variant sites only"}),
+                "output_tags": ("STRING_LIST", {"options": cls.OUTPUT_TAG_OPTIONS, "description": "Annotation tags to emit"}),
+                "output_type": ("STRING", {"default": "z", "options": cls.OUTPUT_TYPES, "description": "BCFtools output type"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BCFtoolsConcatNode(CommandNode):
     """Concatenate or combine VCF/BCF files with matching sample columns."""
 

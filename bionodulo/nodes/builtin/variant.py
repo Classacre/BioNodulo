@@ -68,15 +68,6 @@ class BcftoolsMpileupNode(CommandNode):
         }
 
 
-class BcftoolsCallNode(BcftoolsMpileupNode):
-    """Compatibility wrapper for the original bcftools call roadmap node ID."""
-
-    NODE_ID = "bcftools_call"
-    DISPLAY_NAME = "bcftools Call"
-    DESCRIPTION = "Generate VCF variant calls from a BAM alignment using bcftools mpileup and call."
-    SEARCH_ALIASES = ["bcftools call", "bcftools", "mpileup", "variant call", "snp calling"]
-
-
 class Sniffles2Node(CommandNode):
     """Call structural variants from long-read alignments with Sniffles2."""
     NODE_ID = "sniffles2"
