@@ -2955,6 +2955,75 @@ def test_minia_renders_assembly_command_and_output(tmp_path: Path) -> None:
     assert node_class.VALIDATE_INPUTS({"in": "reads.fa", "kmer_size": 31, "threads": 1}) is True
 
 
+def test_miniasm_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["miniasm"]
+
+    assert node_info["display_name"] == "Miniasm"
+    assert node_info["category"] == "assembly"
+    assert node_info["description"].startswith("Assemble noisy long reads")
+    assert node_info["output"] == ["GFA"]
+    assert node_info["output_name"] == ["assembly_graph"]
+    assert node_info["required_executables"] == ["miniasm"]
+    assert node_info["required_conda_packages"] == ["miniasm"]
+    assert node_info["documentation_url"] == "https://github.com/lh3/miniasm"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btw152"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btw152"]
+    assert "fast mapping and de novo assembly" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "noisy long reads" in node_info["search_aliases"]
+
+
+def test_miniasm_renders_galaxy_wrapper_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("miniasm")
+
+    assert node_class.render_command(
+        {
+            "read_file": "reads sample.fq.gz",
+            "paf": "overlaps sample.paf.gz",
+            "min_match": 99,
+            "min_iden": 0.04,
+            "min_span": 999,
+            "min_cov": 2,
+            "min_ovlp": 999,
+            "max_hang": 999,
+            "int_thres": 0.7,
+            "max_gap_diff": 999,
+            "max_bub_dist": 45000,
+            "min_utg_size": 3,
+            "n_rounds": 2,
+            "final_drop_ratio": 0.7,
+            "output": "/work/miniasm",
+        }
+    ) == (
+        "miniasm -f 'reads sample.fq.gz' -m 99 -i 0.04 -s 999 -c 2 "
+        "-o 999 -h 999 -I 0.7 -g 999 -d 45000 -e 3 -n 2 -F 0.7 "
+        "'overlaps sample.paf.gz' > /work/miniasm/assembly_graph.gfa"
+    )
+    assert node_class.render_command(
+        {
+            "read_file": "reads.fq",
+            "paf": "overlaps.paf",
+            "output": "/work/miniasm",
+        }
+    ) == (
+        "miniasm -f reads.fq -m 100 -i 0.05 -s 1000 -c 3 "
+        "-o 1000 -h 1000 -I 0.08 -g 1000 -d 50000 -e 4 -n 3 -F 0.8 "
+        "overlaps.paf > /work/miniasm/assembly_graph.gfa"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "miniasm" / "assembly_graph.gfa",
+    ]
+    assert node_class.VALIDATE_INPUTS({"read_file": "", "paf": "overlaps.paf"}) == "sequence reads are required"
+    assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": ""}) == "PAF overlaps are required"
+    assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": "overlaps.paf", "min_match": -1}) == (
+        "min_match must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": "overlaps.paf", "min_iden": -0.1}) == (
+        "min_iden must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": "overlaps.paf"}) is True
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 

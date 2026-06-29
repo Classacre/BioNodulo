@@ -832,6 +832,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/1748-7188-8-22'],
     citation_text: 'Space-efficient and exact de Bruijn graph representation based on a Bloom filter.',
   },
+  miniasm: {
+    name: 'miniasm',
+    display_name: 'Miniasm',
+    category: 'assembly',
+    description: 'Assemble noisy long reads into a GFA assembly graph using Miniasm and all-vs-all PAF overlaps.',
+    search_aliases: ['Galaxy', 'Miniasm', 'miniasm', 'noisy long reads', 'long-read assembler', 'PAF overlaps', 'GFA assembly graph', 'OLC assembler'],
+    input: {
+      required: {
+        read_file: { type: 'FASTQ' },
+        paf: { type: 'PAF' },
+      },
+      optional: {
+        min_match: { type: 'INT', default: 100, min: 0 },
+        min_iden: { type: 'FLOAT', default: 0.05, min: 0 },
+        min_span: { type: 'INT', default: 1000, min: 0 },
+        min_cov: { type: 'INT', default: 3, min: 0 },
+        min_ovlp: { type: 'INT', default: 1000, min: 0 },
+        max_hang: { type: 'INT', default: 1000, min: 0 },
+        int_thres: { type: 'FLOAT', default: 0.08, min: 0 },
+        max_gap_diff: { type: 'INT', default: 1000, min: 0 },
+        max_bub_dist: { type: 'INT', default: 50000, min: 0 },
+        min_utg_size: { type: 'INT', default: 4, min: 0 },
+        n_rounds: { type: 'INT', default: 3, min: 0 },
+        final_drop_ratio: { type: 'FLOAT', default: 0.8, min: 0 },
+      },
+    },
+    output: ['GFA'],
+    output_name: ['assembly_graph'],
+    required_executables: ['miniasm'],
+    required_conda_packages: ['miniasm'],
+    documentation_url: 'https://github.com/lh3/miniasm',
+    citation_dois: ['10.1093/bioinformatics/btw152'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btw152'],
+    citation_text: 'Minimap and miniasm: fast mapping and de novo assembly for noisy long sequences.',
+  },
   amas_summary: {
     name: 'amas_summary',
     display_name: 'AMAS Summary',
@@ -7062,7 +7097,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('257 nodes available')).toBeVisible();
+  await expect(page.getByText('258 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7105,6 +7140,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'trim_Ns_DNAnexus.py', name: 'TrimN', category: 'trimming' },
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'Bloom filter', name: 'Minia', category: 'assembly' },
+    { query: 'noisy long reads', name: 'Miniasm', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },
     { query: 'amas split', name: 'AMAS Split', category: 'phylogeny' },
