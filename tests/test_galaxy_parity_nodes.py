@@ -654,6 +654,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.64898/2026.03.09.710461",
         },
+        "hyphy_relax": {
+            "display_name": "HyPhy-RELAX",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msu400",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -9193,6 +9200,238 @@ def test_hyphy_prime_validates_wrapper_inputs() -> None:
             "p_value": 0.1,
             "kill_zero_lengths": "Yes",
             "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_relax_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_relax"]
+
+    assert info["display_name"] == "HyPhy-RELAX"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == (
+        "Detect relaxed or intensified selection in a codon-based phylogenetic framework with HyPhy RELAX."
+    )
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "RELAX",
+        "relaxed selection",
+        "intensified selection",
+        "selection intensity",
+        "phylogenetic framework",
+        "test branches",
+        "reference branches",
+        "group mode",
+        "multiple alignments",
+        "synonymous rate variation",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["relax_output", "relax_md_report"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://hyphy.org/methods/selection-methods/#RELAX"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/molbev/msu400"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/msu400",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "RELAX: Detecting Relaxed Selection in a Phylogenetic Framework."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_type"][1]["default"] == "single"
+    assert info["input"]["optional"]["input_type"][1]["options"] == ["single", "multiple"]
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["input_data_and_tree"][0] == "JSON"
+    assert info["input"]["optional"]["input_files"][1]["multiple"] is True
+    assert info["input"]["optional"]["input_trees"][1]["multiple"] is True
+    assert info["input"]["optional"]["input_exts"][1]["multiple"] is True
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["models"][1]["default"] == "All"
+    assert info["input"]["optional"]["models"][1]["options"] == ["All", "Minimal"]
+    assert info["input"]["optional"]["test"][1]["default"] == "Unlabeled branches"
+    assert info["input"]["optional"]["reference"][1]["default"] == ""
+    assert info["input"]["optional"]["mode"][1]["default"] == "Classic mode"
+    assert info["input"]["optional"]["mode"][1]["options"] == ["Classic mode", "Group mode"]
+    assert info["input"]["optional"]["reference_group"][1]["default"] == ""
+    assert info["input"]["optional"]["grid_size"][1]["default"] == 250
+    assert info["input"]["optional"]["grid_size"][1]["max"] == 5000
+    assert info["input"]["optional"]["starting_points"][1]["default"] == 1
+    assert info["input"]["optional"]["starting_points"][1]["max"] == 1000
+    assert info["input"]["optional"]["syn_rates"][1]["default"] == 3
+    assert info["input"]["optional"]["syn_rates"][1]["min"] == 1
+    assert info["input"]["optional"]["syn_rates"][1]["max"] == 10
+    assert info["input"]["optional"]["rates"][1]["default"] == 3
+    assert info["input"]["optional"]["rates"][1]["min"] == 2
+    assert info["input"]["optional"]["rates"][1]["max"] == 10
+    assert info["input"]["optional"]["srv"][1]["default"] == "No"
+    assert info["input"]["optional"]["srv"][1]["options"] == ["No", "Yes", "Branch-site", "HMM"]
+    assert info["input"]["optional"]["multiple_hits"][1]["default"] == "None"
+    assert info["input"]["optional"]["multiple_hits"][1]["options"] == ["None", "Double", "Double+Triple"]
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+    assert info["input"]["optional"]["threads"][1]["default"] == 1
+
+
+def test_hyphy_relax_renders_single_alignment_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_relax")
+
+    assert node_class.render_command(
+        {
+            "input_file": "relax-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "relax-in1.nhx",
+            "test": "TEST",
+            "output": "/work/hyphy_relax",
+        }
+    ) == (
+        "ln -s relax-in1.nhx input.nhx && "
+        "ln -s relax-in1.fa input.fasta && "
+        'export OMP_NUM_THREADS="${GALAXY_SLOTS:-1}" && '
+        "hyphy relax --alignment input.fasta --tree input.nhx --models All --code Universal --test TEST "
+        "--mode 'Classic mode' --grid-size 250 --starting-points 1 --syn-rates 3 --rates 3 --srv No "
+        "--kill-zero-lengths Yes --output /work/hyphy_relax/relax_output.json "
+        "> /work/hyphy_relax/relax_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_relax" / "relax_output.json",
+        tmp_path / "hyphy_relax" / "relax_stdout.md",
+    ]
+
+
+def test_hyphy_relax_renders_multiple_alignment_group_mode_command() -> None:
+    node_class = _node_class("hyphy_relax")
+
+    command = node_class.render_command(
+        {
+            "input_type": "multiple",
+            "input_data_and_tree": [
+                {"input_file": "first alignment.fa", "input_ext": "fasta", "input_nhx": "first tree.nhx"},
+                {"input_file": "second.nex", "input_ext": "nex", "input_nhx": ""},
+            ],
+            "gencodeid": "Vertebrate-mtDNA",
+            "models": "Minimal",
+            "test": "Unlabeled branches",
+            "reference": "Reference clade",
+            "mode": "Group mode",
+            "reference_group": "TEST",
+            "grid_size": 500,
+            "starting_points": 2,
+            "syn_rates": 4,
+            "rates": 5,
+            "srv": "HMM",
+            "multiple_hits": "Double+Triple",
+            "kill_zero_lengths": "Constrain",
+            "threads": 8,
+            "output": "/work/hyphy_relax",
+        }
+    )
+
+    assert command == (
+        "ln -s 'first alignment.fa' input_0.fasta && "
+        "ln -s 'first tree.nhx' input_0.nhx && "
+        "echo input_0.fasta >> filelist.txt && "
+        "ln -s second.nex input_1.nex && "
+        "echo input_1.nex >> filelist.txt && "
+        'export OMP_NUM_THREADS="${GALAXY_SLOTS:-8}" && '
+        "hyphy relax --multiple-files Yes --filelist filelist.txt --tree input_0.nhx --models Minimal "
+        "--code Vertebrate-mtDNA --test 'Unlabeled branches' --reference 'Reference clade' "
+        "--mode 'Group mode' --reference-group TEST --grid-size 500 --starting-points 2 --syn-rates 4 "
+        "--rates 5 --srv HMM --multiple-hits Double+Triple --kill-zero-lengths Constrain "
+        "--output /work/hyphy_relax/relax_output.json > /work/hyphy_relax/relax_stdout.md"
+    )
+
+
+def test_hyphy_relax_accepts_parallel_multiple_input_lists() -> None:
+    node_class = _node_class("hyphy_relax")
+
+    command = node_class.render_command(
+        {
+            "input_type": "multiple",
+            "input_files": ["alpha.fa", "beta.nex"],
+            "input_exts": ["fasta", "nex"],
+            "input_trees": ["alpha.nhx", "beta.nhx"],
+            "test": "TEST",
+            "output": "/work/hyphy_relax",
+        }
+    )
+
+    assert "ln -s alpha.fa input_0.fasta" in command
+    assert "ln -s beta.nex input_1.nex" in command
+    assert "--tree input_0.nhx --tree input_1.nhx" in command
+
+
+def test_hyphy_relax_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_relax")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-RELAX alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_type": "remote", "input_file": "alignment.fa"}) == (
+        "Unsupported HyPhy-RELAX input type: remote"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "input_ext": "stockholm"}) == (
+        "Unsupported HyPhy-RELAX input extension: stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "models": "Fast"}) == (
+        "Unsupported HyPhy-RELAX analysis type: Fast"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "test": ""}) == (
+        "HyPhy-RELAX test branch label is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "mode": "Batch mode"}) == (
+        "Unsupported HyPhy-RELAX run mode: Batch mode"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "grid_size": 5001}) == (
+        "HyPhy-RELAX grid size must be between 1 and 5000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "starting_points": 0}) == (
+        "HyPhy-RELAX starting points must be between 1 and 1000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "syn_rates": 0}) == (
+        "HyPhy-RELAX synonymous rate classes must be between 1 and 10"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "rates": 1}) == (
+        "HyPhy-RELAX non-synonymous rate classes must be between 2 and 10"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "srv": "Maybe"}) == (
+        "Unsupported HyPhy-RELAX synonymous rate variation setting: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "multiple_hits": "Triple"}) == (
+        "Unsupported HyPhy-RELAX multiple-hits mode: Triple"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-RELAX zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-RELAX threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "multiple", "input_data_and_tree": []}) == (
+        "HyPhy-RELAX multiple-input mode requires at least one alignment"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_type": "multiple",
+            "input_data_and_tree": [{"input_file": "alignment.fa", "input_ext": "stockholm"}],
+        }
+    ) == "Unsupported HyPhy-RELAX input extension: stockholm"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_type": "multiple",
+            "input_data_and_tree": [{"input_file": "alignment.fa", "input_ext": "fasta"}],
+            "test": "TEST",
         }
     ) is True
 

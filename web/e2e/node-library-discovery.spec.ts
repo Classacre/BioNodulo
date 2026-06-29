@@ -3530,6 +3530,64 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Characterizing Physicochemical Selection in Protein Evolution with Property-Informed Models (PRIME).',
   },
+  hyphy_relax: {
+    name: 'hyphy_relax',
+    display_name: 'HyPhy-RELAX',
+    category: 'phylogeny',
+    description: 'Detect relaxed or intensified selection in a codon-based phylogenetic framework with HyPhy RELAX.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'RELAX',
+      'relaxed selection',
+      'intensified selection',
+      'selection intensity',
+      'phylogenetic framework',
+      'test branches',
+      'reference branches',
+      'group mode',
+      'multiple alignments',
+      'synonymous rate variation',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_type: { type: 'STRING', default: 'single' },
+        input_nhx: { type: 'FILE' },
+        input_ext: { type: 'STRING', default: 'fasta' },
+        input_data_and_tree: { type: 'JSON', default: [] },
+        input_files: { type: 'FILE', default: [] },
+        input_trees: { type: 'FILE', default: [] },
+        input_exts: { type: 'STRING', default: [] },
+        gencodeid: { type: 'STRING', default: 'Universal' },
+        models: { type: 'STRING', default: 'All' },
+        test: { type: 'STRING', default: 'Unlabeled branches' },
+        reference: { type: 'STRING', default: '' },
+        mode: { type: 'STRING', default: 'Classic mode' },
+        reference_group: { type: 'STRING', default: '' },
+        grid_size: { type: 'INT', default: 250 },
+        starting_points: { type: 'INT', default: 1 },
+        syn_rates: { type: 'INT', default: 3 },
+        rates: { type: 'INT', default: 3 },
+        srv: { type: 'STRING', default: 'No' },
+        multiple_hits: { type: 'STRING', default: 'None' },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['relax_output', 'relax_md_report'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://hyphy.org/methods/selection-methods/#RELAX',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/msu400'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/msu400'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; RELAX: Detecting Relaxed Selection in a Phylogenetic Framework.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6500,7 +6558,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('239 nodes available')).toBeVisible();
+  await expect(page.getByText('240 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6613,6 +6671,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'hypergeometric scan statistic', name: 'HyPhy-Infer Stasis Clusters', category: 'phylogeny' },
     { query: 'Mixed Effects Model of Evolution', name: 'HyPhy-MEME', category: 'phylogeny' },
     { query: 'Property Informed Models of Evolution', name: 'HyPhy-PRIME', category: 'phylogeny' },
+    { query: 'relaxed selection', name: 'HyPhy-RELAX', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
