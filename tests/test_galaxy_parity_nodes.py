@@ -12940,6 +12940,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["preseq"],
             "doi": "10.1038/nmeth.2375",
         },
+        "preseq_lc_extrap": {
+            "display_name": "Preseq lc_extrap",
+            "category": "qc",
+            "required_executables": ["preseq"],
+            "required_conda_packages": ["preseq"],
+            "doi": "10.1038/nmeth.2375",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14057,6 +14064,45 @@ def test_preseq_c_curve_renders_library_complexity_command_and_output(tmp_path: 
     assert "-l" not in no_limit_cmd
     assert "-v" not in no_limit_cmd
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "preseq_c_curve" / "complexity_curve.tsv"]
+
+
+def test_preseq_lc_extrap_renders_library_yield_extrapolation_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("preseq_lc_extrap")
+    info = _registry().object_info()["preseq_lc_extrap"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["yield_extrapolation"]
+    assert "10.1038/nmeth.2375" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_bam": "aligned.sorted.bam",
+            "extrap_limit": 100000,
+            "step_size": 10000,
+            "verbose": True,
+            "output": "/work/preseq_lc_extrap",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "aligned.sorted.bam",
+        "/work/preseq_lc_extrap/input.bam",
+        "&&",
+        "preseq",
+        "lc_extrap",
+        "-B",
+        "/work/preseq_lc_extrap/input.bam",
+        "-v",
+        "-e",
+        "100000",
+        "-s",
+        "10000",
+        "-o",
+        "/work/preseq_lc_extrap/yield_extrapolation.tsv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "preseq_lc_extrap" / "yield_extrapolation.tsv",
+    ]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

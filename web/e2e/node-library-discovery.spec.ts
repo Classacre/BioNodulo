@@ -4937,6 +4937,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/nmeth.2375'],
     citation_text: 'Predicting the molecular complexity of sequencing libraries.',
   },
+  preseq_lc_extrap: {
+    name: 'preseq_lc_extrap',
+    display_name: 'Preseq lc_extrap',
+    category: 'qc',
+    description: 'Predict additional distinct reads from deeper sequencing of a coordinate-sorted BAM library.',
+    search_aliases: ['Galaxy', 'Preseq', 'preseq lc_extrap', 'yield extrapolation', 'library complexity', 'future sequencing', 'distinct read yield'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        extrap_limit: { type: 'INT', default: 10000000 },
+        step_size: { type: 'INT', default: 100000 },
+      },
+      optional: {
+        verbose: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['yield_extrapolation'],
+    required_executables: ['preseq'],
+    required_conda_packages: ['preseq'],
+    documentation_url: 'https://smithlabresearch.org/software/preseq/',
+    citation_dois: ['10.1038/nmeth.2375'],
+    citation_urls: ['https://doi.org/10.1038/nmeth.2375'],
+    citation_text: 'Predicting the molecular complexity of sequencing libraries.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7682,7 +7707,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('276 nodes available')).toBeVisible();
+  await expect(page.getByText('277 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7839,6 +7864,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'freyja bootstrap lineages', name: 'Freyja Boot', category: 'variant' },
     { query: 'freyja lineage abundance dashboard', name: 'Freyja Aggregate Plot', category: 'variant' },
     { query: 'preseq library complexity', name: 'Preseq c_curve', category: 'qc' },
+    { query: 'preseq yield extrapolation', name: 'Preseq lc_extrap', category: 'qc' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
