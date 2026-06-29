@@ -611,6 +611,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/msv035",
         },
+        "hyphy_cfel": {
+            "display_name": "HyPhy-CFEL",
+            "category": "phylogeny",
+            "required_executables": ["HYPHYMPI", "mpirun"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msaa263",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -8106,6 +8113,170 @@ def test_hyphy_busted_validates_wrapper_inputs() -> None:
             "grid_size": 250,
             "starting_points": 1,
             "multiple_hits": "Double",
+            "kill_zero_lengths": "Yes",
+            "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_cfel_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_cfel"]
+
+    assert info["display_name"] == "HyPhy-CFEL"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == (
+        "Test for site-wise selective pressure differences among clades or branch sets with HyPhy Contrast-FEL."
+    )
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "CFEL",
+        "Contrast-FEL",
+        "Fixed Effects Likelihood",
+        "Contrast-FEL branch sets",
+        "branch sets",
+        "clade selection",
+        "selective pressure differences",
+        "site-wise selection",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["cfel_output", "cfel_md_report"]
+    assert info["required_executables"] == ["HYPHYMPI", "mpirun"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://www.hyphy.org/methods/other/contrast-fel/"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/molbev/msaa263"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/msaa263",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Contrast-FEL: A Test for Differences in Selective Pressures at Individual Sites among Clades and "
+        "Sets of Branches."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["branch_sets"][1]["default"] == ["Test"]
+    assert info["input"]["optional"]["branch_sets"][1]["multiple"] is True
+    assert info["input"]["optional"]["pvalue"][1]["default"] == 0.05
+    assert info["input"]["optional"]["qvalue"][1]["default"] == 0.2
+    assert info["input"]["optional"]["srv"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["srv"][1]["options"] == ["Yes", "No"]
+    assert info["input"]["optional"]["permutations"][1]["default"] is False
+    assert info["input"]["optional"]["limit_to_sites"][1]["default"] == ""
+    assert info["input"]["optional"]["save_lf_for_sites"][1]["default"] == ""
+    assert info["input"]["optional"]["intermediate_fits"][1]["default"] is False
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_cfel_renders_default_mpi_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_cfel")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cfel-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "cfel-in1.nhx",
+            "branch_sets": ["Internal branches", "Terminal branches"],
+            "output": "/work/hyphy_cfel",
+        }
+    ) == (
+        "ln -s cfel-in1.nhx input.nhx && "
+        "ln -s cfel-in1.fa input.fasta && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 4} '
+        "HYPHYMPI contrast-fel --alignment input.fasta --tree input.nhx --code Universal "
+        "--branch-set 'Internal branches' --branch-set 'Terminal branches' --srv Yes --permutations No "
+        "--pvalue 0.05 --qvalue 0.2 --kill-zero-lengths Yes "
+        "--output /work/hyphy_cfel/cfel_output.json > /work/hyphy_cfel/cfel_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_cfel" / "cfel_output.json",
+        tmp_path / "hyphy_cfel" / "cfel_stdout.md",
+    ]
+
+
+def test_hyphy_cfel_renders_advanced_command_without_tree() -> None:
+    node_class = _node_class("hyphy_cfel")
+
+    command = node_class.render_command(
+        {
+            "input_file": "codon alignment.nex",
+            "input_ext": "nex",
+            "gencodeid": "Vertebrate-mtDNA",
+            "branch_sets": ["Test", "Reference group"],
+            "srv": "No",
+            "permutations": True,
+            "pvalue": 0.01,
+            "qvalue": 0.1,
+            "limit_to_sites": "1,3,5",
+            "save_lf_for_sites": "2-4",
+            "intermediate_fits": True,
+            "kill_zero_lengths": "Constrain",
+            "threads": 8,
+            "output": "/work/hyphy_cfel",
+        }
+    )
+
+    assert command == (
+        "ln -s 'codon alignment.nex' input.nex && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 8} '
+        "HYPHYMPI contrast-fel --alignment input.nex --code Vertebrate-mtDNA "
+        "--branch-set Test --branch-set 'Reference group' --srv No --permutations Yes "
+        "--pvalue 0.01 --qvalue 0.1 --limit-to-sites 1,3,5 --save-lf-for-sites 2-4 "
+        "--intermediate-fits /work/hyphy_cfel/intermediate_fits.json --kill-zero-lengths Constrain "
+        "--output /work/hyphy_cfel/cfel_output.json > /work/hyphy_cfel/cfel_stdout.md"
+    )
+    assert "--tree" not in command
+
+
+def test_hyphy_cfel_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_cfel")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-CFEL alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sets": []}) == (
+        "HyPhy-CFEL requires at least one branch set"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sets": [""]}) == (
+        "HyPhy-CFEL branch set labels must be non-empty"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "srv": "Maybe"}) == (
+        "Unsupported HyPhy-CFEL synonymous rate variation setting: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "pvalue": -0.1}) == (
+        "HyPhy-CFEL p-value threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "qvalue": 1.1}) == (
+        "HyPhy-CFEL q-value threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-CFEL zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-CFEL threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "gencodeid": "Universal",
+            "branch_sets": ["Internal branches", "Terminal branches"],
+            "srv": "Yes",
+            "pvalue": 0.05,
+            "qvalue": 0.2,
             "kill_zero_lengths": "Yes",
             "threads": 4,
         }

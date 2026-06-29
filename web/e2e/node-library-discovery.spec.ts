@@ -2978,6 +2978,81 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Gene-Wide Identification of Episodic Selection; Synonymous Site-to-Site Substitution Rate Variation Dramatically Inflates False Positive Rates of Selection Analyses: Ignore at Your Own Peril; A New Comparative Framework for Estimating Selection on Synonymous Substitutions.',
   },
+  hyphy_cfel: {
+    name: 'hyphy_cfel',
+    display_name: 'HyPhy-CFEL',
+    category: 'phylogeny',
+    description: 'Test for site-wise selective pressure differences among clades or branch sets with HyPhy Contrast-FEL.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'CFEL',
+      'Contrast-FEL',
+      'Fixed Effects Likelihood',
+      'Contrast-FEL branch sets',
+      'branch sets',
+      'clade selection',
+      'selective pressure differences',
+      'site-wise selection',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE', default: '' },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        gencodeid: {
+          type: 'STRING',
+          default: 'Universal',
+          options: [
+            'Universal',
+            'Vertebrate-mtDNA',
+            'Yeast-mtDNA',
+            'Mold-Protozoan-mtDNA',
+            'Invertebrate-mtDNA',
+            'Ciliate-Nuclear',
+            'Echinoderm-mtDNA',
+            'Euplotid-Nuclear',
+            'Alt-Yeast-Nuclear',
+            'Ascidian-mtDNA',
+            'Flatworm-mtDNA',
+            'Blepharisma-Nuclear',
+            'Chlorophycean-mtDNA',
+            'Trematode-mtDNA',
+            'Scenedesmus-obliquus-mtDNA',
+            'Thraustochytrium-mtDNA',
+            'Pterobranchia-mtDNA',
+            'SR1-and-Gracilibacteria',
+            'Pachysolen-Nuclear',
+            'Mesodinium-Nuclear',
+            'Peritrich-Nuclear',
+            'Cephalodiscidae-mtDNA',
+          ],
+        },
+        branch_sets: { type: 'STRING', default: ['Test'], list: true },
+        pvalue: { type: 'FLOAT', default: 0.05 },
+        qvalue: { type: 'FLOAT', default: 0.2 },
+        srv: { type: 'STRING', default: 'Yes', options: ['Yes', 'No'] },
+        permutations: { type: 'BOOLEAN', default: false },
+        limit_to_sites: { type: 'STRING', default: '' },
+        save_lf_for_sites: { type: 'STRING', default: '' },
+        intermediate_fits: { type: 'BOOLEAN', default: false },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes', options: ['Yes', 'Constrain', 'No'] },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['cfel_output', 'cfel_md_report'],
+    required_executables: ['HYPHYMPI', 'mpirun'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://www.hyphy.org/methods/other/contrast-fel/',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/msaa263'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/msaa263'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Contrast-FEL: A Test for Differences in Selective Pressures at Individual Sites among Clades and Sets of Branches.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5948,7 +6023,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('229 nodes available')).toBeVisible();
+  await expect(page.getByText('230 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6051,6 +6126,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'B-STILL invariant sites', name: 'HyPhy-B-STILL', category: 'phylogeny' },
     { query: 'Spidermonkey coevolving sites', name: 'HyPhy-BGM', category: 'phylogeny' },
     { query: 'BUSTED gene-wide selection', name: 'HyPhy-BUSTED', category: 'phylogeny' },
+    { query: 'Contrast-FEL branch sets', name: 'HyPhy-CFEL', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
