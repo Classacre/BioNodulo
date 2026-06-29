@@ -604,6 +604,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/bioinformatics/btn313",
         },
+        "hyphy_busted": {
+            "display_name": "HyPhy-BUSTED",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msv035",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -7870,6 +7877,236 @@ def test_hyphy_bgm_validates_wrapper_inputs() -> None:
             "samples": 100,
             "parents": 1,
             "min_subs": 1,
+            "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_busted_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_busted"]
+
+    assert info["display_name"] == "HyPhy-BUSTED"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Detect gene-wide episodic diversifying selection with HyPhy BUSTED."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "BUSTED",
+        "Branch-site Unrestricted Statistical Test",
+        "Bayesian UnresTricted Test of Episodic Diversification",
+        "episodic diversifying selection",
+        "gene-wide selection",
+        "positive selection",
+        "synonymous rate variation",
+        "multiple synonymous rate classes",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT", "PHYLOGENY_TREE"]
+    assert info["output_name"] == ["busted_output", "busted_md_report", "alternative_model"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://hyphy.org/methods/selection-methods/#busted"
+    assert info["citation_dois"] == [
+        "10.1093/molbev/msz197",
+        "10.1093/molbev/msv035",
+        "10.1093/molbev/msaa037",
+        "10.1093/molbev/msaf068",
+    ]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/msv035",
+        "https://doi.org/10.1093/molbev/msaa037",
+        "https://doi.org/10.1093/molbev/msaf068",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Gene-Wide Identification of Episodic Selection; "
+        "Synonymous Site-to-Site Substitution Rate Variation Dramatically Inflates False Positive Rates of "
+        "Selection Analyses: Ignore at Your Own Peril; "
+        "A New Comparative Framework for Estimating Selection on Synonymous Substitutions."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["branch_sel"][1]["default"] == "All"
+    assert info["input"]["optional"]["branch_sel"][1]["options"] == [
+        "All",
+        "Internal",
+        "Leaves",
+        "Unlabeled-branches",
+        "specify",
+    ]
+    assert info["input"]["optional"]["syn_rates"][1]["default"] == 3
+    assert info["input"]["optional"]["rates"][1]["default"] == 3
+    assert info["input"]["optional"]["grid_size"][1]["default"] == 250
+    assert info["input"]["optional"]["starting_points"][1]["default"] == 1
+    assert info["input"]["optional"]["multiple_hits"][1]["default"] == "None"
+    assert info["input"]["optional"]["multiple_hits"][1]["options"] == ["None", "Double", "Double+Triple"]
+    assert info["input"]["optional"]["error_sink"][1]["default"] is True
+    assert info["input"]["optional"]["save_alternative_model"][1]["default"] is False
+    assert info["input"]["optional"]["mss_enabled"][1]["default"] is False
+    assert info["input"]["optional"]["mss_type"][1]["default"] == "Full"
+    assert info["input"]["optional"]["mss_type"][1]["options"] == [
+        "Full",
+        "SynREV",
+        "SynREV2",
+        "SynREV2g",
+        "SynREVCodon",
+        "Random",
+        "Empirical",
+        "File",
+        "Codon-file",
+    ]
+    assert info["input"]["optional"]["mss_classes"][1]["default"] == 2
+    assert info["input"]["optional"]["mss_file"][0] == "FILE"
+    assert info["input"]["optional"]["mss_neutral"][1]["default"] == "neutral"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_busted_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_busted")
+
+    assert node_class.render_command(
+        {
+            "input_file": "absrel-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "absrel-in1.nhx",
+            "output": "/work/hyphy_busted",
+        }
+    ) == (
+        "ln -s absrel-in1.nhx input.nhx && "
+        "ln -s absrel-in1.fa input.fasta && "
+        "TOLERATE_NUMERICAL_ERRORS=1 hyphy CPU=4 busted --alignment ./input.fasta "
+        "--tree input.nhx --code Universal --branches All --output /work/hyphy_busted/busted_output.json "
+        "--syn-rates 3 --rates 3 --grid-size 250 --starting-points 1 --error-sink Yes "
+        "--kill-zero-lengths Yes > /work/hyphy_busted/busted_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_busted" / "busted_output.json",
+        tmp_path / "hyphy_busted" / "busted_stdout.md",
+    ]
+    assert node_class.PLAN_OUTPUTS({"save_alternative_model": True}, tmp_path) == [
+        tmp_path / "hyphy_busted" / "busted_output.json",
+        tmp_path / "hyphy_busted" / "busted_stdout.md",
+        tmp_path / "hyphy_busted" / "alternative_model.nhx",
+    ]
+
+
+def test_hyphy_busted_renders_advanced_command_with_saved_model_and_mss() -> None:
+    node_class = _node_class("hyphy_busted")
+
+    command = node_class.render_command(
+        {
+            "input_file": "codon alignment.nex",
+            "input_ext": "nex",
+            "gencodeid": "Vertebrate-mtDNA",
+            "branch_sel": "specify",
+            "branch_label": "Foreground clade",
+            "syn_rates": 5,
+            "rates": 4,
+            "grid_size": 500,
+            "starting_points": 10,
+            "multiple_hits": "None",
+            "error_sink": False,
+            "save_alternative_model": True,
+            "mss_enabled": True,
+            "mss_type": "Codon-file",
+            "mss_file": "mss partitions.tsv",
+            "mss_neutral": "NEUTRAL",
+            "kill_zero_lengths": "Constrain",
+            "threads": 8,
+            "output": "/work/hyphy_busted",
+        }
+    )
+
+    assert command == (
+        "ln -s 'codon alignment.nex' input.nex && "
+        "TOLERATE_NUMERICAL_ERRORS=1 hyphy CPU=8 busted --alignment ./input.nex "
+        "--code Vertebrate-mtDNA --branches 'Foreground clade' "
+        "--output /work/hyphy_busted/busted_output.json --syn-rates 5 --rates 4 "
+        "--grid-size 500 --starting-points 10 --save-fit /work/hyphy_busted/alternative_model.nhx "
+        "--mss Yes --mss-type Codon-file --mss-file 'mss partitions.tsv' --mss-neutral NEUTRAL "
+        "--kill-zero-lengths Constrain > /work/hyphy_busted/busted_stdout.md"
+    )
+    assert "--tree" not in command
+    assert "--multiple-hits" not in command
+    assert "--error-sink" not in command
+
+
+def test_hyphy_busted_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_busted")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-BUSTED alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "Foreground"}) == (
+        "Unsupported HyPhy-BUSTED branch selection: Foreground"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "specify"}) == (
+        "HyPhy-BUSTED custom branch selection requires a branch label"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "syn_rates": 0}) == (
+        "HyPhy-BUSTED synonymous rate classes must be between 1 and 10"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "rates": 1}) == (
+        "HyPhy-BUSTED non-synonymous rate classes must be between 2 and 10"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "grid_size": 0}) == (
+        "HyPhy-BUSTED grid size must be between 1 and 5000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "starting_points": 0}) == (
+        "HyPhy-BUSTED starting points must be between 1 and 1000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "multiple_hits": "Triple"}) == (
+        "Unsupported HyPhy-BUSTED multiple-hits mode: Triple"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-BUSTED zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-BUSTED threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "mss_enabled": True, "mss_type": "Codon-file"}
+    ) == "HyPhy-BUSTED MSS file is required for Codon-file"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "mss_enabled": True,
+            "mss_type": "Random",
+            "mss_classes": 0,
+        }
+    ) == "HyPhy-BUSTED MSS classes must be a positive integer"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "multiple_hits": "Double",
+            "mss_enabled": True,
+            "mss_type": "Full",
+        }
+    ) == "HyPhy-BUSTED MSS cannot be combined with multiple-hit correction"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "gencodeid": "Universal",
+            "branch_sel": "Internal",
+            "syn_rates": 3,
+            "rates": 3,
+            "grid_size": 250,
+            "starting_points": 1,
+            "multiple_hits": "Double",
+            "kill_zero_lengths": "Yes",
             "threads": 4,
         }
     ) is True

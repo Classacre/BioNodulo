@@ -2888,6 +2888,96 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Spidermonkey: rapid detection of co-evolving sites using Bayesian graphical models; An evolutionary-network model reveals stratified interactions in the V3 loop of the HIV-1 envelope.',
   },
+  hyphy_busted: {
+    name: 'hyphy_busted',
+    display_name: 'HyPhy-BUSTED',
+    category: 'phylogeny',
+    description: 'Detect gene-wide episodic diversifying selection with HyPhy BUSTED.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'BUSTED',
+      'Branch-site Unrestricted Statistical Test',
+      'Bayesian UnresTricted Test of Episodic Diversification',
+      'episodic diversifying selection',
+      'gene-wide selection',
+      'positive selection',
+      'synonymous rate variation',
+      'multiple synonymous rate classes',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE', default: '' },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        gencodeid: {
+          type: 'STRING',
+          default: 'Universal',
+          options: [
+            'Universal',
+            'Vertebrate-mtDNA',
+            'Yeast-mtDNA',
+            'Mold-Protozoan-mtDNA',
+            'Invertebrate-mtDNA',
+            'Ciliate-Nuclear',
+            'Echinoderm-mtDNA',
+            'Euplotid-Nuclear',
+            'Alt-Yeast-Nuclear',
+            'Ascidian-mtDNA',
+            'Flatworm-mtDNA',
+            'Blepharisma-Nuclear',
+            'Chlorophycean-mtDNA',
+            'Trematode-mtDNA',
+            'Scenedesmus-obliquus-mtDNA',
+            'Thraustochytrium-mtDNA',
+            'Pterobranchia-mtDNA',
+            'SR1-and-Gracilibacteria',
+            'Pachysolen-Nuclear',
+            'Mesodinium-Nuclear',
+            'Peritrich-Nuclear',
+            'Cephalodiscidae-mtDNA',
+          ],
+        },
+        branch_sel: { type: 'STRING', default: 'All', options: ['All', 'Internal', 'Leaves', 'Unlabeled-branches', 'specify'] },
+        branch_label: { type: 'STRING', default: '' },
+        syn_rates: { type: 'INT', default: 3 },
+        rates: { type: 'INT', default: 3 },
+        grid_size: { type: 'INT', default: 250 },
+        starting_points: { type: 'INT', default: 1 },
+        multiple_hits: { type: 'STRING', default: 'None', options: ['None', 'Double', 'Double+Triple'] },
+        error_sink: { type: 'BOOLEAN', default: true },
+        save_alternative_model: { type: 'BOOLEAN', default: false },
+        mss_enabled: { type: 'BOOLEAN', default: false },
+        mss_type: {
+          type: 'STRING',
+          default: 'Full',
+          options: ['Full', 'SynREV', 'SynREV2', 'SynREV2g', 'SynREVCodon', 'Random', 'Empirical', 'File', 'Codon-file'],
+        },
+        mss_classes: { type: 'INT', default: 2 },
+        mss_file: { type: 'FILE', default: '' },
+        mss_neutral: { type: 'STRING', default: 'neutral' },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes', options: ['Yes', 'Constrain', 'No'] },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['JSON', 'TEXT', 'PHYLOGENY_TREE'],
+    output_name: ['busted_output', 'busted_md_report', 'alternative_model'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://hyphy.org/methods/selection-methods/#busted',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/msv035', '10.1093/molbev/msaa037', '10.1093/molbev/msaf068'],
+    citation_urls: [
+      'https://doi.org/10.1093/molbev/msz197',
+      'https://doi.org/10.1093/molbev/msv035',
+      'https://doi.org/10.1093/molbev/msaa037',
+      'https://doi.org/10.1093/molbev/msaf068',
+    ],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Gene-Wide Identification of Episodic Selection; Synonymous Site-to-Site Substitution Rate Variation Dramatically Inflates False Positive Rates of Selection Analyses: Ignore at Your Own Peril; A New Comparative Framework for Estimating Selection on Synonymous Substitutions.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5858,7 +5948,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('228 nodes available')).toBeVisible();
+  await expect(page.getByText('229 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5960,6 +6050,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'HyPhy Annotate', name: 'HyPhy Annotate', category: 'phylogeny' },
     { query: 'B-STILL invariant sites', name: 'HyPhy-B-STILL', category: 'phylogeny' },
     { query: 'Spidermonkey coevolving sites', name: 'HyPhy-BGM', category: 'phylogeny' },
+    { query: 'BUSTED gene-wide selection', name: 'HyPhy-BUSTED', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
