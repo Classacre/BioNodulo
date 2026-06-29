@@ -3148,6 +3148,107 @@ def test_abritamr_renders_manifest_command_and_outputs(tmp_path: Path) -> None:
     assert node_class.VALIDATE_INPUTS({"contig": ["sample.fa"], "identity": 0.9, "jobs": 1}) is True
 
 
+def test_nonpareil_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["nonpareil"]
+
+    assert node_info["display_name"] == "Nonpareil"
+    assert node_info["category"] == "metagenomics"
+    assert node_info["description"].startswith("Estimate metagenomic coverage")
+    assert node_info["output"] == ["TSV", "TSV", "STATS_FILE", "JSON", "TSV"]
+    assert node_info["output_name"] == [
+        "summary",
+        "all_data_output",
+        "log",
+        "json_output",
+        "mating_vector_output",
+    ]
+    assert node_info["required_executables"] == ["nonpareil", "NonpareilCurves.R"]
+    assert node_info["required_conda_packages"] == ["nonpareil"]
+    assert node_info["documentation_url"] == "https://nonpareil.readthedocs.io/"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btt584"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt584"]
+    assert "redundancy-based approach" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "metagenomic coverage" in node_info["search_aliases"]
+
+
+def test_nonpareil_renders_coverage_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("nonpareil")
+
+    assert node_class.render_command(
+        {
+            "input": "reads sample.fasta",
+            "input_format": "fasta",
+            "summary_label": "reads sample.fasta",
+            "algo": "alignment",
+            "subsampling": 0.7,
+            "subsample_per_point": 1024,
+            "min_overlapping": 50,
+            "max_query_reads": 1000,
+            "use_portion_in_output": True,
+            "min_sampling_portion": 0,
+            "max_sampling_portion": 1,
+            "sampling_portion_interval": 0.01,
+            "use_rev_comp": True,
+            "n_as_mismatches": True,
+            "sim_thres": 0.95,
+            "kmer_size": 24,
+            "proba": 0.5,
+            "seed": 1000,
+            "threads": 6,
+            "max_memory": 2048,
+            "log_test": True,
+            "json_object": True,
+            "output": "/work/nonpareil",
+        }
+    ) == (
+        "ln -s 'reads sample.fasta' /work/nonpareil/input && "
+        "nonpareil -s /work/nonpareil/input -T alignment -f fasta -d 0.7 -n 1024 -L 50 -X 1000 "
+        "-R ${NONPAREIL_MAX_MEMORY:-2048} -t ${GALAXY_SLOTS:-6} -b /work/nonpareil/output "
+        "-a /work/nonpareil/all_data_output.tsv -C /work/nonpareil/mating_vector_output.tsv "
+        "-l /work/nonpareil/nonpareil.log -o /work/nonpareil/reads_sample.fasta -F -m 0 -M 1 -i 0.01 "
+        "-c -N -S 0.95 -k 24 -x 0.5 -r 1000 && "
+        "cp /work/nonpareil/reads_sample.fasta /work/nonpareil/summary.tsv && "
+        "NonpareilCurves.R --json /work/nonpareil/curves.json /work/nonpareil/reads_sample.fasta"
+    )
+    assert node_class.render_command(
+        {
+            "input": "reads.fastq",
+            "input_format": "fastq",
+            "output": "/work/nonpareil",
+        }
+    ) == (
+        "ln -s reads.fastq /work/nonpareil/input && "
+        "nonpareil -s /work/nonpareil/input -T kmer -f fastq -d 0.7 -n 1024 -L 50 -X 1000 "
+        "-R ${NONPAREIL_MAX_MEMORY:-1024} -t ${GALAXY_SLOTS:-2} -b /work/nonpareil/output "
+        "-a /work/nonpareil/all_data_output.tsv -C /work/nonpareil/mating_vector_output.tsv "
+        "-o /work/nonpareil/reads.fastq -m 0 -M 1 -i 0.01 -k 24 -r 1000 && "
+        "cp /work/nonpareil/reads.fastq /work/nonpareil/summary.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"log_test": True, "json_object": True}, tmp_path) == [
+        tmp_path / "nonpareil" / "summary.tsv",
+        tmp_path / "nonpareil" / "all_data_output.tsv",
+        tmp_path / "nonpareil" / "nonpareil.log",
+        tmp_path / "nonpareil" / "curves.json",
+        tmp_path / "nonpareil" / "mating_vector_output.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"log_test": False, "json_object": False}, tmp_path) == [
+        tmp_path / "nonpareil" / "summary.tsv",
+        tmp_path / "nonpareil" / "all_data_output.tsv",
+        tmp_path / "nonpareil" / "mating_vector_output.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input": ""}) == "input sequences are required"
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "algo": "bad"}) == "algo must be one of: alignment, kmer"
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "input_format": "bad"}) == (
+        "input_format must be one of: fasta, fastq"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "min_overlapping": 101}) == (
+        "min_overlapping must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "threads": 0}) == "threads must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "algo": "kmer", "input_format": "fastq"}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 

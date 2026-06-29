@@ -981,6 +981,49 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.5281/zenodo.7370627'],
     citation_text: 'MDU-PHL/abritamr: AMR gene detection and reporting pipeline.',
   },
+  nonpareil: {
+    name: 'nonpareil',
+    display_name: 'Nonpareil',
+    category: 'metagenomics',
+    description: 'Estimate metagenomic coverage and generate Nonpareil redundancy curves from FASTA or FASTQ reads.',
+    search_aliases: ['Galaxy', 'Nonpareil', 'nonpareil', 'metagenomic coverage', 'redundancy curve', 'sequencing effort', 'library complexity'],
+    input: {
+      required: {
+        input: { type: 'FASTQ' },
+        algo: { type: 'STRING', default: 'kmer', options: ['kmer', 'alignment'] },
+        input_format: { type: 'STRING', default: 'fastq', options: ['fastq', 'fasta'] },
+      },
+      optional: {
+        subsampling: { type: 'FLOAT', default: 0.7, min: 0 },
+        subsample_per_point: { type: 'INT', default: 1024, min: 0 },
+        min_overlapping: { type: 'INT', default: 50, min: 0, max: 100 },
+        max_query_reads: { type: 'INT', default: 1000, min: 0 },
+        use_portion_in_output: { type: 'BOOLEAN', default: false },
+        min_sampling_portion: { type: 'FLOAT', default: 0, min: 0 },
+        max_sampling_portion: { type: 'FLOAT', default: 1, min: 0 },
+        sampling_portion_interval: { type: 'FLOAT', default: 0.01, min: 0 },
+        use_rev_comp: { type: 'BOOLEAN', default: false },
+        n_as_mismatches: { type: 'BOOLEAN', default: false },
+        sim_thres: { type: 'FLOAT', default: '', min: 0 },
+        kmer_size: { type: 'INT', default: 24, min: 0 },
+        proba: { type: 'FLOAT', default: '', min: 0 },
+        seed: { type: 'INT', default: 1000, min: 0 },
+        threads: { type: 'INT', default: 2, min: 1, max: 128 },
+        max_memory: { type: 'INT', default: 1024, min: 1 },
+        log_test: { type: 'BOOLEAN', default: false },
+        json_object: { type: 'BOOLEAN', default: false },
+        summary_label: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['TSV', 'TSV', 'STATS_FILE', 'JSON', 'TSV'],
+    output_name: ['summary', 'all_data_output', 'log', 'json_output', 'mating_vector_output'],
+    required_executables: ['nonpareil', 'NonpareilCurves.R'],
+    required_conda_packages: ['nonpareil'],
+    documentation_url: 'https://nonpareil.readthedocs.io/',
+    citation_dois: ['10.1093/bioinformatics/btt584'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btt584'],
+    citation_text: 'Nonpareil: a redundancy-based approach to assess the level of coverage in metagenomic datasets.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7273,7 +7316,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('264 nodes available')).toBeVisible();
+  await expect(page.getByText('265 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7332,6 +7375,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'protein-protein comparisons', name: 'GAMMA-S', category: 'annotation' },
     { query: 'repeat masking', name: 'Red', category: 'genomics' },
     { query: 'metagenomic eukaryotes', name: 'EukRep', category: 'metagenomics' },
+    { query: 'metagenomic coverage', name: 'Nonpareil', category: 'metagenomics' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
