@@ -1675,49 +1675,6 @@ class BcftoolsStatsNode(CommandNode):
         }
 
 
-class BcftoolsFilterNode(CommandNode):
-    """Filter variants with bcftools."""
-    NODE_ID = "bcftools_filter"
-    DISPLAY_NAME = "bcftools Filter"
-    REQUIRED_CONDA_PACKAGES = ['bcftools']
-    CATEGORY = "variant"
-    DESCRIPTION = "Filter VCF variants using bcftools expressions"
-    SEARCH_ALIASES = ["bcftools", "filter", "variant filter"]
-    RETURN_TYPES = ("VCF_GZ",)
-    RETURN_NAMES = ("filtered_vcf",)
-    REQUIRED_EXECUTABLES = ["bcftools"]
-    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
-    VERSION = "1.20"
-
-    @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        cmd = [
-            "bcftools", "filter",
-            "-i", str(inputs.get("expr", "")),
-            "-Oz",
-            "-o", f"{inputs.get('output', '.')}/filtered_vcf.vcf.gz",
-            str(inputs.get("vcf", "")),
-        ]
-        if inputs.get("set_gt"):
-            cmd.extend(["--set-GT", str(inputs["set_gt"])])
-        return cmd
-
-    @classmethod
-    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
-        return {
-            "required": {
-                "vcf": ("VCF_GZ", {"description": "Input VCF file"}),
-                "expr": ("STRING", {"default": 'QUAL>30 && DP>10', "description": "Filter expression"}),
-            },
-            "optional": {
-                "set_gt": ("STRING", {"default": ""}),
-            },
-            "hidden": {
-                "output": ("STRING", {}),
-            },
-        }
-
-
 class BcftoolsNormNode(CommandNode):
     """Normalize VCF records with bcftools norm."""
 

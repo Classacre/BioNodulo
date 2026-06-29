@@ -40705,6 +40705,152 @@ class BCFtoolsCallNode(CommandNode):
         }
 
 
+class BCFtoolsFilterNode(CommandNode):
+    """Apply fixed-threshold filters to VCF/BCF records."""
+
+    NODE_ID = "bcftools_filter"
+    DISPLAY_NAME = "BCFtools Filter"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Apply fixed-threshold, expression, and optional soft filters to VCF/BCF records with bcftools filter."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "bcftools",
+        "filter",
+        "fixed-threshold filters",
+        "variant filter",
+        "soft filter",
+        "filter vcf",
+    ]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("filtered_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#filter"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22+galaxy0"
+    SHELL = True
+    OUTPUT_TYPES = ["b", "u", "z", "v"]
+    MODE_OPTIONS = ["+", "x"]
+    SET_GT_OPTIONS = ["", ".", "0"]
+    OVERLAP_OPTIONS = ["", "0", "1", "2"]
+
+    @staticmethod
+    def _selected(value: Any) -> bool:
+        return value is not None and str(value) != ""
+
+    @classmethod
+    def _input_file(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_file", inputs.get("vcf", "")) or "")
+
+    @classmethod
+    def _mode(cls, inputs: dict[str, Any]) -> str:
+        return "".join(part.replace(",", "") for part in _as_list(inputs.get("mode")))
+
+    @classmethod
+    def _include(cls, inputs: dict[str, Any]) -> Any:
+        return inputs.get("include", inputs.get("expr"))
+
+    @classmethod
+    def _set_gts(cls, inputs: dict[str, Any]) -> Any:
+        return inputs.get("select_set_GTs", inputs.get("set_gt"))
+
+    @classmethod
+    def _add_targets(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        prefix = "^" if inputs.get("invert_targets") or inputs.get("invert_targets_file") else ""
+        if cls._selected(inputs.get("targets")):
+            cmd.extend(["--targets", f"{prefix}{inputs['targets']}"])
+        if cls._selected(inputs.get("targets_file")):
+            cmd.extend(["--targets-file", f"{prefix}{inputs['targets_file']}"])
+        _add_if_value(cmd, "--targets-overlap", inputs.get("targets_overlap"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "filter"]
+        _add_if_value(cmd, "--SnpGap", inputs.get("SnpGap", inputs.get("snp_gap")))
+        _add_if_value(cmd, "--IndelGap", inputs.get("IndelGap", inputs.get("indel_gap")))
+        mode = cls._mode(inputs)
+        _add_if_value(cmd, "--mode", mode)
+        if inputs.get("soft_filter_enabled", False) or cls._selected(inputs.get("soft_filter")):
+            _add_if_value(cmd, "--soft-filter", inputs.get("soft_filter"))
+            _add_if_value(cmd, "--mask", inputs.get("mask"))
+            _add_if_value(cmd, "--mask-file", inputs.get("mask_file"))
+            _add_if_value(cmd, "--mask-overlap", inputs.get("mask_overlap"))
+        _add_if_value(cmd, "--set-GTs", cls._set_gts(inputs))
+        _add_if_value(cmd, "--regions", inputs.get("regions"))
+        _add_if_value(cmd, "--regions-file", inputs.get("regions_file"))
+        _add_if_value(cmd, "--regions-overlap", inputs.get("regions_overlap"))
+        cls._add_targets(cmd, inputs)
+        _add_if_value(cmd, "--include", cls._include(inputs))
+        _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+        _bcftools_add_output_type(cmd, inputs)
+        _add_if_value(cmd, "--threads", inputs.get("threads"))
+        cmd.append(cls._input_file(inputs))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/filtered{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"filtered{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_file(inputs).strip():
+            return "input_file is required"
+        for mode in _as_list(inputs.get("mode")):
+            if mode not in cls.MODE_OPTIONS:
+                return f"mode must contain only: {', '.join(cls.MODE_OPTIONS)}"
+        output_type = str(inputs.get("output_type", "z") or "z")
+        if output_type not in cls.OUTPUT_TYPES:
+            return f"output_type must be one of: {', '.join(cls.OUTPUT_TYPES)}"
+        set_gts = str(cls._set_gts(inputs) or "")
+        if set_gts not in cls.SET_GT_OPTIONS:
+            return "select_set_GTs must be one of: ., 0"
+        if inputs.get("soft_filter_enabled", False) and not str(inputs.get("soft_filter", "")).strip():
+            return "soft_filter is required when soft filtering is enabled"
+        for name in ("regions_overlap", "targets_overlap", "mask_overlap"):
+            value = str(inputs.get(name, "") or "")
+            if value not in cls.OVERLAP_OPTIONS:
+                return f"{name} must be one of: 0, 1, 2"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "VCF/BCF file to filter"}),
+            },
+            "optional": {
+                "SnpGap": ("INT", {"default": "", "min": 0, "description": "Filter SNPs within this many bp of an indel"}),
+                "IndelGap": ("INT", {"default": "", "min": 0, "description": "Filter indel clusters separated by this many bp or fewer"}),
+                "mode": ("STRING_LIST", {"options": cls.MODE_OPTIONS, "description": "FILTER annotation mode flags"}),
+                "soft_filter_enabled": ("BOOLEAN", {"default": False, "description": "Enable soft-filter annotation"}),
+                "soft_filter": ("STRING", {"default": "", "description": "FILTER annotation label"}),
+                "mask": ("STRING", {"default": "", "description": "Mask regions for soft filtering"}),
+                "mask_file": ("BED", {"description": "Mask regions file for soft filtering"}),
+                "mask_overlap": ("STRING", {"default": "", "options": cls.OVERLAP_OPTIONS, "description": "Mask overlap mode"}),
+                "select_set_GTs": ("STRING", {"default": "", "options": cls.SET_GT_OPTIONS, "description": "Set genotypes of failed samples"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict filtering to regions"}),
+                "regions_file": ("BED", {"description": "Restrict filtering to regions from file"}),
+                "regions_overlap": ("STRING", {"default": "", "options": cls.OVERLAP_OPTIONS, "description": "Region overlap mode"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict filtering to targets"}),
+                "targets_file": ("TSV", {"description": "Restrict filtering to targets from file"}),
+                "invert_targets": ("BOOLEAN", {"default": False, "description": "Invert inline targets"}),
+                "invert_targets_file": ("BOOLEAN", {"default": False, "description": "Invert targets file"}),
+                "targets_overlap": ("STRING", {"default": "", "options": cls.OVERLAP_OPTIONS, "description": "Target overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "output_type": ("STRING", {"default": "z", "options": cls.OUTPUT_TYPES, "description": "BCFtools output type"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+                "vcf": ("VCF_GZ", {"description": "Compatibility alias for input_file", "advanced": True}),
+                "expr": ("STRING", {"default": "", "description": "Compatibility alias for include", "advanced": True}),
+                "set_gt": ("STRING", {"default": "", "description": "Compatibility alias for select_set_GTs", "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BCFtoolsConcatNode(CommandNode):
     """Concatenate or combine VCF/BCF files with matching sample columns."""
 

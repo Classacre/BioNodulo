@@ -25714,6 +25714,12 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
             "output": ["VCF_GZ"],
             "search_alias": "SNP indel calling",
         },
+        "bcftools_filter": {
+            "display_name": "BCFtools Filter",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#filter",
+            "output": ["VCF_GZ"],
+            "search_alias": "fixed-threshold filters",
+        },
         "bcftools_concat": {
             "display_name": "BCFtools Concat",
             "documentation_url": "https://www.htslib.org/doc/bcftools.html#concat",
@@ -25932,6 +25938,133 @@ def test_bcftools_annotate_renders_vcf_annotation_and_removal_modes(tmp_path: Pa
                 "annotation_format": "tab",
                 "annotations": "annots.tsv",
                 "columns": "CHROM,POS,INFO/TAG",
+            }
+        )
+        is True
+    )
+
+
+def test_bcftools_filter_renders_soft_filter_restrict_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_filter")
+
+    assert node_class.render_command(
+        {
+            "input_file": "cohort.vcf.gz",
+            "SnpGap": 2,
+            "IndelGap": 5,
+            "mode": ["+", "x"],
+            "soft_filter": "LowQual",
+            "mask": "chr1:100-200",
+            "mask_overlap": "1",
+            "select_set_GTs": "0",
+            "regions": "chr1",
+            "regions_overlap": "1",
+            "targets_file": "targets.tsv",
+            "invert_targets_file": True,
+            "targets_overlap": "0",
+            "include": "QUAL>30",
+            "exclude": "DP<10",
+            "output_type": "v",
+            "threads": 6,
+            "output": "/work/bcftools_filter",
+        }
+    ) == [
+        "bcftools",
+        "filter",
+        "--SnpGap",
+        "2",
+        "--IndelGap",
+        "5",
+        "--mode",
+        "+x",
+        "--soft-filter",
+        "LowQual",
+        "--mask",
+        "chr1:100-200",
+        "--mask-overlap",
+        "1",
+        "--set-GTs",
+        "0",
+        "--regions",
+        "chr1",
+        "--regions-overlap",
+        "1",
+        "--targets-file",
+        "^targets.tsv",
+        "--targets-overlap",
+        "0",
+        "--include",
+        "QUAL>30",
+        "--exclude",
+        "DP<10",
+        "--output-type",
+        "v",
+        "--threads",
+        "6",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_filter/filtered.vcf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
+        tmp_path / "bcftools_filter" / "filtered.vcf",
+    ]
+
+
+def test_bcftools_filter_supports_expression_alias_and_default_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_filter")
+
+    assert node_class.render_command(
+        {
+            "vcf": "cohort.vcf.gz",
+            "expr": "QUAL>30 && DP>10",
+            "set_gt": ".",
+            "output": "/work/bcftools_filter",
+        }
+    ) == [
+        "bcftools",
+        "filter",
+        "--set-GTs",
+        ".",
+        "--include",
+        "QUAL>30 && DP>10",
+        "--output-type",
+        "z",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_filter/filtered.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_filter" / "filtered.vcf.gz",
+    ]
+
+
+def test_bcftools_filter_validates_required_choices_and_soft_filter_state() -> None:
+    node_class = _node_class("bcftools_filter")
+
+    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "mode": ["+", "bad"]}) == (
+        "mode must contain only: +, x"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "output_type": "bad"}) == (
+        "output_type must be one of: b, u, z, v"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "select_set_GTs": "missing"}) == (
+        "select_set_GTs must be one of: ., 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "soft_filter_enabled": True}) == (
+        "soft_filter is required when soft filtering is enabled"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input_file": "cohort.vcf",
+                "SnpGap": "",
+                "IndelGap": "",
+                "mode": [],
+                "soft_filter": "",
+                "output_type": "z",
             }
         )
         is True
