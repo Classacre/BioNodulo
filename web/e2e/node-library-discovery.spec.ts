@@ -1081,6 +1081,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/1471-2105-11-119'],
     citation_text: 'Prodigal: prokaryotic gene recognition and translation initiation site identification.',
   },
+  eukrep: {
+    name: 'eukrep',
+    display_name: 'EukRep',
+    category: 'metagenomics',
+    description: 'Classify eukaryotic and prokaryotic sequences from metagenomic datasets with EukRep.',
+    search_aliases: ['Galaxy', 'EukRep', 'eukrep', 'metagenomic eukaryotes', 'eukaryotic scaffolds', 'prokaryotic sequences', 'metagenome classification', 'SVM k-mer classifier'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+      },
+      optional: {
+        min: { type: 'INT', default: 3000, min: 0 },
+        kmer_len: { type: 'INT', default: 5, min: 3, max: 6 },
+        prokarya: { type: 'BOOLEAN', default: false },
+        seq_names: { type: 'BOOLEAN', default: false },
+        stringency: { type: 'STRING', default: 'balanced', options: ['strict', 'balanced', 'lenient'] },
+        tie: { type: 'STRING', default: 'euk', options: ['euk', 'prok', 'rand', 'skip'] },
+      },
+    },
+    output: ['FASTA', 'FASTA', 'STATS_FILE', 'STATS_FILE'],
+    output_name: ['eukaryote_sequences', 'prokaryote_sequences', 'eukaryote_names', 'prokaryote_names'],
+    required_executables: ['EukRep'],
+    required_conda_packages: ['eukrep'],
+    documentation_url: 'https://github.com/patrickwest/EukRep',
+    citation_dois: ['10.1101/gr.228429.117'],
+    citation_urls: ['https://doi.org/10.1101/gr.228429.117'],
+    citation_text: 'Genome-reconstruction for eukaryotes from complex natural microbial communities.',
+  },
   prinseq: {
     name: 'prinseq',
     display_name: 'PRINSEQ',
@@ -6985,7 +7013,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('254 nodes available')).toBeVisible();
+  await expect(page.getByText('255 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7036,6 +7064,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
     { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },
     { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },
+    { query: 'metagenomic eukaryotes', name: 'EukRep', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },

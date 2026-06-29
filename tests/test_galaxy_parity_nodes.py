@@ -2771,6 +2771,85 @@ def test_prodigal_renders_gene_prediction_command_and_outputs(tmp_path: Path) ->
     assert node_class.VALIDATE_INPUTS({"input_fa": "contigs.fa", "procedure": "single", "trans_table": "11"}) is True
 
 
+def test_eukrep_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["eukrep"]
+
+    assert node_info["display_name"] == "EukRep"
+    assert node_info["category"] == "metagenomics"
+    assert node_info["description"].startswith("Classify eukaryotic and prokaryotic")
+    assert node_info["output"] == ["FASTA", "FASTA", "STATS_FILE", "STATS_FILE"]
+    assert node_info["output_name"] == [
+        "eukaryote_sequences",
+        "prokaryote_sequences",
+        "eukaryote_names",
+        "prokaryote_names",
+    ]
+    assert node_info["required_executables"] == ["EukRep"]
+    assert node_info["required_conda_packages"] == ["eukrep"]
+    assert node_info["documentation_url"] == "https://github.com/patrickwest/EukRep"
+    assert node_info["citation_dois"] == ["10.1101/gr.228429.117"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1101/gr.228429.117"]
+    assert "Genome-reconstruction for eukaryotes" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "metagenomic eukaryotes" in node_info["search_aliases"]
+
+
+def test_eukrep_renders_fasta_and_names_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("eukrep")
+
+    assert node_class.render_command(
+        {
+            "input": "metagenome scaffolds.fa.gz",
+            "min": 5000,
+            "kmer_len": 4,
+            "prokarya": True,
+            "seq_names": False,
+            "stringency": "strict",
+            "tie": "skip",
+            "output": "/work/eukrep",
+        }
+    ) == (
+        "ln -s 'metagenome scaffolds.fa.gz' input.fa.gz && "
+        "EukRep -i input.fa.gz -o /work/eukrep/output.fa --min 5000 --kmer_len 4 "
+        "--prokarya /work/eukrep/output_prokarya.fa -m strict --tie skip"
+    )
+    assert node_class.PLAN_OUTPUTS({"prokarya": True, "seq_names": False}, tmp_path) == [
+        tmp_path / "eukrep" / "output.fa",
+        tmp_path / "eukrep" / "output_prokarya.fa",
+    ]
+    assert node_class.render_command(
+        {
+            "input": "contigs.fasta",
+            "min": 3000,
+            "kmer_len": 5,
+            "prokarya": True,
+            "seq_names": True,
+            "stringency": "balanced",
+            "tie": "euk",
+            "output": "/work/eukrep",
+        }
+    ) == (
+        "ln -s contigs.fasta input.fasta && "
+        "EukRep -i input.fasta -o /work/eukrep/output.fa --min 3000 --kmer_len 5 "
+        "--prokarya /work/eukrep/output_prokarya.fa --seq_names -m balanced --tie euk"
+    )
+    assert node_class.PLAN_OUTPUTS({"prokarya": True, "seq_names": True}, tmp_path) == [
+        tmp_path / "eukrep" / "output.fa",
+        tmp_path / "eukrep" / "output_prokarya.fa",
+    ]
+    assert node_class.PLAN_OUTPUTS({"prokarya": False, "seq_names": True}, tmp_path) == [
+        tmp_path / "eukrep" / "output.fa",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input": ""}) == "input FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input": "contigs.fa", "kmer_len": 2}) == "kmer_len must be between 3 and 6"
+    assert node_class.VALIDATE_INPUTS({"input": "contigs.fa", "min": -1}) == "min must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"input": "contigs.fa", "stringency": "bad"}) == (
+        "stringency must be one of: strict, balanced, lenient"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "contigs.fa", "tie": "bad"}) == "tie must be one of: euk, prok, rand, skip"
+    assert node_class.VALIDATE_INPUTS({"input": "contigs.fa", "kmer_len": 5, "min": 0}) is True
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 
