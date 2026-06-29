@@ -721,6 +721,46 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_seq: {
+    name: 'seqtk_seq',
+    display_name: 'SeqTK Seq',
+    category: 'sequence',
+    description: 'Transform FASTA or FASTQ sequences with seqtk seq.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk seq', 'SeqTK seq', 'reverse complement', 'force FASTA', 'quality masking', 'mask regions', 'drop ambiguous bases', 'sample fraction'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        q: { type: 'INT', default: 0 },
+        X: { type: 'INT', default: 255 },
+        n: { type: 'STRING', default: '' },
+        l: { type: 'INT', default: 0 },
+        Q: { type: 'INT', default: 33 },
+        s: { type: 'INT', default: 11 },
+        f: { type: 'FLOAT', default: 1 },
+        M: { type: 'FILE', default: '' },
+        L: { type: 'INT', default: 0 },
+        c: { type: 'BOOLEAN', default: false },
+        direction: { type: 'STRING', default: 'forward', options: ['forward', '-r', '-R'] },
+        A: { type: 'BOOLEAN', default: false },
+        C: { type: 'BOOLEAN', default: false },
+        N: { type: 'BOOLEAN', default: false },
+        x1: { type: 'BOOLEAN', default: false },
+        x2: { type: 'BOOLEAN', default: false },
+        fastqillumina: { type: 'BOOLEAN', default: false },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq', 'fasta.gz', 'fastq.gz', 'fastqillumina'] },
+      },
+    },
+    output: ['FASTA', 'FASTQ'],
+    output_name: ['transformed_sequences'],
+    required_executables: ['seqtk', 'pigz'],
+    required_conda_packages: ['seqtk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -11059,7 +11099,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('380 nodes available')).toBeVisible();
+  await expect(page.getByText('381 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11096,6 +11136,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk point mutations', name: 'SeqTK Mutate FASTA', category: 'sequence' },
     { query: 'seqtk ambiguous bases', name: 'SeqTK Random Base', category: 'sequence' },
     { query: 'seqtk subsample reads', name: 'SeqTK Sample', category: 'sequence' },
+    { query: 'seqtk reverse complement', name: 'SeqTK Seq', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },

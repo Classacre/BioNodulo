@@ -1632,6 +1632,120 @@ def test_seqtk_sample_renders_gzip_two_pass_command_and_output(tmp_path: Path) -
     ]
 
 
+def test_seqtk_seq_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_seq"]
+
+    assert info["display_name"] == "SeqTK Seq"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Transform FASTA or FASTQ sequences with seqtk seq."
+    assert info["output"] == ["FASTA", "FASTQ"]
+    assert info["output_name"] == ["transformed_sequences"]
+    assert info["required_executables"] == ["seqtk", "pigz"]
+    assert info["required_conda_packages"] == ["seqtk", "pigz"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk seq" in info["search_aliases"]
+    assert "reverse complement" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["q"][1]["default"] == 0
+    assert info["input"]["optional"]["X"][1]["default"] == 255
+    assert info["input"]["optional"]["n"][0] == "STRING"
+    assert info["input"]["optional"]["direction"][1]["options"] == ["forward", "-r", "-R"]
+    assert info["input"]["optional"]["A"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["x1"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["fastqillumina"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == [
+        "fasta",
+        "fastq",
+        "fasta.gz",
+        "fastq.gz",
+        "fastqillumina",
+    ]
+
+
+def test_seqtk_seq_renders_default_transformation_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_seq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq",
+            "input_ext": "fastq",
+            "output": "/work/seqtk_seq",
+        }
+    ) == "seqtk seq -q 0 -X 255 -l 0 -Q 33 -s 11 -f 1 -L 0 reads.fastq > /work/seqtk_seq/transformed.fastq"
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq"}, tmp_path) == [
+        tmp_path / "seqtk_seq" / "transformed.fastq",
+    ]
+
+
+def test_seqtk_seq_renders_masking_reverse_and_read_filter_options() -> None:
+    node_class = _node_class("seqtk_seq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fa",
+            "q": 15,
+            "X": 40,
+            "n": "N",
+            "l": 80,
+            "Q": 64,
+            "s": 21,
+            "f": 0.25,
+            "M": "mask.bed",
+            "L": 100,
+            "c": True,
+            "direction": "-R",
+            "C": True,
+            "N": True,
+            "x1": True,
+            "x2": True,
+            "input_ext": "fasta",
+            "output": "/work/seqtk_seq",
+        }
+    ) == (
+        "seqtk seq -q 15 -X 40 -n N -l 80 -Q 64 -s 21 -f 0.25 "
+        "-M mask.bed -L 100 -c -R -C -N -1 -2 reads.fa > /work/seqtk_seq/transformed.fasta"
+    )
+
+
+def test_seqtk_seq_forces_fasta_and_gzip_output_when_requested(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_seq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq.gz",
+            "A": True,
+            "direction": "-r",
+            "input_ext": "fastq.gz",
+            "output": "/work/seqtk_seq",
+        }
+    ) == (
+        "seqtk seq -q 0 -X 255 -l 0 -Q 33 -s 11 -f 1 -L 0 -r -A reads.fastq.gz | "
+        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_seq/transformed.fasta.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"A": True, "input_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqtk_seq" / "transformed.fasta.gz",
+    ]
+
+
+def test_seqtk_seq_renders_fastqillumina_quality_shift() -> None:
+    node_class = _node_class("seqtk_seq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "illumina.fastq",
+            "fastqillumina": True,
+            "input_ext": "fastqillumina",
+            "output": "/work/seqtk_seq",
+        }
+    ) == (
+        "seqtk seq -q 0 -X 255 -l 0 -Q 33 -s 11 -f 1 -L 0 -V "
+        "illumina.fastq > /work/seqtk_seq/transformed.fastq"
+    )
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

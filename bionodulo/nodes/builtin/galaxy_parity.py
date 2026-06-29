@@ -2153,6 +2153,185 @@ class SeqTKSampleNode(CommandNode):
         }
 
 
+class SeqTKSeqNode(CommandNode):
+    """Transform FASTA/Q records with seqtk seq."""
+
+    NODE_ID = "seqtk_seq"
+    DISPLAY_NAME = "SeqTK Seq"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Transform FASTA or FASTQ sequences with seqtk seq."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk seq",
+        "SeqTK seq",
+        "reverse complement",
+        "force FASTA",
+        "quality masking",
+        "mask regions",
+        "drop ambiguous bases",
+        "sample fraction",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTQ")
+    RETURN_NAMES = ("transformed_sequences",)
+    REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy1"
+    SHELL = True
+
+    @classmethod
+    def _input_ext(cls, inputs: dict[str, Any]) -> str:
+        explicit = str(inputs.get("input_ext", "") or "").strip().lstrip(".")
+        if explicit:
+            return explicit
+        suffixes = Path(str(inputs.get("in_file", ""))).suffixes
+        if len(suffixes) >= 2 and suffixes[-1] == ".gz":
+            return f"{suffixes[-2].lstrip('.')}.gz"
+        if suffixes:
+            return suffixes[-1].lstrip(".")
+        return "fasta"
+
+    @staticmethod
+    def _bool_value(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @classmethod
+    def _normalized_output_ext(cls, inputs: dict[str, Any]) -> str:
+        ext = cls._input_ext(inputs)
+        if cls._bool_value(inputs.get("A", False)):
+            return "fasta.gz" if ext in {"fasta.gz", "fastq.gz"} else "fasta"
+        if ext in {"fa", "fna"}:
+            return "fasta"
+        if ext in {"fq", "fastqsanger", "fastqillumina"}:
+            return "fastq"
+        if ext in {"fa.gz", "fna.gz"}:
+            return "fasta.gz"
+        if ext in {"fq.gz", "fastqsanger.gz", "fastqillumina.gz"}:
+            return "fastq.gz"
+        return ext or "fasta"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        return f"transformed.{cls._normalized_output_ext(inputs)}"
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._output_name(inputs)}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "seqtk",
+            "seq",
+            "-q",
+            str(inputs.get("q", 0)),
+            "-X",
+            str(inputs.get("X", 255)),
+        ]
+        _add_if_value(cmd, "-n", inputs.get("n"))
+        cmd.extend(
+            [
+                "-l",
+                str(inputs.get("l", 0)),
+                "-Q",
+                str(inputs.get("Q", 33)),
+                "-s",
+                str(inputs.get("s", 11)),
+                "-f",
+                str(inputs.get("f", 1)),
+            ]
+        )
+        _add_if_value(cmd, "-M", inputs.get("M"))
+        cmd.extend(["-L", str(inputs.get("L", 0))])
+        if cls._bool_value(inputs.get("c", False)):
+            cmd.append("-c")
+        direction = str(inputs.get("direction", "forward") or "forward")
+        if direction != "forward":
+            cmd.append(direction)
+        for key, flag in (("A", "-A"), ("C", "-C"), ("N", "-N"), ("x1", "-1"), ("x2", "-2")):
+            if cls._bool_value(inputs.get(key, False)):
+                cmd.append(flag)
+        if cls._input_ext(inputs) == "fastqillumina" or cls._bool_value(inputs.get("fastqillumina", False)):
+            cmd.append("-V")
+        cmd.append(str(inputs.get("in_file", "")))
+        if cls._normalized_output_ext(inputs).endswith(".gz"):
+            return (
+                f"{_shell_join(cmd)} | "
+                f"pigz -p ${{GALAXY_SLOTS:-1}} --no-name --no-time "
+                f"> {shlex.quote(cls._out_path(inputs))}"
+            )
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._out_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+            },
+            "optional": {
+                "q": ("INT", {"default": 0, "description": "Mask bases with quality lower than this value"}),
+                "X": ("INT", {"default": 255, "description": "Mask bases with quality higher than this value"}),
+                "n": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Convert masked bases to this character; blank leaves lowercase masking",
+                    },
+                ),
+                "l": ("INT", {"default": 0, "description": "Number of residues per line; 0 keeps seqtk default"}),
+                "Q": ("INT", {"default": 33, "description": "ASCII quality offset used for quality comparisons"}),
+                "s": ("INT", {"default": 11, "description": "Random seed used with sample fraction"}),
+                "f": ("FLOAT", {"default": 1, "description": "Sample fraction of sequences"}),
+                "M": ("FILE", {"default": "", "description": "BED or name-list file of regions to mask"}),
+                "L": ("INT", {"default": 0, "description": "Drop sequences shorter than this length"}),
+                "c": ("BOOLEAN", {"default": False, "description": "Mask complement regions when a mask file is supplied"}),
+                "direction": (
+                    "STRING",
+                    {
+                        "default": "forward",
+                        "options": ["forward", "-r", "-R"],
+                        "description": "Output forward, reverse complement, or both directions",
+                    },
+                ),
+                "A": ("BOOLEAN", {"default": False, "description": "Force FASTA output and discard qualities"}),
+                "C": ("BOOLEAN", {"default": False, "description": "Drop comments from header lines"}),
+                "N": ("BOOLEAN", {"default": False, "description": "Drop sequences containing ambiguous bases"}),
+                "x1": ("BOOLEAN", {"default": False, "description": "Output only 2n-1 reads"}),
+                "x2": ("BOOLEAN", {"default": False, "description": "Output only 2n reads"}),
+                "fastqillumina": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Apply the Galaxy fastqillumina quality-shift flag (-V)",
+                        "advanced": True,
+                    },
+                ),
+                "input_ext": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "fastq", "fasta.gz", "fastq.gz", "fastqillumina"],
+                        "description": "Input/output sequence format used to mirror Galaxy dynamic output metadata",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 
