@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.nodes.types import BioType, file_extension_for, is_compatible
 
 
 def _registry() -> NodeRegistry:
@@ -25745,6 +25746,298 @@ def test_bwa_mem2_idx_validates_reference_input() -> None:
     assert node_class.VALIDATE_INPUTS({}) == "reference is required"
     assert node_class.VALIDATE_INPUTS({"reference": ""}) == "reference is required"
     assert node_class.VALIDATE_INPUTS({"reference": "ref.fa"}) is True
+
+
+def test_bwa_mem2_index_type_is_file_compatible() -> None:
+    assert BioType.BWA_MEM2_INDEX.value == "BWA_MEM2_INDEX"
+    assert is_compatible("BWA_MEM2_INDEX", "DIRECTORY")
+    assert is_compatible("BWA_MEM2_INDEX", "STRING")
+    assert file_extension_for("BWA_MEM2_INDEX") == ".bwa_mem2_index"
+
+
+def test_bwa_mem2_exposes_galaxy_metadata_inputs_and_bwa_citations() -> None:
+    node_info = _registry().object_info()["bwa_mem2"]
+
+    assert node_info["display_name"] == "BWA-MEM2"
+    assert node_info["category"] == "alignment"
+    assert node_info["description"].startswith("Map medium and long reads")
+    assert node_info["output"] == ["BAM"]
+    assert node_info["output_name"] == ["bam_output"]
+    assert node_info["required_executables"] == ["bwa-mem2", "samtools"]
+    assert node_info["required_conda_packages"] == ["bwa-mem2", "samtools"]
+    assert node_info["documentation_url"] == "https://github.com/bwa-mem2/bwa-mem2"
+    assert node_info["citation_dois"] == [
+        "10.1109/IPDPS.2019.00041",
+        "10.1093/bioinformatics/btp324",
+        "10.1093/bioinformatics/btp698",
+    ]
+    assert "http://arxiv.org/abs/1303.3997" in node_info["citation_urls"]
+    assert "BWA-MEM2 acceleration of the BWA-MEM algorithm" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "bwa-mem2 mem" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["ref_file"][0] == "BWA_MEM2_INDEX"
+    assert node_info["input"]["required"]["fastq_input_selector"][1]["options"] == [
+        "paired",
+        "single",
+        "paired_collection",
+        "paired_iv",
+    ]
+    assert node_info["input"]["optional"]["analysis_type_selector"][1]["options"] == [
+        "illumina",
+        "pacbio",
+        "ont2d",
+        "intractg",
+        "full",
+    ]
+    assert node_info["input"]["optional"]["output_sort"][1]["options"] == ["coordinate", "name", "unsorted"]
+
+
+def test_bwa_mem2_renders_paired_coordinate_sorted_cached_index_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bwa_mem2")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "history",
+            "ref_file": "/indexes/hg38",
+            "ref_file_type": "bwa_mem2_index",
+            "fastq_input_selector": "paired",
+            "fastq_input1": "reads_R1.fq",
+            "fastq_input2": "reads_R2.fq",
+            "iset_stats": "250,25",
+            "analysis_type_selector": "illumina",
+            "output_sort": "coordinate",
+            "output": "/work/bwa_mem2",
+        }
+    ) == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "bwa-mem2",
+        "mem",
+        "-t",
+        "${GALAXY_SLOTS:-1}",
+        "-v",
+        "1",
+        "-I",
+        "250,25",
+        "/indexes/hg38/reference",
+        "reads_R1.fq",
+        "reads_R2.fq",
+        "|",
+        "samtools",
+        "sort",
+        "-@${GALAXY_SLOTS:-2}",
+        "-T",
+        "${TMPDIR:-.}",
+        "-O",
+        "bam",
+        "-o",
+        "/work/bwa_mem2/aligned.bam",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa_mem2" / "aligned.bam"]
+
+
+def test_bwa_mem2_renders_history_fasta_full_mode_read_group_and_name_sort() -> None:
+    node_class = _node_class("bwa_mem2")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "history",
+            "ref_file": "ref.fa",
+            "ref_file_type": "fasta",
+            "fastq_input_selector": "single",
+            "fastq_input1": "reads.fq",
+            "analysis_type_selector": "full",
+            "algorithmic_options_selector": "set",
+            "k": 17,
+            "w": 80,
+            "d": 90,
+            "r": 2.0,
+            "y": 19,
+            "c": 200,
+            "D": 0.4,
+            "W": 10,
+            "m": 40,
+            "S": True,
+            "P": True,
+            "e": True,
+            "scoring_options_selector": "set",
+            "A": 2,
+            "B": 5,
+            "O": "6,7",
+            "E": "1,2",
+            "L": "4,4",
+            "U": 18,
+            "io_options_selector": "set",
+            "T": 25,
+            "h": 4,
+            "a": True,
+            "C": True,
+            "V": True,
+            "Y": True,
+            "M": True,
+            "five": True,
+            "q": True,
+            "K": 1000000,
+            "rg_selector": "set",
+            "rg_id": "rg1",
+            "rg_sm": "sample1",
+            "rg_pl": "ILLUMINA",
+            "rg_lb": "lib1",
+            "rg_cn": "center",
+            "output_sort": "name",
+            "output": "/work/bwa_mem2",
+        }
+    ) == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "ln",
+        "-s",
+        "ref.fa",
+        "localref.fa",
+        "&&",
+        "bwa-mem2",
+        "index",
+        "localref.fa",
+        "&&",
+        "bwa-mem2",
+        "mem",
+        "-t",
+        "${GALAXY_SLOTS:-1}",
+        "-v",
+        "1",
+        "-k",
+        "17",
+        "-w",
+        "80",
+        "-d",
+        "90",
+        "-r",
+        "2.0",
+        "-y",
+        "19",
+        "-c",
+        "200",
+        "-D",
+        "0.4",
+        "-W",
+        "10",
+        "-m",
+        "40",
+        "-S",
+        "-P",
+        "-e",
+        "-A",
+        "2",
+        "-B",
+        "5",
+        "-O",
+        "6,7",
+        "-E",
+        "1,2",
+        "-L",
+        "4,4",
+        "-U",
+        "18",
+        "-T",
+        "25",
+        "-h",
+        "4",
+        "-a",
+        "-C",
+        "-V",
+        "-Y",
+        "-M",
+        "-5",
+        "-q",
+        "-K",
+        "1000000",
+        "-R",
+        "@RG\\tID:rg1\\tSM:sample1\\tPL:ILLUMINA\\tLB:lib1\\tCN:center",
+        "localref.fa",
+        "reads.fq",
+        "|",
+        "samtools",
+        "sort",
+        "-n",
+        "-@${GALAXY_SLOTS:-2}",
+        "-T",
+        "${TMPDIR:-.}",
+        "-O",
+        "bam",
+        "-o",
+        "/work/bwa_mem2/aligned.bam",
+    ]
+
+
+def test_bwa_mem2_renders_interleaved_preset_and_unsorted_bam() -> None:
+    node_class = _node_class("bwa_mem2")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "cached",
+            "ref_file": "/refs/mtgenome/reference",
+            "fastq_input_selector": "paired_iv",
+            "fastq_input1": "interleaved.fq.gz",
+            "iset_stats": "300",
+            "analysis_type_selector": "pacbio",
+            "output_sort": "unsorted",
+            "output": "/work/bwa_mem2",
+        }
+    ) == [
+        "set",
+        "-o",
+        "pipefail",
+        "&&",
+        "bwa-mem2",
+        "mem",
+        "-t",
+        "1",
+        "-v",
+        "1",
+        "-p",
+        "-I",
+        "300",
+        "-x",
+        "pacbio",
+        "/refs/mtgenome/reference",
+        "interleaved.fq.gz",
+        "|",
+        "samtools",
+        "view",
+        "-@",
+        "${GALAXY_SLOTS:-2}",
+        "-bS",
+        "-",
+        "-o",
+        "/work/bwa_mem2/aligned.bam",
+    ]
+
+
+def test_bwa_mem2_validates_reference_reads_modes_and_options() -> None:
+    node_class = _node_class("bwa_mem2")
+
+    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "fastq_input1 is required"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "fastq_input_selector": "bad"}) == (
+        "fastq_input_selector must be one of: paired, single, paired_collection, paired_iv"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "fastq_input_selector": "paired"}
+    ) == "fastq_input2 is required for paired input"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "bad"}) == (
+        "analysis_type_selector must be one of: illumina, pacbio, ont2d, intractg, full"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "output_sort": "bad"}) == (
+        "output_sort must be one of: coordinate, name, unsorted"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "full", "k": 0}
+    ) == "k must be at least 1"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq"}) is True
 
 
 def test_bamleftalign_exposes_freebayes_citation_and_dependency_metadata() -> None:

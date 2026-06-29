@@ -9422,6 +9422,47 @@ const objectInfo = {
     citation_text:
       'BWA-MEM2 acceleration of the BWA-MEM algorithm; Fast and accurate short read alignment with Burrows-Wheeler Transform; Fast and accurate long-read alignment with Burrows-Wheeler Transform; Aligning sequence reads, clone sequences and assembly contigs with BWA-MEM.',
   },
+  bwa_mem2: {
+    name: 'bwa_mem2',
+    display_name: 'BWA-MEM2',
+    category: 'alignment',
+    description: 'Map medium and long reads against a reference genome with BWA-MEM2 and emit BAM.',
+    search_aliases: ['Galaxy', 'BWA-MEM2', 'bwa_mem2', 'bwa-mem2 mem', 'read mapping', 'medium and long reads', 'BAM output'],
+    input: {
+      required: {
+        ref_file: { type: 'BWA_MEM2_INDEX' },
+        fastq_input_selector: { type: 'STRING', default: 'paired', options: ['paired', 'single', 'paired_collection', 'paired_iv'] },
+        fastq_input1: { type: 'FASTQ' },
+      },
+      optional: {
+        fastq_input2: { type: 'FASTQ', default: '' },
+        reference_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        ref_file_type: { type: 'STRING', default: 'bwa_mem2_index', options: ['bwa_mem2_index', 'fasta', 'fasta.gz'] },
+        iset_stats: { type: 'STRING', default: '' },
+        analysis_type_selector: { type: 'STRING', default: 'illumina', options: ['illumina', 'pacbio', 'ont2d', 'intractg', 'full'] },
+        output_sort: { type: 'STRING', default: 'coordinate', options: ['coordinate', 'name', 'unsorted'] },
+        rg_selector: { type: 'STRING', default: 'do_not_set', options: ['do_not_set', 'set'] },
+        rg_id: { type: 'STRING', default: '' },
+        rg_sm: { type: 'STRING', default: '' },
+        rg_pl: { type: 'STRING', default: '' },
+        rg_lb: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['bam_output'],
+    required_executables: ['bwa-mem2', 'samtools'],
+    required_conda_packages: ['bwa-mem2', 'samtools'],
+    documentation_url: 'https://github.com/bwa-mem2/bwa-mem2',
+    citation_dois: ['10.1109/IPDPS.2019.00041', '10.1093/bioinformatics/btp324', '10.1093/bioinformatics/btp698'],
+    citation_urls: [
+      'https://doi.org/10.1109/IPDPS.2019.00041',
+      'https://doi.org/10.1093/bioinformatics/btp324',
+      'https://doi.org/10.1093/bioinformatics/btp698',
+      'http://arxiv.org/abs/1303.3997',
+    ],
+    citation_text:
+      'BWA-MEM2 acceleration of the BWA-MEM algorithm; Fast and accurate short read alignment with Burrows-Wheeler Transform; Fast and accurate long-read alignment with Burrows-Wheeler Transform; Aligning sequence reads, clone sequences and assembly contigs with BWA-MEM.',
+  },
   bcftools_stats: {
     name: 'bcftools_stats',
     display_name: 'BCFtools Stats',
@@ -10717,7 +10758,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('367 nodes available')).toBeVisible();
+  await expect(page.getByText('368 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11029,6 +11070,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'fixed-threshold filters', name: 'BCFtools Filter', category: 'variant' },
     { query: 'left realignment', name: 'BamLeftAlign', category: 'variant' },
     { query: 'BWA-MEM2 reference index', name: 'BWA-MEM2 Indexer', category: 'alignment' },
+    { query: 'bwa-mem2 mem', name: 'BWA-MEM2', category: 'alignment' },
     { query: 'plot-vcfstats', name: 'BCFtools Stats', category: 'variant' },
     { query: 'left-align indels', name: 'BCFtools Norm', category: 'variant' },
     { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },
