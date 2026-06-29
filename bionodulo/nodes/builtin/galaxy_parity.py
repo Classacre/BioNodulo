@@ -10429,6 +10429,102 @@ class HUMAnNSplitStratifiedTableNode(CommandNode):
         }
 
 
+class HUMAnNReduceTableNode(CommandNode):
+    """Reduce a joined HUMAnN table with a summary function."""
+
+    NODE_ID = "humann_reduce_table"
+    DISPLAY_NAME = "HUMAnN Reduce Table"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Reduce a joined HUMAnN table by applying a row-wise summary function."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_reduce_table",
+        "Reduce",
+        "joined HUMAnN table",
+        "row-wise summary",
+        "max sum mean min",
+        "sort by value",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["humann_reduce_table"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+    FUNCTIONS = ["max", "sum", "mean", "min"]
+    SORT_OPTIONS = ["name", "value", "level"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/reduced_table.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        return _shell_join(
+            [
+                "humann_reduce_table",
+                "--input",
+                str(inputs.get("input", "")),
+                "-o",
+                cls._output_path(inputs),
+                "--function",
+                str(inputs.get("function", "max")),
+                "--sort-by",
+                str(inputs.get("sort_by", "name")),
+            ]
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "reduced_table.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "Joined HUMAnN table is required"
+        function = str(inputs.get("function", "max"))
+        if function not in cls.FUNCTIONS:
+            return f"Unsupported HUMAnN reduction function: {function}"
+        sort_by = str(inputs.get("sort_by", "name"))
+        if sort_by not in cls.SORT_OPTIONS:
+            return f"Unsupported HUMAnN reduce sort option: {sort_by}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "Joined HUMAnN gene, pathway, or taxonomic table"}),
+            },
+            "optional": {
+                "function": (
+                    "STRING",
+                    {
+                        "default": "max",
+                        "options": cls.FUNCTIONS,
+                        "description": "Summary function to apply across each row",
+                    },
+                ),
+                "sort_by": (
+                    "STRING",
+                    {
+                        "default": "name",
+                        "options": cls.SORT_OPTIONS,
+                        "description": "Sort reduced rows by feature name, reduced value, or pathway level",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MergeMetaPhlAnTablesNode(CommandNode):
     """Merge multiple MetaPhlAn relative abundance tables."""
 

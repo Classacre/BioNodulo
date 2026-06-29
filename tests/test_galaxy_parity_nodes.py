@@ -534,6 +534,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "humann_reduce_table": {
+            "display_name": "HUMAnN Reduce Table",
+            "category": "metagenomics",
+            "required_executables": ["humann_reduce_table"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6289,6 +6296,88 @@ def test_humann_split_stratified_table_validates_wrapper_inputs() -> None:
 
     assert node_class.VALIDATE_INPUTS({}) == "Stratified HUMAnN table is required"
     assert node_class.VALIDATE_INPUTS({"input": "demo_genefamilies.tsv"}) is True
+
+
+def test_humann_reduce_table_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_reduce_table"]
+
+    assert info["display_name"] == "HUMAnN Reduce Table"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Reduce a joined HUMAnN table by applying a row-wise summary function."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_reduce_table",
+        "Reduce",
+        "joined HUMAnN table",
+        "row-wise summary",
+        "max sum mean min",
+        "sort by value",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["humann_reduce_table"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["description"] == "Joined HUMAnN gene, pathway, or taxonomic table"
+    assert info["input"]["optional"]["function"][0] == "STRING"
+    assert info["input"]["optional"]["function"][1]["default"] == "max"
+    assert info["input"]["optional"]["function"][1]["options"] == ["max", "sum", "mean", "min"]
+    assert info["input"]["optional"]["sort_by"][0] == "STRING"
+    assert info["input"]["optional"]["sort_by"][1]["default"] == "name"
+    assert info["input"]["optional"]["sort_by"][1]["options"] == ["name", "value", "level"]
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_reduce_table_renders_reduce_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("humann_reduce_table")
+
+    assert node_class.render_command(
+        {
+            "input": "demo joined pathabundance pathcoverage.tsv",
+            "output": "/work/humann_reduce_table",
+        }
+    ) == (
+        "humann_reduce_table --input 'demo joined pathabundance pathcoverage.tsv' "
+        "-o /work/humann_reduce_table/reduced_table.tsv --function max --sort-by name"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "demo_joined_pathabundance_pathcoverage.tsv",
+            "function": "mean",
+            "sort_by": "value",
+            "output": "/work/humann_reduce_table",
+        }
+    ) == (
+        "humann_reduce_table --input demo_joined_pathabundance_pathcoverage.tsv "
+        "-o /work/humann_reduce_table/reduced_table.tsv --function mean --sort-by value"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "humann_reduce_table" / "reduced_table.tsv",
+    ]
+
+
+def test_humann_reduce_table_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_reduce_table")
+
+    assert node_class.VALIDATE_INPUTS({}) == "Joined HUMAnN table is required"
+    assert node_class.VALIDATE_INPUTS({"input": "joined.tsv", "function": "median"}) == (
+        "Unsupported HUMAnN reduction function: median"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "joined.tsv", "sort_by": "sample"}) == (
+        "Unsupported HUMAnN reduce sort option: sample"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "joined.tsv", "function": "sum", "sort_by": "level"}) is True
 
 
 def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:

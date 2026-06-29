@@ -2361,6 +2361,39 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
     citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
   },
+  humann_reduce_table: {
+    name: 'humann_reduce_table',
+    display_name: 'HUMAnN Reduce Table',
+    category: 'metagenomics',
+    description: 'Reduce a joined HUMAnN table by applying a row-wise summary function.',
+    search_aliases: [
+      'Galaxy',
+      'HUMAnN',
+      'humann_reduce_table',
+      'Reduce',
+      'joined HUMAnN table',
+      'row-wise summary',
+      'max sum mean min',
+      'sort by value',
+    ],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+      },
+      optional: {
+        function: { type: 'STRING', default: 'max', options: ['max', 'sum', 'mean', 'min'] },
+        sort_by: { type: 'STRING', default: 'name', options: ['name', 'value', 'level'] },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['humann_reduce_table'],
+    required_conda_packages: ['humann'],
+    documentation_url: 'https://huttenhower.sph.harvard.edu/humann/',
+    citation_dois: ['10.7554/eLife.65088', '10.1371/journal.pcbi.1002358'],
+    citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
+    citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5331,7 +5364,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('218 nodes available')).toBeVisible();
+  await expect(page.getByText('219 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5423,6 +5456,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'copies per million', name: 'HUMAnN Renormalize Table', category: 'metagenomics' },
     { query: 'one file per sample', name: 'HUMAnN Split Table', category: 'metagenomics' },
     { query: 'unstratified table', name: 'HUMAnN Split Stratified Table', category: 'metagenomics' },
+    { query: 'row-wise summary', name: 'HUMAnN Reduce Table', category: 'metagenomics' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
