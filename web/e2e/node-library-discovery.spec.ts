@@ -6022,6 +6022,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.7359'],
     citation_text: 'MetaBAT 2: an adaptive binning algorithm for robust and efficient genome reconstruction from metagenome assemblies.',
   },
+  fastspar: {
+    name: 'fastspar',
+    display_name: 'FastSpar',
+    category: 'metagenomics',
+    description: 'Estimate FastSpar/SparCC correlation and covariance matrices from compositional OTU count tables.',
+    search_aliases: ['Galaxy', 'FastSpar', 'FastSpar correlation', 'SparCC compositional correlation', 'OTU correlation', 'microbiome co-occurrence'],
+    input: {
+      required: {
+        otu_table: { type: 'TSV' },
+      },
+      optional: {
+        iterations: { type: 'INT', default: 50 },
+        exclude_iterations: { type: 'INT', default: 10 },
+        threshold: { type: 'FLOAT', default: 0.1 },
+        seed: { type: 'INT', default: 1 },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV', 'TSV'],
+    output_name: ['correlation', 'covariance'],
+    required_executables: ['fastspar'],
+    required_conda_packages: ['fastspar'],
+    documentation_url: 'https://github.com/scwatts/fastspar',
+    citation_dois: ['10.1093/bioinformatics/bty734', '10.1371/journal.pcbi.1002687'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bty734', 'https://doi.org/10.1371/journal.pcbi.1002687'],
+    citation_text: 'FastSpar: rapid and scalable correlation estimation for compositional data; Sparse correlations for compositional data.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8767,7 +8794,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('306 nodes available')).toBeVisible();
+  await expect(page.getByText('307 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8954,6 +8981,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'fragmented antibiotic resistance genes', name: 'fargene', category: 'annotation' },
     { query: 'metabat2 bins', name: 'MetaBAT2', category: 'metagenomics' },
     { query: 'MetaBAT2 depth matrix', name: 'Calculate contig depths', category: 'metagenomics' },
+    { query: 'FastSpar correlation', name: 'FastSpar', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

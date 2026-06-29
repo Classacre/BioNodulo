@@ -13150,6 +13150,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["metabat2"],
             "doi": "10.7717/peerj.7359",
         },
+        "fastspar": {
+            "display_name": "FastSpar",
+            "category": "metagenomics",
+            "required_executables": ["fastspar"],
+            "required_conda_packages": ["fastspar"],
+            "doi": "10.1093/bioinformatics/bty734",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16904,6 +16911,54 @@ def test_metabat2_jgi_depths_renders_contig_depth_command_outputs_and_validation
         "percentIdentity must be between 0 and 100"
     )
     assert node_class.VALIDATE_INPUTS({"mode_type": "individual", "bam_indiv_input": "a.bam"}) is True
+
+
+def test_fastspar_renders_correlation_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("fastspar")
+    info = _registry().object_info()["fastspar"]
+
+    assert info["output"] == ["TSV", "TSV"]
+    assert info["output_name"] == ["correlation", "covariance"]
+    assert info["input"]["required"]["otu_table"][0] == "TSV"
+    assert info["input"]["optional"]["iterations"][1]["default"] == 50
+    assert "10.1093/bioinformatics/bty734" in info["citation_dois"]
+    assert "10.1371/journal.pcbi.1002687" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "otu_table": "absolute otu counts.tsv",
+            "iterations": 100,
+            "exclude_iterations": 20,
+            "threshold": 0.2,
+            "seed": 7,
+            "threads": 8,
+            "output": "/work/fastspar",
+        }
+    ) == (
+        "mkdir -p /work/fastspar && fastspar --otu_table 'absolute otu counts.tsv' --iterations 100 "
+        "--exclude_iterations 20 --threshold 0.2 --seed 7 --correlation /work/fastspar/median_correlation.tsv "
+        "--covariance /work/fastspar/median_covariance.tsv --threads ${GALAXY_SLOTS:-8} --yes"
+    )
+    assert node_class.render_command(
+        {
+            "otu_table": "otu.tsv",
+            "output": "/work/fastspar",
+        }
+    ) == (
+        "mkdir -p /work/fastspar && fastspar --otu_table otu.tsv --iterations 50 --exclude_iterations 10 "
+        "--threshold 0.1 --seed 1 --correlation /work/fastspar/median_correlation.tsv "
+        "--covariance /work/fastspar/median_covariance.tsv --threads ${GALAXY_SLOTS:-1} --yes"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "fastspar" / "median_correlation.tsv",
+        tmp_path / "fastspar" / "median_covariance.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "otu_table is required"
+    assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "iterations": 0}) == "iterations must be between 1 and 1000"
+    assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "exclude_iterations": 101}) == (
+        "exclude_iterations must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "threshold": 1.5}) == "threshold must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
