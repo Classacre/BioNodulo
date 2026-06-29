@@ -1022,6 +1022,65 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gkq747'],
     citation_text: 'FragGeneScan: predicting genes in short and error-prone reads.',
   },
+  prodigal: {
+    name: 'prodigal',
+    display_name: 'Prodigal Gene Predictor',
+    category: 'annotation',
+    description: 'Predict protein-coding genes in microbial genomes, draft assemblies, and metagenomic sequences.',
+    search_aliases: ['Galaxy', 'Prodigal', 'prodigal', 'gene prediction', 'microbial genomes', 'protein-coding genes', 'translation initiation sites', 'metagenomic gene prediction'],
+    input: {
+      required: {
+        input_fa: { type: 'FASTA' },
+      },
+      optional: {
+        input_train: { type: 'FASTA', default: '' },
+        out_format: { type: 'STRING', default: 'gbk', options: ['gbk', 'gff', 'sqn', 'sco'] },
+        procedure: { type: 'STRING', default: 'single', options: ['single', 'meta'] },
+        trans_table: {
+          type: 'STRING',
+          default: '11',
+          options: [
+            '1',
+            '2',
+            '3',
+            '4',
+            '5',
+            '6',
+            '7',
+            '8',
+            '9',
+            '10',
+            '11',
+            '12',
+            '13',
+            '14',
+            '15',
+            '16',
+            '17',
+            '18',
+            '19',
+            '20',
+            '21',
+            '22',
+            '23',
+            '24',
+            '25',
+          ],
+        },
+        closed: { type: 'BOOLEAN', default: false },
+        force_nonsd: { type: 'BOOLEAN', default: false },
+        masked_seq: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FILE', 'FASTA', 'FASTA', 'TSV'],
+    output_name: ['coordinates', 'protein_translations', 'nucleotide_sequences', 'start_sites'],
+    required_executables: ['prodigal'],
+    required_conda_packages: ['prodigal'],
+    documentation_url: 'https://github.com/hyattpd/Prodigal',
+    citation_dois: ['10.1186/1471-2105-11-119'],
+    citation_urls: ['https://doi.org/10.1186/1471-2105-11-119'],
+    citation_text: 'Prodigal: prokaryotic gene recognition and translation initiation site identification.',
+  },
   prinseq: {
     name: 'prinseq',
     display_name: 'PRINSEQ',
@@ -6926,7 +6985,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('253 nodes available')).toBeVisible();
+  await expect(page.getByText('254 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6976,6 +7035,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'clustalw2', name: 'ClustalW', category: 'phylogeny' },
     { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
     { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },
+    { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },

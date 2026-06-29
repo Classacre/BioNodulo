@@ -2673,6 +2673,104 @@ def test_fraggenescan_renders_prediction_command_and_outputs(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"genome": "reads.fa", "threads": 1}) is True
 
 
+def test_prodigal_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["prodigal"]
+
+    assert node_info["display_name"] == "Prodigal Gene Predictor"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Predict protein-coding genes")
+    assert node_info["output"] == ["FILE", "FASTA", "FASTA", "TSV"]
+    assert node_info["output_name"] == ["coordinates", "protein_translations", "nucleotide_sequences", "start_sites"]
+    assert node_info["required_executables"] == ["prodigal"]
+    assert node_info["required_conda_packages"] == ["prodigal"]
+    assert node_info["documentation_url"] == "https://github.com/hyattpd/Prodigal"
+    assert node_info["citation_dois"] == ["10.1186/1471-2105-11-119"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/1471-2105-11-119"]
+    assert "prokaryotic gene recognition" in node_info["citation_text"].lower()
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "translation initiation sites" in node_info["search_aliases"]
+
+
+def test_prodigal_renders_gene_prediction_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("prodigal")
+
+    assert node_class.render_command(
+        {
+            "input_fa": "contigs.fa",
+            "input_train": "trained model.trn",
+            "out_format": "gff",
+            "procedure": "meta",
+            "trans_table": "4",
+            "closed": True,
+            "force_nonsd": True,
+            "masked_seq": True,
+            "output": "/work/prodigal",
+        }
+    ) == [
+        "prodigal",
+        "-i",
+        "contigs.fa",
+        "-t",
+        "trained model.trn",
+        "-o",
+        "/work/prodigal/output.gff3",
+        "-f",
+        "gff",
+        "-p",
+        "meta",
+        "-g",
+        "4",
+        "-a",
+        "/work/prodigal/output.faa",
+        "-d",
+        "/work/prodigal/output.fnn",
+        "-s",
+        "/work/prodigal/output.start",
+        "-c",
+        "-n",
+        "-m",
+    ]
+    assert node_class.render_command(
+        {
+            "input_fa": "input.fna",
+            "output": "/work/prodigal",
+        }
+    ) == [
+        "prodigal",
+        "-i",
+        "input.fna",
+        "-o",
+        "/work/prodigal/output.gbk",
+        "-f",
+        "gbk",
+        "-p",
+        "single",
+        "-g",
+        "11",
+        "-a",
+        "/work/prodigal/output.faa",
+        "-d",
+        "/work/prodigal/output.fnn",
+        "-s",
+        "/work/prodigal/output.start",
+    ]
+    assert node_class.PLAN_OUTPUTS({"out_format": "gff"}, tmp_path) == [
+        tmp_path / "prodigal" / "output.gff3",
+        tmp_path / "prodigal" / "output.faa",
+        tmp_path / "prodigal" / "output.fnn",
+        tmp_path / "prodigal" / "output.start",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path)[0] == tmp_path / "prodigal" / "output.gbk"
+    assert node_class.VALIDATE_INPUTS({"input_fa": ""}) == "input FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input_fa": "contigs.fa", "out_format": "bad"}) == (
+        "out_format must be one of: gbk, gff, sqn, sco"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fa": "contigs.fa", "trans_table": "26"}) == (
+        "trans_table must be an integer from 1 to 25"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fa": "contigs.fa", "procedure": "single", "trans_table": "11"}) is True
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 
