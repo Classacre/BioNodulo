@@ -1342,6 +1342,93 @@ class SeqTKCutNNode(CommandNode):
         }
 
 
+class SeqTKDropSENode(CommandNode):
+    """Remove unpaired records from interleaved paired-end FASTA/Q with seqtk dropse."""
+
+    NODE_ID = "seqtk_dropse"
+    DISPLAY_NAME = "SeqTK DropSE"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Remove unpaired records from interleaved paired-end FASTA or FASTQ data with seqtk dropse."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk dropse",
+        "SeqTK dropse",
+        "drop single-end",
+        "remove unpaired reads",
+        "interleaved paired-end",
+        "paired reads only",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTQ")
+    RETURN_NAMES = ("paired_sequences", "paired_reads")
+    REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _input_ext(cls, inputs: dict[str, Any]) -> str:
+        return SeqTKCutNNode._input_ext(inputs)
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        ext = cls._input_ext(inputs)
+        if ext in {"fa", "fna"}:
+            ext = "fasta"
+        elif ext in {"fq", "fastqsanger"}:
+            ext = "fastq"
+        elif ext in {"fa.gz", "fna.gz"}:
+            ext = "fasta.gz"
+        elif ext in {"fq.gz", "fastqsanger.gz"}:
+            ext = "fastq.gz"
+        return f"paired.{ext}"
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._output_name(inputs)}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["seqtk", "dropse", str(inputs.get("in_file", ""))]
+        if cls._input_ext(inputs).endswith(".gz"):
+            return (
+                f"{_shell_join(cmd)} | "
+                f"pigz -p ${{GALAXY_SLOTS:-1}} --no-name --no-time "
+                f"> {shlex.quote(cls._out_path(inputs))}"
+            )
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._out_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Interleaved paired-end FASTA/Q file"}),
+            },
+            "optional": {
+                "input_ext": (
+                    "STRING",
+                    {
+                        "default": "fastq",
+                        "options": ["fasta", "fastq", "fasta.gz", "fastq.gz"],
+                        "description": "Input/output sequence format used to mirror Galaxy format_source",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 

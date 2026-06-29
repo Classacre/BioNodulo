@@ -1122,6 +1122,58 @@ def test_seqtk_cutn_renders_gaps_only_bed_command_and_output(tmp_path: Path) -> 
     ]
 
 
+def test_seqtk_dropse_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_dropse"]
+
+    assert info["display_name"] == "SeqTK DropSE"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Remove unpaired records from interleaved paired-end FASTA or FASTQ data with seqtk dropse."
+    assert info["output"] == ["FASTA", "FASTQ"]
+    assert info["output_name"] == ["paired_sequences", "paired_reads"]
+    assert info["required_executables"] == ["seqtk", "pigz"]
+    assert info["required_conda_packages"] == ["seqtk", "pigz"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk dropse" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
+
+
+def test_seqtk_dropse_renders_plain_interleaved_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_dropse")
+
+    assert node_class.render_command(
+        {
+            "in_file": "interleaved.fastq",
+            "input_ext": "fastq",
+            "output": "/work/seqtk_dropse",
+        }
+    ) == "seqtk dropse interleaved.fastq > /work/seqtk_dropse/paired.fastq"
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq"}, tmp_path) == [
+        tmp_path / "seqtk_dropse" / "paired.fastq",
+    ]
+
+
+def test_seqtk_dropse_renders_gzip_interleaved_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_dropse")
+
+    assert node_class.render_command(
+        {
+            "in_file": "interleaved.fasta.gz",
+            "input_ext": "fasta.gz",
+            "output": "/work/seqtk_dropse",
+        }
+    ) == (
+        "seqtk dropse interleaved.fasta.gz | "
+        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_dropse/paired.fasta.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fasta.gz"}, tmp_path) == [
+        tmp_path / "seqtk_dropse" / "paired.fasta.gz",
+    ]
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 
