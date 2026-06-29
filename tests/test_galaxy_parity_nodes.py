@@ -5985,6 +5985,95 @@ def test_ampvis2_export_fasta_renders_script_outputs_and_validates(tmp_path: Pat
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_export_otu_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_export_otu"]
+
+    assert info["display_name"] == "ampvis2 export otu"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Export OTU, taxonomy, metadata, and phyloseq tables from an ampvis2 object."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["optional"]["norm"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["norm"][1]["default"] is False
+    assert info["input"]["optional"]["output_selection"][1]["multiple"] is True
+    assert info["input"]["optional"]["output_selection"][1]["default"] == ["otu_short", "tax", "meta"]
+    assert info["input"]["optional"]["output_selection"][1]["options"] == [
+        "otu_long",
+        "otu_short",
+        "tax",
+        "meta",
+        "phyloseq",
+    ]
+    assert info["output"] == ["TSV", "TSV", "TSV", "TSV", "FILE"]
+    assert info["output_name"] == ["otu_long", "otu_short", "tax", "meta", "phyloseq"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_export_otutable.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 export otu" in info["search_aliases"]
+    assert "amp_export_otutable" in info["search_aliases"]
+
+
+def test_ampvis2_export_otu_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_export_otu")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs-complete.rds",
+            "norm": True,
+            "output_selection": ["otu_long", "otu_short", "tax", "meta", "phyloseq"],
+            "output": "/work/ampvis2_export_otu",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_export_otu/export_otu.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert "library(phyloseq)" in command
+    assert "library(tibble)" in command
+    assert 'data <- readRDS("AalborgWWTPs-complete.rds")' in command
+    assert 'amp_export_otutable(data, filename = "tmp_otu", sep = "\\t", extension = "tsv", normalise = TRUE)' in command
+    assert 'write.table(tax_table, "/work/ampvis2_export_otu/tax.tsv", sep = "\\t", row.names=FALSE, quote = FALSE)' in command
+    assert "data_norm <- normaliseTo100(data)" in command
+    assert 'write.table(otu_table, "/work/ampvis2_export_otu/otu_short.tsv", sep = "\\t", row.names=FALSE, quote = FALSE)' in command
+    assert 'write.table(meta_data, "/work/ampvis2_export_otu/meta.tsv", sep = "\\t", row.names = FALSE, quote = FALSE)' in command
+    assert 'saveRDS(physeq, "/work/ampvis2_export_otu/phyloseq.rds")' in command
+    assert command.endswith(
+        "\nRSCRIPT && Rscript /work/ampvis2_export_otu/export_otu.R && "
+        "mv tmp_otu.tsv /work/ampvis2_export_otu/otu_long.tsv"
+    )
+
+    default_command = node_class.render_command(
+        {"data": "AalborgWWTPs-complete.rds", "output": "/work/ampvis2_export_otu"}
+    )
+    assert "normalise = FALSE" in default_command
+    assert "data_norm <- normaliseTo100(data)" not in default_command
+    assert "otu_table <- data$abund" in default_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_export_otu" / "otu_short.tsv",
+        tmp_path / "ampvis2_export_otu" / "tax.tsv",
+        tmp_path / "ampvis2_export_otu" / "meta.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_selection": ["otu_long", "otu_short", "tax", "meta", "phyloseq"]}, tmp_path) == [
+        tmp_path / "ampvis2_export_otu" / "otu_long.tsv",
+        tmp_path / "ampvis2_export_otu" / "otu_short.tsv",
+        tmp_path / "ampvis2_export_otu" / "tax.tsv",
+        tmp_path / "ampvis2_export_otu" / "meta.tsv",
+        tmp_path / "ampvis2_export_otu" / "phyloseq.rds",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "output_selection": []}) == (
+        "at least one output_selection value is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "output_selection": ["bad"]}) == (
+        "output_selection contains unsupported values: bad"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

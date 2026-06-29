@@ -10422,6 +10422,154 @@ class Ampvis2ExportFastaNode(CommandNode):
         }
 
 
+class Ampvis2ExportOtuNode(CommandNode):
+    """Export OTU, taxonomy, metadata, and phyloseq artifacts from ampvis2."""
+
+    NODE_ID = "ampvis2_export_otu"
+    DISPLAY_NAME = "ampvis2 export otu"
+    REQUIRED_CONDA_PACKAGES = ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Export OTU, taxonomy, metadata, and phyloseq tables from an ampvis2 object."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ampvis2",
+        "ampvis2 export otu",
+        "amp_export_otutable",
+        "OTU table export",
+        "taxonomy mapping",
+        "metadata mapping",
+        "phyloseq object",
+    ]
+    RETURN_TYPES = ("TSV", "TSV", "TSV", "TSV", "FILE")
+    RETURN_NAMES = ("otu_long", "otu_short", "tax", "meta", "phyloseq")
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://kasperskytte.github.io/ampvis2/reference/amp_export_otutable.html"
+    CITATION_DOIS = [AMPVIS2_CITATION_DOIS[0]]
+    CITATION_URLS = [f"{DOI_URL}{AMPVIS2_CITATION_DOIS[0]}"]
+    CITATION_TEXT = AMPVIS2_CITATION_TEXT
+    VERSION = "2.8.11+galaxy2"
+    SHELL = True
+
+    OUTPUT_OPTIONS = ["otu_long", "otu_short", "tax", "meta", "phyloseq"]
+    DEFAULT_OUTPUTS = ["otu_short", "tax", "meta"]
+    OUTPUT_FILES = {
+        "otu_long": "otu_long.tsv",
+        "otu_short": "otu_short.tsv",
+        "tax": "tax.tsv",
+        "meta": "meta.tsv",
+        "phyloseq": "phyloseq.rds",
+    }
+
+    @classmethod
+    def _r_bool(cls, value: Any, default: bool = False) -> str:
+        if value in (None, ""):
+            value = default
+        if isinstance(value, str):
+            return "FALSE" if value.lower() in {"false", "0", "no"} else "TRUE"
+        return "TRUE" if bool(value) else "FALSE"
+
+    @classmethod
+    def _selected_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        outputs = _as_list(inputs.get("output_selection"))
+        return outputs if outputs else cls.DEFAULT_OUTPUTS.copy()
+
+    @classmethod
+    def _path(cls, inputs: dict[str, Any], output_name: str) -> str:
+        return f"{_out(inputs)}/{cls.OUTPUT_FILES[output_name]}"
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any]) -> str:
+        norm = cls._r_bool(inputs.get("norm"), False)
+        otu_source = "data_norm$abund" if norm == "TRUE" else "data$abund"
+        norm_lines = ["data_norm <- normaliseTo100(data)"] if norm == "TRUE" else []
+        return "\n".join(
+            [
+                "library(ampvis2, quietly = TRUE)",
+                "library(phyloseq)",
+                "library(tibble)",
+                "",
+                f'data <- readRDS("{inputs.get("data", "")}")',
+                "",
+                'amp_export_otutable(data, filename = "tmp_otu", sep = "\\t", extension = "tsv", normalise = '
+                f"{norm})",
+                "",
+                "tax_table <- data$tax",
+                "tax_table <- tax_table[,c(8,(ncol(tax_table)-6):(ncol(tax_table) - 1))]",
+                f'write.table(tax_table, "{cls._path(inputs, "tax")}", sep = "\\t", row.names=FALSE, quote = FALSE)',
+                "",
+                *norm_lines,
+                f"otu_table <- {otu_source}",
+                "otu_table <- cbind(OTU = rownames(otu_table), otu_table)",
+                f'write.table(otu_table, "{cls._path(inputs, "otu_short")}", sep = "\\t", row.names=FALSE, quote = FALSE)',
+                "",
+                "meta_data = data$metadata",
+                f'write.table(meta_data, "{cls._path(inputs, "meta")}", sep = "\\t", row.names = FALSE, quote = FALSE)',
+                "",
+                "otu_table <- apply(otu_table, 2, as.numeric)",
+                "meta_data[] <- lapply(meta_data, as.character)",
+                "OTU <- otu_table(otu_table, taxa_are_rows = TRUE)",
+                "TAX <- tax_table(tax_table)",
+                "META <- sample_data(meta_data)",
+                'colnames(TAX) <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")',
+                "physeq <- phyloseq(OTU, TAX, META)",
+                f'saveRDS(physeq, "{cls._path(inputs, "phyloseq")}")',
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = f"{out}/export_otu.R"
+        commands = [
+            f"cat > {shlex.quote(script_path)} <<'RSCRIPT'\n{cls._script_body(inputs)}\nRSCRIPT",
+            _shell_join(["Rscript", script_path]),
+            _shell_join(["mv", "tmp_otu.tsv", cls._path(inputs, "otu_long")]),
+        ]
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls.OUTPUT_FILES[output] for output in cls._selected_outputs(inputs)]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("data", "")).strip():
+            return "data is required"
+        outputs = _as_list(inputs.get("output_selection"))
+        if "output_selection" in inputs and not outputs:
+            return "at least one output_selection value is required"
+        unsupported_outputs = [output for output in outputs if output not in cls.OUTPUT_OPTIONS]
+        if unsupported_outputs:
+            return f"output_selection contains unsupported values: {', '.join(unsupported_outputs)}"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": ("FILE", {"description": "Ampvis2 RDS dataset"}),
+            },
+            "optional": {
+                "norm": ("BOOLEAN", {"default": False, "description": "Transform OTU read counts to percent per sample"}),
+                "output_selection": (
+                    "STRING_LIST",
+                    {
+                        "default": cls.DEFAULT_OUTPUTS.copy(),
+                        "multiple": True,
+                        "options": cls.OUTPUT_OPTIONS,
+                        "description": "Output files to emit",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",
