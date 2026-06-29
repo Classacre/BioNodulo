@@ -4023,6 +4023,98 @@ def test_chopper_validates_input_ranges_and_trimming_modes() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "trim_approach": "fixed-crop", "headcrop": 10}) is True
 
 
+def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
+    node_info = _registry().object_info()["filtlong"]
+
+    assert node_info["display_name"] == "filtlong"
+    assert node_info["category"] == "trimming"
+    assert node_info["description"] == "Filter long reads by quality, length, and optional external references with Filtlong."
+    assert node_info["output"] == ["FASTQ"]
+    assert node_info["output_name"] == ["outfile"]
+    assert node_info["required_executables"] == ["filtlong"]
+    assert node_info["required_conda_packages"] == ["filtlong"]
+    assert node_info["documentation_url"] == "https://github.com/rrwick/Filtlong"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/rrwick/Filtlong"]
+    assert "Filtlong" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "long-read filtering" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input_file"][0] == "FASTQ"
+    assert node_info["input"]["optional"]["keep_percent"][1]["max"] == 100
+    assert node_info["input"]["optional"]["length_weight"][1]["default"] == 1.0
+    assert node_info["input"]["optional"]["trim"][1]["default"] is False
+    assert node_info["input"]["optional"]["window_size"][1]["default"] == 250
+
+
+def test_filtlong_renders_default_weighted_filtering_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("filtlong")
+
+    assert node_class.render_command(
+        {
+            "input_file": "reads.fastq.gz",
+            "output": "/work/filtlong",
+        }
+    ) == (
+        "filtlong --length_weight 1 --mean_q_weight 1 --window_q_weight 1 "
+        "--window_size 250 reads.fastq.gz > /work/filtlong/output.fastq"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "filtlong" / "output.fastq"]
+
+
+def test_filtlong_renders_thresholds_references_trim_and_split() -> None:
+    node_class = _node_class("filtlong")
+
+    assert node_class.render_command(
+        {
+            "input_file": "long reads.fastq.gz",
+            "target_bases": "500mb",
+            "keep_percent": 90,
+            "min_length": "1kb",
+            "max_length": "100kb",
+            "min_mean_q": 7.5,
+            "min_window_q": 5,
+            "assembly": "assembly.fa.gz",
+            "short_1": "illumina R1.fastq.gz",
+            "short_2": "illumina R2.fastq.gz",
+            "length_weight": 10,
+            "mean_q_weight": 0.5,
+            "window_q_weight": 2,
+            "trim": True,
+            "split": "500",
+            "window_size": 300,
+            "output": "/work/filtlong",
+        }
+    ) == (
+        "filtlong --target_bases 500mb --keep_percent 90 --min_length 1kb "
+        "--min_mean_q 7.5 --min_window_q 5 --max_length 100kb --assembly assembly.fa.gz "
+        "--short_1 'illumina R1.fastq.gz' --short_2 'illumina R2.fastq.gz' "
+        "--length_weight 10 --mean_q_weight 0.5 --window_q_weight 2 --trim --split 500 "
+        "--window_size 300 'long reads.fastq.gz' > /work/filtlong/output.fastq"
+    )
+
+
+def test_filtlong_validates_thresholds_weights_and_unit_suffixes() -> None:
+    node_class = _node_class("filtlong")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "keep_percent": 101}) == (
+        "keep_percent must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "min_mean_q": -1}) == (
+        "min_mean_q must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "length_weight": -0.1}) == (
+        "length_weight must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "target_bases": "5xb"}) == (
+        "target_bases must be a positive integer with optional k/kb/m/mb/g/gb suffix"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "split": "0.5k"}) == (
+        "split must be a positive integer with optional k/kb/m/mb/g/gb suffix"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "min_length": "1000"}) is True
+
+
 def test_assembly_stats_exposes_galaxy_aligned_outputs() -> None:
     info = _registry().object_info()["assembly_stats"]
 

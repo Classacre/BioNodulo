@@ -1196,6 +1196,43 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btad311'],
     citation_text: 'NanoPack2: population-scale evaluation of long-read sequencing data.',
   },
+  filtlong: {
+    name: 'filtlong',
+    display_name: 'filtlong',
+    category: 'trimming',
+    description: 'Filter long reads by quality, length, and optional external references with Filtlong.',
+    search_aliases: ['Galaxy', 'filtlong', 'Filtlong', 'long-read filtering', 'long-read quality', 'Nanopore', 'PacBio', 'target bases', 'read identity'],
+    input: {
+      required: {
+        input_file: { type: 'FASTQ' },
+      },
+      optional: {
+        target_bases: { type: 'STRING', default: '' },
+        keep_percent: { type: 'FLOAT', default: '', min: 0, max: 100 },
+        min_length: { type: 'STRING', default: '' },
+        max_length: { type: 'STRING', default: '' },
+        min_mean_q: { type: 'FLOAT', default: '', min: 0 },
+        min_window_q: { type: 'FLOAT', default: '', min: 0 },
+        assembly: { type: 'FASTA', default: '' },
+        short_1: { type: 'FASTQ', default: '' },
+        short_2: { type: 'FASTQ', default: '' },
+        length_weight: { type: 'FLOAT', default: 1.0, min: 0 },
+        mean_q_weight: { type: 'FLOAT', default: 1.0, min: 0 },
+        window_q_weight: { type: 'FLOAT', default: 1.0, min: 0 },
+        trim: { type: 'BOOLEAN', default: false },
+        split: { type: 'STRING', default: '' },
+        window_size: { type: 'INT', default: 250, min: 0 },
+      },
+    },
+    output: ['FASTQ'],
+    output_name: ['outfile'],
+    required_executables: ['filtlong'],
+    required_conda_packages: ['filtlong'],
+    documentation_url: 'https://github.com/rrwick/Filtlong',
+    citation_dois: [],
+    citation_urls: ['https://github.com/rrwick/Filtlong'],
+    citation_text: 'Filtlong: quality filtering tool for long reads.',
+  },
   checkm2: {
     name: 'checkm2',
     display_name: 'CheckM2',
@@ -11475,7 +11512,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('394 nodes available')).toBeVisible();
+  await expect(page.getByText('395 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11530,6 +11567,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
+    { query: 'target bases', name: 'filtlong', category: 'trimming' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
