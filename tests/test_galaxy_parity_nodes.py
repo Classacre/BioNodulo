@@ -12933,6 +12933,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["freyja"],
             "doi": "10.1038/s41586-022-05049-6",
         },
+        "preseq_c_curve": {
+            "display_name": "Preseq c_curve",
+            "category": "qc",
+            "required_executables": ["preseq"],
+            "required_conda_packages": ["preseq"],
+            "doi": "10.1038/nmeth.2375",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14004,6 +14011,52 @@ def test_freyja_aggregate_plot_renders_aggregate_dashboard_and_plot_outputs(tmp_
     assert node_class.PLAN_OUTPUTS({"aggregation_mode": "provided", "plot_format": "dash"}, tmp_path) == [
         tmp_path / "freyja_aggregate_plot" / "abundances_dashboard.html",
     ]
+
+
+def test_preseq_c_curve_renders_library_complexity_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("preseq_c_curve")
+    info = _registry().object_info()["preseq_c_curve"]
+
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["complexity_curve"]
+    assert "10.1038/nmeth.2375" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_bam": "aligned.sorted.bam",
+            "step_size": 2000,
+            "max_read_len": 150,
+            "verbose": True,
+            "output": "/work/preseq_c_curve",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "aligned.sorted.bam",
+        "/work/preseq_c_curve/input.bam",
+        "&&",
+        "preseq",
+        "c_curve",
+        "-B",
+        "/work/preseq_c_curve/input.bam",
+        "-v",
+        "-s",
+        "2000",
+        "-l",
+        "150",
+        "-o",
+        "/work/preseq_c_curve/complexity_curve.tsv",
+    ]
+
+    no_limit_cmd = node_class.render_command(
+        {
+            "input_bam": "aligned.sorted.bam",
+            "step_size": 1000,
+            "output": "/work/preseq_c_curve",
+        }
+    )
+    assert "-l" not in no_limit_cmd
+    assert "-v" not in no_limit_cmd
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "preseq_c_curve" / "complexity_curve.tsv"]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

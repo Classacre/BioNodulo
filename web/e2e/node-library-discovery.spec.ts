@@ -4912,6 +4912,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41586-022-05049-6'],
     citation_text: 'Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission.',
   },
+  preseq_c_curve: {
+    name: 'preseq_c_curve',
+    display_name: 'Preseq c_curve',
+    category: 'qc',
+    description: 'Estimate a sequencing library complexity curve from a coordinate-sorted BAM file.',
+    search_aliases: ['Galaxy', 'Preseq', 'preseq c_curve', 'library complexity', 'sequencing saturation', 'distinct reads', 'duplicate complexity'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        step_size: { type: 'INT', default: 1000 },
+      },
+      optional: {
+        max_read_len: { type: 'INT', default: '' },
+        verbose: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['complexity_curve'],
+    required_executables: ['preseq'],
+    required_conda_packages: ['preseq'],
+    documentation_url: 'https://smithlabresearch.org/software/preseq/',
+    citation_dois: ['10.1038/nmeth.2375'],
+    citation_urls: ['https://doi.org/10.1038/nmeth.2375'],
+    citation_text: 'Predicting the molecular complexity of sequencing libraries.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7657,7 +7682,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('275 nodes available')).toBeVisible();
+  await expect(page.getByText('276 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7813,6 +7838,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'freyja lineage abundances', name: 'Freyja Demix', category: 'variant' },
     { query: 'freyja bootstrap lineages', name: 'Freyja Boot', category: 'variant' },
     { query: 'freyja lineage abundance dashboard', name: 'Freyja Aggregate Plot', category: 'variant' },
+    { query: 'preseq library complexity', name: 'Preseq c_curve', category: 'qc' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
