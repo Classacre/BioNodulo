@@ -1523,6 +1523,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/2020.05.22.110833', 'https://doi.org/10.1101/2020.06.30.177956'],
     citation_text: 'Vertebrate Genomes Project assembly pipeline methods for bionano hybrid scaffolds.',
   },
+  trimns: {
+    name: 'trimns',
+    display_name: 'TrimN (Galaxy)',
+    category: 'trimming',
+    description: 'Trim N stretches and remove fake cut sites from bionano hybrid scaffold FASTA assemblies.',
+    search_aliases: ['Galaxy', 'trimns', 'TrimN', 'trimns_vgp', 'trim_Ns_DNAnexus.py', 'remove fake cut sites', 'bionano scaffolds', 'VGP'],
+    input: {
+      required: {
+        fasta_in: { type: 'FASTA' },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['trimmed_fasta'],
+    required_executables: ['remove_fake_cut_sites_DNAnexus.py', 'trim_Ns_DNAnexus.py', 'clip_regions_DNAnexus.py'],
+    required_conda_packages: ['trimns_vgp'],
+    documentation_url: 'https://github.com/VGP/vgp-assembly/tree/master/pipeline/trim',
+    citation_dois: ['10.1101/2020.05.22.110833', '10.1101/2020.06.30.177956'],
+    citation_urls: ['https://doi.org/10.1101/2020.05.22.110833', 'https://doi.org/10.1101/2020.06.30.177956'],
+    citation_text: 'Vertebrate Genomes Project assembly pipeline methods for bionano hybrid scaffolds.',
+  },
   assembly_stats: {
     name: 'assembly_stats',
     display_name: 'Assembly Stats',
@@ -11323,7 +11343,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('389 nodes available')).toBeVisible();
+  await expect(page.getByText('390 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11388,6 +11408,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
     { query: 'trim_Ns_DNAnexus.py', name: 'TrimN', category: 'trimming' },
+    { query: 'trimns', name: 'TrimN (Galaxy)', category: 'trimming' },
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'Bloom filter', name: 'Minia', category: 'assembly' },
     { query: 'reference-free genome profiling', name: 'GenomeScope', category: 'assembly' },

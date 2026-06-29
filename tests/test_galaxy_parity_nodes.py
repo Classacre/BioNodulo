@@ -3726,6 +3726,50 @@ def test_trimn_validates_required_fasta_input() -> None:
     assert node_class.VALIDATE_INPUTS({"fasta_in": ""}) == "fasta_in is required"
 
 
+def test_trimn_galaxy_id_exposes_existing_metadata() -> None:
+    node_info = _registry().object_info()
+
+    canonical_info = node_info["trimn"]
+    galaxy_info = node_info["trimns"]
+
+    assert galaxy_info["display_name"] == "TrimN (Galaxy)"
+    assert galaxy_info["category"] == canonical_info["category"]
+    assert galaxy_info["description"] == canonical_info["description"]
+    assert galaxy_info["output"] == canonical_info["output"]
+    assert galaxy_info["output_name"] == canonical_info["output_name"]
+    assert galaxy_info["required_executables"] == canonical_info["required_executables"]
+    assert galaxy_info["required_conda_packages"] == canonical_info["required_conda_packages"]
+    assert galaxy_info["documentation_url"] == canonical_info["documentation_url"]
+    assert galaxy_info["citation_dois"] == canonical_info["citation_dois"]
+    assert galaxy_info["citation_urls"] == canonical_info["citation_urls"]
+    assert galaxy_info["citation_text"] == canonical_info["citation_text"]
+    assert "trimns" in galaxy_info["search_aliases"]
+
+
+def test_trimn_galaxy_id_renders_three_stage_pipeline_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("trimns")
+
+    assert node_class.render_command(
+        {
+            "fasta_in": "assembly scaffolds.fa",
+            "output": "/work/trimns",
+        }
+    ) == (
+        "remove_fake_cut_sites_DNAnexus.py 'assembly scaffolds.fa' "
+        "/work/trimns/step1_out.fasta /work/trimns/step1.log && "
+        "trim_Ns_DNAnexus.py 'assembly scaffolds.fa' /work/trimns/step2_out.list && "
+        "clip_regions_DNAnexus.py /work/trimns/step1_out.fasta /work/trimns/step2_out.list "
+        "/work/trimns/final_out.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "trimns" / "final_out.fasta"]
+
+
+def test_trimn_galaxy_id_inherits_validation() -> None:
+    node_class = _node_class("trimns")
+
+    assert node_class.VALIDATE_INPUTS({"fasta_in": ""}) == "fasta_in is required"
+
+
 def test_assembly_stats_exposes_galaxy_aligned_outputs() -> None:
     info = _registry().object_info()["assembly_stats"]
 

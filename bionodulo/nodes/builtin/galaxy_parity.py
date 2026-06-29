@@ -16553,6 +16553,23 @@ class TrimNNode(CommandNode):
         }
 
 
+class TrimNGalaxyNode(TrimNNode):
+    """Galaxy wrapper-ID compatible alias for TrimN."""
+
+    NODE_ID = "trimns"
+    DISPLAY_NAME = "TrimN (Galaxy)"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "trimns",
+        "TrimN",
+        "trimns_vgp",
+        "trim_Ns_DNAnexus.py",
+        "remove fake cut sites",
+        "bionano scaffolds",
+        "VGP",
+    ]
+
+
 class VSearchSearchNode(CommandNode):
     """Search query sequences against a FASTA database with VSEARCH."""
 
