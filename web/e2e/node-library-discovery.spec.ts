@@ -1499,6 +1499,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_frequency: {
+    name: 'ampvis2_frequency',
+    display_name: 'ampvis2 frequency plot',
+    category: 'metagenomics',
+    description: 'Generate frequency versus read-abundance barplots from an ampvis2 RDS dataset.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 frequency plot', 'amp_frequency', 'frequency plot', 'read abundance frequency', 'microbiome frequency'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+      },
+      optional: {
+        metadata_list: { type: 'TSV', default: '' },
+        group_by: { type: 'STRING', default: '' },
+        tax_empty: { type: 'STRING', default: 'best', options: ['remove', 'best', 'OTU'] },
+        tax_aggregate: { type: 'STRING', default: 'OTU', options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        weight: { type: 'BOOLEAN', default: true },
+        normalise: { type: 'BOOLEAN', default: true },
+        out_format: { type: 'STRING', default: 'pdf', options: ['pdf', 'png', 'svg'] },
+        plot_width: { type: 'FLOAT', default: '', min: 1 },
+        plot_height: { type: 'FLOAT', default: '', min: 1 },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['plot'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_frequency.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -10003,7 +10034,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('344 nodes available')).toBeVisible();
+  await expect(page.getByText('345 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10064,6 +10095,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ampvis2 core community analysis', name: 'ampvis2 core community analysis', category: 'metagenomics' },
     { query: 'ampvis2 export fasta', name: 'ampvis2 export fasta', category: 'metagenomics' },
     { query: 'ampvis2 export otu', name: 'ampvis2 export otu', category: 'metagenomics' },
+    { query: 'ampvis2 frequency plot', name: 'ampvis2 frequency plot', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },

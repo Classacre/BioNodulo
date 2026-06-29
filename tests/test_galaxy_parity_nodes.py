@@ -6074,6 +6074,113 @@ def test_ampvis2_export_otu_renders_script_outputs_and_validates(tmp_path: Path)
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_frequency_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_frequency"]
+
+    assert info["display_name"] == "ampvis2 frequency plot"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate frequency versus read-abundance barplots from an ampvis2 RDS dataset."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["group_by"][1]["default"] == ""
+    assert info["input"]["optional"]["tax_empty"][1]["default"] == "best"
+    assert info["input"]["optional"]["tax_empty"][1]["options"] == ["remove", "best", "OTU"]
+    assert info["input"]["optional"]["tax_aggregate"][1]["default"] == "OTU"
+    assert info["input"]["optional"]["tax_aggregate"][1]["options"] == [
+        "OTU",
+        "Species",
+        "Genus",
+        "Family",
+        "Order",
+        "Class",
+        "Phylum",
+        "Kingdom",
+    ]
+    assert info["input"]["optional"]["weight"][1]["default"] is True
+    assert info["input"]["optional"]["normalise"][1]["default"] is True
+    assert info["input"]["optional"]["out_format"][1]["default"] == "pdf"
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["input"]["optional"]["plot_width"][1]["min"] == 1
+    assert info["input"]["optional"]["plot_height"][1]["min"] == 1
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_frequency.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 frequency plot" in info["search_aliases"]
+    assert "amp_frequency" in info["search_aliases"]
+
+
+def test_ampvis2_frequency_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_frequency")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "group_by": "Period",
+            "tax_empty": "remove",
+            "tax_aggregate": "Genus",
+            "weight": False,
+            "normalise": False,
+            "out_format": "svg",
+            "plot_width": 11,
+            "plot_height": 7.5,
+            "output": "/work/ampvis2_frequency",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_frequency/frequency.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_frequency(" in command
+    assert 'group_by = "Period",' in command
+    assert 'tax_empty = "remove",' in command
+    assert 'tax_aggregate = "Genus",' in command
+    assert "weight = FALSE," in command
+    assert "normalise = FALSE," in command
+    assert "detailed_output = FALSE" in command
+    assert 'ggsave("/work/ampvis2_frequency/plot.svg",' in command
+    assert "    print(plot)," in command
+    assert 'device = "svg"' in command
+    assert ", width = 11" in command
+    assert ", height = 7.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_frequency/frequency.R")
+
+    default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_frequency"})
+    assert "group_by =" not in default_command
+    assert 'tax_empty = "best",' in default_command
+    assert 'tax_aggregate = "OTU",' in default_command
+    assert "weight = TRUE," in default_command
+    assert "normalise = TRUE," in default_command
+    assert 'device = "pdf"' in default_command
+    assert "width =" not in default_command
+    assert "height =" not in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "svg"}, tmp_path) == [
+        tmp_path / "ampvis2_frequency" / "plot.svg",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_frequency" / "plot.pdf",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_empty": "bad"}) == (
+        "tax_empty must be one of: remove, best, OTU"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_aggregate": "bad"}) == (
+        "tax_aggregate must be one of: OTU, Species, Genus, Family, Order, Class, Phylum, Kingdom"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_width": 0.5}) == "plot_width must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 
