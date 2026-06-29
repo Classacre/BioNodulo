@@ -10349,6 +10349,86 @@ class HUMAnNSplitTableNode(CommandNode):
         }
 
 
+class HUMAnNSplitStratifiedTableNode(CommandNode):
+    """Split a stratified HUMAnN table into stratified and unstratified files."""
+
+    NODE_ID = "humann_split_stratified_table"
+    DISPLAY_NAME = "HUMAnN Split Stratified Table"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Split a stratified HUMAnN table into stratified and unstratified tables."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_split_stratified_table",
+        "Split a HUMAnN table",
+        "stratified table",
+        "unstratified table",
+        "gene families",
+    ]
+    RETURN_TYPES = ("TSV", "TSV")
+    RETURN_NAMES = ("stratified", "unstratified")
+    REQUIRED_EXECUTABLES = ["humann_split_stratified_table"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+
+    @classmethod
+    def _output_dir(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/split_stratified"
+
+    @staticmethod
+    def _split_output_names(input_path: str) -> tuple[str, str]:
+        name = Path(input_path).name
+        for compression_suffix in (".gz", ".bz2"):
+            if name.endswith(compression_suffix):
+                name = name[: -len(compression_suffix)]
+                break
+        path = Path(name)
+        extension = path.suffix or ".tsv"
+        basename = path.stem if path.suffix else path.name
+        if not basename:
+            return ("stratified.tsv", "unstratified.tsv")
+        return (f"{basename}_stratified{extension}", f"{basename}_unstratified{extension}")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        return _shell_join(
+            [
+                "humann_split_stratified_table",
+                "--input",
+                str(inputs.get("input", "")),
+                "--output",
+                cls._output_dir(inputs),
+            ]
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID / "split_stratified"
+        out.mkdir(parents=True, exist_ok=True)
+        stratified, unstratified = cls._split_output_names(str(inputs.get("input", "")))
+        return [out / stratified, out / unstratified]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "Stratified HUMAnN table is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "Stratified HUMAnN table"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MergeMetaPhlAnTablesNode(CommandNode):
     """Merge multiple MetaPhlAn relative abundance tables."""
 

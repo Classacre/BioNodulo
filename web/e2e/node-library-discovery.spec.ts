@@ -2333,6 +2333,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
     citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
   },
+  humann_split_stratified_table: {
+    name: 'humann_split_stratified_table',
+    display_name: 'HUMAnN Split Stratified Table',
+    category: 'metagenomics',
+    description: 'Split a stratified HUMAnN table into stratified and unstratified tables.',
+    search_aliases: [
+      'Galaxy',
+      'HUMAnN',
+      'humann_split_stratified_table',
+      'Split a HUMAnN table',
+      'stratified table',
+      'unstratified table',
+      'gene families',
+    ],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+      },
+    },
+    output: ['TSV', 'TSV'],
+    output_name: ['stratified', 'unstratified'],
+    required_executables: ['humann_split_stratified_table'],
+    required_conda_packages: ['humann'],
+    documentation_url: 'https://huttenhower.sph.harvard.edu/humann/',
+    citation_dois: ['10.7554/eLife.65088', '10.1371/journal.pcbi.1002358'],
+    citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
+    citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5303,7 +5331,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('217 nodes available')).toBeVisible();
+  await expect(page.getByText('218 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5394,6 +5422,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'multi-sample table', name: 'HUMAnN Join Tables', category: 'metagenomics' },
     { query: 'copies per million', name: 'HUMAnN Renormalize Table', category: 'metagenomics' },
     { query: 'one file per sample', name: 'HUMAnN Split Table', category: 'metagenomics' },
+    { query: 'unstratified table', name: 'HUMAnN Split Stratified Table', category: 'metagenomics' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

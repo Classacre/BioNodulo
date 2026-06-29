@@ -527,6 +527,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "humann_split_stratified_table": {
+            "display_name": "HUMAnN Split Stratified Table",
+            "category": "metagenomics",
+            "required_executables": ["humann_split_stratified_table"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6204,6 +6211,84 @@ def test_humann_split_table_validates_wrapper_inputs() -> None:
         "Taxonomy index must be zero or greater"
     )
     assert node_class.VALIDATE_INPUTS({"input": "merged.tsv", "taxonomy_index": 0}) is True
+
+
+def test_humann_split_stratified_table_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_split_stratified_table"]
+
+    assert info["display_name"] == "HUMAnN Split Stratified Table"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Split a stratified HUMAnN table into stratified and unstratified tables."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_split_stratified_table",
+        "Split a HUMAnN table",
+        "stratified table",
+        "unstratified table",
+        "gene families",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["TSV", "TSV"]
+    assert info["output_name"] == ["stratified", "unstratified"]
+    assert info["required_executables"] == ["humann_split_stratified_table"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["description"] == "Stratified HUMAnN table"
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_split_stratified_table_renders_split_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("humann_split_stratified_table")
+
+    assert node_class.render_command(
+        {
+            "input": "demo genefamilies.tsv",
+            "output": "/work/humann_split_stratified_table",
+        }
+    ) == (
+        "humann_split_stratified_table --input 'demo genefamilies.tsv' "
+        "--output /work/humann_split_stratified_table/split_stratified"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"input": "demo_genefamilies.tsv"}, tmp_path) == [
+        tmp_path
+        / "humann_split_stratified_table"
+        / "split_stratified"
+        / "demo_genefamilies_stratified.tsv",
+        tmp_path
+        / "humann_split_stratified_table"
+        / "split_stratified"
+        / "demo_genefamilies_unstratified.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"input": "demo_genefamilies.tsv.gz"}, tmp_path) == [
+        tmp_path
+        / "humann_split_stratified_table"
+        / "split_stratified"
+        / "demo_genefamilies_stratified.tsv",
+        tmp_path
+        / "humann_split_stratified_table"
+        / "split_stratified"
+        / "demo_genefamilies_unstratified.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "humann_split_stratified_table" / "split_stratified" / "stratified.tsv",
+        tmp_path / "humann_split_stratified_table" / "split_stratified" / "unstratified.tsv",
+    ]
+
+
+def test_humann_split_stratified_table_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_split_stratified_table")
+
+    assert node_class.VALIDATE_INPUTS({}) == "Stratified HUMAnN table is required"
+    assert node_class.VALIDATE_INPUTS({"input": "demo_genefamilies.tsv"}) is True
 
 
 def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:
