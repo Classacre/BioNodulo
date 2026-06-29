@@ -2974,6 +2974,63 @@ def test_gamma_renders_gene_match_command_and_outputs(tmp_path: Path) -> None:
     assert node_class.VALIDATE_INPUTS({"input_fasta": "assembly.fa", "input_db": "genes.fa", "identity": 90}) is True
 
 
+def test_gamma_s_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["gamma_s"]
+
+    assert node_info["display_name"] == "GAMMA-S"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Find gene matches")
+    assert node_info["output"] == ["TSV"]
+    assert node_info["output_name"] == ["gamma_s_out"]
+    assert node_info["required_executables"] == ["GAMMA-S.py"]
+    assert node_info["required_conda_packages"] == ["GAMMA"]
+    assert node_info["documentation_url"] == "https://github.com/rastanton/GAMMA"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btab607"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btab607"]
+    assert "rapid identification, classification and annotation" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "GAMMA-S" in node_info["search_aliases"]
+
+
+def test_gamma_s_renders_sequence_match_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("gamma_s")
+
+    assert node_class.render_command(
+        {
+            "input_fasta": "query proteins.fa",
+            "input_db": "db proteins.fa",
+            "all": True,
+            "identity": 85,
+            "extended": True,
+            "protein": True,
+            "minimum": 40,
+            "output": "/work/gamma_s",
+        }
+    ) == (
+        "GAMMA-S.py 'query proteins.fa' 'db proteins.fa' /work/gamma_s/gamma-s_out "
+        "-a -i 85 -e -p -m 40"
+    )
+    assert node_class.render_command(
+        {
+            "input_fasta": "assembly.fa",
+            "input_db": "genes.fa",
+            "output": "/work/gamma_s",
+        }
+    ) == "GAMMA-S.py assembly.fa genes.fa /work/gamma_s/gamma-s_out -i 90 -m 20"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "gamma_s" / "gamma-s_out.gamma",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_fasta": "", "input_db": "genes.fa"}) == "input FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input_fasta": "assembly.fa", "input_db": ""}) == "gene database FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input_fasta": "assembly.fa", "input_db": "genes.fa", "identity": -1}) == (
+        "identity must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fasta": "assembly.fa", "input_db": "genes.fa", "minimum": 101}) == (
+        "minimum must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fasta": "assembly.fa", "input_db": "genes.fa", "identity": 90, "minimum": 20}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 

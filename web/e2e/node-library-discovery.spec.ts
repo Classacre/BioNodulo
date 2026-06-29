@@ -884,6 +884,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btab607'],
     citation_text: 'GAMMA: a tool for the rapid identification, classification and annotation of translated gene matches from sequencing data.',
   },
+  gamma_s: {
+    name: 'gamma_s',
+    display_name: 'GAMMA-S',
+    category: 'annotation',
+    description: 'Find gene matches in microbial assemblies using nucleotide identity with GAMMA-S.',
+    search_aliases: ['Galaxy', 'GAMMA-S', 'gamma_s', 'Gene Allele Mutation Microbial Assessment Sequence', 'nucleotide gene matching', 'protein-protein comparisons', 'gene match annotation'],
+    input: {
+      required: {
+        input_fasta: { type: 'FASTA' },
+        input_db: { type: 'FASTA' },
+      },
+      optional: {
+        all: { type: 'BOOLEAN', default: false },
+        identity: { type: 'INT', default: 90, min: 0, max: 100 },
+        extended: { type: 'BOOLEAN', default: false },
+        protein: { type: 'BOOLEAN', default: false },
+        minimum: { type: 'INT', default: 20, min: 0, max: 100 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['gamma_s_out'],
+    required_executables: ['GAMMA-S.py'],
+    required_conda_packages: ['GAMMA'],
+    documentation_url: 'https://github.com/rastanton/GAMMA',
+    citation_dois: ['10.1093/bioinformatics/btab607'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btab607'],
+    citation_text: 'GAMMA: a tool for the rapid identification, classification and annotation of translated gene matches from sequencing data.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7176,7 +7204,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('261 nodes available')).toBeVisible();
+  await expect(page.getByText('262 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7231,6 +7259,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },
     { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },
     { query: 'Gene Allele Mutation Microbial Assessment', name: 'GAMMA', category: 'annotation' },
+    { query: 'protein-protein comparisons', name: 'GAMMA-S', category: 'annotation' },
     { query: 'metagenomic eukaryotes', name: 'EukRep', category: 'metagenomics' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
