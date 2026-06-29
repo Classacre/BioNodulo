@@ -935,6 +935,52 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s12859-015-0654-5'],
     citation_text: 'Red: an intelligent, rapid, accurate tool for detecting repeats de-novo on the genomic scale.',
   },
+  abritamr: {
+    name: 'abritamr',
+    display_name: 'abriTAMR',
+    category: 'annotation',
+    description: 'Detect and collate antimicrobial resistance genes, partial genes, and virulence factors with abriTAMR.',
+    search_aliases: ['Galaxy', 'abriTAMR', 'abritamr', 'AMR gene detection', 'AMRFinderPlus', 'antimicrobial resistance', 'virulence summary'],
+    input: {
+      required: {
+        contig: { type: 'FASTA' },
+      },
+      optional: {
+        species: {
+          type: 'STRING',
+          default: '',
+          options: [
+            'Acinetobacter_baumannii',
+            'Campylobacter',
+            'Clostridioides_difficile',
+            'Enterococcus_faecalis',
+            'Enterococcus_faecium',
+            'Escherichia',
+            'Klebsiella',
+            'Neisseria',
+            'Salmonella',
+            'Staphylococcus_aureus',
+            'Staphylococcus_pseudintermedius',
+            'Streptococcus_agalactiae',
+            'Streptococcus_pneumoniae',
+            'Streptococcus_pyogenes',
+          ],
+        },
+        identity: { type: 'FLOAT', default: '', min: 0, max: 1 },
+        log_file: { type: 'BOOLEAN', default: false },
+        jobs: { type: 'INT', default: 4, min: 1, max: 128 },
+        contig_labels: { type: 'STRING', default: '', list: true },
+      },
+    },
+    output: ['TSV', 'TSV', 'TSV', 'TSV', 'STATS_FILE'],
+    output_name: ['abriTAMR_output', 'matches_summary', 'partials_summary', 'virulence_summary', 'log'],
+    required_executables: ['abritamr'],
+    required_conda_packages: ['abritamr'],
+    documentation_url: 'https://github.com/MDU-PHL/abritamr',
+    citation_dois: ['10.5281/zenodo.7370627'],
+    citation_urls: ['https://doi.org/10.5281/zenodo.7370627'],
+    citation_text: 'MDU-PHL/abritamr: AMR gene detection and reporting pipeline.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7227,7 +7273,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('263 nodes available')).toBeVisible();
+  await expect(page.getByText('264 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7281,6 +7327,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
     { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },
     { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },
+    { query: 'AMR gene detection', name: 'abriTAMR', category: 'annotation' },
     { query: 'Gene Allele Mutation Microbial Assessment', name: 'GAMMA', category: 'annotation' },
     { query: 'protein-protein comparisons', name: 'GAMMA-S', category: 'annotation' },
     { query: 'repeat masking', name: 'Red', category: 'genomics' },

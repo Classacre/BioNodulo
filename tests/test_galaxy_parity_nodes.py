@@ -3079,6 +3079,75 @@ def test_red_renders_repeat_masking_command_and_outputs(tmp_path: Path) -> None:
     assert node_class.VALIDATE_INPUTS({"input": "genome.fa", "threads": 1}) is True
 
 
+def test_abritamr_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["abritamr"]
+
+    assert node_info["display_name"] == "abriTAMR"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"].startswith("Detect and collate antimicrobial resistance")
+    assert node_info["output"] == ["TSV", "TSV", "TSV", "TSV", "STATS_FILE"]
+    assert node_info["output_name"] == [
+        "abriTAMR_output",
+        "matches_summary",
+        "partials_summary",
+        "virulence_summary",
+        "log",
+    ]
+    assert node_info["required_executables"] == ["abritamr"]
+    assert node_info["required_conda_packages"] == ["abritamr"]
+    assert node_info["documentation_url"] == "https://github.com/MDU-PHL/abritamr"
+    assert node_info["citation_dois"] == ["10.5281/zenodo.7370627"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.5281/zenodo.7370627"]
+    assert "MDU-PHL/abritamr" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "AMR gene detection" in node_info["search_aliases"]
+
+
+def test_abritamr_renders_manifest_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("abritamr")
+
+    assert node_class.render_command(
+        {
+            "contig": ["sample A.fasta", "sample_B.fasta"],
+            "contig_labels": ["sample A", "sample_B"],
+            "species": "Salmonella",
+            "identity": 0.9,
+            "jobs": 6,
+            "output": "/work/abritamr",
+        }
+    ) == (
+        "printf '%s\\t%s\\n' 'sample A' 'sample A.fasta' sample_B sample_B.fasta > /work/abritamr/input.tsv && "
+        "abritamr run --contigs /work/abritamr/input.tsv --species Salmonella --identity 0.9 "
+        "--jobs ${GALAXY_SLOTS:-6}"
+    )
+    assert node_class.render_command(
+        {
+            "contig": "sample.fasta",
+            "output": "/work/abritamr",
+        }
+    ) == (
+        "printf '%s\\t%s\\n' sample.fasta sample.fasta > /work/abritamr/input.tsv && "
+        "abritamr run --contigs /work/abritamr/input.tsv --jobs ${GALAXY_SLOTS:-4}"
+    )
+    assert node_class.PLAN_OUTPUTS({"log_file": True}, tmp_path) == [
+        tmp_path / "abritamr" / "abritamr.txt",
+        tmp_path / "abritamr" / "summary_matches.txt",
+        tmp_path / "abritamr" / "summary_partials.txt",
+        tmp_path / "abritamr" / "summary_virulence.txt",
+        tmp_path / "abritamr" / "abritamr.log",
+    ]
+    assert node_class.PLAN_OUTPUTS({"log_file": False}, tmp_path) == [
+        tmp_path / "abritamr" / "abritamr.txt",
+        tmp_path / "abritamr" / "summary_matches.txt",
+        tmp_path / "abritamr" / "summary_partials.txt",
+        tmp_path / "abritamr" / "summary_virulence.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({"contig": []}) == "at least one contig FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"contig": ["sample.fa"], "identity": -0.1}) == "identity must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"contig": ["sample.fa"], "jobs": 0}) == "jobs must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"contig": ["sample.fa"], "identity": 0.9, "jobs": 1}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 
