@@ -1109,6 +1109,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.228429.117'],
     citation_text: 'Genome-reconstruction for eukaryotes from complex natural microbial communities.',
   },
+  plasclass: {
+    name: 'plasclass',
+    display_name: 'PlasClass',
+    category: 'metagenomics',
+    description: 'Classify plasmid and chromosome sequences in metagenomic or isolate assemblies with PlasClass.',
+    search_aliases: ['Galaxy', 'PlasClass', 'plasclass', 'plasmid sequence classification', 'plasmid classifier', 'chromosome classification', 'metagenomic contigs', 'isolate assemblies'],
+    input: {
+      required: {
+        fasta: { type: 'FASTA' },
+      },
+      optional: {
+        threads: { type: 'INT', default: 1, min: 1, max: 64 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['classification_scores'],
+    required_executables: ['classify_fasta.py'],
+    required_conda_packages: ['plasclass'],
+    documentation_url: 'https://github.com/Shamir-Lab/PlasClass',
+    citation_dois: ['10.1371/journal.pcbi.1007781'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1007781'],
+    citation_text: 'PlasClass improves plasmid sequence classification.',
+  },
   prinseq: {
     name: 'prinseq',
     display_name: 'PRINSEQ',
@@ -7013,7 +7036,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('255 nodes available')).toBeVisible();
+  await expect(page.getByText('256 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7065,6 +7088,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },
     { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },
     { query: 'metagenomic eukaryotes', name: 'EukRep', category: 'metagenomics' },
+    { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },

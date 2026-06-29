@@ -2850,6 +2850,56 @@ def test_eukrep_renders_fasta_and_names_commands_and_outputs(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"input": "contigs.fa", "kmer_len": 5, "min": 0}) is True
 
 
+def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["plasclass"]
+
+    assert node_info["display_name"] == "PlasClass"
+    assert node_info["category"] == "metagenomics"
+    assert node_info["description"].startswith("Classify plasmid and chromosome")
+    assert node_info["output"] == ["TSV"]
+    assert node_info["output_name"] == ["classification_scores"]
+    assert node_info["required_executables"] == ["classify_fasta.py"]
+    assert node_info["required_conda_packages"] == ["plasclass"]
+    assert node_info["documentation_url"] == "https://github.com/Shamir-Lab/PlasClass"
+    assert node_info["citation_dois"] == ["10.1371/journal.pcbi.1007781"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1007781"]
+    assert "PlasClass improves plasmid sequence classification" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "plasmid sequence classification" in node_info["search_aliases"]
+
+
+def test_plasclass_renders_classification_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("plasclass")
+
+    assert node_class.render_command(
+        {
+            "fasta": "assembly contigs.fa",
+            "threads": 8,
+            "output": "/work/plasclass",
+        }
+    ) == [
+        "classify_fasta.py",
+        "--fasta",
+        "assembly contigs.fa",
+        "--outfile",
+        "/work/plasclass/classification_scores.tsv",
+        "--num_processes",
+        "${GALAXY_SLOTS:-8}",
+    ]
+    assert node_class.render_command(
+        {
+            "fasta": "contigs.fa",
+            "output": "/work/plasclass",
+        }
+    )[-2:] == ["--num_processes", "${GALAXY_SLOTS:-1}"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "plasclass" / "classification_scores.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"fasta": ""}) == "input FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"fasta": "contigs.fa", "threads": 0}) == "threads must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"fasta": "contigs.fa", "threads": 1}) is True
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 
