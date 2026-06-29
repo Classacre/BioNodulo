@@ -2476,6 +2476,42 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
     citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
   },
+  humann_unpack_pathways: {
+    name: 'humann_unpack_pathways',
+    display_name: 'HUMAnN Unpack Pathways',
+    category: 'metagenomics',
+    description: 'Add gene-family or EC abundance stratification to HUMAnN pathway abundance tables.',
+    search_aliases: [
+      'Galaxy',
+      'HUMAnN',
+      'humann_unpack_pathways',
+      'Unpack pathway abundances',
+      'pathway abundance',
+      'gene family abundance',
+      'EC abundance',
+      'reaction mapping',
+      'remove taxonomy',
+    ],
+    input: {
+      required: {
+        input_genes: { type: 'TSV' },
+        input_pathways: { type: 'TSV' },
+      },
+      optional: {
+        gene_mapping: { type: 'TSV', default: '' },
+        pathway_mapping: { type: 'TSV', default: '' },
+        remove_taxonomy: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['humann_unpack_pathways'],
+    required_conda_packages: ['humann'],
+    documentation_url: 'https://huttenhower.sph.harvard.edu/humann/',
+    citation_dois: ['10.7554/eLife.65088', '10.1371/journal.pcbi.1002358'],
+    citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
+    citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5446,7 +5482,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('221 nodes available')).toBeVisible();
+  await expect(page.getByText('222 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5541,6 +5577,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'row-wise summary', name: 'HUMAnN Reduce Table', category: 'metagenomics' },
     { query: 'MetaCyc reactions', name: 'HUMAnN Regroup Table', category: 'metagenomics' },
     { query: 'feature names', name: 'HUMAnN Rename Table', category: 'metagenomics' },
+    { query: 'pathway abundance', name: 'HUMAnN Unpack Pathways', category: 'metagenomics' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

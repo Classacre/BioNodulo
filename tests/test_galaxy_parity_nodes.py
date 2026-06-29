@@ -555,6 +555,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "humann_unpack_pathways": {
+            "display_name": "HUMAnN Unpack Pathways",
+            "category": "metagenomics",
+            "required_executables": ["humann_unpack_pathways"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6632,6 +6639,95 @@ def test_humann_rename_table_validates_wrapper_inputs() -> None:
     )
     assert node_class.VALIDATE_INPUTS(
         {"input": "features.tsv", "renaming_type": "custom", "custom": "names.tsv"}
+    ) is True
+
+
+def test_humann_unpack_pathways_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_unpack_pathways"]
+
+    assert info["display_name"] == "HUMAnN Unpack Pathways"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Add gene-family or EC abundance stratification to HUMAnN pathway abundance tables."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_unpack_pathways",
+        "Unpack pathway abundances",
+        "pathway abundance",
+        "gene family abundance",
+        "EC abundance",
+        "reaction mapping",
+        "remove taxonomy",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["humann_unpack_pathways"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["input_genes"][0] == "TSV"
+    assert info["input"]["required"]["input_genes"][1]["description"] == "HUMAnN gene family or EC abundance table"
+    assert info["input"]["required"]["input_pathways"][0] == "TSV"
+    assert info["input"]["required"]["input_pathways"][1]["description"] == "HUMAnN pathway abundance table"
+    assert info["input"]["optional"]["gene_mapping"][0] == "TSV"
+    assert info["input"]["optional"]["gene_mapping"][1]["default"] == ""
+    assert info["input"]["optional"]["pathway_mapping"][0] == "TSV"
+    assert info["input"]["optional"]["pathway_mapping"][1]["default"] == ""
+    assert info["input"]["optional"]["remove_taxonomy"][1]["default"] is False
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_unpack_pathways_renders_default_and_mapping_commands(tmp_path: Path) -> None:
+    node_class = _node_class("humann_unpack_pathways")
+
+    assert node_class.render_command(
+        {
+            "input_genes": "demo genefamilies.tsv",
+            "input_pathways": "demo_pathabundance.tsv",
+            "output": "/work/humann_unpack_pathways",
+        }
+    ) == (
+        "humann_unpack_pathways --input-genes 'demo genefamilies.tsv' "
+        "--input-pathways demo_pathabundance.tsv "
+        "--output /work/humann_unpack_pathways/unpacked_pathways.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "input_genes": "demo_genefamilies.tsv",
+            "input_pathways": "demo_pathabundance.tsv",
+            "gene_mapping": "gene to reaction.tsv",
+            "pathway_mapping": "reaction to pathway.tsv",
+            "remove_taxonomy": True,
+            "output": "/work/humann_unpack_pathways",
+        }
+    ) == (
+        "humann_unpack_pathways --input-genes demo_genefamilies.tsv "
+        "--input-pathways demo_pathabundance.tsv --gene-mapping 'gene to reaction.tsv' "
+        "--pathway-mapping 'reaction to pathway.tsv' --remove-taxonomy "
+        "--output /work/humann_unpack_pathways/unpacked_pathways.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "humann_unpack_pathways" / "unpacked_pathways.tsv",
+    ]
+
+
+def test_humann_unpack_pathways_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_unpack_pathways")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HUMAnN gene family or EC abundance table is required"
+    assert node_class.VALIDATE_INPUTS({"input_genes": "genes.tsv"}) == (
+        "HUMAnN pathway abundance table is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_genes": "genes.tsv", "input_pathways": "pathways.tsv"}
     ) is True
 
 

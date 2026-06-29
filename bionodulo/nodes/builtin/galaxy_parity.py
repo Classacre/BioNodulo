@@ -10846,6 +10846,104 @@ class HUMAnNRenameTableNode(CommandNode):
         }
 
 
+class HUMAnNUnpackPathwaysNode(CommandNode):
+    """Unpack HUMAnN pathway abundances to include contributing genes."""
+
+    NODE_ID = "humann_unpack_pathways"
+    DISPLAY_NAME = "HUMAnN Unpack Pathways"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Add gene-family or EC abundance stratification to HUMAnN pathway abundance tables."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_unpack_pathways",
+        "Unpack pathway abundances",
+        "pathway abundance",
+        "gene family abundance",
+        "EC abundance",
+        "reaction mapping",
+        "remove taxonomy",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["humann_unpack_pathways"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/unpacked_pathways.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "humann_unpack_pathways",
+            "--input-genes",
+            str(inputs.get("input_genes", "")),
+            "--input-pathways",
+            str(inputs.get("input_pathways", "")),
+        ]
+        gene_mapping = str(inputs.get("gene_mapping", "")).strip()
+        if gene_mapping:
+            cmd.extend(["--gene-mapping", gene_mapping])
+        pathway_mapping = str(inputs.get("pathway_mapping", "")).strip()
+        if pathway_mapping:
+            cmd.extend(["--pathway-mapping", pathway_mapping])
+        if inputs.get("remove_taxonomy", False):
+            cmd.append("--remove-taxonomy")
+        cmd.extend(["--output", cls._output_path(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "unpacked_pathways.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_genes", "")).strip():
+            return "HUMAnN gene family or EC abundance table is required"
+        if not str(inputs.get("input_pathways", "")).strip():
+            return "HUMAnN pathway abundance table is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_genes": ("TSV", {"description": "HUMAnN gene family or EC abundance table"}),
+                "input_pathways": ("TSV", {"description": "HUMAnN pathway abundance table"}),
+            },
+            "optional": {
+                "gene_mapping": (
+                    "TSV",
+                    {
+                        "default": "",
+                        "description": "Optional gene-family-to-reaction mapping table",
+                    },
+                ),
+                "pathway_mapping": (
+                    "TSV",
+                    {
+                        "default": "",
+                        "description": "Optional reaction-to-pathway mapping table",
+                    },
+                ),
+                "remove_taxonomy": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Remove taxonomy stratification from unpacked pathway rows"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MergeMetaPhlAnTablesNode(CommandNode):
     """Merge multiple MetaPhlAn relative abundance tables."""
 
