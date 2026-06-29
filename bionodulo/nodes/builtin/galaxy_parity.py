@@ -21579,6 +21579,107 @@ class FreyjaDemixNode(CommandNode):
         }
 
 
+class FreyjaBootNode(CommandNode):
+    """Bootstrap Freyja lineage-abundance estimates."""
+
+    NODE_ID = "freyja_boot"
+    DISPLAY_NAME = "Freyja Boot"
+    REQUIRED_CONDA_PACKAGES = ["freyja"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Bootstrap Freyja lineage abundances and optionally emit lineage and summary boxplots."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Freyja",
+        "freyja boot",
+        "bootstrap lineages",
+        "lineage uncertainty",
+        "boxplot",
+        "wastewater variants",
+    ]
+    RETURN_TYPES = ("CSV", "CSV", "PDF", "PDF")
+    RETURN_NAMES = ("boot_lineages", "boot_summarized", "boot_lineages_plot", "boot_summarized_plot")
+    REQUIRED_EXECUTABLES = ["freyja"]
+    DOCUMENTATION_URL = "https://github.com/andersen-lab/Freyja"
+    CITATION_DOIS = ["10.1038/s41586-022-05049-6"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/s41586-022-05049-6"]
+    CITATION_TEXT = "Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission."
+    VERSION = "2.0.1"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd: list[str] = []
+        if str(inputs.get("barcodes_source", "repo")) == "custom":
+            cmd.extend(["ln", "-sf", str(inputs.get("usher_barcodes", "")), f"{out}/usher_barcodes.csv", "&&"])
+        cmd.extend([
+            "freyja",
+            "boot",
+            str(inputs.get("variants_file", "")),
+            str(inputs.get("depth_file", "")),
+        ])
+        _add_if_value(cmd, "--eps", inputs.get("eps"))
+        _add_if_value(cmd, "--meta", inputs.get("meta"))
+        if inputs.get("confirmedonly"):
+            cmd.append("--confirmedonly")
+        cmd.extend([
+            "--pathogen",
+            str(inputs.get("pathogen", "SARS-CoV-2")),
+            "--nt",
+            f"${{GALAXY_SLOTS:-{inputs.get('threads', 4)}}}",
+        ])
+        _add_if_value(cmd, "--nb", inputs.get("nb"))
+        cmd.extend(["--output_base", f"{out}/boot_output"])
+        if str(inputs.get("barcodes_source", "repo")) == "custom":
+            cmd.extend(["--barcodes", f"{out}/usher_barcodes.csv"])
+        if inputs.get("boxplot_pdf"):
+            cmd.extend(["--boxplot", "pdf"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "boot_output_lineages.csv", out / "boot_output_summarized.csv"]
+        if inputs.get("boxplot_pdf"):
+            outputs.extend([out / "boot_output_lineages.pdf", out / "boot_output_summarized.pdf"])
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "variants_file": ("TSV", {"description": "Freyja variants TSV or compatible VCF/tabular variant calls"}),
+                "depth_file": ("TSV", {"description": "Genome-wide sequencing depth table"}),
+            },
+            "optional": {
+                "barcodes_source": ("STRING", {"default": "repo", "options": ["repo", "custom"], "description": "Use Freyja's bundled or a provided UShER barcode table"}),
+                "usher_barcodes": (
+                    "CSV",
+                    {
+                        "description": "Custom UShER barcodes CSV",
+                        "displayOptions": {"show": {"barcodes_source": ["custom"]}},
+                    },
+                ),
+                "meta": ("JSON", {"default": "", "description": "Optional custom lineage metadata JSON"}),
+                "eps": ("FLOAT", {"default": "", "min": 0, "description": "Minimum lineage abundance to include"}),
+                "confirmedonly": ("BOOLEAN", {"default": False, "description": "Remove unconfirmed lineages"}),
+                "pathogen": (
+                    "STRING",
+                    {
+                        "default": "SARS-CoV-2",
+                        "options": ["SARS-CoV-2", "MPXV", "H5NX", "H1N1pdm", "FLU-B-VIC", "MEASLESN450", "MEASLES", "RSVa", "RSVb"],
+                        "description": "Pathogen barcode set to use",
+                    },
+                ),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+                "nb": ("INT", {"default": "", "min": 1, "description": "Optional number of bootstraps"}),
+                "boxplot_pdf": ("BOOLEAN", {"default": False, "description": "Generate lineage and summarized boxplot PDFs"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 

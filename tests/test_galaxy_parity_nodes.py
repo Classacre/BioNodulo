@@ -12919,6 +12919,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["freyja", "sed"],
             "doi": "10.1038/s41586-022-05049-6",
         },
+        "freyja_boot": {
+            "display_name": "Freyja Boot",
+            "category": "variant",
+            "required_executables": ["freyja"],
+            "required_conda_packages": ["freyja"],
+            "doi": "10.1038/s41586-022-05049-6",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -13814,6 +13821,77 @@ def test_freyja_demix_renders_lineage_abundance_command_and_output(tmp_path: Pat
     assert "--barcodes" not in auto_cmd
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "freyja_demix" / "abundances.tsv"]
+
+
+def test_freyja_boot_renders_bootstrap_command_and_optional_plots(tmp_path: Path) -> None:
+    node_class = _node_class("freyja_boot")
+    info = _registry().object_info()["freyja_boot"]
+
+    assert info["output"] == ["CSV", "CSV", "PDF", "PDF"]
+    assert info["output_name"] == [
+        "boot_lineages",
+        "boot_summarized",
+        "boot_lineages_plot",
+        "boot_summarized_plot",
+    ]
+    assert "10.1038/s41586-022-05049-6" in info["citation_dois"]
+    assert info["input"]["optional"]["usher_barcodes"][1]["displayOptions"] == {
+        "show": {"barcodes_source": ["custom"]},
+    }
+    assert node_class.render_command(
+        {
+            "variants_file": "variants.tsv",
+            "depth_file": "depths.tsv",
+            "barcodes_source": "custom",
+            "usher_barcodes": "barcodes.csv",
+            "meta": "lineage_meta.json",
+            "eps": 0.0001,
+            "confirmedonly": True,
+            "pathogen": "SARS-CoV-2",
+            "threads": 8,
+            "nb": 100,
+            "boxplot_pdf": True,
+            "output": "/work/freyja_boot",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "barcodes.csv",
+        "/work/freyja_boot/usher_barcodes.csv",
+        "&&",
+        "freyja",
+        "boot",
+        "variants.tsv",
+        "depths.tsv",
+        "--eps",
+        "0.0001",
+        "--meta",
+        "lineage_meta.json",
+        "--confirmedonly",
+        "--pathogen",
+        "SARS-CoV-2",
+        "--nt",
+        "${GALAXY_SLOTS:-8}",
+        "--nb",
+        "100",
+        "--output_base",
+        "/work/freyja_boot/boot_output",
+        "--barcodes",
+        "/work/freyja_boot/usher_barcodes.csv",
+        "--boxplot",
+        "pdf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"boxplot_pdf": True}, tmp_path) == [
+        tmp_path / "freyja_boot" / "boot_output_lineages.csv",
+        tmp_path / "freyja_boot" / "boot_output_summarized.csv",
+        tmp_path / "freyja_boot" / "boot_output_lineages.pdf",
+        tmp_path / "freyja_boot" / "boot_output_summarized.pdf",
+    ]
+    assert node_class.PLAN_OUTPUTS({"boxplot_pdf": False}, tmp_path) == [
+        tmp_path / "freyja_boot" / "boot_output_lineages.csv",
+        tmp_path / "freyja_boot" / "boot_output_summarized.csv",
+    ]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
