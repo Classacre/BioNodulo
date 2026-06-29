@@ -3053,6 +3053,70 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Contrast-FEL: A Test for Differences in Selective Pressures at Individual Sites among Clades and Sets of Branches.',
   },
+  hyphy_conv: {
+    name: 'hyphy_conv',
+    display_name: 'HyPhy-Conv',
+    category: 'phylogeny',
+    description: 'Translate an in-frame codon alignment to proteins with HyPhy CONV.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'CONV',
+      'CodonToProtein',
+      'codon to protein',
+      'translate codon alignment',
+      'amino acid translation',
+      'CodonToProtein amino acid translation',
+      'protein alignment',
+      'keep deletions',
+      'skip deletions',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        gencodeid: {
+          type: 'STRING',
+          default: 'Universal',
+          options: [
+            'Universal',
+            'Vertebrate-mtDNA',
+            'Yeast-mtDNA',
+            'Mold-Protozoan-mtDNA',
+            'Invertebrate-mtDNA',
+            'Ciliate-Nuclear',
+            'Echinoderm-mtDNA',
+            'Euplotid-Nuclear',
+            'Alt-Yeast-Nuclear',
+            'Ascidian-mtDNA',
+            'Flatworm-mtDNA',
+            'Blepharisma-Nuclear',
+            'Chlorophycean-mtDNA',
+            'Trematode-mtDNA',
+            'Scenedesmus-obliquus-mtDNA',
+            'Thraustochytrium-mtDNA',
+            'Pterobranchia-mtDNA',
+            'SR1-and-Gracilibacteria',
+            'Pachysolen-Nuclear',
+            'Mesodinium-Nuclear',
+            'Peritrich-Nuclear',
+            'Cephalodiscidae-mtDNA',
+          ],
+        },
+        deletions: { type: 'STRING', default: 'Skip Deletions', options: ['Keep Deletions', 'Skip Deletions'] },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['proteins'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles/CodonToProtein.bf',
+    citation_dois: ['10.1093/molbev/msz197'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197'],
+    citation_text: 'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies.',
+  },
   hyphy_cln: {
     name: 'hyphy_cln',
     display_name: 'HyPhy-CLN',
@@ -6093,7 +6157,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('231 nodes available')).toBeVisible();
+  await expect(page.getByText('232 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6197,6 +6261,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Spidermonkey coevolving sites', name: 'HyPhy-BGM', category: 'phylogeny' },
     { query: 'BUSTED gene-wide selection', name: 'HyPhy-BUSTED', category: 'phylogeny' },
     { query: 'Contrast-FEL branch sets', name: 'HyPhy-CFEL', category: 'phylogeny' },
+    { query: 'CodonToProtein amino acid translation', name: 'HyPhy-Conv', category: 'phylogeny' },
     { query: 'CleanStopCodons duplicate sequences', name: 'HyPhy-CLN', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },

@@ -618,6 +618,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/msaa263",
         },
+        "hyphy_conv": {
+            "display_name": "HyPhy-Conv",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msz197",
+        },
         "hyphy_cln": {
             "display_name": "HyPhy-CLN",
             "category": "phylogeny",
@@ -8286,6 +8293,103 @@ def test_hyphy_cfel_validates_wrapper_inputs() -> None:
             "qvalue": 0.2,
             "kill_zero_lengths": "Yes",
             "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_conv_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_conv"]
+
+    assert info["display_name"] == "HyPhy-Conv"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Translate an in-frame codon alignment to proteins with HyPhy CONV."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "CONV",
+        "CodonToProtein",
+        "codon to protein",
+        "translate codon alignment",
+        "amino acid translation",
+        "CodonToProtein amino acid translation",
+        "protein alignment",
+        "keep deletions",
+        "skip deletions",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["proteins"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert (
+        info["documentation_url"]
+        == "https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles/CodonToProtein.bf"
+    )
+    assert info["citation_dois"] == ["10.1093/molbev/msz197"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/molbev/msz197"]
+    assert info["citation_text"] == "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies."
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "In-frame codon alignment in FASTA format"
+    )
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["deletions"][1]["default"] == "Skip Deletions"
+    assert info["input"]["optional"]["deletions"][1]["options"] == ["Keep Deletions", "Skip Deletions"]
+
+
+def test_hyphy_conv_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_conv")
+
+    assert node_class.render_command(
+        {
+            "input_file": "conv-in1.fa",
+            "output": "/work/hyphy_conv",
+        }
+    ) == (
+        "cp conv-in1.fa conv_input.fa && "
+        "ENV='TOLERATE_NUMERICAL_ERRORS=1;' hyphy conv Universal 'Skip Deletions' "
+        "conv_input.fa /work/hyphy_conv/proteins.nex"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_conv" / "proteins.nex",
+    ]
+
+
+def test_hyphy_conv_renders_keep_deletions_command() -> None:
+    node_class = _node_class("hyphy_conv")
+
+    assert node_class.render_command(
+        {
+            "input_file": "codon alignment.fa",
+            "gencodeid": "Vertebrate-mtDNA",
+            "deletions": "Keep Deletions",
+            "output": "/work/hyphy_conv",
+        }
+    ) == (
+        "cp 'codon alignment.fa' conv_input.fa && "
+        "ENV='TOLERATE_NUMERICAL_ERRORS=1;' hyphy conv Vertebrate-mtDNA 'Keep Deletions' "
+        "conv_input.fa /work/hyphy_conv/proteins.nex"
+    )
+
+
+def test_hyphy_conv_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_conv")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-Conv codon alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "deletions": "Maybe"}) == (
+        "Unsupported HyPhy-Conv deletion handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "gencodeid": "Universal",
+            "deletions": "Keep Deletions",
         }
     ) is True
 
