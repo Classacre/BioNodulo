@@ -42041,6 +42041,23 @@ class BEDOPSSortBedNode(CommandNode):
         }
 
 
+class BEDOPSSortBedGalaxyNode(BEDOPSSortBedNode):
+    """Galaxy wrapper-ID compatible alias for BEDOPS sort-bed."""
+
+    NODE_ID = "bedops-sort-bed"
+    DISPLAY_NAME = "BEDOPS sort-bed"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "bedops-sort-bed",
+        "bedops",
+        "sort-bed",
+        "BEDOPS sort-bed",
+        "sort BED",
+        "unique BED",
+        "duplicate BED",
+    ]
+
+
 class BWANode(CommandNode):
     """Map short reads with Galaxy's BWA aln/samse/sampe wrapper."""
 

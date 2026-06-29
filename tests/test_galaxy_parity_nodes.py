@@ -26722,6 +26722,60 @@ def test_bedops_sort_bed_validates_inputs_and_filter_modes() -> None:
     )
 
 
+def test_bedops_sort_bed_galaxy_id_exposes_existing_metadata() -> None:
+    node_info = _registry().object_info()
+
+    canonical_info = node_info["bedops_sort_bed"]
+    galaxy_info = node_info["bedops-sort-bed"]
+
+    assert galaxy_info["display_name"] == "BEDOPS sort-bed"
+    assert galaxy_info["category"] == canonical_info["category"]
+    assert galaxy_info["description"] == canonical_info["description"]
+    assert galaxy_info["output"] == canonical_info["output"]
+    assert galaxy_info["output_name"] == canonical_info["output_name"]
+    assert galaxy_info["required_executables"] == canonical_info["required_executables"]
+    assert galaxy_info["required_conda_packages"] == canonical_info["required_conda_packages"]
+    assert galaxy_info["documentation_url"] == canonical_info["documentation_url"]
+    assert galaxy_info["citation_dois"] == canonical_info["citation_dois"]
+    assert galaxy_info["citation_urls"] == canonical_info["citation_urls"]
+    assert galaxy_info["citation_text"] == canonical_info["citation_text"]
+    assert "bedops-sort-bed" in galaxy_info["search_aliases"]
+
+
+def test_bedops_sort_bed_galaxy_id_uses_hyphenated_output_path(tmp_path: Path) -> None:
+    node_class = _node_class("bedops-sort-bed")
+
+    assert node_class.render_command(
+        {
+            "inputs": ["sample.bed"],
+            "memory_mb": 2048,
+            "tmpdir": "/scratch/job",
+            "output": "/work/bedops-sort-bed",
+        }
+    ) == [
+        "sort-bed",
+        "--max-mem",
+        "2048M",
+        "--tmpdir",
+        "/scratch/job",
+        "sample.bed",
+        ">",
+        "/work/bedops-sort-bed/sorted.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bedops-sort-bed" / "sorted.bed"]
+
+
+def test_bedops_sort_bed_galaxy_id_inherits_validation() -> None:
+    node_class = _node_class("bedops-sort-bed")
+
+    assert node_class.VALIDATE_INPUTS({"inputs": [], "memory_mb": 1024}) == "at least one BED input is required"
+    assert (
+        node_class.VALIDATE_INPUTS({"inputs": ["sample.bed"], "unique": True, "duplicates": True})
+        == "unique and duplicates modes are mutually exclusive"
+    )
+
+
 def test_bwa_mem2_idx_exposes_galaxy_metadata_and_bwa_citations() -> None:
     node_info = _registry().object_info()["bwa_mem2_idx"]
 
