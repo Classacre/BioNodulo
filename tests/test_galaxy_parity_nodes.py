@@ -7095,6 +7095,105 @@ def test_ampvis2_otu_network_renders_script_outputs_and_validates(tmp_path: Path
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_rankabundance_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_rankabundance"]
+
+    assert info["display_name"] == "ampvis2 rank abundance plot"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate rank-abundance curves from grouped ampvis2 samples."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["required"]["metadata_list"][0] == "TSV"
+    assert info["input"]["required"]["group_by"][0] == "STRING"
+    assert info["input"]["required"]["group_by"][1]["description"] == "Discrete metadata variable used to group samples"
+    assert info["input"]["optional"]["showSD"][1]["default"] is True
+    assert info["input"]["optional"]["log10_x"][1]["default"] is True
+    assert info["input"]["optional"]["out_format"][1]["default"] == "pdf"
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["input"]["optional"]["plot_width"][1]["min"] == 1
+    assert info["input"]["optional"]["plot_height"][1]["min"] == 1
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_rankabundance.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 rank abundance plot" in info["search_aliases"]
+    assert "amp_rankabundance" in info["search_aliases"]
+    assert "rank abundance curve" in info["search_aliases"]
+
+
+def test_ampvis2_rankabundance_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_rankabundance")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "group_by": "Plant",
+            "showSD": False,
+            "log10_x": False,
+            "out_format": "svg",
+            "plot_width": 11,
+            "plot_height": 7.5,
+            "output": "/work/ampvis2_rankabundance",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_rankabundance/rankabundance.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_rankabundance(" in command
+    assert 'group_by = "Plant",' in command
+    assert "showSD = FALSE," in command
+    assert "log10_x = FALSE" in command
+    assert 'ggsave("/work/ampvis2_rankabundance/plot.svg",' in command
+    assert 'device = "svg"' in command
+    assert ", width = 11" in command
+    assert ", height = 7.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_rankabundance/rankabundance.R")
+
+    default_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "group_by": "Plant",
+            "output": "/work/ampvis2_rankabundance",
+        }
+    )
+    assert "showSD = TRUE," in default_command
+    assert "log10_x = TRUE" in default_command
+    assert 'device = "pdf"' in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "png"}, tmp_path) == [
+        tmp_path / "ampvis2_rankabundance" / "plot.png",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_rankabundance" / "plot.pdf",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": "", "metadata_list": "metadata.list", "group_by": "Plant"}) == (
+        "data is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "", "group_by": "Plant"}) == (
+        "metadata_list is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "metadata.list", "group_by": ""}) == (
+        "group_by is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "group_by": "Plant", "out_format": "jpg"}
+    ) == "out_format must be one of: pdf, png, svg"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "group_by": "Plant", "plot_width": 0.5}
+    ) == "plot_width must be >= 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "group_by": "Plant"}
+    ) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 
