@@ -25708,6 +25708,14 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
             "required_executables": ["bcftools", "bgzip", "tabix"],
             "search_alias": "annotate vcf",
         },
+        "bcftools_mpileup": {
+            "display_name": "BCFtools Mpileup",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#mpileup",
+            "output": ["VCF_GZ"],
+            "required_executables": ["bcftools", "samtools"],
+            "required_conda_packages": ["bcftools", "htslib", "samtools"],
+            "search_alias": "genotype likelihoods",
+        },
         "bcftools_call": {
             "display_name": "BCFtools Call",
             "documentation_url": "https://www.htslib.org/doc/bcftools.html#call",
@@ -25788,6 +25796,175 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
         assert "https://doi.org/10.1093/bioinformatics/btp352" in node_info["citation_urls"]
         assert "Galaxy" in node_info["search_aliases"]
         assert metadata["search_alias"] in node_info["search_aliases"]
+
+
+def test_bcftools_mpileup_renders_multi_alignment_advanced_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_mpileup")
+
+    assert node_class.render_command(
+        {
+            "input_bams": ["tumor.bam", "normal.bam"],
+            "reference": "GRCh38.fa",
+            "perform_indel_calling": "perform_indel_calling",
+            "gap_open_sequencing_error_probability": 35,
+            "gap_extension_sequencing_error_probability": 18,
+            "coefficient_for_modeling_homopolymer_errors": 90,
+            "skip_indel_calling_above_sample_depth": 300,
+            "minimum_gapped_reads_for_indel_candidates": 2,
+            "open_seq_error_probability": 38,
+            "minimum_gapped_read_fraction": 0.01,
+            "gapped_read_per_sample": True,
+            "platforms": ["ILLUMINA", "ONT"],
+            "ambig_reads": "incAD",
+            "indel_bias": 0.75,
+            "indel_size": 120,
+            "max_reads_per_bam": 8000,
+            "ignore_overlaps": True,
+            "skip_anomalous_read_pairs": True,
+            "skip_all_set": [4, 16],
+            "skip_any_unset": [2, 64],
+            "baq": "--redo-BAQ",
+            "minimum_mapping_quality": 20,
+            "minimum_base_quality": 17,
+            "coefficient_for_downgrading": 50,
+            "read_groups": "rg.txt",
+            "exclude_read_groups": True,
+            "output_tags": ["DP", "AD", "INFO/ADR"],
+            "gvcf": "5,15",
+            "samples": "tumor,normal",
+            "invert_samples": True,
+            "regions": "chr17:100-200",
+            "targets_file": "targets.tsv",
+            "invert_targets_file": True,
+            "output_type": "v",
+            "threads": 4,
+            "output": "/work/bcftools_mpileup",
+        }
+    ) == [
+        "bcftools",
+        "mpileup",
+        "--fasta-ref",
+        "GRCh38.fa",
+        "-o",
+        "35",
+        "-e",
+        "18",
+        "-h",
+        "90",
+        "-L",
+        "300",
+        "-m",
+        "2",
+        "--open-prob",
+        "38",
+        "-F",
+        "0.01",
+        "-p",
+        "-P",
+        "ILLUMINA,ONT",
+        "--ambig-reads",
+        "incAD",
+        "--indel-bias",
+        "0.75",
+        "--indel-size",
+        "120",
+        "--skip-all-set",
+        "20",
+        "--skip-any-unset",
+        "66",
+        "-d",
+        "8000",
+        "-x",
+        "-A",
+        "--redo-BAQ",
+        "-q",
+        "20",
+        "-Q",
+        "17",
+        "-C",
+        "50",
+        "-G",
+        "^rg.txt",
+        "--annotate",
+        "DP,AD,INFO/ADR",
+        "--gvcf",
+        "5,15",
+        "--samples",
+        "^tumor,normal",
+        "--regions",
+        "chr17:100-200",
+        "--targets-file",
+        "^targets.tsv",
+        "--threads",
+        "4",
+        "--output-type",
+        "v",
+        "tumor.bam",
+        "normal.bam",
+        ">",
+        "/work/bcftools_mpileup/mpileup.vcf",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
+        tmp_path / "bcftools_mpileup" / "mpileup.vcf",
+    ]
+
+
+def test_bcftools_mpileup_supports_no_reference_legacy_aliases_and_default_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_mpileup")
+
+    assert node_class.render_command(
+        {
+            "bam": "sample.bam",
+            "reference_source": "none",
+            "max_depth": 250,
+            "min_bq": 13,
+            "threads": 0,
+            "output": "/work/bcftools_mpileup",
+        }
+    ) == [
+        "bcftools",
+        "mpileup",
+        "--non-reference",
+        "-d",
+        "250",
+        "-Q",
+        "13",
+        "--output-type",
+        "z",
+        "sample.bam",
+        ">",
+        "/work/bcftools_mpileup/mpileup.vcf.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_mpileup" / "mpileup.vcf.gz",
+    ]
+
+
+def test_bcftools_mpileup_validates_required_inputs_and_choices() -> None:
+    node_class = _node_class("bcftools_mpileup")
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input BAM/CRAM is required"
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference_source": "history"}) == (
+        "reference is required when reference_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference_source": "bad"}) == (
+        "reference_source must be one of: history, cached, none"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference": "ref.fa", "perform_indel_calling": "bad"}) == (
+        "perform_indel_calling must be one of: perform_indel_calling_def, perform_indel_calling, do_not_perform_indel_calling"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference": "ref.fa", "ambig_reads": "bad"}) == (
+        "ambig_reads must be one of: drop, incAD, incAD0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference": "ref.fa", "baq": "--bad"}) == (
+        "baq must be one of: --no-BAQ, --redo-BAQ"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference": "ref.fa", "output_type": "bad"}) == (
+        "output_type must be one of: b, u, z, v"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference_source": "none"}) is True
 
 
 def test_bcftools_annotate_renders_tabular_annotation_command_and_output(tmp_path: Path) -> None:

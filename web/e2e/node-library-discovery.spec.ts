@@ -9312,6 +9312,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  bcftools_mpileup: {
+    name: 'bcftools_mpileup',
+    display_name: 'BCFtools Mpileup',
+    category: 'variant',
+    description: 'Generate VCF or BCF containing genotype likelihoods for one or multiple BAM/CRAM alignment files.',
+    search_aliases: ['Galaxy', 'bcftools', 'mpileup', 'genotype likelihoods', 'BAM CRAM pileup', 'variant pileup'],
+    input: {
+      required: {
+        input_bams: { type: 'BAM_LIST', multiple: true },
+      },
+      optional: {
+        reference_source: { type: 'STRING', default: 'history', options: ['history', 'cached', 'none'] },
+        reference: { type: 'FASTA', default: '' },
+        perform_indel_calling: { type: 'STRING', default: 'perform_indel_calling_def', options: ['perform_indel_calling_def', 'perform_indel_calling', 'do_not_perform_indel_calling'] },
+        max_reads_per_bam: { type: 'INT', default: 250, min: 1 },
+        output_tags: { type: 'STRING_LIST', options: ['DP', 'AD', 'ADF', 'ADR', 'INFO/AD', 'INFO/ADF', 'INFO/ADR', 'SP', 'DV', 'QS', 'DP4', 'DPR', 'INFO/DPR'] },
+        output_type: { type: 'STRING', default: 'z', options: ['b', 'u', 'z', 'v'] },
+        threads: { type: 'INT', default: 4, min: 1, max: 128 },
+      },
+    },
+    output: ['VCF_GZ'],
+    output_name: ['mpileup_vcf'],
+    required_executables: ['bcftools', 'samtools'],
+    required_conda_packages: ['bcftools', 'htslib', 'samtools'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#mpileup',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   bcftools_filter: {
     name: 'bcftools_filter',
     display_name: 'BCFtools Filter',
@@ -10637,7 +10666,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('364 nodes available')).toBeVisible();
+  await expect(page.getByText('365 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10945,6 +10974,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'tagbed bam tags', name: 'BEDTools TagBed', category: 'genomics' },
     { query: 'annotate vcf', name: 'BCFtools Annotate', category: 'variant' },
     { query: 'SNP indel calling', name: 'BCFtools Call', category: 'variant' },
+    { query: 'genotype likelihoods', name: 'BCFtools Mpileup', category: 'variant' },
     { query: 'fixed-threshold filters', name: 'BCFtools Filter', category: 'variant' },
     { query: 'plot-vcfstats', name: 'BCFtools Stats', category: 'variant' },
     { query: 'left-align indels', name: 'BCFtools Norm', category: 'variant' },

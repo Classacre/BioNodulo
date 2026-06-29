@@ -12,62 +12,6 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 
-class BcftoolsMpileupNode(CommandNode):
-    """Call variants with bcftools mpileup + call."""
-    NODE_ID = "bcftools_mpileup"
-    DISPLAY_NAME = "bcftools mpileup + call"
-    REQUIRED_CONDA_PACKAGES = ['bcftools']
-    CATEGORY = "variant"
-    DESCRIPTION = "Generate VCF variant calls from a BAM alignment using bcftools"
-    SEARCH_ALIASES = ["bcftools", "mpileup", "variant call", "snp calling"]
-    RETURN_TYPES = ("VCF_GZ",)
-    RETURN_NAMES = ("vcf",)
-    REQUIRED_EXECUTABLES = ["bcftools"]
-    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
-    VERSION = "1.22"
-    SHELL = False
-
-    @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        output = str(inputs.get("output", inputs.get("output_dir", ".")))
-        parts = [
-            "bcftools", "mpileup",
-            "-f", shlex.quote(str(inputs.get("reference", ""))),
-        ]
-        if inputs.get("max_depth"):
-            parts.extend(["-d", shlex.quote(str(inputs["max_depth"]))])
-        if inputs.get("min_bq"):
-            parts.extend(["-Q", shlex.quote(str(inputs["min_bq"]))])
-        parts.extend(["-Ou", shlex.quote(str(inputs.get("bam", "")))])
-        parts.extend([
-            "|", "bcftools", "call",
-            "-mv", "-Oz",
-            "-o", shlex.quote(f"{output}/vcf.vcf.gz"),
-        ])
-        if inputs.get("ploidy"):
-            parts.extend(["--ploidy", shlex.quote(str(inputs["ploidy"]))])
-        # Wrap in bash -c so the entire pipeline runs inside the pixi
-        # environment when env_prefix is prepended by the executor.
-        return ["bash", "-c", " ".join(parts)]
-
-    @classmethod
-    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
-        return {
-            "required": {
-                "bam": ("BAM", {"description": "Input BAM file (sorted and indexed)"}),
-                "reference": ("FASTA", {"description": "Reference FASTA (indexed)"}),
-            },
-            "optional": {
-                "max_depth": ("INT", {"default": 250, "min": 1, "label": "Max Depth", "advanced": True}),
-                "min_bq": ("INT", {"default": 13, "min": 0, "label": "Min Base Quality", "advanced": True}),
-                "ploidy": ("INT", {"default": 2, "min": 1, "max": 8, "display": "slider", "label": "Ploidy", "advanced": True}),
-            },
-            "hidden": {
-                "output": ("STRING", {}),
-            },
-        }
-
-
 class Sniffles2Node(CommandNode):
     """Call structural variants from long-read alignments with Sniffles2."""
     NODE_ID = "sniffles2"

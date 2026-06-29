@@ -40493,6 +40493,285 @@ class BEDOPSSortBedNode(CommandNode):
         }
 
 
+class BCFtoolsMpileupNode(CommandNode):
+    """Generate VCF/BCF genotype likelihoods from BAM or CRAM alignments."""
+
+    NODE_ID = "bcftools_mpileup"
+    DISPLAY_NAME = "BCFtools Mpileup"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib", "samtools"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Generate VCF or BCF containing genotype likelihoods for one or multiple BAM/CRAM alignment files."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "bcftools",
+        "mpileup",
+        "genotype likelihoods",
+        "BAM CRAM pileup",
+        "variant pileup",
+    ]
+    RETURN_TYPES = ("VCF_GZ",)
+    RETURN_NAMES = ("mpileup_vcf",)
+    REQUIRED_EXECUTABLES = ["bcftools", "samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#mpileup"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22+galaxy0"
+    SHELL = True
+    REFERENCE_SOURCE_OPTIONS = ["history", "cached", "none"]
+    INDEL_CALLING_OPTIONS = [
+        "perform_indel_calling_def",
+        "perform_indel_calling",
+        "do_not_perform_indel_calling",
+    ]
+    AMBIG_READS_OPTIONS = ["", "drop", "incAD", "incAD0"]
+    BAQ_OPTIONS = ["", "--no-BAQ", "--redo-BAQ"]
+    OUTPUT_TYPES = ["b", "u", "z", "v"]
+    OUTPUT_TAG_OPTIONS = [
+        "DP",
+        "AD",
+        "ADF",
+        "ADR",
+        "INFO/AD",
+        "INFO/ADF",
+        "INFO/ADR",
+        "SP",
+        "DV",
+        "QS",
+        "DP4",
+        "DPR",
+        "INFO/DPR",
+    ]
+
+    @staticmethod
+    def _selected(value: Any) -> bool:
+        return value is not None and str(value) != ""
+
+    @classmethod
+    def _input_bams(cls, inputs: dict[str, Any]) -> list[str]:
+        bams = _as_list(inputs.get("input_bams"))
+        if bams:
+            return bams
+        return _as_list(inputs.get("input_bam", inputs.get("bam")))
+
+    @classmethod
+    def _reference_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("reference_source", inputs.get("reference_source_selector", "history")) or "history")
+
+    @classmethod
+    def _reference(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("reference", inputs.get("ref_file", inputs.get("fasta_ref", ""))) or "")
+
+    @classmethod
+    def _flag_sum(cls, value: Any) -> int:
+        total = 0
+        for flag in _as_list(value):
+            for part in str(flag).split(","):
+                if part.strip():
+                    total += int(part)
+        return total
+
+    @classmethod
+    def _add_reference(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        if cls._reference_source(inputs) == "none":
+            cmd.append("--non-reference")
+            return
+        _add_if_value(cmd, "--fasta-ref", cls._reference(inputs))
+
+    @classmethod
+    def _add_indel_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        mode = str(inputs.get("perform_indel_calling", "perform_indel_calling_def") or "perform_indel_calling_def")
+        if mode == "do_not_perform_indel_calling":
+            cmd.append("--skip-indels")
+        elif mode == "perform_indel_calling":
+            _add_if_value(cmd, "-o", inputs.get("gap_open_sequencing_error_probability"))
+            _add_if_value(cmd, "-e", inputs.get("gap_extension_sequencing_error_probability"))
+            _add_if_value(cmd, "-h", inputs.get("coefficient_for_modeling_homopolymer_errors"))
+            _add_if_value(cmd, "-L", inputs.get("skip_indel_calling_above_sample_depth"))
+            _add_if_value(cmd, "-m", inputs.get("minimum_gapped_reads_for_indel_candidates"))
+            _add_if_value(cmd, "--open-prob", inputs.get("open_seq_error_probability"))
+            _add_if_value(cmd, "-F", inputs.get("minimum_gapped_read_fraction"))
+            if inputs.get("gapped_read_per_sample"):
+                cmd.append("-p")
+            platforms = ",".join(_as_list(inputs.get("platforms", inputs.get("platform_list"))))
+            _add_if_value(cmd, "-P", platforms)
+        _add_if_value(cmd, "--ambig-reads", inputs.get("ambig_reads"))
+        _add_if_value(cmd, "--indel-bias", inputs.get("indel_bias"))
+        _add_if_value(cmd, "--indel-size", inputs.get("indel_size"))
+
+    @classmethod
+    def _add_filter_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        for name, flag in (
+            ("skip_all_set", "--skip-all-set"),
+            ("skip_any_set", "--skip-any-set"),
+            ("skip_all_unset", "--skip-all-unset"),
+            ("skip_any_unset", "--skip-any-unset"),
+        ):
+            value = cls._flag_sum(inputs.get(name))
+            if value:
+                cmd.extend([flag, str(value)])
+        cmd.extend(["-d", str(inputs.get("max_reads_per_bam", inputs.get("max_depth", 250)) or 250)])
+        if inputs.get("ignore_overlaps"):
+            cmd.append("-x")
+        if inputs.get("skip_anomalous_read_pairs"):
+            cmd.append("-A")
+        baq = str(inputs.get("baq", "") or "")
+        if baq:
+            cmd.append(baq)
+        _add_if_value(cmd, "-q", inputs.get("minimum_mapping_quality"))
+        _add_if_value(cmd, "-Q", inputs.get("minimum_base_quality", inputs.get("min_bq")))
+        _add_if_value(cmd, "-C", inputs.get("coefficient_for_downgrading"))
+        if inputs.get("ignore_read_groups"):
+            cmd.append("--ignore-RG")
+        read_groups = inputs.get("read_groups")
+        if cls._selected(read_groups):
+            prefix = "^" if inputs.get("exclude_read_groups") else ""
+            cmd.extend(["-G", f"{prefix}{read_groups}"])
+
+    @classmethod
+    def _add_samples(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        if cls._selected(inputs.get("samples")):
+            prefix = "^" if inputs.get("invert_samples") else ""
+            cmd.extend(["--samples", f"{prefix}{inputs['samples']}"])
+        if cls._selected(inputs.get("samples_file")):
+            prefix = "^" if inputs.get("invert_samples_file") else ""
+            cmd.extend(["--samples-file", f"{prefix}{inputs['samples_file']}"])
+
+    @classmethod
+    def _add_targets(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        prefix = "^" if inputs.get("invert_targets") or inputs.get("invert_targets_file") else ""
+        if cls._selected(inputs.get("targets")):
+            cmd.extend(["--targets", f"{prefix}{inputs['targets']}"])
+        if cls._selected(inputs.get("targets_file")):
+            cmd.extend(["--targets-file", f"{prefix}{inputs['targets_file']}"])
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "mpileup"]
+        cls._add_reference(cmd, inputs)
+        cls._add_indel_options(cmd, inputs)
+        cls._add_filter_options(cmd, inputs)
+        output_tags = ",".join(_as_list(inputs.get("output_tags")))
+        _add_if_value(cmd, "--annotate", output_tags)
+        _add_if_value(cmd, "--gvcf", inputs.get("gvcf"))
+        cls._add_samples(cmd, inputs)
+        _add_if_value(cmd, "--regions", inputs.get("regions"))
+        _add_if_value(cmd, "--regions-file", inputs.get("regions_file"))
+        cls._add_targets(cmd, inputs)
+        threads = inputs.get("threads")
+        if cls._selected(threads) and str(threads) != "0":
+            cmd.extend(["--threads", str(threads)])
+        _bcftools_add_output_type(cmd, inputs)
+        cmd.extend(cls._input_bams(inputs))
+        _add_shell_redirect(cmd, f"{_out(inputs)}/mpileup{_bcftools_variant_suffix(inputs)}")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        return [_bcftools_common_output(cls.NODE_ID, f"mpileup{_bcftools_variant_suffix(inputs)}", output_dir)]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_bams(inputs):
+            return "at least one input BAM/CRAM is required"
+        reference_source = cls._reference_source(inputs)
+        if reference_source not in cls.REFERENCE_SOURCE_OPTIONS:
+            return f"reference_source must be one of: {', '.join(cls.REFERENCE_SOURCE_OPTIONS)}"
+        if reference_source in {"history", "cached"} and not cls._reference(inputs).strip():
+            return f"reference is required when reference_source is {reference_source}"
+        indel_mode = str(inputs.get("perform_indel_calling", "perform_indel_calling_def") or "perform_indel_calling_def")
+        if indel_mode not in cls.INDEL_CALLING_OPTIONS:
+            return f"perform_indel_calling must be one of: {', '.join(cls.INDEL_CALLING_OPTIONS)}"
+        ambig_reads = str(inputs.get("ambig_reads", "") or "")
+        if ambig_reads not in cls.AMBIG_READS_OPTIONS:
+            return "ambig_reads must be one of: drop, incAD, incAD0"
+        baq = str(inputs.get("baq", "") or "")
+        if baq not in cls.BAQ_OPTIONS:
+            return "baq must be one of: --no-BAQ, --redo-BAQ"
+        output_type = str(inputs.get("output_type", "z") or "z")
+        if output_type not in cls.OUTPUT_TYPES:
+            return f"output_type must be one of: {', '.join(cls.OUTPUT_TYPES)}"
+        for output_tag in _as_list(inputs.get("output_tags")):
+            if output_tag not in cls.OUTPUT_TAG_OPTIONS:
+                return f"output_tags must contain only: {', '.join(cls.OUTPUT_TAG_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_bams": (
+                    "BAM_LIST",
+                    {"multiple": True, "description": "One or more indexed BAM/CRAM alignment files"},
+                ),
+            },
+            "optional": {
+                "reference_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.REFERENCE_SOURCE_OPTIONS,
+                        "description": "Reference source for mpileup, or none for --non-reference",
+                    },
+                ),
+                "reference": ("FASTA", {"description": "Reference FASTA for BAM/CRAM pileup"}),
+                "perform_indel_calling": (
+                    "STRING",
+                    {
+                        "default": "perform_indel_calling_def",
+                        "options": cls.INDEL_CALLING_OPTIONS,
+                        "description": "Whether to use default, advanced, or disabled INDEL calling",
+                    },
+                ),
+                "gap_open_sequencing_error_probability": ("INT", {"default": "", "description": "Advanced -o value"}),
+                "gap_extension_sequencing_error_probability": ("INT", {"default": "", "description": "Advanced -e value"}),
+                "coefficient_for_modeling_homopolymer_errors": ("INT", {"default": "", "description": "Advanced -h value"}),
+                "skip_indel_calling_above_sample_depth": ("INT", {"default": "", "description": "Advanced -L value"}),
+                "minimum_gapped_reads_for_indel_candidates": ("INT", {"default": "", "description": "Advanced -m value"}),
+                "open_seq_error_probability": ("INT", {"default": "", "description": "Advanced --open-prob value"}),
+                "minimum_gapped_read_fraction": ("FLOAT", {"default": "", "description": "Advanced -F value"}),
+                "gapped_read_per_sample": ("BOOLEAN", {"default": False, "description": "Apply gapped-read thresholds per sample"}),
+                "platforms": ("STRING_LIST", {"default": [], "description": "Comma-joined platforms for INDEL candidates"}),
+                "ambig_reads": ("STRING", {"default": "", "options": cls.AMBIG_READS_OPTIONS, "description": "Ambiguous indel read handling"}),
+                "indel_bias": ("FLOAT", {"default": "", "min": 0, "description": "Indel bias score adjustment"}),
+                "indel_size": ("INT", {"default": "", "min": 0, "description": "Indel window size"}),
+                "max_reads_per_bam": ("INT", {"default": 250, "min": 1, "description": "Maximum reads per BAM"}),
+                "ignore_overlaps": ("BOOLEAN", {"default": False, "description": "Disable read-pair overlap detection"}),
+                "skip_anomalous_read_pairs": ("BOOLEAN", {"default": False, "description": "Do not skip anomalous read pairs"}),
+                "skip_all_set": ("STRING_LIST", {"default": [], "description": "Skip reads with all listed FLAG bits set"}),
+                "skip_any_set": ("STRING_LIST", {"default": [], "description": "Skip reads with any listed FLAG bit set"}),
+                "skip_all_unset": ("STRING_LIST", {"default": [], "description": "Skip reads with all listed FLAG bits unset"}),
+                "skip_any_unset": ("STRING_LIST", {"default": [], "description": "Skip reads with any listed FLAG bit unset"}),
+                "baq": ("STRING", {"default": "", "options": cls.BAQ_OPTIONS, "description": "BAQ handling"}),
+                "minimum_mapping_quality": ("INT", {"default": "", "min": 0, "description": "Minimum mapping quality"}),
+                "minimum_base_quality": ("INT", {"default": "", "min": 0, "description": "Minimum base quality"}),
+                "coefficient_for_downgrading": ("INT", {"default": "", "min": 0, "description": "Mapping quality downgrade coefficient"}),
+                "read_groups": ("TSV", {"description": "Read groups to include or exclude"}),
+                "exclude_read_groups": ("BOOLEAN", {"default": False, "description": "Exclude read groups instead of including them"}),
+                "ignore_read_groups": ("BOOLEAN", {"default": False, "description": "Ignore read group tags"}),
+                "output_tags": ("STRING_LIST", {"options": cls.OUTPUT_TAG_OPTIONS, "description": "Annotation tags to emit"}),
+                "gvcf": ("STRING", {"default": "", "description": "Depth ranges for gVCF reference blocks"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples to include or exclude"}),
+                "samples_file": ("TSV", {"description": "File of samples to include or exclude"}),
+                "invert_samples": ("BOOLEAN", {"default": False, "description": "Exclude samples listed in samples"}),
+                "invert_samples_file": ("BOOLEAN", {"default": False, "description": "Exclude samples listed in samples_file"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict pileup to regions"}),
+                "regions_file": ("BED", {"description": "Restrict pileup to regions from file"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict pileup to targets"}),
+                "targets_file": ("TSV", {"description": "Restrict pileup to targets from file"}),
+                "invert_targets": ("BOOLEAN", {"default": False, "description": "Invert inline targets"}),
+                "invert_targets_file": ("BOOLEAN", {"default": False, "description": "Invert targets file"}),
+                "output_type": ("STRING", {"default": "z", "options": cls.OUTPUT_TYPES, "description": "BCFtools output type"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+                "bam": ("BAM", {"description": "Compatibility alias for input_bams", "advanced": True}),
+                "input_bam": ("BAM", {"description": "Compatibility alias for input_bams", "advanced": True}),
+                "max_depth": ("INT", {"default": "", "min": 1, "description": "Compatibility alias for max_reads_per_bam", "advanced": True}),
+                "min_bq": ("INT", {"default": "", "min": 0, "description": "Compatibility alias for minimum_base_quality", "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BCFtoolsCallNode(CommandNode):
     """Call SNP and indel variants from genotype likelihoods in VCF/BCF."""
 
