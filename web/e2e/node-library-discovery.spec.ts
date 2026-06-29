@@ -5982,6 +5982,46 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.7359'],
     citation_text: 'MetaBAT 2: an adaptive binning algorithm for robust and efficient genome reconstruction from metagenome assemblies.',
   },
+  metabat2_jgi_summarize_bam_contig_depths: {
+    name: 'metabat2_jgi_summarize_bam_contig_depths',
+    display_name: 'Calculate contig depths',
+    category: 'metagenomics',
+    description: 'Calculate per-contig coverage depth matrices from one or more BAM files for MetaBAT2 binning.',
+    search_aliases: ['Galaxy', 'Calculate contig depths', 'jgi_summarize_bam_contig_depths', 'MetaBAT2 depth matrix', 'contig coverage depth', 'BAM contig depths'],
+    input: {
+      required: {
+        mode_type: { type: 'STRING', options: ['individual', 'co'] },
+      },
+      optional: {
+        bam_indiv_input: { type: 'BAM', default: '' },
+        bam_co_inputs: { type: 'BAM', default: [], multiple: true },
+        use_reference: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        reference_source: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        referenceFasta: { type: 'FASTA', default: '' },
+        gcWindow: { type: 'INT', default: 100 },
+        percentIdentity: { type: 'INT', default: 97 },
+        output_paired_contigs: { type: 'BOOLEAN', default: false },
+        noIntraDepthVariance: { type: 'BOOLEAN', default: false },
+        showDepth: { type: 'BOOLEAN', default: false },
+        minMapQual: { type: 'INT', default: 0 },
+        weightMapQual: { type: 'FLOAT', default: 0.0 },
+        includeEdgeBases: { type: 'BOOLEAN', default: false },
+        maxEdgeBases: { type: 'INT', default: 75 },
+        shredLength: { type: 'INT', default: 16000 },
+        shredDepth: { type: 'INT', default: 5 },
+        minContigLength: { type: 'INT', default: 1 },
+        minContigDepth: { type: 'FLOAT', default: 0.0 },
+      },
+    },
+    output: ['TSV', 'FASTA', 'TSV', 'TSV', 'TSV'],
+    output_name: ['outputDepth', 'outputPairedContigs', 'outputGC', 'outputReadStats', 'outputKmers'],
+    required_executables: ['jgi_summarize_bam_contig_depths'],
+    required_conda_packages: ['metabat2'],
+    documentation_url: 'https://bitbucket.org/berkeleylab/metabat/src/master/',
+    citation_dois: ['10.7717/peerj.7359'],
+    citation_urls: ['https://doi.org/10.7717/peerj.7359'],
+    citation_text: 'MetaBAT 2: an adaptive binning algorithm for robust and efficient genome reconstruction from metagenome assemblies.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8727,7 +8767,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('305 nodes available')).toBeVisible();
+  await expect(page.getByText('306 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8913,6 +8953,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'AMBER biobox conversion', name: 'CAMI AMBER convert to biobox', category: 'metagenomics' },
     { query: 'fragmented antibiotic resistance genes', name: 'fargene', category: 'annotation' },
     { query: 'metabat2 bins', name: 'MetaBAT2', category: 'metagenomics' },
+    { query: 'MetaBAT2 depth matrix', name: 'Calculate contig depths', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

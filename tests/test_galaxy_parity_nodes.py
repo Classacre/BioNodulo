@@ -13143,6 +13143,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["metabat2"],
             "doi": "10.7717/peerj.7359",
         },
+        "metabat2_jgi_summarize_bam_contig_depths": {
+            "display_name": "Calculate contig depths",
+            "category": "metagenomics",
+            "required_executables": ["jgi_summarize_bam_contig_depths"],
+            "required_conda_packages": ["metabat2"],
+            "doi": "10.7717/peerj.7359",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16820,6 +16827,83 @@ def test_metabat2_renders_binning_command_outputs_and_validation(tmp_path: Path)
     assert node_class.VALIDATE_INPUTS({"inFile": "assembly.fa", "minContig": 1000}) == "minContig must be >= 1500"
     assert node_class.VALIDATE_INPUTS({"inFile": "assembly.fa", "maxP": 101}) == "maxP must be between 1 and 100"
     assert node_class.VALIDATE_INPUTS({"inFile": "assembly.fa"}) is True
+
+
+def test_metabat2_jgi_depths_renders_contig_depth_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("metabat2_jgi_summarize_bam_contig_depths")
+    info = _registry().object_info()["metabat2_jgi_summarize_bam_contig_depths"]
+
+    assert info["output"] == ["TSV", "FASTA", "TSV", "TSV", "TSV"]
+    assert info["output_name"] == ["outputDepth", "outputPairedContigs", "outputGC", "outputReadStats", "outputKmers"]
+    assert info["input"]["required"]["mode_type"][1]["options"] == ["individual", "co"]
+    assert info["input"]["optional"]["use_reference"][1]["options"] == ["no", "yes"]
+    assert "10.7717/peerj.7359" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "mode_type": "individual",
+            "bam_indiv_input": "sample.bam",
+            "percentIdentity": 95,
+            "output_paired_contigs": True,
+            "noIntraDepthVariance": True,
+            "showDepth": True,
+            "minMapQual": 20,
+            "weightMapQual": 0.5,
+            "includeEdgeBases": True,
+            "maxEdgeBases": 100,
+            "use_reference": "yes",
+            "reference_source": "history",
+            "referenceFasta": "reference.fa",
+            "gcWindow": 250,
+            "shredLength": 12000,
+            "shredDepth": 8,
+            "minContigLength": 1000,
+            "minContigDepth": 0.2,
+            "output": "/work/metabat2_depths",
+        }
+    ) == (
+        "mkdir -p /work/metabat2_depths && jgi_summarize_bam_contig_depths --outputDepth /work/metabat2_depths/outputDepth.tsv "
+        "--percentIdentity 95 --pairedContigs /work/metabat2_depths/outputPairedContigs.fa --noIntraDepthVariance --showDepth "
+        "--minMapQual 20 --weightMapQual 0.5 --includeEdgeBases --maxEdgeBases 100 --referenceFasta reference.fa "
+        "--outputGC /work/metabat2_depths/outputGC.tsv --gcWindow 250 --outputReadStats /work/metabat2_depths/outputReadStats.tsv "
+        "--outputKmers /work/metabat2_depths/outputKmers.tsv --shredLength 12000 --shredDepth 8 --minContigLength 1000 "
+        "--minContigDepth 0.2 sample.bam"
+    )
+    assert node_class.render_command(
+        {
+            "mode_type": "co",
+            "bam_co_inputs": ["a.bam", "b.bam"],
+            "use_reference": "yes",
+            "reference_source": "cached",
+            "referenceFasta": "/refs/ref.fa",
+            "output": "/work/metabat2_depths",
+        }
+    ) == (
+        "mkdir -p /work/metabat2_depths && jgi_summarize_bam_contig_depths --outputDepth /work/metabat2_depths/outputDepth.tsv "
+        "--percentIdentity 97 --minMapQual 0 --weightMapQual 0.0 --maxEdgeBases 75 --referenceFasta /refs/ref.fa "
+        "--outputGC /work/metabat2_depths/outputGC.tsv --gcWindow 100 --outputReadStats /work/metabat2_depths/outputReadStats.tsv "
+        "--outputKmers /work/metabat2_depths/outputKmers.tsv --shredLength 16000 --shredDepth 5 --minContigLength 1 "
+        "--minContigDepth 0.0 a.bam b.bam"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "metabat2_jgi_summarize_bam_contig_depths" / "outputDepth.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_paired_contigs": True, "use_reference": "yes"}, tmp_path) == [
+        tmp_path / "metabat2_jgi_summarize_bam_contig_depths" / "outputDepth.tsv",
+        tmp_path / "metabat2_jgi_summarize_bam_contig_depths" / "outputPairedContigs.fa",
+        tmp_path / "metabat2_jgi_summarize_bam_contig_depths" / "outputGC.tsv",
+        tmp_path / "metabat2_jgi_summarize_bam_contig_depths" / "outputReadStats.tsv",
+        tmp_path / "metabat2_jgi_summarize_bam_contig_depths" / "outputKmers.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "mode_type must be one of: individual, co"
+    assert node_class.VALIDATE_INPUTS({"mode_type": "individual"}) == "bam_indiv_input is required for individual mode"
+    assert node_class.VALIDATE_INPUTS({"mode_type": "co"}) == "at least one BAM is required for co mode"
+    assert node_class.VALIDATE_INPUTS({"mode_type": "individual", "bam_indiv_input": "a.bam", "use_reference": "yes"}) == (
+        "referenceFasta is required when use_reference is yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode_type": "individual", "bam_indiv_input": "a.bam", "percentIdentity": 101}) == (
+        "percentIdentity must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode_type": "individual", "bam_indiv_input": "a.bam"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
