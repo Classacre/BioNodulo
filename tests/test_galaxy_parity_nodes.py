@@ -1196,6 +1196,37 @@ def test_abricate_renders_scan_command_outputs_and_validates(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"file_input": "assembly.fa", "db": "card"}) is True
 
 
+def test_abricate_list_exposes_galaxy_aligned_metadata_and_software_citation() -> None:
+    info = _registry().object_info()["abricate_list"]
+
+    assert info["display_name"] == "ABRicate List"
+    assert info["category"] == "annotation"
+    assert info["description"] == "List ABRicate databases available in the local installation."
+    assert info["input"]["required"] == {}
+    assert info["input"]["optional"] == {}
+    assert info["output"] == ["TXT"]
+    assert info["output_name"] == ["report"]
+    assert info["required_executables"] == ["abricate"]
+    assert info["required_conda_packages"] == ["abricate"]
+    assert info["documentation_url"] == "https://github.com/tseemann/abricate"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/tseemann/abricate"]
+    assert "ABRicate: mass screening of contigs for antibiotic resistance genes" in info["citation_text"]
+    assert "ABRicate databases" in info["search_aliases"]
+
+
+def test_abricate_list_renders_database_list_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("abricate_list")
+
+    assert node_class.render_command({"output": "/work/abricate_list"}) == (
+        "abricate --list > /work/abricate_list/databases.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "abricate_list" / "databases.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

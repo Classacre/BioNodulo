@@ -1552,6 +1552,56 @@ class ABRicateNode(CommandNode):
         }
 
 
+class ABRicateListNode(CommandNode):
+    """List ABRicate databases available in the local installation."""
+
+    NODE_ID = "abricate_list"
+    DISPLAY_NAME = "ABRicate List"
+    REQUIRED_CONDA_PACKAGES = ["abricate"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "List ABRicate databases available in the local installation."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ABRicate",
+        "abricate",
+        "ABRicate databases",
+        "abricate --list",
+        "AMR database list",
+        "ResFinder database",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("report",)
+    REQUIRED_EXECUTABLES = ["abricate"]
+    DOCUMENTATION_URL = ABRICATE_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [ABRICATE_CITATION_URL]
+    CITATION_TEXT = ABRICATE_CITATION_TEXT
+    VERSION = "1.4.0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/databases.txt"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        return f"abricate --list > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "databases.txt"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {},
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 CHECKM2_TRANSLATION_TABLES = [
     "",
     "1",
