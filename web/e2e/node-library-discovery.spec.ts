@@ -5940,6 +5940,48 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s40168-019-0670-1'],
     citation_text: 'Identification and reconstruction of novel antibiotic resistance genes from metagenomes.',
   },
+  metabat2: {
+    name: 'metabat2',
+    display_name: 'MetaBAT2',
+    category: 'metagenomics',
+    description: 'Bin metagenome assemblies using MetaBAT2 abundance and tetranucleotide-frequency clustering.',
+    search_aliases: ['Galaxy', 'MetaBAT2', 'MetaBAT 2', 'metagenome binning', 'metabat2 bins', 'contig abundance binning'],
+    input: {
+      required: {
+        inFile: { type: 'FASTA' },
+      },
+      optional: {
+        base_coverage_depth: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        abdFile: { type: 'TSV', default: '' },
+        cvExt: { type: 'TSV', default: '' },
+        minContig: { type: 'INT', default: 2500 },
+        minSmallContig: { type: 'INT', default: 1000 },
+        maxP: { type: 'INT', default: 95 },
+        minS: { type: 'INT', default: 60 },
+        maxEdges: { type: 'INT', default: 200 },
+        pTNF: { type: 'INT', default: 0 },
+        noAdd: { type: 'BOOLEAN', default: false },
+        minRecruitingSize: { type: 'INT', default: 10 },
+        minCV: { type: 'FLOAT', default: 1.0 },
+        minCVSum: { type: 'FLOAT', default: 1.0 },
+        seed: { type: 'INT', default: 0 },
+        minClsSize: { type: 'INT', default: 200000 },
+        onlyLabel: { type: 'BOOLEAN', default: false },
+        saveCls: { type: 'BOOLEAN', default: false },
+        fullHeader: { type: 'BOOLEAN', default: false },
+        extra_outputs: { type: 'STRING_LIST', default: [], options: ['lowDepth', 'tooShort', 'unbinned', 'log'] },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['DIRECTORY', 'TSV', 'DIRECTORY', 'FASTA', 'FASTA', 'FASTA', 'TXT'],
+    output_name: ['bins', 'bin_saveCls', 'bin_onlyLabel', 'lowDepth', 'tooShort', 'unbinned', 'process_log'],
+    required_executables: ['metabat2'],
+    required_conda_packages: ['metabat2'],
+    documentation_url: 'https://bitbucket.org/berkeleylab/metabat/src/master/',
+    citation_dois: ['10.7717/peerj.7359'],
+    citation_urls: ['https://doi.org/10.7717/peerj.7359'],
+    citation_text: 'MetaBAT 2: an adaptive binning algorithm for robust and efficient genome reconstruction from metagenome assemblies.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8685,7 +8727,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('304 nodes available')).toBeVisible();
+  await expect(page.getByText('305 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8870,6 +8912,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'AMBER gold standard length', name: 'CAMI AMBER add length column', category: 'metagenomics' },
     { query: 'AMBER biobox conversion', name: 'CAMI AMBER convert to biobox', category: 'metagenomics' },
     { query: 'fragmented antibiotic resistance genes', name: 'fargene', category: 'annotation' },
+    { query: 'metabat2 bins', name: 'MetaBAT2', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

@@ -13136,6 +13136,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["fargene", "tar"],
             "doi": "10.1186/s40168-019-0670-1",
         },
+        "metabat2": {
+            "display_name": "MetaBAT2",
+            "category": "metagenomics",
+            "required_executables": ["metabat2"],
+            "required_conda_packages": ["metabat2"],
+            "doi": "10.7717/peerj.7359",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16729,6 +16736,90 @@ def test_fargene_renders_arg_prediction_command_outputs_and_validation(tmp_path:
         "score must be >= 0"
     )
     assert node_class.VALIDATE_INPUTS({"input_type": "sequence", "input_sequence": ["a.fa"], "models": "class_a"}) is True
+
+
+def test_metabat2_renders_binning_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("metabat2")
+    info = _registry().object_info()["metabat2"]
+
+    assert info["output"] == ["DIRECTORY", "TSV", "DIRECTORY", "FASTA", "FASTA", "FASTA", "TXT"]
+    assert info["output_name"] == ["bins", "bin_saveCls", "bin_onlyLabel", "lowDepth", "tooShort", "unbinned", "process_log"]
+    assert info["input"]["required"]["inFile"][0] == "FASTA"
+    assert info["input"]["optional"]["base_coverage_depth"][1]["options"] == ["no", "yes"]
+    assert info["input"]["optional"]["extra_outputs"][1]["options"] == ["lowDepth", "tooShort", "unbinned", "log"]
+    assert "10.7717/peerj.7359" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "inFile": "assembly.fa.gz",
+            "seed": 345678,
+            "extra_outputs": ["lowDepth", "tooShort", "unbinned", "log"],
+            "threads": 12,
+            "output": "/work/metabat2",
+        }
+    ) == (
+        "mkdir -p bins /work/metabat2 && metabat2 --inFile assembly.fa.gz --outFile bins/bin --minContig 2500 "
+        "--minSmallContig 1000 --maxP 95 --minS 60 --maxEdges 200 --pTNF 0 --minRecruitingSize 10 --minCV 1.0 "
+        "--minCVSum 1.0 --seed 345678 --minClsSize 200000 --numThreads ${GALAXY_SLOTS:-12} --unbinned "
+        "> process_log.txt && mv process_log.txt /work/metabat2/process_log.txt && cp -r bins /work/metabat2/bins && "
+        "cp bins/bin.lowDepth.fa /work/metabat2/bin.lowDepth.fa && cp bins/bin.tooShort.fa /work/metabat2/bin.tooShort.fa && "
+        "cp bins/bin.unbinned.fa /work/metabat2/bin.unbinned.fa"
+    )
+    assert node_class.render_command(
+        {
+            "inFile": "assembly.fa",
+            "base_coverage_depth": "yes",
+            "abdFile": "depth matrix.tsv",
+            "minCV": 0.1,
+            "minCVSum": 0.2,
+            "saveCls": True,
+            "fullHeader": True,
+            "output": "/work/metabat2",
+        }
+    ) == (
+        "mkdir -p bins /work/metabat2 && metabat2 --inFile assembly.fa --outFile bins/bin --abdFile 'depth matrix.tsv' "
+        "--minContig 2500 --minSmallContig 1000 --maxP 95 --minS 60 --maxEdges 200 --pTNF 0 --minRecruitingSize 10 "
+        "--minCV 0.1 --minCVSum 0.2 --seed 0 --minClsSize 200000 --numThreads ${GALAXY_SLOTS:-4} --fullHeader "
+        "--noBinOut > process_log.txt && cp bins/bin.MemberMatrix.txt /work/metabat2/bin.MemberMatrix.txt"
+    )
+    assert node_class.render_command(
+        {
+            "inFile": "assembly.fa",
+            "base_coverage_depth": "yes",
+            "cvExt": "coverage.tsv",
+            "onlyLabel": True,
+            "noAdd": True,
+            "output": "/work/metabat2",
+        }
+    ).startswith(
+        "mkdir -p bins /work/metabat2 && metabat2 --inFile assembly.fa --outFile bins/bin --cvExt coverage.tsv "
+        "--minContig 2500 --minSmallContig 1000 --maxP 95 --minS 60 --maxEdges 200 --pTNF 0 --noAdd"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "metabat2" / "bins",
+    ]
+    assert node_class.PLAN_OUTPUTS({"saveCls": True}, tmp_path) == [
+        tmp_path / "metabat2" / "bin.MemberMatrix.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"onlyLabel": True}, tmp_path) == [
+        tmp_path / "metabat2" / "bin_onlyLabel",
+    ]
+    assert node_class.PLAN_OUTPUTS({"extra_outputs": ["lowDepth", "tooShort", "unbinned", "log"]}, tmp_path) == [
+        tmp_path / "metabat2" / "bins",
+        tmp_path / "metabat2" / "bin.lowDepth.fa",
+        tmp_path / "metabat2" / "bin.tooShort.fa",
+        tmp_path / "metabat2" / "bin.unbinned.fa",
+        tmp_path / "metabat2" / "process_log.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "inFile is required"
+    assert node_class.VALIDATE_INPUTS({"inFile": "assembly.fa", "base_coverage_depth": "yes"}) == (
+        "abdFile or cvExt is required when base_coverage_depth is yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"inFile": "assembly.fa", "saveCls": True, "onlyLabel": True}) == (
+        "saveCls and onlyLabel cannot both be enabled"
+    )
+    assert node_class.VALIDATE_INPUTS({"inFile": "assembly.fa", "minContig": 1000}) == "minContig must be >= 1500"
+    assert node_class.VALIDATE_INPUTS({"inFile": "assembly.fa", "maxP": 101}) == "maxP must be between 1 and 100"
+    assert node_class.VALIDATE_INPUTS({"inFile": "assembly.fa"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
