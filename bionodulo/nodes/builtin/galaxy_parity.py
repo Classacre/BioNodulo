@@ -21401,6 +21401,64 @@ class LoFreqViterbiNode(CommandNode):
         }
 
 
+class FreyjaVariantsNode(CommandNode):
+    """Call SARS-CoV-2 variants and sequencing depths for Freyja demixing."""
+
+    NODE_ID = "freyja_variants"
+    DISPLAY_NAME = "Freyja Variants"
+    REQUIRED_CONDA_PACKAGES = ["freyja"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Call variants and genome-wide sequencing depths from aligned viral reads for Freyja demixing."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Freyja",
+        "freyja variants",
+        "wastewater sequencing",
+        "lineage abundance",
+        "SARS-CoV-2 variants",
+        "sequencing depth",
+    ]
+    RETURN_TYPES = ("TSV", "TSV")
+    RETURN_NAMES = ("variants", "depths")
+    REQUIRED_EXECUTABLES = ["freyja"]
+    DOCUMENTATION_URL = "https://github.com/andersen-lab/Freyja"
+    CITATION_DOIS = ["10.1038/s41586-022-05049-6"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/s41586-022-05049-6"]
+    CITATION_TEXT = "Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission."
+    VERSION = "2.0.1"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "freyja",
+            "variants",
+            str(inputs.get("bam_file", "")),
+            "--variants",
+            f"{out}/variants.tsv",
+            "--depths",
+            f"{out}/depths.tsv",
+            "--ref",
+            str(inputs.get("ref_file", "")),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "variants.tsv", out / "depths.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bam_file": ("BAM", {"description": "BAM file aligned to the same reference used for variant calling"}),
+                "ref_file": ("FASTA", {"description": "Reference FASTA used for alignment"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 

@@ -12905,6 +12905,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["lofreq", "samtools"],
             "doi": "10.1093/nar/gks918",
         },
+        "freyja_variants": {
+            "display_name": "Freyja Variants",
+            "category": "variant",
+            "required_executables": ["freyja"],
+            "required_conda_packages": ["freyja"],
+            "doi": "10.1038/s41586-022-05049-6",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -13695,6 +13702,37 @@ def test_ivar_trim_renders_primer_trim_pipeline_and_output(tmp_path: Path) -> No
     assert no_filter_cmd[no_filter_cmd.index("-m") + 1] == "0"
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ivar_trim" / "trimmed.sorted.bam"]
+
+
+def test_freyja_variants_renders_variant_and_depth_command_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("freyja_variants")
+    info = _registry().object_info()["freyja_variants"]
+
+    assert info["output"] == ["TSV", "TSV"]
+    assert info["output_name"] == ["variants", "depths"]
+    assert "10.1038/s41586-022-05049-6" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "bam_file": "aligned.bam",
+            "ref_file": "NC_045512_Hu-1.fasta",
+            "output": "/work/freyja_variants",
+        }
+    ) == [
+        "freyja",
+        "variants",
+        "aligned.bam",
+        "--variants",
+        "/work/freyja_variants/variants.tsv",
+        "--depths",
+        "/work/freyja_variants/depths.tsv",
+        "--ref",
+        "NC_045512_Hu-1.fasta",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "freyja_variants" / "variants.tsv",
+        tmp_path / "freyja_variants" / "depths.tsv",
+    ]
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

@@ -4795,6 +4795,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gks918'],
     citation_text: 'LoFreq viterbi performs probabilistic realignment of mapped reads to correct mapping errors before variant calling.',
   },
+  freyja_variants: {
+    name: 'freyja_variants',
+    display_name: 'Freyja Variants',
+    category: 'variant',
+    description: 'Call variants and genome-wide sequencing depths from aligned viral reads for Freyja demixing.',
+    search_aliases: ['Galaxy', 'Freyja', 'freyja variants', 'wastewater sequencing', 'lineage abundance', 'SARS-CoV-2 variants', 'sequencing depth'],
+    input: {
+      required: {
+        bam_file: { type: 'BAM' },
+        ref_file: { type: 'FASTA' },
+      },
+    },
+    output: ['TSV', 'TSV'],
+    output_name: ['variants', 'depths'],
+    required_executables: ['freyja'],
+    required_conda_packages: ['freyja'],
+    documentation_url: 'https://github.com/andersen-lab/Freyja',
+    citation_dois: ['10.1038/s41586-022-05049-6'],
+    citation_urls: ['https://doi.org/10.1038/s41586-022-05049-6'],
+    citation_text: 'Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7540,7 +7561,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('271 nodes available')).toBeVisible();
+  await expect(page.getByText('272 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7692,6 +7713,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Dindel indel quality', name: 'LoFreq Indel Quality', category: 'variant' },
     { query: 'lofreq strand bias filter', name: 'LoFreq Filter', category: 'variant' },
     { query: 'lofreq read realignment', name: 'LoFreq Viterbi Realignment', category: 'variant' },
+    { query: 'freyja wastewater sequencing', name: 'Freyja Variants', category: 'variant' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
