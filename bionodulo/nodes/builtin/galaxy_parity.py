@@ -40851,6 +40851,204 @@ class BCFtoolsFilterNode(CommandNode):
         }
 
 
+class BCFtoolsStatsNode(CommandNode):
+    """Parse VCF/BCF files and produce bcftools stats reports."""
+
+    NODE_ID = "bcftools_stats"
+    DISPLAY_NAME = "BCFtools Stats"
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib", "samtools", "matplotlib-base", "tectonic"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Parse VCF or BCF files with bcftools stats and optionally render plot-vcfstats summaries."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "bcftools",
+        "stats",
+        "vcf stats",
+        "plot-vcfstats",
+        "variant statistics",
+        "genotype concordance",
+    ]
+    RETURN_TYPES = ("STATS_FILE", "PDF_REPORT")
+    RETURN_NAMES = ("stats", "summary_pdf")
+    REQUIRED_EXECUTABLES = ["bcftools", "plot-vcfstats", "samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#stats"
+    CITATION_DOIS = BCFTOOLS_CITATION_DOIS
+    CITATION_URLS = BCFTOOLS_CITATION_URLS
+    CITATION_TEXT = BCFTOOLS_CITATION_TEXT
+    VERSION = "1.22+galaxy0"
+    SHELL = True
+    COLLAPSE_OPTIONS = ["", "snps", "indels", "both", "some", "any", "none", "id"]
+    AFBINS_OPTIONS = ["default", "af_bins_list", "af_bins_file"]
+    OVERLAP_OPTIONS = ["", "0", "1", "2"]
+
+    @staticmethod
+    def _selected(value: Any) -> bool:
+        return value is not None and str(value) != ""
+
+    @classmethod
+    def _input_file(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_file", inputs.get("vcf", "")) or "")
+
+    @classmethod
+    def _stats_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/stats.txt"
+
+    @classmethod
+    def _add_targets(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        prefix = "^" if inputs.get("invert_targets") or inputs.get("invert_targets_file") else ""
+        if cls._selected(inputs.get("targets")):
+            cmd.extend(["--targets", f"{prefix}{inputs['targets']}"])
+        if cls._selected(inputs.get("targets_file")):
+            cmd.extend(["--targets-file", f"{prefix}{inputs['targets_file']}"])
+        _add_if_value(cmd, "--targets-overlap", inputs.get("targets_overlap"))
+
+    @classmethod
+    def _add_samples(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        if cls._selected(inputs.get("samples")):
+            prefix = "^" if inputs.get("invert_samples") else ""
+            cmd.extend(["--samples", f"{prefix}{inputs['samples']}"])
+        if cls._selected(inputs.get("samples_file")):
+            prefix = "^" if inputs.get("invert_samples_file") else ""
+            cmd.extend(["--samples-file", f"{prefix}{inputs['samples_file']}"])
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = ["bcftools", "stats"]
+        _add_if_value(cmd, "--fasta-ref", inputs.get("reference", inputs.get("fasta_ref")))
+        _add_if_value(cmd, "--exons", inputs.get("exons_file"))
+        if inputs.get("first_allele_only"):
+            cmd.append("--1st-allele-only")
+        depth_requested = (
+            cls._selected(inputs.get("depth_min"))
+            or cls._selected(inputs.get("depth_max"))
+            or cls._selected(inputs.get("depth_bin_size"))
+        )
+        if depth_requested:
+            cmd.extend(
+                [
+                    "--depth",
+                    f"{inputs.get('depth_min', 0) or 0},{inputs.get('depth_max', 500) or 500},{inputs.get('depth_bin_size', 1) or 1}",
+                ]
+            )
+        _add_if_value(cmd, "--user-tstv", inputs.get("user_tstv"))
+        af_bins_select = str(inputs.get("af_bins_select", "") or "")
+        if af_bins_select == "af_bins_file":
+            _add_if_value(cmd, "--af-bins", inputs.get("af_bins_file"))
+        else:
+            _add_if_value(cmd, "--af-bins", inputs.get("af_bins_list"))
+        _add_if_value(cmd, "--af-tag", inputs.get("af_tag"))
+        if inputs.get("split_by_ID") and not cls._selected(inputs.get("inputB_file")):
+            cmd.append("--split-by-ID")
+        if inputs.get("verbose"):
+            cmd.append("--verbose")
+        _add_if_value(cmd, "--apply-filters", inputs.get("apply_filters"))
+        _add_if_value(cmd, "--collapse", inputs.get("collapse"))
+        _add_if_value(cmd, "--regions", inputs.get("regions"))
+        _add_if_value(cmd, "--regions-file", inputs.get("regions_file"))
+        _add_if_value(cmd, "--regions-overlap", inputs.get("regions_overlap"))
+        cls._add_samples(cmd, inputs)
+        cls._add_targets(cmd, inputs)
+        _add_if_value(cmd, "--include", inputs.get("include"))
+        _add_if_value(cmd, "--exclude", inputs.get("exclude"))
+        cmd.append(cls._input_file(inputs))
+        if cls._selected(inputs.get("inputB_file")):
+            cmd.append(str(inputs["inputB_file"]))
+        stats_path = cls._stats_path(inputs)
+        _add_shell_redirect(cmd, stats_path)
+        if cls._selected(inputs.get("plot_title")):
+            cmd.extend(
+                [
+                    "&&",
+                    "plot-vcfstats",
+                    "-p",
+                    f"{_out(inputs)}/plot_tmp",
+                    "-T",
+                    str(inputs["plot_title"]),
+                    "-s",
+                    stats_path,
+                ]
+            )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        outputs = [_bcftools_common_output(cls.NODE_ID, "stats.txt", output_dir)]
+        if cls._selected(inputs.get("plot_title")):
+            outputs.append(_bcftools_common_output(cls.NODE_ID, "summary.pdf", output_dir))
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_file(inputs).strip():
+            return "input_file is required"
+        try:
+            depth_min = int(inputs.get("depth_min", 0) or 0)
+            depth_max = int(inputs.get("depth_max", 500) or 500)
+            depth_bin_size = int(inputs.get("depth_bin_size", 1) or 1)
+        except (TypeError, ValueError):
+            return "depth values must be integers"
+        if depth_min < 0:
+            return "depth_min must be at least 0"
+        if depth_max < depth_min:
+            return "depth_max must be greater than or equal to depth_min"
+        if depth_bin_size < 1:
+            return "depth_bin_size must be at least 1"
+        af_bins_select = str(inputs.get("af_bins_select", "default") or "default")
+        if af_bins_select not in cls.AFBINS_OPTIONS:
+            return f"af_bins_select must be one of: {', '.join(cls.AFBINS_OPTIONS)}"
+        collapse = str(inputs.get("collapse", "") or "")
+        if collapse not in cls.COLLAPSE_OPTIONS:
+            return "collapse must be one of: snps, indels, both, some, any, none, id"
+        for name in ("regions_overlap", "targets_overlap"):
+            value = str(inputs.get(name, "") or "")
+            if value not in cls.OVERLAP_OPTIONS:
+                return f"{name} must be one of: 0, 1, 2"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("VCF", {"description": "Primary VCF/BCF file for bcftools stats"}),
+            },
+            "optional": {
+                "inputB_file": ("VCF", {"description": "Optional comparison VCF/BCF file"}),
+                "reference": ("FASTA", {"description": "Reference FASTA used for substitution statistics"}),
+                "exons_file": ("TSV", {"description": "Exons file for indel frameshift statistics"}),
+                "first_allele_only": ("BOOLEAN", {"default": False, "description": "Include only first allele at multiallelic sites"}),
+                "depth_min": ("INT", {"default": "", "min": 0, "description": "Depth distribution minimum"}),
+                "depth_max": ("INT", {"default": "", "min": 1, "description": "Depth distribution maximum"}),
+                "depth_bin_size": ("INT", {"default": "", "min": 1, "description": "Depth distribution bin size"}),
+                "user_tstv": ("STRING", {"default": "", "description": "Ts/Tv binning tag such as TAG:min:max:binsize"}),
+                "af_bins_select": ("STRING", {"default": "default", "options": cls.AFBINS_OPTIONS, "description": "Allele-frequency bin source"}),
+                "af_bins_list": ("STRING", {"default": "", "description": "Comma-separated allele-frequency bins"}),
+                "af_bins_file": ("TSV", {"description": "File listing allele-frequency bins"}),
+                "af_tag": ("STRING", {"default": "", "description": "Allele-frequency tag to use"}),
+                "split_by_ID": ("BOOLEAN", {"default": False, "description": "Split known and novel sites by ID for one input"}),
+                "verbose": ("BOOLEAN", {"default": False, "description": "Produce verbose per-site and per-sample output"}),
+                "apply_filters": ("STRING", {"default": "", "description": "Skip sites whose FILTER value is not listed"}),
+                "collapse": ("STRING", {"default": "", "options": cls.COLLAPSE_OPTIONS, "description": "Compatibility mode for duplicate records"}),
+                "regions": ("STRING", {"default": "", "description": "Restrict stats to regions"}),
+                "regions_file": ("BED", {"description": "Restrict stats to regions from file"}),
+                "regions_overlap": ("STRING", {"default": "", "options": cls.OVERLAP_OPTIONS, "description": "Region overlap mode"}),
+                "samples": ("STRING", {"default": "", "description": "Comma-separated samples to include or exclude"}),
+                "samples_file": ("TSV", {"description": "File of samples to include or exclude"}),
+                "invert_samples": ("BOOLEAN", {"default": False, "description": "Exclude samples listed in samples"}),
+                "invert_samples_file": ("BOOLEAN", {"default": False, "description": "Exclude samples listed in samples_file"}),
+                "targets": ("STRING", {"default": "", "description": "Restrict stats to targets"}),
+                "targets_file": ("TSV", {"description": "Restrict stats to targets from file"}),
+                "invert_targets": ("BOOLEAN", {"default": False, "description": "Invert inline targets"}),
+                "invert_targets_file": ("BOOLEAN", {"default": False, "description": "Invert targets file"}),
+                "targets_overlap": ("STRING", {"default": "", "options": cls.OVERLAP_OPTIONS, "description": "Target overlap mode"}),
+                "include": ("STRING", {"default": "", "description": "Include-expression filter"}),
+                "exclude": ("STRING", {"default": "", "description": "Exclude-expression filter"}),
+                "plot_title": ("STRING", {"default": "", "description": "Create plot-vcfstats PDF with this title"}),
+                "vcf": ("VCF_GZ", {"description": "Compatibility alias for input_file", "advanced": True}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BCFtoolsConcatNode(CommandNode):
     """Concatenate or combine VCF/BCF files with matching sample columns."""
 

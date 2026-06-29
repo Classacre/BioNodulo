@@ -9342,6 +9342,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  bcftools_stats: {
+    name: 'bcftools_stats',
+    display_name: 'BCFtools Stats',
+    category: 'variant',
+    description: 'Parse VCF or BCF files with bcftools stats and optionally render plot-vcfstats summaries.',
+    search_aliases: ['Galaxy', 'bcftools', 'stats', 'vcf stats', 'plot-vcfstats', 'variant statistics', 'genotype concordance'],
+    input: {
+      required: {
+        input_file: { type: 'VCF' },
+      },
+      optional: {
+        inputB_file: { type: 'VCF', default: '' },
+        reference: { type: 'FASTA', default: '' },
+        first_allele_only: { type: 'BOOLEAN', default: false },
+        samples: { type: 'STRING', default: '' },
+        plot_title: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['STATS_FILE', 'PDF_REPORT'],
+    output_name: ['stats', 'summary_pdf'],
+    required_executables: ['bcftools', 'plot-vcfstats', 'samtools'],
+    required_conda_packages: ['bcftools', 'htslib', 'samtools', 'matplotlib-base', 'tectonic'],
+    documentation_url: 'https://www.htslib.org/doc/bcftools.html#stats',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btp352'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
+  },
   bcftools_concat: {
     name: 'bcftools_concat',
     display_name: 'BCFtools Concat',
@@ -10583,7 +10610,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('362 nodes available')).toBeVisible();
+  await expect(page.getByText('363 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10892,6 +10919,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'annotate vcf', name: 'BCFtools Annotate', category: 'variant' },
     { query: 'SNP indel calling', name: 'BCFtools Call', category: 'variant' },
     { query: 'fixed-threshold filters', name: 'BCFtools Filter', category: 'variant' },
+    { query: 'plot-vcfstats', name: 'BCFtools Stats', category: 'variant' },
     { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },
     { query: 'consensus fasta', name: 'BCFtools Consensus', category: 'variant' },
     { query: 'extract fields', name: 'BCFtools Query', category: 'variant' },

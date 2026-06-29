@@ -1634,47 +1634,6 @@ class BcftoolsIndexNode(CommandNode):
         return result
 
 
-class BcftoolsStatsNode(CommandNode):
-    """Generate VCF statistics with bcftools."""
-    NODE_ID = "bcftools_stats"
-    DISPLAY_NAME = "bcftools Stats"
-    CATEGORY = "variant"
-    DESCRIPTION = "Generate statistics for a VCF file"
-    SEARCH_ALIASES = ["bcftools", "stats", "vcf stats"]
-    RETURN_TYPES = ("STATS_FILE",)
-    RETURN_NAMES = ("stats",)
-    REQUIRED_EXECUTABLES = ["bcftools"]
-    REQUIRED_CONDA_PACKAGES = ['bcftools']
-    DOCUMENTATION_URL = "https://samtools.github.io/bcftools/bcftools.html"
-    VERSION = "1.20"
-    SHELL = True
-
-    @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        cmd = [
-            "bcftools", "stats",
-            str(inputs.get("vcf", "")),
-        ]
-        if inputs.get("samples"):
-            cmd.extend(["-s", str(inputs["samples"])])
-        cmd.extend([">", f"{inputs.get('output', '.')}/stats.stats.txt"])
-        return cmd
-
-    @classmethod
-    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
-        return {
-            "required": {
-                "vcf": ("VCF_GZ", {"description": "Input VCF file"}),
-            },
-            "optional": {
-                "samples": ("STRING", {"default": "", "description": "Comma-separated sample list"}),
-            },
-            "hidden": {
-                "output": ("STRING", {}),
-            },
-        }
-
-
 class BcftoolsNormNode(CommandNode):
     """Normalize VCF records with bcftools norm."""
 

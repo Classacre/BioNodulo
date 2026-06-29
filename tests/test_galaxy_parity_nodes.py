@@ -25720,6 +25720,14 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
             "output": ["VCF_GZ"],
             "search_alias": "fixed-threshold filters",
         },
+        "bcftools_stats": {
+            "display_name": "BCFtools Stats",
+            "documentation_url": "https://www.htslib.org/doc/bcftools.html#stats",
+            "output": ["STATS_FILE", "PDF_REPORT"],
+            "required_executables": ["bcftools", "plot-vcfstats", "samtools"],
+            "required_conda_packages": ["bcftools", "htslib", "samtools", "matplotlib-base", "tectonic"],
+            "search_alias": "plot-vcfstats",
+        },
         "bcftools_concat": {
             "display_name": "BCFtools Concat",
             "documentation_url": "https://www.htslib.org/doc/bcftools.html#concat",
@@ -25764,7 +25772,7 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
         assert node_info["category"] == "variant"
         assert node_info["output"] == metadata["output"]
         assert node_info["required_executables"] == metadata.get("required_executables", ["bcftools"])
-        assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
+        assert node_info["required_conda_packages"] == metadata.get("required_conda_packages", ["bcftools", "htslib"])
         assert node_info["documentation_url"] == metadata["documentation_url"]
         assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
         assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
@@ -25938,6 +25946,145 @@ def test_bcftools_annotate_renders_vcf_annotation_and_removal_modes(tmp_path: Pa
                 "annotation_format": "tab",
                 "annotations": "annots.tsv",
                 "columns": "CHROM,POS,INFO/TAG",
+            }
+        )
+        is True
+    )
+
+
+def test_bcftools_stats_renders_comparison_restricted_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_stats")
+
+    assert node_class.render_command(
+        {
+            "input_file": "case.vcf.gz",
+            "inputB_file": "control.bcf",
+            "reference": "GRCh38.fa",
+            "exons_file": "exons.tsv",
+            "first_allele_only": True,
+            "depth_min": 1,
+            "depth_max": 300,
+            "depth_bin_size": 5,
+            "user_tstv": "DP:0:100:10",
+            "af_bins_list": "0.1,0.5,1",
+            "af_tag": "AF",
+            "split_by_ID": True,
+            "verbose": True,
+            "apply_filters": "PASS,.",
+            "collapse": "both",
+            "regions": "chr1",
+            "regions_overlap": "1",
+            "samples": "S1,S2",
+            "targets_file": "targets.tsv",
+            "targets_overlap": "0",
+            "include": "QUAL>30",
+            "exclude": "DP<10",
+            "plot_title": "Case control stats",
+            "output": "/work/bcftools_stats",
+        }
+    ) == [
+        "bcftools",
+        "stats",
+        "--fasta-ref",
+        "GRCh38.fa",
+        "--exons",
+        "exons.tsv",
+        "--1st-allele-only",
+        "--depth",
+        "1,300,5",
+        "--user-tstv",
+        "DP:0:100:10",
+        "--af-bins",
+        "0.1,0.5,1",
+        "--af-tag",
+        "AF",
+        "--verbose",
+        "--apply-filters",
+        "PASS,.",
+        "--collapse",
+        "both",
+        "--regions",
+        "chr1",
+        "--regions-overlap",
+        "1",
+        "--samples",
+        "S1,S2",
+        "--targets-file",
+        "targets.tsv",
+        "--targets-overlap",
+        "0",
+        "--include",
+        "QUAL>30",
+        "--exclude",
+        "DP<10",
+        "case.vcf.gz",
+        "control.bcf",
+        ">",
+        "/work/bcftools_stats/stats.txt",
+        "&&",
+        "plot-vcfstats",
+        "-p",
+        "/work/bcftools_stats/plot_tmp",
+        "-T",
+        "Case control stats",
+        "-s",
+        "/work/bcftools_stats/stats.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"plot_title": "Case control stats"}, tmp_path) == [
+        tmp_path / "bcftools_stats" / "stats.txt",
+        tmp_path / "bcftools_stats" / "summary.pdf",
+    ]
+
+
+def test_bcftools_stats_supports_legacy_vcf_alias_and_default_output(tmp_path: Path) -> None:
+    node_class = _node_class("bcftools_stats")
+
+    assert node_class.render_command(
+        {
+            "vcf": "cohort.vcf.gz",
+            "samples": "-",
+            "output": "/work/bcftools_stats",
+        }
+    ) == [
+        "bcftools",
+        "stats",
+        "--samples",
+        "-",
+        "cohort.vcf.gz",
+        ">",
+        "/work/bcftools_stats/stats.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bcftools_stats" / "stats.txt",
+    ]
+
+
+def test_bcftools_stats_validates_required_depth_and_restriction_choices() -> None:
+    node_class = _node_class("bcftools_stats")
+
+    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "depth_min": 10, "depth_max": 5}) == (
+        "depth_max must be greater than or equal to depth_min"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "af_bins_select": "bad"}) == (
+        "af_bins_select must be one of: default, af_bins_list, af_bins_file"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "regions_overlap": "bad"}) == (
+        "regions_overlap must be one of: 0, 1, 2"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "collapse": "bad"}) == (
+        "collapse must be one of: snps, indels, both, some, any, none, id"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input_file": "cohort.vcf",
+                "depth_min": "",
+                "depth_max": "",
+                "depth_bin_size": "",
+                "af_bins_select": "default",
             }
         )
         is True
