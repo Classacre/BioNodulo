@@ -12975,6 +12975,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["chromeister"],
             "doi": "10.1038/s41598-019-46773-w",
         },
+        "bigwig_outlier_bed": {
+            "display_name": "Bigwig outliers to bed features",
+            "category": "genomics",
+            "required_executables": ["python"],
+            "required_conda_packages": ["python", "numpy", "pybigtools"],
+            "doi": "10.1093/bioinformatics/btae350",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14433,6 +14440,65 @@ def test_chromeister_renders_pairwise_genome_comparison_command_outputs(tmp_path
         tmp_path / "chromeister" / "comparison_metainfo.csv",
         tmp_path / "chromeister" / "events.txt",
         tmp_path / "chromeister" / "comparison_score.txt",
+    ]
+
+
+def test_bigwig_outlier_bed_renders_conditional_bed_and_table_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bigwig_outlier_bed")
+    info = _registry().object_info()["bigwig_outlier_bed"]
+
+    assert info["output"] == ["BED", "BED", "BED", "BED", "TXT"]
+    assert info["output_name"] == ["high_low_bed", "high_bed", "low_bed", "zero_bed", "contig_statistics"]
+    assert "10.1093/bioinformatics/btae350" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "bigwig": ["coverage A.bw", "coverage B.bw"],
+            "bigwiglabels": ["sample A", "sample B"],
+            "outbeds": "outlohi",
+            "tableout": "create",
+            "minwin": 25,
+            "qhi": 0.95,
+            "qlo": 0.05,
+            "script": "bigwig_outlier_bed.py",
+            "output": "/work/bigwig_outlier_bed",
+        }
+    ) == [
+        "python",
+        "bigwig_outlier_bed.py",
+        "--bigwig",
+        "coverage A.bw",
+        "--bigwig",
+        "coverage B.bw",
+        "--bigwiglabels",
+        "sample A",
+        "--bigwiglabels",
+        "sample B",
+        "--outbeds",
+        "outlohi",
+        "--bedouthi",
+        "/work/bigwig_outlier_bed/high_regions.bed",
+        "--bedoutlo",
+        "/work/bigwig_outlier_bed/low_regions.bed",
+        "--minwin",
+        "25",
+        "--qhi",
+        "0.95",
+        "--qlo",
+        "0.05",
+        "--tableoutfile",
+        "/work/bigwig_outlier_bed/contig_statistics.txt",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"outbeds": "outlohi", "tableout": "create"}, tmp_path) == [
+        tmp_path / "bigwig_outlier_bed" / "high_regions.bed",
+        tmp_path / "bigwig_outlier_bed" / "low_regions.bed",
+        tmp_path / "bigwig_outlier_bed" / "contig_statistics.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"outbeds": "outtab", "tableout": "donotmake"}, tmp_path) == [
+        tmp_path / "bigwig_outlier_bed" / "contig_statistics.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"outbeds": "outzero", "tableout": "donotmake"}, tmp_path) == [
+        tmp_path / "bigwig_outlier_bed" / "zero_regions.bed",
     ]
 
 

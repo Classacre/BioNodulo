@@ -5096,6 +5096,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41598-019-46773-w'],
     citation_text: 'Ultrafast genome comparison for large-scale genomic experiments.',
   },
+  bigwig_outlier_bed: {
+    name: 'bigwig_outlier_bed',
+    display_name: 'Bigwig outliers to bed features',
+    category: 'genomics',
+    description: 'Write continuous high, low, or zero-valued BigWig outlier regions as BED features, with optional contig statistics.',
+    search_aliases: ['Galaxy', 'BigWig outliers', 'bigwig_outlier_bed', 'pybigtools', 'coverage outliers', 'BED features', 'quantile cutoff', 'contig statistics'],
+    input: {
+      required: {
+        bigwig: { type: 'BIGWIG', multiple: true },
+      },
+      optional: {
+        bigwiglabels: { type: 'STRING', default: [], multiple: true },
+        minwin: { type: 'INT', default: 10 },
+        qhi: { type: 'FLOAT', default: 0.99999 },
+        qlo: { type: 'FLOAT', default: 0.00001 },
+        outbeds: { type: 'STRING', default: 'outhilo', options: ['outhilo', 'outhi', 'outlo', 'outzero', 'outall', 'outlohi', 'outtab'] },
+        tableout: { type: 'STRING', default: 'create', options: ['create', 'donotmake'] },
+        script: { type: 'FILE', default: 'bigwig_outlier_bed.py' },
+      },
+    },
+    output: ['BED', 'BED', 'BED', 'BED', 'TXT'],
+    output_name: ['high_low_bed', 'high_bed', 'low_bed', 'zero_bed', 'contig_statistics'],
+    required_executables: ['python'],
+    required_conda_packages: ['python', 'numpy', 'pybigtools'],
+    documentation_url: 'https://github.com/jackh726/bigtools',
+    citation_dois: ['10.1093/bioinformatics/btae350'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btae350'],
+    citation_text: 'Bigtools: a high-performance toolkit for BigWig and BigBed files.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7841,7 +7870,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('281 nodes available')).toBeVisible();
+  await expect(page.getByText('282 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8003,6 +8032,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bayescan natural selection', name: 'BayeScan', category: 'population_genetics' },
     { query: 'Arima chimeric reads', name: 'Bellerophon', category: 'assembly' },
     { query: 'Chromeister dotplot', name: 'Chromeister', category: 'comparative_genomics' },
+    { query: 'BigWig coverage outliers', name: 'Bigwig outliers to bed features', category: 'genomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
