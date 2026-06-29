@@ -1952,6 +1952,52 @@ def test_adapter_removal_renders_paired_interleaved_command_and_optional_outputs
     ]
 
 
+def test_trimn_exposes_galaxy_metadata_and_citations() -> None:
+    node_info = _registry().object_info()["trimn"]
+
+    assert node_info["display_name"] == "TrimN"
+    assert node_info["category"] == "trimming"
+    assert node_info["description"].startswith("Trim N stretches")
+    assert node_info["output"] == ["FASTA"]
+    assert node_info["output_name"] == ["trimmed_fasta"]
+    assert node_info["required_executables"] == [
+        "remove_fake_cut_sites_DNAnexus.py",
+        "trim_Ns_DNAnexus.py",
+        "clip_regions_DNAnexus.py",
+    ]
+    assert node_info["required_conda_packages"] == ["trimns_vgp"]
+    assert node_info["documentation_url"] == "https://github.com/VGP/vgp-assembly/tree/master/pipeline/trim"
+    assert node_info["citation_dois"] == ["10.1101/2020.05.22.110833", "10.1101/2020.06.30.177956"]
+    assert "https://doi.org/10.1101/2020.05.22.110833" in node_info["citation_urls"]
+    assert "Vertebrate Genomes Project" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "trim_Ns_DNAnexus.py" in node_info["search_aliases"]
+
+
+def test_trimn_renders_three_stage_pipeline_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("trimn")
+
+    assert node_class.render_command(
+        {
+            "fasta_in": "assembly scaffolds.fa",
+            "output": "/work/trimn",
+        }
+    ) == (
+        "remove_fake_cut_sites_DNAnexus.py 'assembly scaffolds.fa' "
+        "/work/trimn/step1_out.fasta /work/trimn/step1.log && "
+        "trim_Ns_DNAnexus.py 'assembly scaffolds.fa' /work/trimn/step2_out.list && "
+        "clip_regions_DNAnexus.py /work/trimn/step1_out.fasta /work/trimn/step2_out.list "
+        "/work/trimn/final_out.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "trimn" / "final_out.fasta"]
+
+
+def test_trimn_validates_required_fasta_input() -> None:
+    node_class = _node_class("trimn")
+
+    assert node_class.VALIDATE_INPUTS({"fasta_in": ""}) == "fasta_in is required"
+
+
 def test_assembly_stats_exposes_galaxy_aligned_outputs() -> None:
     info = _registry().object_info()["assembly_stats"]
 

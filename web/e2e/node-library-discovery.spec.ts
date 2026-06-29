@@ -766,6 +766,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13104-016-1900-2'],
     citation_text: 'AdapterRemoval v2: rapid adapter trimming, identification, and read merging.',
   },
+  trimn: {
+    name: 'trimn',
+    display_name: 'TrimN',
+    category: 'trimming',
+    description: 'Trim N stretches and remove fake cut sites from bionano hybrid scaffold FASTA assemblies.',
+    search_aliases: ['Galaxy', 'TrimN', 'trimns', 'trimns_vgp', 'trim_Ns_DNAnexus.py', 'remove fake cut sites', 'bionano scaffolds', 'VGP'],
+    input: {
+      required: {
+        fasta_in: { type: 'FASTA' },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['trimmed_fasta'],
+    required_executables: ['remove_fake_cut_sites_DNAnexus.py', 'trim_Ns_DNAnexus.py', 'clip_regions_DNAnexus.py'],
+    required_conda_packages: ['trimns_vgp'],
+    documentation_url: 'https://github.com/VGP/vgp-assembly/tree/master/pipeline/trim',
+    citation_dois: ['10.1101/2020.05.22.110833', '10.1101/2020.06.30.177956'],
+    citation_urls: ['https://doi.org/10.1101/2020.05.22.110833', 'https://doi.org/10.1101/2020.06.30.177956'],
+    citation_text: 'Vertebrate Genomes Project assembly pipeline methods for bionano hybrid scaffolds.',
+  },
   assembly_stats: {
     name: 'assembly_stats',
     display_name: 'Assembly Stats',
@@ -6804,7 +6824,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('249 nodes available')).toBeVisible();
+  await expect(page.getByText('250 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6844,6 +6864,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
+    { query: 'trim_Ns_DNAnexus.py', name: 'TrimN', category: 'trimming' },
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },
