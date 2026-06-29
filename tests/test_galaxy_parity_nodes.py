@@ -590,6 +590,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/msz197",
         },
+        "hyphy_b_still": {
+            "display_name": "HyPhy-B-STILL",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/mst030",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -7493,6 +7500,183 @@ def test_hyphy_annotate_validates_wrapper_inputs() -> None:
             "reroot": "None",
             "internal_nodes": "Some descendants",
             "leaf_nodes": "Skip",
+        }
+    ) is True
+
+
+def test_hyphy_b_still_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_b_still"]
+
+    assert info["display_name"] == "HyPhy-B-STILL"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Detect invariant or near-invariant codon sites with HyPhy B-STILL."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "B-STILL",
+        "Bayesian Significance Test of Invariant Low Likelihoods",
+        "FUBAR",
+        "invariant sites",
+        "purifying selection",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["b_still_output", "b_still_md_report"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == (
+        "https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles/SelectionAnalyses/B-STILL.bf"
+    )
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/molbev/mst030"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/mst030",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["method"][1]["default"] == "Variational-Bayes"
+    assert info["input"]["optional"]["method"][1]["options"] == [
+        "Variational-Bayes",
+        "Metropolis-Hastings",
+        "Collapsed-Gibbs",
+    ]
+    assert info["input"]["optional"]["grid"][1]["default"] == 20
+    assert info["input"]["optional"]["concentration_parameter"][1]["default"] == 0.5
+    assert info["input"]["optional"]["non_zero"][1]["default"] is False
+    assert info["input"]["optional"]["ebf"][1]["default"] == 10.0
+    assert info["input"]["optional"]["radius_threshold"][1]["default"] == 0.5
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+    assert info["input"]["optional"]["chains"][1]["default"] == 5
+    assert info["input"]["optional"]["chain_length"][1]["default"] == 2000000
+    assert info["input"]["optional"]["burn_in"][1]["default"] == 1000000
+    assert info["input"]["optional"]["samples"][1]["default"] == 100
+
+
+def test_hyphy_b_still_renders_default_variational_bayes_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_b_still")
+
+    assert node_class.render_command(
+        {
+            "input_file": "fubar-in1.fa.gz",
+            "input_ext": "fasta.gz",
+            "input_nhx": "fubar-in1.nhx",
+            "output": "/work/hyphy_b_still",
+        }
+    ) == (
+        "ln -s fubar-in1.nhx input.nhx && "
+        "ln -s fubar-in1.fa.gz input.fasta.gz && "
+        "hyphy b-still --alignment ./input.fasta.gz --tree input.nhx --code Universal "
+        "--method Variational-Bayes --grid 20 --concentration_parameter 0.5 "
+        "--non-zero No --ebf 10.0 --radius-threshold 0.5 --kill-zero-lengths Yes "
+        "--output /work/hyphy_b_still/b_still_output.json "
+        "> /work/hyphy_b_still/b_still_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_b_still" / "b_still_output.json",
+        tmp_path / "hyphy_b_still" / "b_still_stdout.md",
+    ]
+
+
+def test_hyphy_b_still_renders_collapsed_gibbs_command_without_tree() -> None:
+    node_class = _node_class("hyphy_b_still")
+
+    command = node_class.render_command(
+        {
+            "input_file": "codon alignment.nex",
+            "input_ext": "nex",
+            "gencodeid": "Vertebrate-mtDNA",
+            "method": "Collapsed-Gibbs",
+            "chains": 7,
+            "chain_length": 3000000,
+            "burn_in": 1200000,
+            "samples": 250,
+            "grid": 35,
+            "concentration_parameter": 0.75,
+            "non_zero": True,
+            "ebf": 25,
+            "radius_threshold": 0.75,
+            "kill_zero_lengths": "Constrain",
+            "output": "/work/hyphy_b_still",
+        }
+    )
+
+    assert command == (
+        "ln -s 'codon alignment.nex' input.nex && "
+        "hyphy b-still --alignment ./input.nex --code Vertebrate-mtDNA "
+        "--method Collapsed-Gibbs --chains 7 --chain-length 3000000 "
+        "--burn-in 1200000 --samples 250 --grid 35 --concentration_parameter 0.75 "
+        "--non-zero Yes --ebf 25 --radius-threshold 0.75 --kill-zero-lengths Constrain "
+        "--output /work/hyphy_b_still/b_still_output.json "
+        "> /work/hyphy_b_still/b_still_stdout.md"
+    )
+    assert "--tree" not in command
+
+
+def test_hyphy_b_still_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_b_still")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-B-STILL alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "method": "Bootstrap"}) == (
+        "Unsupported HyPhy-B-STILL posterior estimation method: Bootstrap"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "grid": 4}) == (
+        "HyPhy-B-STILL grid points must be between 5 and 50"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "grid": 51}) == (
+        "HyPhy-B-STILL grid points must be between 5 and 50"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "concentration_parameter": 0}) == (
+        "HyPhy-B-STILL concentration parameter must be between 0.001 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "ebf": -0.1}) == (
+        "HyPhy-B-STILL EBF threshold must be non-negative"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "radius_threshold": 11}) == (
+        "HyPhy-B-STILL radius threshold must be between 0 and 10"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-B-STILL zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "method": "Metropolis-Hastings", "chains": 1}) == (
+        "HyPhy-B-STILL chains must be between 2 and 20"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "method": "Collapsed-Gibbs", "chain_length": 499999}
+    ) == "HyPhy-B-STILL chain length must be between 500000 and 50000000"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "method": "Metropolis-Hastings", "burn_in": 99999}
+    ) == "HyPhy-B-STILL burn-in samples must be between 100000 and 1900000"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "method": "Collapsed-Gibbs", "samples": 49}
+    ) == "HyPhy-B-STILL samples per chain must be between 50 and 1000000"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "gencodeid": "Universal",
+            "method": "Variational-Bayes",
+            "grid": 20,
+            "concentration_parameter": 0.5,
+            "non_zero": False,
+            "ebf": 10,
+            "radius_threshold": 0.5,
+            "kill_zero_lengths": "Yes",
         }
     ) is True
 

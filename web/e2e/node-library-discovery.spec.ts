@@ -2731,6 +2731,83 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/molbev/msz197'],
     citation_text: 'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies.',
   },
+  hyphy_b_still: {
+    name: 'hyphy_b_still',
+    display_name: 'HyPhy-B-STILL',
+    category: 'phylogeny',
+    description: 'Detect invariant or near-invariant codon sites with HyPhy B-STILL.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'B-STILL',
+      'Bayesian Significance Test of Invariant Low Likelihoods',
+      'FUBAR',
+      'invariant sites',
+      'purifying selection',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE', default: '' },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        gencodeid: {
+          type: 'STRING',
+          default: 'Universal',
+          options: [
+            'Universal',
+            'Vertebrate-mtDNA',
+            'Yeast-mtDNA',
+            'Mold-Protozoan-mtDNA',
+            'Invertebrate-mtDNA',
+            'Ciliate-Nuclear',
+            'Echinoderm-mtDNA',
+            'Euplotid-Nuclear',
+            'Alt-Yeast-Nuclear',
+            'Ascidian-mtDNA',
+            'Flatworm-mtDNA',
+            'Blepharisma-Nuclear',
+            'Chlorophycean-mtDNA',
+            'Trematode-mtDNA',
+            'Scenedesmus-obliquus-mtDNA',
+            'Thraustochytrium-mtDNA',
+            'Pterobranchia-mtDNA',
+            'SR1-and-Gracilibacteria',
+            'Pachysolen-Nuclear',
+            'Mesodinium-Nuclear',
+            'Peritrich-Nuclear',
+            'Cephalodiscidae-mtDNA',
+          ],
+        },
+        method: {
+          type: 'STRING',
+          default: 'Variational-Bayes',
+          options: ['Variational-Bayes', 'Metropolis-Hastings', 'Collapsed-Gibbs'],
+        },
+        chains: { type: 'INT', default: 5 },
+        chain_length: { type: 'INT', default: 2000000 },
+        burn_in: { type: 'INT', default: 1000000 },
+        samples: { type: 'INT', default: 100 },
+        grid: { type: 'INT', default: 20 },
+        concentration_parameter: { type: 'FLOAT', default: 0.5 },
+        non_zero: { type: 'BOOLEAN', default: false },
+        ebf: { type: 'FLOAT', default: 10.0 },
+        radius_threshold: { type: 'FLOAT', default: 0.5 },
+        kill_zero_lengths: { type: 'STRING', default: 'Yes', options: ['Yes', 'Constrain', 'No'] },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['b_still_output', 'b_still_md_report'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles/SelectionAnalyses/B-STILL.bf',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/mst030'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/mst030'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5701,7 +5778,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('226 nodes available')).toBeVisible();
+  await expect(page.getByText('227 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5801,6 +5878,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'targeted sequence capture', name: 'HybPiper', category: 'phylogeny' },
     { query: 'episodic diversifying selection', name: 'HyPhy-aBSREL', category: 'phylogeny' },
     { query: 'HyPhy Annotate', name: 'HyPhy Annotate', category: 'phylogeny' },
+    { query: 'B-STILL invariant sites', name: 'HyPhy-B-STILL', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
