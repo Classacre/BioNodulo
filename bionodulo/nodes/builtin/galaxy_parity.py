@@ -1602,6 +1602,108 @@ class ABRicateListNode(CommandNode):
         }
 
 
+class ABRicateSummaryNode(CommandNode):
+    """Combine ABRicate reports into a gene presence and coverage matrix."""
+
+    NODE_ID = "abricate_summary"
+    DISPLAY_NAME = "ABRicate Summary"
+    REQUIRED_CONDA_PACKAGES = ["abricate"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Combine ABRicate reports into a gene presence and coverage matrix."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ABRicate",
+        "abricate",
+        "ABRicate Summary",
+        "presence absence matrix",
+        "gene coverage matrix",
+        "abricate --summary",
+        "AMR report summary",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("summary",)
+    REQUIRED_EXECUTABLES = ["abricate"]
+    DOCUMENTATION_URL = ABRICATE_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [ABRICATE_CITATION_URL]
+    CITATION_TEXT = ABRICATE_CITATION_TEXT
+    VERSION = "1.4.0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/summary.tsv"
+
+    @classmethod
+    def _reports_dir(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/reports"
+
+    @classmethod
+    def _reports(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("abricate_reports"))
+
+    @classmethod
+    def _labels(cls, inputs: dict[str, Any], reports: list[str]) -> list[str]:
+        labels = _as_list(inputs.get("abricate_report_labels"))
+        if len(labels) != len(reports):
+            return [Path(report).name for report in reports]
+        return labels
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        reports = cls._reports(inputs)
+        labels = cls._labels(inputs, reports)
+        reports_dir = cls._reports_dir(inputs)
+        commands = [f"mkdir -p {shlex.quote(reports_dir)}"]
+        for report, label in zip(reports, labels):
+            link_name = _safe_element_identifier(label)
+            commands.append(
+                f"ln -sf {shlex.quote(report)} {shlex.quote(f'{reports_dir}/{link_name}')}"
+            )
+        commands.append(
+            f"cd {shlex.quote(reports_dir)} && abricate --summary '*' > {shlex.quote(cls._output_path(inputs))}"
+        )
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "summary.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        reports = cls._reports(inputs)
+        if not reports:
+            return "at least one ABRicate report is required"
+        labels = _as_list(inputs.get("abricate_report_labels"))
+        if labels and len(labels) != len(reports):
+            return "abricate_report_labels must match the number of reports"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "abricate_reports": (
+                    "TSV_LIST",
+                    {"multiple": True, "description": "ABRicate tabular reports to combine with abricate --summary"},
+                ),
+            },
+            "optional": {
+                "abricate_report_labels": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional sample labels matching the report order; defaults to input filenames",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 CHECKM2_TRANSLATION_TABLES = [
     "",
     "1",

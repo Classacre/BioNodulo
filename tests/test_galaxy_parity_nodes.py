@@ -1227,6 +1227,65 @@ def test_abricate_list_renders_database_list_command_and_output(tmp_path: Path) 
     assert node_class.VALIDATE_INPUTS({}) is True
 
 
+def test_abricate_summary_exposes_galaxy_aligned_metadata_and_software_citation() -> None:
+    info = _registry().object_info()["abricate_summary"]
+
+    assert info["display_name"] == "ABRicate Summary"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Combine ABRicate reports into a gene presence and coverage matrix."
+    assert info["input"]["required"]["abricate_reports"][0] == "STRING"
+    assert info["input"]["required"]["abricate_reports"][1]["multiple"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["summary"]
+    assert info["required_executables"] == ["abricate"]
+    assert info["required_conda_packages"] == ["abricate"]
+    assert info["documentation_url"] == "https://github.com/tseemann/abricate"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/tseemann/abricate"]
+    assert "ABRicate: mass screening of contigs for antibiotic resistance genes" in info["citation_text"]
+    assert "presence absence matrix" in info["search_aliases"]
+
+
+def test_abricate_summary_renders_summary_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("abricate_summary")
+
+    assert node_class.render_command(
+        {
+            "abricate_reports": ["output_db-card.txt", "megares results.tsv"],
+            "abricate_report_labels": ["Card Results.txt", "megares results.tsv"],
+            "output": "/work/abricate_summary",
+        }
+    ) == (
+        "mkdir -p /work/abricate_summary/reports && "
+        "ln -sf output_db-card.txt /work/abricate_summary/reports/Card_Results.txt && "
+        "ln -sf 'megares results.tsv' /work/abricate_summary/reports/megares_results.tsv && "
+        "cd /work/abricate_summary/reports && abricate --summary '*' "
+        "> /work/abricate_summary/summary.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "abricate_reports": ["card.tsv", "megares.tsv"],
+            "output": "/work/abricate_summary",
+        }
+    ) == (
+        "mkdir -p /work/abricate_summary/reports && "
+        "ln -sf card.tsv /work/abricate_summary/reports/card.tsv && "
+        "ln -sf megares.tsv /work/abricate_summary/reports/megares.tsv && "
+        "cd /work/abricate_summary/reports && abricate --summary '*' "
+        "> /work/abricate_summary/summary.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "abricate_summary" / "summary.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"abricate_reports": []}) == "at least one ABRicate report is required"
+    assert node_class.VALIDATE_INPUTS({"abricate_reports": ["card.tsv"], "abricate_report_labels": ["a", "b"]}) == (
+        "abricate_report_labels must match the number of reports"
+    )
+    assert node_class.VALIDATE_INPUTS({"abricate_reports": ["card.tsv", "megares.tsv"]}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

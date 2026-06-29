@@ -1056,6 +1056,29 @@ const objectInfo = {
     citation_urls: ['https://github.com/tseemann/abricate'],
     citation_text: 'ABRicate: mass screening of contigs for antibiotic resistance genes.',
   },
+  abricate_summary: {
+    name: 'abricate_summary',
+    display_name: 'ABRicate Summary',
+    category: 'annotation',
+    description: 'Combine ABRicate reports into a gene presence and coverage matrix.',
+    search_aliases: ['Galaxy', 'ABRicate', 'abricate', 'ABRicate Summary', 'presence absence matrix', 'gene coverage matrix', 'abricate --summary', 'AMR report summary'],
+    input: {
+      required: {
+        abricate_reports: { type: 'STRING', multiple: true },
+      },
+      optional: {
+        abricate_report_labels: { type: 'STRING', default: [], multiple: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['summary'],
+    required_executables: ['abricate'],
+    required_conda_packages: ['abricate'],
+    documentation_url: 'https://github.com/tseemann/abricate',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/abricate'],
+    citation_text: 'ABRicate: mass screening of contigs for antibiotic resistance genes.',
+  },
   amplican: {
     name: 'amplican',
     display_name: 'AmpliCan',
@@ -9644,7 +9667,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('333 nodes available')).toBeVisible();
+  await expect(page.getByText('334 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9693,6 +9716,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'SOLiD read simulator', name: 'ART SOLiD', category: 'simulation' },
     { query: 'abricate antimicrobial resistance', name: 'ABRicate', category: 'annotation' },
     { query: 'ABRicate databases', name: 'ABRicate List', category: 'annotation' },
+    { query: 'presence absence matrix', name: 'ABRicate Summary', category: 'annotation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
