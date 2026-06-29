@@ -942,6 +942,39 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btm404'],
     citation_text: 'Clustal W and Clustal X version 2.0.',
   },
+  flash: {
+    name: 'flash',
+    display_name: 'FLASH',
+    category: 'trimming',
+    description: 'Merge paired-end reads with FLASH and emit merged, unmerged, log, and histogram outputs.',
+    search_aliases: ['Galaxy', 'FLASH', 'flash', 'read merging', 'paired-end merge', 'overlap', 'Fast Length Adjustment of SHort reads'],
+    input: {
+      required: {
+        layout: { type: 'STRING', default: 'individual', options: ['individual', 'collection'] },
+        forward: { type: 'FASTQ' },
+        reverse: { type: 'FASTQ' },
+      },
+    },
+    output: ['FASTQ', 'FASTQ', 'FASTQ', 'TSV', 'STATS_FILE', 'STATS_FILE', 'TSV', 'TSV', 'STATS_FILE', 'STATS_FILE'],
+    output_name: [
+      'merged_reads',
+      'unmerged_forward_reads',
+      'unmerged_reverse_reads',
+      'histogram_table',
+      'raw_log',
+      'histogram_text',
+      'innie_histogram_table',
+      'outie_histogram_table',
+      'innie_histogram_text',
+      'outie_histogram_text',
+    ],
+    required_executables: ['flash'],
+    required_conda_packages: ['flash'],
+    documentation_url: 'https://ccb.jhu.edu/software/FLASH/',
+    citation_dois: ['10.1093/bioinformatics/btr507'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btr507'],
+    citation_text: 'FLASH: fast length adjustment of short reads to improve genome assemblies.',
+  },
   prinseq: {
     name: 'prinseq',
     display_name: 'PRINSEQ',
@@ -6846,7 +6879,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('251 nodes available')).toBeVisible();
+  await expect(page.getByText('252 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6894,6 +6927,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'remove taxa', name: 'AMAS Remove', category: 'phylogeny' },
     { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
     { query: 'clustalw2', name: 'ClustalW', category: 'phylogeny' },
+    { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },

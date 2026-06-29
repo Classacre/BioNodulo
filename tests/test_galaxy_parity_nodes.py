@@ -2467,6 +2467,152 @@ def test_clustalw_renders_protein_quicktree_command_and_validates_input(tmp_path
     assert node_class.VALIDATE_INPUTS({"input": ""}) == "input FASTA is required"
 
 
+def test_flash_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["flash"]
+
+    assert node_info["display_name"] == "FLASH"
+    assert node_info["category"] == "trimming"
+    assert node_info["description"].startswith("Merge paired-end reads")
+    assert node_info["output"] == [
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "TSV",
+        "STATS_FILE",
+        "STATS_FILE",
+        "TSV",
+        "TSV",
+        "STATS_FILE",
+        "STATS_FILE",
+    ]
+    assert node_info["output_name"] == [
+        "merged_reads",
+        "unmerged_forward_reads",
+        "unmerged_reverse_reads",
+        "histogram_table",
+        "raw_log",
+        "histogram_text",
+        "innie_histogram_table",
+        "outie_histogram_table",
+        "innie_histogram_text",
+        "outie_histogram_text",
+    ]
+    assert node_info["required_executables"] == ["flash"]
+    assert node_info["required_conda_packages"] == ["flash"]
+    assert node_info["documentation_url"] == "https://ccb.jhu.edu/software/FLASH/"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btr507"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btr507"]
+    assert "fast length adjustment of short reads" in node_info["citation_text"].lower()
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "read merging" in node_info["search_aliases"]
+
+
+def test_flash_renders_individual_reads_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("flash")
+
+    assert node_class.render_command(
+        {
+            "layout": "individual",
+            "forward": "reads R1.fastq.gz",
+            "reverse": "reads R2.fastq.gz",
+            "min_overlap": 12,
+            "max_overlap": 80,
+            "max_mismatch_density": 0.15,
+            "allow_outies": True,
+            "generate_histogram": True,
+            "save_log": True,
+            "phred_offset": 33,
+            "gzip": True,
+            "threads": 8,
+            "output": "/work/flash",
+        }
+    ) == [
+        "flash",
+        "--threads=${GALAXY_SLOTS:-8}",
+        "-m",
+        "12",
+        "-M",
+        "80",
+        "-x",
+        "0.15",
+        "--allow-outies",
+        "reads R1.fastq.gz",
+        "reads R2.fastq.gz",
+        "-p",
+        "33",
+        "-z",
+        "--output-prefix",
+        "/work/flash/out",
+        "--output-suffix=",
+        ">",
+        "/work/flash/flash.log",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"allow_outies": True, "generate_histogram": True, "save_log": True, "gzip": True},
+        tmp_path,
+    ) == [
+        tmp_path / "flash" / "out.extendedFrags.fastq.gz",
+        tmp_path / "flash" / "out.notCombined_1.fastq.gz",
+        tmp_path / "flash" / "out.notCombined_2.fastq.gz",
+        tmp_path / "flash" / "out.hist",
+        tmp_path / "flash" / "flash.log",
+        tmp_path / "flash" / "out.histogram",
+        tmp_path / "flash" / "out.hist.innie",
+        tmp_path / "flash" / "out.hist.outie",
+        tmp_path / "flash" / "out.histogram.innie",
+        tmp_path / "flash" / "out.histogram.outie",
+    ]
+
+
+def test_flash_renders_collection_reads_command_and_validates_inputs(tmp_path: Path) -> None:
+    node_class = _node_class("flash")
+
+    assert node_class.render_command(
+        {
+            "layout": "collection",
+            "reads": {"forward": "collection_R1.fastq", "reverse": "collection_R2.fastq"},
+            "min_overlap": 10,
+            "max_overlap": 65,
+            "max_mismatch_density": 0.25,
+            "allow_outies": False,
+            "generate_histogram": False,
+            "save_log": False,
+            "phred_offset": 64,
+            "gzip": False,
+            "threads": 4,
+            "output": "/work/flash",
+        }
+    ) == [
+        "flash",
+        "--threads=${GALAXY_SLOTS:-4}",
+        "-m",
+        "10",
+        "-M",
+        "65",
+        "-x",
+        "0.25",
+        "collection_R1.fastq",
+        "collection_R2.fastq",
+        "-p",
+        "64",
+        "--output-prefix",
+        "/work/flash/out",
+        "--output-suffix=",
+    ]
+    assert node_class.PLAN_OUTPUTS({"allow_outies": False, "generate_histogram": False, "save_log": False}, tmp_path) == [
+        tmp_path / "flash" / "out.extendedFrags.fastq",
+        tmp_path / "flash" / "out.notCombined_1.fastq",
+        tmp_path / "flash" / "out.notCombined_2.fastq",
+        tmp_path / "flash" / "out.hist",
+    ]
+    assert node_class.VALIDATE_INPUTS({"layout": "individual", "forward": "r1.fastq", "reverse": ""}) == (
+        "forward and reverse reads are required"
+    )
+    assert node_class.VALIDATE_INPUTS({"layout": "collection", "reads": {"forward": "r1.fastq"}}) == (
+        "paired collection requires forward and reverse reads"
+    )
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 
