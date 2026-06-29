@@ -1174,6 +1174,58 @@ def test_seqtk_dropse_renders_gzip_interleaved_command_and_output(tmp_path: Path
     ]
 
 
+def test_seqtk_fqchk_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_fqchk"]
+
+    assert info["display_name"] == "SeqTK FASTQ Check"
+    assert info["category"] == "qc"
+    assert info["description"] == "Report base-by-base FASTQ composition and quality summaries with seqtk fqchk."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["quality_information"]
+    assert info["required_executables"] == ["seqtk", "awk"]
+    assert info["required_conda_packages"] == ["seqtk", "gawk"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk fqchk" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ"
+    assert info["input"]["optional"]["q"][1]["default"] == 20
+
+
+def test_seqtk_fqchk_renders_quality_summary_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_fqchk")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq.gz",
+            "q": 20,
+            "output": "/work/seqtk_fqchk",
+        }
+    ) == (
+        "seqtk fqchk -q 20 reads.fastq.gz | "
+        "awk '{if(NR<4){print \"#\"$0}else{print $0}}' > /work/seqtk_fqchk/quality_information.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "seqtk_fqchk" / "quality_information.tsv",
+    ]
+
+
+def test_seqtk_fqchk_renders_all_quality_values_command() -> None:
+    node_class = _node_class("seqtk_fqchk")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq",
+            "q": 0,
+            "output": "/work/seqtk_fqchk",
+        }
+    ) == (
+        "seqtk fqchk -q 0 reads.fastq | "
+        "awk '{if(NR<4){print \"#\"$0}else{print $0}}' > /work/seqtk_fqchk/quality_information.tsv"
+    )
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

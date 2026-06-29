@@ -527,6 +527,29 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_fqchk: {
+    name: 'seqtk_fqchk',
+    display_name: 'SeqTK FASTQ Check',
+    category: 'qc',
+    description: 'Report base-by-base FASTQ composition and quality summaries with seqtk fqchk.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk fqchk', 'SeqTK fqchk', 'FASTQ QC', 'base quality summary', 'quality distribution', 'base composition'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ' },
+      },
+      optional: {
+        q: { type: 'INT', default: 20 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['quality_information'],
+    required_executables: ['seqtk', 'awk'],
+    required_conda_packages: ['seqtk', 'gawk'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -10865,7 +10888,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('372 nodes available')).toBeVisible();
+  await expect(page.getByText('373 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10894,6 +10917,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk composition', name: 'SeqTK Composition', category: 'sequence' },
     { query: 'seqtk split at N', name: 'SeqTK CutN', category: 'sequence' },
     { query: 'seqtk remove unpaired reads', name: 'SeqTK DropSE', category: 'sequence' },
+    { query: 'seqtk base quality summary', name: 'SeqTK FASTQ Check', category: 'qc' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
