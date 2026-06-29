@@ -5668,6 +5668,150 @@ def test_ampvis2_alpha_diversity_renders_script_outputs_and_validates(tmp_path: 
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": "Plant"}) is True
 
 
+def test_ampvis2_boxplot_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_boxplot"]
+
+    assert info["display_name"] == "ampvis2 boxplot"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate boxplots of abundant taxa from an ampvis2 RDS dataset."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["sort_by"][1]["default"] == "median"
+    assert info["input"]["optional"]["sort_by"][1]["options"] == ["median", "mean", "sum"]
+    assert info["input"]["optional"]["plot_type"][1]["default"] == "boxplot"
+    assert info["input"]["optional"]["plot_type"][1]["options"] == ["boxplot", "point"]
+    assert info["input"]["optional"]["point_size"][1]["min"] == 0
+    assert info["input"]["optional"]["tax_aggregate"][1]["default"] == "Genus"
+    assert info["input"]["optional"]["tax_aggregate"][1]["options"] == [
+        "OTU",
+        "Species",
+        "Genus",
+        "Family",
+        "Order",
+        "Class",
+        "Phylum",
+        "Kingdom",
+    ]
+    assert info["input"]["optional"]["tax_add"][1]["multiple"] is True
+    assert info["input"]["optional"]["tax_show_mode"][1]["options"] == ["number", "explicit"]
+    assert info["input"]["optional"]["tax_show"][1]["default"] == 20
+    assert info["input"]["optional"]["tax_empty"][1]["default"] == "best"
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_boxplot.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 boxplot" in info["search_aliases"]
+    assert "amp_boxplot" in info["search_aliases"]
+
+
+def test_ampvis2_boxplot_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_boxplot")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "group_by": "Plant",
+            "sort_by": "sum",
+            "plot_type": "point",
+            "point_size": 5,
+            "tax_aggregate": "Order",
+            "tax_add": ["Phylum", "Class"],
+            "tax_show_mode": "explicit",
+            "tax_show": ["Nitrospira", "Accumulibacter"],
+            "tax_empty": "OTU",
+            "plot_flip": True,
+            "plot_log": True,
+            "adjust_zero": 100000,
+            "normalise": True,
+            "out_format": "png",
+            "plot_width": 10,
+            "plot_height": 6.5,
+            "output": "/work/ampvis2_boxplot",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_boxplot/boxplot.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'd <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_boxplot(" in command
+    assert 'group_by = "Plant",' in command
+    assert 'sort_by = "sum",' in command
+    assert 'plot_type = "point",' in command
+    assert "point_size = 5," in command
+    assert 'tax_aggregate = "Order",' in command
+    assert 'tax_add = c("Phylum", "Class"),' in command
+    assert 'tax_show = c("Nitrospira", "Accumulibacter"),' in command
+    assert 'tax_empty = "OTU",' in command
+    assert "plot_flip = TRUE," in command
+    assert "plot_log = TRUE," in command
+    assert "adjust_zero = 100000," in command
+    assert "normalise = TRUE" in command
+    assert 'ggsave("/work/ampvis2_boxplot/plot.png",' in command
+    assert "    print(plot)," in command
+    assert 'device = "png"' in command
+    assert ", width = 10" in command
+    assert ", height = 6.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_boxplot/boxplot.R")
+
+    default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_boxplot"})
+    assert "group_by =" not in default_command
+    assert 'sort_by = "median",' in default_command
+    assert 'plot_type = "boxplot",' in default_command
+    assert "point_size = 1," in default_command
+    assert 'tax_aggregate = "Genus",' in default_command
+    assert "tax_add = NULL," in default_command
+    assert "tax_show = 20," in default_command
+    assert 'tax_empty = "best",' in default_command
+    assert "plot_flip = FALSE," in default_command
+    assert "plot_log = FALSE," in default_command
+    assert "adjust_zero =" not in default_command
+    assert "normalise = FALSE" in default_command
+    assert 'device = "pdf"' in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "png"}, tmp_path) == [
+        tmp_path / "ampvis2_boxplot" / "plot.png",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_boxplot" / "plot.pdf",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "sort_by": "bad"}) == (
+        "sort_by must be one of: median, mean, sum"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_type": "bad"}) == (
+        "plot_type must be one of: boxplot, point"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "point_size": -1}) == (
+        "point_size must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_aggregate": "bad"}) == (
+        "tax_aggregate must be one of: OTU, Species, Genus, Family, Order, Class, Phylum, Kingdom"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_add": ["bad"]}) == (
+        "tax_add contains unsupported values: bad"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_show_mode": "explicit", "tax_show": []}) == (
+        "tax_show must include at least one taxon when tax_show_mode is explicit"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_show": 0}) == "tax_show must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_empty": "bad"}) == (
+        "tax_empty must be one of: remove, best, OTU"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "adjust_zero": 0}) == "adjust_zero must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_height": 0.5}) == "plot_height must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

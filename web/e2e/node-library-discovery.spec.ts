@@ -1380,6 +1380,46 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537', 'https://doi.org/10.1371/journal.pcbi.1003531'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_boxplot: {
+    name: 'ampvis2_boxplot',
+    display_name: 'ampvis2 boxplot',
+    category: 'metagenomics',
+    description: 'Generate boxplots of abundant taxa from an ampvis2 RDS dataset.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 boxplot', 'amp_boxplot', 'taxa boxplot', 'abundant taxa', 'microbiome boxplot', 'amplicon abundance plot'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+      },
+      optional: {
+        metadata_list: { type: 'TSV', default: '' },
+        group_by: { type: 'STRING', default: '' },
+        sort_by: { type: 'STRING', default: 'median', options: ['median', 'mean', 'sum'] },
+        plot_type: { type: 'STRING', default: 'boxplot', options: ['boxplot', 'point'] },
+        point_size: { type: 'INT', default: 1, min: 0 },
+        tax_aggregate: { type: 'STRING', default: 'Genus', options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        tax_add: { type: 'STRING', default: [], multiple: true, options: ['OTU', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Kingdom'] },
+        tax_show_mode: { type: 'STRING', default: 'number', options: ['number', 'explicit'] },
+        taxonomy_list: { type: 'TSV', default: '' },
+        tax_show: { type: 'STRING', default: 20 },
+        tax_empty: { type: 'STRING', default: 'best', options: ['remove', 'best', 'OTU'] },
+        plot_flip: { type: 'BOOLEAN', default: false },
+        plot_log: { type: 'BOOLEAN', default: false },
+        adjust_zero: { type: 'INT', default: '', min: 1 },
+        normalise: { type: 'BOOLEAN', default: false },
+        out_format: { type: 'STRING', default: 'pdf', options: ['pdf', 'png', 'svg'] },
+        plot_width: { type: 'FLOAT', default: '', min: 1 },
+        plot_height: { type: 'FLOAT', default: '', min: 1 },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['plot'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_boxplot.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -9884,7 +9924,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('340 nodes available')).toBeVisible();
+  await expect(page.getByText('341 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9941,6 +9981,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'presence absence matrix', name: 'ABRicate Summary', category: 'annotation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ampvis2 alpha diversity', name: 'ampvis2 alpha diversity', category: 'metagenomics' },
+    { query: 'ampvis2 boxplot', name: 'ampvis2 boxplot', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },

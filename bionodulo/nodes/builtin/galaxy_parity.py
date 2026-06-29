@@ -9939,6 +9939,237 @@ class Ampvis2AlphaDiversityNode(CommandNode):
         }
 
 
+class Ampvis2BoxplotNode(CommandNode):
+    """Generate ampvis2 boxplots of abundant taxa."""
+
+    NODE_ID = "ampvis2_boxplot"
+    DISPLAY_NAME = "ampvis2 boxplot"
+    REQUIRED_CONDA_PACKAGES = ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Generate boxplots of abundant taxa from an ampvis2 RDS dataset."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ampvis2",
+        "ampvis2 boxplot",
+        "amp_boxplot",
+        "taxa boxplot",
+        "abundant taxa",
+        "microbiome boxplot",
+        "amplicon abundance plot",
+    ]
+    RETURN_TYPES = ("PDF",)
+    RETURN_NAMES = ("plot",)
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://kasperskytte.github.io/ampvis2/reference/amp_boxplot.html"
+    CITATION_DOIS = [AMPVIS2_CITATION_DOIS[0]]
+    CITATION_URLS = [f"{DOI_URL}{AMPVIS2_CITATION_DOIS[0]}"]
+    CITATION_TEXT = AMPVIS2_CITATION_TEXT
+    VERSION = "2.8.11+galaxy2"
+    SHELL = True
+
+    TAX_LEVELS = ["OTU", "Species", "Genus", "Family", "Order", "Class", "Phylum", "Kingdom"]
+    SORT_OPTIONS = ["median", "mean", "sum"]
+    PLOT_TYPES = ["boxplot", "point"]
+    TAX_SHOW_MODES = ["number", "explicit"]
+    TAX_EMPTY_OPTIONS = ["remove", "best", "OTU"]
+    OUT_FORMATS = ["pdf", "png", "svg"]
+
+    @classmethod
+    def _r_bool(cls, value: Any, default: bool = False) -> str:
+        if value in (None, ""):
+            value = default
+        if isinstance(value, str):
+            return "FALSE" if value.lower() in {"false", "0", "no"} else "TRUE"
+        return "TRUE" if bool(value) else "FALSE"
+
+    @classmethod
+    def _r_vector(cls, values: list[str]) -> str:
+        return "c(" + ", ".join(f'"{value}"' for value in values) + ")"
+
+    @classmethod
+    def _out_format(cls, inputs: dict[str, Any]) -> str:
+        out_format = str(inputs.get("out_format", "pdf") or "pdf")
+        return out_format if out_format in cls.OUT_FORMATS else "pdf"
+
+    @classmethod
+    def _tax_show(cls, inputs: dict[str, Any]) -> str:
+        if str(inputs.get("tax_show_mode", "number") or "number") == "explicit":
+            return cls._r_vector(_as_list(inputs.get("tax_show")))
+        return str(inputs.get("tax_show", 20) or 20)
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any], out: str) -> str:
+        out_format = cls._out_format(inputs)
+        tax_add = _as_list(inputs.get("tax_add"))
+        ggsave_options = [
+            f'    device = "{out_format}"',
+        ]
+        for name, option in (("plot_width", "width"), ("plot_height", "height")):
+            value = inputs.get(name)
+            if value not in (None, ""):
+                ggsave_options.append(f"    , {option} = {value}")
+        lines = [
+            "library(ampvis2, quietly = TRUE)",
+            f'd <- readRDS("{inputs.get("data", "")}")',
+            "plot <- amp_boxplot(",
+            "    d,",
+        ]
+        if str(inputs.get("group_by", "")).strip():
+            lines.append(f'    group_by = "{inputs.get("group_by")}",')
+        lines.extend(
+            [
+                f'    sort_by = "{inputs.get("sort_by", "median") or "median"}",',
+                f'    plot_type = "{inputs.get("plot_type", "boxplot") or "boxplot"}",',
+                f"    point_size = {inputs.get('point_size', 1)},",
+                f'    tax_aggregate = "{inputs.get("tax_aggregate", "Genus") or "Genus"}",',
+                f"    tax_add = {cls._r_vector(tax_add) if tax_add else 'NULL'},",
+                f"    tax_show = {cls._tax_show(inputs)},",
+                f'    tax_empty = "{inputs.get("tax_empty", "best") or "best"}",',
+                f"    plot_flip = {cls._r_bool(inputs.get('plot_flip'), False)},",
+                f"    plot_log = {cls._r_bool(inputs.get('plot_log'), False)},",
+            ]
+        )
+        if inputs.get("adjust_zero") not in (None, ""):
+            lines.append(f"    adjust_zero = {inputs.get('adjust_zero')},")
+        lines.extend(
+            [
+                f"    normalise = {cls._r_bool(inputs.get('normalise'), False)}",
+                ")",
+                f'ggsave("{out}/plot.{out_format}",',
+                "    print(plot),",
+                ",\n".join(ggsave_options),
+                ")",
+            ]
+        )
+        return "\n".join(lines)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = f"{out}/boxplot.R"
+        return f"cat > {shlex.quote(script_path)} <<'RSCRIPT'\n{cls._script_body(inputs, out)}\nRSCRIPT && {_shell_join(['Rscript', script_path])}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / f"plot.{cls._out_format(inputs)}"]
+
+    @classmethod
+    def _validate_choice(cls, inputs: dict[str, Any], name: str, options: list[str], default: str) -> bool | str:
+        value = str(inputs.get(name, default) or default)
+        if value not in options:
+            return f"{name} must be one of: {', '.join(options)}"
+        return True
+
+    @classmethod
+    def _validate_number(cls, inputs: dict[str, Any], name: str, minimum: int | float, default: Any) -> bool | str:
+        raw = inputs.get(name, default)
+        if raw in (None, ""):
+            return True
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return f"{name} must be a number"
+        if value < minimum:
+            return f"{name} must be >= {minimum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("data", "")).strip():
+            return "data is required"
+        for name, options, default in (
+            ("sort_by", cls.SORT_OPTIONS, "median"),
+            ("plot_type", cls.PLOT_TYPES, "boxplot"),
+            ("tax_aggregate", cls.TAX_LEVELS, "Genus"),
+            ("tax_show_mode", cls.TAX_SHOW_MODES, "number"),
+            ("tax_empty", cls.TAX_EMPTY_OPTIONS, "best"),
+            ("out_format", cls.OUT_FORMATS, "pdf"),
+        ):
+            validation = cls._validate_choice(inputs, name, options, default)
+            if validation is not True:
+                return validation
+        unsupported_tax_add = [level for level in _as_list(inputs.get("tax_add")) if level not in cls.TAX_LEVELS]
+        if unsupported_tax_add:
+            return f"tax_add contains unsupported values: {', '.join(unsupported_tax_add)}"
+        if str(inputs.get("tax_show_mode", "number") or "number") == "explicit":
+            if not _as_list(inputs.get("tax_show")):
+                return "tax_show must include at least one taxon when tax_show_mode is explicit"
+        else:
+            validation = cls._validate_number(inputs, "tax_show", 1, 20)
+            if validation is not True:
+                return validation
+        for name, minimum, default in (
+            ("point_size", 0, 1),
+            ("adjust_zero", 1, None),
+            ("plot_width", 1, None),
+            ("plot_height", 1, None),
+        ):
+            validation = cls._validate_number(inputs, name, minimum, default)
+            if validation is not True:
+                return validation
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": ("FILE", {"description": "Ampvis2 RDS dataset generated with ampvis2: load"}),
+            },
+            "optional": {
+                "metadata_list": ("TSV", {"default": "", "description": "Metadata list generated by ampvis2: load"}),
+                "group_by": ("STRING", {"default": "", "description": "Discrete metadata variable used to group samples"}),
+                "sort_by": (
+                    "STRING",
+                    {"default": "median", "options": cls.SORT_OPTIONS, "description": "Statistic used to sort boxplots"},
+                ),
+                "plot_type": ("STRING", {"default": "boxplot", "options": cls.PLOT_TYPES, "description": "Plot geometry"}),
+                "point_size": ("INT", {"default": 1, "min": 0, "description": "Point size"}),
+                "tax_aggregate": (
+                    "STRING",
+                    {"default": "Genus", "options": cls.TAX_LEVELS, "description": "Taxonomic level used to aggregate OTUs"},
+                ),
+                "tax_add": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "options": cls.TAX_LEVELS,
+                        "description": "Additional taxonomic levels to display",
+                    },
+                ),
+                "tax_show_mode": (
+                    "STRING",
+                    {"default": "number", "options": cls.TAX_SHOW_MODES, "description": "Limit displayed taxa by count or explicit list"},
+                ),
+                "taxonomy_list": (
+                    "TSV",
+                    {"default": "", "description": "Taxonomy list generated by ampvis2: load for explicit taxon selection"},
+                ),
+                "tax_show": ("STRING", {"default": 20, "description": "Number of taxa or explicit taxa to display"}),
+                "tax_empty": (
+                    "STRING",
+                    {"default": "best", "options": cls.TAX_EMPTY_OPTIONS, "description": "How to show OTUs without taxonomy"},
+                ),
+                "plot_flip": ("BOOLEAN", {"default": False, "description": "Flip plot axes"}),
+                "plot_log": ("BOOLEAN", {"default": False, "description": "Use log10 scale"}),
+                "adjust_zero": (
+                    "INT",
+                    {"default": "", "min": 1, "description": "Value added to abundances before median calculations"},
+                ),
+                "normalise": ("BOOLEAN", {"default": False, "description": "Transform OTU read counts to percent per sample"}),
+                "out_format": ("STRING", {"default": "pdf", "options": cls.OUT_FORMATS, "description": "Plot output format"}),
+                "plot_width": ("FLOAT", {"default": "", "min": 1, "description": "Optional plot width in cm"}),
+                "plot_height": ("FLOAT", {"default": "", "min": 1, "description": "Optional plot height in cm"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",
