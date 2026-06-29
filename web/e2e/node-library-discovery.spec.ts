@@ -2963,6 +2963,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.21105/joss.05627'],
     citation_text: 'TAXPASTA: TAXonomic Profile Aggregation and STAndardisation.',
   },
+  taxonkit_name2taxid: {
+    name: 'taxonkit_name2taxid',
+    display_name: 'Name2taxid',
+    category: 'taxonomy',
+    description: 'Convert NCBI taxon names in a tabular column to taxids with TaxonKit.',
+    search_aliases: ['Galaxy', 'TaxonKit', 'Name2taxid', 'TaxonKit name2taxid', 'NCBI taxid lookup', 'taxon names to taxids'],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+        name_field: { type: 'INT', default: 1 },
+        data_source: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+      },
+      optional: {
+        taxonomy_dir: { type: 'DIRECTORY', default: '' },
+        taxdump: { type: 'FILE', default: '' },
+        sci_name: { type: 'BOOLEAN', default: false },
+        show_rank: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['taxonkit', 'tar'],
+    required_conda_packages: ['taxonkit', 'tar'],
+    documentation_url: 'https://bioinf.shenwei.me/taxonkit/',
+    citation_dois: ['10.1016/j.jgg.2021.03.006'],
+    citation_urls: ['https://doi.org/10.1016/j.jgg.2021.03.006'],
+    citation_text: 'TaxonKit: a practical and efficient NCBI taxonomy toolkit.',
+  },
   humann_join_tables: {
     name: 'humann_join_tables',
     display_name: 'HUMAnN Join Tables',
@@ -8850,7 +8878,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('309 nodes available')).toBeVisible();
+  await expect(page.getByText('310 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8960,6 +8988,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MetaPhlAn-style', name: 'Krakentools Kreport2MPA', category: 'taxonomy' },
     { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
     { query: 'taxonomic profile standardisation', name: 'Taxpasta', category: 'taxonomy' },
+    { query: 'TaxonKit name2taxid', name: 'Name2taxid', category: 'taxonomy' },
     { query: 'multi-sample table', name: 'HUMAnN Join Tables', category: 'metagenomics' },
     { query: 'copies per million', name: 'HUMAnN Renormalize Table', category: 'metagenomics' },
     { query: 'one file per sample', name: 'HUMAnN Split Table', category: 'metagenomics' },

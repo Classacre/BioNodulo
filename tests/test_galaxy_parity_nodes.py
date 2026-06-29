@@ -13171,6 +13171,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["fastspar", "parallel"],
             "doi": "10.1093/bioinformatics/bty734",
         },
+        "taxonkit_name2taxid": {
+            "display_name": "Name2taxid",
+            "category": "taxonomy",
+            "required_executables": ["taxonkit", "tar"],
+            "required_conda_packages": ["taxonkit", "tar"],
+            "doi": "10.1016/j.jgg.2021.03.006",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -17111,6 +17118,64 @@ def test_fastspar_pvalues_renders_bootstrap_pipeline_outputs_and_validation(tmp_
         "threshold must be between 0 and 1"
     )
     assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "correlation_mode": "new", "number": 10}) is True
+
+
+def test_taxonkit_name2taxid_renders_taxonomy_setup_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("taxonkit_name2taxid")
+    info = _registry().object_info()["taxonkit_name2taxid"]
+
+    assert info["display_name"] == "Name2taxid"
+    assert info["description"] == "Convert NCBI taxon names in a tabular column to taxids with TaxonKit."
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["name_field"][0] == "INT"
+    assert info["input"]["required"]["data_source"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["sci_name"][1]["default"] is False
+    assert info["input"]["optional"]["show_rank"][1]["default"] is False
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert "10.1016/j.jgg.2021.03.006" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input": "names table.tsv",
+            "name_field": 2,
+            "data_source": "history",
+            "taxdump": "taxdump.tar.gz",
+            "sci_name": True,
+            "show_rank": True,
+            "output": "/work/name2taxid",
+        }
+    ) == (
+        "mkdir -p /work/name2taxid .taxonkit && ln -s taxdump.tar.gz taxdump.tar.gz && "
+        "tar -xf taxdump.tar.gz -C . && taxonkit name2taxid --data-dir . --name-field 2 "
+        "--sci-name --show-rank 'names table.tsv' > /work/name2taxid/names2taxid.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "input": "names.tsv",
+            "name_field": 1,
+            "data_source": "cached",
+            "taxonomy_dir": "/ref/ncbi_taxonomy",
+            "output": "/work/name2taxid",
+        }
+    ) == (
+        "mkdir -p /work/name2taxid .taxonkit && ln -s /ref/ncbi_taxonomy/names.dmp names.dmp && "
+        "ln -s /ref/ncbi_taxonomy/merged.dmp merged.dmp && ln -s /ref/ncbi_taxonomy/nodes.dmp nodes.dmp && "
+        "ln -s /ref/ncbi_taxonomy/delnodes.dmp delnodes.dmp && taxonkit name2taxid --data-dir . "
+        "--name-field 1 names.tsv > /work/name2taxid/names2taxid.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "taxonkit_name2taxid" / "names2taxid.tsv"]
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "names.tsv"}) == "name_field is required"
+    assert node_class.VALIDATE_INPUTS({"input": "names.tsv", "name_field": 0}) == "name_field must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input": "names.tsv", "name_field": 1, "data_source": "history"}) == (
+        "taxdump is required when data_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "names.tsv", "name_field": 1, "data_source": "cached"}) == (
+        "taxonomy_dir is required when data_source is cached"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "names.tsv", "name_field": 1, "data_source": "cached", "taxonomy_dir": "/ref/taxonomy"}
+    ) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

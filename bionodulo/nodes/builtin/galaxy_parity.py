@@ -13613,6 +13613,117 @@ class TaxpastaNode(CommandNode):
         }
 
 
+class TaxonKitName2TaxidNode(CommandNode):
+    """Convert taxon names to NCBI taxonomy identifiers with TaxonKit."""
+
+    NODE_ID = "taxonkit_name2taxid"
+    DISPLAY_NAME = "Name2taxid"
+    REQUIRED_CONDA_PACKAGES = ["taxonkit", "tar"]
+    CATEGORY = "taxonomy"
+    DESCRIPTION = "Convert NCBI taxon names in a tabular column to taxids with TaxonKit."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "TaxonKit",
+        "Name2taxid",
+        "TaxonKit name2taxid",
+        "NCBI taxid lookup",
+        "taxon names to taxids",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["taxonkit", "tar"]
+    DOCUMENTATION_URL = "https://bioinf.shenwei.me/taxonkit/"
+    CITATION_DOIS = ["10.1016/j.jgg.2021.03.006"]
+    CITATION_URLS = [f"{DOI_URL}10.1016/j.jgg.2021.03.006"]
+    CITATION_TEXT = "TaxonKit: a practical and efficient NCBI taxonomy toolkit."
+    VERSION = "0.20.0"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        setup = [shlex.join(["mkdir", "-p", out, ".taxonkit"])]
+        data_source = str(inputs.get("data_source", "cached") or "cached")
+        if data_source == "history":
+            taxdump = str(inputs.get("taxdump", ""))
+            setup.extend(
+                [
+                    shlex.join(["ln", "-s", taxdump, "taxdump.tar.gz"]),
+                    shlex.join(["tar", "-xf", "taxdump.tar.gz", "-C", "."]),
+                ]
+            )
+        else:
+            taxonomy_dir = str(inputs.get("taxonomy_dir", ""))
+            for filename in ["names.dmp", "merged.dmp", "nodes.dmp", "delnodes.dmp"]:
+                setup.append(shlex.join(["ln", "-s", f"{taxonomy_dir}/{filename}", filename]))
+
+        cmd = [
+            "taxonkit",
+            "name2taxid",
+            "--data-dir",
+            ".",
+            "--name-field",
+            str(inputs.get("name_field", "")),
+        ]
+        if inputs.get("sci_name"):
+            cmd.append("--sci-name")
+        if inputs.get("show_rank"):
+            cmd.append("--show-rank")
+        cmd.append(str(inputs.get("input", "")))
+        return " && ".join([*setup, f"{shlex.join(cmd)} > {shlex.quote(f'{out}/names2taxid.tsv')}"])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "names2taxid.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        raw_name_field = inputs.get("name_field")
+        if raw_name_field is None or str(raw_name_field) == "":
+            return "name_field is required"
+        try:
+            name_field = int(raw_name_field)
+        except (TypeError, ValueError):
+            return "name_field must be an integer"
+        if name_field < 1:
+            return "name_field must be >= 1"
+        data_source = str(inputs.get("data_source", "cached") or "cached")
+        if data_source not in {"cached", "history"}:
+            return "data_source must be one of: cached, history"
+        if data_source == "history" and not str(inputs.get("taxdump", "")).strip():
+            return "taxdump is required when data_source is history"
+        if data_source == "cached" and not str(inputs.get("taxonomy_dir", "")).strip():
+            return "taxonomy_dir is required when data_source is cached"
+        return super().VALIDATE_INPUTS(inputs)
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "Tabular or one-name-per-line input containing NCBI taxon names"}),
+                "name_field": ("INT", {"min": 1, "default": 1, "description": "One-based column containing taxon names"}),
+                "data_source": (
+                    "STRING",
+                    {"default": "cached", "options": ["cached", "history"], "description": "Use cached taxonomy files or a taxdump archive"},
+                ),
+            },
+            "optional": {
+                "taxonomy_dir": (
+                    "DIRECTORY",
+                    {"default": "", "description": "Cached NCBI taxonomy directory containing names.dmp, nodes.dmp, merged.dmp, and delnodes.dmp"},
+                ),
+                "taxdump": ("FILE", {"default": "", "description": "NCBI taxdump.tar.gz archive when data_source is history"}),
+                "sci_name": ("BOOLEAN", {"default": False, "description": "Only search scientific names"}),
+                "show_rank": ("BOOLEAN", {"default": False, "description": "Include the resolved taxon rank in the output"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HUMAnNJoinTablesNode(CommandNode):
     """Join HUMAnN and MetaPhlAn tables into a multi-sample table."""
 
