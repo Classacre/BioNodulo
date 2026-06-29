@@ -625,6 +625,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/mst030",
         },
+        "hyphy_gard": {
+            "display_name": "HyPhy-GARD",
+            "category": "phylogeny",
+            "required_executables": ["HYPHYMPI", "mpirun"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msl051",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -8459,6 +8466,194 @@ def test_hyphy_fubar_validates_wrapper_inputs() -> None:
             "grid": 20,
             "concentration_parameter": 0.5,
             "kill_zero_lengths": "Yes",
+        }
+    ) is True
+
+
+def test_hyphy_gard_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_gard"]
+
+    assert info["display_name"] == "HyPhy-GARD"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Detect recombination breakpoints with HyPhy Genetic Algorithm for Recombination Detection."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "GARD",
+        "Genetic Algorithm for Recombination Detection",
+        "recombination detection",
+        "breakpoints",
+        "phylogenetic incongruence",
+        "partitioned alignment",
+        "site-to-site rate variation",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["ALIGNMENT", "JSON", "TEXT"]
+    assert info["output_name"] == ["gard_output", "gard_output_json", "gard_md_report"]
+    assert info["required_executables"] == ["HYPHYMPI", "mpirun"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "https://veg.github.io/hyphy-site/methods/gard/"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1093/molbev/msl051"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/molbev/msl051",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Automated Phylogenetic Detection of Recombination Using a Genetic Algorithm."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Sequence alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["datatype"][1]["default"] == "nucleotide"
+    assert info["input"]["optional"]["datatype"][1]["options"] == ["nucleotide", "amino-acid", "codon"]
+    assert info["input"]["optional"]["model"][1]["default"] == "GTR"
+    assert info["input"]["optional"]["model"][1]["options"] == [
+        "LG",
+        "WAG",
+        "JTT",
+        "JC69",
+        "mtMet",
+        "mtVer",
+        "mtInv",
+        "gcpREV",
+        "HIVBm",
+        "HIVWm",
+        "GTR",
+    ]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["rate"][1]["default"] == ""
+    assert info["input"]["optional"]["rate"][1]["options"] == ["", "GDD", "Gamma"]
+    assert info["input"]["optional"]["rate_classes"][1]["default"] == 2
+    assert info["input"]["optional"]["rate_classes"][1]["min"] == 2
+    assert info["input"]["optional"]["rate_classes"][1]["max"] == 6
+    assert info["input"]["optional"]["max_breakpoints"][1]["default"] == 10000
+    assert info["input"]["optional"]["max_breakpoints"][1]["min"] == 1
+    assert info["input"]["optional"]["max_breakpoints"][1]["max"] == 10000
+    assert info["input"]["optional"]["mode"][1]["default"] == "Normal"
+    assert info["input"]["optional"]["mode"][1]["options"] == ["Normal", "Faster"]
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_gard_renders_default_nucleotide_mpi_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_gard")
+
+    assert node_class.render_command(
+        {
+            "input_file": "gard-in1.fa",
+            "input_ext": "fasta",
+            "output": "/work/hyphy_gard",
+        }
+    ) == (
+        "ln -s gard-in1.fa input.fasta && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 4} '
+        "HYPHYMPI gard --alignment input.fasta --type nucleotide --max-breakpoints 10000 --mode Normal "
+        'ENV="TOLERATE_NUMERICAL_ERRORS=1;" --output /work/hyphy_gard/gard_output.json '
+        "--output-lf /work/hyphy_gard/gard_output.nex > /work/hyphy_gard/gard_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_gard" / "gard_output.nex",
+        tmp_path / "hyphy_gard" / "gard_output.json",
+        tmp_path / "hyphy_gard" / "gard_stdout.md",
+    ]
+
+
+def test_hyphy_gard_renders_amino_acid_and_codon_mpi_commands() -> None:
+    node_class = _node_class("hyphy_gard")
+
+    amino_command = node_class.render_command(
+        {
+            "input_file": "protein alignment.nex",
+            "input_ext": "nex",
+            "datatype": "amino-acid",
+            "model": "WAG",
+            "rate": "Gamma",
+            "rate_classes": 4,
+            "max_breakpoints": 500,
+            "mode": "Faster",
+            "threads": 8,
+            "output": "/work/hyphy_gard",
+        }
+    )
+    assert amino_command == (
+        "ln -s 'protein alignment.nex' input.nex && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 8} '
+        "HYPHYMPI gard --alignment input.nex --type amino-acid --model WAG --rv Gamma --rate-classes 4 "
+        "--max-breakpoints 500 --mode Faster "
+        'ENV="TOLERATE_NUMERICAL_ERRORS=1;" --output /work/hyphy_gard/gard_output.json '
+        "--output-lf /work/hyphy_gard/gard_output.nex > /work/hyphy_gard/gard_stdout.md"
+    )
+    assert "--code" not in amino_command
+
+    codon_command = node_class.render_command(
+        {
+            "input_file": "codon alignment.fa.gz",
+            "input_ext": "fasta.gz",
+            "datatype": "codon",
+            "gencodeid": "Vertebrate-mtDNA",
+            "rate": "GDD",
+            "rate_classes": 6,
+            "output": "/work/hyphy_gard",
+        }
+    )
+    assert codon_command == (
+        "ln -s 'codon alignment.fa.gz' input.fasta.gz && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 4} '
+        "HYPHYMPI gard --alignment input.fasta.gz --type codon --code Vertebrate-mtDNA "
+        "--rv GDD --rate-classes 6 --max-breakpoints 10000 --mode Normal "
+        'ENV="TOLERATE_NUMERICAL_ERRORS=1;" --output /work/hyphy_gard/gard_output.json '
+        "--output-lf /work/hyphy_gard/gard_output.nex > /work/hyphy_gard/gard_stdout.md"
+    )
+    assert "--model" not in codon_command
+
+
+def test_hyphy_gard_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_gard")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-GARD alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "input_ext": "stockholm"}) == (
+        "Unsupported HyPhy-GARD input extension: stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "datatype": "rna"}) == (
+        "Unsupported HyPhy-GARD data type: rna"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "datatype": "amino-acid", "model": "PAM250"}
+    ) == "Unsupported HyPhy-GARD amino-acid substitution model: PAM250"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "datatype": "codon", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "rate": "Beta"}) == (
+        "Unsupported HyPhy-GARD rate variation setting: Beta"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "rate": "GDD", "rate_classes": 1}) == (
+        "HyPhy-GARD rate classes must be between 2 and 6"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "max_breakpoints": 0}) == (
+        "HyPhy-GARD maximum breakpoints must be between 1 and 10000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "mode": "Turbo"}) == (
+        "Unsupported HyPhy-GARD run mode: Turbo"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-GARD threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "input_ext": "fasta",
+            "datatype": "nucleotide",
+            "rate": "Gamma",
+            "rate_classes": 2,
+            "max_breakpoints": 10000,
+            "mode": "Normal",
+            "threads": 4,
         }
     ) is True
 

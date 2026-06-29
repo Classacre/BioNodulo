@@ -3344,6 +3344,53 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection.',
   },
+  hyphy_gard: {
+    name: 'hyphy_gard',
+    display_name: 'HyPhy-GARD',
+    category: 'phylogeny',
+    description: 'Detect recombination breakpoints with HyPhy Genetic Algorithm for Recombination Detection.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'GARD',
+      'Genetic Algorithm for Recombination Detection',
+      'recombination detection',
+      'breakpoints',
+      'phylogenetic incongruence',
+      'partitioned alignment',
+      'site-to-site rate variation',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        datatype: { type: 'STRING', default: 'nucleotide', options: ['nucleotide', 'amino-acid', 'codon'] },
+        model: {
+          type: 'STRING',
+          default: 'GTR',
+          options: ['LG', 'WAG', 'JTT', 'JC69', 'mtMet', 'mtVer', 'mtInv', 'gcpREV', 'HIVBm', 'HIVWm', 'GTR'],
+        },
+        gencodeid: { type: 'STRING', default: 'Universal' },
+        rate: { type: 'STRING', default: '', options: ['', 'GDD', 'Gamma'] },
+        rate_classes: { type: 'INT', default: 2 },
+        max_breakpoints: { type: 'INT', default: 10000 },
+        mode: { type: 'STRING', default: 'Normal', options: ['Normal', 'Faster'] },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['ALIGNMENT', 'JSON', 'TEXT'],
+    output_name: ['gard_output', 'gard_output_json', 'gard_md_report'],
+    required_executables: ['HYPHYMPI', 'mpirun'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'https://veg.github.io/hyphy-site/methods/gard/',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/molbev/msl051'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197', 'https://doi.org/10.1093/molbev/msl051'],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Automated Phylogenetic Detection of Recombination Using a Genetic Algorithm.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -6314,7 +6361,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('235 nodes available')).toBeVisible();
+  await expect(page.getByText('236 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6423,6 +6470,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'directional selection', name: 'HyPhy-FADE', category: 'phylogeny' },
     { query: 'Fixed Effects Likelihood', name: 'HyPhy-FEL', category: 'phylogeny' },
     { query: 'Fast Unconstrained Bayesian AppRoximation', name: 'HyPhy-FUBAR', category: 'phylogeny' },
+    { query: 'recombination breakpoints', name: 'HyPhy-GARD', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
