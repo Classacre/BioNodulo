@@ -5187,6 +5187,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.21105/joss.06782'],
     citation_text: 'Binette: a fast and accurate binning refinement tool to construct high-quality MAGs.',
   },
+  bin_refiner: {
+    name: 'bin_refiner',
+    display_name: 'Binning refiner',
+    category: 'metagenomics',
+    description: 'Refine metagenome bins from one or more FASTA bin sets and report refined-bin membership and source lengths.',
+    search_aliases: ['Galaxy', 'Binning refiner', 'Binning_refiner', 'Binning refiner metagenome bins', 'bin_refiner', 'genome bins', 'metagenome bin refinement', 'contamination reduction', 'refined bins'],
+    input: {
+      required: {
+        input_bins: { type: 'FASTA_LIST', multiple: true },
+      },
+      optional: {
+        m: { type: 'INT', default: 512 },
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+        input_exts: { type: 'STRING', default: [], multiple: true },
+      },
+    },
+    output: ['DIRECTORY', 'TSV', 'TSV'],
+    output_name: ['refined_bins', 'refined_contigs', 'sources_and_length'],
+    required_executables: ['Binning_refiner'],
+    required_conda_packages: ['binning_refiner'],
+    documentation_url: 'https://github.com/songweizhi/Binning_refiner',
+    citation_dois: ['10.1093/bioinformatics/btx086'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btx086'],
+    citation_text: 'Binning_refiner improves genome bins through the combination of different binning programs.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7932,7 +7957,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('284 nodes available')).toBeVisible();
+  await expect(page.getByText('285 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8097,6 +8122,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BigWig coverage outliers', name: 'Bigwig outliers to bed features', category: 'genomics' },
     { query: 'AmpliGone primer removal', name: 'AmpliGone', category: 'sequence' },
     { query: 'Binette binning refinement', name: 'Binette', category: 'metagenomics' },
+    { query: 'Binning refiner metagenome bins', name: 'Binning refiner', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

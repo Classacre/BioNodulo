@@ -12996,6 +12996,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["binette"],
             "doi": "10.21105/joss.06782",
         },
+        "bin_refiner": {
+            "display_name": "Binning refiner",
+            "category": "metagenomics",
+            "required_executables": ["Binning_refiner"],
+            "required_conda_packages": ["binning_refiner"],
+            "doi": "10.1093/bioinformatics/btx086",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14748,6 +14755,44 @@ def test_binette_renders_binning_refinement_command_outputs_and_validation(tmp_p
             "checkm2_db_path": "/db/checkm2/current.dmnd",
         }
     ) is True
+
+
+def test_bin_refiner_renders_refinement_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("bin_refiner")
+    info = _registry().object_info()["bin_refiner"]
+
+    assert info["output"] == ["DIRECTORY", "TSV", "TSV"]
+    assert info["output_name"] == ["refined_bins", "refined_contigs", "sources_and_length"]
+    assert info["input"]["required"]["input_bins"][1]["multiple"] is True
+    assert "10.1093/bioinformatics/btx086" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_bins": ["MetaBAT 17.fa.gz", "Concoct/bin 1.fasta", "MaxBin#2.fa"],
+            "element_identifiers": ["MetaBAT 17", "Concoct/bin 1", ""],
+            "input_exts": ["fasta.gz", "fasta", "fasta"],
+            "m": 256,
+            "output": "/work/bin_refiner",
+        }
+    ) == (
+        "mkdir -p /work/bin_refiner/input_bin_dir/bins && "
+        "gunzip -c 'MetaBAT 17.fa.gz' > /work/bin_refiner/input_bin_dir/bins/MetaBAT_17.fasta.gz && "
+        "ln -s 'Concoct/bin 1.fasta' /work/bin_refiner/input_bin_dir/bins/Concoct_bin_1.fasta && "
+        "ln -s 'MaxBin#2.fa' /work/bin_refiner/input_bin_dir/bins/MaxBin_2.fa.fasta && "
+        "Binning_refiner -i /work/bin_refiner/input_bin_dir -p refined -m 256 && "
+        "mv /work/bin_refiner/refined_Binning_refiner_outputs/refined_contigs.txt "
+        "/work/bin_refiner/refined_contigs.tsv && "
+        "mv /work/bin_refiner/refined_Binning_refiner_outputs/refined_sources_and_length.txt "
+        "/work/bin_refiner/sources_and_length.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bin_refiner" / "refined_Binning_refiner_outputs" / "refined_refined_bins",
+        tmp_path / "bin_refiner" / "refined_contigs.tsv",
+        tmp_path / "bin_refiner" / "sources_and_length.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_bins": []}) == "at least one binned FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input_bins": ["bin.fa"], "m": 0}) == "minimum refined bin size must be >= 1 Kbp"
+    assert node_class.VALIDATE_INPUTS({"input_bins": ["bin.fa"], "m": 1}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
