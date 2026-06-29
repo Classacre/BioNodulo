@@ -993,6 +993,59 @@ def test_seqkit_stats_renders_statistics_command() -> None:
     ]
 
 
+def test_seqtk_comp_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_comp"]
+
+    assert info["display_name"] == "SeqTK Composition"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Report per-record nucleotide composition for FASTA or FASTQ data with seqtk comp."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["composition"]
+    assert info["required_executables"] == ["seqtk", "awk"]
+    assert info["required_conda_packages"] == ["seqtk", "gawk"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk comp" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["in_bed"][0] == "BED"
+
+
+def test_seqtk_comp_renders_composition_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_comp")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fasta.gz",
+            "output": "/work/seqtk_comp",
+        }
+    ) == (
+        "seqtk comp reads.fasta.gz | "
+        "awk 'BEGIN{print \"#chr\\tlength\\t#A\\t#C\\t#G\\t#T\\t#2\\t#3\\t#4\\t#CpG\\t#tv\\t#ts\\t#CpG-ts\"}1' "
+        "> /work/seqtk_comp/composition.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "seqtk_comp" / "composition.tsv",
+    ]
+
+
+def test_seqtk_comp_renders_bed_restricted_composition_command() -> None:
+    node_class = _node_class("seqtk_comp")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq",
+            "in_bed": "regions.bed",
+            "output": "/work/seqtk_comp",
+        }
+    ) == (
+        "seqtk comp -r regions.bed reads.fastq | "
+        "awk 'BEGIN{print \"#chr\\tlength\\t#A\\t#C\\t#G\\t#T\\t#2\\t#3\\t#4\\t#CpG\\t#tv\\t#ts\\t#CpG-ts\"}1' "
+        "> /work/seqtk_comp/composition.tsv"
+    )
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

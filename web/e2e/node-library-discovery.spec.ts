@@ -455,6 +455,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0163962'],
     citation_text: 'SeqKit: a cross-platform and ultrafast toolkit for FASTA/Q file manipulation.',
   },
+  seqtk_comp: {
+    name: 'seqtk_comp',
+    display_name: 'SeqTK Composition',
+    category: 'sequence',
+    description: 'Report per-record nucleotide composition for FASTA or FASTQ data with seqtk comp.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk comp', 'SeqTK comp', 'nucleotide composition', 'FASTA composition', 'FASTQ composition', 'base composition'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        in_bed: { type: 'BED', default: '' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['composition'],
+    required_executables: ['seqtk', 'awk'],
+    required_conda_packages: ['seqtk', 'gawk'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -10793,7 +10816,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('369 nodes available')).toBeVisible();
+  await expect(page.getByText('370 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10819,6 +10842,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'diamond blastx', name: 'DIAMOND Align', category: 'alignment' },
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
+    { query: 'seqtk composition', name: 'SeqTK Composition', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },

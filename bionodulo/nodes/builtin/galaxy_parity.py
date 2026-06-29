@@ -97,6 +97,8 @@ BWA_CITATION_TEXT = (
     "Fast and accurate short read alignment with Burrows-Wheeler Transform; "
     "Fast and accurate long-read alignment with Burrows-Wheeler Transform."
 )
+SEQTK_CITATION_URL = "https://github.com/lh3/seqtk"
+SEQTK_CITATION_TEXT = "SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository."
 ADD_INPUT_NAME_AS_COLUMN_CITATION_URL = (
     "https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column"
 )
@@ -1160,6 +1162,70 @@ class SeqKitStatsNode(CommandNode):
                 "basename": ("BOOLEAN", {"default": False, "description": "Report input basename only"}),
                 "skip_err": ("BOOLEAN", {"default": False, "description": "Skip errors and show warnings"}),
                 "tabular": ("BOOLEAN", {"default": True, "description": "Output tabular format"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class SeqTKCompNode(CommandNode):
+    """Report nucleotide composition for FASTA/Q records with seqtk comp."""
+
+    NODE_ID = "seqtk_comp"
+    DISPLAY_NAME = "SeqTK Composition"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Report per-record nucleotide composition for FASTA or FASTQ data with seqtk comp."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk comp",
+        "SeqTK comp",
+        "nucleotide composition",
+        "FASTA composition",
+        "FASTQ composition",
+        "base composition",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("composition",)
+    REQUIRED_EXECUTABLES = ["seqtk", "awk"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    HEADER = r"#chr\tlength\t#A\t#C\t#G\t#T\t#2\t#3\t#4\t#CpG\t#tv\t#ts\t#CpG-ts"
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/composition.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["seqtk", "comp"]
+        _add_if_value(cmd, "-r", inputs.get("in_bed"))
+        cmd.append(str(inputs.get("in_file", "")))
+        return (
+            f"{_shell_join(cmd)} | "
+            f"awk 'BEGIN{{print \"{cls.HEADER}\"}}1' "
+            f"> {shlex.quote(cls._out_path(inputs))}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "composition.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+            },
+            "optional": {
+                "in_bed": ("BED", {"default": "", "description": "Restrict composition to regions from this BED file"}),
             },
             "hidden": {"output": ("STRING", {})},
         }
