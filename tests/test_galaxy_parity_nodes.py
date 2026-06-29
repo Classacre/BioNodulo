@@ -6538,6 +6538,66 @@ def test_ampvis2_load_renders_script_outputs_and_validates(tmp_path: Path) -> No
     assert node_class.VALIDATE_INPUTS({"otutable": "otu.tsv"}) is True
 
 
+def test_ampvis2_merge_ampvis2_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_merge_ampvis2"]
+
+    assert info["display_name"] == "ampvis2 merge ampvis2 data sets"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Merge multiple ampvis2 RDS datasets into a single ampvis2 object."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["multiple"] is True
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS datasets generated with ampvis2: load"
+    assert info["input"]["optional"]["by_refseq"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["by_refseq"][1]["default"] is True
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_merge_ampvis2.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 merge ampvis2 data sets" in info["search_aliases"]
+    assert "amp_merge_ampvis2" in info["search_aliases"]
+    assert "DNA reference sequences" in info["search_aliases"]
+
+
+def test_ampvis2_merge_ampvis2_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_merge_ampvis2")
+
+    command = node_class.render_command(
+        {
+            "data": ["AalborgWWTPs.2010.rds", "Aalborg WWTPs 2011.rds"],
+            "by_refseq": False,
+            "output": "/work/ampvis2_merge_ampvis2",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_merge_ampvis2/merge_ampvis2.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert "merged <- amp_merge_ampvis2(" in command
+    assert '    readRDS("AalborgWWTPs.2010.rds"),' in command
+    assert '    readRDS("Aalborg WWTPs 2011.rds"),' in command
+    assert "    by_refseq = FALSE" in command
+    assert 'saveRDS(merged, "/work/ampvis2_merge_ampvis2/output.rds")' in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_merge_ampvis2/merge_ampvis2.R")
+
+    default_command = node_class.render_command(
+        {
+            "data": ["AalborgWWTPs.2010.rds", "AalborgWWTPs.2011.rds"],
+            "output": "/work/ampvis2_merge_ampvis2",
+        }
+    )
+    assert "    by_refseq = TRUE" in default_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_merge_ampvis2" / "output.rds",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": []}) == "at least one ampvis2 data set is required"
+    assert node_class.VALIDATE_INPUTS({"data": ["dataset.rds"]}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

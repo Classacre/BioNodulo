@@ -11381,6 +11381,108 @@ class Ampvis2LoadNode(CommandNode):
         }
 
 
+class Ampvis2MergeAmpvis2Node(CommandNode):
+    """Merge multiple ampvis2 RDS datasets into one ampvis2 object."""
+
+    NODE_ID = "ampvis2_merge_ampvis2"
+    DISPLAY_NAME = "ampvis2 merge ampvis2 data sets"
+    REQUIRED_CONDA_PACKAGES = ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Merge multiple ampvis2 RDS datasets into a single ampvis2 object."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ampvis2",
+        "ampvis2 merge ampvis2 data sets",
+        "amp_merge_ampvis2",
+        "merge ampvis2 objects",
+        "RDS merge",
+        "by reference sequence",
+        "DNA reference sequences",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://kasperskytte.github.io/ampvis2/reference/amp_merge_ampvis2.html"
+    CITATION_DOIS = [AMPVIS2_CITATION_DOIS[0]]
+    CITATION_URLS = [f"{DOI_URL}{AMPVIS2_CITATION_DOIS[0]}"]
+    CITATION_TEXT = AMPVIS2_CITATION_TEXT
+    VERSION = "2.8.11+galaxy2"
+    SHELL = True
+
+    @classmethod
+    def _r_bool(cls, value: Any, default: bool = False) -> str:
+        if value in (None, ""):
+            value = default
+        if isinstance(value, str):
+            return "FALSE" if value.lower() in {"false", "0", "no"} else "TRUE"
+        return "TRUE" if bool(value) else "FALSE"
+
+    @classmethod
+    def _data_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("data"))
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.rds"
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any]) -> str:
+        data_lines = [f'    readRDS("{data_file}"),' for data_file in cls._data_files(inputs)]
+        return "\n".join(
+            [
+                "library(ampvis2, quietly = TRUE)",
+                "merged <- amp_merge_ampvis2(",
+                *data_lines,
+                f"    by_refseq = {cls._r_bool(inputs.get('by_refseq'), True)}",
+                ")",
+                f'saveRDS(merged, "{cls._output_path(inputs)}")',
+                "merged",
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = f"{out}/merge_ampvis2.R"
+        return f"cat > {shlex.quote(script_path)} <<'RSCRIPT'\n{cls._script_body(inputs)}\nRSCRIPT && {_shell_join(['Rscript', script_path])}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.rds"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._data_files(inputs):
+            return "at least one ampvis2 data set is required"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": (
+                    "FILE",
+                    {"multiple": True, "description": "Ampvis2 RDS datasets generated with ampvis2: load"},
+                ),
+            },
+            "optional": {
+                "by_refseq": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "description": "Merge by exact DNA reference sequence matches and use those sequences as output names",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",

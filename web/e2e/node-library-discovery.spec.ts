@@ -1619,6 +1619,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_merge_ampvis2: {
+    name: 'ampvis2_merge_ampvis2',
+    display_name: 'ampvis2 merge ampvis2 data sets',
+    category: 'metagenomics',
+    description: 'Merge multiple ampvis2 RDS datasets into a single ampvis2 object.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 merge ampvis2 data sets', 'amp_merge_ampvis2', 'merge ampvis2 objects', 'RDS merge', 'by reference sequence', 'DNA reference sequences'],
+    input: {
+      required: {
+        data: { type: 'FILE', multiple: true },
+      },
+      optional: {
+        by_refseq: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_merge_ampvis2.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -10123,7 +10146,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('347 nodes available')).toBeVisible();
+  await expect(page.getByText('348 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10187,6 +10210,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ampvis2 frequency plot', name: 'ampvis2 frequency plot', category: 'metagenomics' },
     { query: 'ampvis2 heatmap', name: 'ampvis2 heatmap', category: 'metagenomics' },
     { query: 'ampvis2 load', name: 'ampvis2 load', category: 'metagenomics' },
+    { query: 'ampvis2 merge ampvis2 data sets', name: 'ampvis2 merge ampvis2 data sets', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
