@@ -618,6 +618,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/msaa263",
         },
+        "hyphy_cln": {
+            "display_name": "HyPhy-CLN",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msz197",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -8278,6 +8285,130 @@ def test_hyphy_cfel_validates_wrapper_inputs() -> None:
             "pvalue": 0.05,
             "qvalue": 0.2,
             "kill_zero_lengths": "Yes",
+            "threads": 4,
+        }
+    ) is True
+
+
+def test_hyphy_cln_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_cln"]
+
+    assert info["display_name"] == "HyPhy-CLN"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Clean and normalize codon alignments with HyPhy CLN."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "CLN",
+        "CleanStopCodons",
+        "CleanStopCodons duplicate sequences",
+        "clean alignment",
+        "normalize alignment",
+        "duplicate sequences",
+        "gap-only sites",
+        "stop codons",
+        "sequence identifiers",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["cleaned_alignment"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert (
+        info["documentation_url"]
+        == "https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles/CleanStopCodons.bf"
+    )
+    assert info["citation_dois"] == ["10.1093/molbev/msz197"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/molbev/msz197"]
+    assert info["citation_text"] == "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies."
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "In-frame codon alignment in FASTA, compressed FASTA, NEXUS, PHYLIP, or MEGA format"
+    )
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == [
+        "fasta",
+        "fasta.gz",
+        "nex",
+        "nexus",
+        "phylip",
+        "mega",
+    ]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["filtering_method"][1]["default"] == "No/No"
+    assert info["input"]["optional"]["filtering_method"][1]["options"] == [
+        "No/No",
+        "No/Yes",
+        "Yes/No",
+        "Yes/Yes",
+        "Disallow stops",
+    ]
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_cln_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_cln")
+
+    assert node_class.render_command(
+        {
+            "input_file": "conv-in1.fa",
+            "input_ext": "fasta",
+            "output": "/work/hyphy_cln",
+        }
+    ) == (
+        "ln -s conv-in1.fa input.fasta && "
+        "hyphy CPU=4 cln --alignment input.fasta --code Universal --filtering-method No/No "
+        "--output /work/hyphy_cln/cleaned_alignment.fasta"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_cln" / "cleaned_alignment.fasta",
+    ]
+
+
+def test_hyphy_cln_renders_advanced_command() -> None:
+    node_class = _node_class("hyphy_cln")
+
+    assert node_class.render_command(
+        {
+            "input_file": "codon alignment.phy",
+            "input_ext": "phylip",
+            "gencodeid": "Vertebrate-mtDNA",
+            "filtering_method": "Disallow stops",
+            "threads": 8,
+            "output": "/work/hyphy_cln",
+        }
+    ) == (
+        "ln -s 'codon alignment.phy' input.phylip && "
+        "hyphy CPU=8 cln --alignment input.phylip --code Vertebrate-mtDNA "
+        "--filtering-method 'Disallow stops' --output /work/hyphy_cln/cleaned_alignment.fasta"
+    )
+
+
+def test_hyphy_cln_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_cln")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-CLN alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "input_ext": "stockholm"}) == (
+        "Unsupported HyPhy-CLN input extension: stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "filtering_method": "Maybe"}) == (
+        "Unsupported HyPhy-CLN filtering method: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-CLN threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "input_ext": "fasta",
+            "gencodeid": "Universal",
+            "filtering_method": "Yes/Yes",
             "threads": 4,
         }
     ) is True
