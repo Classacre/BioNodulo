@@ -3084,6 +3084,42 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s12864-020-6635-8'],
     citation_text: 'Tracy: basecalling, alignment, assembly and deconvolution of Sanger chromatogram trace files.',
   },
+  tracy_assemble: {
+    name: 'tracy_assemble',
+    display_name: 'tracy Assemble',
+    category: 'assembly',
+    description: 'Assemble overlapping Sanger chromatogram trace files into a consensus sequence with Tracy.',
+    search_aliases: ['Galaxy', 'Tracy', 'tracy Assemble', 'tracy trace assembly', 'Sanger chromatogram assembly', 'overlapping Sanger traces', 'consensus sequence'],
+    input: {
+      required: {
+        tracefiles: { type: 'FILE', multiple: true },
+      },
+      optional: {
+        pratio: { type: 'FLOAT', default: 0.33 },
+        trim: { type: 'INT', default: 4 },
+        fracmatch: { type: 'FLOAT', default: 0.5 },
+        called: { type: 'FLOAT', default: 0.1 },
+        format: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq'] },
+        inccons: { type: 'BOOLEAN', default: false },
+        useref: { type: 'STRING', default: 'no', options: ['yes', 'no'] },
+        reference: { type: 'FASTA', default: '' },
+        incref: { type: 'BOOLEAN', default: false },
+        gapopen: { type: 'INT', default: -10 },
+        gapext: { type: 'INT', default: -4 },
+        match: { type: 'INT', default: 3 },
+        mismatch: { type: 'INT', default: -5 },
+        json_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FASTA', 'FASTA', 'JSON'],
+    output_name: ['consensus', 'alignment', 'json'],
+    required_executables: ['tracy'],
+    required_conda_packages: ['tracy'],
+    documentation_url: 'https://www.gear-genomics.com/docs/tracy/cli/#trace-assembly',
+    citation_dois: ['10.1186/s12864-020-6635-8'],
+    citation_urls: ['https://doi.org/10.1186/s12864-020-6635-8'],
+    citation_text: 'Tracy: basecalling, alignment, assembly and deconvolution of Sanger chromatogram trace files.',
+  },
   humann_join_tables: {
     name: 'humann_join_tables',
     display_name: 'HUMAnN Join Tables',
@@ -8971,7 +9007,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('313 nodes available')).toBeVisible();
+  await expect(page.getByText('314 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9085,6 +9121,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'TaxonKit profile2cami', name: 'Profile2CAMI', category: 'taxonomy' },
     { query: 'tracy Sanger basecalling', name: 'tracy Basecall', category: 'sequence' },
     { query: 'tracy trace alignment', name: 'tracy Align', category: 'alignment' },
+    { query: 'tracy trace assembly', name: 'tracy Assemble', category: 'assembly' },
     { query: 'multi-sample table', name: 'HUMAnN Join Tables', category: 'metagenomics' },
     { query: 'copies per million', name: 'HUMAnN Renormalize Table', category: 'metagenomics' },
     { query: 'one file per sample', name: 'HUMAnN Split Table', category: 'metagenomics' },

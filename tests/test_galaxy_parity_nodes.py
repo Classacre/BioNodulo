@@ -13199,6 +13199,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["tracy"],
             "doi": "10.1186/s12864-020-6635-8",
         },
+        "tracy_assemble": {
+            "display_name": "tracy Assemble",
+            "category": "assembly",
+            "required_executables": ["tracy"],
+            "required_conda_packages": ["tracy"],
+            "doi": "10.1186/s12864-020-6635-8",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -17408,6 +17415,79 @@ def test_tracy_align_renders_trace_alignment_command_outputs_and_validation(tmp_
     assert node_class.VALIDATE_INPUTS(
         {"reference": "reference.fa", "tracefile": "trace.ab1", "optional_outputs": ["json"]}
     ) is True
+
+
+def test_tracy_assemble_renders_trace_assembly_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("tracy_assemble")
+    info = _registry().object_info()["tracy_assemble"]
+
+    assert info["display_name"] == "tracy Assemble"
+    assert info["description"] == "Assemble overlapping Sanger chromatogram trace files into a consensus sequence with Tracy."
+    assert info["input"]["required"]["tracefiles"][0] == "FILE"
+    assert info["input"]["required"]["tracefiles"][1]["multiple"] is True
+    assert info["input"]["optional"]["useref"][1]["default"] == "no"
+    assert info["input"]["optional"]["format"][1]["options"] == ["fasta", "fastq"]
+    assert info["input"]["optional"]["json_output"][1]["default"] is False
+    assert info["output"] == ["FASTA", "FASTA", "JSON"]
+    assert info["output_name"] == ["consensus", "alignment", "json"]
+    assert info["documentation_url"] == "https://www.gear-genomics.com/docs/tracy/cli/#trace-assembly"
+    assert info["citation_dois"] == ["10.1186/s12864-020-6635-8"]
+    assert "Sanger chromatogram trace files" in info["citation_text"]
+    assert "tracy trace assembly" in info["search_aliases"]
+    assert node_class.render_command(
+        {
+            "tracefiles": ["input1_f.ab1", "input1_r.ab1"],
+            "output": "/work/tracy_assemble",
+        }
+    ) == (
+        "tracy assemble --pratio 0.33 --trim 4 --fracmatch 0.5 --called 0.1 --format fasta "
+        "--gapopen -10 --gapext -4 --match 3 --mismatch -5 input1_f.ab1 input1_r.ab1 && "
+        "mv out.cons.fa /work/tracy_assemble/out.cons.fa"
+    )
+    assert node_class.render_command(
+        {
+            "tracefiles": ["forward trace.ab1", "reverse trace.scf"],
+            "useref": "yes",
+            "reference": "reference genome.fa",
+            "incref": True,
+            "pratio": 0.2,
+            "trim": 6,
+            "fracmatch": 0.7,
+            "called": 0.25,
+            "format": "fastq",
+            "inccons": True,
+            "gapopen": -12,
+            "gapext": -3,
+            "match": 4,
+            "mismatch": -6,
+            "json_output": True,
+            "output": "/work/tracy assemble",
+        }
+    ) == (
+        "tracy assemble --reference 'reference genome.fa' --incref --pratio 0.2 --trim 6 --fracmatch 0.7 "
+        "--called 0.25 --format fastq --inccons --gapopen -12 --gapext -3 --match 4 --mismatch -6 "
+        "'forward trace.ab1' 'reverse trace.scf' && mv out.cons.fq '/work/tracy assemble/out.cons.fq'"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "tracy_assemble" / "out.cons.fa",
+        tmp_path / "tracy_assemble" / "out.align.fa",
+    ]
+    assert node_class.PLAN_OUTPUTS({"format": "fastq", "json_output": True}, tmp_path) == [
+        tmp_path / "tracy_assemble" / "out.cons.fq",
+        tmp_path / "tracy_assemble" / "out.align.fa",
+        tmp_path / "tracy_assemble" / "out.json",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "at least one tracefile is required"
+    assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "useref": "maybe"}) == "useref must be one of: yes, no"
+    assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "useref": "yes"}) == (
+        "reference is required when useref is yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "format": "json"}) == "format must be one of: fasta, fastq"
+    assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "trim": 0}) == "trim must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "fracmatch": 1.2}) == "fracmatch must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "called": -0.1}) == "called must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1"], "gapext": 1}) == "gapext must be <= 0"
+    assert node_class.VALIDATE_INPUTS({"tracefiles": ["input.ab1", "input2.scf"], "format": "fastq"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
