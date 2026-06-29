@@ -1107,6 +1107,49 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
     citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
   },
+  bbtools_bbnorm: {
+    name: 'bbtools_bbnorm',
+    display_name: 'BBTools BBNorm',
+    category: 'qc',
+    description: 'Normalize sequencing coverage with BBNorm count-min-sketch k-mer depth estimates.',
+    search_aliases: ['Galaxy', 'BBTools', 'BBNorm', 'bbnorm', 'bbtools_bbnorm', 'coverage normalization', 'digital normalization', 'kmer depth', 'count-min sketch', 'read downsampling'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'PE_2files', options: ['single_end', 'PE_1file', 'PE_2files', 'paired'] },
+        read1: { type: 'FASTQ' },
+      },
+      optional: {
+        read2: { type: 'FASTQ', default: '' },
+        reads_collection: { type: 'FASTQ_LIST', default: '' },
+        target: { type: 'INT', default: 100, min: 1 },
+        maxdepth: { type: 'INT', default: -1 },
+        mindepth: { type: 'INT', default: 5, min: 0 },
+        minkmers: { type: 'INT', default: 15, min: 0 },
+        percentile: { type: 'INT', default: 54, min: 1, max: 100 },
+        uselowerdepth: { type: 'BOOLEAN', default: true },
+        deterministic: { type: 'BOOLEAN', default: true },
+        fixspikes: { type: 'BOOLEAN', default: false },
+        passes: { type: 'INT', default: 2, min: 1 },
+        k: { type: 'INT', default: 31, min: 1 },
+        bits: { type: 'INT', default: 16, options: [2, 4, 8, 16, 32] },
+        hashes: { type: 'INT', default: 3, min: 1 },
+        prefilter: { type: 'BOOLEAN', default: false },
+        minprob: { type: 'FLOAT', default: 0.5, min: 0, max: 1 },
+        save_discarded_reads: { type: 'BOOLEAN', default: false },
+        save_kmer_hists: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 2, min: 1, max: 128 },
+        memory_mb: { type: 'INT', default: 4096, min: 1 },
+      },
+    },
+    output: ['FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'TSV', 'TSV'],
+    output_name: ['normalised_R1', 'normalised_R2', 'normalised_pair', 'discarded_reads', 'kmer_hist_input', 'kmer_hist_output'],
+    required_executables: ['bbnorm.sh'],
+    required_conda_packages: ['bbmap', 'samtools'],
+    documentation_url: 'https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbnorm-guide/',
+    citation_dois: ['10.1371/journal.pone.0185056'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
+    citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7399,7 +7442,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('267 nodes available')).toBeVisible();
+  await expect(page.getByText('268 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7461,6 +7504,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'metagenomic coverage', name: 'Nonpareil', category: 'metagenomics' },
     { query: 'entropy filtering', name: 'BBTools BBDuk', category: 'trimming' },
     { query: 'overlapping mates', name: 'BBTools BBMerge', category: 'trimming' },
+    { query: 'coverage normalization', name: 'BBTools BBNorm', category: 'qc' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },

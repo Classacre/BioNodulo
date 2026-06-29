@@ -3522,6 +3522,144 @@ def test_bbtools_bbmerge_renders_merge_command_and_outputs(tmp_path: Path) -> No
     assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq"}) is True
 
 
+def test_bbtools_bbnorm_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["bbtools_bbnorm"]
+
+    assert node_info["display_name"] == "BBTools BBNorm"
+    assert node_info["category"] == "qc"
+    assert node_info["description"].startswith("Normalize sequencing coverage")
+    assert node_info["output"] == ["FASTQ", "FASTQ", "FASTQ", "FASTQ", "TSV", "TSV"]
+    assert node_info["output_name"] == [
+        "normalised_R1",
+        "normalised_R2",
+        "normalised_pair",
+        "discarded_reads",
+        "kmer_hist_input",
+        "kmer_hist_output",
+    ]
+    assert node_info["required_executables"] == ["bbnorm.sh"]
+    assert node_info["required_conda_packages"] == ["bbmap", "samtools"]
+    assert node_info["documentation_url"] == "https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbnorm-guide/"
+    assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
+    assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "coverage normalization" in node_info["search_aliases"]
+
+
+def test_bbtools_bbnorm_renders_normalization_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bbtools_bbnorm")
+
+    assert node_class.render_command(
+        {
+            "input_type": "PE_2files",
+            "read1": "sample R1.fastq.gz",
+            "read2": "sample R2.fastq.gz",
+            "target": 80,
+            "maxdepth": 120,
+            "mindepth": 8,
+            "minkmers": 20,
+            "percentile": 60,
+            "uselowerdepth": False,
+            "deterministic": False,
+            "fixspikes": True,
+            "passes": 3,
+            "k": 29,
+            "bits": 8,
+            "hashes": 4,
+            "prefilter": True,
+            "prehashes": 3,
+            "prefilterbits": 2,
+            "prefiltersize": 0.25,
+            "buildpasses": 2,
+            "minq": 10,
+            "minprob": 0.7,
+            "rdk": False,
+            "hdp": 91,
+            "ldp": 20,
+            "tossbadreads": True,
+            "requirebothbad": True,
+            "errordetectratio": 130,
+            "highthresh": 13,
+            "lowthresh": 4,
+            "ecc": True,
+            "ecclimit": 4,
+            "errorcorrectratio": 150,
+            "echighthresh": 24,
+            "eclowthresh": 3,
+            "eccmaxqual": 40,
+            "meo": True,
+            "mue": False,
+            "overlap": True,
+            "save_discarded_reads": True,
+            "save_kmer_hists": True,
+            "threads": 10,
+            "memory_mb": 8192,
+            "output": "/work/bbnorm",
+        }
+    ) == (
+        "ln -s 'sample R1.fastq.gz' /work/bbnorm/forward.fastq.gz && "
+        "ln -s 'sample R2.fastq.gz' /work/bbnorm/reverse.fastq.gz && "
+        'if [[ "${_JAVA_OPTIONS}" != *-Xmx* && "${JAVA_TOOL_OPTIONS}" != *-Xmx* ]]; then '
+        'export _JAVA_OPTIONS="${_JAVA_OPTIONS} -Xmx${GALAXY_MEMORY_MB:-8192}m -Xms256m"; fi && '
+        'bbnorm.sh tmpdir="$TMPDIR" t="${GALAXY_SLOTS:-10}" '
+        "in1=/work/bbnorm/forward.fastq.gz in2=/work/bbnorm/reverse.fastq.gz interleaved=f "
+        "out=/work/bbnorm/normalised_R1.fastq out2=/work/bbnorm/normalised_R2.fastq "
+        "outt=/work/bbnorm/discarded.fastq touppercase=t "
+        "hist=/work/bbnorm/kmer_hist_input.tabular histout=/work/bbnorm/kmer_hist_output.tabular "
+        "k=29 bits=8 hashes=4 prefilter=t prehashes=3 prefilterbits=2 prefiltersize=0.25 "
+        "buildpasses=2 minq=10 minprob=0.7 rdk=f fixspikes=t target=80 maxdepth=120 "
+        "mindepth=8 minkmers=20 percentile=60 uselowerdepth=f deterministic=f passes=3 "
+        "hdp=91 ldp=20 tossbadreads=t requirebothbad=t errordetectratio=130 highthresh=13 lowthresh=4 "
+        "ecc=t ecclimit=4 errorcorrectratio=150 echighthresh=24 eclowthresh=3 eccmaxqual=40 meo=t mue=f overlap=t"
+    )
+    assert node_class.render_command(
+        {
+            "input_type": "single_end",
+            "read1": "reads.fastq",
+            "output": "/work/bbnorm",
+        }
+    ) == (
+        "ln -s reads.fastq /work/bbnorm/forward.fastq && "
+        'if [[ "${_JAVA_OPTIONS}" != *-Xmx* && "${JAVA_TOOL_OPTIONS}" != *-Xmx* ]]; then '
+        'export _JAVA_OPTIONS="${_JAVA_OPTIONS} -Xmx${GALAXY_MEMORY_MB:-4096}m -Xms256m"; fi && '
+        'bbnorm.sh tmpdir="$TMPDIR" t="${GALAXY_SLOTS:-2}" '
+        "in=/work/bbnorm/forward.fastq interleaved=f out=/work/bbnorm/normalised_R1.fastq "
+        "touppercase=t k=31 bits=16 hashes=3 buildpasses=1 minq=6 minprob=0.5 rdk=t "
+        "fixspikes=f target=100 maxdepth=-1 mindepth=5 minkmers=15 percentile=54 "
+        "uselowerdepth=t deterministic=t passes=2 hdp=90 ldp=25 tossbadreads=f requirebothbad=f "
+        "errordetectratio=125 highthresh=12 lowthresh=3"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {"input_type": "PE_2files", "save_discarded_reads": True, "save_kmer_hists": True},
+        tmp_path,
+    ) == [
+        tmp_path / "bbtools_bbnorm" / "normalised_R1.fastq",
+        tmp_path / "bbtools_bbnorm" / "normalised_R2.fastq",
+        tmp_path / "bbtools_bbnorm" / "discarded.fastq",
+        tmp_path / "bbtools_bbnorm" / "kmer_hist_input.tabular",
+        tmp_path / "bbtools_bbnorm" / "kmer_hist_output.tabular",
+    ]
+    assert node_class.PLAN_OUTPUTS({"input_type": "paired"}, tmp_path) == [
+        tmp_path / "bbtools_bbnorm" / "normalised_R1.fastq",
+        tmp_path / "bbtools_bbnorm" / "normalised_R2.fastq",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_type": "single_end", "read1": ""}) == "read1 FASTQ is required"
+    assert node_class.VALIDATE_INPUTS({"input_type": "PE_2files", "read1": "r1.fq", "read2": ""}) == (
+        "read2 FASTQ is required for paired input"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "bad", "read1": "reads.fq"}) == (
+        "input_type must be one of: single_end, PE_1file, PE_2files, paired"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single_end", "read1": "reads.fq", "target": 0}) == (
+        "target must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single_end", "read1": "reads.fq", "percentile": 101}) == (
+        "percentile must be between 1 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single_end", "read1": "reads.fq"}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 
