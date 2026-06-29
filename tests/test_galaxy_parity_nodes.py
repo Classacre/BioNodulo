@@ -13101,6 +13101,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["drep"],
             "doi": "10.1038/ismej.2017.126",
         },
+        "drep_dereplicate": {
+            "display_name": "dRep dereplicate",
+            "category": "metagenomics",
+            "required_executables": ["dRep"],
+            "required_conda_packages": ["drep", "checkm-genome"],
+            "doi": "10.1038/ismej.2017.126",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16305,6 +16312,129 @@ def test_drep_compare_renders_genome_comparison_command_outputs_and_validation(t
     )
     assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "P_ani": 1.2}) == "P_ani must be between 0 and 1"
     assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "MASH_sketch": -1}) == "MASH_sketch must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"]}) is True
+
+
+def test_drep_dereplicate_renders_dereplication_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("drep_dereplicate")
+    info = _registry().object_info()["drep_dereplicate"]
+
+    assert info["output"] == ["DIRECTORY", "TXT", "TXT", "PDF", "PDF", "PDF", "PDF", "CSV", "CSV", "CSV", "CSV", "PDF", "PDF", "CSV", "TSV"]
+    assert info["output_name"] == [
+        "dereplicated_genomes",
+        "log",
+        "warnings",
+        "primary_clustering_dendrogram",
+        "secondary_clustering_dendrograms",
+        "secondary_clustering_mds",
+        "clustering_scatterplots",
+        "bdb",
+        "cdb",
+        "mdb",
+        "ndb",
+        "cluster_scoring",
+        "winning_genomes",
+        "widb",
+        "chdb",
+    ]
+    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][1]["multiple"] is True
+    assert info["input"]["optional"]["quality_source"][1]["options"] == ["checkm", "genomeInfo", "ignoreGenomeQuality"]
+    assert "10.1038/ismej.2017.126" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "genomes": ["Genome A.fa", "sample/B.fna"],
+            "genome_identifiers": ["Genome A", "sample/B"],
+            "quality_source": "checkm",
+            "checkM_method": "taxonomy_wf",
+            "set_recursion": 2000,
+            "length": 60000,
+            "completeness": 80,
+            "contamination": 10,
+            "threads": 8,
+            "output": "/work/drep_dereplicate",
+        }
+    ) == (
+        "mkdir -p /work/drep_dereplicate && ln -s 'Genome A.fa' Genome_A.fasta && ln -s sample/B.fna sample_B.fasta && "
+        "dRep dereplicate outdir -g Genome_A.fasta sample_B.fasta --length 60000 --completeness 80 --contamination 10 "
+        "--checkM_method taxonomy_wf --set_recurison 2000 --checkm_group_size 2000 --MASH_sketch 1000 --P_ani 0.9 "
+        "--primary_chunksize 5000 --S_algorithm ANImf --n_PRESET normal --coverage_method larger --S_ani 0.99 --cov_thresh 0.1 "
+        "--clusterAlg average --completeness_weight 1 --contamination_weight 5 --strain_heterogeneity_weight 1 --N50_weight 0.5 "
+        "--size_weight 0 --centrality_weight 1 --warn_dist 0.25 --warn_sim 0.98 --warn_aln 0.25 --processors ${GALAXY_SLOTS:-8} "
+        "|| (rc=$?; ls -ltr `find outdir -type f`; cat outdir/data/checkM/checkM_outdir/checkm.log; "
+        "cat outdir/log/logger.log; exit $rc) && cp -r outdir/dereplicated_genomes /work/drep_dereplicate/dereplicated_genomes && "
+        "cp outdir/log/logger.log /work/drep_dereplicate/log.txt && cp outdir/log/warnings.txt /work/drep_dereplicate/warnings.txt && "
+        "cp outdir/figures/Primary_clustering_dendrogram.pdf /work/drep_dereplicate/Primary_clustering_dendrogram.pdf && "
+        "cp outdir/figures/Clustering_scatterplots.pdf /work/drep_dereplicate/Clustering_scatterplots.pdf && "
+        "cp outdir/figures/Cluster_scoring.pdf /work/drep_dereplicate/Cluster_scoring.pdf && "
+        "cp outdir/figures/Winning_genomes.pdf /work/drep_dereplicate/Winning_genomes.pdf && "
+        "cp outdir/data_tables/Widb.csv /work/drep_dereplicate/Widb.csv"
+    )
+    assert node_class.render_command(
+        {
+            "genomes": ["001", "002"],
+            "quality_source": "genomeInfo",
+            "genomeInfo": "quality info.csv",
+            "extra_weight_table": "weights.tsv",
+            "completeness_weight": 1.5,
+            "contamination_weight": 4,
+            "strain_heterogeneity_weight": 0.8,
+            "N50_weight": 0.25,
+            "size_weight": 0.1,
+            "centrality_weight": 2,
+            "select_outputs": ["log", "Chdb"],
+            "output": "/work/drep_dereplicate",
+        }
+    ) == (
+        "mkdir -p /work/drep_dereplicate && ln -s 001 001.fasta && ln -s 002 002.fasta && "
+        "dRep dereplicate outdir -g 001.fasta 002.fasta --length 50000 --completeness 75 --contamination 25 "
+        "--genomeInfo 'quality info.csv' --MASH_sketch 1000 --P_ani 0.9 --primary_chunksize 5000 --S_algorithm ANImf "
+        "--n_PRESET normal --coverage_method larger --S_ani 0.99 --cov_thresh 0.1 --clusterAlg average "
+        "--completeness_weight 1.5 --contamination_weight 4 --strain_heterogeneity_weight 0.8 --N50_weight 0.25 "
+        "--size_weight 0.1 --centrality_weight 2 --extra_weight_table weights.tsv --warn_dist 0.25 --warn_sim 0.98 "
+        "--warn_aln 0.25 --processors ${GALAXY_SLOTS:-1} || (rc=$?; ls -ltr `find outdir -type f`; "
+        "cat outdir/data/checkM/checkM_outdir/checkm.log; cat outdir/log/logger.log; exit $rc) && "
+        "cp -r outdir/dereplicated_genomes /work/drep_dereplicate/dereplicated_genomes && "
+        "cp outdir/log/logger.log /work/drep_dereplicate/log.txt && "
+        "cp outdir/data/checkM/checkM_outdir/Chdb.tsv /work/drep_dereplicate/Chdb.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "genomes": ["a.fa", "b.fa"],
+            "quality_source": "ignoreGenomeQuality",
+            "select_outputs": ["log"],
+            "output": "/work/drep_dereplicate",
+        }
+    ).startswith(
+        "mkdir -p /work/drep_dereplicate && ln -s a.fa a.fa.fasta && ln -s b.fa b.fa.fasta && "
+        "dRep dereplicate outdir -g a.fa.fasta b.fa.fasta --length 50000 --completeness 75 --contamination 25 "
+        "--ignoreGenomeQuality"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "drep_dereplicate" / "dereplicated_genomes",
+        tmp_path / "drep_dereplicate" / "log.txt",
+        tmp_path / "drep_dereplicate" / "warnings.txt",
+        tmp_path / "drep_dereplicate" / "Primary_clustering_dendrogram.pdf",
+        tmp_path / "drep_dereplicate" / "Clustering_scatterplots.pdf",
+        tmp_path / "drep_dereplicate" / "Cluster_scoring.pdf",
+        tmp_path / "drep_dereplicate" / "Winning_genomes.pdf",
+        tmp_path / "drep_dereplicate" / "Widb.csv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"select_outputs": ["log", "Chdb"]}, tmp_path) == [
+        tmp_path / "drep_dereplicate" / "dereplicated_genomes",
+        tmp_path / "drep_dereplicate" / "log.txt",
+        tmp_path / "drep_dereplicate" / "Chdb.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "at least two genome FASTA files are required"
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "quality_source": "bad"}) == (
+        "quality_source must be one of: checkm, genomeInfo, ignoreGenomeQuality"
+    )
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "quality_source": "genomeInfo"}) == "genomeInfo is required"
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "completeness": 101}) == "completeness must be between 0 and 100"
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "checkm_group_size": 0}) == "checkm_group_size must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"], "strain_heterogeneity_weight": 2}) == (
+        "strain_heterogeneity_weight must be between 0 and 1"
+    )
     assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"]}) is True
 
 

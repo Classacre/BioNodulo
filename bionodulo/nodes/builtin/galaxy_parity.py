@@ -25311,6 +25311,236 @@ class DrepCompareNode(CommandNode):
         return super().VALIDATE_INPUTS(inputs)
 
 
+class DrepDereplicateNode(DrepCompareNode):
+    """De-replicate genome FASTA files with dRep."""
+
+    NODE_ID = "drep_dereplicate"
+    DISPLAY_NAME = "dRep dereplicate"
+    REQUIRED_CONDA_PACKAGES = ["drep", "checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "De-replicate genome sets with dRep, genome quality filtering, and representative genome scoring."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "dRep",
+        "dRep dereplicate",
+        "dRep genome dereplication",
+        "bin dereplication",
+        "metagenome genome recovery",
+        "representative genomes",
+    ]
+    RETURN_TYPES = ("DIRECTORY", "TXT", "TXT", "PDF", "PDF", "PDF", "PDF", "CSV", "CSV", "CSV", "CSV", "PDF", "PDF", "CSV", "TSV")
+    RETURN_NAMES = (
+        "dereplicated_genomes",
+        "log",
+        "warnings",
+        "primary_clustering_dendrogram",
+        "secondary_clustering_dendrograms",
+        "secondary_clustering_mds",
+        "clustering_scatterplots",
+        "bdb",
+        "cdb",
+        "mdb",
+        "ndb",
+        "cluster_scoring",
+        "winning_genomes",
+        "widb",
+        "chdb",
+    )
+    REQUIRED_EXECUTABLES = ["dRep"]
+    DOCUMENTATION_URL = "https://drep.readthedocs.io/en/latest/overview.html#genome-de-replication"
+    CITATION_DOIS = [DREP_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{DREP_CITATION_DOI}"]
+    CITATION_TEXT = DREP_CITATION_TEXT
+    VERSION = "3.6.2"
+    SHELL = True
+
+    QUALITY_SOURCES = ["checkm", "genomeInfo", "ignoreGenomeQuality"]
+    CHECKM_METHODS = ["lineage_wf", "taxonomy_wf"]
+    DEFAULT_OUTPUTS = [
+        "log",
+        "warnings",
+        "Primary_clustering_dendrogram",
+        "Clustering_scatterplots",
+        "Cluster_scoring",
+        "Winning_genomes",
+        "Widb",
+    ]
+    OUTPUTS = {
+        **DrepCompareNode.OUTPUTS,
+        "Cluster_scoring": ("outdir/figures/Cluster_scoring.pdf", "Cluster_scoring.pdf"),
+        "Winning_genomes": ("outdir/figures/Winning_genomes.pdf", "Winning_genomes.pdf"),
+        "Widb": ("outdir/data_tables/Widb.csv", "Widb.csv"),
+        "Chdb": ("outdir/data/checkM/checkM_outdir/Chdb.tsv", "Chdb.tsv"),
+    }
+
+    @classmethod
+    def _add_filter_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(["--length", str(inputs.get("length", 50000))])
+        cmd.extend(["--completeness", str(inputs.get("completeness", 75))])
+        cmd.extend(["--contamination", str(inputs.get("contamination", 25))])
+
+    @classmethod
+    def _add_quality_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        source = str(inputs.get("quality_source", inputs.get("source", "checkm")) or "checkm")
+        if source == "checkm":
+            cmd.extend(["--checkM_method", str(inputs.get("checkM_method", "lineage_wf"))])
+            if str(inputs.get("set_recursion", "")) != "":
+                cmd.extend(["--set_recurison", str(inputs.get("set_recursion"))])
+            cmd.extend(["--checkm_group_size", str(inputs.get("checkm_group_size", 2000))])
+        elif source == "genomeInfo":
+            cmd.extend(["--genomeInfo", str(inputs.get("genomeInfo", ""))])
+        else:
+            cmd.append("--ignoreGenomeQuality")
+
+    @classmethod
+    def _add_scoring_options(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(["--completeness_weight", str(inputs.get("completeness_weight", 1))])
+        cmd.extend(["--contamination_weight", str(inputs.get("contamination_weight", 5))])
+        cmd.extend(["--strain_heterogeneity_weight", str(inputs.get("strain_heterogeneity_weight", 1))])
+        cmd.extend(["--N50_weight", str(inputs.get("N50_weight", 0.5))])
+        cmd.extend(["--size_weight", str(inputs.get("size_weight", 0))])
+        cmd.extend(["--centrality_weight", str(inputs.get("centrality_weight", 1))])
+        if str(inputs.get("extra_weight_table", "")) != "":
+            cmd.extend(["--extra_weight_table", str(inputs.get("extra_weight_table"))])
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        genomes = cls._genomes(inputs)
+        genome_names = [f"{identifier}.fasta" for identifier in cls._genome_identifiers(inputs, genomes)]
+        commands = [_shell_join(["mkdir", "-p", out])]
+        for genome, genome_name in zip(genomes, genome_names, strict=False):
+            commands.append(_shell_join(["ln", "-s", genome, genome_name]))
+
+        cmd = ["dRep", "dereplicate", "outdir", "-g", *genome_names]
+        cls._add_filter_options(cmd, inputs)
+        cls._add_quality_options(cmd, inputs)
+        comparison_steps = str(inputs.get("comparison_steps", inputs.get("select", "default")) or "default")
+        if comparison_steps == "default":
+            cls._add_mash_options(cmd, inputs)
+            cls._add_secondary_options(cmd, inputs)
+        elif comparison_steps == "SkipMash":
+            cmd.append("--SkipMash")
+            cls._add_secondary_options(cmd, inputs)
+        else:
+            cls._add_mash_options(cmd, inputs)
+            cmd.append("--SkipSecondary")
+        cmd.extend(["--clusterAlg", str(inputs.get("clusterAlg", "average"))])
+        if inputs.get("run_tertiary_clustering"):
+            cmd.append("--run_tertiary_clustering")
+        cls._add_scoring_options(cmd, inputs)
+        cmd.extend(["--warn_dist", str(inputs.get("warn_dist", 0.25))])
+        cmd.extend(["--warn_sim", str(inputs.get("warn_sim", 0.98))])
+        cmd.extend(["--warn_aln", str(inputs.get("warn_aln", 0.25))])
+        cmd.extend(["--processors", f"${{GALAXY_SLOTS:-{inputs.get('threads', 1)}}}"])
+        commands.append(
+            _shell_join(cmd).replace("'${GALAXY_SLOTS:-", "${GALAXY_SLOTS:-").replace("}'", "}")
+            + " || (rc=$?; ls -ltr `find outdir -type f`; cat outdir/data/checkM/checkM_outdir/checkm.log; "
+            "cat outdir/log/logger.log; exit $rc)"
+        )
+        commands.append(_shell_join(["cp", "-r", "outdir/dereplicated_genomes", f"{out}/dereplicated_genomes"]))
+        for output in cls._selected_outputs(inputs):
+            source, filename = cls.OUTPUTS[output]
+            commands.append(_shell_join(["cp", source, f"{out}/{filename}"]))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        (out / "dereplicated_genomes").mkdir(parents=True, exist_ok=True)
+        return [out / "dereplicated_genomes", *[out / cls.OUTPUTS[output][1] for output in cls._selected_outputs(inputs)]]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        parent = super().INPUT_TYPES()
+        optional = dict(parent["optional"])
+        optional.update(
+            {
+                "length": ("INT", {"default": 50000, "min": 1, "description": "Minimum genome length"}),
+                "completeness": ("INT", {"default": 75, "min": 0, "max": 100, "description": "Minimum genome completeness percent"}),
+                "contamination": ("INT", {"default": 25, "min": 0, "max": 100, "description": "Maximum genome contamination percent"}),
+                "quality_source": (
+                    "STRING",
+                    {"default": "checkm", "options": cls.QUALITY_SOURCES, "description": "Genome quality filtering source"},
+                ),
+                "checkM_method": ("STRING", {"default": "lineage_wf", "options": cls.CHECKM_METHODS, "description": "CheckM workflow"}),
+                "set_recursion": ("INT", {"default": "", "min": 1, "advanced": True, "description": "Optional Python recursion limit"}),
+                "checkm_group_size": ("INT", {"default": 2000, "min": 1, "description": "Number of genomes passed to CheckM at a time"}),
+                "genomeInfo": ("CSV", {"default": "", "description": "CSV quality information for genomes"}),
+                "completeness_weight": ("FLOAT", {"default": 1, "description": "Scoring weight for completeness"}),
+                "contamination_weight": ("FLOAT", {"default": 5, "description": "Scoring weight for contamination"}),
+                "strain_heterogeneity_weight": (
+                    "FLOAT",
+                    {"default": 1, "min": 0, "max": 1, "description": "Scoring weight for strain heterogeneity"},
+                ),
+                "N50_weight": ("FLOAT", {"default": 0.5, "description": "Scoring weight for log genome N50"}),
+                "size_weight": ("FLOAT", {"default": 0, "description": "Scoring weight for log genome size"}),
+                "centrality_weight": ("FLOAT", {"default": 1, "description": "Scoring weight for cluster centrality"}),
+                "extra_weight_table": ("TSV", {"default": "", "description": "Genome-specific extra scoring weights"}),
+                "select_outputs": (
+                    "STRING_LIST",
+                    {"default": cls.DEFAULT_OUTPUTS.copy(), "options": list(cls.OUTPUTS), "description": "Galaxy dRep outputs to collect"},
+                ),
+            }
+        )
+        return {
+            "required": parent["required"],
+            "optional": optional,
+            "hidden": parent["hidden"],
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        quality_source = str(inputs.get("quality_source", inputs.get("source", "checkm")) or "checkm")
+        if quality_source not in cls.QUALITY_SOURCES:
+            return "quality_source must be one of: checkm, genomeInfo, ignoreGenomeQuality"
+        if quality_source == "genomeInfo" and not str(inputs.get("genomeInfo", "")).strip():
+            return "genomeInfo is required"
+        if str(inputs.get("checkM_method", "lineage_wf") or "lineage_wf") not in cls.CHECKM_METHODS:
+            return "checkM_method must be one of: lineage_wf, taxonomy_wf"
+        for name, minimum in {"length": 1, "checkm_group_size": 1, "set_recursion": 1}.items():
+            raw = inputs.get(name)
+            if raw is None or str(raw) == "":
+                continue
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < minimum:
+                return f"{name} must be >= {minimum}"
+        for name in ["completeness", "contamination"]:
+            raw = inputs.get(name)
+            if raw is None or str(raw) == "":
+                continue
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if not 0 <= value <= 100:
+                return f"{name} must be between 0 and 100"
+        for name in [
+            "completeness_weight",
+            "contamination_weight",
+            "strain_heterogeneity_weight",
+            "N50_weight",
+            "size_weight",
+            "centrality_weight",
+        ]:
+            raw = inputs.get(name)
+            if raw is None or str(raw) == "":
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                return f"{name} must be a number"
+            if name == "strain_heterogeneity_weight" and not 0 <= value <= 1:
+                return "strain_heterogeneity_weight must be between 0 and 1"
+        return True
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 
