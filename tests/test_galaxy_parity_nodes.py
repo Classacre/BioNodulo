@@ -1554,6 +1554,84 @@ def test_seqtk_randbase_renders_gzip_random_base_command_and_output(tmp_path: Pa
     ]
 
 
+def test_seqtk_sample_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_sample"]
+
+    assert info["display_name"] == "SeqTK Sample"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Randomly subsample FASTA or FASTQ sequences with a reproducible seed."
+    assert info["output"] == ["FASTA", "FASTQ"]
+    assert info["output_name"] == ["subsampled_sequences"]
+    assert info["required_executables"] == ["seqtk", "pigz"]
+    assert info["required_conda_packages"] == ["seqtk", "pigz"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk sample" in info["search_aliases"]
+    assert "subsample reads" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["required"]["subsample_size"][0] == "FLOAT"
+    assert info["input"]["optional"]["s"][1]["default"] == 4
+    assert info["input"]["optional"]["single_pass_mode"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["single_pass_mode"][1]["default"] is False
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
+
+
+def test_seqtk_sample_renders_default_two_pass_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_sample")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fa",
+            "subsample_size": 100,
+            "s": 4,
+            "single_pass_mode": False,
+            "input_ext": "fasta",
+            "output": "/work/seqtk_sample",
+        }
+    ) == "seqtk sample -s 4 -2 reads.fa 100 > /work/seqtk_sample/subsampled.fasta"
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fasta"}, tmp_path) == [
+        tmp_path / "seqtk_sample" / "subsampled.fasta",
+    ]
+
+
+def test_seqtk_sample_renders_one_pass_fraction_command() -> None:
+    node_class = _node_class("seqtk_sample")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq",
+            "subsample_size": 0.5,
+            "s": 11,
+            "single_pass_mode": True,
+            "input_ext": "fastq",
+            "output": "/work/seqtk_sample",
+        }
+    ) == "seqtk sample -s 11 reads.fastq 0.5 > /work/seqtk_sample/subsampled.fastq"
+
+
+def test_seqtk_sample_renders_gzip_two_pass_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_sample")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq.gz",
+            "subsample_size": 2500,
+            "s": 4,
+            "single_pass_mode": False,
+            "input_ext": "fastq.gz",
+            "output": "/work/seqtk_sample",
+        }
+    ) == (
+        "seqtk sample -s 4 -2 reads.fastq.gz 2500 | "
+        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_sample/subsampled.fastq.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqtk_sample" / "subsampled.fastq.gz",
+    ]
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

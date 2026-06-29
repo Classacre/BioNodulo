@@ -695,6 +695,32 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_sample: {
+    name: 'seqtk_sample',
+    display_name: 'SeqTK Sample',
+    category: 'sequence',
+    description: 'Randomly subsample FASTA or FASTQ sequences with a reproducible seed.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk sample', 'SeqTK sample', 'subsample reads', 'random subsample', 'FASTQ subsampling', 'RNG seed'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+        subsample_size: { type: 'FLOAT', default: 100 },
+      },
+      optional: {
+        s: { type: 'INT', default: 4 },
+        single_pass_mode: { type: 'BOOLEAN', default: false },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq', 'fasta.gz', 'fastq.gz'] },
+      },
+    },
+    output: ['FASTA', 'FASTQ'],
+    output_name: ['subsampled_sequences'],
+    required_executables: ['seqtk', 'pigz'],
+    required_conda_packages: ['seqtk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -11033,7 +11059,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('379 nodes available')).toBeVisible();
+  await expect(page.getByText('380 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11069,6 +11095,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk interleaved paired-end', name: 'SeqTK Merge Paired-End', category: 'sequence' },
     { query: 'seqtk point mutations', name: 'SeqTK Mutate FASTA', category: 'sequence' },
     { query: 'seqtk ambiguous bases', name: 'SeqTK Random Base', category: 'sequence' },
+    { query: 'seqtk subsample reads', name: 'SeqTK Sample', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },

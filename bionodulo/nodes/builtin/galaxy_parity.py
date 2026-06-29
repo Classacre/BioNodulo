@@ -2028,6 +2028,131 @@ class SeqTKRandBaseNode(CommandNode):
         }
 
 
+class SeqTKSampleNode(CommandNode):
+    """Randomly subsample FASTA/Q records with seqtk sample."""
+
+    NODE_ID = "seqtk_sample"
+    DISPLAY_NAME = "SeqTK Sample"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Randomly subsample FASTA or FASTQ sequences with a reproducible seed."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk sample",
+        "SeqTK sample",
+        "subsample reads",
+        "random subsample",
+        "FASTQ subsampling",
+        "RNG seed",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTQ")
+    RETURN_NAMES = ("subsampled_sequences",)
+    REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _input_ext(cls, inputs: dict[str, Any]) -> str:
+        explicit = str(inputs.get("input_ext", "") or "").strip().lstrip(".")
+        if explicit:
+            return explicit
+        suffixes = Path(str(inputs.get("in_file", ""))).suffixes
+        if len(suffixes) >= 2 and suffixes[-1] == ".gz":
+            return f"{suffixes[-2].lstrip('.')}.gz"
+        if suffixes:
+            return suffixes[-1].lstrip(".")
+        return "fasta"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        ext = cls._input_ext(inputs)
+        if ext in {"fa", "fna"}:
+            ext = "fasta"
+        elif ext in {"fq", "fastqsanger"}:
+            ext = "fastq"
+        elif ext in {"fa.gz", "fna.gz"}:
+            ext = "fasta.gz"
+        elif ext in {"fq.gz", "fastqsanger.gz"}:
+            ext = "fastq.gz"
+        return f"subsampled.{ext}"
+
+    @staticmethod
+    def _bool_value(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._output_name(inputs)}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "seqtk",
+            "sample",
+            "-s",
+            str(inputs.get("s", 4)),
+        ]
+        if not cls._bool_value(inputs.get("single_pass_mode", False)):
+            cmd.append("-2")
+        cmd.extend([str(inputs.get("in_file", "")), str(inputs.get("subsample_size", 100))])
+        if cls._input_ext(inputs).endswith(".gz"):
+            return (
+                f"{_shell_join(cmd)} | "
+                f"pigz -p ${{GALAXY_SLOTS:-1}} --no-name --no-time "
+                f"> {shlex.quote(cls._out_path(inputs))}"
+            )
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._out_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+                "subsample_size": (
+                    "FLOAT",
+                    {
+                        "default": 100,
+                        "description": "Subsample size as an integer read count or decimal fraction",
+                    },
+                ),
+            },
+            "optional": {
+                "s": ("INT", {"default": 4, "description": "Random number generator seed"}),
+                "single_pass_mode": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Enable one-pass mode; default two-pass mode emits -2 for lower memory use",
+                        "advanced": True,
+                    },
+                ),
+                "input_ext": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "fastq", "fasta.gz", "fastq.gz"],
+                        "description": "Input/output sequence format used to mirror Galaxy format_source metadata",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 
