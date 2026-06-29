@@ -21212,6 +21212,84 @@ def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Pa
     ]
 
 
+def test_bayescan_galaxy_id_exposes_existing_metadata() -> None:
+    node_info = _registry().object_info()
+
+    canonical_info = node_info["bayescan"]
+    galaxy_info = node_info["BayeScan"]
+
+    assert galaxy_info["display_name"] == "BayeScan (Galaxy)"
+    assert galaxy_info["category"] == canonical_info["category"]
+    assert galaxy_info["description"] == canonical_info["description"]
+    assert galaxy_info["output"] == canonical_info["output"]
+    assert galaxy_info["output_name"] == canonical_info["output_name"]
+    assert galaxy_info["required_executables"] == canonical_info["required_executables"]
+    assert galaxy_info["required_conda_packages"] == canonical_info["required_conda_packages"]
+    assert galaxy_info["documentation_url"] == canonical_info["documentation_url"]
+    assert galaxy_info["citation_dois"] == canonical_info["citation_dois"]
+    assert galaxy_info["citation_urls"] == canonical_info["citation_urls"]
+    assert galaxy_info["citation_text"] == canonical_info["citation_text"]
+    assert "BayeScan" in galaxy_info["search_aliases"]
+
+
+def test_bayescan_galaxy_id_renders_population_selection_scan_command_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("BayeScan")
+
+    assert node_class.render_command(
+        {
+            "input": "population genotypes.txt",
+            "snp_genotypes_matrix": True,
+            "fstats": True,
+            "pilot_runs": True,
+            "allele_frequency": True,
+            "output": "/work/BayeScan",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/BayeScan/output_dir",
+        "&&",
+        "bayescan2",
+        "population genotypes.txt",
+        "-od",
+        "/work/BayeScan/output_dir",
+        "-fstat",
+        "-snp",
+        "-out_pilot",
+        "-out_freq",
+        "-o",
+        "bayescan",
+        "-n",
+        "5000",
+        "-thin",
+        "10",
+        "-nbp",
+        "20",
+        "-pilot",
+        "5000",
+        "-burn",
+        "50000",
+        "-pr_odds",
+        "10",
+        "-lb_fis",
+        "0.0",
+        "-hb_fis",
+        "1.0",
+        "-aflp_pc",
+        "0.1",
+        ">",
+        "/work/BayeScan/bayescan.log",
+    ]
+    assert node_class.PLAN_OUTPUTS({"pilot_runs": True, "allele_frequency": True}, tmp_path) == [
+        tmp_path / "BayeScan" / "bayescan.log",
+        tmp_path / "BayeScan" / "output_dir" / "bayescan.sel",
+        tmp_path / "BayeScan" / "output_dir" / "bayescan_Verif.txt",
+        tmp_path / "BayeScan" / "output_dir" / "bayescan_AccRte.txt",
+        tmp_path / "BayeScan" / "output_dir" / "bayescan_prop.txt",
+        tmp_path / "BayeScan" / "output_dir" / "bayescan_freq.txt",
+    ]
+
+
 def test_bellerophon_renders_chimeric_read_filter_merge_command_output(tmp_path: Path) -> None:
     node_class = _node_class("bellerophon")
     info = _registry().object_info()["bellerophon"]

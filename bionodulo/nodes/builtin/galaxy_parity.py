@@ -33955,6 +33955,24 @@ class BayeScanNode(CommandNode):
         }
 
 
+class BayeScanGalaxyNode(BayeScanNode):
+    """Galaxy wrapper ID for BayeScan."""
+
+    NODE_ID = "BayeScan"
+    DISPLAY_NAME = "BayeScan (Galaxy)"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BayeScan",
+        "bayescan2",
+        "natural selection",
+        "population genetics",
+        "FST",
+        "genome scan",
+        "dominant markers",
+        "codominant markers",
+    ]
+
+
 class BellerophonNode(CommandNode):
     """Filter and merge Arima Genomics chimeric read alignments with Bellerophon."""
 

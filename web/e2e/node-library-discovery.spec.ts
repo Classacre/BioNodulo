@@ -7364,6 +7364,42 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1534/genetics.108.092221'],
     citation_text: 'A genome-scan method to identify selected loci appropriate for both dominant and codominant markers.',
   },
+  BayeScan: {
+    name: 'BayeScan',
+    display_name: 'BayeScan (Galaxy)',
+    category: 'population_genetics',
+    description: 'Identify candidate loci under natural selection from population allele-frequency differences.',
+    search_aliases: ['Galaxy', 'BayeScan', 'bayescan2', 'natural selection', 'population genetics', 'FST', 'genome scan', 'dominant markers', 'codominant markers'],
+    input: {
+      required: {
+        input: { type: 'TXT' },
+      },
+      optional: {
+        discard_loci_file: { type: 'TSV', default: '' },
+        snp_genotypes_matrix: { type: 'BOOLEAN', default: false },
+        fstats: { type: 'BOOLEAN', default: false },
+        sample_size: { type: 'INT', default: 5000 },
+        thinning_interval: { type: 'INT', default: 10 },
+        num_pilot_runs: { type: 'INT', default: 20 },
+        length_pilot_run: { type: 'INT', default: 5000 },
+        burn: { type: 'INT', default: 50000 },
+        prior_odds: { type: 'INT', default: 10 },
+        lower_prior: { type: 'FLOAT', default: 0.0 },
+        higher_prior: { type: 'FLOAT', default: 1.0 },
+        threshold: { type: 'FLOAT', default: 0.1 },
+        pilot_runs: { type: 'BOOLEAN', default: false },
+        allele_frequency: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT'],
+    output_name: ['log', 'selection', 'verification', 'acceptance_rate', 'pilot_runs', 'allele_frequencies'],
+    required_executables: ['bayescan2'],
+    required_conda_packages: ['bayescan'],
+    documentation_url: 'http://cmpg.unibe.ch/software/BayeScan/',
+    citation_dois: ['10.1534/genetics.108.092221'],
+    citation_urls: ['https://doi.org/10.1534/genetics.108.092221'],
+    citation_text: 'A genome-scan method to identify selected loci appropriate for both dominant and codominant markers.',
+  },
   bellerophon: {
     name: 'bellerophon',
     display_name: 'Bellerophon',
@@ -11535,7 +11571,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('396 nodes available')).toBeVisible();
+  await expect(page.getByText('397 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11770,6 +11806,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'preseq yield extrapolation', name: 'Preseq lc_extrap', category: 'qc' },
     { query: 'abyss paired-end assembly', name: 'ABySS', category: 'assembly' },
     { query: 'bayescan natural selection', name: 'BayeScan', category: 'population_genetics' },
+    { query: 'BayeScan (Galaxy)', name: 'BayeScan (Galaxy)', category: 'population_genetics' },
     { query: 'Arima chimeric reads', name: 'Bellerophon', category: 'assembly' },
     { query: 'Chromeister dotplot', name: 'Chromeister', category: 'comparative_genomics' },
     { query: 'BigWig coverage outliers', name: 'Bigwig outliers to bed features', category: 'genomics' },
