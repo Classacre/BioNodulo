@@ -5549,6 +5549,125 @@ def test_amplican_reduced_outputs_and_validation(tmp_path: Path) -> None:
     assert node_class.VALIDATE_INPUTS({"config_file": "config.csv", "fastq_files": ["reads.fastq"]}) is True
 
 
+def test_ampvis2_alpha_diversity_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_alpha_diversity"]
+
+    assert info["display_name"] == "ampvis2 alpha diversity"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Calculate alpha-diversity indices for samples in an ampvis2 RDS dataset."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["optional"]["measure"][1]["multiple"] is True
+    assert info["input"]["optional"]["measure"][1]["default"] == [
+        "uniqueotus",
+        "shannon",
+        "simpson",
+        "invsimpson",
+    ]
+    assert info["input"]["optional"]["measure"][1]["options"] == [
+        "uniqueotus",
+        "shannon",
+        "simpson",
+        "invsimpson",
+    ]
+    assert info["input"]["optional"]["richness"][1]["default"] is False
+    assert info["input"]["optional"]["rarefy"][1]["min"] == 0
+    assert info["input"]["optional"]["out_format"][1]["default"] == "pdf"
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["input"]["optional"]["plot_width"][1]["min"] == 1
+    assert info["input"]["optional"]["plot_height"][1]["min"] == 1
+    assert info["output"] == ["TSV", "PDF"]
+    assert info["output_name"] == ["alphadiv", "alphadiv_plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_alphadiv.html"
+    assert info["citation_dois"] == ["10.1101/299537", "10.1371/journal.pcbi.1003531"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537", "https://doi.org/10.1371/journal.pcbi.1003531"]
+    assert "ampvis2" in info["citation_text"]
+    assert "Waste Not, Want Not" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "ampvis2 alpha diversity" in info["search_aliases"]
+    assert "vegan diversity" in info["search_aliases"]
+
+
+def test_ampvis2_alpha_diversity_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_alpha_diversity")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "measure": ["uniqueotus", "shannon"],
+            "richness": True,
+            "rarefy": 500,
+            "group_by": "Plant",
+            "plot_scatter": True,
+            "out_format": "svg",
+            "plot_width": 12.5,
+            "plot_height": 8,
+            "output": "/work/ampvis2_alpha_diversity",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_alpha_diversity/alpha_diversity.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'd <- readRDS("AalborgWWTPs.rds")' in command
+    assert 'measure = c("uniqueotus", "shannon")' in command
+    assert "richness = TRUE" in command
+    assert ", rarefy = 500" in command
+    assert "plot = TRUE" in command
+    assert 'plot_group_by = "Plant"' in command
+    assert "plot_scatter = TRUE" in command
+    assert "write.table(table, file='/work/ampvis2_alpha_diversity/alphadiv.tsv', quote=FALSE, sep='\\t', row.names=FALSE)" in command
+    assert 'ggsave("/work/ampvis2_alpha_diversity/alphadiv_plot.svg",' in command
+    assert 'device = "svg"' in command
+    assert ", width = 12.5" in command
+    assert ", height = 8" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_alpha_diversity/alpha_diversity.R")
+
+    default_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "group_by": "Plant",
+            "output": "/work/ampvis2_alpha_diversity",
+        }
+    )
+    assert 'measure = c("uniqueotus", "shannon", "simpson", "invsimpson")' in default_command
+    assert "richness = FALSE" in default_command
+    assert "rarefy =" not in default_command
+    assert 'plot_scatter = FALSE' in default_command
+    assert 'device = "pdf"' in default_command
+    assert "width =" not in default_command
+    assert "height =" not in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "svg"}, tmp_path) == [
+        tmp_path / "ampvis2_alpha_diversity" / "alphadiv.tsv",
+        tmp_path / "ampvis2_alpha_diversity" / "alphadiv_plot.svg",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_alpha_diversity" / "alphadiv.tsv",
+        tmp_path / "ampvis2_alpha_diversity" / "alphadiv_plot.pdf",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"data": "", "group_by": "Plant"}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "measure": []}) == (
+        "at least one alpha-diversity measure is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "measure": ["bad"]}) == (
+        "measure contains unsupported values: bad"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": "Plant", "rarefy": -1}) == (
+        "rarefy must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": "Plant", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": "Plant", "plot_width": 0.5}) == (
+        "plot_width must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": "Plant"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

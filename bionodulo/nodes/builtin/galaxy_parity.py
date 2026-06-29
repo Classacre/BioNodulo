@@ -9765,6 +9765,180 @@ class AlphaGenomeVariantScorerNode(CommandNode):
         }
 
 
+AMPVIS2_CITATION_DOIS = ["10.1101/299537", "10.1371/journal.pcbi.1003531"]
+AMPVIS2_CITATION_TEXT = (
+    "ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; "
+    "Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible."
+)
+
+
+class Ampvis2AlphaDiversityNode(CommandNode):
+    """Calculate ampvis2 alpha-diversity tables and plots."""
+
+    NODE_ID = "ampvis2_alpha_diversity"
+    DISPLAY_NAME = "ampvis2 alpha diversity"
+    REQUIRED_CONDA_PACKAGES = ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Calculate alpha-diversity indices for samples in an ampvis2 RDS dataset."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ampvis2",
+        "ampvis2 alpha diversity",
+        "amp_alphadiv",
+        "alpha-diversity indices",
+        "microbiome alpha diversity",
+        "vegan diversity",
+        "rarefaction",
+    ]
+    RETURN_TYPES = ("TSV", "PDF")
+    RETURN_NAMES = ("alphadiv", "alphadiv_plot")
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://kasperskytte.github.io/ampvis2/reference/amp_alphadiv.html"
+    CITATION_DOIS = AMPVIS2_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in AMPVIS2_CITATION_DOIS]
+    CITATION_TEXT = AMPVIS2_CITATION_TEXT
+    VERSION = "2.8.11+galaxy2"
+    SHELL = True
+
+    MEASURE_OPTIONS = ["uniqueotus", "shannon", "simpson", "invsimpson"]
+    DEFAULT_MEASURES = ["uniqueotus", "shannon", "simpson", "invsimpson"]
+    OUT_FORMATS = ["pdf", "png", "svg"]
+
+    @classmethod
+    def _measures(cls, inputs: dict[str, Any]) -> list[str]:
+        measures = _as_list(inputs.get("measure"))
+        return measures if measures else cls.DEFAULT_MEASURES.copy()
+
+    @classmethod
+    def _r_bool(cls, value: Any, default: bool = False) -> str:
+        if value in (None, ""):
+            value = default
+        if isinstance(value, str):
+            return "FALSE" if value.lower() in {"false", "0", "no"} else "TRUE"
+        return "TRUE" if bool(value) else "FALSE"
+
+    @classmethod
+    def _out_format(cls, inputs: dict[str, Any]) -> str:
+        out_format = str(inputs.get("out_format", "pdf") or "pdf")
+        return out_format if out_format in cls.OUT_FORMATS else "pdf"
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any], out: str) -> str:
+        measures = ", ".join(f'"{measure}"' for measure in cls._measures(inputs))
+        rarefy = inputs.get("rarefy")
+        rarefy_line = f"\n    , rarefy = {rarefy}" if rarefy not in (None, "") else ""
+        out_format = cls._out_format(inputs)
+        ggsave_options = [
+            f'    device = "{out_format}"',
+        ]
+        for name, option in (("plot_width", "width"), ("plot_height", "height")):
+            value = inputs.get(name)
+            if value not in (None, ""):
+                ggsave_options.append(f"    , {option} = {value}")
+        return "\n".join(
+            [
+                "library(ampvis2, quietly = TRUE)",
+                "",
+                f'd <- readRDS("{inputs.get("data", "")}")',
+                "table <- amp_alphadiv(d,",
+                f"    measure = c({measures}),",
+                f"    richness = {cls._r_bool(inputs.get('richness'), False)}{rarefy_line}",
+                ")",
+                "plot <- amp_alphadiv(d,",
+                f"    measure = c({measures}),",
+                f"    richness = {cls._r_bool(inputs.get('richness'), False)}{rarefy_line},",
+                "    plot = TRUE,",
+                f'    plot_group_by = "{inputs.get("group_by", "")}",',
+                f"    plot_scatter = {cls._r_bool(inputs.get('plot_scatter'), False)}",
+                ")",
+                f"write.table(table, file='{out}/alphadiv.tsv', quote=FALSE, sep='\\t', row.names=FALSE)",
+                f'ggsave("{out}/alphadiv_plot.{out_format}",',
+                "    plot = plot,",
+                ",\n".join(ggsave_options),
+                ")",
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = f"{out}/alpha_diversity.R"
+        return f"cat > {shlex.quote(script_path)} <<'RSCRIPT'\n{cls._script_body(inputs, out)}\nRSCRIPT && {_shell_join(['Rscript', script_path])}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "alphadiv.tsv", out / f"alphadiv_plot.{cls._out_format(inputs)}"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("data", "")).strip():
+            return "data is required"
+        measures = _as_list(inputs.get("measure"))
+        if "measure" in inputs and not measures:
+            return "at least one alpha-diversity measure is required"
+        unsupported_measures = [measure for measure in measures if measure not in cls.MEASURE_OPTIONS]
+        if unsupported_measures:
+            return f"measure contains unsupported values: {', '.join(unsupported_measures)}"
+        out_format = str(inputs.get("out_format", "pdf") or "pdf")
+        if out_format not in cls.OUT_FORMATS:
+            return f"out_format must be one of: {', '.join(cls.OUT_FORMATS)}"
+        for name, minimum, default in (
+            ("rarefy", 0, None),
+            ("plot_width", 1, None),
+            ("plot_height", 1, None),
+        ):
+            raw = inputs.get(name, default)
+            if raw in (None, ""):
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                return f"{name} must be a number"
+            if value < minimum:
+                return f"{name} must be >= {minimum}"
+            if name == "rarefy" and not float(value).is_integer():
+                return "rarefy must be an integer"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": ("FILE", {"description": "Ampvis2 RDS dataset generated with ampvis2: load"}),
+            },
+            "optional": {
+                "measure": (
+                    "STRING_LIST",
+                    {
+                        "default": cls.DEFAULT_MEASURES.copy(),
+                        "multiple": True,
+                        "options": cls.MEASURE_OPTIONS,
+                        "description": "Alpha-diversity measures to include",
+                    },
+                ),
+                "richness": ("BOOLEAN", {"default": False, "description": "Calculate Chao1 and ACE sample richness estimates"}),
+                "rarefy": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Rarefy species richness to this value before calculating indices"},
+                ),
+                "group_by": ("STRING", {"default": "", "description": "Metadata field for grouping the plot"}),
+                "plot_scatter": ("BOOLEAN", {"default": False, "description": "Generate a scatter plot instead of a boxplot"}),
+                "out_format": (
+                    "STRING",
+                    {"default": "pdf", "options": cls.OUT_FORMATS, "description": "Plot output format"},
+                ),
+                "plot_width": ("FLOAT", {"default": "", "min": 1, "description": "Optional plot width in cm"}),
+                "plot_height": ("FLOAT", {"default": "", "min": 1, "description": "Optional plot height in cm"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",

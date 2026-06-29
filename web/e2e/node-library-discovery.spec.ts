@@ -1350,6 +1350,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pone.0067019', 'https://doi.org/10.1186/2049-2618-2-15', 'https://doi.org/10.1080/10618600.2015.1131161'],
     citation_text: 'ANOVA-Like Differential Expression (ALDEx) Analysis for Mixed Population RNA-Seq; Unifying the analysis of high-throughput sequencing datasets: characterizing RNA-seq, 16S rRNA gene sequencing and selective growth experiments by compositional data analysis; Displaying Variation in Large Datasets: Plotting a Visual Summary of Effect Sizes.',
   },
+  ampvis2_alpha_diversity: {
+    name: 'ampvis2_alpha_diversity',
+    display_name: 'ampvis2 alpha diversity',
+    category: 'metagenomics',
+    description: 'Calculate alpha-diversity indices for samples in an ampvis2 RDS dataset.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 alpha diversity', 'amp_alphadiv', 'alpha-diversity indices', 'microbiome alpha diversity', 'vegan diversity', 'rarefaction'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+      },
+      optional: {
+        measure: { type: 'STRING', default: ['uniqueotus', 'shannon', 'simpson', 'invsimpson'], multiple: true, options: ['uniqueotus', 'shannon', 'simpson', 'invsimpson'] },
+        richness: { type: 'BOOLEAN', default: false },
+        rarefy: { type: 'INT', default: '', min: 0 },
+        group_by: { type: 'STRING', default: '' },
+        plot_scatter: { type: 'BOOLEAN', default: false },
+        out_format: { type: 'STRING', default: 'pdf', options: ['pdf', 'png', 'svg'] },
+        plot_width: { type: 'FLOAT', default: '', min: 1 },
+        plot_height: { type: 'FLOAT', default: '', min: 1 },
+      },
+    },
+    output: ['TSV', 'PDF'],
+    output_name: ['alphadiv', 'alphadiv_plot'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_alphadiv.html',
+    citation_dois: ['10.1101/299537', '10.1371/journal.pcbi.1003531'],
+    citation_urls: ['https://doi.org/10.1101/299537', 'https://doi.org/10.1371/journal.pcbi.1003531'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -9854,7 +9884,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('339 nodes available')).toBeVisible();
+  await expect(page.getByText('340 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9910,6 +9940,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ABRicate databases', name: 'ABRicate List', category: 'annotation' },
     { query: 'presence absence matrix', name: 'ABRicate Summary', category: 'annotation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
+    { query: 'ampvis2 alpha diversity', name: 'ampvis2 alpha diversity', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
