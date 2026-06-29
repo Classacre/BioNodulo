@@ -912,6 +912,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btab607'],
     citation_text: 'GAMMA: a tool for the rapid identification, classification and annotation of translated gene matches from sequencing data.',
   },
+  red: {
+    name: 'red',
+    display_name: 'Red',
+    category: 'genomics',
+    description: 'Detect and mask repeats de novo in genome FASTA sequences with RED.',
+    search_aliases: ['Galaxy', 'Red', 'RED', 'REpeat Detector', 'repeat masking', 'de novo repeats', 'genome masking'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+      },
+      optional: {
+        threads: { type: 'INT', default: 1, min: 1, max: 64 },
+      },
+    },
+    output: ['FASTA', 'BED'],
+    output_name: ['masked', 'bed'],
+    required_executables: ['Red'],
+    required_conda_packages: ['red'],
+    documentation_url: 'https://github.com/BioinformaticsToolsmith/Red',
+    citation_dois: ['10.1186/s12859-015-0654-5'],
+    citation_urls: ['https://doi.org/10.1186/s12859-015-0654-5'],
+    citation_text: 'Red: an intelligent, rapid, accurate tool for detecting repeats de-novo on the genomic scale.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7204,7 +7227,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('262 nodes available')).toBeVisible();
+  await expect(page.getByText('263 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7260,6 +7283,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },
     { query: 'Gene Allele Mutation Microbial Assessment', name: 'GAMMA', category: 'annotation' },
     { query: 'protein-protein comparisons', name: 'GAMMA-S', category: 'annotation' },
+    { query: 'repeat masking', name: 'Red', category: 'genomics' },
     { query: 'metagenomic eukaryotes', name: 'EukRep', category: 'metagenomics' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },

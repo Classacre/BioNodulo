@@ -3031,6 +3031,54 @@ def test_gamma_s_renders_sequence_match_command_and_output(tmp_path: Path) -> No
     assert node_class.VALIDATE_INPUTS({"input_fasta": "assembly.fa", "input_db": "genes.fa", "identity": 90, "minimum": 20}) is True
 
 
+def test_red_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["red"]
+
+    assert node_info["display_name"] == "Red"
+    assert node_info["category"] == "genomics"
+    assert node_info["description"].startswith("Detect and mask repeats")
+    assert node_info["output"] == ["FASTA", "BED"]
+    assert node_info["output_name"] == ["masked", "bed"]
+    assert node_info["required_executables"] == ["Red"]
+    assert node_info["required_conda_packages"] == ["red"]
+    assert node_info["documentation_url"] == "https://github.com/BioinformaticsToolsmith/Red"
+    assert node_info["citation_dois"] == ["10.1186/s12859-015-0654-5"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/s12859-015-0654-5"]
+    assert "detecting repeats de-novo" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "repeat masking" in node_info["search_aliases"]
+
+
+def test_red_renders_repeat_masking_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("red")
+
+    assert node_class.render_command(
+        {
+            "input": "draft genome.fa",
+            "threads": 8,
+            "output": "/work/red",
+        }
+    ) == (
+        "mkdir -p /work/red/input /work/red/output && "
+        "ln -s 'draft genome.fa' /work/red/input/genome.fa && "
+        "Red -gnm /work/red/input/ -msk /work/red/output/ -rpt /work/red/output/ -frm 2 "
+        "-cor ${GALAXY_SLOTS:-8}"
+    )
+    assert node_class.render_command(
+        {
+            "input": "genome.fa",
+            "output": "/work/red",
+        }
+    ).endswith("-cor ${GALAXY_SLOTS:-1}")
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "red" / "output" / "genome.msk",
+        tmp_path / "red" / "output" / "genome.bed",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input": ""}) == "genome FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input": "genome.fa", "threads": 0}) == "threads must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input": "genome.fa", "threads": 1}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 
