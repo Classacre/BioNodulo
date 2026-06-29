@@ -1026,6 +1026,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btm404'],
     citation_text: 'Clustal W and Clustal X version 2.0.',
   },
+  quicktree: {
+    name: 'quicktree',
+    display_name: 'Quicktree',
+    category: 'phylogeny',
+    description: 'Construct phylogenetic trees or distance matrices from alignments with Quicktree.',
+    search_aliases: ['Galaxy', 'Quicktree', 'quicktree', 'neighbor joining', 'distance matrix', 'UPGMA', 'Kimura', 'bootstrap'],
+    input: {
+      required: {
+        format: { type: 'STRING', default: 'align', options: ['align', 'dist'] },
+        input_file: { type: 'ALIGNMENT' },
+        output_type: { type: 'STRING', default: 'tree_out', options: ['tree_out', 'dist_out'] },
+      },
+      optional: {
+        upgma: { type: 'BOOLEAN', default: false },
+        kimura: { type: 'BOOLEAN', default: false },
+        boot: { type: 'INT', default: '', min: 0 },
+      },
+    },
+    output: ['PHYLOGENY_TREE'],
+    output_name: ['output_file'],
+    required_executables: ['quicktree', 'esl-reformat'],
+    required_conda_packages: ['quicktree', 'hmmer'],
+    documentation_url: 'https://github.com/khowe/quicktree',
+    citation_dois: ['10.1093/oxfordjournals.molbev.a040454'],
+    citation_urls: ['https://doi.org/10.1093/oxfordjournals.molbev.a040454'],
+    citation_text: 'The neighbor-joining method: a new method for reconstructing phylogenetic trees.',
+  },
   flash: {
     name: 'flash',
     display_name: 'FLASH',
@@ -7120,7 +7147,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('259 nodes available')).toBeVisible();
+  await expect(page.getByText('260 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7170,6 +7197,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'remove taxa', name: 'AMAS Remove', category: 'phylogeny' },
     { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
     { query: 'clustalw2', name: 'ClustalW', category: 'phylogeny' },
+    { query: 'distance matrix', name: 'Quicktree', category: 'phylogeny' },
     { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
     { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },
     { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },

@@ -2467,6 +2467,67 @@ def test_clustalw_renders_protein_quicktree_command_and_validates_input(tmp_path
     assert node_class.VALIDATE_INPUTS({"input": ""}) == "input FASTA is required"
 
 
+def test_quicktree_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["quicktree"]
+
+    assert node_info["display_name"] == "Quicktree"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"].startswith("Construct phylogenetic trees")
+    assert node_info["output"] == ["PHYLOGENY_TREE"]
+    assert node_info["output_name"] == ["output_file"]
+    assert node_info["required_executables"] == ["quicktree", "esl-reformat"]
+    assert node_info["required_conda_packages"] == ["quicktree", "hmmer"]
+    assert node_info["documentation_url"] == "https://github.com/khowe/quicktree"
+    assert node_info["citation_dois"] == ["10.1093/oxfordjournals.molbev.a040454"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/oxfordjournals.molbev.a040454"]
+    assert "neighbor-joining method" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "distance matrix" in node_info["search_aliases"]
+
+
+def test_quicktree_renders_alignment_and_distance_commands(tmp_path: Path) -> None:
+    node_class = _node_class("quicktree")
+
+    assert node_class.render_command(
+        {
+            "format": "align",
+            "input_file": "protein alignment.fa",
+            "output_type": "tree_out",
+            "upgma": True,
+            "kimura": True,
+            "boot": 100,
+            "output": "/work/quicktree",
+        }
+    ) == (
+        "esl-reformat -o input.quicktree stockholm 'protein alignment.fa' && "
+        "quicktree -in a -out t -upgma -kimura -boot 100 input.quicktree > /work/quicktree/output_file.nwk"
+    )
+    assert node_class.render_command(
+        {
+            "format": "dist",
+            "input_file": "distances.phy",
+            "output_type": "dist_out",
+            "output": "/work/quicktree",
+        }
+    ) == (
+        "ln -s distances.phy input.quicktree && "
+        "quicktree -in m -out m input.quicktree > /work/quicktree/output_file.dist"
+    )
+    assert node_class.PLAN_OUTPUTS({"output_type": "tree_out"}, tmp_path) == [
+        tmp_path / "quicktree" / "output_file.nwk",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_type": "dist_out"}, tmp_path) == [
+        tmp_path / "quicktree" / "output_file.dist",
+    ]
+    assert node_class.VALIDATE_INPUTS({"format": "align", "input_file": ""}) == (
+        "input alignment or distance matrix is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"format": "align", "input_file": "alignment.fa", "boot": -1}) == (
+        "boot must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"format": "dist", "input_file": "distances.phy", "output_type": "dist_out"}) is True
+
+
 def test_flash_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["flash"]
 
