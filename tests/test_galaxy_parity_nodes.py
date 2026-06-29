@@ -1746,6 +1746,122 @@ def test_seqtk_seq_renders_fastqillumina_quality_shift() -> None:
     )
 
 
+def test_seqtk_subseq_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_subseq"]
+
+    assert info["display_name"] == "SeqTK Subsequence"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Extract selected FASTA or FASTQ records by BED regions or sequence IDs."
+    assert info["output"] == ["FASTA", "FASTQ", "TSV"]
+    assert info["output_name"] == ["selected_sequences"]
+    assert info["required_executables"] == ["seqtk", "awk", "pigz"]
+    assert info["required_conda_packages"] == ["seqtk", "gawk", "pigz"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk subseq" in info["search_aliases"]
+    assert "extract subsequences" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["source_type"][1]["default"] == "bed"
+    assert info["input"]["optional"]["source_type"][1]["options"] == ["bed", "name"]
+    assert info["input"]["optional"]["in_bed"][0] == "BED"
+    assert info["input"]["optional"]["name_list"][0] == "STRING"
+    assert info["input"]["optional"]["t"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["l"][1]["default"] == 0
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
+
+
+def test_seqtk_subseq_renders_name_list_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_subseq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fa",
+            "source_type": "name",
+            "name_list": "ids.txt",
+            "l": 0,
+            "input_ext": "fasta",
+            "output": "/work/seqtk_subseq",
+        }
+    ) == "seqtk subseq -l 0 reads.fa ids.txt > /work/seqtk_subseq/selected.fasta"
+    assert node_class.PLAN_OUTPUTS({"source_type": "name", "input_ext": "fasta"}, tmp_path) == [
+        tmp_path / "seqtk_subseq" / "selected.fasta",
+    ]
+
+
+def test_seqtk_subseq_renders_bed_command_with_line_length() -> None:
+    node_class = _node_class("seqtk_subseq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq",
+            "source_type": "bed",
+            "in_bed": "regions.bed",
+            "l": 80,
+            "input_ext": "fastq",
+            "output": "/work/seqtk_subseq",
+        }
+    ) == "seqtk subseq -l 80 reads.fastq regions.bed > /work/seqtk_subseq/selected.fastq"
+
+
+def test_seqtk_subseq_renders_tabular_output_with_header(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_subseq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fa",
+            "source_type": "bed",
+            "in_bed": "regions.bed",
+            "t": True,
+            "l": 0,
+            "input_ext": "fasta",
+            "output": "/work/seqtk_subseq",
+        }
+    ) == (
+        "seqtk subseq -t -l 0 reads.fa regions.bed | "
+        "awk 'BEGIN{print \"chr\\tunknown\\tseq\"}1' > /work/seqtk_subseq/selected.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"t": True, "input_ext": "fasta"}, tmp_path) == [
+        tmp_path / "seqtk_subseq" / "selected.tsv",
+    ]
+
+
+def test_seqtk_subseq_renders_gzip_sequence_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_subseq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq.gz",
+            "source_type": "name",
+            "name_list": "ids.txt",
+            "input_ext": "fastq.gz",
+            "output": "/work/seqtk_subseq",
+        }
+    ) == (
+        "seqtk subseq -l 0 reads.fastq.gz ids.txt | "
+        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_subseq/selected.fastq.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"source_type": "name", "input_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqtk_subseq" / "selected.fastq.gz",
+    ]
+
+
+def test_seqtk_subseq_validates_source_inputs() -> None:
+    node_class = _node_class("seqtk_subseq")
+
+    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "name"}) == (
+        "name_list is required when source_type is 'name'"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "bed"}) == (
+        "in_bed is required when source_type is 'bed'"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "other"}) == (
+        "Unsupported source_type: other"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "name", "name_list": "ids.txt"}) is True
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

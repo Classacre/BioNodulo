@@ -2332,6 +2332,156 @@ class SeqTKSeqNode(CommandNode):
         }
 
 
+class SeqTKSubseqNode(CommandNode):
+    """Extract selected FASTA/Q records with seqtk subseq."""
+
+    NODE_ID = "seqtk_subseq"
+    DISPLAY_NAME = "SeqTK Subsequence"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk", "pigz"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Extract selected FASTA or FASTQ records by BED regions or sequence IDs."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk subseq",
+        "SeqTK subseq",
+        "extract subsequences",
+        "BED regions",
+        "sequence ID list",
+        "FASTA IDs",
+        "selected sequences",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTQ", "TSV")
+    RETURN_NAMES = ("selected_sequences",)
+    REQUIRED_EXECUTABLES = ["seqtk", "awk", "pigz"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _input_ext(cls, inputs: dict[str, Any]) -> str:
+        explicit = str(inputs.get("input_ext", "") or "").strip().lstrip(".")
+        if explicit:
+            return explicit
+        suffixes = Path(str(inputs.get("in_file", ""))).suffixes
+        if len(suffixes) >= 2 and suffixes[-1] == ".gz":
+            return f"{suffixes[-2].lstrip('.')}.gz"
+        if suffixes:
+            return suffixes[-1].lstrip(".")
+        return "fasta"
+
+    @staticmethod
+    def _bool_value(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on", "-t"}
+        return bool(value)
+
+    @classmethod
+    def _output_ext(cls, inputs: dict[str, Any]) -> str:
+        if cls._bool_value(inputs.get("t", False)):
+            return "tsv"
+        ext = cls._input_ext(inputs)
+        if ext in {"fa", "fna"}:
+            return "fasta"
+        if ext in {"fq", "fastqsanger"}:
+            return "fastq"
+        if ext in {"fa.gz", "fna.gz"}:
+            return "fasta.gz"
+        if ext in {"fq.gz", "fastqsanger.gz"}:
+            return "fastq.gz"
+        return ext or "fasta"
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        return f"selected.{cls._output_ext(inputs)}"
+
+    @classmethod
+    def _source_path(cls, inputs: dict[str, Any]) -> str:
+        source_type = str(inputs.get("source_type", "bed") or "bed")
+        if source_type == "bed":
+            return str(inputs.get("in_bed", ""))
+        return str(inputs.get("name_list", ""))
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._output_name(inputs)}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["seqtk", "subseq"]
+        if cls._bool_value(inputs.get("t", False)):
+            cmd.append("-t")
+        cmd.extend(["-l", str(inputs.get("l", 0)), str(inputs.get("in_file", "")), cls._source_path(inputs)])
+        command = _shell_join(cmd)
+        if cls._bool_value(inputs.get("t", False)):
+            return f"{command} | awk 'BEGIN{{print \"chr\\tunknown\\tseq\"}}1' > {shlex.quote(cls._out_path(inputs))}"
+        if cls._output_ext(inputs).endswith(".gz"):
+            return (
+                f"{command} | "
+                f"pigz -p ${{GALAXY_SLOTS:-1}} --no-name --no-time "
+                f"> {shlex.quote(cls._out_path(inputs))}"
+            )
+        return f"{command} > {shlex.quote(cls._out_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base = super().VALIDATE_INPUTS(inputs)
+        if base is not True:
+            return base
+        source_type = str(inputs.get("source_type", "bed") or "bed")
+        if source_type not in {"bed", "name"}:
+            return f"Unsupported source_type: {source_type}"
+        if source_type == "bed" and not str(inputs.get("in_bed", "")).strip():
+            return "in_bed is required when source_type is 'bed'"
+        if source_type == "name" and not str(inputs.get("name_list", "")).strip():
+            return "name_list is required when source_type is 'name'"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+            },
+            "optional": {
+                "source_type": (
+                    "STRING",
+                    {
+                        "default": "bed",
+                        "options": ["bed", "name"],
+                        "description": "Select sequences by BED regions or by a newline-delimited ID list",
+                    },
+                ),
+                "in_bed": ("BED", {"default": "", "description": "BED intervals to extract when source_type is bed"}),
+                "name_list": (
+                    "TXT",
+                    {"default": "", "description": "Newline-delimited FASTA/Q IDs to extract when source_type is name"},
+                ),
+                "t": ("BOOLEAN", {"default": False, "description": "Emit tab-delimited output with a Galaxy header"}),
+                "l": ("INT", {"default": 0, "description": "Sequence line length"}),
+                "input_ext": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": ["fasta", "fastq", "fasta.gz", "fastq.gz"],
+                        "description": "Input/output sequence format used to mirror Galaxy format_source metadata",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 

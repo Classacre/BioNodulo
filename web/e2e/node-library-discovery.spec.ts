@@ -761,6 +761,34 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_subseq: {
+    name: 'seqtk_subseq',
+    display_name: 'SeqTK Subsequence',
+    category: 'sequence',
+    description: 'Extract selected FASTA or FASTQ records by BED regions or sequence IDs.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk subseq', 'SeqTK subseq', 'extract subsequences', 'BED regions', 'sequence ID list', 'FASTA IDs', 'selected sequences'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        source_type: { type: 'STRING', default: 'bed', options: ['bed', 'name'] },
+        in_bed: { type: 'BED', default: '' },
+        name_list: { type: 'STRING', default: '' },
+        t: { type: 'BOOLEAN', default: false },
+        l: { type: 'INT', default: 0 },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq', 'fasta.gz', 'fastq.gz'] },
+      },
+    },
+    output: ['FASTA', 'FASTQ', 'TSV'],
+    output_name: ['selected_sequences'],
+    required_executables: ['seqtk', 'awk', 'pigz'],
+    required_conda_packages: ['seqtk', 'gawk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -11099,7 +11127,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('381 nodes available')).toBeVisible();
+  await expect(page.getByText('382 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11137,6 +11165,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk ambiguous bases', name: 'SeqTK Random Base', category: 'sequence' },
     { query: 'seqtk subsample reads', name: 'SeqTK Sample', category: 'sequence' },
     { query: 'seqtk reverse complement', name: 'SeqTK Seq', category: 'sequence' },
+    { query: 'seqtk extract subsequences', name: 'SeqTK Subsequence', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
