@@ -1161,6 +1161,41 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/fasta_stats'],
     citation_text: 'Fasta Statistics: Display summary statistics for a fasta file.',
   },
+  chopper: {
+    name: 'chopper',
+    display_name: 'Chopper',
+    category: 'trimming',
+    description: 'Filter and trim long-read FASTQ data with Chopper.',
+    search_aliases: ['Galaxy', 'Chopper', 'chopper', 'long-read filtering', 'long-read trimming', 'Nanopore', 'PacBio', 'NanoFilt', 'NanoLyse', 'quality filtering'],
+    input: {
+      required: {
+        input: { type: 'FASTQ' },
+      },
+      optional: {
+        contam: { type: 'FASTA', default: '' },
+        quality: { type: 'INT', default: 0, min: 0, max: 60 },
+        maxqual: { type: 'INT', default: 60, min: 0, max: 60 },
+        minlength: { type: 'INT', default: 1, min: 1 },
+        maxlength: { type: 'INT', default: '', min: 1 },
+        mingc: { type: 'FLOAT', default: 0.0, min: 0, max: 1 },
+        maxgc: { type: 'FLOAT', default: 1.0, min: 0, max: 1 },
+        trim_approach: { type: 'STRING', default: '', options: ['', 'fixed-crop', 'trim-by-quality', 'best-read-segment', 'split-by-low-quality'] },
+        headcrop: { type: 'INT', default: 0, min: 0 },
+        tailcrop: { type: 'INT', default: 0, min: 0 },
+        cutoff: { type: 'INT', default: 10, min: 0, max: 60 },
+        split_window: { type: 'INT', default: 1, min: 1 },
+        inverse: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FASTQ'],
+    output_name: ['fq_filt'],
+    required_executables: ['chopper', 'gzip'],
+    required_conda_packages: ['chopper'],
+    documentation_url: 'https://github.com/wdecoster/chopper',
+    citation_dois: ['10.1093/bioinformatics/btad311'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btad311'],
+    citation_text: 'NanoPack2: population-scale evaluation of long-read sequencing data.',
+  },
   checkm2: {
     name: 'checkm2',
     display_name: 'CheckM2',
@@ -11440,7 +11475,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('393 nodes available')).toBeVisible();
+  await expect(page.getByText('394 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11494,6 +11529,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
+    { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },

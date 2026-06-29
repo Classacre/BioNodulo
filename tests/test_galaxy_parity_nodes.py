@@ -3930,6 +3930,99 @@ def test_fasta_stats_validates_required_fasta_and_genome_size() -> None:
     assert node_class.VALIDATE_INPUTS({"fasta": "assembly.fa"}) is True
 
 
+def test_chopper_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["chopper"]
+
+    assert node_info["display_name"] == "Chopper"
+    assert node_info["category"] == "trimming"
+    assert node_info["description"] == "Filter and trim long-read FASTQ data with Chopper."
+    assert node_info["output"] == ["FASTQ"]
+    assert node_info["output_name"] == ["fq_filt"]
+    assert node_info["required_executables"] == ["chopper", "gzip"]
+    assert node_info["required_conda_packages"] == ["chopper"]
+    assert node_info["documentation_url"] == "https://github.com/wdecoster/chopper"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btad311"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btad311"]
+    assert "NanoPack2" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "NanoFilt" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input"][0] == "FASTQ"
+    assert node_info["input"]["optional"]["quality"][1]["default"] == 0
+    assert node_info["input"]["optional"]["maxqual"][1]["max"] == 60
+    assert node_info["input"]["optional"]["trim_approach"][1]["options"] == [
+        "",
+        "fixed-crop",
+        "trim-by-quality",
+        "best-read-segment",
+        "split-by-low-quality",
+    ]
+    assert node_info["input"]["optional"]["inverse"][1]["default"] is False
+
+
+def test_chopper_renders_default_filtering_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("chopper")
+
+    assert node_class.render_command(
+        {
+            "input": "reads.fastq",
+            "output": "/work/chopper",
+        }
+    ) == (
+        "chopper --input reads.fastq --threads ${GALAXY_SLOTS:-1} "
+        "--quality 0 --maxqual 60 --minlength 1 --mingc 0.0 --maxgc 1.0 "
+        "> /work/chopper/fq_filt.fastq"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "chopper" / "fq_filt.fastq"]
+
+
+def test_chopper_renders_contaminant_trim_split_inverse_and_gzip_output(tmp_path: Path) -> None:
+    node_class = _node_class("chopper")
+
+    assert node_class.render_command(
+        {
+            "input": "reads with spaces.fastq.gz",
+            "contam": "contaminants.fa",
+            "quality": 8,
+            "maxqual": 55,
+            "minlength": 50,
+            "maxlength": 20000,
+            "mingc": 0.25,
+            "maxgc": 0.8,
+            "trim_approach": "split-by-low-quality",
+            "cutoff": 12,
+            "split_window": 3,
+            "inverse": True,
+            "output": "/work/chopper",
+        }
+    ) == (
+        "chopper --input 'reads with spaces.fastq.gz' --threads ${GALAXY_SLOTS:-1} "
+        "--contam contaminants.fa --quality 8 --maxqual 55 --minlength 50 --maxlength 20000 "
+        "--mingc 0.25 --maxgc 0.8 --trim-approach split-by-low-quality --cutoff 12 "
+        "--split-window 3 --inverse | gzip > /work/chopper/fq_filt.fastq.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"input": "reads.fastq.gz"}, tmp_path) == [
+        tmp_path / "chopper" / "fq_filt.fastq.gz",
+    ]
+
+
+def test_chopper_validates_input_ranges_and_trimming_modes() -> None:
+    node_class = _node_class("chopper")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "quality": 61}) == "quality must be between 0 and 60"
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "mingc": -0.1}) == "mingc must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "minlength": 0}) == (
+        "minlength must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "trim_approach": "bad"}) == (
+        "trim_approach must be one of: , fixed-crop, trim-by-quality, best-read-segment, split-by-low-quality"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "trim_approach": "split-by-low-quality", "split_window": 0}) == (
+        "split_window must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "trim_approach": "fixed-crop", "headcrop": 10}) is True
+
+
 def test_assembly_stats_exposes_galaxy_aligned_outputs() -> None:
     info = _registry().object_info()["assembly_stats"]
 
