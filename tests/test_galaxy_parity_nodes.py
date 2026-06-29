@@ -12926,6 +12926,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["freyja"],
             "doi": "10.1038/s41586-022-05049-6",
         },
+        "freyja_aggregate_plot": {
+            "display_name": "Freyja Aggregate Plot",
+            "category": "variant",
+            "required_executables": ["freyja"],
+            "required_conda_packages": ["freyja"],
+            "doi": "10.1038/s41586-022-05049-6",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -13891,6 +13898,111 @@ def test_freyja_boot_renders_bootstrap_command_and_optional_plots(tmp_path: Path
     assert node_class.PLAN_OUTPUTS({"boxplot_pdf": False}, tmp_path) == [
         tmp_path / "freyja_boot" / "boot_output_lineages.csv",
         tmp_path / "freyja_boot" / "boot_output_summarized.csv",
+    ]
+
+
+def test_freyja_aggregate_plot_renders_aggregate_dashboard_and_plot_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("freyja_aggregate_plot")
+    info = _registry().object_info()["freyja_aggregate_plot"]
+
+    assert info["output"] == ["TSV", "HTML_REPORT", "PDF"]
+    assert info["output_name"] == ["aggregated", "abundances_dashboard", "abundances_plot"]
+    assert "10.1038/s41586-022-05049-6" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "aggregation_mode": "aggregate",
+            "demix_file": ["sample A.tsv", "sample_B.tsv"],
+            "plot_format": "plot_and_dash",
+            "csv_meta": "metadata.csv",
+            "plot_title": "Local WW Dashboard",
+            "plot_intro": "Variant surveillance",
+            "lineages": True,
+            "mincov": 75,
+            "interval": "D",
+            "output": "/work/freyja_aggregate_plot",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/freyja_aggregate_plot/demix_outputs",
+        "&&",
+        "ln",
+        "-sf",
+        "sample A.tsv",
+        "/work/freyja_aggregate_plot/demix_outputs/sample_A.tsv",
+        "&&",
+        "ln",
+        "-sf",
+        "sample_B.tsv",
+        "/work/freyja_aggregate_plot/demix_outputs/sample_B.tsv",
+        "&&",
+        "freyja",
+        "aggregate",
+        "/work/freyja_aggregate_plot/demix_outputs",
+        "--output",
+        "/work/freyja_aggregate_plot/aggregated.tsv",
+        "&&",
+        "printf",
+        "%s",
+        "Local WW Dashboard",
+        ">",
+        "/work/freyja_aggregate_plot/plot_title.txt",
+        "&&",
+        "printf",
+        "%s",
+        "Variant surveillance",
+        ">",
+        "/work/freyja_aggregate_plot/plot_intro.txt",
+        "&&",
+        "freyja",
+        "dash",
+        "--mincov",
+        "75",
+        "/work/freyja_aggregate_plot/aggregated.tsv",
+        "metadata.csv",
+        "/work/freyja_aggregate_plot/plot_title.txt",
+        "/work/freyja_aggregate_plot/plot_intro.txt",
+        "--output",
+        "/work/freyja_aggregate_plot/abundances_dashboard.html",
+        "&&",
+        "freyja",
+        "plot",
+        "--lineages",
+        "--mincov",
+        "75",
+        "/work/freyja_aggregate_plot/aggregated.tsv",
+        "--output",
+        "/work/freyja_aggregate_plot/abundances_plot.pdf",
+        "--times",
+        "metadata.csv",
+        "--interval",
+        "D",
+        "--windowsize",
+        "70",
+    ]
+
+    provided_cmd = node_class.render_command(
+        {
+            "aggregation_mode": "provided",
+            "tsv_aggregated": "already_aggregated.tsv",
+            "plot_format": "plot",
+            "lineages": False,
+            "mincov": 60,
+            "metadata_mode": "none",
+            "output": "/work/freyja_aggregate_plot",
+        }
+    )
+    assert "aggregate" not in provided_cmd
+    assert "already_aggregated.tsv" in provided_cmd
+    assert "--times" not in provided_cmd
+
+    assert node_class.PLAN_OUTPUTS({"aggregation_mode": "aggregate", "plot_format": "plot_and_dash"}, tmp_path) == [
+        tmp_path / "freyja_aggregate_plot" / "aggregated.tsv",
+        tmp_path / "freyja_aggregate_plot" / "abundances_dashboard.html",
+        tmp_path / "freyja_aggregate_plot" / "abundances_plot.pdf",
+    ]
+    assert node_class.PLAN_OUTPUTS({"aggregation_mode": "provided", "plot_format": "dash"}, tmp_path) == [
+        tmp_path / "freyja_aggregate_plot" / "abundances_dashboard.html",
     ]
 
 

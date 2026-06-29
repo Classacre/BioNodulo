@@ -4880,6 +4880,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41586-022-05049-6'],
     citation_text: 'Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission.',
   },
+  freyja_aggregate_plot: {
+    name: 'freyja_aggregate_plot',
+    display_name: 'Freyja Aggregate Plot',
+    category: 'variant',
+    description: 'Aggregate Freyja demixing outputs and create lineage abundance dashboard or PDF plots.',
+    search_aliases: ['Galaxy', 'Freyja', 'freyja aggregate', 'freyja plot', 'freyja dash', 'lineage abundance dashboard', 'wastewater visualization'],
+    input: {
+      required: {
+        aggregation_mode: { type: 'STRING', default: 'aggregate', options: ['aggregate', 'provided'] },
+        plot_format: { type: 'STRING', default: 'none', options: ['none', 'plot', 'dash', 'plot_and_dash'] },
+      },
+      optional: {
+        demix_file: { type: 'TSV_LIST', default: [], displayOptions: { show: { aggregation_mode: ['aggregate'] } } },
+        tsv_aggregated: { type: 'TSV', displayOptions: { show: { aggregation_mode: ['provided'] } } },
+        csv_meta: { type: 'CSV', default: '' },
+        plot_title: { type: 'STRING', default: '' },
+        plot_intro: { type: 'STRING', default: '' },
+        lineages: { type: 'BOOLEAN', default: false },
+        mincov: { type: 'FLOAT', default: 60 },
+        metadata_mode: { type: 'STRING', default: 'provided', options: ['provided', 'none'] },
+        interval: { type: 'STRING', default: 'MS', options: ['MS', 'D'] },
+      },
+    },
+    output: ['TSV', 'HTML_REPORT', 'PDF'],
+    output_name: ['aggregated', 'abundances_dashboard', 'abundances_plot'],
+    required_executables: ['freyja'],
+    required_conda_packages: ['freyja'],
+    documentation_url: 'https://github.com/andersen-lab/Freyja',
+    citation_dois: ['10.1038/s41586-022-05049-6'],
+    citation_urls: ['https://doi.org/10.1038/s41586-022-05049-6'],
+    citation_text: 'Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7625,7 +7657,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('274 nodes available')).toBeVisible();
+  await expect(page.getByText('275 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7780,6 +7812,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'freyja wastewater sequencing', name: 'Freyja Variants', category: 'variant' },
     { query: 'freyja lineage abundances', name: 'Freyja Demix', category: 'variant' },
     { query: 'freyja bootstrap lineages', name: 'Freyja Boot', category: 'variant' },
+    { query: 'freyja lineage abundance dashboard', name: 'Freyja Aggregate Plot', category: 'variant' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

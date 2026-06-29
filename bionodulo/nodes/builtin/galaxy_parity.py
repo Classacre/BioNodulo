@@ -21680,6 +21680,166 @@ class FreyjaBootNode(CommandNode):
         }
 
 
+class FreyjaAggregatePlotNode(CommandNode):
+    """Aggregate Freyja demixing results and generate plot/dashboard reports."""
+
+    NODE_ID = "freyja_aggregate_plot"
+    DISPLAY_NAME = "Freyja Aggregate Plot"
+    REQUIRED_CONDA_PACKAGES = ["freyja"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Aggregate Freyja demixing outputs and create lineage abundance dashboard or PDF plots."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Freyja",
+        "freyja aggregate",
+        "freyja plot",
+        "freyja dash",
+        "lineage abundance dashboard",
+        "wastewater visualization",
+    ]
+    RETURN_TYPES = ("TSV", "HTML_REPORT", "PDF")
+    RETURN_NAMES = ("aggregated", "abundances_dashboard", "abundances_plot")
+    REQUIRED_EXECUTABLES = ["freyja"]
+    DOCUMENTATION_URL = "https://github.com/andersen-lab/Freyja"
+    CITATION_DOIS = ["10.1038/s41586-022-05049-6"]
+    CITATION_URLS = [f"{DOI_URL}10.1038/s41586-022-05049-6"]
+    CITATION_TEXT = "Wastewater sequencing reveals early cryptic SARS-CoV-2 variant transmission."
+    VERSION = "2.0.1"
+    SHELL = True
+
+    @classmethod
+    def _aggregated_input(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        if str(inputs.get("aggregation_mode", "aggregate")) == "aggregate":
+            return f"{out}/aggregated.tsv"
+        return str(inputs.get("tsv_aggregated", ""))
+
+    @classmethod
+    def _add_aggregate_command(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        out = _out(inputs)
+        if str(inputs.get("aggregation_mode", "aggregate")) != "aggregate":
+            return
+        demix_dir = f"{out}/demix_outputs"
+        cmd.extend(["mkdir", "-p", demix_dir])
+        for demix_file in _as_list(inputs.get("demix_file")):
+            cmd.extend(["&&", "ln", "-sf", demix_file, f"{demix_dir}/{_safe_name(demix_file)}"])
+        cmd.extend(["&&", "freyja", "aggregate", demix_dir, "--output", f"{out}/aggregated.tsv"])
+
+    @classmethod
+    def _add_dash_command(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        out = _out(inputs)
+        aggregated = cls._aggregated_input(inputs)
+        if cmd:
+            cmd.append("&&")
+        cmd.extend([
+            "printf",
+            "%s",
+            str(inputs.get("plot_title", "")),
+            ">",
+            f"{out}/plot_title.txt",
+            "&&",
+            "printf",
+            "%s",
+            str(inputs.get("plot_intro", "")),
+            ">",
+            f"{out}/plot_intro.txt",
+            "&&",
+            "freyja",
+            "dash",
+            "--mincov",
+            str(inputs.get("mincov", 60)),
+            aggregated,
+            str(inputs.get("csv_meta", "")),
+            f"{out}/plot_title.txt",
+            f"{out}/plot_intro.txt",
+            "--output",
+            f"{out}/abundances_dashboard.html",
+        ])
+
+    @classmethod
+    def _add_plot_command(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        out = _out(inputs)
+        aggregated = cls._aggregated_input(inputs)
+        if cmd:
+            cmd.append("&&")
+        cmd.extend(["freyja", "plot"])
+        if inputs.get("lineages"):
+            cmd.append("--lineages")
+        cmd.extend([
+            "--mincov",
+            str(inputs.get("mincov", 60)),
+            aggregated,
+            "--output",
+            f"{out}/abundances_plot.pdf",
+        ])
+        if str(inputs.get("metadata_mode", "provided")) != "none" and inputs.get("csv_meta"):
+            cmd.extend(["--times", str(inputs.get("csv_meta"))])
+            interval = str(inputs.get("interval", "MS"))
+            if interval == "MS":
+                cmd.extend(["--interval", "MS"])
+            else:
+                cmd.extend(["--interval", "D", "--windowsize", "70"])
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd: list[str] = []
+        cls._add_aggregate_command(cmd, inputs)
+        plot_format = str(inputs.get("plot_format", "none"))
+        if plot_format in {"dash", "plot_and_dash"}:
+            cls._add_dash_command(cmd, inputs)
+        if plot_format in {"plot", "plot_and_dash"}:
+            cls._add_plot_command(cmd, inputs)
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs: list[Path] = []
+        if str(inputs.get("aggregation_mode", "aggregate")) == "aggregate":
+            outputs.append(out / "aggregated.tsv")
+        plot_format = str(inputs.get("plot_format", "none"))
+        if plot_format in {"dash", "plot_and_dash"}:
+            outputs.append(out / "abundances_dashboard.html")
+        if plot_format in {"plot", "plot_and_dash"}:
+            outputs.append(out / "abundances_plot.pdf")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "aggregation_mode": ("STRING", {"default": "aggregate", "options": ["aggregate", "provided"], "description": "Aggregate demix outputs or use an existing aggregate table"}),
+                "plot_format": ("STRING", {"default": "none", "options": ["none", "plot", "dash", "plot_and_dash"], "description": "Reports to generate"}),
+            },
+            "optional": {
+                "demix_file": (
+                    "TSV_LIST",
+                    {
+                        "default": [],
+                        "description": "One or more Freyja demix abundance tables",
+                        "displayOptions": {"show": {"aggregation_mode": ["aggregate"]}},
+                    },
+                ),
+                "tsv_aggregated": (
+                    "TSV",
+                    {
+                        "description": "Existing Freyja aggregate table",
+                        "displayOptions": {"show": {"aggregation_mode": ["provided"]}},
+                    },
+                ),
+                "csv_meta": ("CSV", {"default": "", "description": "Sample metadata CSV for plot or dashboard output"}),
+                "plot_title": ("STRING", {"default": "", "description": "Dashboard title"}),
+                "plot_intro": ("STRING", {"default": "", "description": "Dashboard introduction"}),
+                "lineages": ("BOOLEAN", {"default": False, "description": "Use lineage-specific breakdown in the plot"}),
+                "mincov": ("FLOAT", {"default": 60, "min": 0, "max": 100, "description": "Minimum genome coverage percentage"}),
+                "metadata_mode": ("STRING", {"default": "provided", "options": ["provided", "none"], "description": "Whether plot metadata is provided"}),
+                "interval": ("STRING", {"default": "MS", "options": ["MS", "D"], "description": "Plot date binning interval"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 
