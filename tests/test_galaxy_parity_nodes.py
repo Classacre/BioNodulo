@@ -1410,6 +1410,81 @@ def test_aegean_canongff3_renders_commands_outputs_and_validates(tmp_path: Path)
     assert node_class.VALIDATE_INPUTS({"gff3file": "genes.gff3", "source": "TAIR10"}) is True
 
 
+def test_aegean_gaeval_exposes_galaxy_metadata_without_citation_doi() -> None:
+    info = _registry().object_info()["aegean_gaeval"]
+
+    assert info["display_name"] == "AEGeAn GAEVAL"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Compute gene model coverage and integrity scores from transcript alignments."
+    assert info["input"]["required"]["alignmentgff3"][0] == "STRING"
+    assert info["input"]["required"]["genesgff3"][0] == "STRING"
+    assert info["input"]["optional"]["alpha"][1]["default"] == 0.6
+    assert info["input"]["optional"]["beta"][1]["default"] == 0.3
+    assert info["input"]["optional"]["gamma"][1]["default"] == 0.05
+    assert info["input"]["optional"]["epsilon"][1]["default"] == 0.05
+    assert info["input"]["optional"]["expcds"][1]["default"] == 400
+    assert info["input"]["optional"]["exp5putr"][1]["default"] == 200
+    assert info["input"]["optional"]["exp3putr"][1]["default"] == 100
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["gaeval"]
+    assert info["required_conda_packages"] == ["aegean"]
+    assert info["documentation_url"] == "https://github.com/BrendelGroup/AEGeAn"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/BrendelGroup/AEGeAn"]
+    assert "AEGeAn genome annotation toolkit" in info["citation_text"]
+    assert "gene model integrity" in info["search_aliases"]
+
+
+def test_aegean_gaeval_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("aegean_gaeval")
+
+    assert node_class.render_command(
+        {
+            "alignmentgff3": "TAIR10_GFF3_alignment.gff3",
+            "genesgff3": "TAIR10_GFF3_genes.gff3",
+            "alpha": 0.5,
+            "beta": 0.4,
+            "gamma": 0.05,
+            "epsilon": 0.05,
+            "expcds": 20,
+            "exp5putr": 150,
+            "exp3putr": 120,
+            "output": "/work/aegean_gaeval",
+        }
+    ) == (
+        "gaeval TAIR10_GFF3_alignment.gff3 TAIR10_GFF3_genes.gff3 "
+        "-a 0.5 -b 0.4 -g 0.05 -e 0.05 -c 20 -5 150 -3 120 > /work/aegean_gaeval/gaeval.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "alignmentgff3": "alignment support.gff3",
+            "genesgff3": "genes.gff3",
+            "output": "/work/aegean_gaeval",
+        }
+    ) == (
+        "gaeval 'alignment support.gff3' genes.gff3 "
+        "-a 0.6 -b 0.3 -g 0.05 -e 0.05 -c 400 -5 200 -3 100 > /work/aegean_gaeval/gaeval.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "aegean_gaeval" / "gaeval.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "alignmentgff3 is required"
+    assert node_class.VALIDATE_INPUTS({"alignmentgff3": "align.gff3"}) == "genesgff3 is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"alignmentgff3": "align.gff3", "genesgff3": "genes.gff3", "alpha": 1.2}
+    ) == "alpha must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"alignmentgff3": "align.gff3", "genesgff3": "genes.gff3", "expcds": 1001}
+    ) == "expcds must be between 0 and 1000"
+    assert node_class.VALIDATE_INPUTS(
+        {"alignmentgff3": "align.gff3", "genesgff3": "genes.gff3", "exp5putr": -1}
+    ) == "exp5putr must be between 0 and 1000"
+    assert node_class.VALIDATE_INPUTS({"alignmentgff3": "align.gff3", "genesgff3": "genes.gff3"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

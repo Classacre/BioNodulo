@@ -280,6 +280,185 @@ class AegeanCanonGff3Node(CommandNode):
         }
 
 
+class AegeanGaevalNode(CommandNode):
+    """Evaluate gene model support with AEGeAn GAEVAL."""
+
+    NODE_ID = "aegean_gaeval"
+    DISPLAY_NAME = "AEGeAn GAEVAL"
+    REQUIRED_CONDA_PACKAGES = ["aegean"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Compute gene model coverage and integrity scores from transcript alignments."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AEGeAn",
+        "GAEVAL",
+        "gaeval",
+        "aegean_gaeval",
+        "gene model integrity",
+        "transcript alignment support",
+        "annotation evaluation",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["gaeval"]
+    DOCUMENTATION_URL = AEGEAN_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [AEGEAN_CITATION_URL]
+    CITATION_TEXT = AEGEAN_CITATION_TEXT
+    VERSION = "0.16.0+galaxy2"
+
+    WEIGHT_DEFAULTS = {
+        "alpha": 0.6,
+        "beta": 0.3,
+        "gamma": 0.05,
+        "epsilon": 0.05,
+    }
+    EXPECTED_DEFAULTS = {
+        "expcds": 400,
+        "exp5putr": 200,
+        "exp3putr": 100,
+    }
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/gaeval.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "gaeval",
+            str(inputs.get("alignmentgff3", "")),
+            str(inputs.get("genesgff3", "")),
+            "-a",
+            str(inputs.get("alpha", cls.WEIGHT_DEFAULTS["alpha"])),
+            "-b",
+            str(inputs.get("beta", cls.WEIGHT_DEFAULTS["beta"])),
+            "-g",
+            str(inputs.get("gamma", cls.WEIGHT_DEFAULTS["gamma"])),
+            "-e",
+            str(inputs.get("epsilon", cls.WEIGHT_DEFAULTS["epsilon"])),
+            "-c",
+            str(inputs.get("expcds", cls.EXPECTED_DEFAULTS["expcds"])),
+            "-5",
+            str(inputs.get("exp5putr", cls.EXPECTED_DEFAULTS["exp5putr"])),
+            "-3",
+            str(inputs.get("exp3putr", cls.EXPECTED_DEFAULTS["exp3putr"])),
+            ">",
+            cls._output_path(inputs),
+        ]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "gaeval.tsv"]
+
+    @classmethod
+    def _validate_range(cls, inputs: dict[str, Any], key: str, minimum: float, maximum: float) -> bool | str:
+        value = inputs.get(key)
+        if value is None or value == "":
+            return True
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return f"{key} must be numeric"
+        if numeric < minimum or numeric > maximum:
+            return f"{key} must be between {minimum:g} and {maximum:g}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("alignmentgff3", "")).strip():
+            return "alignmentgff3 is required"
+        if not str(inputs.get("genesgff3", "")).strip():
+            return "genesgff3 is required"
+        for key in cls.WEIGHT_DEFAULTS:
+            result = cls._validate_range(inputs, key, 0, 1)
+            if result is not True:
+                return result
+        for key in cls.EXPECTED_DEFAULTS:
+            result = cls._validate_range(inputs, key, 0, 1000)
+            if result is not True:
+                return result
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "alignmentgff3": ("GFF3", {"description": "Transcript alignment GFF3 file"}),
+                "genesgff3": ("GFF3", {"description": "Gene prediction or annotation GFF3 file"}),
+            },
+            "optional": {
+                "alpha": (
+                    "FLOAT",
+                    {
+                        "default": cls.WEIGHT_DEFAULTS["alpha"],
+                        "min": 0,
+                        "max": 1,
+                        "description": "Weight for intron confirmation or expected CDS length support",
+                    },
+                ),
+                "beta": (
+                    "FLOAT",
+                    {
+                        "default": cls.WEIGHT_DEFAULTS["beta"],
+                        "min": 0,
+                        "max": 1,
+                        "description": "Weight for exon coverage in the integrity score",
+                    },
+                ),
+                "gamma": (
+                    "FLOAT",
+                    {
+                        "default": cls.WEIGHT_DEFAULTS["gamma"],
+                        "min": 0,
+                        "max": 1,
+                        "description": "Weight for expected 5 prime UTR length support",
+                    },
+                ),
+                "epsilon": (
+                    "FLOAT",
+                    {
+                        "default": cls.WEIGHT_DEFAULTS["epsilon"],
+                        "min": 0,
+                        "max": 1,
+                        "description": "Weight for expected 3 prime UTR length support",
+                    },
+                ),
+                "expcds": (
+                    "INT",
+                    {
+                        "default": cls.EXPECTED_DEFAULTS["expcds"],
+                        "min": 0,
+                        "max": 1000,
+                        "description": "Expected CDS length in base pairs",
+                    },
+                ),
+                "exp5putr": (
+                    "INT",
+                    {
+                        "default": cls.EXPECTED_DEFAULTS["exp5putr"],
+                        "min": 0,
+                        "max": 1000,
+                        "description": "Expected 5 prime UTR length in base pairs",
+                    },
+                ),
+                "exp3putr": (
+                    "INT",
+                    {
+                        "default": cls.EXPECTED_DEFAULTS["exp3putr"],
+                        "min": 0,
+                        "max": 1000,
+                        "description": "Expected 3 prime UTR length in base pairs",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 def _bedtools_add_genome(cmd: list[str], inputs: dict[str, Any]) -> None:
     _add_if_value(cmd, "-g", inputs.get("genome"))
 

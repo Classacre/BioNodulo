@@ -97,6 +97,45 @@ const objectInfo = {
     citation_urls: ['https://github.com/BrendelGroup/AEGeAn'],
     citation_text: 'AEGeAn genome annotation toolkit.',
   },
+  aegean_gaeval: {
+    name: 'aegean_gaeval',
+    display_name: 'AEGeAn GAEVAL',
+    category: 'annotation',
+    description: 'Compute gene model coverage and integrity scores from transcript alignments.',
+    search_aliases: [
+      'Galaxy',
+      'AEGeAn',
+      'GAEVAL',
+      'gaeval',
+      'aegean_gaeval',
+      'gene model integrity',
+      'transcript alignment support',
+      'annotation evaluation',
+    ],
+    input: {
+      required: {
+        alignmentgff3: { type: 'STRING' },
+        genesgff3: { type: 'STRING' },
+      },
+      optional: {
+        alpha: { type: 'FLOAT', default: 0.6, min: 0, max: 1 },
+        beta: { type: 'FLOAT', default: 0.3, min: 0, max: 1 },
+        gamma: { type: 'FLOAT', default: 0.05, min: 0, max: 1 },
+        epsilon: { type: 'FLOAT', default: 0.05, min: 0, max: 1 },
+        expcds: { type: 'INT', default: 400, min: 0, max: 1000 },
+        exp5putr: { type: 'INT', default: 200, min: 0, max: 1000 },
+        exp3putr: { type: 'INT', default: 100, min: 0, max: 1000 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['gaeval'],
+    required_conda_packages: ['aegean'],
+    documentation_url: 'https://github.com/BrendelGroup/AEGeAn',
+    citation_dois: [],
+    citation_urls: ['https://github.com/BrendelGroup/AEGeAn'],
+    citation_text: 'AEGeAn genome annotation toolkit.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -9735,7 +9774,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('336 nodes available')).toBeVisible();
+  await expect(page.getByText('337 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9743,6 +9782,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'data transform', name: 'Filter Rows', category: 'data_transform' },
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
+    { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },
