@@ -6598,6 +6598,84 @@ def test_ampvis2_merge_ampvis2_renders_script_outputs_and_validates(tmp_path: Pa
     assert node_class.VALIDATE_INPUTS({"data": ["dataset.rds"]}) is True
 
 
+def test_ampvis2_mergereplicates_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_mergereplicates"]
+
+    assert info["display_name"] == "ampvis2 merge replicates"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Merge replicate samples in an ampvis2 RDS dataset by averaging OTU abundances."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["required"]["metadata_list"][0] == "TSV"
+    assert info["input"]["required"]["merge_var"][0] == "STRING"
+    assert info["input"]["optional"]["round"][1]["default"] == ""
+    assert info["input"]["optional"]["round"][1]["options"] == ["", "up", "down"]
+    assert info["output"] == ["FILE", "TSV"]
+    assert info["output_name"] == ["ampvis", "metadata_list_out"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_merge_replicates.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 merge replicates" in info["search_aliases"]
+    assert "amp_mergereplicates" in info["search_aliases"]
+    assert "replicate samples" in info["search_aliases"]
+
+
+def test_ampvis2_mergereplicates_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_mergereplicates")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "merge_var": "Period",
+            "round": "up",
+            "output": "/work/ampvis2_mergereplicates",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_mergereplicates/mergereplicates.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "data <- amp_mergereplicates(" in command
+    assert 'merge_var = "Period",' in command
+    assert 'round = "up"' in command
+    assert 'saveRDS(data, "/work/ampvis2_mergereplicates/ampvis.rds")' in command
+    assert 'file="/work/ampvis2_mergereplicates/metadata_list.tsv"' in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_mergereplicates/mergereplicates.R")
+
+    default_command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "merge_var": "Period",
+            "output": "/work/ampvis2_mergereplicates",
+        }
+    )
+    assert "round =" not in default_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_mergereplicates" / "ampvis.rds",
+        tmp_path / "ampvis2_mergereplicates" / "metadata_list.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": "", "metadata_list": "metadata.list", "merge_var": "Period"}) == (
+        "data is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "", "merge_var": "Period"}) == (
+        "metadata_list is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "metadata.list", "merge_var": ""}) == (
+        "merge_var is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "metadata_list": "metadata.list", "merge_var": "Period", "round": "nearest"}
+    ) == "round must be one of: , up, down"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "metadata.list", "merge_var": "Period"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

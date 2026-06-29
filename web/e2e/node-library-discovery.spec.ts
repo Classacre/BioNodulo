@@ -1642,6 +1642,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_mergereplicates: {
+    name: 'ampvis2_mergereplicates',
+    display_name: 'ampvis2 merge replicates',
+    category: 'metagenomics',
+    description: 'Merge replicate samples in an ampvis2 RDS dataset by averaging OTU abundances.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 merge replicates', 'amp_mergereplicates', 'amp_merge_replicates', 'replicate samples', 'average OTU abundances', 'metadata groups'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+        metadata_list: { type: 'TSV' },
+        merge_var: { type: 'STRING' },
+      },
+      optional: {
+        round: { type: 'STRING', default: '', options: ['', 'up', 'down'] },
+      },
+    },
+    output: ['FILE', 'TSV'],
+    output_name: ['ampvis', 'metadata_list_out'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_merge_replicates.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -10146,7 +10171,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('348 nodes available')).toBeVisible();
+  await expect(page.getByText('349 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10211,6 +10236,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ampvis2 heatmap', name: 'ampvis2 heatmap', category: 'metagenomics' },
     { query: 'ampvis2 load', name: 'ampvis2 load', category: 'metagenomics' },
     { query: 'ampvis2 merge ampvis2 data sets', name: 'ampvis2 merge ampvis2 data sets', category: 'metagenomics' },
+    { query: 'ampvis2 merge replicates', name: 'ampvis2 merge replicates', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },
