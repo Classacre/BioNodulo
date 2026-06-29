@@ -1572,6 +1572,83 @@ def test_aegean_locuspocus_renders_commands_outputs_and_validates(tmp_path: Path
     assert node_class.VALIDATE_INPUTS({"genesgff3": "genes.gff3"}) is True
 
 
+def test_aegean_parseval_exposes_galaxy_metadata_with_doi() -> None:
+    info = _registry().object_info()["aegean_parseval"]
+
+    assert info["display_name"] == "AEGeAn ParsEval"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Compare two GFF3 gene annotation sets for the same sequence."
+    assert info["input"]["required"]["referencegff3"][0] == "STRING"
+    assert info["input"]["required"]["predictiongff3"][0] == "STRING"
+    assert info["input"]["optional"]["delta"][1]["default"] == 0
+    assert info["input"]["optional"]["maxtrans"][1]["default"] == 32
+    assert info["input"]["optional"]["output_type"][1]["options"] == ["text", "html"]
+    assert info["input"]["optional"]["refrlabel"][1]["default"] == ""
+    assert info["input"]["optional"]["predlabel"][1]["default"] == ""
+    assert info["output"] == ["TXT", "HTML_REPORT"]
+    assert info["output_name"] == ["output_txt", "output_html"]
+    assert info["required_executables"] == ["parseval"]
+    assert info["required_conda_packages"] == ["aegean"]
+    assert info["citation_dois"] == ["10.1186/1471-2105-13-187"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/1471-2105-13-187"]
+    assert "ParsEval" in info["citation_text"]
+    assert "gene annotation comparison" in info["search_aliases"]
+
+
+def test_aegean_parseval_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("aegean_parseval")
+
+    assert node_class.render_command(
+        {
+            "referencegff3": "TAIR9_GFF3_genes.gff3",
+            "predictiongff3": "TAIR10_GFF3_genes.gff3",
+            "delta": 5,
+            "maxtrans": 20,
+            "output_type": "text",
+            "refrlabel": "example_ref_label",
+            "predlabel": "example_pred_label",
+            "output": "/work/aegean_parseval",
+        }
+    ) == (
+        "parseval TAIR9_GFF3_genes.gff3 TAIR10_GFF3_genes.gff3 --delta 5 --maxtrans 20 -w "
+        "--refrlabel example_ref_label --predlabel example_pred_label -f text -o /work/aegean_parseval/parseval.txt"
+    )
+
+    assert node_class.render_command(
+        {
+            "referencegff3": "reference genes.gff3",
+            "predictiongff3": "prediction.gff3",
+            "output_type": "html",
+            "output": "/work/aegean_parseval",
+        }
+    ) == (
+        "mkdir -p /work/aegean_parseval/parseval_html.files && "
+        "parseval 'reference genes.gff3' prediction.gff3 --delta 0 --maxtrans 32 -w "
+        "-f html -o /work/aegean_parseval/parseval_html.files && "
+        "echo '</div> </body> </html>' >> /work/aegean_parseval/parseval_html.files/index.html && "
+        "cp /work/aegean_parseval/parseval_html.files/index.html /work/aegean_parseval/parseval.html"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"output_type": "text"}, tmp_path) == [
+        tmp_path / "aegean_parseval" / "parseval.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_type": "html"}, tmp_path) == [
+        tmp_path / "aegean_parseval" / "parseval.html",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "referencegff3 is required"
+    assert node_class.VALIDATE_INPUTS({"referencegff3": "ref.gff3"}) == "predictiongff3 is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"referencegff3": "ref.gff3", "predictiongff3": "pred.gff3", "delta": 21}
+    ) == "delta must be between 0 and 20"
+    assert node_class.VALIDATE_INPUTS(
+        {"referencegff3": "ref.gff3", "predictiongff3": "pred.gff3", "maxtrans": 0}
+    ) == "maxtrans must be between 1 and 50"
+    assert node_class.VALIDATE_INPUTS(
+        {"referencegff3": "ref.gff3", "predictiongff3": "pred.gff3", "output_type": "pdf"}
+    ) == "output_type must be one of: text, html"
+    assert node_class.VALIDATE_INPUTS({"referencegff3": "ref.gff3", "predictiongff3": "pred.gff3"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

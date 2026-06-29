@@ -81,6 +81,8 @@ LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
 LOCUSPOCUS_CITATION_TEXT = (
     "Interval locus concepts and associated LocusPocus/Fidibus software for comparative genome annotation."
 )
+PARSEVAL_CITATION_DOI = "10.1186/1471-2105-13-187"
+PARSEVAL_CITATION_TEXT = "ParsEval: parallel comparison and analysis of gene structure annotations."
 
 
 def _bedtools_common_output(node_id: str, filename: str, output_dir: str | Path) -> Path:
@@ -644,6 +646,159 @@ class AegeanLocusPocusNode(CommandNode):
                         "options": cls.OUTPUT_FILES,
                         "description": "Optional LocusPocus side-output tables to emit",
                     },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class AegeanParsevalNode(CommandNode):
+    """Compare two GFF3 gene annotation sets with AEGeAn ParsEval."""
+
+    NODE_ID = "aegean_parseval"
+    DISPLAY_NAME = "AEGeAn ParsEval"
+    REQUIRED_CONDA_PACKAGES = ["aegean"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Compare two GFF3 gene annotation sets for the same sequence."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AEGeAn",
+        "ParsEval",
+        "parseval",
+        "aegean_parseval",
+        "gene annotation comparison",
+        "gene structure comparison",
+        "GFF3 annotation comparison",
+    ]
+    RETURN_TYPES = ("TXT", "HTML_REPORT")
+    RETURN_NAMES = ("output_txt", "output_html")
+    REQUIRED_EXECUTABLES = ["parseval"]
+    DOCUMENTATION_URL = AEGEAN_CITATION_URL
+    CITATION_DOIS = [PARSEVAL_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{PARSEVAL_CITATION_DOI}"]
+    CITATION_TEXT = PARSEVAL_CITATION_TEXT
+    VERSION = "0.16.0+galaxy2"
+
+    OUTPUT_TYPES = ["text", "html"]
+
+    @classmethod
+    def _output_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("output_type", "text") or "text")
+
+    @classmethod
+    def _text_output(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/parseval.txt"
+
+    @classmethod
+    def _html_output(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/parseval.html"
+
+    @classmethod
+    def _html_files_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/parseval_html.files"
+
+    @classmethod
+    def _base_cmd(cls, inputs: dict[str, Any]) -> list[str]:
+        cmd = [
+            "parseval",
+            str(inputs.get("referencegff3", "")),
+            str(inputs.get("predictiongff3", "")),
+            "--delta",
+            str(inputs.get("delta", 0)),
+            "--maxtrans",
+            str(inputs.get("maxtrans", 32)),
+            "-w",
+        ]
+        _add_if_value(cmd, "--refrlabel", inputs.get("refrlabel"))
+        _add_if_value(cmd, "--predlabel", inputs.get("predlabel"))
+        return cmd
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        output_type = cls._output_type(inputs)
+        cmd = cls._base_cmd(inputs)
+        if output_type == "html":
+            html_files = cls._html_files_path(inputs)
+            html_index = f"{html_files}/index.html"
+            cmd.extend(["-f", "html", "-o", html_files])
+            return " && ".join(
+                [
+                    _shell_join(["mkdir", "-p", html_files]),
+                    _shell_join(cmd),
+                    f"echo {shlex.quote('</div> </body> </html>')} >> {shlex.quote(html_index)}",
+                    _shell_join(["cp", html_index, cls._html_output(inputs)]),
+                ]
+            )
+        cmd.extend(["-f", "text", "-o", cls._text_output(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        if cls._output_type(inputs) == "html":
+            return [out / "parseval.html"]
+        return [out / "parseval.txt"]
+
+    @classmethod
+    def _validate_int_range(cls, inputs: dict[str, Any], key: str, minimum: int, maximum: int) -> bool | str:
+        value = inputs.get(key)
+        if value is None or value == "":
+            return True
+        try:
+            integer = int(value)
+        except (TypeError, ValueError):
+            return f"{key} must be an integer"
+        if integer < minimum or integer > maximum:
+            return f"{key} must be between {minimum} and {maximum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("referencegff3", "")).strip():
+            return "referencegff3 is required"
+        if not str(inputs.get("predictiongff3", "")).strip():
+            return "predictiongff3 is required"
+        for key, minimum, maximum in (("delta", 0, 20), ("maxtrans", 1, 50)):
+            result = cls._validate_int_range(inputs, key, minimum, maximum)
+            if result is not True:
+                return result
+        output_type = cls._output_type(inputs)
+        if output_type not in cls.OUTPUT_TYPES:
+            return f"output_type must be one of: {', '.join(cls.OUTPUT_TYPES)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "referencegff3": ("GFF3", {"description": "Reference annotation GFF3 file"}),
+                "predictiongff3": ("GFF3", {"description": "Prediction annotation GFF3 file"}),
+            },
+            "optional": {
+                "delta": (
+                    "INT",
+                    {"default": 0, "min": 0, "max": 20, "description": "Number of nucleotides to extend gene loci"},
+                ),
+                "maxtrans": (
+                    "INT",
+                    {"default": 32, "min": 1, "max": 50, "description": "Maximum transcripts allowed per locus"},
+                ),
+                "output_type": (
+                    "STRING",
+                    {
+                        "default": "text",
+                        "options": cls.OUTPUT_TYPES,
+                        "description": "Generate plain text or HTML ParsEval output",
+                    },
+                ),
+                "refrlabel": (
+                    "STRING",
+                    {"default": "", "description": "Optional label for the reference annotations"},
+                ),
+                "predlabel": (
+                    "STRING",
+                    {"default": "", "description": "Optional label for the prediction annotations"},
                 ),
             },
             "hidden": {"output": ("STRING", {})},

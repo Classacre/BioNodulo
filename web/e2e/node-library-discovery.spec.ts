@@ -179,6 +179,43 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nargab/lqac013'],
     citation_text: 'Interval locus concepts and associated LocusPocus/Fidibus software for comparative genome annotation.',
   },
+  aegean_parseval: {
+    name: 'aegean_parseval',
+    display_name: 'AEGeAn ParsEval',
+    category: 'annotation',
+    description: 'Compare two GFF3 gene annotation sets for the same sequence.',
+    search_aliases: [
+      'Galaxy',
+      'AEGeAn',
+      'ParsEval',
+      'parseval',
+      'aegean_parseval',
+      'gene annotation comparison',
+      'gene structure comparison',
+      'GFF3 annotation comparison',
+    ],
+    input: {
+      required: {
+        referencegff3: { type: 'STRING' },
+        predictiongff3: { type: 'STRING' },
+      },
+      optional: {
+        delta: { type: 'INT', default: 0, min: 0, max: 20 },
+        maxtrans: { type: 'INT', default: 32, min: 1, max: 50 },
+        output_type: { type: 'STRING', default: 'text', options: ['text', 'html'] },
+        refrlabel: { type: 'STRING', default: '' },
+        predlabel: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['TXT', 'HTML_REPORT'],
+    output_name: ['output_txt', 'output_html'],
+    required_executables: ['parseval'],
+    required_conda_packages: ['aegean'],
+    documentation_url: 'https://github.com/BrendelGroup/AEGeAn',
+    citation_dois: ['10.1186/1471-2105-13-187'],
+    citation_urls: ['https://doi.org/10.1186/1471-2105-13-187'],
+    citation_text: 'ParsEval: parallel comparison and analysis of gene structure annotations.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -9817,7 +9854,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('338 nodes available')).toBeVisible();
+  await expect(page.getByText('339 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9827,6 +9864,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },
+    { query: 'gene annotation comparison', name: 'AEGeAn ParsEval', category: 'annotation' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },
