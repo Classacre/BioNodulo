@@ -164,6 +164,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["adapterremoval"],
             "doi": "10.1186/s13104-016-1900-2",
         },
+        "iuc_pear": {
+            "display_name": "Pear",
+            "category": "trimming",
+            "required_executables": ["pear"],
+            "required_conda_packages": ["pear"],
+            "doi": "10.1093/bioinformatics/btt593",
+        },
         "assembly_stats": {
             "display_name": "Assembly Stats",
             "category": "assembly",
@@ -2672,6 +2679,117 @@ def test_flash_renders_collection_reads_command_and_validates_inputs(tmp_path: P
     assert node_class.VALIDATE_INPUTS({"layout": "collection", "reads": {"forward": "r1.fastq"}}) == (
         "paired collection requires forward and reverse reads"
     )
+
+
+def test_iuc_pear_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["iuc_pear"]
+
+    assert node_info["display_name"] == "Pear"
+    assert node_info["category"] == "trimming"
+    assert node_info["description"].startswith("Merge paired-end reads")
+    assert node_info["input"]["required"]["library_type"][1]["options"] == ["paired", "paired_collection"]
+    assert node_info["input"]["optional"]["phred_base"][1]["default"] == "33"
+    assert node_info["input"]["optional"]["outputs"][1]["multiple"] is True
+    assert node_info["input"]["optional"]["outputs"][1]["default"] == ["assembled"]
+    assert node_info["output"] == ["FASTQ", "FASTQ", "FASTQ", "FASTQ"]
+    assert node_info["output_name"] == [
+        "assembled_reads",
+        "unassembled_forward_reads",
+        "unassembled_reverse_reads",
+        "discarded_reads",
+    ]
+    assert node_info["required_executables"] == ["pear"]
+    assert node_info["required_conda_packages"] == ["pear"]
+    assert node_info["documentation_url"] == "https://sco.h-its.org/exelixis/web/software/pear/doc.html"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btt593"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt593"]
+    assert "PEAR: a fast and accurate Illumina Paired-End reAd mergeR." in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "PEAR paired-end read merger" in node_info["search_aliases"]
+
+
+def test_iuc_pear_renders_default_paired_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("iuc_pear")
+
+    assert node_class.render_command(
+        {
+            "library_type": "paired",
+            "forward": "forward.fastq",
+            "reverse": "reverse.fastq",
+            "output": "/work/iuc_pear",
+        }
+    ) == (
+        "pear -f forward.fastq -r reverse.fastq --phred-base 33 --output /work/iuc_pear/pear "
+        "--p-value 0.01 --min-overlap 10 --min-asm-length 50 --min-trim-length 1 "
+        "--quality-theshold 0 --max-uncalled-base 1.0 --test-method 1 "
+        "--threads ${GALAXY_SLOTS:-8} --score-method 2 --cap 40"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "iuc_pear" / "pear.assembled.fastq",
+    ]
+
+
+def test_iuc_pear_renders_collection_command_optional_flags_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("iuc_pear")
+
+    assert node_class.render_command(
+        {
+            "library_type": "paired_collection",
+            "input_collection": {"forward": "reads R1.fastq", "reverse": "reads R2.fastq"},
+            "phred_base": "64",
+            "pvalue": 0.001,
+            "min_overlap": 12,
+            "max_assembly_length": 300,
+            "min_assembly_length": 40,
+            "min_trim_length": 2,
+            "quality_threshold": 20,
+            "max_uncalled_base": 0.2,
+            "test_method": "2",
+            "threads": 4,
+            "score_method": "3",
+            "cap": 45,
+            "empirical_freqs": True,
+            "nbase": True,
+            "outputs": ["assembled", "unassembled_forward", "unassembled_reverse", "discarded"],
+            "output": "/work/iuc_pear",
+        }
+    ) == (
+        "pear -f 'reads R1.fastq' -r 'reads R2.fastq' --phred-base 64 --output /work/iuc_pear/pear "
+        "--p-value 0.001 --min-overlap 12 --max-asm-length 300 --min-asm-length 40 "
+        "--min-trim-length 2 --quality-theshold 20 --max-uncalled-base 0.2 --test-method 2 "
+        "--threads ${GALAXY_SLOTS:-4} --score-method 3 --cap 45 --empirical-freqs --nbase"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {"outputs": ["assembled", "unassembled_forward", "unassembled_reverse", "discarded"]},
+        tmp_path,
+    ) == [
+        tmp_path / "iuc_pear" / "pear.assembled.fastq",
+        tmp_path / "iuc_pear" / "pear.unassembled.forward.fastq",
+        tmp_path / "iuc_pear" / "pear.unassembled.reverse.fastq",
+        tmp_path / "iuc_pear" / "pear.discarded.fastq",
+    ]
+    assert node_class.VALIDATE_INPUTS({"library_type": "paired", "forward": "r1.fastq", "reverse": ""}) == (
+        "forward and reverse reads are required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"library_type": "paired_collection", "input_collection": {"forward": "r1.fastq"}}
+    ) == "paired collection requires forward and reverse reads"
+    assert node_class.VALIDATE_INPUTS({"library_type": "paired", "forward": "r1.fastq", "reverse": "r2.fastq", "pvalue": 1.5}) == (
+        "pvalue must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"library_type": "paired", "forward": "r1.fastq", "reverse": "r2.fastq", "min_overlap": -1}) == (
+        "min_overlap must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"library_type": "paired", "forward": "r1.fastq", "reverse": "r2.fastq", "max_uncalled_base": 1.5}
+    ) == "max_uncalled_base must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"library_type": "paired", "forward": "r1.fastq", "reverse": "r2.fastq", "score_method": "9"}) == (
+        "score_method must be one of: 1, 2, 3"
+    )
+    assert node_class.VALIDATE_INPUTS({"library_type": "paired", "forward": "r1.fastq", "reverse": "r2.fastq", "outputs": ["bogus"]}) == (
+        "outputs contains unsupported values: bogus"
+    )
+    assert node_class.VALIDATE_INPUTS({"library_type": "paired", "forward": "r1.fastq", "reverse": "r2.fastq"}) is True
 
 
 def test_fraggenescan_exposes_galaxy_metadata_and_citation() -> None:

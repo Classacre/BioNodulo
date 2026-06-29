@@ -766,6 +766,46 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13104-016-1900-2'],
     citation_text: 'AdapterRemoval v2: rapid adapter trimming, identification, and read merging.',
   },
+  iuc_pear: {
+    name: 'iuc_pear',
+    display_name: 'Pear',
+    category: 'trimming',
+    description: 'Merge paired-end reads with PEAR and emit selected assembled, unassembled, or discarded reads.',
+    search_aliases: ['Galaxy', 'PEAR', 'Pear', 'iuc_pear', 'PEAR paired-end read merger', 'paired-end read merger', 'read merging', 'Illumina paired-end merge'],
+    input: {
+      required: {
+        library_type: { type: 'STRING', default: 'paired', options: ['paired', 'paired_collection'] },
+      },
+      optional: {
+        forward: { type: 'FASTQ', default: '' },
+        reverse: { type: 'FASTQ', default: '' },
+        input_collection: { type: 'FASTQ_LIST', default: '' },
+        phred_base: { type: 'STRING', default: '33', options: ['33', '64'] },
+        pvalue: { type: 'FLOAT', default: 0.01, min: 0, max: 1 },
+        min_overlap: { type: 'INT', default: 10, min: 0 },
+        max_assembly_length: { type: 'INT', default: 0, min: 0 },
+        min_assembly_length: { type: 'INT', default: 50, min: 0 },
+        min_trim_length: { type: 'INT', default: 1, min: 0 },
+        quality_threshold: { type: 'INT', default: 0 },
+        max_uncalled_base: { type: 'FLOAT', default: 1.0, min: 0, max: 1 },
+        cap: { type: 'INT', default: 40, min: 0 },
+        test_method: { type: 'STRING', default: '1', options: ['1', '2'] },
+        empirical_freqs: { type: 'BOOLEAN', default: false },
+        nbase: { type: 'BOOLEAN', default: false },
+        score_method: { type: 'STRING', default: '2', options: ['1', '2', '3'] },
+        threads: { type: 'INT', default: 8, min: 1, max: 128, display: 'slider' },
+        outputs: { type: 'STRING', default: ['assembled'], multiple: true, options: ['assembled', 'unassembled_forward', 'unassembled_reverse', 'discarded'] },
+      },
+    },
+    output: ['FASTQ', 'FASTQ', 'FASTQ', 'FASTQ'],
+    output_name: ['assembled_reads', 'unassembled_forward_reads', 'unassembled_reverse_reads', 'discarded_reads'],
+    required_executables: ['pear'],
+    required_conda_packages: ['pear'],
+    documentation_url: 'https://sco.h-its.org/exelixis/web/software/pear/doc.html',
+    citation_dois: ['10.1093/bioinformatics/btt593'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btt593'],
+    citation_text: 'PEAR: a fast and accurate Illumina Paired-End reAd mergeR.',
+  },
   trimn: {
     name: 'trimn',
     display_name: 'TrimN',
@@ -9045,7 +9085,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('315 nodes available')).toBeVisible();
+  await expect(page.getByText('316 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9097,6 +9137,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'clustalw2', name: 'ClustalW', category: 'phylogeny' },
     { query: 'distance matrix', name: 'Quicktree', category: 'phylogeny' },
     { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
+    { query: 'PEAR paired-end read merger', name: 'Pear', category: 'trimming' },
     { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },
     { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },
     { query: 'AMR gene detection', name: 'abriTAMR', category: 'annotation' },
