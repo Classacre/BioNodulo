@@ -499,6 +499,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["krakentools", "gzip"],
             "doi": "10.1038/s41596-022-00738-y",
         },
+        "taxpasta": {
+            "display_name": "Taxpasta",
+            "category": "taxonomy",
+            "required_executables": ["taxpasta"],
+            "required_conda_packages": ["taxpasta"],
+            "doi": "10.21105/joss.05627",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -5763,6 +5770,152 @@ def test_krakentools_extract_kraken_reads_renders_extraction_commands_and_output
         tmp_path / "krakentools_extract_kraken_reads" / "output_2.fastq.gz",
         tmp_path / "krakentools_extract_kraken_reads" / "paired_reads",
     ]
+
+
+def test_taxpasta_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["taxpasta"]
+
+    assert info["display_name"] == "Taxpasta"
+    assert info["category"] == "taxonomy"
+    assert info["description"] == "Standardise and merge taxonomic profiles from common metagenomic profilers."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "taxpasta",
+        "taxonomic profile standardisation",
+        "taxonomy aggregation",
+        "BIOM",
+        "Kraken2 report",
+        "MetaPhlAn",
+        "DIAMOND taxonomy",
+    ]
+    assert info["version"] == "0.7.0"
+    assert info["output"] == ["TSV", "BIOM"]
+    assert info["output_name"] == ["tabular_output", "biom_output"]
+    assert info["required_executables"] == ["taxpasta"]
+    assert info["required_conda_packages"] == ["taxpasta"]
+    assert info["documentation_url"] == "https://taxpasta.readthedocs.io/en/latest/"
+    assert info["citation_dois"] == ["10.21105/joss.05627"]
+    assert info["citation_text"] == "TAXPASTA: TAXonomic Profile Aggregation and STAndardisation."
+
+    assert info["input"]["required"]["action"][1]["options"] == ["standardise", "merge"]
+    assert info["input"]["required"]["profiler"][1]["options"] == [
+        "bracken",
+        "Centrifuge",
+        "diamond",
+        "ganon",
+        "kaiju",
+        "kraken2",
+        "krakenuniq",
+        "megan6",
+        "metaphlan",
+        "motus",
+    ]
+    assert info["input"]["required"]["infile"][0] == "TSV"
+    assert info["input"]["required"]["infile"][1]["multiple"] is True
+    assert info["input"]["required"]["taxonomy"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["output_format"][1]["options"] == ["TSV", "BIOM"]
+    assert info["input"]["optional"]["wide"][1]["default"] is True
+    assert info["input"]["optional"]["wide"][1]["displayOptions"] == {
+        "show": {"action": ["merge"], "output_format": ["TSV"]},
+    }
+    assert info["input"]["optional"]["add_name"][1]["default"] is True
+    assert info["input"]["optional"]["add_rank_lineage"][1]["default"] is False
+
+
+def test_taxpasta_renders_standardise_and_merge_tsv_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("taxpasta")
+
+    assert node_class.render_command(
+        {
+            "action": "standardise",
+            "profiler": "kraken2",
+            "infile": "sample report.tsv",
+            "taxonomy": "/db/ncbi taxonomy",
+            "add_name": True,
+            "add_rank": True,
+            "add_lineage": True,
+            "add_id_lineage": True,
+            "add_rank_lineage": True,
+            "output": "/work/taxpasta",
+        }
+    ) == (
+        "taxpasta standardise --profiler kraken2 --taxonomy '/db/ncbi taxonomy' "
+        "--output-format TSV --output /work/taxpasta/tabular_output.tsv "
+        "--add-name --add-rank --add-lineage --add-id-lineage --add-rank-lineage "
+        "'sample report.tsv'"
+    )
+
+    assert node_class.render_command(
+        {
+            "action": "merge",
+            "profiler": "metaphlan",
+            "infile": ["ERR7569997.txt", "ERR7569998.txt"],
+            "taxonomy": "/db/taxonomy",
+            "output_format": "TSV",
+            "wide": False,
+            "add_name": True,
+            "add_rank": False,
+            "add_lineage": False,
+            "add_id_lineage": False,
+            "add_rank_lineage": False,
+            "output": "/work/taxpasta",
+        }
+    ) == (
+        "taxpasta merge --profiler metaphlan --taxonomy /db/taxonomy "
+        "--output-format TSV --output /work/taxpasta/tabular_output.tsv --long "
+        "--add-name ERR7569997.txt ERR7569998.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "taxpasta" / "tabular_output.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"action": "merge", "output_format": "TSV"}, tmp_path) == [
+        tmp_path / "taxpasta" / "tabular_output.tsv",
+    ]
+
+
+def test_taxpasta_renders_merge_biom_command_and_validates_wrapper_inputs(tmp_path: Path) -> None:
+    node_class = _node_class("taxpasta")
+
+    assert node_class.render_command(
+        {
+            "action": "merge",
+            "profiler": "kraken2",
+            "infile": [
+                "2612_pe-ERR5766176-db1.kraken2.report.txt",
+                "2611_se-ERR5766174-db1.kraken2.report.txt",
+            ],
+            "taxonomy": "/db/taxonomy",
+            "output_format": "BIOM",
+            "add_name": True,
+            "add_rank": False,
+            "add_lineage": False,
+            "add_id_lineage": False,
+            "add_rank_lineage": False,
+            "output": "/work/taxpasta",
+        }
+    ) == (
+        "taxpasta merge --profiler kraken2 --taxonomy /db/taxonomy "
+        "--output-format BIOM --output /work/taxpasta/biom_output.biom "
+        "--add-name 2612_pe-ERR5766176-db1.kraken2.report.txt 2611_se-ERR5766174-db1.kraken2.report.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"action": "merge", "output_format": "BIOM"}, tmp_path) == [
+        tmp_path / "taxpasta" / "biom_output.biom",
+    ]
+    assert node_class.VALIDATE_INPUTS({"profiler": "kraken2", "taxonomy": "/db/taxonomy"}) == (
+        "At least one Taxpasta input report is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"infile": ["report.tsv"], "taxonomy": "/db/taxonomy"}) == (
+        "Taxpasta profiler is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"infile": ["report.tsv"], "profiler": "kraken2"}) == (
+        "NCBI taxonomy directory is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"infile": ["report.tsv"], "profiler": "kraken2", "taxonomy": "/db/taxonomy", "output_format": "JSON"}
+    ) == "Unsupported Taxpasta output format: JSON"
+    assert node_class.VALIDATE_INPUTS({"infile": ["report.tsv"], "profiler": "kraken2", "taxonomy": "/db/taxonomy"}) is True
 
 
 def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:

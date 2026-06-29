@@ -2182,6 +2182,51 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
     citation_text: 'Metagenome analysis using the Kraken software suite.',
   },
+  taxpasta: {
+    name: 'taxpasta',
+    display_name: 'Taxpasta',
+    category: 'taxonomy',
+    description: 'Standardise and merge taxonomic profiles from common metagenomic profilers.',
+    search_aliases: [
+      'Galaxy',
+      'taxpasta',
+      'taxonomic profile standardisation',
+      'taxonomy aggregation',
+      'BIOM',
+      'Kraken2 report',
+      'MetaPhlAn',
+      'DIAMOND taxonomy',
+    ],
+    input: {
+      required: {
+        action: { type: 'STRING', default: 'standardise', options: ['standardise', 'merge'] },
+        profiler: {
+          type: 'STRING',
+          default: 'kraken2',
+          options: ['bracken', 'Centrifuge', 'diamond', 'ganon', 'kaiju', 'kraken2', 'krakenuniq', 'megan6', 'metaphlan', 'motus'],
+        },
+        infile: { type: 'TSV', multiple: true },
+        taxonomy: { type: 'DIRECTORY' },
+      },
+      optional: {
+        output_format: { type: 'STRING', default: 'TSV', options: ['TSV', 'BIOM'] },
+        wide: { type: 'BOOLEAN', default: true },
+        add_name: { type: 'BOOLEAN', default: true },
+        add_rank: { type: 'BOOLEAN', default: false },
+        add_lineage: { type: 'BOOLEAN', default: false },
+        add_id_lineage: { type: 'BOOLEAN', default: false },
+        add_rank_lineage: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV', 'BIOM'],
+    output_name: ['tabular_output', 'biom_output'],
+    required_executables: ['taxpasta'],
+    required_conda_packages: ['taxpasta'],
+    documentation_url: 'https://taxpasta.readthedocs.io/en/latest/',
+    citation_dois: ['10.21105/joss.05627'],
+    citation_urls: ['https://doi.org/10.21105/joss.05627'],
+    citation_text: 'TAXPASTA: TAXonomic Profile Aggregation and STAndardisation.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5152,7 +5197,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('213 nodes available')).toBeVisible();
+  await expect(page.getByText('214 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5239,6 +5284,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Krona-compatible', name: 'Krakentools Kreport2Krona', category: 'taxonomy' },
     { query: 'MetaPhlAn-style', name: 'Krakentools Kreport2MPA', category: 'taxonomy' },
     { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
+    { query: 'taxonomic profile standardisation', name: 'Taxpasta', category: 'taxonomy' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
