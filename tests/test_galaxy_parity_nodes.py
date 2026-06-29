@@ -13192,6 +13192,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["tracy"],
             "doi": "10.1186/s12864-020-6635-8",
         },
+        "tracy_align": {
+            "display_name": "tracy Align",
+            "category": "alignment",
+            "required_executables": ["tracy", "bgzip"],
+            "required_conda_packages": ["tracy"],
+            "doi": "10.1186/s12864-020-6635-8",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -17314,6 +17321,93 @@ def test_tracy_basecall_renders_chromatogram_basecall_command_outputs_and_valida
         "format must be one of: fasta, fastq, tsv, json"
     )
     assert node_class.VALIDATE_INPUTS({"tracefile": "input.ab1", "format": "fastq"}) is True
+
+
+def test_tracy_align_renders_trace_alignment_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("tracy_align")
+    info = _registry().object_info()["tracy_align"]
+
+    assert info["display_name"] == "tracy Align"
+    assert info["description"] == "Align a Sanger chromatogram trace file to a FASTA, ABI, or SCF reference with Tracy."
+    assert info["input"]["required"]["reference"][0] == "FILE"
+    assert info["input"]["required"]["tracefile"][0] == "FILE"
+    assert info["input"]["optional"]["index_genome"][1]["default"] is False
+    assert info["input"]["optional"]["kmer"][1]["default"] == 15
+    assert info["input"]["optional"]["support"][1]["default"] == 3
+    assert info["input"]["optional"]["gapopen"][1]["default"] == -10
+    assert info["input"]["optional"]["optional_outputs"][1]["multiple"] is True
+    assert info["input"]["optional"]["optional_outputs"][1]["options"] == ["json", "tabular"]
+    assert info["output"] == ["TXT", "FASTA", "JSON", "TSV"]
+    assert info["output_name"] == ["report", "alignment", "json", "stats"]
+    assert info["documentation_url"] == "https://www.gear-genomics.com/docs/tracy/cli/#trace-alignment"
+    assert info["citation_dois"] == ["10.1186/s12864-020-6635-8"]
+    assert "Sanger chromatogram trace files" in info["citation_text"]
+    assert "tracy trace alignment" in info["search_aliases"]
+    assert node_class.render_command(
+        {
+            "reference": "reference.fa",
+            "tracefile": "input1_r.ab1",
+            "output": "/work/tracy_align",
+        }
+    ) == (
+        "tracy align --reference reference.fa --pratio 0.33 --kmer 15 --support 3 --maxindel 1000 "
+        "--trim 0 --trimLeft 50 --trimRight 50 --linelimit 60 --gapopen -10 --gapext -4 --match 3 "
+        "--mismatch -5 --output /work/tracy_align input1_r.ab1"
+    )
+    assert node_class.render_command(
+        {
+            "reference": "large reference.fa",
+            "tracefile": "trace file.scf",
+            "index_genome": True,
+            "pratio": 0.2,
+            "kmer": 17,
+            "support": 4,
+            "maxindel": 500,
+            "trim": 3,
+            "trimLeft": 20,
+            "trimRight": 25,
+            "linelimit": 80,
+            "gapopen": -12,
+            "gapext": -3,
+            "match": 4,
+            "mismatch": -6,
+            "optional_outputs": ["json", "tabular"],
+            "output": "/work/tracy align",
+        }
+    ) == (
+        "bgzip -c 'large reference.fa' > '/work/tracy align/genome.fasta.gz' && "
+        "tracy index -o '/work/tracy align/genome.fasta.fm9' '/work/tracy align/genome.fasta.gz' && "
+        "tracy align --reference '/work/tracy align/genome.fasta.gz' --pratio 0.2 --kmer 17 --support 4 "
+        "--maxindel 500 --trim 3 --trimLeft 20 --trimRight 25 --linelimit 80 --gapopen -12 --gapext -3 "
+        "--match 4 --mismatch -6 --output '/work/tracy align' 'trace file.scf'"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "tracy_align" / "out.txt",
+        tmp_path / "tracy_align" / "out.align.fa",
+    ]
+    assert node_class.PLAN_OUTPUTS({"optional_outputs": ["json", "tabular"]}, tmp_path) == [
+        tmp_path / "tracy_align" / "out.txt",
+        tmp_path / "tracy_align" / "out.align.fa",
+        tmp_path / "tracy_align" / "out.json",
+        tmp_path / "tracy_align" / "out.abif",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "reference is required"
+    assert node_class.VALIDATE_INPUTS({"reference": "reference.fa"}) == "tracefile is required"
+    assert node_class.VALIDATE_INPUTS({"reference": "reference.fa", "tracefile": "trace.ab1", "pratio": "bad"}) == (
+        "pratio must be a number"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference": "reference.fa", "tracefile": "trace.ab1", "kmer": 0}) == (
+        "kmer must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference": "reference.fa", "tracefile": "trace.ab1", "gapopen": 1}) == (
+        "gapopen must be <= 0"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"reference": "reference.fa", "tracefile": "trace.ab1", "optional_outputs": ["xml"]}
+    ) == "optional_outputs contains unsupported values: xml"
+    assert node_class.VALIDATE_INPUTS(
+        {"reference": "reference.fa", "tracefile": "trace.ab1", "optional_outputs": ["json"]}
+    ) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
