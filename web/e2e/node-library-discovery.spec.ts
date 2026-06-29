@@ -1270,6 +1270,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41586-025-10014-0'],
     citation_text: 'Advancing regulatory variant effect prediction with AlphaGenome.',
   },
+  alphagenome_variant_scorer: {
+    name: 'alphagenome_variant_scorer',
+    display_name: 'AlphaGenome Variant Scorer',
+    category: 'ai',
+    description: 'Score variants with AlphaGenome gene-level quantile-normalized scores.',
+    search_aliases: ['Galaxy', 'AlphaGenome', 'alphagenome', 'AlphaGenome variant scoring', 'score_variant', 'gene-level variant scoring', 'quantile normalized variant score', 'tidy_scores'],
+    input: {
+      required: {
+        input_vcf: { type: 'VCF' },
+      },
+      optional: {
+        organism: { type: 'STRING', default: 'human', options: ['human', 'mouse'] },
+        scorers: { type: 'STRING', default: ['RNA_SEQ', 'ATAC', 'SPLICE_SITES'], multiple: true, options: ['RNA_SEQ', 'RNA_SEQ_ACTIVE', 'ATAC', 'ATAC_ACTIVE', 'DNASE', 'DNASE_ACTIVE', 'CAGE', 'CAGE_ACTIVE', 'PROCAP', 'PROCAP_ACTIVE', 'CHIP_TF', 'CHIP_TF_ACTIVE', 'CHIP_HISTONE', 'CHIP_HISTONE_ACTIVE', 'SPLICE_SITES', 'SPLICE_SITE_USAGE', 'SPLICE_JUNCTIONS', 'CONTACT_MAPS', 'POLYADENYLATION'] },
+        sequence_length: { type: 'STRING', default: '1MB', options: ['16KB', '128KB', '512KB', '1MB'] },
+        max_variants: { type: 'INT', default: 100, min: 1, max: 10000 },
+        script_path: { type: 'FILE', default: 'alphagenome_variant_scorer.py' },
+        test_fixture: { type: 'FILE', default: '' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['variant_scores'],
+    required_executables: ['python'],
+    required_conda_packages: ['alphagenome', 'cyvcf2', 'pandas'],
+    documentation_url: 'https://www.alphagenomedocs.com/',
+    citation_dois: ['10.1038/s41586-025-10014-0'],
+    citation_urls: ['https://doi.org/10.1038/s41586-025-10014-0'],
+    citation_text: 'Advancing regulatory variant effect prediction with AlphaGenome.',
+  },
   ancombc: {
     name: 'ancombc',
     display_name: 'ANCOM-BC',
@@ -9571,7 +9599,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('330 nodes available')).toBeVisible();
+  await expect(page.getByText('331 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9625,6 +9653,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'AlphaGenome saturation mutagenesis', name: 'AlphaGenome ISM Scanner', category: 'ai' },
     { query: 'AlphaGenome sequence prediction', name: 'AlphaGenome Sequence Predictor', category: 'ai' },
     { query: 'AlphaGenome variant effect', name: 'AlphaGenome Variant Effect', category: 'ai' },
+    { query: 'AlphaGenome variant scoring', name: 'AlphaGenome Variant Scorer', category: 'ai' },
     { query: 'ANCOM-BC differential abundance', name: 'ANCOM-BC', category: 'metagenomics' },
     { query: 'ANGSD internal counts', name: 'ANGSD', category: 'population_genetics' },
     { query: 'ANGSD X-Contamination', name: 'ANGSD X-Contamination', category: 'population_genetics' },

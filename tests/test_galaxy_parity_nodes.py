@@ -248,6 +248,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["alphagenome", "cyvcf2", "pandas"],
             "doi": "10.1038/s41586-025-10014-0",
         },
+        "alphagenome_variant_scorer": {
+            "display_name": "AlphaGenome Variant Scorer",
+            "category": "ai",
+            "required_executables": ["python"],
+            "required_conda_packages": ["alphagenome", "cyvcf2", "pandas"],
+            "doi": "10.1038/s41586-025-10014-0",
+        },
         "ancombc": {
             "display_name": "ANCOM-BC",
             "category": "metagenomics",
@@ -5767,6 +5774,115 @@ def test_alphagenome_variant_effect_renders_command_outputs_and_validates(tmp_pa
         "ontology_terms may contain only letters, numbers, colons, commas, and spaces"
     )
     assert node_class.VALIDATE_INPUTS({"input_vcf": "variants.vcf", "output_types": ["RNA_SEQ"]}) is True
+
+
+def test_alphagenome_variant_scorer_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["alphagenome_variant_scorer"]
+
+    assert info["display_name"] == "AlphaGenome Variant Scorer"
+    assert info["category"] == "ai"
+    assert info["description"] == "Score variants with AlphaGenome gene-level quantile-normalized scores."
+    assert info["input"]["required"]["input_vcf"][0] == "VCF"
+    assert info["input"]["optional"]["organism"][1]["default"] == "human"
+    assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
+    assert info["input"]["optional"]["scorers"][0] == "STRING"
+    assert info["input"]["optional"]["scorers"][1]["default"] == ["RNA_SEQ", "ATAC", "SPLICE_SITES"]
+    assert info["input"]["optional"]["scorers"][1]["multiple"] is True
+    assert info["input"]["optional"]["scorers"][1]["options"] == [
+        "RNA_SEQ",
+        "RNA_SEQ_ACTIVE",
+        "ATAC",
+        "ATAC_ACTIVE",
+        "DNASE",
+        "DNASE_ACTIVE",
+        "CAGE",
+        "CAGE_ACTIVE",
+        "PROCAP",
+        "PROCAP_ACTIVE",
+        "CHIP_TF",
+        "CHIP_TF_ACTIVE",
+        "CHIP_HISTONE",
+        "CHIP_HISTONE_ACTIVE",
+        "SPLICE_SITES",
+        "SPLICE_SITE_USAGE",
+        "SPLICE_JUNCTIONS",
+        "CONTACT_MAPS",
+        "POLYADENYLATION",
+    ]
+    assert info["input"]["optional"]["sequence_length"][1]["default"] == "1MB"
+    assert info["input"]["optional"]["sequence_length"][1]["options"] == ["16KB", "128KB", "512KB", "1MB"]
+    assert info["input"]["optional"]["max_variants"][1]["default"] == 100
+    assert info["input"]["optional"]["max_variants"][1]["min"] == 1
+    assert info["input"]["optional"]["max_variants"][1]["max"] == 10000
+    assert info["input"]["optional"]["script_path"][1]["default"] == "alphagenome_variant_scorer.py"
+    assert info["input"]["optional"]["script_path"][1]["advanced"] is True
+    assert info["input"]["optional"]["test_fixture"][1]["default"] == ""
+    assert info["input"]["optional"]["test_fixture"][1]["advanced"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["variant_scores"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["alphagenome", "cyvcf2", "pandas"]
+    assert info["documentation_url"] == "https://www.alphagenomedocs.com/"
+    assert info["citation_dois"] == ["10.1038/s41586-025-10014-0"]
+    assert info["citation_urls"] == ["https://doi.org/10.1038/s41586-025-10014-0"]
+    assert "Advancing regulatory variant effect prediction with AlphaGenome" in info["citation_text"]
+    assert "AlphaGenome variant scoring" in info["search_aliases"]
+
+
+def test_alphagenome_variant_scorer_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("alphagenome_variant_scorer")
+
+    assert node_class.render_command(
+        {
+            "input_vcf": "variants.vcf",
+            "organism": "mouse",
+            "scorers": ["RNA_SEQ", "CONTACT_MAPS"],
+            "sequence_length": "128KB",
+            "max_variants": 3,
+            "script_path": "/tools/alphagenome/alphagenome_variant_scorer.py",
+            "test_fixture": "test-data/fixture_variant_scorer.json",
+            "output": "/work/alphagenome_variant_scorer",
+        }
+    ) == (
+        "python /tools/alphagenome/alphagenome_variant_scorer.py --input variants.vcf "
+        "--output /work/alphagenome_variant_scorer/variant_scores.tsv --organism mouse "
+        "--scorers RNA_SEQ CONTACT_MAPS --sequence-length 128KB --max-variants 3 "
+        "--test-fixture test-data/fixture_variant_scorer.json"
+    )
+
+    default_command = node_class.render_command(
+        {
+            "input_vcf": "variants with space.vcf",
+            "output": "/work/alphagenome_variant_scorer",
+        }
+    )
+    assert default_command == (
+        "python alphagenome_variant_scorer.py --input 'variants with space.vcf' "
+        "--output /work/alphagenome_variant_scorer/variant_scores.tsv --organism human "
+        "--scorers RNA_SEQ ATAC SPLICE_SITES --sequence-length 1MB --max-variants 100"
+    )
+    assert "--test-fixture" not in default_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "alphagenome_variant_scorer" / "variant_scores.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_vcf": "", "scorers": ["RNA_SEQ"]}) == "input_vcf is required"
+    assert node_class.VALIDATE_INPUTS({"input_vcf": "variants.vcf", "scorers": []}) == (
+        "at least one scorer is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_vcf": "variants.vcf", "scorers": ["BAD"]}) == (
+        "scorers contains unsupported values: BAD"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_vcf": "variants.vcf", "organism": "rat"}) == (
+        "organism must be one of: human, mouse"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_vcf": "variants.vcf", "sequence_length": "2MB"}) == (
+        "sequence_length must be one of: 16KB, 128KB, 512KB, 1MB"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_vcf": "variants.vcf", "max_variants": 0}) == (
+        "max_variants must be between 1 and 10000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_vcf": "variants.vcf", "scorers": ["RNA_SEQ"]}) is True
 
 
 def test_ancombc_exposes_galaxy_metadata_and_citation() -> None:

@@ -8569,6 +8569,186 @@ class AlphaGenomeVariantEffectNode(CommandNode):
         }
 
 
+class AlphaGenomeVariantScorerNode(CommandNode):
+    """Score variants with AlphaGenome gene-level quantile-normalized scores."""
+
+    NODE_ID = "alphagenome_variant_scorer"
+    DISPLAY_NAME = "AlphaGenome Variant Scorer"
+    REQUIRED_CONDA_PACKAGES = ["alphagenome", "cyvcf2", "pandas"]
+    CATEGORY = "ai"
+    DESCRIPTION = "Score variants with AlphaGenome gene-level quantile-normalized scores."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AlphaGenome",
+        "alphagenome",
+        "AlphaGenome variant scoring",
+        "score_variant",
+        "gene-level variant scoring",
+        "quantile normalized variant score",
+        "tidy_scores",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("variant_scores",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://www.alphagenomedocs.com/"
+    CITATION_DOIS = [ALPHAGENOME_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{ALPHAGENOME_CITATION_DOI}"]
+    CITATION_TEXT = ALPHAGENOME_CITATION_TEXT
+    VERSION = "0.6.1+galaxy1"
+    SHELL = True
+
+    ORGANISMS = ["human", "mouse"]
+    SCORERS = [
+        "RNA_SEQ",
+        "RNA_SEQ_ACTIVE",
+        "ATAC",
+        "ATAC_ACTIVE",
+        "DNASE",
+        "DNASE_ACTIVE",
+        "CAGE",
+        "CAGE_ACTIVE",
+        "PROCAP",
+        "PROCAP_ACTIVE",
+        "CHIP_TF",
+        "CHIP_TF_ACTIVE",
+        "CHIP_HISTONE",
+        "CHIP_HISTONE_ACTIVE",
+        "SPLICE_SITES",
+        "SPLICE_SITE_USAGE",
+        "SPLICE_JUNCTIONS",
+        "CONTACT_MAPS",
+        "POLYADENYLATION",
+    ]
+    SEQUENCE_LENGTHS = ["16KB", "128KB", "512KB", "1MB"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/variant_scores.tsv"
+
+    @classmethod
+    def _scorers(cls, inputs: dict[str, Any], *, use_default: bool = True) -> list[str]:
+        if "scorers" not in inputs:
+            return ["RNA_SEQ", "ATAC", "SPLICE_SITES"] if use_default else []
+        return _as_list(inputs.get("scorers"))
+
+    @classmethod
+    def _int_range(
+        cls,
+        inputs: dict[str, Any],
+        name: str,
+        default: int,
+        minimum: int,
+        maximum: int,
+    ) -> bool | str:
+        try:
+            value = int(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if value < minimum or value > maximum:
+            return f"{name} must be between {minimum} and {maximum}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "alphagenome_variant_scorer.py")),
+            "--input",
+            str(inputs.get("input_vcf", "")),
+            "--output",
+            cls._output_path(inputs),
+            "--organism",
+            str(inputs.get("organism", "human") or "human"),
+            "--scorers",
+            *cls._scorers(inputs),
+            "--sequence-length",
+            str(inputs.get("sequence_length", "1MB") or "1MB"),
+            "--max-variants",
+            str(inputs.get("max_variants", 100)),
+        ]
+        _add_if_value(cmd, "--test-fixture", inputs.get("test_fixture"))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "variant_scores.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_vcf", "")).strip():
+            return "input_vcf is required"
+        scorers = cls._scorers(inputs, use_default=True)
+        if not scorers:
+            return "at least one scorer is required"
+        unsupported = [value for value in scorers if value not in cls.SCORERS]
+        if unsupported:
+            return f"scorers contains unsupported values: {', '.join(unsupported)}"
+        organism = str(inputs.get("organism", "human") or "human")
+        if organism not in cls.ORGANISMS:
+            return f"organism must be one of: {', '.join(cls.ORGANISMS)}"
+        sequence_length = str(inputs.get("sequence_length", "1MB") or "1MB")
+        if sequence_length not in cls.SEQUENCE_LENGTHS:
+            return f"sequence_length must be one of: {', '.join(cls.SEQUENCE_LENGTHS)}"
+        max_variants = cls._int_range(inputs, "max_variants", 100, 1, 10000)
+        if max_variants is not True:
+            return max_variants
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_vcf": ("VCF", {"description": "VCF containing variants to score with AlphaGenome score_variant"}),
+            },
+            "optional": {
+                "organism": (
+                    "STRING",
+                    {"default": "human", "options": cls.ORGANISMS, "description": "AlphaGenome organism assembly context"},
+                ),
+                "scorers": (
+                    "STRING_LIST",
+                    {
+                        "default": ["RNA_SEQ", "ATAC", "SPLICE_SITES"],
+                        "multiple": True,
+                        "options": cls.SCORERS,
+                        "description": "AlphaGenome recommended variant scorers for gene-level aggregation",
+                    },
+                ),
+                "sequence_length": (
+                    "STRING",
+                    {
+                        "default": "1MB",
+                        "options": cls.SEQUENCE_LENGTHS,
+                        "description": "Prediction window size centered on each variant before gene-level scoring",
+                    },
+                ),
+                "max_variants": (
+                    "INT",
+                    {"default": 100, "min": 1, "max": 10000, "description": "Maximum VCF records to score"},
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "alphagenome_variant_scorer.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy AlphaGenome variant scorer wrapper script",
+                    },
+                ),
+                "test_fixture": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Optional precomputed tidy score fixture JSON that bypasses the AlphaGenome API",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",
