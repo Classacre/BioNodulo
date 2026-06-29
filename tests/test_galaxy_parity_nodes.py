@@ -640,6 +640,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["python", "numpy", "scipy"],
             "doi": "10.1093/molbev/msz197",
         },
+        "hyphy_meme": {
+            "display_name": "HyPhy-MEME",
+            "category": "phylogeny",
+            "required_executables": ["HYPHYMPI", "mpirun"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1371/journal.pgen.1002764",
+        },
         "hyphy_busted": {
             "display_name": "HyPhy-BUSTED",
             "category": "phylogeny",
@@ -8791,6 +8798,205 @@ def test_hyphy_infer_stasis_clusters_validates_wrapper_inputs() -> None:
             "alpha": 0.05,
             "max_cluster": 30,
             "merge": 15,
+        }
+    ) is True
+
+
+def test_hyphy_meme_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_meme"]
+
+    assert info["display_name"] == "HyPhy-MEME"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Detect pervasive or episodic site-level diversifying selection with HyPhy MEME."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "MEME",
+        "Mixed Effects Model of Evolution",
+        "episodic diversifying selection",
+        "pervasive selection",
+        "site-level selection",
+        "positive selection",
+        "multiple nucleotide substitutions",
+        "imputed states",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["meme_output", "meme_md_report"]
+    assert info["required_executables"] == ["HYPHYMPI", "mpirun"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://hyphy.org/methods/selection-methods/#MEME"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197", "10.1371/journal.pgen.1002764"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1371/journal.pgen.1002764",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Detecting Individual Sites Subject to Episodic Diversifying Selection."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Codon alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["branch_sel"][1]["default"] == "All"
+    assert info["input"]["optional"]["branch_sel"][1]["options"] == [
+        "All",
+        "Internal",
+        "Leaves",
+        "Unlabeled-branches",
+        "specify",
+    ]
+    assert info["input"]["optional"]["p_value"][1]["default"] == 0.1
+    assert info["input"]["optional"]["p_value"][1]["min"] == 0
+    assert info["input"]["optional"]["p_value"][1]["max"] == 1
+    assert info["input"]["optional"]["resample"][1]["default"] == 0
+    assert info["input"]["optional"]["resample"][1]["min"] == 0
+    assert info["input"]["optional"]["resample"][1]["max"] == 1000
+    assert info["input"]["optional"]["rates"][1]["default"] == 2
+    assert info["input"]["optional"]["rates"][1]["min"] == 2
+    assert info["input"]["optional"]["rates"][1]["max"] == 4
+    assert info["input"]["optional"]["multiple_hits"][1]["default"] == "None"
+    assert info["input"]["optional"]["multiple_hits"][1]["options"] == ["None", "Double", "Double+Triple"]
+    assert info["input"]["optional"]["site_multihit"][1]["default"] == "Estimate"
+    assert info["input"]["optional"]["site_multihit"][1]["options"] == ["Estimate", "No"]
+    assert info["input"]["optional"]["impute_states"][1]["default"] is False
+    assert info["input"]["optional"]["precision"][1]["default"] == "standard"
+    assert info["input"]["optional"]["precision"][1]["options"] == ["standard", "reduced"]
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["default"] == "Yes"
+    assert info["input"]["optional"]["kill_zero_lengths"][1]["options"] == ["Yes", "Constrain", "No"]
+    assert info["input"]["optional"]["restrict_sites"][1]["default"] is False
+    assert info["input"]["optional"]["limit_to_sites"][1]["default"] == ""
+    assert info["input"]["optional"]["save_lf_for_sites"][1]["default"] == ""
+    assert info["input"]["optional"]["full_model"][1]["default"] is True
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_meme_renders_default_mpi_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_meme")
+
+    assert node_class.render_command(
+        {
+            "input_file": "meme-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "meme-in1.nhx",
+            "output": "/work/hyphy_meme",
+        }
+    ) == (
+        "ln -s meme-in1.nhx input.nhx && "
+        "ln -s meme-in1.fa input.fasta && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 4} '
+        "HYPHYMPI meme --alignment ./input.fasta --tree input.nhx --code Universal --branches All "
+        "--pvalue 0.1 --resample 0 --rates 2 --multiple-hits None --impute-states No "
+        "--precision standard --kill-zero-lengths Yes --output /work/hyphy_meme/meme_output.json "
+        "--full-model Yes > /work/hyphy_meme/meme_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_meme" / "meme_output.json",
+        tmp_path / "hyphy_meme" / "meme_stdout.md",
+    ]
+
+
+def test_hyphy_meme_renders_advanced_mpi_command_without_tree() -> None:
+    node_class = _node_class("hyphy_meme")
+
+    command = node_class.render_command(
+        {
+            "input_file": "codon alignment.nex",
+            "input_ext": "nex",
+            "gencodeid": "Vertebrate-mtDNA",
+            "branch_sel": "specify",
+            "branch_label": "Foreground clade",
+            "p_value": 0.05,
+            "resample": 25,
+            "rates": 4,
+            "multiple_hits": "Double+Triple",
+            "site_multihit": "No",
+            "impute_states": True,
+            "precision": "reduced",
+            "kill_zero_lengths": "Constrain",
+            "restrict_sites": True,
+            "limit_to_sites": "1,2,3",
+            "save_lf_for_sites": "4,5",
+            "full_model": False,
+            "threads": 8,
+            "output": "/work/hyphy_meme",
+        }
+    )
+
+    assert command == (
+        "ln -s 'codon alignment.nex' input.nex && "
+        '${GALAXY_MPIRUN:-mpirun --allow-run-as-root --oversubscribe -mca orte_tmpdir_base "${TMPDIR:-.}" -np 8} '
+        "HYPHYMPI meme --alignment ./input.nex --code Vertebrate-mtDNA --branches 'Foreground clade' "
+        "--pvalue 0.05 --resample 25 --rates 4 --multiple-hits Double+Triple --site-multihit No "
+        "--impute-states Yes --precision reduced --kill-zero-lengths Constrain --limit-to-sites 1,2,3 "
+        "--save-lf-for-sites 4,5 --output /work/hyphy_meme/meme_output.json --full-model No "
+        "> /work/hyphy_meme/meme_stdout.md"
+    )
+    assert "--tree" not in command
+
+
+def test_hyphy_meme_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_meme")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-MEME alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "input_ext": "stockholm"}) == (
+        "Unsupported HyPhy-MEME input extension: stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "Foreground"}) == (
+        "Unsupported HyPhy-MEME branch selection: Foreground"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "specify"}) == (
+        "HyPhy-MEME custom branch selection requires a branch label"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "p_value": 1.1}) == (
+        "HyPhy-MEME p-value threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "resample": 1001}) == (
+        "HyPhy-MEME resampling replicates must be between 0 and 1000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "rates": 1}) == (
+        "HyPhy-MEME omega rate classes must be between 2 and 4"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "multiple_hits": "Triple"}) == (
+        "Unsupported HyPhy-MEME multiple-hits mode: Triple"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "multiple_hits": "Double", "site_multihit": "Global"}
+    ) == "Unsupported HyPhy-MEME site-multihit mode: Global"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "precision": "exact"}) == (
+        "Unsupported HyPhy-MEME optimization precision: exact"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "kill_zero_lengths": "Maybe"}) == (
+        "Unsupported HyPhy-MEME zero-length branch handling: Maybe"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-MEME threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "input_ext": "fasta",
+            "gencodeid": "Universal",
+            "branch_sel": "Internal",
+            "p_value": 0.1,
+            "resample": 0,
+            "rates": 2,
+            "multiple_hits": "Double",
+            "site_multihit": "Estimate",
+            "precision": "standard",
+            "kill_zero_lengths": "Yes",
+            "threads": 4,
         }
     ) is True
 
