@@ -1420,6 +1420,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/299537'],
     citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
   },
+  ampvis2_core: {
+    name: 'ampvis2_core',
+    display_name: 'ampvis2 core community analysis',
+    category: 'metagenomics',
+    description: 'Create core-community plots for grouped ampvis2 samples.',
+    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 core community analysis', 'amp_core', 'core community plot', 'core taxa', 'abundant OTUs', 'microbiome core community'],
+    input: {
+      required: {
+        data: { type: 'FILE' },
+        group_by: { type: 'STRING', multiple: true },
+      },
+      optional: {
+        metadata_list: { type: 'TSV', default: '' },
+        core_pct: { type: 'FLOAT', default: 80, min: 0, max: 100 },
+        margin_plots: { type: 'STRING', default: 'xy', options: ['x', 'y', 'xy', ''] },
+        margin_plot_values_size: { type: 'INT', default: 3, min: 0 },
+        widths: { type: 'INT', default: 5, min: 1 },
+        heights: { type: 'INT', default: 5, min: 1 },
+        out_format: { type: 'STRING', default: 'pdf', options: ['pdf', 'png', 'svg'] },
+        plot_width: { type: 'FLOAT', default: '', min: 1 },
+        plot_height: { type: 'FLOAT', default: '', min: 1 },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['plot'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-ampvis2', 'r-readr', 'bioconductor-phyloseq'],
+    documentation_url: 'https://kasperskytte.github.io/ampvis2/reference/amp_core.html',
+    citation_dois: ['10.1101/299537'],
+    citation_urls: ['https://doi.org/10.1101/299537'],
+    citation_text: 'ampvis2: an R package to analyse and visualise 16S rRNA amplicon data; Waste Not, Want Not: Why Rarefying Microbiome Data Is Inadmissible.',
+  },
   allegro: {
     name: 'allegro',
     display_name: 'Allegro',
@@ -9924,7 +9956,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('341 nodes available')).toBeVisible();
+  await expect(page.getByText('342 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9982,6 +10014,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ampvis2 alpha diversity', name: 'ampvis2 alpha diversity', category: 'metagenomics' },
     { query: 'ampvis2 boxplot', name: 'ampvis2 boxplot', category: 'metagenomics' },
+    { query: 'ampvis2 core community analysis', name: 'ampvis2 core community analysis', category: 'metagenomics' },
     { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'multipoint linkage analysis', name: 'Allegro', category: 'linkage' },
     { query: 'AlphaGenome interval prediction', name: 'AlphaGenome Interval Predictor', category: 'ai' },

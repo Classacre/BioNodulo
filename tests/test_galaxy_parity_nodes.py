@@ -5812,6 +5812,125 @@ def test_ampvis2_boxplot_renders_script_outputs_and_validates(tmp_path: Path) ->
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
 
 
+def test_ampvis2_core_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_core"]
+
+    assert info["display_name"] == "ampvis2 core community analysis"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Create core-community plots for grouped ampvis2 samples."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["group_by"][0] == "STRING"
+    assert info["input"]["required"]["group_by"][1]["multiple"] is True
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["core_pct"][1]["default"] == 80
+    assert info["input"]["optional"]["core_pct"][1]["min"] == 0
+    assert info["input"]["optional"]["core_pct"][1]["max"] == 100
+    assert info["input"]["optional"]["margin_plots"][1]["default"] == "xy"
+    assert info["input"]["optional"]["margin_plots"][1]["options"] == ["x", "y", "xy", ""]
+    assert info["input"]["optional"]["margin_plot_values_size"][1]["min"] == 0
+    assert info["input"]["optional"]["widths"][1]["min"] == 1
+    assert info["input"]["optional"]["heights"][1]["min"] == 1
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_core.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 core community analysis" in info["search_aliases"]
+    assert "amp_core" in info["search_aliases"]
+
+
+def test_ampvis2_core_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_core")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "group_by": ["Plant", "Period"],
+            "core_pct": 90,
+            "margin_plots": "x",
+            "margin_plot_values_size": 4,
+            "widths": 4,
+            "heights": 6,
+            "out_format": "svg",
+            "plot_width": 12,
+            "plot_height": 8.5,
+            "output": "/work/ampvis2_core",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_core/core.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_core(" in command
+    assert 'group_by = c("Plant", "Period"),' in command
+    assert "core_pct = 90," in command
+    assert 'margin_plots = "x",' in command
+    assert "margin_plot_values_size = 4," in command
+    assert "widths = c(4, 1)," in command
+    assert "heights = c(1, 6)" in command
+    assert 'ggsave("/work/ampvis2_core/plot.svg",' in command
+    assert "    print(plot)," in command
+    assert 'device = "svg"' in command
+    assert ", width = 12" in command
+    assert ", height = 8.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_core/core.R")
+
+    default_command = node_class.render_command(
+        {"data": "AalborgWWTPs.rds", "group_by": ["Period"], "output": "/work/ampvis2_core"}
+    )
+    assert 'group_by = c("Period"),' in default_command
+    assert "core_pct = 80," in default_command
+    assert 'margin_plots = "xy",' in default_command
+    assert "margin_plot_values_size = 3," in default_command
+    assert "widths = c(5, 1)," in default_command
+    assert "heights = c(1, 5)" in default_command
+    assert 'device = "pdf"' in default_command
+    assert "width =" not in default_command
+    assert "height =" not in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "svg"}, tmp_path) == [
+        tmp_path / "ampvis2_core" / "plot.svg",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_core" / "plot.pdf",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"data": "", "group_by": ["Period"]}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": []}) == (
+        "at least one group_by metadata variable is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"], "core_pct": -1}) == (
+        "core_pct must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"], "core_pct": 101}) == (
+        "core_pct must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"], "margin_plots": "bad"}) == (
+        "margin_plots must be one of: x, y, xy, "
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"data": "dataset.rds", "group_by": ["Period"], "margin_plot_values_size": -1}
+    ) == "margin_plot_values_size must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"], "widths": 0}) == (
+        "widths must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"], "heights": 0}) == (
+        "heights must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"], "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"], "plot_width": 0.5}) == (
+        "plot_width must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": ["Period"]}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 

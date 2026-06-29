@@ -10170,6 +10170,175 @@ class Ampvis2BoxplotNode(CommandNode):
         }
 
 
+class Ampvis2CoreNode(CommandNode):
+    """Create ampvis2 core community plots."""
+
+    NODE_ID = "ampvis2_core"
+    DISPLAY_NAME = "ampvis2 core community analysis"
+    REQUIRED_CONDA_PACKAGES = ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Create core-community plots for grouped ampvis2 samples."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ampvis2",
+        "ampvis2 core community analysis",
+        "amp_core",
+        "core community plot",
+        "core taxa",
+        "abundant OTUs",
+        "microbiome core community",
+    ]
+    RETURN_TYPES = ("PDF",)
+    RETURN_NAMES = ("plot",)
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://kasperskytte.github.io/ampvis2/reference/amp_core.html"
+    CITATION_DOIS = [AMPVIS2_CITATION_DOIS[0]]
+    CITATION_URLS = [f"{DOI_URL}{AMPVIS2_CITATION_DOIS[0]}"]
+    CITATION_TEXT = AMPVIS2_CITATION_TEXT
+    VERSION = "2.8.11+galaxy2"
+    SHELL = True
+
+    MARGIN_PLOT_OPTIONS = ["x", "y", "xy", ""]
+    OUT_FORMATS = ["pdf", "png", "svg"]
+
+    @classmethod
+    def _r_vector(cls, values: list[str]) -> str:
+        return "c(" + ", ".join(f'"{value}"' for value in values) + ")"
+
+    @classmethod
+    def _out_format(cls, inputs: dict[str, Any]) -> str:
+        out_format = str(inputs.get("out_format", "pdf") or "pdf")
+        return out_format if out_format in cls.OUT_FORMATS else "pdf"
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any], out: str) -> str:
+        out_format = cls._out_format(inputs)
+        ggsave_options = [
+            f'    device = "{out_format}"',
+        ]
+        for name, option in (("plot_width", "width"), ("plot_height", "height")):
+            value = inputs.get(name)
+            if value not in (None, ""):
+                ggsave_options.append(f"    , {option} = {value}")
+        return "\n".join(
+            [
+                "library(ampvis2, quietly = TRUE)",
+                f'data <- readRDS("{inputs.get("data", "")}")',
+                "plot <- amp_core(",
+                "    data,",
+                f"    group_by = {cls._r_vector(_as_list(inputs.get('group_by')))},",
+                f"    core_pct = {inputs.get('core_pct', 80)},",
+                f'    margin_plots = "{inputs.get("margin_plots", "xy") if inputs.get("margin_plots", "xy") is not None else "xy"}",',
+                f"    margin_plot_values_size = {inputs.get('margin_plot_values_size', 3)},",
+                f"    widths = c({inputs.get('widths', 5)}, 1),",
+                f"    heights = c(1, {inputs.get('heights', 5)})",
+                ")",
+                f'ggsave("{out}/plot.{out_format}",',
+                "    print(plot),",
+                ",\n".join(ggsave_options),
+                ")",
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = f"{out}/core.R"
+        return f"cat > {shlex.quote(script_path)} <<'RSCRIPT'\n{cls._script_body(inputs, out)}\nRSCRIPT && {_shell_join(['Rscript', script_path])}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / f"plot.{cls._out_format(inputs)}"]
+
+    @classmethod
+    def _validate_number(
+        cls,
+        inputs: dict[str, Any],
+        name: str,
+        minimum: int | float,
+        default: Any,
+        maximum: int | float | None = None,
+    ) -> bool | str:
+        raw = inputs.get(name, default)
+        if raw in (None, ""):
+            return True
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return f"{name} must be a number"
+        if value < minimum or (maximum is not None and value > maximum):
+            if maximum is not None:
+                return f"{name} must be between {minimum} and {maximum}"
+            return f"{name} must be >= {minimum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("data", "")).strip():
+            return "data is required"
+        if not _as_list(inputs.get("group_by")):
+            return "at least one group_by metadata variable is required"
+        margin_plots = str(inputs.get("margin_plots", "xy") or "")
+        if margin_plots not in cls.MARGIN_PLOT_OPTIONS:
+            return f"margin_plots must be one of: {', '.join(cls.MARGIN_PLOT_OPTIONS)}"
+        out_format = str(inputs.get("out_format", "pdf") or "pdf")
+        if out_format not in cls.OUT_FORMATS:
+            return f"out_format must be one of: {', '.join(cls.OUT_FORMATS)}"
+        for name, minimum, default, maximum in (
+            ("core_pct", 0, 80, 100),
+            ("margin_plot_values_size", 0, 3, None),
+            ("widths", 1, 5, None),
+            ("heights", 1, 5, None),
+            ("plot_width", 1, None, None),
+            ("plot_height", 1, None, None),
+        ):
+            validation = cls._validate_number(inputs, name, minimum, default, maximum)
+            if validation is not True:
+                return validation
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": ("FILE", {"description": "Ampvis2 RDS dataset generated with ampvis2: load"}),
+                "group_by": (
+                    "STRING_LIST",
+                    {
+                        "multiple": True,
+                        "description": "Metadata variables containing the desired grouping of samples",
+                    },
+                ),
+            },
+            "optional": {
+                "metadata_list": ("TSV", {"default": "", "description": "Metadata list generated by ampvis2: load"}),
+                "core_pct": (
+                    "FLOAT",
+                    {"default": 80, "min": 0, "max": 100, "description": "Percent threshold for defining abundant core OTUs"},
+                ),
+                "margin_plots": (
+                    "STRING",
+                    {"default": "xy", "options": cls.MARGIN_PLOT_OPTIONS, "description": "Margin plots to show"},
+                ),
+                "margin_plot_values_size": (
+                    "INT",
+                    {"default": 3, "min": 0, "description": "Value label size in margin plots; 0 disables labels"},
+                ),
+                "widths": ("INT", {"default": 5, "min": 1, "description": "Relative width of main and y margin plots"}),
+                "heights": ("INT", {"default": 5, "min": 1, "description": "Relative height of main and x margin plots"}),
+                "out_format": ("STRING", {"default": "pdf", "options": cls.OUT_FORMATS, "description": "Plot output format"}),
+                "plot_width": ("FLOAT", {"default": "", "min": 1, "description": "Optional plot width in cm"}),
+                "plot_height": ("FLOAT", {"default": "", "min": 1, "description": "Optional plot height in cm"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",
