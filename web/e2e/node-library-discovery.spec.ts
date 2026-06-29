@@ -1052,6 +1052,49 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.244293.118'],
     citation_text: 'Accurate analysis of genuine CRISPR editing events with ampliCan. Genome Research.',
   },
+  aldex2: {
+    name: 'aldex2',
+    display_name: 'ALDEx2',
+    category: 'metagenomics',
+    description: 'Differential abundance analysis with ALDEx2 compositional data methods.',
+    search_aliases: ['Galaxy', 'ALDEx2', 'aldex2', 'ALDEx2 differential abundance', 'compositional data analysis', 'microbiome differential abundance', 'RNA-seq differential abundance', 'Dirichlet Monte Carlo'],
+    input: {
+      required: {
+        reads: { type: 'TSV' },
+        group_names: { type: 'STRING', multiple: true, default: ['Grp1'] },
+        num_cols: { type: 'INT', multiple: true, default: [1], min: 1 },
+      },
+      optional: {
+        num_mc_samples: { type: 'INT', default: 128, min: 1 },
+        denom: { type: 'STRING', default: 'all', options: ['all', 'median', 'iqlr', 'zero', 'lvha'] },
+        analysis_type: { type: 'STRING', default: 'aldex', options: ['aldex', 'aldex_corr', 'aldex_effect', 'aldex_expected_distance', 'aldex_kw', 'aldex_plot', 'aldex_plot_feature', 'aldex_ttest'] },
+        aldex_test: { type: 'STRING', default: 't', options: ['t', 'kw', 'corr'] },
+        effect: { type: 'BOOLEAN', default: true },
+        include_sample_summary: { type: 'BOOLEAN', default: false },
+        iterate: { type: 'BOOLEAN', default: false },
+        group_nums: { type: 'INT', default: [], multiple: true, min: 1 },
+        num_cols_in_groups: { type: 'INT', default: [], multiple: true, min: 1 },
+        plot_type: { type: 'STRING', default: 'MA', options: ['MA', 'MW'] },
+        plot_test: { type: 'STRING', default: 'welch', options: ['welch', 'wilcox', 'kruskal'] },
+        cutoff_pval: { type: 'FLOAT', default: 0.1, min: 0 },
+        cutoff_effect: { type: 'INT', default: 1, min: 0 },
+        xlab: { type: 'STRING', default: '' },
+        ylab: { type: 'STRING', default: '' },
+        feature_name: { type: 'STRING', default: '' },
+        paired_test: { type: 'BOOLEAN', default: false },
+        hist_plot: { type: 'BOOLEAN', default: false },
+        script_path: { type: 'FILE', default: 'aldex2.R' },
+      },
+    },
+    output: ['TSV', 'TSV', 'TSV', 'IMAGE', 'TSV', 'IMAGE', 'IMAGE', 'TSV', 'PDF'],
+    output_name: ['aldex', 'aldex_corr', 'aldex_effect', 'aldex_expected_distance', 'aldex_kw', 'aldex_plot', 'aldex_plot_feature', 'aldex_ttest', 'aldex_ttest_plot'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['bioconductor-aldex2', 'r-data.table', 'r-optparse', 'r-qgraph'],
+    documentation_url: 'https://bioconductor.org/packages/ALDEx2',
+    citation_dois: ['10.1371/journal.pone.0067019', '10.1186/2049-2618-2-15', '10.1080/10618600.2015.1131161'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0067019', 'https://doi.org/10.1186/2049-2618-2-15', 'https://doi.org/10.1080/10618600.2015.1131161'],
+    citation_text: 'ANOVA-Like Differential Expression (ALDEx) Analysis for Mixed Population RNA-Seq; Unifying the analysis of high-throughput sequencing datasets: characterizing RNA-seq, 16S rRNA gene sequencing and selective growth experiments by compositional data analysis; Displaying Variation in Large Datasets: Plotting a Visual Summary of Effect Sizes.',
+  },
   angsd: {
     name: 'angsd',
     display_name: 'ANGSD',
@@ -9318,7 +9361,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('323 nodes available')).toBeVisible();
+  await expect(page.getByText('324 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9366,6 +9409,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },
     { query: 'SOLiD read simulator', name: 'ART SOLiD', category: 'simulation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
+    { query: 'ALDEx2 differential abundance', name: 'ALDEx2', category: 'metagenomics' },
     { query: 'ANGSD internal counts', name: 'ANGSD', category: 'population_genetics' },
     { query: 'ANGSD X-Contamination', name: 'ANGSD X-Contamination', category: 'population_genetics' },
     { query: 'noisy long reads', name: 'Miniasm', category: 'assembly' },

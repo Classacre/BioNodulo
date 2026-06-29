@@ -206,6 +206,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["bioconductor-amplican"],
             "doi": "10.1101/gr.244293.118",
         },
+        "aldex2": {
+            "display_name": "ALDEx2",
+            "category": "metagenomics",
+            "required_executables": ["Rscript"],
+            "required_conda_packages": ["bioconductor-aldex2", "r-data.table", "r-optparse", "r-qgraph"],
+            "doi": "10.1371/journal.pone.0067019",
+        },
         "angsd": {
             "display_name": "ANGSD",
             "category": "population_genetics",
@@ -4952,6 +4959,177 @@ def test_amplican_reduced_outputs_and_validation(tmp_path: Path) -> None:
         {"config_file": "config.csv", "fastq_files": ["reads.fastq"], "outputs": ["bad"]}
     ) == "outputs contains unsupported values: bad"
     assert node_class.VALIDATE_INPUTS({"config_file": "config.csv", "fastq_files": ["reads.fastq"]}) is True
+
+
+def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["aldex2"]
+
+    assert info["display_name"] == "ALDEx2"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Differential abundance analysis with ALDEx2 compositional data methods."
+    assert info["input"]["required"]["reads"][0] == "TSV"
+    assert info["input"]["required"]["group_names"][1]["multiple"] is True
+    assert info["input"]["required"]["num_cols"][1]["multiple"] is True
+    assert info["input"]["optional"]["analysis_type"][1]["options"] == [
+        "aldex",
+        "aldex_corr",
+        "aldex_effect",
+        "aldex_expected_distance",
+        "aldex_kw",
+        "aldex_plot",
+        "aldex_plot_feature",
+        "aldex_ttest",
+    ]
+    assert info["input"]["optional"]["denom"][1]["options"] == ["all", "median", "iqlr", "zero", "lvha"]
+    assert info["input"]["optional"]["group_nums"][1]["multiple"] is True
+    assert info["output"] == ["TSV", "TSV", "TSV", "IMAGE", "TSV", "IMAGE", "IMAGE", "TSV", "PDF"]
+    assert info["output_name"] == [
+        "aldex",
+        "aldex_corr",
+        "aldex_effect",
+        "aldex_expected_distance",
+        "aldex_kw",
+        "aldex_plot",
+        "aldex_plot_feature",
+        "aldex_ttest",
+        "aldex_ttest_plot",
+    ]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["bioconductor-aldex2", "r-data.table", "r-optparse", "r-qgraph"]
+    assert info["documentation_url"] == "https://bioconductor.org/packages/ALDEx2"
+    assert info["citation_dois"] == [
+        "10.1371/journal.pone.0067019",
+        "10.1186/2049-2618-2-15",
+        "10.1080/10618600.2015.1131161",
+    ]
+    assert "ANOVA-Like Differential Expression (ALDEx) Analysis for Mixed Population RNA-Seq" in info["citation_text"]
+    assert "Unifying the analysis of high-throughput sequencing datasets" in info["citation_text"]
+    assert "Displaying Variation in Large Datasets" in info["citation_text"]
+    assert "ALDEx2 differential abundance" in info["search_aliases"]
+
+
+def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("aldex2")
+
+    assert node_class.render_command(
+        {
+            "reads": "reads.tabular",
+            "group_names": ["NS", "S"],
+            "num_cols": [7, 7],
+            "num_mc_samples": 256,
+            "denom": "zero",
+            "analysis_type": "aldex",
+            "aldex_test": "kw",
+            "effect": False,
+            "include_sample_summary": True,
+            "iterate": True,
+            "output": "/work/aldex2",
+        }
+    ) == (
+        "Rscript aldex2.R --reads reads.tabular --group_names NS,S --num_cols 7,7 --num_mc_samples 256 "
+        "--denom zero --analysis_type aldex --aldex_test kw --effect false --include_sample_summary true "
+        "--iterate true --output /work/aldex2/output_aldex.tsv"
+    )
+
+    corr_command = node_class.render_command(
+        {
+            "reads": "reads.tabular",
+            "group_names": ["NS", "S"],
+            "num_cols": [7, 7],
+            "analysis_type": "aldex_corr",
+            "group_nums": [1, 2],
+            "num_cols_in_groups": [7, 7],
+            "output": "/work/aldex2",
+        }
+    )
+    assert "--analysis_type aldex_corr --group_nums 1,2 --num_cols_in_groups 7,7" in corr_command
+    assert corr_command.endswith("--output /work/aldex2/output_aldex_corr.tsv")
+
+    plot_command = node_class.render_command(
+        {
+            "reads": "reads.tabular",
+            "group_names": ["Group A", "Group B"],
+            "num_cols": [3, 3],
+            "analysis_type": "aldex_plot",
+            "plot_type": "MW",
+            "plot_test": "wilcox",
+            "cutoff_pval": 0.05,
+            "cutoff_effect": 2,
+            "xlab": "Effect size",
+            "ylab": "Expected p",
+            "output": "/work/aldex2",
+        }
+    )
+    assert "--group_names 'Group A,Group B'" in plot_command
+    assert "--plot_type MW --plot_test wilcox --cutoff_pval 0.05 --cutoff_effect 2" in plot_command
+    assert "--xlab 'Effect size' --ylab 'Expected p'" in plot_command
+    assert plot_command.endswith("--output /work/aldex2/output_aldex_plot.png")
+
+    ttest_command = node_class.render_command(
+        {
+            "reads": "reads.tabular",
+            "group_names": ["NS", "S"],
+            "num_cols": [7, 7],
+            "analysis_type": "aldex_ttest",
+            "paired_test": True,
+            "hist_plot": True,
+            "output": "/work/aldex2",
+        }
+    )
+    assert ttest_command.endswith(
+        "--output /work/aldex2/output_aldex_ttest.tsv && mv Rplots.pdf /work/aldex2/output_aldex_ttest_plot.pdf"
+    )
+    ttest_without_hist_command = node_class.render_command(
+        {
+            "reads": "reads.tabular",
+            "group_names": ["NS", "S"],
+            "num_cols": [7, 7],
+            "analysis_type": "aldex_ttest",
+            "hist_plot": "false",
+            "output": "/work/aldex2",
+        }
+    )
+    assert "mv Rplots.pdf" not in ttest_without_hist_command
+
+    assert node_class.PLAN_OUTPUTS({"analysis_type": "aldex_effect"}, tmp_path) == [
+        tmp_path / "aldex2" / "output_aldex_effect.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"analysis_type": "aldex_expected_distance"}, tmp_path) == [
+        tmp_path / "aldex2" / "output_aldex_expected_distance.png",
+    ]
+    assert node_class.PLAN_OUTPUTS({"analysis_type": "aldex_ttest", "hist_plot": True}, tmp_path) == [
+        tmp_path / "aldex2" / "output_aldex_ttest.tsv",
+        tmp_path / "aldex2" / "output_aldex_ttest_plot.pdf",
+    ]
+    assert node_class.PLAN_OUTPUTS({"analysis_type": "aldex_ttest", "hist_plot": "false"}, tmp_path) == [
+        tmp_path / "aldex2" / "output_aldex_ttest.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"reads": "", "group_names": ["NS"], "num_cols": [1]}) == "reads is required"
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.tsv", "group_names": [], "num_cols": []}) == (
+        "at least one comparison group is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.tsv", "group_names": ["NS"], "num_cols": [1, 2]}) == (
+        "group_names and num_cols must have the same length"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.tsv", "group_names": ["NS"], "num_cols": [0]}) == (
+        "num_cols values must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.tsv", "group_names": ["NS"], "num_cols": [1], "denom": "bad"}) == (
+        "denom must be one of: all, median, iqlr, zero, lvha"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"reads": "reads.tsv", "group_names": ["NS"], "num_cols": [1], "analysis_type": "aldex_corr"}
+    ) == "aldex_corr requires group_nums and num_cols_in_groups"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "reads": "reads.tsv",
+            "group_names": ["NS"],
+            "num_cols": [1],
+            "analysis_type": "aldex_plot_feature",
+            "feature_name": "",
+        }
+    ) == "feature_name is required for aldex_plot_feature"
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.tsv", "group_names": ["NS"], "num_cols": [1]}) is True
 
 
 def test_angsd_exposes_galaxy_metadata_and_citation() -> None:
