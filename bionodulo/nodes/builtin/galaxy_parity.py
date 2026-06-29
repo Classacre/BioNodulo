@@ -6335,6 +6335,8 @@ GENOMESCOPE_CITATION_TEXT = (
     "GenomeScope: fast reference-free genome profiling from short reads; "
     "GenomeScope 2.0 and Smudgeplot for reference-free profiling of polyploid genomes."
 )
+ART_CITATION_DOI = "10.1093/bioinformatics/btr708"
+ART_CITATION_TEXT = "ART: a next-generation sequencing read simulator."
 
 
 class MiniaNode(CommandNode):
@@ -6637,6 +6639,195 @@ class GenomeScopeNode(CommandNode):
                     {"default": False, "description": "Print nlsLM iteration progress"},
                 ),
                 "num_rounds": ("INT", {"default": "", "min": 1, "description": "Number of optimization rounds"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class ARTIlluminaNode(CommandNode):
+    """Simulate Illumina reads with ART using the Galaxy IUC wrapper options."""
+
+    NODE_ID = "art_illumina"
+    DISPLAY_NAME = "ART Illumina"
+    REQUIRED_CONDA_PACKAGES = ["art"]
+    CATEGORY = "simulation"
+    DESCRIPTION = "Simulate Illumina sequencing reads from DNA or RNA reference sequences with ART."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ART",
+        "ART Illumina",
+        "art_illumina",
+        "Illumina read simulator",
+        "synthetic sequencing reads",
+        "NGS read simulation",
+        "paired-end simulation",
+    ]
+    RETURN_TYPES = ("FASTQ", "FASTQ", "FASTQ", "SAM", "TEXT", "TEXT", "TEXT")
+    RETURN_NAMES = (
+        "output_fq1_single",
+        "output_fq1_paired",
+        "output_fq2_paired",
+        "output_sam",
+        "output_aln1_single",
+        "output_aln1_paired",
+        "output_aln2_paired",
+    )
+    REQUIRED_EXECUTABLES = ["art_illumina"]
+    DOCUMENTATION_URL = "https://www.niehs.nih.gov/research/resources/software/biostatistics/art"
+    CITATION_DOIS = [ART_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{ART_CITATION_DOI}"]
+    CITATION_TEXT = ART_CITATION_TEXT
+    VERSION = "2016.06.05+galaxy2016.06.05"
+    GENERATE_CHOICES = ["single_end", "paired_end", "mate_pair"]
+
+    @classmethod
+    def _generate_choice(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("generate_choice", "single_end") or "single_end")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        choice = cls._generate_choice(inputs)
+        cmd = ["art_illumina"]
+        if inputs.get("sam"):
+            cmd.append("--samout")
+        if not inputs.get("aln", True):
+            cmd.append("--noALN")
+        if choice == "paired_end":
+            cmd.append("--paired")
+            cmd.extend(["--mflen", str(inputs.get("fragment_size", 200)), "--sdev", str(inputs.get("fragment_sd", 0))])
+        elif choice == "mate_pair":
+            cmd.append("--matepair")
+            cmd.extend(["--mflen", str(inputs.get("fragment_size", 200)), "--sdev", str(inputs.get("fragment_sd", 0))])
+        cmd.extend(
+            [
+                "--in",
+                str(inputs.get("input_seq_file", "")),
+                "--len",
+                str(inputs.get("read_length", 100)),
+                "--fcov",
+                str(inputs.get("fold_coverage", 20)),
+            ]
+        )
+        if inputs.get("amplicon"):
+            cmd.append("--amplicon")
+        cmd.extend(
+            [
+                "--insRate",
+                str(inputs.get("insRate", "0.00009")),
+                "--insRate2",
+                str(inputs.get("insRate2", "0.00015")),
+                "--delRate",
+                str(inputs.get("delRate", "0.00011")),
+                "--delRate2",
+                str(inputs.get("delRate2", "0.00023")),
+            ]
+        )
+        rnd_seed = int(inputs.get("rndSeed", -1) or -1)
+        if rnd_seed > -1:
+            cmd.extend(["--rndSeed", str(rnd_seed)])
+        cmd.extend(["--out", f"{_out(inputs)}/output"])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        choice = cls._generate_choice(inputs)
+        if choice == "single_end":
+            outputs = [out / "output.fq"]
+            if inputs.get("sam"):
+                outputs.append(out / "output.sam")
+            if inputs.get("aln", True):
+                outputs.append(out / "output.aln")
+            return outputs
+
+        outputs = [out / "output1.fq", out / "output2.fq"]
+        if inputs.get("sam"):
+            outputs.append(out / "output.sam")
+        if inputs.get("aln", True):
+            outputs.extend([out / "output1.aln", out / "output2.aln"])
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_seq_file", "")).strip():
+            return "input_seq_file is required"
+        choice = cls._generate_choice(inputs)
+        if choice not in cls.GENERATE_CHOICES:
+            return f"generate_choice must be one of: {', '.join(cls.GENERATE_CHOICES)}"
+        for name, default, minimum in (
+            ("read_length", 100, 1),
+            ("fold_coverage", 20, 1),
+        ):
+            try:
+                value = int(inputs.get(name, default))
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < minimum:
+                return f"{name} must be >= {minimum}"
+        if choice != "single_end":
+            try:
+                fragment_size = int(inputs.get("fragment_size", 200))
+            except (TypeError, ValueError):
+                return "fragment_size must be an integer"
+            if fragment_size < 1:
+                return f"fragment_size must be >= 1 for {choice} input"
+            try:
+                fragment_sd = int(inputs.get("fragment_sd", 0))
+            except (TypeError, ValueError):
+                return "fragment_sd must be an integer"
+            if fragment_sd < 0:
+                return f"fragment_sd must be >= 0 for {choice} input"
+        for name, default in (
+            ("insRate", 0.00009),
+            ("insRate2", 0.00015),
+            ("delRate", 0.00011),
+            ("delRate2", 0.00023),
+        ):
+            try:
+                value = float(inputs.get(name, default))
+            except (TypeError, ValueError):
+                return f"{name} must be a number"
+            if value < 0:
+                return f"{name} must be >= 0"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_seq_file": ("FASTA", {"description": "DNA or RNA reference sequence"}),
+                "generate_choice": (
+                    "STRING",
+                    {
+                        "default": "single_end",
+                        "options": cls.GENERATE_CHOICES,
+                        "description": "Generate single-end, paired-end, or mate-pair reads",
+                    },
+                ),
+            },
+            "optional": {
+                "fold_coverage": ("INT", {"default": 20, "min": 1, "description": "Fold read coverage over references"}),
+                "read_length": ("INT", {"default": 100, "min": 1, "description": "Simulated read length"}),
+                "amplicon": ("BOOLEAN", {"default": False, "description": "Enable amplicon sequencing simulation"}),
+                "fragment_size": (
+                    "INT",
+                    {"default": 200, "min": 1, "description": "Average DNA fragment size for paired or mate-pair reads"},
+                ),
+                "fragment_sd": (
+                    "INT",
+                    {"default": 0, "min": 0, "description": "Fragment size standard deviation"},
+                ),
+                "aln": ("BOOLEAN", {"default": True, "description": "Output ART ALN alignment files"}),
+                "sam": ("BOOLEAN", {"default": False, "description": "Output SAM alignment file"}),
+                "insRate": ("FLOAT", {"default": 0.00009, "min": 0, "description": "First-read insertion rate"}),
+                "insRate2": ("FLOAT", {"default": 0.00015, "min": 0, "description": "Second-read insertion rate"}),
+                "delRate": ("FLOAT", {"default": 0.00011, "min": 0, "description": "First-read deletion rate"}),
+                "delRate2": ("FLOAT", {"default": 0.00023, "min": 0, "description": "Second-read deletion rate"}),
+                "rndSeed": ("INT", {"default": -1, "description": "Fixed random seed; -1 requests a random seed"}),
             },
             "hidden": {"output": ("STRING", {})},
         }

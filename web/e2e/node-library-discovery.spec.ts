@@ -908,6 +908,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btx153', 'https://doi.org/10.1038/s41467-020-14998-3'],
     citation_text: 'GenomeScope: fast reference-free genome profiling from short reads; GenomeScope 2.0 and Smudgeplot for reference-free profiling of polyploid genomes.',
   },
+  art_illumina: {
+    name: 'art_illumina',
+    display_name: 'ART Illumina',
+    category: 'simulation',
+    description: 'Simulate Illumina sequencing reads from DNA or RNA reference sequences with ART.',
+    search_aliases: ['Galaxy', 'ART', 'ART Illumina', 'art_illumina', 'Illumina read simulator', 'synthetic sequencing reads', 'NGS read simulation', 'paired-end simulation'],
+    input: {
+      required: {
+        input_seq_file: { type: 'FASTA' },
+        generate_choice: { type: 'STRING', default: 'single_end', options: ['single_end', 'paired_end', 'mate_pair'] },
+      },
+      optional: {
+        fold_coverage: { type: 'INT', default: 20, min: 1 },
+        read_length: { type: 'INT', default: 100, min: 1 },
+        amplicon: { type: 'BOOLEAN', default: false },
+        fragment_size: { type: 'INT', default: 200, min: 1 },
+        fragment_sd: { type: 'INT', default: 0, min: 0 },
+        aln: { type: 'BOOLEAN', default: true },
+        sam: { type: 'BOOLEAN', default: false },
+        insRate: { type: 'FLOAT', default: 0.00009, min: 0 },
+        insRate2: { type: 'FLOAT', default: 0.00015, min: 0 },
+        delRate: { type: 'FLOAT', default: 0.00011, min: 0 },
+        delRate2: { type: 'FLOAT', default: 0.00023, min: 0 },
+        rndSeed: { type: 'INT', default: -1 },
+      },
+    },
+    output: ['FASTQ', 'FASTQ', 'FASTQ', 'SAM', 'TEXT', 'TEXT', 'TEXT'],
+    output_name: ['output_fq1_single', 'output_fq1_paired', 'output_fq2_paired', 'output_sam', 'output_aln1_single', 'output_aln1_paired', 'output_aln2_paired'],
+    required_executables: ['art_illumina'],
+    required_conda_packages: ['art'],
+    documentation_url: 'https://www.niehs.nih.gov/research/resources/software/biostatistics/art',
+    citation_dois: ['10.1093/bioinformatics/btr708'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btr708'],
+    citation_text: 'ART: a next-generation sequencing read simulator.',
+  },
   plasflow: {
     name: 'plasflow',
     display_name: 'PlasFlow',
@@ -9121,7 +9156,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('317 nodes available')).toBeVisible();
+  await expect(page.getByText('318 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9165,6 +9200,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'Bloom filter', name: 'Minia', category: 'assembly' },
     { query: 'reference-free genome profiling', name: 'GenomeScope', category: 'assembly' },
+    { query: 'Illumina read simulator', name: 'ART Illumina', category: 'simulation' },
     { query: 'noisy long reads', name: 'Miniasm', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },

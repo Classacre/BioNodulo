@@ -178,6 +178,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["genomescope2"],
             "doi": "10.1038/s41467-020-14998-3",
         },
+        "art_illumina": {
+            "display_name": "ART Illumina",
+            "category": "simulation",
+            "required_executables": ["art_illumina"],
+            "required_conda_packages": ["art"],
+            "doi": "10.1093/bioinformatics/btr708",
+        },
         "assembly_stats": {
             "display_name": "Assembly Stats",
             "category": "assembly",
@@ -4307,6 +4314,154 @@ def test_genomescope_renders_advanced_command_outputs_and_validates(tmp_path: Pa
         "num_rounds must be >= 1"
     )
     assert node_class.VALIDATE_INPUTS({"input": "hist.tsv", "kmer_length": 21}) is True
+
+
+def test_art_illumina_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["art_illumina"]
+
+    assert node_info["display_name"] == "ART Illumina"
+    assert node_info["category"] == "simulation"
+    assert node_info["description"].startswith("Simulate Illumina sequencing reads")
+    assert node_info["input"]["required"]["input_seq_file"][0] == "FASTA"
+    assert node_info["input"]["required"]["generate_choice"][1]["options"] == [
+        "single_end",
+        "paired_end",
+        "mate_pair",
+    ]
+    assert node_info["input"]["optional"]["rndSeed"][1]["default"] == -1
+    assert node_info["output"] == ["FASTQ", "FASTQ", "FASTQ", "SAM", "TEXT", "TEXT", "TEXT"]
+    assert node_info["output_name"] == [
+        "output_fq1_single",
+        "output_fq1_paired",
+        "output_fq2_paired",
+        "output_sam",
+        "output_aln1_single",
+        "output_aln1_paired",
+        "output_aln2_paired",
+    ]
+    assert node_info["required_executables"] == ["art_illumina"]
+    assert node_info["required_conda_packages"] == ["art"]
+    assert node_info["documentation_url"] == "https://www.niehs.nih.gov/research/resources/software/biostatistics/art"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btr708"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btr708"]
+    assert "ART: a next-generation sequencing read simulator" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "Illumina read simulator" in node_info["search_aliases"]
+
+
+def test_art_illumina_renders_single_end_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("art_illumina")
+
+    assert node_class.render_command(
+        {
+            "input_seq_file": "reference.fa",
+            "fold_coverage": 20,
+            "read_length": 200,
+            "generate_choice": "single_end",
+            "aln": True,
+            "sam": True,
+            "rndSeed": 42,
+            "output": "/work/art_illumina",
+        }
+    ) == (
+        "art_illumina --samout --in reference.fa --len 200 --fcov 20 --insRate 0.00009 "
+        "--insRate2 0.00015 --delRate 0.00011 --delRate2 0.00023 --rndSeed 42 "
+        "--out /work/art_illumina/output"
+    )
+    assert node_class.render_command(
+        {
+            "input_seq_file": "reference.fa",
+            "fold_coverage": 20,
+            "read_length": 100,
+            "generate_choice": "single_end",
+            "aln": False,
+            "sam": False,
+            "amplicon": True,
+            "output": "/work/art_illumina",
+        }
+    ) == (
+        "art_illumina --noALN --in reference.fa --len 100 --fcov 20 --amplicon "
+        "--insRate 0.00009 --insRate2 0.00015 --delRate 0.00011 --delRate2 0.00023 "
+        "--out /work/art_illumina/output"
+    )
+    assert node_class.PLAN_OUTPUTS({"generate_choice": "single_end", "aln": True, "sam": True}, tmp_path) == [
+        tmp_path / "art_illumina" / "output.fq",
+        tmp_path / "art_illumina" / "output.sam",
+        tmp_path / "art_illumina" / "output.aln",
+    ]
+
+
+def test_art_illumina_renders_paired_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("art_illumina")
+
+    assert node_class.render_command(
+        {
+            "input_seq_file": "reference genome.fa",
+            "fold_coverage": 30,
+            "read_length": 150,
+            "generate_choice": "paired_end",
+            "fragment_size": 350,
+            "fragment_sd": 25,
+            "aln": True,
+            "sam": True,
+            "amplicon": True,
+            "insRate": 0.001,
+            "insRate2": 0.002,
+            "delRate": 0.003,
+            "delRate2": 0.004,
+            "rndSeed": 99,
+            "output": "/work/art_illumina",
+        }
+    ) == (
+        "art_illumina --samout --paired --mflen 350 --sdev 25 --in 'reference genome.fa' "
+        "--len 150 --fcov 30 --amplicon --insRate 0.001 --insRate2 0.002 --delRate 0.003 "
+        "--delRate2 0.004 --rndSeed 99 --out /work/art_illumina/output"
+    )
+    assert node_class.render_command(
+        {
+            "input_seq_file": "reference.fa",
+            "fold_coverage": 20,
+            "read_length": 100,
+            "generate_choice": "mate_pair",
+            "fragment_size": 500,
+            "fragment_sd": 50,
+            "aln": False,
+            "sam": False,
+            "rndSeed": -1,
+            "output": "/work/art_illumina",
+        }
+    ) == (
+        "art_illumina --noALN --matepair --mflen 500 --sdev 50 --in reference.fa --len 100 "
+        "--fcov 20 --insRate 0.00009 --insRate2 0.00015 --delRate 0.00011 "
+        "--delRate2 0.00023 --out /work/art_illumina/output"
+    )
+    assert node_class.PLAN_OUTPUTS({"generate_choice": "paired_end", "aln": True, "sam": True}, tmp_path) == [
+        tmp_path / "art_illumina" / "output1.fq",
+        tmp_path / "art_illumina" / "output2.fq",
+        tmp_path / "art_illumina" / "output.sam",
+        tmp_path / "art_illumina" / "output1.aln",
+        tmp_path / "art_illumina" / "output2.aln",
+    ]
+    assert node_class.PLAN_OUTPUTS({"generate_choice": "mate_pair", "aln": False, "sam": False}, tmp_path) == [
+        tmp_path / "art_illumina" / "output1.fq",
+        tmp_path / "art_illumina" / "output2.fq",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "", "generate_choice": "single_end"}) == (
+        "input_seq_file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "bad"}) == (
+        "generate_choice must be one of: single_end, paired_end, mate_pair"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "single_end", "read_length": 0}) == (
+        "read_length must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "single_end", "fold_coverage": 0}) == (
+        "fold_coverage must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_seq_file": "ref.fa", "generate_choice": "paired_end", "fragment_size": 0}
+    ) == "fragment_size must be >= 1 for paired_end input"
+    assert node_class.VALIDATE_INPUTS({"input_seq_file": "ref.fa", "generate_choice": "single_end"}) is True
 
 
 def test_miniasm_exposes_galaxy_metadata_and_citation() -> None:
