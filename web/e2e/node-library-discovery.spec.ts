@@ -9371,6 +9371,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  bamleftalign: {
+    name: 'bamleftalign',
+    display_name: 'BamLeftAlign',
+    category: 'variant',
+    description: 'Left-realign indels in BAM alignments using the FreeBayes bamleftalign utility.',
+    search_aliases: ['Galaxy', 'FreeBayes', 'bamleftalign', 'left realignment', 'left-align BAM indels', 'indel normalization'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        reference: { type: 'FASTA' },
+      },
+      optional: {
+        reference_source: { type: 'STRING', default: 'history', options: ['history', 'cached'] },
+        iterations: { type: 'INT', default: 5, min: 1 },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['realigned_bam'],
+    required_executables: ['bamleftalign', 'samtools'],
+    required_conda_packages: ['freebayes', 'samtools', 'coreutils'],
+    documentation_url: 'https://github.com/freebayes/freebayes#citation',
+    citation_dois: ['10.48550/arXiv.1207.3907'],
+    citation_urls: ['https://doi.org/10.48550/arXiv.1207.3907', 'http://arxiv.org/abs/1207.3907'],
+    citation_text: 'Haplotype-based variant detection from short-read sequencing.',
+  },
   bcftools_stats: {
     name: 'bcftools_stats',
     display_name: 'BCFtools Stats',
@@ -10666,7 +10691,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('365 nodes available')).toBeVisible();
+  await expect(page.getByText('366 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10976,6 +11001,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'SNP indel calling', name: 'BCFtools Call', category: 'variant' },
     { query: 'genotype likelihoods', name: 'BCFtools Mpileup', category: 'variant' },
     { query: 'fixed-threshold filters', name: 'BCFtools Filter', category: 'variant' },
+    { query: 'left realignment', name: 'BamLeftAlign', category: 'variant' },
     { query: 'plot-vcfstats', name: 'BCFtools Stats', category: 'variant' },
     { query: 'left-align indels', name: 'BCFtools Norm', category: 'variant' },
     { query: 'concatenate vcf', name: 'BCFtools Concat', category: 'variant' },

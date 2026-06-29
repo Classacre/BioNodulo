@@ -25697,6 +25697,99 @@ def test_bedops_sort_bed_validates_inputs_and_filter_modes() -> None:
     )
 
 
+def test_bamleftalign_exposes_freebayes_citation_and_dependency_metadata() -> None:
+    node_info = _registry().object_info()["bamleftalign"]
+
+    assert node_info["display_name"] == "BamLeftAlign"
+    assert node_info["category"] == "variant"
+    assert node_info["description"].startswith("Left-realign indels in BAM")
+    assert node_info["output"] == ["BAM"]
+    assert node_info["output_name"] == ["realigned_bam"]
+    assert node_info["required_executables"] == ["bamleftalign", "samtools"]
+    assert node_info["required_conda_packages"] == ["freebayes", "samtools", "coreutils"]
+    assert node_info["documentation_url"] == "https://github.com/freebayes/freebayes#citation"
+    assert "10.48550/arXiv.1207.3907" in node_info["citation_dois"]
+    assert "https://doi.org/10.48550/arXiv.1207.3907" in node_info["citation_urls"]
+    assert "http://arxiv.org/abs/1207.3907" in node_info["citation_urls"]
+    assert "Haplotype-based variant detection from short-read sequencing" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "left realignment" in node_info["search_aliases"]
+
+
+def test_bamleftalign_renders_history_reference_pipeline_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bamleftalign")
+
+    assert node_class.render_command(
+        {
+            "input_bam": "alignments.bam",
+            "reference": "ref.fa",
+            "reference_source": "history",
+            "iterations": 7,
+            "output": "/work/bamleftalign",
+        }
+    ) == [
+        "samtools",
+        "faidx",
+        "ref.fa",
+        "&&",
+        "cat",
+        "alignments.bam",
+        "|",
+        "bamleftalign",
+        "--fasta-reference",
+        "ref.fa",
+        "-c",
+        "--max-iterations",
+        "7",
+        ">",
+        "/work/bamleftalign/realigned.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bamleftalign" / "realigned.bam"]
+
+
+def test_bamleftalign_supports_cached_reference_and_legacy_aliases() -> None:
+    node_class = _node_class("bamleftalign")
+
+    assert node_class.render_command(
+        {
+            "bam": "sample.bam",
+            "ref_file": "/refs/hg38.fa",
+            "reference_source_selector": "cached",
+            "iterations": 5,
+            "output": "/work/bamleftalign",
+        }
+    ) == [
+        "cat",
+        "sample.bam",
+        "|",
+        "bamleftalign",
+        "--fasta-reference",
+        "/refs/hg38.fa",
+        "-c",
+        "--max-iterations",
+        "5",
+        ">",
+        "/work/bamleftalign/realigned.bam",
+    ]
+
+
+def test_bamleftalign_validates_required_inputs_reference_source_and_iterations() -> None:
+    node_class = _node_class("bamleftalign")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_bam is required"
+    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference_source": "history"}) == (
+        "reference is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa", "reference_source": "bad"}) == (
+        "reference_source must be one of: history, cached"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa", "iterations": 0}) == (
+        "iterations must be at least 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa"}) is True
+
+
 def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
