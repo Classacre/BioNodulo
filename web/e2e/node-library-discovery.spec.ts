@@ -5560,6 +5560,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/1471-2105-6-31'],
     citation_text: 'Exonerate: a generic tool for sequence comparison.',
   },
+  evidencemodeler: {
+    name: 'evidencemodeler',
+    display_name: 'EVidenceModeler',
+    category: 'annotation',
+    description: 'Combine ab initio gene predictions, protein alignments, and transcript alignments into consensus gene structures.',
+    search_aliases: ['Galaxy', 'EVidenceModeler', 'EvidenceModeler gene structure consensus', 'EVM', 'gene predictions', 'protein alignments', 'transcript alignments'],
+    input: {
+      required: {
+        input_genome: { type: 'FASTA' },
+        input_predictions: { type: 'GFF3' },
+        input_weights: { type: 'TXT' },
+        input_proteins: { type: 'GFF3' },
+      },
+      optional: {
+        input_transcript: { type: 'GFF3', default: '' },
+        segmentsize: { type: 'INT', default: 100000 },
+        overlapsize: { type: 'INT', default: 10000 },
+        input_repeat: { type: 'GFF3', default: '' },
+        input_terminalexon: { type: 'GFF3', default: '' },
+        stop_codon: { type: 'STRING_LIST', default: ['TAA', 'TGA', 'TAG'], options: ['TAA', 'TGA', 'TAG'] },
+        min_intron_length: { type: 'INT', default: 20 },
+        search_long_introns: { type: 'STRING', default: '0', options: ['0', '1'] },
+        re_search_intergenic: { type: 'STRING', default: '0', options: ['0', '1'] },
+        terminal_intergenic_re_search: { type: 'STRING', default: '0', options: ['0', '1'] },
+      },
+    },
+    output: ['GFF3', 'FASTA'],
+    output_name: ['evm_gff', 'evm_pep'],
+    required_executables: ['EVidenceModeler'],
+    required_conda_packages: ['evidencemodeler'],
+    documentation_url: 'https://github.com/EVidenceModeler/EVidenceModeler.github.io',
+    citation_dois: ['10.1186/gb-2008-9-1-r7', '10.1080/21501203.2011.606851'],
+    citation_urls: ['https://doi.org/10.1186/gb-2008-9-1-r7', 'https://doi.org/10.1080/21501203.2011.606851'],
+    citation_text: 'Automated eukaryotic gene structure annotation using EVidenceModeler and the Program to Assemble Spliced Alignments; Eukaryotic genome annotation using EVidenceModeler and the Program to Assemble Spliced Alignments.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8305,7 +8340,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('295 nodes available')).toBeVisible();
+  await expect(page.getByText('296 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8481,6 +8516,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'graphlan_annotate tree annotation', name: 'GraPhlAn Annotate', category: 'visualization' },
     { query: 'graphlan circular tree rendering', name: 'GraPhlAn', category: 'visualization' },
     { query: 'exonerate pairwise sequence comparison', name: 'Exonerate', category: 'alignment' },
+    { query: 'EvidenceModeler gene structure consensus', name: 'EVidenceModeler', category: 'annotation' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

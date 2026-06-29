@@ -13073,6 +13073,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["exonerate", "python", "bcbiogff"],
             "doi": "10.1186/1471-2105-6-31",
         },
+        "evidencemodeler": {
+            "display_name": "EVidenceModeler",
+            "category": "annotation",
+            "required_executables": ["EVidenceModeler"],
+            "required_conda_packages": ["evidencemodeler"],
+            "doi": "10.1186/gb-2008-9-1-r7",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15959,6 +15966,98 @@ def test_exonerate_renders_pairwise_alignment_command_outputs_and_validation(tmp
         "percent must be between 0 and 100"
     )
     assert node_class.VALIDATE_INPUTS({"query": "query.fa", "target": "target.fa", "model": "est2genome"}) is True
+
+
+def test_evidencemodeler_renders_gene_structure_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("evidencemodeler")
+    info = _registry().object_info()["evidencemodeler"]
+
+    assert info["output"] == ["GFF3", "FASTA"]
+    assert info["output_name"] == ["evm_gff", "evm_pep"]
+    assert info["input"]["required"]["input_genome"][0] == "FASTA"
+    assert "10.1186/gb-2008-9-1-r7" in info["citation_dois"]
+    assert "10.1080/21501203.2011.606851" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_genome": "genome.fasta",
+            "input_predictions": "gene_predictions.gff3",
+            "input_weights": "weights.txt",
+            "input_proteins": "protein_alignments.gff3",
+            "input_transcript": "transcript_alignments.gff3",
+            "input_repeat": "repeats.gff3",
+            "input_terminalexon": "terminal_exons.gff3",
+            "segmentsize": 120000,
+            "overlapsize": 15000,
+            "stop_codon": ["TAA", "TGA"],
+            "min_intron_length": 25,
+            "search_long_introns": 1,
+            "re_search_intergenic": 1,
+            "terminal_intergenic_re_search": 0,
+            "output": "/work/evidencemodeler",
+        }
+    ) == (
+        "ln -s genome.fasta input_genome.fasta && ln -s gene_predictions.gff3 input_predictions.gff && "
+        "ln -s weights.txt input_weights.txt && ln -s protein_alignments.gff3 input_proteins.gff && "
+        "ln -s transcript_alignments.gff3 input_transcript.gff && EVidenceModeler --sample_id galaxy "
+        "--genome ./input_genome.fasta --gene_predictions ./input_predictions.gff --weights ./input_weights.txt "
+        "--protein_alignments ./input_proteins.gff --segmentSize 120000 --overlapSize 15000 "
+        "--transcript_alignments ./input_transcript.gff --repeats repeats.gff3 --terminalExons terminal_exons.gff3 "
+        "--stop_codons TAA,TGA --min_intron_length 25 --search_long_introns 1 --re_search_intergenic 1 "
+        "--terminal_intergenic_re_search 0 && cp galaxy.EVM.gff3 /work/evidencemodeler/galaxy.EVM.gff3 "
+        "&& cp galaxy.EVM.pep /work/evidencemodeler/galaxy.EVM.pep"
+    )
+    assert node_class.render_command(
+        {
+            "input_genome": "genome.fasta",
+            "input_predictions": "gene_predictions.gff3",
+            "input_weights": "weights.txt",
+            "input_proteins": "protein_alignments.gff3",
+            "output": "/work/evidencemodeler",
+        }
+    ) == (
+        "ln -s genome.fasta input_genome.fasta && ln -s gene_predictions.gff3 input_predictions.gff && "
+        "ln -s weights.txt input_weights.txt && ln -s protein_alignments.gff3 input_proteins.gff && "
+        "EVidenceModeler --sample_id galaxy --genome ./input_genome.fasta --gene_predictions ./input_predictions.gff "
+        "--weights ./input_weights.txt --protein_alignments ./input_proteins.gff --segmentSize 100000 --overlapSize 10000 "
+        "--stop_codons TAA,TGA,TAG --min_intron_length 20 --search_long_introns 0 --re_search_intergenic 0 "
+        "--terminal_intergenic_re_search 0 && cp galaxy.EVM.gff3 /work/evidencemodeler/galaxy.EVM.gff3 "
+        "&& cp galaxy.EVM.pep /work/evidencemodeler/galaxy.EVM.pep"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "evidencemodeler" / "galaxy.EVM.gff3",
+        tmp_path / "evidencemodeler" / "galaxy.EVM.pep",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input_genome is required"
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fasta"}) == "input_predictions is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_genome": "genome.fasta", "input_predictions": "pred.gff3", "input_weights": "weights.txt"}
+    ) == "input_proteins is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_genome": "genome.fasta",
+            "input_predictions": "pred.gff3",
+            "input_weights": "weights.txt",
+            "input_proteins": "protein.gff3",
+            "segmentsize": 0,
+        }
+    ) == "segmentsize must be >= 1"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_genome": "genome.fasta",
+            "input_predictions": "pred.gff3",
+            "input_weights": "weights.txt",
+            "input_proteins": "protein.gff3",
+            "stop_codon": ["TAA", "BAD"],
+        }
+    ) == "stop_codon values must be one or more of: TAA, TGA, TAG"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_genome": "genome.fasta",
+            "input_predictions": "pred.gff3",
+            "input_weights": "weights.txt",
+            "input_proteins": "protein.gff3",
+        }
+    ) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
