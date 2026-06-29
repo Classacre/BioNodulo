@@ -799,6 +799,12 @@ def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_m
             "output_name": ["sam"],
             "aliases": ["Galaxy", "BAM to SAM", "SAM output", "header only"],
         },
+        "samtools_sam_to_bam": {
+            "display_name": "Samtools SAM to BAM",
+            "output": ["BAM"],
+            "output_name": ["bam"],
+            "aliases": ["Galaxy", "SAM to BAM", "sorted BAM", "reference index"],
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -1501,4 +1507,83 @@ def test_samtools_bam_to_sam_validates_header_mode() -> None:
     assert (
         node_class.VALIDATE_INPUTS({"input": "sample.bam", "header": "--headers"})
         == "header must be one of -h, -H, or an empty string"
+    )
+
+
+def test_samtools_sam_to_bam_renders_sorted_conversion_pipeline_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_sam_to_bam")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.sam",
+            "reference": "reference.fa",
+            "reference_index": "reference.fa.fai",
+            "threads": 5,
+            "memory_mb": 2048,
+            "output": "/work/samtools_sam_to_bam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-b",
+        "-@",
+        "4",
+        "-t",
+        "reference.fa.fai",
+        "sample.sam",
+        "|",
+        "samtools",
+        "sort",
+        "-O",
+        "bam",
+        "-@",
+        "4",
+        "-m",
+        "1536M",
+        "-o",
+        "/work/samtools_sam_to_bam/output.bam",
+        "-T",
+        "/work/samtools_sam_to_bam/tmp",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_sam_to_bam" / "output.bam"]
+
+
+def test_samtools_sam_to_bam_uses_default_reference_index_and_validates_reference() -> None:
+    node_class = _node_class("samtools_sam_to_bam")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.sam",
+            "reference": "reference.fa",
+            "threads": 1,
+            "output": "/work/samtools_sam_to_bam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-b",
+        "-@",
+        "0",
+        "-t",
+        "reference.fa.fai",
+        "sample.sam",
+        "|",
+        "samtools",
+        "sort",
+        "-O",
+        "bam",
+        "-@",
+        "0",
+        "-m",
+        "576M",
+        "-o",
+        "/work/samtools_sam_to_bam/output.bam",
+        "-T",
+        "/work/samtools_sam_to_bam/tmp",
+    ]
+
+    assert (
+        node_class.VALIDATE_INPUTS({"input": "sample.sam", "reference": "", "threads": 1})
+        == "reference is required for SAM to BAM conversion"
     )

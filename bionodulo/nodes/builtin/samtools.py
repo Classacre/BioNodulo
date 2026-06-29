@@ -2350,3 +2350,96 @@ class SamtoolsBamToSamNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class SamtoolsSamToBamNode(CommandNode):
+    """Convert SAM alignments to sorted BAM format."""
+
+    NODE_ID = "samtools_sam_to_bam"
+    DISPLAY_NAME = "Samtools SAM to BAM"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Convert SAM alignments to sorted BAM format using a reference FASTA index."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "samtools",
+        "SAM to BAM",
+        "sorted BAM",
+        "reference index",
+        "alignment conversion",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("bam",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-view.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        reference = str(inputs.get("reference", ""))
+        reference_index = str(inputs.get("reference_index") or f"{reference}.fai")
+        addthreads = str(_additional_threads(inputs))
+        return [
+            "samtools",
+            "view",
+            "-b",
+            "-@",
+            addthreads,
+            "-t",
+            reference_index,
+            str(inputs.get("input", "")),
+            "|",
+            "samtools",
+            "sort",
+            "-O",
+            "bam",
+            "-@",
+            addthreads,
+            "-m",
+            _sort_memory(inputs),
+            "-o",
+            f"{output}/output.bam",
+            "-T",
+            f"{output}/tmp",
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "output.bam"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if not str(inputs.get("reference", "") or "").strip():
+            return "reference is required for SAM to BAM conversion"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("SAM", {"description": "SAM alignment file to convert"}),
+                "reference": ("FASTA", {"description": "Reference FASTA for resolving SAM target names"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "reference_index": (
+                    "FASTA_INDEX",
+                    {"description": "Optional FASTA .fai index; defaults to reference.fa.fai", "advanced": True},
+                ),
+                "memory_mb": (
+                    "INT",
+                    {"default": 768, "min": 1, "description": "Memory per sort thread in MB", "advanced": True},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
