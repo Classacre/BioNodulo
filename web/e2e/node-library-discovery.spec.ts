@@ -5479,6 +5479,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.1029'],
     citation_text: 'Compact graphical representation of phylogenetic data and metadata with GraPhlAn.',
   },
+  graphlan_annotate: {
+    name: 'graphlan_annotate',
+    display_name: 'GraPhlAn Annotate',
+    category: 'visualization',
+    description: 'Apply GraPhlAn annotation settings to a Newick, NHX, Nexus, or PhyloXML tree.',
+    search_aliases: ['Galaxy', 'GraPhlAn Annotate', 'graphlan_annotate tree annotation', 'GraPhlAn personalization', 'phylogenetic tree annotation', 'circular tree annotations'],
+    input: {
+      required: {
+        input_tree: { type: 'STRING' },
+      },
+      optional: {
+        annot: { type: 'TXT', default: '' },
+      },
+    },
+    output: ['PHYLOXML'],
+    output_name: ['output_tree'],
+    required_executables: ['graphlan_annotate.py'],
+    required_conda_packages: ['graphlan'],
+    documentation_url: 'https://github.com/biobakery/graphlan',
+    citation_dois: ['10.7717/peerj.1029'],
+    citation_urls: ['https://doi.org/10.7717/peerj.1029'],
+    citation_text: 'Compact graphical representation of phylogenetic data and metadata with GraPhlAn.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8224,7 +8247,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('292 nodes available')).toBeVisible();
+  await expect(page.getByText('293 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8397,6 +8420,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'compleasm genome completeness', name: 'compleasm', category: 'assembly' },
     { query: 'EASTR splice junction filtering', name: 'EASTR', category: 'rna_seq' },
     { query: 'export2graphlan GraPhlAn conversion', name: 'Export to GraPhlAn', category: 'visualization' },
+    { query: 'graphlan_annotate tree annotation', name: 'GraPhlAn Annotate', category: 'visualization' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

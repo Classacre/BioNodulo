@@ -13052,6 +13052,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["export2graphlan"],
             "doi": "10.7717/peerj.1029",
         },
+        "graphlan_annotate": {
+            "display_name": "GraPhlAn Annotate",
+            "category": "visualization",
+            "required_executables": ["graphlan_annotate.py"],
+            "required_conda_packages": ["graphlan"],
+            "doi": "10.7717/peerj.1029",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15767,6 +15774,39 @@ def test_export2graphlan_renders_conversion_command_outputs_and_validation(tmp_p
         "skip_rows must be comma-separated integer row indexes"
     )
     assert node_class.VALIDATE_INPUTS({"lefse_input": "profile.tsv"}) is True
+
+
+def test_graphlan_annotate_renders_annotation_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("graphlan_annotate")
+    info = _registry().object_info()["graphlan_annotate"]
+
+    assert info["output"] == ["PHYLOXML"]
+    assert info["output_name"] == ["output_tree"]
+    assert info["input"]["required"]["input_tree"][0] == "STRING"
+    assert "10.7717/peerj.1029" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input_tree": "tree.nwk",
+            "annot": "annotation.txt",
+            "output": "/work/graphlan_annotate",
+        }
+    ) == [
+        "graphlan_annotate.py",
+        "--annot",
+        "annotation.txt",
+        "tree.nwk",
+        "/work/graphlan_annotate/output_tree.phyloxml",
+    ]
+    assert node_class.render_command({"input_tree": "tree.nhx", "output": "/work/graphlan_annotate"}) == [
+        "graphlan_annotate.py",
+        "tree.nhx",
+        "/work/graphlan_annotate/output_tree.phyloxml",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "graphlan_annotate" / "output_tree.phyloxml",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input_tree is required"
+    assert node_class.VALIDATE_INPUTS({"input_tree": "tree.nwk"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

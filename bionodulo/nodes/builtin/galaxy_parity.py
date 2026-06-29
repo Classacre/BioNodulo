@@ -24333,6 +24333,70 @@ class Export2GraphlanNode(CommandNode):
         return super().VALIDATE_INPUTS(inputs)
 
 
+class GraphlanAnnotateNode(CommandNode):
+    """Add graphical annotations to a tree before rendering it with GraPhlAn."""
+
+    NODE_ID = "graphlan_annotate"
+    DISPLAY_NAME = "GraPhlAn Annotate"
+    REQUIRED_CONDA_PACKAGES = ["graphlan"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Apply GraPhlAn annotation settings to a Newick, NHX, Nexus, or PhyloXML tree."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "GraPhlAn Annotate",
+        "graphlan_annotate tree annotation",
+        "GraPhlAn personalization",
+        "phylogenetic tree annotation",
+        "circular tree annotations",
+    ]
+    RETURN_TYPES = ("PHYLOXML",)
+    RETURN_NAMES = ("output_tree",)
+    REQUIRED_EXECUTABLES = ["graphlan_annotate.py"]
+    DOCUMENTATION_URL = "https://github.com/biobakery/graphlan"
+    CITATION_DOIS = ["10.7717/peerj.1029"]
+    CITATION_URLS = [f"{DOI_URL}10.7717/peerj.1029"]
+    CITATION_TEXT = "Compact graphical representation of phylogenetic data and metadata with GraPhlAn."
+    VERSION = "1.1.3"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        cmd = ["graphlan_annotate.py"]
+        _add_if_value(cmd, "--annot", inputs.get("annot"))
+        cmd.extend([str(inputs.get("input_tree", "")), f"{out}/output_tree.phyloxml"])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output_tree.phyloxml"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_tree": (
+                    "PHYLOGENY_TREE",
+                    {"description": "Input tree in Newick, NHX, Nexus, or PhyloXML format"},
+                ),
+            },
+            "optional": {
+                "annot": (
+                    "TXT",
+                    {"default": "", "description": "Optional tab-delimited GraPhlAn annotation file"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_tree", "")).strip():
+            return "input_tree is required"
+        return super().VALIDATE_INPUTS(inputs)
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 
