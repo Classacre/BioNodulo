@@ -781,6 +781,12 @@ def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_m
             "output_name": ["consensus"],
             "aliases": ["Galaxy", "consensus", "Bayesian", "Gap5"],
         },
+        "samtools_bam_to_cram": {
+            "display_name": "Samtools BAM to CRAM",
+            "output": ["CRAM"],
+            "output_name": ["cram"],
+            "aliases": ["Galaxy", "BAM to CRAM", "CRAM compression", "reference based compression"],
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -1194,3 +1200,126 @@ def test_samtools_consensus_renders_manual_bayesian_reference_command_and_output
     assert node_class.PLAN_OUTPUTS({"format": "pileup"}, tmp_path) == [
         tmp_path / "samtools_consensus" / "consensus.pileup"
     ]
+
+
+def test_samtools_bam_to_cram_renders_full_file_conversion_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_bam_to_cram")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.bam",
+            "reference": "reference.fa",
+            "threads": 5,
+            "output": "/work/samtools_bam_to_cram",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-@",
+        "4",
+        "-C",
+        "-h",
+        "-o",
+        "/work/samtools_bam_to_cram/output.cram",
+        "-T",
+        "reference.fa",
+        "-t",
+        "reference.fa.fai",
+        "--output-fmt-option",
+        "no_ref",
+        "sample.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_bam_to_cram" / "output.cram"]
+
+
+def test_samtools_bam_to_cram_renders_region_and_bed_filters() -> None:
+    node_class = _node_class("samtools_bam_to_cram")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.sam",
+            "reference": "reference.fa",
+            "reference_index": "custom.fa.fai",
+            "threads": 2,
+            "target_region": "region",
+            "region_string": "chr1:100-200",
+            "output": "/work/samtools_bam_to_cram",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-@",
+        "1",
+        "-C",
+        "-h",
+        "-o",
+        "/work/samtools_bam_to_cram/output.cram",
+        "-T",
+        "reference.fa",
+        "-t",
+        "custom.fa.fai",
+        "--output-fmt-option",
+        "no_ref",
+        "sample.sam",
+        "chr1:100-200",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input": "sample.bam",
+            "reference": "reference.fa",
+            "target_region": "regions_bed_file",
+            "regions_bed_file": "targets.bed",
+            "output": "/work/samtools_bam_to_cram",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-L",
+        "targets.bed",
+        "-@",
+        "0",
+        "-C",
+        "-h",
+        "-o",
+        "/work/samtools_bam_to_cram/output.cram",
+        "-T",
+        "reference.fa",
+        "-t",
+        "reference.fa.fai",
+        "--output-fmt-option",
+        "no_ref",
+        "sample.bam",
+    ]
+
+
+def test_samtools_bam_to_cram_validates_reference_and_region_inputs() -> None:
+    node_class = _node_class("samtools_bam_to_cram")
+
+    assert (
+        node_class.VALIDATE_INPUTS({"input": "sample.bam", "reference": "", "threads": 1})
+        == "reference is required for BAM to CRAM conversion"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input": "sample.bam",
+                "reference": "reference.fa",
+                "threads": 1,
+                "target_region": "region",
+            }
+        )
+        == "region_string is required when target_region is region"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input": "sample.bam",
+                "reference": "reference.fa",
+                "threads": 1,
+                "target_region": "regions_bed_file",
+            }
+        )
+        == "regions_bed_file is required when target_region is regions_bed_file"
+    )
