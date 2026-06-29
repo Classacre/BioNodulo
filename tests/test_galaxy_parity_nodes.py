@@ -7702,6 +7702,104 @@ def test_ampvis2_timeseries_renders_script_outputs_and_validates(tmp_path: Path)
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "time_variable": "Date"}) is True
 
 
+def test_ampvis2_venn_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_venn"]
+
+    assert info["display_name"] == "ampvis2 venn diagram"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate ampvis2 Venn diagrams of core OTUs shared across sample groups."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["group_by"][0] == "STRING"
+    assert info["input"]["optional"]["cut_a"][1]["default"] == 0.1
+    assert info["input"]["optional"]["cut_a"][1]["min"] == 0
+    assert info["input"]["optional"]["cut_a"][1]["max"] == 100
+    assert info["input"]["optional"]["cut_f"][1]["default"] == 80
+    assert info["input"]["optional"]["cut_f"][1]["min"] == 0
+    assert info["input"]["optional"]["cut_f"][1]["max"] == 100
+    assert info["input"]["optional"]["text_size"][1]["default"] == 5
+    assert info["input"]["optional"]["text_size"][1]["min"] == 1
+    assert info["input"]["optional"]["normalise"][1]["default"] is False
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_venn.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 venn diagram" in info["search_aliases"]
+    assert "amp_venn" in info["search_aliases"]
+    assert "Venn diagram" in info["search_aliases"]
+    assert "core OTUs" in info["search_aliases"]
+
+
+def test_ampvis2_venn_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_venn")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "group_by": "Plant",
+            "cut_a": 0.25,
+            "cut_f": 70,
+            "text_size": 7,
+            "normalise": True,
+            "out_format": "svg",
+            "plot_width": 13,
+            "plot_height": 7.5,
+            "output": "/work/ampvis2_venn",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_venn/venn.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'data <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_venn(" in command
+    assert 'group_by = "Plant",' in command
+    assert "cut_a = 0.25," in command
+    assert "cut_f = 70," in command
+    assert "text_size = 7," in command
+    assert "normalise = TRUE" in command
+    assert 'ggsave("/work/ampvis2_venn/plot.svg",' in command
+    assert 'device = "svg"' in command
+    assert "    width = 13," in command
+    assert "    height = 7.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_venn/venn.R")
+
+    default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_venn"})
+    assert "group_by =" not in default_command
+    assert "cut_a = 0.1," in default_command
+    assert "cut_f = 80," in default_command
+    assert "text_size = 5," in default_command
+    assert "normalise = FALSE" in default_command
+    assert 'device = "pdf"' in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "png"}, tmp_path) == [
+        tmp_path / "ampvis2_venn" / "plot.png",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_venn" / "plot.pdf",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "cut_a": -1}) == "cut_a must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "cut_a": 101}) == "cut_a must be <= 100"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "cut_f": 101}) == "cut_f must be <= 100"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "text_size": 0}) == "text_size must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "group_by": "A,B,C,D"}) == (
+        "group_by supports at most 3 groups"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_width": 0.5}) == "plot_width must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 
