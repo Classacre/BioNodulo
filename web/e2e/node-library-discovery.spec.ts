@@ -4792,6 +4792,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq033'],
     citation_text: 'BEDTools: a flexible suite of utilities for comparing genomic features.',
   },
+  bedops_sort_bed: {
+    name: 'bedops_sort_bed',
+    display_name: 'BEDOPS Sort BED',
+    category: 'genomics',
+    description: 'Sort one or more BED files into BEDOPS canonical order, optionally emitting only unique or duplicate records.',
+    search_aliases: ['Galaxy', 'bedops', 'sort-bed', 'BEDOPS sort-bed', 'sort BED', 'unique BED', 'duplicate BED'],
+    input: {
+      required: {
+        inputs: { type: 'BED_LIST' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['sorted_bed'],
+    required_executables: ['sort-bed'],
+    required_conda_packages: ['bedops'],
+    documentation_url: 'https://bedops.readthedocs.io/en/latest/content/reference/file-management/sorting/sort-bed.html',
+    citation_dois: ['10.1093/bioinformatics/bts277'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/bts277'],
+    citation_text: 'BEDOPS: high-performance genomic feature operations.',
+  },
   bedtools_genomecoveragebed: {
     name: 'bedtools_genomecoveragebed',
     display_name: 'BEDTools Genome Coverage',
@@ -6784,7 +6804,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('248 nodes available')).toBeVisible();
+  await expect(page.getByText('249 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6943,6 +6963,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'read duplication', name: 'RSeQC Read Duplication', category: 'rna_seq' },
     { query: 'transcript integrity', name: 'RSeQC Transcript Integrity Number', category: 'rna_seq' },
     { query: 'bedtools coverage', name: 'BEDTools Coverage', category: 'genomics' },
+    { query: 'sort-bed', name: 'BEDOPS Sort BED', category: 'genomics' },
     { query: 'genome coverage bedgraph', name: 'BEDTools Genome Coverage', category: 'genomics' },
     { query: 'subtractbed', name: 'BEDTools Subtract', category: 'genomics' },
     { query: 'mergebed', name: 'BEDTools Merge', category: 'genomics' },

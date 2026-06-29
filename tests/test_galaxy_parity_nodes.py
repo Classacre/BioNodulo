@@ -15037,6 +15037,98 @@ def test_bedtools_tagbed_renders_annotation_tag_command_and_output(tmp_path: Pat
     ]
 
 
+def test_bedops_sort_bed_exposes_citation_and_dependency_metadata() -> None:
+    node_info = _registry().object_info()["bedops_sort_bed"]
+
+    assert node_info["display_name"] == "BEDOPS Sort BED"
+    assert node_info["category"] == "genomics"
+    assert node_info["description"].startswith("Sort one or more BED files")
+    assert node_info["output"] == ["BED"]
+    assert node_info["output_name"] == ["sorted_bed"]
+    assert node_info["required_executables"] == ["sort-bed"]
+    assert node_info["required_conda_packages"] == ["bedops"]
+    assert node_info["documentation_url"] == "https://bedops.readthedocs.io/en/latest/content/reference/file-management/sorting/sort-bed.html"
+    assert "10.1093/bioinformatics/bts277" in node_info["citation_dois"]
+    assert "https://doi.org/10.1093/bioinformatics/bts277" in node_info["citation_urls"]
+    assert "BEDOPS: high-performance genomic feature operations" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "sort-bed" in node_info["search_aliases"]
+
+
+def test_bedops_sort_bed_renders_sort_unique_and_duplicate_commands(tmp_path: Path) -> None:
+    node_class = _node_class("bedops_sort_bed")
+
+    assert node_class.render_command(
+        {
+            "inputs": ["sample.bed"],
+            "memory_mb": 2048,
+            "tmpdir": "/scratch/job",
+            "output": "/work/bedops_sort_bed",
+        }
+    ) == [
+        "sort-bed",
+        "--max-mem",
+        "2048M",
+        "--tmpdir",
+        "/scratch/job",
+        "sample.bed",
+        ">",
+        "/work/bedops_sort_bed/sorted.bed",
+    ]
+
+    assert node_class.render_command(
+        {
+            "inputs": ["a.bed", "b.bed"],
+            "unique": True,
+            "memory_mb": 1024,
+            "output": "/work/bedops_sort_bed",
+        }
+    ) == [
+        "sort-bed",
+        "--max-mem",
+        "1024M",
+        "--tmpdir",
+        ".",
+        "--unique",
+        "a.bed",
+        "b.bed",
+        ">",
+        "/work/bedops_sort_bed/sorted.bed",
+    ]
+
+    assert node_class.render_command(
+        {
+            "inputs": ["a.bed", "b.bed"],
+            "duplicates": True,
+            "memory_mb": 512,
+            "output": "/work/bedops_sort_bed",
+        }
+    ) == [
+        "sort-bed",
+        "--max-mem",
+        "512M",
+        "--tmpdir",
+        ".",
+        "--duplicates",
+        "a.bed",
+        "b.bed",
+        ">",
+        "/work/bedops_sort_bed/sorted.bed",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bedops_sort_bed" / "sorted.bed"]
+
+
+def test_bedops_sort_bed_validates_inputs_and_filter_modes() -> None:
+    node_class = _node_class("bedops_sort_bed")
+
+    assert node_class.VALIDATE_INPUTS({"inputs": [], "memory_mb": 1024}) == "at least one BED input is required"
+    assert (
+        node_class.VALIDATE_INPUTS({"inputs": ["sample.bed"], "unique": True, "duplicates": True})
+        == "unique and duplicates modes are mutually exclusive"
+    )
+
+
 def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
