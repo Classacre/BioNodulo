@@ -10670,6 +10670,314 @@ def test_diamond_nodes_render_database_and_alignment_commands(tmp_path: Path) ->
     ]
 
 
+def test_galaxy_diamond_nodes_expose_wrapper_ids_and_citation_metadata() -> None:
+    info = _registry().object_info()
+
+    for node_id, display_name, category in (
+        ("bg_diamond_makedb", "Diamond makedb", "databases"),
+        ("bg_diamond", "Diamond", "alignment"),
+        ("bg_diamond_view", "Diamond view", "alignment"),
+    ):
+        node_info = info[node_id]
+        assert node_info["display_name"] == display_name
+        assert node_info["category"] == category
+        assert node_info["required_executables"] == ["diamond"]
+        assert node_info["required_conda_packages"] == ["diamond"]
+        assert node_info["documentation_url"] == "https://github.com/bbuchfink/diamond/wiki"
+        assert node_info["citation_dois"] == ["10.1038/s41592-021-01101-x"]
+        assert node_info["citation_urls"] == ["https://doi.org/10.1038/s41592-021-01101-x"]
+        assert "Sensitive protein alignments at tree-of-life scale using DIAMOND" in node_info["citation_text"]
+        assert node_id in node_info["search_aliases"]
+
+
+def test_galaxy_diamond_makedb_renders_taxonomy_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bg_diamond_makedb")
+
+    assert node_class.render_command(
+        {
+            "infile": "proteins.faa",
+            "threads": 16,
+            "tax_select": "yes",
+            "taxonmap": "prot.accession2taxid.gz",
+            "taxonnodes": "nodes.dmp",
+            "taxonnames": "names.dmp",
+            "output": "/work/bg_diamond_makedb",
+        }
+    ) == [
+        "diamond",
+        "makedb",
+        "--threads",
+        "16",
+        "--in",
+        "proteins.faa",
+        "--db",
+        "/work/bg_diamond_makedb/database",
+        "--taxonmap",
+        "prot.accession2taxid.gz",
+        "--taxonnodes",
+        "nodes.dmp",
+        "--taxonnames",
+        "names.dmp",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bg_diamond_makedb" / "database.dmnd"]
+
+
+def test_galaxy_diamond_align_renders_output_filters_and_optional_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bg_diamond")
+
+    assert node_class.render_command(
+        {
+            "query": "reads.fasta",
+            "database": "nr.dmnd",
+            "method": "blastx",
+            "threads": 10,
+            "outfmt": "6",
+            "fields": [
+                "qseqid",
+                "sseqid",
+                "pident",
+                "length",
+                "mismatch",
+                "gapopen",
+                "qstart",
+                "qend",
+                "sstart",
+                "send",
+                "evalue",
+                "bitscore",
+            ],
+            "header": "verbose",
+            "sensitivity": "--very-sensitive",
+            "block_size": 0.4,
+            "filter_score_select": "min-score",
+            "min_score": 50,
+            "hit_filter_select": "top",
+            "top": 10,
+            "id": 95.0,
+            "approx_id": 90.0,
+            "query_cover": 80.0,
+            "subject_cover": 70.0,
+            "matrix": "BLOSUM62",
+            "gapopen": 11,
+            "gapextend": 1,
+            "masking": "tantan",
+            "query_gencode": 1,
+            "query_strand": "both",
+            "min_orf": 20,
+            "frameshift": 15,
+            "range_culling": True,
+            "tax_select": "list",
+            "taxonlist": "2,2759",
+            "tax_exclude_select": "list",
+            "taxon_exclude": "9606",
+            "seed_cut": 100.0,
+            "freq_masking": True,
+            "motif_masking": 0,
+            "soft_masking": "seg",
+            "iterate": True,
+            "swipe": True,
+            "algo": "1",
+            "global_ranking": 10,
+            "max_hsps": 5,
+            "index_chunks": 6,
+            "file_buffer_size": 33554432,
+            "output_unal": ["--un", "--al"],
+            "log": True,
+            "output": "/work/bg_diamond",
+        }
+    ) == [
+        "diamond",
+        "blastx",
+        "--threads",
+        "10",
+        "--db",
+        "nr.dmnd",
+        "--query",
+        "reads.fasta",
+        "--query-gencode",
+        "1",
+        "--strand",
+        "both",
+        "--min-orf",
+        "20",
+        "--frameshift",
+        "15",
+        "--range-culling",
+        "--outfmt",
+        "6",
+        "qseqid",
+        "sseqid",
+        "pident",
+        "length",
+        "mismatch",
+        "gapopen",
+        "qstart",
+        "qend",
+        "sstart",
+        "send",
+        "evalue",
+        "bitscore",
+        "--header",
+        "verbose",
+        "--out",
+        "/work/bg_diamond/blast_tabular.tsv",
+        "--compress",
+        "0",
+        "--very-sensitive",
+        "--gapopen",
+        "11",
+        "--gapextend",
+        "1",
+        "--matrix",
+        "BLOSUM62",
+        "--comp-based-stats",
+        "1",
+        "--masking",
+        "tantan",
+        "--top",
+        "10",
+        "--min-score",
+        "50",
+        "--id",
+        "95.0",
+        "--approx-id",
+        "90.0",
+        "--query-cover",
+        "80.0",
+        "--subject-cover",
+        "70.0",
+        "--block-size",
+        "0.4",
+        "--un",
+        "/work/bg_diamond/unaligned_queries.fasta",
+        "--unfmt",
+        "fasta",
+        "--al",
+        "/work/bg_diamond/aligned_queries.fasta",
+        "--alfmt",
+        "fasta",
+        "--max-hsps",
+        "5",
+        "--taxonlist",
+        "2,2759",
+        "--taxon_exclude",
+        "9606",
+        "--seed-cut",
+        "100.0",
+        "--freq-masking",
+        "--motif-masking",
+        "0",
+        "--soft-masking",
+        "seg",
+        "--iterate",
+        "--swipe",
+        "--algo",
+        "1",
+        "--global-ranking",
+        "10",
+        "--index-chunks",
+        "6",
+        "--file-buffer-size",
+        "33554432",
+        "--log",
+    ]
+
+    assert node_class.PLAN_OUTPUTS(
+        {"outfmt": "6", "output_unal": ["--un", "--al"], "log": True},
+        tmp_path,
+    ) == [
+        tmp_path / "bg_diamond" / "blast_tabular.tsv",
+        tmp_path / "bg_diamond" / "unaligned_queries.fasta",
+        tmp_path / "bg_diamond" / "aligned_queries.fasta",
+        tmp_path / "bg_diamond" / "diamond.log",
+    ]
+
+
+def test_galaxy_diamond_align_plans_galaxy_output_formats(tmp_path: Path) -> None:
+    node_class = _node_class("bg_diamond")
+
+    expected = {
+        "0": ("blast_pairwise.txt",),
+        "5": ("blast.xml",),
+        "6": ("blast_tabular.tsv",),
+        "100": ("output.daa",),
+        "101": ("output.sam",),
+        "102": ("taxonomic_classification.tsv",),
+        "104": ("output.json",),
+    }
+
+    for outfmt, filenames in expected.items():
+        assert node_class.PLAN_OUTPUTS({"outfmt": outfmt}, tmp_path) == [
+            tmp_path / "bg_diamond" / filename for filename in filenames
+        ]
+
+
+def test_galaxy_diamond_view_renders_format_and_hit_filter_command(tmp_path: Path) -> None:
+    node_class = _node_class("bg_diamond_view")
+
+    assert node_class.render_command(
+        {
+            "daa": "matches.daa",
+            "threads": 4,
+            "outfmt": "101",
+            "hit_filter_select": "top",
+            "top": 1,
+            "id": 80.0,
+            "approx_id": 75.0,
+            "query_cover": 60.0,
+            "subject_cover": 55.0,
+            "forwardonly": True,
+            "output": "/work/bg_diamond_view",
+        }
+    ) == [
+        "diamond",
+        "view",
+        "--threads",
+        "4",
+        "--daa",
+        "matches.daa",
+        "--outfmt",
+        "101",
+        "--out",
+        "/work/bg_diamond_view/output.sam",
+        "--top",
+        "1",
+        "--id",
+        "80.0",
+        "--approx-id",
+        "75.0",
+        "--query-cover",
+        "60.0",
+        "--subject-cover",
+        "55.0",
+        "--forwardonly",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"outfmt": "101"}, tmp_path) == [tmp_path / "bg_diamond_view" / "output.sam"]
+
+
+def test_galaxy_diamond_nodes_validate_required_inputs_and_modes() -> None:
+    makedb_class = _node_class("bg_diamond_makedb")
+    align_class = _node_class("bg_diamond")
+    view_class = _node_class("bg_diamond_view")
+
+    assert makedb_class.VALIDATE_INPUTS({"tax_select": "yes"}) == "infile is required"
+    assert makedb_class.VALIDATE_INPUTS({"infile": "proteins.faa", "tax_select": "yes"}) == (
+        "taxonmap, taxonnodes, and taxonnames are required when tax_select=yes"
+    )
+    assert align_class.VALIDATE_INPUTS({"query": "reads.fasta", "database": "nr.dmnd", "method": "blastn"}) == (
+        "method must be one of: blastp, blastx"
+    )
+    assert align_class.VALIDATE_INPUTS({"query": "reads.fasta", "database": "nr.dmnd", "outfmt": "7"}) == (
+        "outfmt must be one of: 0, 5, 6, 100, 101, 102, 104"
+    )
+    assert view_class.VALIDATE_INPUTS({"outfmt": "101"}) == "daa is required"
+    assert view_class.VALIDATE_INPUTS({"daa": "matches.daa", "outfmt": "7"}) == (
+        "outfmt must be one of: 0, 5, 6, 100, 101, 102, 104"
+    )
+
+
 def test_hmmer_alimask_renders_mask_ranges_and_output(tmp_path: Path) -> None:
     node_class = _node_class("hmmer_alimask")
     info = _registry().object_info()["hmmer_alimask"]

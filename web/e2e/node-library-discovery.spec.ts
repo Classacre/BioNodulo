@@ -417,6 +417,91 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41592-021-01101-x'],
     citation_text: 'Sensitive protein alignments at tree-of-life scale using DIAMOND.',
   },
+  bg_diamond_makedb: {
+    name: 'bg_diamond_makedb',
+    display_name: 'Diamond makedb',
+    category: 'databases',
+    description: 'Build a DIAMOND protein database from a FASTA file, optionally including taxonomy data.',
+    search_aliases: ['Galaxy', 'bg_diamond_makedb', 'diamond', 'Diamond makedb', 'makedb', 'protein database', 'dmnd'],
+    input: {
+      required: {
+        infile: { type: 'FASTA' },
+      },
+      optional: {
+        threads: { type: 'INT', default: 12 },
+        tax_select: { type: 'STRING', default: 'no', options: ['no', 'yes', 'yes_cached'] },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['database'],
+    required_executables: ['diamond'],
+    required_conda_packages: ['diamond'],
+    documentation_url: 'https://github.com/bbuchfink/diamond/wiki',
+    citation_dois: ['10.1038/s41592-021-01101-x'],
+    citation_urls: ['https://doi.org/10.1038/s41592-021-01101-x'],
+    citation_text: 'Sensitive protein alignments at tree-of-life scale using DIAMOND.',
+  },
+  bg_diamond: {
+    name: 'bg_diamond',
+    display_name: 'Diamond',
+    category: 'alignment',
+    description: 'Align protein or translated nucleotide sequences against a protein database with DIAMOND.',
+    search_aliases: ['Galaxy', 'bg_diamond', 'diamond', 'Diamond', 'blastp', 'blastx', 'protein alignment', 'translated search', 'DAA'],
+    input: {
+      required: {
+        query: { type: 'FASTA' },
+        database: { type: 'FILE' },
+        method: { type: 'STRING', default: 'blastp', options: ['blastp', 'blastx'] },
+      },
+      optional: {
+        threads: { type: 'INT', default: 12 },
+        outfmt: { type: 'STRING', default: '6', options: ['0', '5', '6', '100', '101', '102', '104'] },
+      },
+    },
+    output: ['TXT', 'XML', 'TSV', 'FILE', 'SAM', 'TSV', 'JSON', 'FASTA', 'FASTA', 'TXT'],
+    output_name: [
+      'blast_pairwise',
+      'blast_xml',
+      'blast_tabular',
+      'daa_output',
+      'sam_output',
+      'tax_output',
+      'json_output',
+      'unaligned_queries',
+      'aligned_queries',
+      'log_file',
+    ],
+    required_executables: ['diamond'],
+    required_conda_packages: ['diamond'],
+    documentation_url: 'https://github.com/bbuchfink/diamond/wiki',
+    citation_dois: ['10.1038/s41592-021-01101-x'],
+    citation_urls: ['https://doi.org/10.1038/s41592-021-01101-x'],
+    citation_text: 'Sensitive protein alignments at tree-of-life scale using DIAMOND.',
+  },
+  bg_diamond_view: {
+    name: 'bg_diamond_view',
+    display_name: 'Diamond view',
+    category: 'alignment',
+    description: 'Generate formatted DIAMOND output from DAA alignment files.',
+    search_aliases: ['Galaxy', 'bg_diamond_view', 'diamond', 'Diamond view', 'DAA', 'diamond view', 'BLAST XML', 'SAM'],
+    input: {
+      required: {
+        daa: { type: 'FILE' },
+      },
+      optional: {
+        threads: { type: 'INT', default: 1 },
+        outfmt: { type: 'STRING', default: '6', options: ['0', '5', '6', '100', '101', '102', '104'] },
+      },
+    },
+    output: ['TXT', 'XML', 'TSV', 'FILE', 'SAM', 'TSV', 'JSON'],
+    output_name: ['blast_pairwise', 'blast_xml', 'blast_tabular', 'daa_output', 'sam_output', 'tax_output', 'json_output'],
+    required_executables: ['diamond'],
+    required_conda_packages: ['diamond'],
+    documentation_url: 'https://github.com/bbuchfink/diamond/wiki',
+    citation_dois: ['10.1038/s41592-021-01101-x'],
+    citation_urls: ['https://doi.org/10.1038/s41592-021-01101-x'],
+    citation_text: 'Sensitive protein alignments at tree-of-life scale using DIAMOND.',
+  },
   htseq_count: {
     name: 'htseq_count',
     display_name: 'HTSeq-count',
@@ -11202,7 +11287,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('385 nodes available')).toBeVisible();
+  await expect(page.getByText('388 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11226,6 +11311,9 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
     { query: 'busco completeness', name: 'BUSCO', category: 'assembly' },
     { query: 'diamond blastx', name: 'DIAMOND Align', category: 'alignment' },
+    { query: 'bg_diamond_makedb', name: 'Diamond makedb', category: 'databases' },
+    { query: 'bg_diamond', name: 'Diamond', category: 'alignment' },
+    { query: 'bg_diamond_view', name: 'Diamond view', category: 'alignment' },
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
     { query: 'seqtk composition', name: 'SeqTK Composition', category: 'sequence' },
