@@ -787,6 +787,12 @@ def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_m
             "output_name": ["cram"],
             "aliases": ["Galaxy", "BAM to CRAM", "CRAM compression", "reference based compression"],
         },
+        "samtools_cram_to_bam": {
+            "display_name": "Samtools CRAM to BAM",
+            "output": ["BAM"],
+            "output_name": ["bam"],
+            "aliases": ["Galaxy", "CRAM to BAM", "CRAM decompression", "reference"],
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -1316,6 +1322,113 @@ def test_samtools_bam_to_cram_validates_reference_and_region_inputs() -> None:
         node_class.VALIDATE_INPUTS(
             {
                 "input": "sample.bam",
+                "reference": "reference.fa",
+                "threads": 1,
+                "target_region": "regions_bed_file",
+            }
+        )
+        == "regions_bed_file is required when target_region is regions_bed_file"
+    )
+
+
+def test_samtools_cram_to_bam_renders_full_file_conversion_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_cram_to_bam")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.cram",
+            "reference": "reference.fa",
+            "threads": 6,
+            "output": "/work/samtools_cram_to_bam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-@",
+        "5",
+        "-b",
+        "-T",
+        "reference.fa",
+        "-o",
+        "/work/samtools_cram_to_bam/output.bam",
+        "sample.cram",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_cram_to_bam" / "output.bam"]
+
+
+def test_samtools_cram_to_bam_renders_region_and_bed_filters() -> None:
+    node_class = _node_class("samtools_cram_to_bam")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.cram",
+            "reference": "reference.fa",
+            "threads": 2,
+            "target_region": "region",
+            "region_string": "chr2:50-150",
+            "output": "/work/samtools_cram_to_bam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-@",
+        "1",
+        "-b",
+        "-T",
+        "reference.fa",
+        "-o",
+        "/work/samtools_cram_to_bam/output.bam",
+        "sample.cram",
+        "chr2:50-150",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input": "sample.cram",
+            "reference": "reference.fa",
+            "target_region": "regions_bed_file",
+            "regions_bed_file": "targets.bed",
+            "output": "/work/samtools_cram_to_bam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-L",
+        "targets.bed",
+        "-@",
+        "0",
+        "-b",
+        "-T",
+        "reference.fa",
+        "-o",
+        "/work/samtools_cram_to_bam/output.bam",
+        "sample.cram",
+    ]
+
+
+def test_samtools_cram_to_bam_validates_reference_and_region_inputs() -> None:
+    node_class = _node_class("samtools_cram_to_bam")
+
+    assert (
+        node_class.VALIDATE_INPUTS({"input": "sample.cram", "reference": "", "threads": 1})
+        == "reference is required for CRAM to BAM conversion"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input": "sample.cram",
+                "reference": "reference.fa",
+                "threads": 1,
+                "target_region": "region",
+            }
+        )
+        == "region_string is required when target_region is region"
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input": "sample.cram",
                 "reference": "reference.fa",
                 "threads": 1,
                 "target_region": "regions_bed_file",

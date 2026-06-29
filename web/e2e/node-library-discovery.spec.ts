@@ -6406,6 +6406,28 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
     citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
   },
+  samtools_cram_to_bam: {
+    name: 'samtools_cram_to_bam',
+    display_name: 'Samtools CRAM to BAM',
+    category: 'samtools',
+    description: 'Convert CRAM alignments to BAM format using a reference FASTA.',
+    search_aliases: ['Galaxy', 'samtools', 'CRAM to BAM', 'CRAM decompression', 'alignment conversion', 'reference'],
+    input: {
+      required: {
+        input: { type: 'CRAM' },
+        reference: { type: 'FASTA' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['bam'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-view.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
   cramino: {
     name: 'cramino',
     display_name: 'Cramino',
@@ -6720,7 +6742,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('245 nodes available')).toBeVisible();
+  await expect(page.getByText('246 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6957,6 +6979,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'phase', name: 'Samtools Phase', category: 'samtools' },
     { query: 'consensus sequence', name: 'Samtools Consensus', category: 'samtools' },
     { query: 'BAM to CRAM', name: 'Samtools BAM to CRAM', category: 'samtools' },
+    { query: 'CRAM to BAM', name: 'Samtools CRAM to BAM', category: 'samtools' },
     { query: 'BAM CRAM QC', name: 'Cramino', category: 'qc' },
     { query: 'clip overlapping read pairs', name: 'BamUtil clipOverlap', category: 'alignment' },
     { query: 'compare SAM BAM files', name: 'BamUtil diff', category: 'alignment' },

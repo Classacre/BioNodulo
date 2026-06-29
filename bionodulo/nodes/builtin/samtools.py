@@ -2180,3 +2180,98 @@ class SamtoolsBamToCramNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class SamtoolsCramToBamNode(CommandNode):
+    """Convert CRAM alignments to BAM using a reference genome."""
+
+    NODE_ID = "samtools_cram_to_bam"
+    DISPLAY_NAME = "Samtools CRAM to BAM"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Convert CRAM alignments to BAM format using a reference FASTA."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "samtools",
+        "CRAM to BAM",
+        "CRAM decompression",
+        "alignment conversion",
+        "reference",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("bam",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-view.html"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "1.22"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        cmd = ["samtools", "view"]
+        if inputs.get("target_region") == "regions_bed_file":
+            _add_if_value(cmd, "-L", inputs.get("regions_bed_file"))
+        cmd.extend([
+            "-@",
+            str(_additional_threads(inputs)),
+            "-b",
+            "-T",
+            str(inputs.get("reference", "")),
+            "-o",
+            f"{output}/output.bam",
+            str(inputs.get("input", "")),
+        ])
+        if inputs.get("target_region") == "region":
+            cmd.append(str(inputs.get("region_string", "")))
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "output.bam"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        if not str(inputs.get("reference", "") or "").strip():
+            return "reference is required for CRAM to BAM conversion"
+        target_region = str(inputs.get("target_region", "entire_input_file"))
+        if target_region == "region" and not str(inputs.get("region_string", "") or "").strip():
+            return "region_string is required when target_region is region"
+        if target_region == "regions_bed_file" and not str(inputs.get("regions_bed_file", "") or "").strip():
+            return "regions_bed_file is required when target_region is regions_bed_file"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("CRAM", {"description": "CRAM alignment file"}),
+                "reference": ("FASTA", {"description": "Reference FASTA used to decode the CRAM file"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+            },
+            "optional": {
+                "target_region": (
+                    "STRING",
+                    {
+                        "default": "entire_input_file",
+                        "options": ["entire_input_file", "region", "regions_bed_file"],
+                        "description": "Convert the entire input or restrict to specific genomic regions",
+                    },
+                ),
+                "region_string": (
+                    "STRING",
+                    {"default": "", "description": "Region such as chrX or chr:start-end"},
+                ),
+                "regions_bed_file": (
+                    "BED",
+                    {"description": "Only include reads overlapping regions in this BED file"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
