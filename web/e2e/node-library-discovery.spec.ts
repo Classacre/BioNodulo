@@ -5814,6 +5814,42 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/ismej.2017.126'],
     citation_text: 'dRep: a tool for fast and accurate genomic comparisons that enables improved genome recovery from metagenomes through de-replication.',
   },
+  cami_amber: {
+    name: 'cami_amber',
+    display_name: 'CAMI AMBER',
+    category: 'metagenomics',
+    description: 'Evaluate genome reconstructions and taxonomic assignments from metagenome benchmark data with AMBER.',
+    search_aliases: ['Galaxy', 'CAMI AMBER', 'AMBER metagenome binning evaluation', 'Assessment of Metagenome BinnERs', 'binning benchmark', 'genome reconstruction metrics'],
+    input: {
+      required: {
+        gold_standard_file: { type: 'TSV' },
+        binning_files: { type: 'TSV', multiple: true },
+      },
+      optional: {
+        labels: { type: 'STRING', default: [], multiple: true },
+        filter: { type: 'INT', default: 0 },
+        min_length: { type: 'INT', default: '' },
+        desc: { type: 'STRING', default: '' },
+        min_completeness: { type: 'INT', default: [], multiple: true },
+        max_contamination: { type: 'INT', default: [], multiple: true },
+        remove_genomes: { type: 'TSV', default: '' },
+        remove_keyword: { type: 'STRING', default: '' },
+        genome_coverage: { type: 'TSV', default: '' },
+        ncbi_mode: { type: 'STRING', default: 'none', options: ['none', 'manual', 'data'] },
+        ncbi_files: { type: 'TSV', default: [], multiple: true },
+        ncbi_identifiers: { type: 'STRING', default: [], multiple: true },
+        ncbi_dir: { type: 'DIRECTORY', default: '' },
+      },
+    },
+    output: ['HTML_REPORT', 'TSV', 'TSV', 'TSV'],
+    output_name: ['html', 'result', 'metrics_genome', 'metrics_bin'],
+    required_executables: ['amber.py'],
+    required_conda_packages: ['cami-amber'],
+    documentation_url: 'https://github.com/CAMI-challenge/AMBER',
+    citation_dois: ['10.1093/gigascience/giy069'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giy069'],
+    citation_text: 'AMBER: Assessment of Metagenome BinnERs.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8559,7 +8595,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('300 nodes available')).toBeVisible();
+  await expect(page.getByText('301 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8740,6 +8776,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'COMEBin BAM generation', name: 'Generate BAM file for COMEBin', category: 'metagenomics' },
     { query: 'dRep genome comparison', name: 'dRep compare', category: 'metagenomics' },
     { query: 'dRep genome dereplication', name: 'dRep dereplicate', category: 'metagenomics' },
+    { query: 'AMBER metagenome binning evaluation', name: 'CAMI AMBER', category: 'metagenomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

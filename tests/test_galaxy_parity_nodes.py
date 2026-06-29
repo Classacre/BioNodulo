@@ -13108,6 +13108,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["drep", "checkm-genome"],
             "doi": "10.1038/ismej.2017.126",
         },
+        "cami_amber": {
+            "display_name": "CAMI AMBER",
+            "category": "metagenomics",
+            "required_executables": ["amber.py"],
+            "required_conda_packages": ["cami-amber"],
+            "doi": "10.1093/gigascience/giy069",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16436,6 +16443,86 @@ def test_drep_dereplicate_renders_dereplication_command_outputs_and_validation(t
         "strain_heterogeneity_weight must be between 0 and 1"
     )
     assert node_class.VALIDATE_INPUTS({"genomes": ["a.fa", "b.fa"]}) is True
+
+
+def test_cami_amber_renders_evaluation_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cami_amber")
+    info = _registry().object_info()["cami_amber"]
+
+    assert info["output"] == ["HTML_REPORT", "TSV", "TSV", "TSV"]
+    assert info["output_name"] == ["html", "result", "metrics_genome", "metrics_bin"]
+    assert info["input"]["required"]["gold_standard_file"][0] == "TSV"
+    assert info["input"]["required"]["binning_files"][1]["multiple"] is True
+    assert info["input"]["optional"]["ncbi_mode"][1]["options"] == ["none", "manual", "data"]
+    assert "10.1093/gigascience/giy069" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "gold_standard_file": "gsa mapping.tsv",
+            "binning_files": ["elated.tsv", "goofy.tsv", "naughty.tsv"],
+            "labels": ["test1", "test2", "test3"],
+            "filter": 1,
+            "min_length": 200,
+            "desc": "TEST FOR GALAXY",
+            "min_completeness": [50, 70, 90],
+            "max_contamination": [2],
+            "remove_genomes": "unique_common.tsv",
+            "remove_keyword": "circular element",
+            "genome_coverage": "coverage.tsv",
+            "ncbi_mode": "manual",
+            "ncbi_files": ["nodes.dmp", "merged.dmp", "names.dmp"],
+            "ncbi_identifiers": ["nodes.dmp", "merged.dmp", "names.dmp"],
+            "output": "/work/cami_amber",
+        }
+    ) == (
+        "mkdir -p output inputs /work/cami_amber/html_files ncbi && ln -s nodes.dmp ./ncbi/nodes.dmp && "
+        "ln -s merged.dmp ./ncbi/merged.dmp && ln -s names.dmp ./ncbi/names.dmp && "
+        "ln -s elated.tsv ./inputs/0.tsv && ln -s goofy.tsv ./inputs/1.tsv && ln -s naughty.tsv ./inputs/2.tsv && "
+        "amber.py -g 'gsa mapping.tsv' -l test1,test2,test3 -p 1 -n 200 -d 'TEST FOR GALAXY' "
+        "--min_completeness 50,70,90 --max_contamination 2 -r unique_common.tsv -k 'circular element' "
+        "--genome_coverage coverage.tsv --ncbi_dir ncbi -o output inputs/0.tsv inputs/1.tsv inputs/2.tsv && "
+        "mv output/heatmap_bar.png /work/cami_amber/html_files && cp output/index.html /work/cami_amber/index.html && "
+        "cp output/results.tsv /work/cami_amber/results.tsv && "
+        "cp output/genome_metrics_cami1.tsv /work/cami_amber/genome_metrics_cami1.tsv && "
+        "cp output/bin_metrics.tsv /work/cami_amber/bin_metrics.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "gold_standard_file": "gold.tsv",
+            "binning_files": ["bin1.tsv", "bin2.tsv"],
+            "ncbi_mode": "data",
+            "ncbi_dir": "/ref/ncbi-taxonomy",
+            "output": "/work/cami_amber",
+        }
+    ) == (
+        "mkdir -p output inputs /work/cami_amber/html_files && ln -s bin1.tsv ./inputs/0.tsv && ln -s bin2.tsv ./inputs/1.tsv && "
+        "amber.py -g gold.tsv -p 0 --ncbi_dir /ref/ncbi-taxonomy -o output inputs/0.tsv inputs/1.tsv && "
+        "mv output/heatmap_bar.png /work/cami_amber/html_files && cp output/index.html /work/cami_amber/index.html && "
+        "cp output/results.tsv /work/cami_amber/results.tsv && "
+        "cp output/genome_metrics_cami1.tsv /work/cami_amber/genome_metrics_cami1.tsv && "
+        "cp output/bin_metrics.tsv /work/cami_amber/bin_metrics.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cami_amber" / "index.html",
+        tmp_path / "cami_amber" / "results.tsv",
+        tmp_path / "cami_amber" / "genome_metrics_cami1.tsv",
+        tmp_path / "cami_amber" / "bin_metrics.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "gold_standard_file is required"
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv"}) == "at least one binning file is required"
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "binning_files": ["bin.tsv"], "labels": ["a", "b"]}) == (
+        "labels count must match binning_files count"
+    )
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "binning_files": ["bin.tsv"], "filter": -1}) == "filter must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "binning_files": ["bin.tsv"], "min_completeness": [50, 101]}) == (
+        "min_completeness values must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "binning_files": ["bin.tsv"], "ncbi_mode": "manual"}) == (
+        "ncbi_files are required when ncbi_mode is manual"
+    )
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "binning_files": ["bin.tsv"], "ncbi_mode": "data"}) == (
+        "ncbi_dir is required when ncbi_mode is data"
+    )
+    assert node_class.VALIDATE_INPUTS({"gold_standard_file": "gold.tsv", "binning_files": ["bin.tsv"]}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
