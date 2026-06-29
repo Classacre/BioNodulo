@@ -26602,6 +26602,102 @@ class FastSparNode(CommandNode):
         return super().VALIDATE_INPUTS(inputs)
 
 
+class FastSparReduceNode(CommandNode):
+    """Filter FastSpar matrices into sparse edge tables."""
+
+    NODE_ID = "fastspar_reduce"
+    DISPLAY_NAME = "FastSpar: Reduce correlation table"
+    REQUIRED_CONDA_PACKAGES = ["fastspar"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Filter FastSpar correlation and p-value matrices into sparse tabular edge lists."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "FastSpar reduce",
+        "FastSpar: Reduce correlation table",
+        "FastSpar sparse filter",
+        "filtered correlations",
+        "p-value threshold",
+        "microbiome network edges",
+    ]
+    RETURN_TYPES = ("TSV", "TSV")
+    RETURN_NAMES = ("correlations", "pvalues")
+    REQUIRED_EXECUTABLES = ["fastspar_reduce"]
+    DOCUMENTATION_URL = "https://github.com/scwatts/fastspar"
+    CITATION_DOIS = ["10.1093/bioinformatics/bty734", "10.1371/journal.pcbi.1002687"]
+    CITATION_URLS = [f"{DOI_URL}10.1093/bioinformatics/bty734", f"{DOI_URL}10.1371/journal.pcbi.1002687"]
+    CITATION_TEXT = "FastSpar: rapid and scalable correlation estimation for compositional data; Sparse correlations for compositional data."
+    VERSION = "1.0.0"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = [
+            "fastspar_reduce",
+            "--correlation_table",
+            str(inputs.get("correlation_table", "")),
+            "--pvalue_table",
+            str(inputs.get("pvalue_table", "")),
+            "--correlation",
+            str(inputs.get("correlation", 0.1)),
+            "--pvalue",
+            str(inputs.get("pvalue", 0.05)),
+            "--output_prefix",
+            "sparse",
+        ]
+        moves = [
+            "mv",
+            "sparse_filtered_correlation.tsv",
+            f"{out}/filtered_correlations.tsv",
+            "&&",
+            "mv",
+            "sparse_filtered_pvalue.tsv",
+            f"{out}/filtered_pvalues.tsv",
+        ]
+        return f"{_shell_join(['mkdir', '-p', out])} && {_shell_join(cmd)} && {_shell_join(moves)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "filtered_correlations.tsv", out / "filtered_pvalues.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "correlation_table": ("TSV", {"description": "Symmetric FastSpar correlation matrix"}),
+                "pvalue_table": ("TSV", {"description": "Matching FastSpar empirical p-value matrix"}),
+            },
+            "optional": {
+                "correlation": (
+                    "FLOAT",
+                    {"default": 0.1, "min": 0, "max": 1, "description": "Minimum absolute correlation to retain"},
+                ),
+                "pvalue": ("FLOAT", {"default": 0.05, "min": 0, "max": 1, "description": "Maximum p-value to retain"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("correlation_table", "")).strip():
+            return "correlation_table is required"
+        if not str(inputs.get("pvalue_table", "")).strip():
+            return "pvalue_table is required"
+        for name in ["correlation", "pvalue"]:
+            raw = inputs.get(name)
+            if raw is None or str(raw) == "":
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                return f"{name} must be a number"
+            if not 0 <= value <= 1:
+                return f"{name} must be between 0 and 1"
+        return super().VALIDATE_INPUTS(inputs)
+
+
 class IVarConsensusNode(CommandNode):
     """Call a viral amplicon consensus sequence from samtools mpileup using iVar."""
 

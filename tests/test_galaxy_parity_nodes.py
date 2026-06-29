@@ -13157,6 +13157,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["fastspar"],
             "doi": "10.1093/bioinformatics/bty734",
         },
+        "fastspar_reduce": {
+            "display_name": "FastSpar: Reduce correlation table",
+            "category": "metagenomics",
+            "required_executables": ["fastspar_reduce"],
+            "required_conda_packages": ["fastspar"],
+            "doi": "10.1093/bioinformatics/bty734",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -16959,6 +16966,61 @@ def test_fastspar_renders_correlation_command_outputs_and_validation(tmp_path: P
     )
     assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv", "threshold": 1.5}) == "threshold must be between 0 and 1"
     assert node_class.VALIDATE_INPUTS({"otu_table": "otu.tsv"}) is True
+
+
+def test_fastspar_reduce_renders_sparse_filter_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("fastspar_reduce")
+    info = _registry().object_info()["fastspar_reduce"]
+
+    assert info["display_name"] == "FastSpar: Reduce correlation table"
+    assert info["description"] == "Filter FastSpar correlation and p-value matrices into sparse tabular edge lists."
+    assert info["input"]["required"]["correlation_table"][0] == "TSV"
+    assert info["input"]["required"]["pvalue_table"][0] == "TSV"
+    assert info["input"]["optional"]["correlation"][1]["default"] == 0.1
+    assert info["input"]["optional"]["pvalue"][1]["default"] == 0.05
+    assert info["output"] == ["TSV", "TSV"]
+    assert info["output_name"] == ["correlations", "pvalues"]
+    assert "10.1093/bioinformatics/bty734" in info["citation_dois"]
+    assert "10.1371/journal.pcbi.1002687" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "correlation_table": "median correlation.tsv",
+            "pvalue_table": "p values.tsv",
+            "correlation": 0.2,
+            "pvalue": 0.01,
+            "output": "/work/fastspar_reduce",
+        }
+    ) == (
+        "mkdir -p /work/fastspar_reduce && fastspar_reduce --correlation_table 'median correlation.tsv' "
+        "--pvalue_table 'p values.tsv' --correlation 0.2 --pvalue 0.01 --output_prefix sparse && "
+        "mv sparse_filtered_correlation.tsv /work/fastspar_reduce/filtered_correlations.tsv && "
+        "mv sparse_filtered_pvalue.tsv /work/fastspar_reduce/filtered_pvalues.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "correlation_table": "cor.tsv",
+            "pvalue_table": "p.tsv",
+            "output": "/work/fastspar_reduce",
+        }
+    ) == (
+        "mkdir -p /work/fastspar_reduce && fastspar_reduce --correlation_table cor.tsv --pvalue_table p.tsv "
+        "--correlation 0.1 --pvalue 0.05 --output_prefix sparse && "
+        "mv sparse_filtered_correlation.tsv /work/fastspar_reduce/filtered_correlations.tsv && "
+        "mv sparse_filtered_pvalue.tsv /work/fastspar_reduce/filtered_pvalues.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "fastspar_reduce" / "filtered_correlations.tsv",
+        tmp_path / "fastspar_reduce" / "filtered_pvalues.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "correlation_table is required"
+    assert node_class.VALIDATE_INPUTS({"correlation_table": "cor.tsv"}) == "pvalue_table is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"correlation_table": "cor.tsv", "pvalue_table": "p.tsv", "correlation": 1.1}
+    ) == "correlation must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"correlation_table": "cor.tsv", "pvalue_table": "p.tsv", "pvalue": -0.01}
+    ) == "pvalue must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"correlation_table": "cor.tsv", "pvalue_table": "p.tsv"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
