@@ -816,6 +816,34 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_trimfq: {
+    name: 'seqtk_trimfq',
+    display_name: 'SeqTK Trim FASTQ',
+    category: 'trimming',
+    description: 'Trim FASTQ reads by Phred quality or fixed end positions.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk trimfq', 'SeqTK trimfq', 'FASTQ trimming', 'Phred trimming', 'quality trimming', 'trim reads', 'fixed position trim'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+      optional: {
+        mode_select: { type: 'STRING', default: 'quality', options: ['quality', 'position'] },
+        q: { type: 'FLOAT', default: 0.05 },
+        l: { type: 'INT', default: 30 },
+        b: { type: 'INT', default: 0 },
+        e: { type: 'INT', default: 0 },
+        input_ext: { type: 'STRING', default: 'fastq', options: ['fastq', 'fastq.gz', 'fastqsanger', 'fastqsanger.gz'] },
+      },
+    },
+    output: ['FASTQ'],
+    output_name: ['trimmed_reads'],
+    required_executables: ['seqtk', 'pigz'],
+    required_conda_packages: ['seqtk', 'pigz'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -11154,7 +11182,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('383 nodes available')).toBeVisible();
+  await expect(page.getByText('384 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11194,6 +11222,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk reverse complement', name: 'SeqTK Seq', category: 'sequence' },
     { query: 'seqtk extract subsequences', name: 'SeqTK Subsequence', category: 'sequence' },
     { query: 'seqtk telomere repeat', name: 'SeqTK Telomere', category: 'sequence' },
+    { query: 'seqtk Phred trimming', name: 'SeqTK Trim FASTQ', category: 'trimming' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },

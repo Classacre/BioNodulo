@@ -1927,6 +1927,96 @@ def test_seqtk_telo_renders_gzip_input_without_gzip_output_pipe() -> None:
     ) == "seqtk telo -m CCCTAA -p 1 -d 2000 -s 300 contigs.fa.gz > /work/seqtk_telo/telomeres.bed"
 
 
+def test_seqtk_trimfq_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_trimfq"]
+
+    assert info["display_name"] == "SeqTK Trim FASTQ"
+    assert info["category"] == "trimming"
+    assert info["description"] == "Trim FASTQ reads by Phred quality or fixed end positions."
+    assert info["output"] == ["FASTQ"]
+    assert info["output_name"] == ["trimmed_reads"]
+    assert info["required_executables"] == ["seqtk", "pigz"]
+    assert info["required_conda_packages"] == ["seqtk", "pigz"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk trimfq" in info["search_aliases"]
+    assert "Phred trimming" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+    assert info["input"]["optional"]["mode_select"][1]["default"] == "quality"
+    assert info["input"]["optional"]["mode_select"][1]["options"] == ["quality", "position"]
+    assert info["input"]["optional"]["q"][1]["default"] == 0.05
+    assert info["input"]["optional"]["l"][1]["default"] == 30
+    assert info["input"]["optional"]["b"][1]["default"] == 0
+    assert info["input"]["optional"]["e"][1]["default"] == 0
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fastq", "fastq.gz", "fastqsanger", "fastqsanger.gz"]
+
+
+def test_seqtk_trimfq_renders_default_quality_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_trimfq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq",
+            "mode_select": "quality",
+            "q": 0.05,
+            "l": 30,
+            "input_ext": "fastq",
+            "output": "/work/seqtk_trimfq",
+        }
+    ) == "seqtk trimfq -q 0.05 -l 30 reads.fastq > /work/seqtk_trimfq/trimmed.fastq"
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq"}, tmp_path) == [
+        tmp_path / "seqtk_trimfq" / "trimmed.fastq",
+    ]
+
+
+def test_seqtk_trimfq_renders_position_command() -> None:
+    node_class = _node_class("seqtk_trimfq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fq",
+            "mode_select": "position",
+            "b": 5,
+            "e": 7,
+            "input_ext": "fastqsanger",
+            "output": "/work/seqtk_trimfq",
+        }
+    ) == "seqtk trimfq -b 5 -e 7 reads.fq > /work/seqtk_trimfq/trimmed.fastq"
+
+
+def test_seqtk_trimfq_renders_gzip_position_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_trimfq")
+
+    assert node_class.render_command(
+        {
+            "in_file": "reads.fastq.gz",
+            "mode_select": "position",
+            "b": 5,
+            "e": 5,
+            "input_ext": "fastq.gz",
+            "output": "/work/seqtk_trimfq",
+        }
+    ) == (
+        "seqtk trimfq -b 5 -e 5 reads.fastq.gz | "
+        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_trimfq/trimmed.fastq.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "seqtk_trimfq" / "trimmed.fastq.gz",
+    ]
+
+
+def test_seqtk_trimfq_validates_mode_selection() -> None:
+    node_class = _node_class("seqtk_trimfq")
+
+    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fastq", "mode_select": "other"}) == (
+        "Unsupported trim mode: other"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fastq", "mode_select": "quality"}) is True
+    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fastq", "mode_select": "position"}) is True
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 
