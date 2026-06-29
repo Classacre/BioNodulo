@@ -5320,6 +5320,50 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.10150'],
     citation_text: 'BiSCoT: improving large eukaryotic genome assemblies with optical maps.',
   },
+  bigscape: {
+    name: 'bigscape',
+    display_name: 'BiG-SCAPE',
+    category: 'secondary_metabolism',
+    description: 'Construct sequence similarity networks of biosynthetic gene clusters and group them into gene cluster families.',
+    search_aliases: ['Galaxy', 'BiG-SCAPE', 'BiG-SCAPE gene cluster families', 'biosynthetic gene clusters', 'BGC networks', 'GCF clustering', 'MIBiG', 'Pfam-A'],
+    input: {
+      required: {
+        inputdir: { type: 'FILE_LIST', multiple: true },
+        pfam_dir: { type: 'FILE' },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+        mibig: { type: 'STRING', default: '', options: ['', '--mibig', '--mibig21', '--mibig14', '--mibig13'] },
+        label: { type: 'STRING', default: '' },
+        verbose: { type: 'BOOLEAN', default: false },
+        log: { type: 'BOOLEAN', default: false },
+        include_singletons: { type: 'BOOLEAN', default: false },
+        domain_overlap_cutoff: { type: 'FLOAT', default: 0.1 },
+        min_big_size: { type: 'INT', default: 0 },
+        mix: { type: 'BOOLEAN', default: false },
+        no_classify: { type: 'BOOLEAN', default: false },
+        banned_classes: { type: 'STRING_LIST', default: [] },
+        cutoffs: { type: 'FLOAT_LIST', default: [0.3] },
+        clans_off: { type: 'BOOLEAN', default: false },
+        clan_cutoff: { type: 'FLOAT_LIST', default: [] },
+        hybrids_off: { type: 'BOOLEAN', default: false },
+        mode: { type: 'STRING', default: 'glocal', options: ['glocal', 'global', 'auto'] },
+        anchorfile: { type: 'FILE', default: '' },
+        anchor_identifier: { type: 'STRING', default: '' },
+        force_hmmscan: { type: 'BOOLEAN', default: false },
+        domain_includelist: { type: 'FILE', default: '' },
+        threads: { type: 'INT', default: 8 },
+      },
+    },
+    output: ['HTML_REPORT', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'TXT'],
+    output_name: ['html', 'network_annotations', 'clan_tables', 'clustering_tables', 'network_files', 'logfile'],
+    required_executables: ['bigscape', 'hmmpress'],
+    required_conda_packages: ['bigscape'],
+    documentation_url: 'https://github.com/medema-group/BiG-SCAPE',
+    citation_dois: ['10.1038/s41589-019-0400-9'],
+    citation_urls: ['https://doi.org/10.1038/s41589-019-0400-9'],
+    citation_text: 'BiG-SCAPE and CORASON identify biosynthetic gene cluster families.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8065,7 +8109,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('288 nodes available')).toBeVisible();
+  await expect(page.getByText('289 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8234,6 +8278,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Beagle genotype imputation', name: 'Beagle', category: 'variant' },
     { query: 'breseq mutation detection', name: 'breseq', category: 'variant' },
     { query: 'BiSCoT optical map', name: 'BiSCoT', category: 'assembly' },
+    { query: 'BiG-SCAPE gene cluster families', name: 'BiG-SCAPE', category: 'secondary_metabolism' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

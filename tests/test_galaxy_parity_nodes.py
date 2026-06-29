@@ -13024,6 +13024,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["biscot", "blat", "ucsc-pslsort", "ucsc-pslreps"],
             "doi": "10.7717/peerj.10150",
         },
+        "bigscape": {
+            "display_name": "BiG-SCAPE",
+            "category": "secondary_metabolism",
+            "required_executables": ["bigscape", "hmmpress"],
+            "required_conda_packages": ["bigscape"],
+            "doi": "10.1038/s41589-019-0400-9",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15205,6 +15212,157 @@ def test_biscot_renders_scaffolding_command_outputs_and_validation(tmp_path: Pat
     assert node_class.VALIDATE_INPUTS(
         {"cmap_ref": "ref.cmap", "cmap_1": "query.cmap", "xmap_1": "query.xmap", "key": "key.tsv", "contigs": "contigs.fa"}
     ) is True
+
+
+def test_bigscape_renders_network_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("bigscape")
+    info = _registry().object_info()["bigscape"]
+
+    assert info["output"] == ["HTML_REPORT", "DIRECTORY", "DIRECTORY", "DIRECTORY", "DIRECTORY", "TXT"]
+    assert info["output_name"] == [
+        "html",
+        "network_annotations",
+        "clan_tables",
+        "clustering_tables",
+        "network_files",
+        "logfile",
+    ]
+    assert info["input"]["optional"]["mibig"][1]["options"] == ["", "--mibig", "--mibig21", "--mibig14", "--mibig13"]
+    assert "10.1038/s41589-019-0400-9" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "inputdir": ["cluster one.gbk", "cluster two.gbk"],
+            "element_identifiers": ["NC_001.region001", "NC 002/region002"],
+            "pfam_dir": "Pfam-A.hmm",
+            "mibig": "--mibig21",
+            "label": "experiment A",
+            "verbose": True,
+            "log": True,
+            "include_singletons": True,
+            "domain_overlap_cutoff": 0.2,
+            "min_big_size": 1000,
+            "mix": True,
+            "no_classify": True,
+            "banned_classes": ["NRPS", "RiPPs"],
+            "cutoffs": [0.3, 0.5],
+            "clans_off": True,
+            "clan_cutoff": [0.25, 0.65],
+            "hybrids_off": True,
+            "mode": "global",
+            "anchorfile": "anchors.txt",
+            "anchor_identifier": "custom_anchor.txt",
+            "force_hmmscan": True,
+            "domain_includelist": "domains.txt",
+            "output": "/work/bigscape",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/bigscape/html_extra_files",
+        "/work/bigscape/result",
+        "/work/bigscape/input",
+        "/work/bigscape/pfam",
+        "&&",
+        "ln",
+        "-s",
+        "cluster one.gbk",
+        "/work/bigscape/input/region.NC_001.region001.gbk",
+        "&&",
+        "ln",
+        "-s",
+        "cluster two.gbk",
+        "/work/bigscape/input/region.NC_002_region002.gbk",
+        "&&",
+        "ln",
+        "-s",
+        "Pfam-A.hmm",
+        "/work/bigscape/pfam/Pfam-A.hmm",
+        "&&",
+        "hmmpress",
+        "/work/bigscape/pfam/Pfam-A.hmm",
+        "&&",
+        "ln",
+        "-s",
+        "anchors.txt",
+        "/work/bigscape/custom_anchor.txt",
+        "&&",
+        "bigscape",
+        "--inputdir",
+        "/work/bigscape/input",
+        "--mibig21",
+        "--outputdir",
+        "/work/bigscape/result",
+        "--label",
+        "experiment A",
+        "--pfam_dir",
+        "/work/bigscape/pfam",
+        "--cores",
+        "${GALAXY_SLOTS:-8}",
+        "--verbose",
+        "--include_singletons",
+        "--domain_overlap_cutoff",
+        "0.2",
+        "--min_bgc_size",
+        "1000",
+        "--mix",
+        "--no_classify",
+        "--banned_classes",
+        "NRPS",
+        "RiPPs",
+        "--cutoffs",
+        "0.3",
+        "0.5",
+        "--clans-off",
+        "--clan_cutoff",
+        "0.25",
+        "0.65",
+        "--hybrids-off",
+        "--mode",
+        "global",
+        "--anchorfile",
+        "custom_anchor.txt",
+        "--force_hmmscan",
+        "--domain_includelist",
+        ">",
+        "/work/bigscape/log.txt",
+        "&&",
+        "cp",
+        "/work/bigscape/result/index.html",
+        "/work/bigscape/index.html",
+        "&&",
+        "cp",
+        "-r",
+        "/work/bigscape/result/html_content",
+        "/work/bigscape/html_extra_files",
+        "&&",
+        "cp",
+        "/work/bigscape/log.txt",
+        "/work/bigscape/bigscape.log",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"log": True, "clans_off": False}, tmp_path) == [
+        tmp_path / "bigscape" / "index.html",
+        tmp_path / "bigscape" / "network_annotations",
+        tmp_path / "bigscape" / "clan_tables",
+        tmp_path / "bigscape" / "clustering_tables",
+        tmp_path / "bigscape" / "network_files",
+        tmp_path / "bigscape" / "bigscape.log",
+    ]
+    assert node_class.PLAN_OUTPUTS({"clans_off": True}, tmp_path) == [
+        tmp_path / "bigscape" / "index.html",
+        tmp_path / "bigscape" / "network_annotations",
+        tmp_path / "bigscape" / "clustering_tables",
+        tmp_path / "bigscape" / "network_files",
+    ]
+    assert node_class.VALIDATE_INPUTS({"pfam_dir": "Pfam-A.hmm"}) == "at least one GenBank BGC input is required"
+    assert node_class.VALIDATE_INPUTS({"inputdir": ["cluster.gbk"]}) == "Pfam-A.hmm input is required"
+    assert node_class.VALIDATE_INPUTS({"inputdir": ["cluster.gbk"], "pfam_dir": "Pfam-A.hmm", "domain_overlap_cutoff": 1.5}) == (
+        "domain_overlap_cutoff must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"inputdir": ["cluster.gbk"], "pfam_dir": "Pfam-A.hmm", "cutoffs": [0.05]}) == (
+        "cutoff values must be between 0.1 and 1.0"
+    )
+    assert node_class.VALIDATE_INPUTS({"inputdir": ["cluster.gbk"], "pfam_dir": "Pfam-A.hmm"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:
