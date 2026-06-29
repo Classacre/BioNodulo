@@ -5068,6 +5068,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41586-021-03451-0'],
     citation_text: 'Semi-automated assembly of high-quality diploid human reference genomes.',
   },
+  chromeister: {
+    name: 'chromeister',
+    display_name: 'Chromeister',
+    category: 'comparative_genomics',
+    description: 'Compare two FASTA assemblies with Chromeister to produce a comparison matrix, dotplot, event calls, and similarity score.',
+    search_aliases: ['Galaxy', 'Chromeister', 'pairwise genome comparison', 'dotplot', 'synteny blocks', 'large-scale rearrangements', 'whole genome comparison', 'CHROMEISTER'],
+    input: {
+      required: {
+        query: { type: 'FASTA' },
+        db: { type: 'FASTA' },
+      },
+      optional: {
+        dimension: { type: 'INT', default: 1000 },
+        kmer: { type: 'INT', default: 32, options: [32, 16] },
+        diffuse: { type: 'INT', default: 4 },
+        grid: { type: 'BOOLEAN', default: true },
+        pngevents: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['TXT', 'IMAGE', 'CSV', 'TXT', 'IMAGE', 'TXT'],
+    output_name: ['matrix', 'dotplot_png', 'metainfo_csv', 'events_txt', 'events_png', 'score'],
+    required_executables: ['CHROMEISTER', 'compute_score.R', 'compute_score-nogrid.R', 'detect_events.py'],
+    required_conda_packages: ['chromeister'],
+    documentation_url: 'https://github.com/estebanpw/chromeister',
+    citation_dois: ['10.1038/s41598-019-46773-w'],
+    citation_urls: ['https://doi.org/10.1038/s41598-019-46773-w'],
+    citation_text: 'Ultrafast genome comparison for large-scale genomic experiments.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7813,7 +7841,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('280 nodes available')).toBeVisible();
+  await expect(page.getByText('281 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7974,6 +8002,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'abyss paired-end assembly', name: 'ABySS', category: 'assembly' },
     { query: 'bayescan natural selection', name: 'BayeScan', category: 'population_genetics' },
     { query: 'Arima chimeric reads', name: 'Bellerophon', category: 'assembly' },
+    { query: 'Chromeister dotplot', name: 'Chromeister', category: 'comparative_genomics' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },

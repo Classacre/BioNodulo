@@ -12968,6 +12968,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["bellerophon", "samtools"],
             "doi": "10.1038/s41586-021-03451-0",
         },
+        "chromeister": {
+            "display_name": "Chromeister",
+            "category": "comparative_genomics",
+            "required_executables": ["CHROMEISTER", "compute_score.R", "compute_score-nogrid.R", "detect_events.py"],
+            "required_conda_packages": ["chromeister"],
+            "doi": "10.1038/s41598-019-46773-w",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14335,6 +14342,97 @@ def test_bellerophon_renders_chimeric_read_filter_merge_command_output(tmp_path:
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bellerophon" / "merged.bam",
+    ]
+
+
+def test_chromeister_renders_pairwise_genome_comparison_command_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("chromeister")
+    info = _registry().object_info()["chromeister"]
+
+    assert info["output"] == ["TXT", "IMAGE", "CSV", "TXT", "IMAGE", "TXT"]
+    assert info["output_name"] == ["matrix", "dotplot_png", "metainfo_csv", "events_txt", "events_png", "score"]
+    assert "10.1038/s41598-019-46773-w" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "query": "query genome.fa",
+            "db": "reference genome.fa",
+            "dimension": 500,
+            "kmer": 16,
+            "diffuse": 3,
+            "grid": False,
+            "pngevents": True,
+            "output": "/work/chromeister",
+        }
+    ) == [
+        "ln",
+        "-s",
+        "query genome.fa",
+        "/work/chromeister/query_genome.fa",
+        "&&",
+        "ln",
+        "-s",
+        "reference genome.fa",
+        "/work/chromeister/reference_genome.fa",
+        "&&",
+        "CHROMEISTER",
+        "-query",
+        "/work/chromeister/query_genome.fa",
+        "-db",
+        "/work/chromeister/reference_genome.fa",
+        "-dimension",
+        "500",
+        "-kmer",
+        "16",
+        "-diffuse",
+        "3",
+        "-out",
+        "/work/chromeister/query_genome.fa-reference_genome.fa.mat",
+        "&&",
+        "compute_score-nogrid.R",
+        "/work/chromeister/query_genome.fa-reference_genome.fa.mat",
+        "500",
+        ">",
+        "/work/chromeister/comparison_score.txt",
+        "&&",
+        "detect_events.py",
+        "/work/chromeister/query_genome.fa-reference_genome.fa.mat.raw.txt",
+        "png",
+        "&&",
+        "mv",
+        "/work/chromeister/query_genome.fa-reference_genome.fa.mat.events.png",
+        "/work/chromeister/events.png",
+        "&&",
+        "mv",
+        "/work/chromeister/query_genome.fa-reference_genome.fa.mat",
+        "/work/chromeister/comparison_matrix.txt",
+        "&&",
+        "mv",
+        "/work/chromeister/query_genome.fa-reference_genome.fa.mat.filt.png",
+        "/work/chromeister/dotplot.png",
+        "&&",
+        "mv",
+        "/work/chromeister/query_genome.fa-reference_genome.fa.mat.events.txt",
+        "/work/chromeister/events.txt",
+        "&&",
+        "mv",
+        "/work/chromeister/query_genome.fa-reference_genome.fa.mat.csv",
+        "/work/chromeister/comparison_metainfo.csv",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"pngevents": True}, tmp_path) == [
+        tmp_path / "chromeister" / "comparison_matrix.txt",
+        tmp_path / "chromeister" / "dotplot.png",
+        tmp_path / "chromeister" / "comparison_metainfo.csv",
+        tmp_path / "chromeister" / "events.txt",
+        tmp_path / "chromeister" / "events.png",
+        tmp_path / "chromeister" / "comparison_score.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "chromeister" / "comparison_matrix.txt",
+        tmp_path / "chromeister" / "dotplot.png",
+        tmp_path / "chromeister" / "comparison_metainfo.csv",
+        tmp_path / "chromeister" / "events.txt",
+        tmp_path / "chromeister" / "comparison_score.txt",
     ]
 
 
