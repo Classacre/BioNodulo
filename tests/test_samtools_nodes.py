@@ -793,6 +793,12 @@ def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_m
             "output_name": ["bam"],
             "aliases": ["Galaxy", "CRAM to BAM", "CRAM decompression", "reference"],
         },
+        "samtools_bam_to_sam": {
+            "display_name": "Samtools BAM to SAM",
+            "output": ["SAM"],
+            "output_name": ["sam"],
+            "aliases": ["Galaxy", "BAM to SAM", "SAM output", "header only"],
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -1435,4 +1441,64 @@ def test_samtools_cram_to_bam_validates_reference_and_region_inputs() -> None:
             }
         )
         == "regions_bed_file is required when target_region is regions_bed_file"
+    )
+
+
+def test_samtools_bam_to_sam_renders_header_modes_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_bam_to_sam")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.bam",
+            "header": "-h",
+            "output": "/work/samtools_bam_to_sam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-o",
+        "/work/samtools_bam_to_sam/output.sam",
+        "-h",
+        "sample.bam",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input": "sample.bam",
+            "header": "-H",
+            "output": "/work/samtools_bam_to_sam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-o",
+        "/work/samtools_bam_to_sam/output.sam",
+        "-H",
+        "sample.bam",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input": "sample.bam",
+            "header": "",
+            "output": "/work/samtools_bam_to_sam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-o",
+        "/work/samtools_bam_to_sam/output.sam",
+        "sample.bam",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_bam_to_sam" / "output.sam"]
+
+
+def test_samtools_bam_to_sam_validates_header_mode() -> None:
+    node_class = _node_class("samtools_bam_to_sam")
+
+    assert node_class.VALIDATE_INPUTS({"header": "-h"}) == "Required input 'input' is missing"
+    assert (
+        node_class.VALIDATE_INPUTS({"input": "sample.bam", "header": "--headers"})
+        == "header must be one of -h, -H, or an empty string"
     )
