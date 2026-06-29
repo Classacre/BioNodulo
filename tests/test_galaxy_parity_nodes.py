@@ -12982,6 +12982,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["python", "numpy", "pybigtools"],
             "doi": "10.1093/bioinformatics/btae350",
         },
+        "ampligone": {
+            "display_name": "AmpliGone",
+            "category": "sequence",
+            "required_executables": ["ampligone"],
+            "required_conda_packages": ["AmpliGone"],
+            "doi": "10.5281/zenodo.7684307",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -14499,6 +14506,89 @@ def test_bigwig_outlier_bed_renders_conditional_bed_and_table_outputs(tmp_path: 
     ]
     assert node_class.PLAN_OUTPUTS({"outbeds": "outzero", "tableout": "donotmake"}, tmp_path) == [
         tmp_path / "bigwig_outlier_bed" / "zero_regions.bed",
+    ]
+
+
+def test_ampligone_renders_primer_removal_command_and_optional_export(tmp_path: Path) -> None:
+    node_class = _node_class("ampligone")
+    info = _registry().object_info()["ampligone"]
+
+    assert info["output"] == ["FASTQ", "BED"]
+    assert info["output_name"] == ["cleaned_reads", "primer_coordinates"]
+    assert "10.5281/zenodo.7684307" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "input": "reads.fastq.gz",
+            "input_ext": "fastqsanger.gz",
+            "reference": "SARS CoV 2.fa",
+            "primers": "ARTIC primers.fasta",
+            "primers_ext": "fasta",
+            "export_primers": True,
+            "amplicon_type": "fragmented",
+            "fragment_lookaround_size": 15,
+            "error_rate": 0.08,
+            "threads": 8,
+            "output": "/work/ampligone",
+        }
+    ) == [
+        "ln",
+        "-sf",
+        "reads.fastq.gz",
+        "/work/ampligone/reads.fastq.gz",
+        "&&",
+        "touch",
+        "/work/ampligone/cleaned_reads.fastq.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "/work/ampligone/cleaned_reads.fastq.gz",
+        "/work/ampligone/output.fastq.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "SARS CoV 2.fa",
+        "/work/ampligone/reference.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "ARTIC primers.fasta",
+        "/work/ampligone/primers.fasta",
+        "&&",
+        "touch",
+        "/work/ampligone/primer_coordinates.bed",
+        "&&",
+        "ln",
+        "-sf",
+        "/work/ampligone/primer_coordinates.bed",
+        "/work/ampligone/primers.bed",
+        "&&",
+        "ampligone",
+        "--input",
+        "/work/ampligone/reads.fastq.gz",
+        "--reference",
+        "/work/ampligone/reference.fasta",
+        "--primers",
+        "/work/ampligone/primers.fasta",
+        "--threads",
+        "${GALAXY_SLOTS:-8}",
+        "--amplicon-type",
+        "fragmented",
+        "--fragment-lookaround-size",
+        "15",
+        "--error-rate",
+        "0.08",
+        "--export-primers",
+        "/work/ampligone/primers.bed",
+        "--output",
+        "/work/ampligone/output.fastq.gz",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastqsanger.gz", "primers_ext": "fasta", "export_primers": True}, tmp_path) == [
+        tmp_path / "ampligone" / "cleaned_reads.fastq.gz",
+        tmp_path / "ampligone" / "primer_coordinates.bed",
+    ]
+    assert node_class.PLAN_OUTPUTS({"input_ext": "bam", "primers_ext": "bed", "export_primers": True}, tmp_path) == [
+        tmp_path / "ampligone" / "cleaned_reads.fastq",
     ]
 
 

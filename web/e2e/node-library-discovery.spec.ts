@@ -5125,6 +5125,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btae350'],
     citation_text: 'Bigtools: a high-performance toolkit for BigWig and BigBed files.',
   },
+  ampligone: {
+    name: 'ampligone',
+    display_name: 'AmpliGone',
+    category: 'sequence',
+    description: 'Remove primer-derived sequence from FASTQ or BAM amplicon reads using primer coordinates or primer FASTA against a reference.',
+    search_aliases: ['Galaxy', 'AmpliGone', 'AmpliGone primer removal', 'primer removal', 'amplicon reads', 'ARTIC primers', 'Nanopore', 'Illumina', 'fragmented amplicons'],
+    input: {
+      required: {
+        input: { type: 'FASTQ' },
+        reference: { type: 'FASTA' },
+        primers: { type: 'FILE' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'fastq', options: ['fastq', 'fastq.gz', 'bam'] },
+        reference_ext: { type: 'STRING', default: 'fasta' },
+        primers_ext: { type: 'STRING', default: 'bed', options: ['bed', 'fasta'] },
+        export_primers: { type: 'BOOLEAN', default: false },
+        amplicon_type: { type: 'STRING', default: 'end-to-end', options: ['end-to-end', 'end-to-mid', 'fragmented'] },
+        fragment_lookaround_size: { type: 'INT', default: 10 },
+        error_rate: { type: 'FLOAT', default: 0.1 },
+        threads: { type: 'INT', default: 2 },
+      },
+    },
+    output: ['FASTQ', 'BED'],
+    output_name: ['cleaned_reads', 'primer_coordinates'],
+    required_executables: ['ampligone'],
+    required_conda_packages: ['AmpliGone'],
+    documentation_url: 'https://rivm-bioinformatics.github.io/AmpliGone/',
+    citation_dois: ['10.5281/zenodo.7684307'],
+    citation_urls: ['https://doi.org/10.5281/zenodo.7684307'],
+    citation_text: 'AmpliGone: find and remove primers from NGS amplicon reads.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -7870,7 +7902,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('282 nodes available')).toBeVisible();
+  await expect(page.getByText('283 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8033,6 +8065,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Arima chimeric reads', name: 'Bellerophon', category: 'assembly' },
     { query: 'Chromeister dotplot', name: 'Chromeister', category: 'comparative_genomics' },
     { query: 'BigWig coverage outliers', name: 'Bigwig outliers to bed features', category: 'genomics' },
+    { query: 'AmpliGone primer removal', name: 'AmpliGone', category: 'sequence' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
