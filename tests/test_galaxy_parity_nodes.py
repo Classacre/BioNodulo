@@ -597,6 +597,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/mst030",
         },
+        "hyphy_bgm": {
+            "display_name": "HyPhy-BGM",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/bioinformatics/btn313",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -7677,6 +7684,193 @@ def test_hyphy_b_still_validates_wrapper_inputs() -> None:
             "ebf": 10,
             "radius_threshold": 0.5,
             "kill_zero_lengths": "Yes",
+        }
+    ) is True
+
+
+def test_hyphy_bgm_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_bgm"]
+
+    assert info["display_name"] == "HyPhy-BGM"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Detect coevolving sites in sequence alignments with HyPhy Bayesian graphical models."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "BGM",
+        "Bayesian graphical model",
+        "Spidermonkey",
+        "coevolving sites",
+        "correlated substitutions",
+        "phylogenetics",
+    ]
+    assert info["output"] == ["JSON", "TEXT"]
+    assert info["output_name"] == ["bgm_output", "bgm_md_report"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "http://hyphy.org/methods/selection-methods/#BGM"
+    assert info["citation_dois"] == [
+        "10.1093/molbev/msz197",
+        "10.1093/bioinformatics/btn313",
+        "10.1371/journal.pcbi.0030231",
+    ]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/molbev/msz197",
+        "https://doi.org/10.1093/bioinformatics/btn313",
+        "https://doi.org/10.1371/journal.pcbi.0030231",
+    ]
+    assert info["citation_text"] == (
+        "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; "
+        "Spidermonkey: rapid detection of co-evolving sites using Bayesian graphical models; "
+        "An evolutionary-network model reveals stratified interactions in the V3 loop of the HIV-1 envelope."
+    )
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["description"] == (
+        "Sequence alignment in FASTA, compressed FASTA, or NEXUS format"
+    )
+    assert info["input"]["optional"]["input_nhx"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fasta.gz", "nex"]
+    assert info["input"]["optional"]["datatype"][1]["default"] == "codon"
+    assert info["input"]["optional"]["datatype"][1]["options"] == ["nucleotide", "amino-acid", "codon"]
+    assert info["input"]["optional"]["gencodeid"][1]["default"] == "Universal"
+    assert info["input"]["optional"]["baseline_model"][1]["default"] == "LG"
+    assert info["input"]["optional"]["baseline_model"][1]["options"] == [
+        "LG",
+        "WAG",
+        "JTT",
+        "JC69",
+        "mtMet",
+        "mtVer",
+        "mtInv",
+        "gcpREV",
+        "HIVBm",
+        "HIVWm",
+        "GTR",
+    ]
+    assert info["input"]["optional"]["branch_sel"][1]["default"] == "All"
+    assert info["input"]["optional"]["branch_sel"][1]["options"] == [
+        "All",
+        "Internal",
+        "Leaves",
+        "Unlabeled-branches",
+        "specify",
+    ]
+    assert info["input"]["optional"]["chain_length"][1]["default"] == 100000
+    assert info["input"]["optional"]["burn_in"][1]["default"] == 10000
+    assert info["input"]["optional"]["samples"][1]["default"] == 100
+    assert info["input"]["optional"]["parents"][1]["default"] == 1
+    assert info["input"]["optional"]["min_subs"][1]["default"] == 1
+    assert info["input"]["optional"]["threads"][1]["default"] == 4
+
+
+def test_hyphy_bgm_renders_default_codon_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_bgm")
+
+    assert node_class.render_command(
+        {
+            "input_file": "bgm-in1.fa",
+            "input_ext": "fasta",
+            "input_nhx": "bgm-in1.nhx",
+            "output": "/work/hyphy_bgm",
+        }
+    ) == (
+        "ln -s bgm-in1.nhx input.nhx && "
+        "ln -s bgm-in1.fa input.fasta && "
+        "TOLERATE_NUMERICAL_ERRORS=1 hyphy CPU=4 bgm --alignment ./input.fasta "
+        "--tree input.nhx --type codon --code Universal --branches All --steps 100000 "
+        "--burn-in 10000 --samples 100 --max-parents 1 --min-subs 1 "
+        "--output /work/hyphy_bgm/bgm_output.json > /work/hyphy_bgm/bgm_stdout.md"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_bgm" / "bgm_output.json",
+        tmp_path / "hyphy_bgm" / "bgm_stdout.md",
+    ]
+
+
+def test_hyphy_bgm_renders_amino_acid_command_with_custom_branch_without_tree() -> None:
+    node_class = _node_class("hyphy_bgm")
+
+    command = node_class.render_command(
+        {
+            "input_file": "protein alignment.fasta",
+            "input_ext": "fasta",
+            "datatype": "amino-acid",
+            "baseline_model": "WAG",
+            "branch_sel": "specify",
+            "branch_label": "Compensatory clade",
+            "chain_length": 250000,
+            "burn_in": 50000,
+            "samples": 250,
+            "parents": 2,
+            "min_subs": 3,
+            "threads": 8,
+            "output": "/work/hyphy_bgm",
+        }
+    )
+
+    assert command == (
+        "ln -s 'protein alignment.fasta' input.fasta && "
+        "TOLERATE_NUMERICAL_ERRORS=1 hyphy CPU=8 bgm --alignment ./input.fasta "
+        "--type amino-acid --baseline_model WAG --branches 'Compensatory clade' "
+        "--steps 250000 --burn-in 50000 --samples 250 --max-parents 2 --min-subs 3 "
+        "--output /work/hyphy_bgm/bgm_output.json > /work/hyphy_bgm/bgm_stdout.md"
+    )
+    assert "--tree" not in command
+    assert "--code" not in command
+
+
+def test_hyphy_bgm_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_bgm")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy-BGM alignment input is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "datatype": "rna"}) == (
+        "Unsupported HyPhy-BGM data type: rna"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "datatype": "codon", "gencodeid": "Mars"}) == (
+        "Unsupported HyPhy genetic code: Mars"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "alignment.fa", "datatype": "amino-acid", "baseline_model": "PAM250"}
+    ) == "Unsupported HyPhy-BGM amino-acid substitution model: PAM250"
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "Foreground"}) == (
+        "Unsupported HyPhy-BGM branch selection: Foreground"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "branch_sel": "specify"}) == (
+        "HyPhy-BGM custom branch selection requires a branch label"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "chain_length": -1}) == (
+        "HyPhy-BGM chain length must be between 0 and 1000000000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "burn_in": -1}) == (
+        "HyPhy-BGM burn-in must be between 0 and 1000000000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "samples": 0}) == (
+        "HyPhy-BGM samples must be between 1 and 100000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "parents": 4}) == (
+        "HyPhy-BGM maximum parents must be between 1 and 3"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "min_subs": 0}) == (
+        "HyPhy-BGM minimum substitutions must be between 1 and 1000"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "alignment.fa", "threads": 0}) == (
+        "HyPhy-BGM threads must be a positive integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "alignment.fa",
+            "datatype": "nucleotide",
+            "branch_sel": "Internal",
+            "chain_length": 100000,
+            "burn_in": 10000,
+            "samples": 100,
+            "parents": 1,
+            "min_subs": 1,
+            "threads": 4,
         }
     ) is True
 

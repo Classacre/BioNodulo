@@ -2808,6 +2808,86 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection.',
   },
+  hyphy_bgm: {
+    name: 'hyphy_bgm',
+    display_name: 'HyPhy-BGM',
+    category: 'phylogeny',
+    description: 'Detect coevolving sites in sequence alignments with HyPhy Bayesian graphical models.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'BGM',
+      'Bayesian graphical model',
+      'Spidermonkey',
+      'coevolving sites',
+      'correlated substitutions',
+      'phylogenetics',
+    ],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        input_nhx: { type: 'FILE', default: '' },
+        input_ext: { type: 'STRING', default: 'fasta', options: ['fasta', 'fasta.gz', 'nex'] },
+        datatype: { type: 'STRING', default: 'codon', options: ['nucleotide', 'amino-acid', 'codon'] },
+        gencodeid: {
+          type: 'STRING',
+          default: 'Universal',
+          options: [
+            'Universal',
+            'Vertebrate-mtDNA',
+            'Yeast-mtDNA',
+            'Mold-Protozoan-mtDNA',
+            'Invertebrate-mtDNA',
+            'Ciliate-Nuclear',
+            'Echinoderm-mtDNA',
+            'Euplotid-Nuclear',
+            'Alt-Yeast-Nuclear',
+            'Ascidian-mtDNA',
+            'Flatworm-mtDNA',
+            'Blepharisma-Nuclear',
+            'Chlorophycean-mtDNA',
+            'Trematode-mtDNA',
+            'Scenedesmus-obliquus-mtDNA',
+            'Thraustochytrium-mtDNA',
+            'Pterobranchia-mtDNA',
+            'SR1-and-Gracilibacteria',
+            'Pachysolen-Nuclear',
+            'Mesodinium-Nuclear',
+            'Peritrich-Nuclear',
+            'Cephalodiscidae-mtDNA',
+          ],
+        },
+        baseline_model: {
+          type: 'STRING',
+          default: 'LG',
+          options: ['LG', 'WAG', 'JTT', 'JC69', 'mtMet', 'mtVer', 'mtInv', 'gcpREV', 'HIVBm', 'HIVWm', 'GTR'],
+        },
+        branch_sel: { type: 'STRING', default: 'All', options: ['All', 'Internal', 'Leaves', 'Unlabeled-branches', 'specify'] },
+        branch_label: { type: 'STRING', default: '' },
+        chain_length: { type: 'INT', default: 100000 },
+        burn_in: { type: 'INT', default: 10000 },
+        samples: { type: 'INT', default: 100 },
+        parents: { type: 'INT', default: 1 },
+        min_subs: { type: 'INT', default: 1 },
+        threads: { type: 'INT', default: 4 },
+      },
+    },
+    output: ['JSON', 'TEXT'],
+    output_name: ['bgm_output', 'bgm_md_report'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'http://hyphy.org/methods/selection-methods/#BGM',
+    citation_dois: ['10.1093/molbev/msz197', '10.1093/bioinformatics/btn313', '10.1371/journal.pcbi.0030231'],
+    citation_urls: [
+      'https://doi.org/10.1093/molbev/msz197',
+      'https://doi.org/10.1093/bioinformatics/btn313',
+      'https://doi.org/10.1371/journal.pcbi.0030231',
+    ],
+    citation_text:
+      'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Spidermonkey: rapid detection of co-evolving sites using Bayesian graphical models; An evolutionary-network model reveals stratified interactions in the V3 loop of the HIV-1 envelope.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5778,7 +5858,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('227 nodes available')).toBeVisible();
+  await expect(page.getByText('228 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5879,6 +5959,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'episodic diversifying selection', name: 'HyPhy-aBSREL', category: 'phylogeny' },
     { query: 'HyPhy Annotate', name: 'HyPhy Annotate', category: 'phylogeny' },
     { query: 'B-STILL invariant sites', name: 'HyPhy-B-STILL', category: 'phylogeny' },
+    { query: 'Spidermonkey coevolving sites', name: 'HyPhy-BGM', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
