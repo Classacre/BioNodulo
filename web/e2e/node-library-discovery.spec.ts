@@ -832,6 +832,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/1748-7188-8-22'],
     citation_text: 'Space-efficient and exact de Bruijn graph representation based on a Bloom filter.',
   },
+  plasflow: {
+    name: 'plasflow',
+    display_name: 'PlasFlow',
+    category: 'metagenomics',
+    description: 'Predict plasmid sequences in metagenomic contigs with PlasFlow genome-signature models.',
+    search_aliases: ['Galaxy', 'PlasFlow', 'plasflow', 'plasmid prediction', 'metagenomic contigs', 'genome signatures', 'chromosome classification'],
+    input: {
+      required: {
+        read_file: { type: 'FASTA' },
+      },
+      optional: {
+        threshold: { type: 'FLOAT', default: 0.7, min: 0, max: 1 },
+      },
+    },
+    output: ['TSV', 'FASTA', 'FASTA', 'FASTA'],
+    output_name: ['probability_table', 'chromosomes', 'plasmids', 'unclassified'],
+    required_executables: ['PlasFlow.py'],
+    required_conda_packages: ['plasflow'],
+    documentation_url: 'https://github.com/smaegol/PlasFlow',
+    citation_dois: ['10.1093/nar/gkx1321'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkx1321'],
+    citation_text: 'PlasFlow: predicting plasmid sequences in metagenomic data using genome signatures.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7097,7 +7120,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('258 nodes available')).toBeVisible();
+  await expect(page.getByText('259 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7152,6 +7175,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'translation initiation sites', name: 'Prodigal Gene Predictor', category: 'annotation' },
     { query: 'metagenomic eukaryotes', name: 'EukRep', category: 'metagenomics' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
+    { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
     { query: 'hmmer pfam', name: 'HMMER hmmscan', category: 'annotation' },
     { query: 'hmmalign', name: 'HMMER hmmalign', category: 'alignment' },

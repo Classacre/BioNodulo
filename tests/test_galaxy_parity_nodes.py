@@ -2900,6 +2900,62 @@ def test_plasclass_renders_classification_command_and_output(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"fasta": "contigs.fa", "threads": 1}) is True
 
 
+def test_plasflow_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["plasflow"]
+
+    assert node_info["display_name"] == "PlasFlow"
+    assert node_info["category"] == "metagenomics"
+    assert node_info["description"].startswith("Predict plasmid sequences")
+    assert node_info["output"] == ["TSV", "FASTA", "FASTA", "FASTA"]
+    assert node_info["output_name"] == ["probability_table", "chromosomes", "plasmids", "unclassified"]
+    assert node_info["required_executables"] == ["PlasFlow.py"]
+    assert node_info["required_conda_packages"] == ["plasflow"]
+    assert node_info["documentation_url"] == "https://github.com/smaegol/PlasFlow"
+    assert node_info["citation_dois"] == ["10.1093/nar/gkx1321"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/nar/gkx1321"]
+    assert "genome signatures" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "plasmid prediction" in node_info["search_aliases"]
+
+
+def test_plasflow_renders_galaxy_staging_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("plasflow")
+
+    assert node_class.render_command(
+        {
+            "read_file": "metagenome contigs.fasta.gz",
+            "threshold": 0.85,
+            "output": "/work/plasflow",
+        }
+    ) == (
+        "gunzip -c 'metagenome contigs.fasta.gz' > reads.fasta && "
+        "PlasFlow.py --input reads.fasta --output /work/plasflow/output --threshold 0.85"
+    )
+    assert node_class.render_command(
+        {
+            "read_file": "contigs.fasta",
+            "output": "/work/plasflow",
+        }
+    ) == (
+        "ln -s contigs.fasta reads.fasta && "
+        "PlasFlow.py --input reads.fasta --output /work/plasflow/output --threshold 0.7"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "plasflow" / "output",
+        tmp_path / "plasflow" / "output_chromosomes.fasta",
+        tmp_path / "plasflow" / "output_plasmids.fasta",
+        tmp_path / "plasflow" / "output_unclassified.fasta",
+    ]
+    assert node_class.VALIDATE_INPUTS({"read_file": ""}) == "contig FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"read_file": "contigs.fasta", "threshold": -0.1}) == (
+        "threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"read_file": "contigs.fasta", "threshold": 1.1}) == (
+        "threshold must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"read_file": "contigs.fasta", "threshold": 0.7}) is True
+
+
 def test_minia_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["minia"]
 
