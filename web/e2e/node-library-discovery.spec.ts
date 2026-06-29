@@ -872,6 +872,42 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/1748-7188-8-22'],
     citation_text: 'Space-efficient and exact de Bruijn graph representation based on a Bloom filter.',
   },
+  genomescope: {
+    name: 'genomescope',
+    display_name: 'GenomeScope',
+    category: 'assembly',
+    description: 'Profile genomes from k-mer frequency histograms with the GenomeScope 2.0 model.',
+    search_aliases: ['Galaxy', 'GenomeScope', 'GenomeScope 2.0', 'genomescope2', 'reference-free genome profiling', 'k-mer spectrum', 'kmer histogram', 'polyploid genome profiling'],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+        kmer_length: { type: 'INT', default: 21, min: 1 },
+      },
+      optional: {
+        ploidy: { type: 'INT', default: '', min: 1, max: 6 },
+        lambda: { type: 'INT', default: '', min: 1 },
+        max_kmercov: { type: 'INT', default: '', min: 1 },
+        output_files: { type: 'STRING', default: [], multiple: true, options: ['model_output', 'summary_output', 'progress_output'] },
+        no_unique_sequence: { type: 'BOOLEAN', default: false },
+        topology: { type: 'INT', default: '', min: 1 },
+        initial_repetitiveness: { type: 'FLOAT', default: '', min: 0, max: 1 },
+        initial_heterozygosities: { type: 'STRING', default: '' },
+        transform_exp: { type: 'INT', default: '', min: 1 },
+        testing: { type: 'BOOLEAN', default: false },
+        true_params: { type: 'STRING', default: '' },
+        trace_flag: { type: 'BOOLEAN', default: false },
+        num_rounds: { type: 'INT', default: '', min: 1 },
+      },
+    },
+    output: ['IMAGE', 'IMAGE', 'IMAGE', 'IMAGE', 'TEXT', 'TEXT', 'TEXT', 'TSV'],
+    output_name: ['linear_plot', 'log_plot', 'transformed_linear_plot', 'transformed_log_plot', 'model', 'summary', 'progress', 'model_params'],
+    required_executables: ['genomescope2'],
+    required_conda_packages: ['genomescope2'],
+    documentation_url: 'https://github.com/tbenavi1/genomescope2.0',
+    citation_dois: ['10.1093/bioinformatics/btx153', '10.1038/s41467-020-14998-3'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btx153', 'https://doi.org/10.1038/s41467-020-14998-3'],
+    citation_text: 'GenomeScope: fast reference-free genome profiling from short reads; GenomeScope 2.0 and Smudgeplot for reference-free profiling of polyploid genomes.',
+  },
   plasflow: {
     name: 'plasflow',
     display_name: 'PlasFlow',
@@ -9085,7 +9121,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('316 nodes available')).toBeVisible();
+  await expect(page.getByText('317 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9128,6 +9164,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'trim_Ns_DNAnexus.py', name: 'TrimN', category: 'trimming' },
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'Bloom filter', name: 'Minia', category: 'assembly' },
+    { query: 'reference-free genome profiling', name: 'GenomeScope', category: 'assembly' },
     { query: 'noisy long reads', name: 'Miniasm', category: 'assembly' },
     { query: 'amas summary', name: 'AMAS Summary', category: 'phylogeny' },
     { query: 'alignment concatenation', name: 'AMAS Concat', category: 'phylogeny' },

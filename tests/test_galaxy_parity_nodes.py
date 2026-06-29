@@ -171,6 +171,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["pear"],
             "doi": "10.1093/bioinformatics/btt593",
         },
+        "genomescope": {
+            "display_name": "GenomeScope",
+            "category": "assembly",
+            "required_executables": ["genomescope2"],
+            "required_conda_packages": ["genomescope2"],
+            "doi": "10.1038/s41467-020-14998-3",
+        },
         "assembly_stats": {
             "display_name": "Assembly Stats",
             "category": "assembly",
@@ -4185,6 +4192,121 @@ def test_minia_renders_assembly_command_and_output(tmp_path: Path) -> None:
     assert node_class.VALIDATE_INPUTS({"in": "reads.fa", "abundance_min": -1}) == "abundance_min must be >= 0"
     assert node_class.VALIDATE_INPUTS({"in": "reads.fa", "threads": 0}) == "threads must be >= 1"
     assert node_class.VALIDATE_INPUTS({"in": "reads.fa", "kmer_size": 31, "threads": 1}) is True
+
+
+def test_genomescope_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["genomescope"]
+
+    assert node_info["display_name"] == "GenomeScope"
+    assert node_info["category"] == "assembly"
+    assert node_info["description"].startswith("Profile genomes from k-mer frequency histograms")
+    assert node_info["input"]["required"]["input"][0] == "TSV"
+    assert node_info["input"]["required"]["kmer_length"][1]["default"] == 21
+    assert node_info["input"]["optional"]["output_files"][1]["multiple"] is True
+    assert node_info["input"]["optional"]["ploidy"][1]["max"] == 6
+    assert node_info["output"] == ["IMAGE", "IMAGE", "IMAGE", "IMAGE", "TEXT", "TEXT", "TEXT", "TSV"]
+    assert node_info["output_name"] == [
+        "linear_plot",
+        "log_plot",
+        "transformed_linear_plot",
+        "transformed_log_plot",
+        "model",
+        "summary",
+        "progress",
+        "model_params",
+    ]
+    assert node_info["required_executables"] == ["genomescope2"]
+    assert node_info["required_conda_packages"] == ["genomescope2"]
+    assert node_info["documentation_url"] == "https://github.com/tbenavi1/genomescope2.0"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btx153", "10.1038/s41467-020-14998-3"]
+    assert node_info["citation_urls"] == [
+        "https://doi.org/10.1093/bioinformatics/btx153",
+        "https://doi.org/10.1038/s41467-020-14998-3",
+    ]
+    assert "GenomeScope 2.0" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "reference-free genome profiling" in node_info["search_aliases"]
+
+
+def test_genomescope_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("genomescope")
+
+    assert node_class.render_command(
+        {
+            "input": "kmer histogram.tsv",
+            "kmer_length": 21,
+            "output": "/work/genomescope",
+        }
+    ) == (
+        "genomescope2 --input 'kmer histogram.tsv' --output /work/genomescope --kmer_length 21"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "genomescope" / "linear_plot.png",
+        tmp_path / "genomescope" / "log_plot.png",
+        tmp_path / "genomescope" / "transformed_linear_plot.png",
+        tmp_path / "genomescope" / "transformed_log_plot.png",
+    ]
+
+
+def test_genomescope_renders_advanced_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("genomescope")
+
+    assert node_class.render_command(
+        {
+            "input": "hist.tsv",
+            "kmer_length": 31,
+            "output_files": ["model_output", "summary_output", "progress_output"],
+            "no_unique_sequence": True,
+            "testing": True,
+            "trace_flag": True,
+            "ploidy": 4,
+            "lambda": 42,
+            "max_kmercov": 1000,
+            "topology": 2,
+            "initial_repetitiveness": 0.15,
+            "initial_heterozygosities": "0.04,0.01,0.02",
+            "transform_exp": 2,
+            "true_params": "1000,0.02,0.4",
+            "num_rounds": 6,
+            "output": "/work/genomescope",
+        }
+    ) == (
+        "genomescope2 --input hist.tsv --output /work/genomescope --kmer_length 31 "
+        "--no_unique_sequence --testing --trace_flag --ploidy 4 --lambda 42 --max_kmercov 1000 "
+        "--topology 2 --initial_repetitiveness 0.15 --initial_heterozygosities 0.04,0.01,0.02 "
+        "--transform_exp 2 --true_params 1000,0.02,0.4 --num_rounds 6"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "output_files": ["model_output", "summary_output", "progress_output"],
+            "testing": True,
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "genomescope" / "linear_plot.png",
+        tmp_path / "genomescope" / "log_plot.png",
+        tmp_path / "genomescope" / "transformed_linear_plot.png",
+        tmp_path / "genomescope" / "transformed_log_plot.png",
+        tmp_path / "genomescope" / "model.txt",
+        tmp_path / "genomescope" / "summary.txt",
+        tmp_path / "genomescope" / "progress.txt",
+        tmp_path / "genomescope" / "SIMULATED_testing.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input": "", "kmer_length": 21}) == "input histogram is required"
+    assert node_class.VALIDATE_INPUTS({"input": "hist.tsv", "kmer_length": 0}) == "kmer_length must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input": "hist.tsv", "kmer_length": 21, "ploidy": 7}) == (
+        "ploidy must be between 1 and 6"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "hist.tsv", "kmer_length": 21, "initial_repetitiveness": 1.5}) == (
+        "initial_repetitiveness must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "hist.tsv", "kmer_length": 21, "output_files": ["bogus"]}) == (
+        "output_files contains unsupported values: bogus"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "hist.tsv", "kmer_length": 21, "num_rounds": 0}) == (
+        "num_rounds must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "hist.tsv", "kmer_length": 21}) is True
 
 
 def test_miniasm_exposes_galaxy_metadata_and_citation() -> None:
