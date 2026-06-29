@@ -1789,6 +1789,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/gb-2014-15-3-r46'],
     citation_text: 'Kraken: ultrafast metagenomic sequence classification using exact alignments.',
   },
+  kraken_mpa_report: {
+    name: 'kraken_mpa_report',
+    display_name: 'Kraken MPA Report',
+    category: 'metagenomics',
+    description: 'Summarize classic Kraken classifications across taxonomic ranks for multiple samples.',
+    search_aliases: ['Galaxy', 'Kraken MPA Report', 'kraken-mpa-report', 'multiple samples', 'taxonomic ranks', 'MetaPhlAn style', 'show zeros', 'header line'],
+    input: {
+      required: {
+        classification: { type: 'TSV', multiple: true },
+        db: { type: 'DIRECTORY' },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+        show_zeros: { type: 'BOOLEAN', default: false },
+        header_line: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output_report'],
+    required_executables: ['kraken-mpa-report'],
+    required_conda_packages: ['kraken'],
+    documentation_url: 'http://ccb.jhu.edu/software/kraken/',
+    citation_dois: ['10.1186/gb-2014-15-3-r46'],
+    citation_urls: ['https://doi.org/10.1186/gb-2014-15-3-r46'],
+    citation_text: 'Kraken: ultrafast metagenomic sequence classification using exact alignments.',
+  },
   centrifuge: {
     name: 'centrifuge',
     display_name: 'Centrifuge',
@@ -5126,7 +5152,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('212 nodes available')).toBeVisible();
+  await expect(page.getByText('213 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5201,6 +5227,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'sample report', name: 'Kraken Report', category: 'metagenomics' },
     { query: 'confidence threshold', name: 'Kraken Filter', category: 'metagenomics' },
     { query: 'lineage names', name: 'Kraken Translate', category: 'metagenomics' },
+    { query: 'taxonomic ranks', name: 'Kraken MPA Report', category: 'metagenomics' },
     { query: 'SRA accession', name: 'Centrifuge', category: 'metagenomics' },
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },

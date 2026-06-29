@@ -8875,6 +8875,121 @@ class KrakenTranslateNode(CommandNode):
         }
 
 
+class KrakenMpaReportNode(CommandNode):
+    """Generate a classic Kraken MPA-style multi-sample report."""
+
+    NODE_ID = "kraken_mpa_report"
+    DISPLAY_NAME = "Kraken MPA Report"
+    REQUIRED_CONDA_PACKAGES = ["kraken"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Summarize classic Kraken classifications across taxonomic ranks for multiple samples."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Kraken MPA Report",
+        "kraken-mpa-report",
+        "multiple samples",
+        "taxonomic ranks",
+        "MetaPhlAn style",
+        "show zeros",
+        "header line",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output_report",)
+    REQUIRED_EXECUTABLES = ["kraken-mpa-report"]
+    DOCUMENTATION_URL = "http://ccb.jhu.edu/software/kraken/"
+    CITATION_DOIS = ["10.1186/gb-2014-15-3-r46"]
+    CITATION_URLS = [f"{DOI_URL}10.1186/gb-2014-15-3-r46"]
+    CITATION_TEXT = "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+    VERSION = "1.3.1"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output_report.tsv"
+
+    @classmethod
+    def _sample_names(cls, classifications: list[str], identifiers: list[str]) -> list[str]:
+        names: list[str] = []
+        for index, classification in enumerate(classifications):
+            if index < len(identifiers) and identifiers[index]:
+                name_base = str(identifiers[index]).replace("/", "-").replace("\t", "-")
+            else:
+                name_base = classification
+            name = name_base
+            duplicate_index = 1
+            while name in names:
+                name = f"{name_base}_{duplicate_index}"
+                duplicate_index += 1
+            names.append(name)
+        return names
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("db", "")).strip():
+            return "Kraken database is required"
+        if not _as_list(inputs.get("classification")):
+            return "At least one Kraken classification output is required"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        classifications = _as_list(inputs.get("classification"))
+        names = cls._sample_names(classifications, _as_list(inputs.get("element_identifiers")))
+        setup = [
+            f"ln -s {shlex.quote(classification)} {shlex.quote(name)}"
+            for classification, name in zip(classifications, names)
+            if classification != name
+        ]
+        cmd = [
+            "kraken-mpa-report",
+            "--db",
+            str(inputs.get("db", "")),
+            *names,
+        ]
+        if inputs.get("show_zeros", False):
+            cmd.append("--show-zeros")
+        if inputs.get("header_line", False):
+            cmd.append("--header-line")
+        _add_shell_redirect(cmd, cls._output_path(inputs))
+        rendered = _shell_join(cmd)
+        if setup:
+            return " && ".join([*setup, rendered])
+        return rendered
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output_report.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "classification": (
+                    "TSV",
+                    {"multiple": True, "description": "One or more Kraken classification outputs"},
+                ),
+                "db": ("DIRECTORY", {"description": "Kraken database used for the original classification"}),
+            },
+            "optional": {
+                "element_identifiers": (
+                    "STRING",
+                    {"default": [], "multiple": True, "description": "Optional Galaxy element identifiers for sample names"},
+                ),
+                "show_zeros": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Display taxa even if they lack reads in every sample"},
+                ),
+                "header_line": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Display a header line indicating sample IDs"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
 KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
 METAPHLAN_DOI = "10.1038/s41587-023-01688-w"

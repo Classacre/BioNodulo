@@ -450,6 +450,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["kraken"],
             "doi": "10.1186/gb-2014-15-3-r46",
         },
+        "kraken_mpa_report": {
+            "display_name": "Kraken MPA Report",
+            "category": "metagenomics",
+            "required_executables": ["kraken-mpa-report"],
+            "required_conda_packages": ["kraken"],
+            "doi": "10.1186/gb-2014-15-3-r46",
+        },
         "krakentools_combine_kreports": {
             "display_name": "Krakentools Combine Kraken Reports",
             "category": "taxonomy",
@@ -5405,6 +5412,88 @@ def test_kraken_translate_validates_wrapper_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "classification.kraken"}) == "Kraken database is required"
     assert node_class.VALIDATE_INPUTS({"db": "/db/kraken"}) == "Kraken classification output is required"
     assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "input": "classification.kraken"}) is True
+
+
+def test_kraken_mpa_report_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["kraken_mpa_report"]
+
+    assert info["display_name"] == "Kraken MPA Report"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Summarize classic Kraken classifications across taxonomic ranks for multiple samples."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "Kraken MPA Report",
+        "kraken-mpa-report",
+        "multiple samples",
+        "taxonomic ranks",
+        "MetaPhlAn style",
+        "show zeros",
+        "header line",
+    ]
+    assert info["version"] == "1.3.1"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output_report"]
+    assert info["required_executables"] == ["kraken-mpa-report"]
+    assert info["required_conda_packages"] == ["kraken"]
+    assert info["documentation_url"] == "http://ccb.jhu.edu/software/kraken/"
+    assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
+    assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
+
+    assert info["input"]["required"]["classification"][0] == "TSV"
+    assert info["input"]["required"]["classification"][1]["multiple"] is True
+    assert info["input"]["required"]["classification"][1]["description"] == "One or more Kraken classification outputs"
+    assert info["input"]["required"]["db"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["show_zeros"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["show_zeros"][1]["default"] is False
+    assert info["input"]["optional"]["header_line"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["header_line"][1]["default"] is False
+
+
+def test_kraken_mpa_report_renders_multi_sample_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("kraken_mpa_report")
+
+    assert node_class.render_command(
+        {
+            "classification": ["alpha classification.tsv", "beta/classification.tsv", "beta/classification.tsv"],
+            "element_identifiers": ["sample/one", "sample\tone", "sample/one"],
+            "db": "/db/mini kraken",
+            "show_zeros": True,
+            "header_line": True,
+            "output": "/work/kraken_mpa_report",
+        }
+    ) == (
+        "ln -s 'alpha classification.tsv' sample-one && "
+        "ln -s beta/classification.tsv sample-one_1 && "
+        "ln -s beta/classification.tsv sample-one_2 && "
+        "kraken-mpa-report --db '/db/mini kraken' sample-one sample-one_1 sample-one_2 "
+        "--show-zeros --header-line > /work/kraken_mpa_report/output_report.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "classification": ["sample1.kraken", "sample2.kraken"],
+            "db": "/db/kraken",
+            "output": "/work/kraken_mpa_report",
+        }
+    ) == (
+        "kraken-mpa-report --db /db/kraken sample1.kraken sample2.kraken "
+        "> /work/kraken_mpa_report/output_report.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kraken_mpa_report" / "output_report.tsv",
+    ]
+
+
+def test_kraken_mpa_report_validates_wrapper_inputs() -> None:
+    node_class = _node_class("kraken_mpa_report")
+
+    assert node_class.VALIDATE_INPUTS({"classification": ["sample.kraken"]}) == "Kraken database is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken"}) == "At least one Kraken classification output is required"
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "classification": []}) == (
+        "At least one Kraken classification output is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "classification": ["sample.kraken"]}) is True
 
 
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
