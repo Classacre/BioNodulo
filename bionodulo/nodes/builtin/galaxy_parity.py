@@ -11585,6 +11585,158 @@ class Ampvis2MergeReplicatesNode(CommandNode):
         }
 
 
+class Ampvis2OctaveNode(CommandNode):
+    """Generate ampvis2 octave plots for sequencing-depth assessment."""
+
+    NODE_ID = "ampvis2_octave"
+    DISPLAY_NAME = "ampvis2 octave plot"
+    REQUIRED_CONDA_PACKAGES = ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Generate octave plots to assess alpha diversity sequencing depth."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ampvis2",
+        "ampvis2 octave plot",
+        "amp_octave",
+        "octave plot",
+        "alpha diversity",
+        "sequencing depth",
+        "read count bins",
+        "microbiome diversity",
+    ]
+    RETURN_TYPES = ("PDF",)
+    RETURN_NAMES = ("plot",)
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://kasperskytte.github.io/ampvis2/reference/amp_octave.html"
+    CITATION_DOIS = [AMPVIS2_CITATION_DOIS[0]]
+    CITATION_URLS = [f"{DOI_URL}{AMPVIS2_CITATION_DOIS[0]}"]
+    CITATION_TEXT = AMPVIS2_CITATION_TEXT
+    VERSION = "2.8.11+galaxy2"
+    SHELL = True
+
+    TAX_LEVELS = ["OTU", "Species", "Genus", "Family", "Order", "Class", "Phylum", "Kingdom"]
+    SCALE_OPTIONS = ["fixed", "free", "free_x", "free_y"]
+    OUT_FORMATS = ["pdf", "png", "svg"]
+
+    @classmethod
+    def _out_format(cls, inputs: dict[str, Any]) -> str:
+        out_format = str(inputs.get("out_format", "pdf") or "pdf")
+        return out_format if out_format in cls.OUT_FORMATS else "pdf"
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any], out: str) -> str:
+        out_format = cls._out_format(inputs)
+        ggsave_options = [
+            f'    device = "{out_format}"',
+        ]
+        for name, option in (("plot_width", "width"), ("plot_height", "height")):
+            value = inputs.get(name)
+            if value not in (None, ""):
+                ggsave_options.append(f"    , {option} = {value}")
+        lines = [
+            "library(ampvis2, quietly = TRUE)",
+            f'd <- readRDS("{inputs.get("data", "")}")',
+            "plot <- amp_octave(",
+            "    d,",
+            f'    tax_aggregate = "{inputs.get("tax_aggregate", "OTU") or "OTU"}",',
+        ]
+        if str(inputs.get("group_by", "")).strip():
+            lines.extend(
+                [
+                    f'    group_by = "{inputs.get("group_by")}",',
+                    f'    scales = "{inputs.get("scales", "fixed") or "fixed"}",',
+                ]
+            )
+        lines.extend(
+            [
+                "    num_threads = 1",
+                ")",
+                f'ggsave("{out}/plot.{out_format}",',
+                "    print(plot),",
+                ",\n".join(ggsave_options),
+                ")",
+            ]
+        )
+        return "\n".join(lines)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = f"{out}/octave.R"
+        return f"cat > {shlex.quote(script_path)} <<'RSCRIPT'\n{cls._script_body(inputs, out)}\nRSCRIPT && {_shell_join(['Rscript', script_path])}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / f"plot.{cls._out_format(inputs)}"]
+
+    @classmethod
+    def _validate_choice(cls, inputs: dict[str, Any], name: str, options: list[str], default: str) -> bool | str:
+        value = str(inputs.get(name, default) or default)
+        if value not in options:
+            return f"{name} must be one of: {', '.join(options)}"
+        return True
+
+    @classmethod
+    def _validate_number(cls, inputs: dict[str, Any], name: str, minimum: int | float) -> bool | str:
+        raw = inputs.get(name)
+        if raw in (None, ""):
+            return True
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return f"{name} must be a number"
+        if value < minimum:
+            return f"{name} must be >= {minimum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("data", "")).strip():
+            return "data is required"
+        for name, options, default in (
+            ("tax_aggregate", cls.TAX_LEVELS, "OTU"),
+            ("scales", cls.SCALE_OPTIONS, "fixed"),
+            ("out_format", cls.OUT_FORMATS, "pdf"),
+        ):
+            validation = cls._validate_choice(inputs, name, options, default)
+            if validation is not True:
+                return validation
+        for name in ("plot_width", "plot_height"):
+            validation = cls._validate_number(inputs, name, 1)
+            if validation is not True:
+                return validation
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": ("FILE", {"description": "Ampvis2 RDS dataset generated with ampvis2: load"}),
+            },
+            "optional": {
+                "metadata_list": ("TSV", {"default": "", "description": "Metadata list generated by ampvis2: load"}),
+                "tax_aggregate": (
+                    "STRING",
+                    {"default": "OTU", "options": cls.TAX_LEVELS, "description": "Taxonomic level used to aggregate OTUs"},
+                ),
+                "group_by": ("STRING", {"default": "", "description": "Discrete metadata variable used to group samples"}),
+                "scales": (
+                    "STRING",
+                    {"default": "fixed", "options": cls.SCALE_OPTIONS, "description": "Facet axis scale behavior when grouping samples"},
+                ),
+                "out_format": ("STRING", {"default": "pdf", "options": cls.OUT_FORMATS, "description": "Plot output format"}),
+                "plot_width": ("FLOAT", {"default": "", "min": 1, "description": "Optional plot width in cm"}),
+                "plot_height": ("FLOAT", {"default": "", "min": 1, "description": "Optional plot height in cm"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",

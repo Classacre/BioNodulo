@@ -6676,6 +6676,104 @@ def test_ampvis2_mergereplicates_renders_script_outputs_and_validates(tmp_path: 
     assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "metadata_list": "metadata.list", "merge_var": "Period"}) is True
 
 
+def test_ampvis2_octave_exposes_galaxy_metadata_and_citation() -> None:
+    info = _registry().object_info()["ampvis2_octave"]
+
+    assert info["display_name"] == "ampvis2 octave plot"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate octave plots to assess alpha diversity sequencing depth."
+    assert info["version"] == "2.8.11+galaxy2"
+    assert info["input"]["required"]["data"][0] == "FILE"
+    assert info["input"]["required"]["data"][1]["description"] == "Ampvis2 RDS dataset generated with ampvis2: load"
+    assert info["input"]["optional"]["metadata_list"][0] == "TSV"
+    assert info["input"]["optional"]["tax_aggregate"][1]["default"] == "OTU"
+    assert info["input"]["optional"]["tax_aggregate"][1]["options"] == [
+        "OTU",
+        "Species",
+        "Genus",
+        "Family",
+        "Order",
+        "Class",
+        "Phylum",
+        "Kingdom",
+    ]
+    assert info["input"]["optional"]["group_by"][0] == "STRING"
+    assert info["input"]["optional"]["scales"][1]["default"] == "fixed"
+    assert info["input"]["optional"]["scales"][1]["options"] == ["fixed", "free", "free_x", "free_y"]
+    assert info["input"]["optional"]["out_format"][1]["default"] == "pdf"
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["input"]["optional"]["plot_width"][1]["min"] == 1
+    assert info["input"]["optional"]["plot_height"][1]["min"] == 1
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["plot"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
+    assert info["documentation_url"] == "https://kasperskytte.github.io/ampvis2/reference/amp_octave.html"
+    assert info["citation_dois"] == ["10.1101/299537"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/299537"]
+    assert "ampvis2" in info["citation_text"]
+    assert "ampvis2 octave plot" in info["search_aliases"]
+    assert "amp_octave" in info["search_aliases"]
+    assert "sequencing depth" in info["search_aliases"]
+
+
+def test_ampvis2_octave_renders_script_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("ampvis2_octave")
+
+    command = node_class.render_command(
+        {
+            "data": "AalborgWWTPs.rds",
+            "metadata_list": "AalborgWWTPs-metadata.list",
+            "tax_aggregate": "Class",
+            "group_by": "Year",
+            "scales": "free",
+            "out_format": "svg",
+            "plot_width": 12,
+            "plot_height": 8.5,
+            "output": "/work/ampvis2_octave",
+        }
+    )
+
+    assert command.startswith("cat > /work/ampvis2_octave/octave.R <<'RSCRIPT'\n")
+    assert "library(ampvis2, quietly = TRUE)" in command
+    assert 'd <- readRDS("AalborgWWTPs.rds")' in command
+    assert "plot <- amp_octave(" in command
+    assert 'tax_aggregate = "Class",' in command
+    assert 'group_by = "Year",' in command
+    assert 'scales = "free",' in command
+    assert "num_threads = 1" in command
+    assert 'ggsave("/work/ampvis2_octave/plot.svg",' in command
+    assert 'device = "svg"' in command
+    assert ", width = 12" in command
+    assert ", height = 8.5" in command
+    assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_octave/octave.R")
+
+    default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_octave"})
+    assert 'tax_aggregate = "OTU",' in default_command
+    assert "group_by =" not in default_command
+    assert "scales =" not in default_command
+    assert 'device = "pdf"' in default_command
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "png"}, tmp_path) == [
+        tmp_path / "ampvis2_octave" / "plot.png",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ampvis2_octave" / "plot.pdf",
+    ]
+    assert node_class.VALIDATE_INPUTS({"data": ""}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "tax_aggregate": "bad"}) == (
+        "tax_aggregate must be one of: OTU, Species, Genus, Family, Order, Class, Phylum, Kingdom"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "scales": "bad"}) == (
+        "scales must be one of: fixed, free, free_x, free_y"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "out_format": "jpg"}) == (
+        "out_format must be one of: pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds", "plot_width": 0.5}) == "plot_width must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"data": "dataset.rds"}) is True
+
+
 def test_aldex2_exposes_galaxy_metadata_and_citation() -> None:
     info = _registry().object_info()["aldex2"]
 
