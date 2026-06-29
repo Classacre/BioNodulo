@@ -6363,6 +6363,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
     citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
   },
+  samtools_consensus: {
+    name: 'samtools_consensus',
+    display_name: 'Samtools Consensus',
+    category: 'samtools',
+    description: 'Generate FASTA, FASTQ, or pileup consensus sequence from SAM, BAM, or CRAM alignments.',
+    search_aliases: ['Galaxy', 'samtools', 'consensus', 'Bayesian', 'Gap5', 'consensus sequence'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['consensus'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://www.htslib.org/doc/samtools-consensus.html',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
   cramino: {
     name: 'cramino',
     display_name: 'Cramino',
@@ -6677,7 +6698,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('243 nodes available')).toBeVisible();
+  await expect(page.getByText('244 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -6912,6 +6933,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'readgroup', name: 'Samtools Split', category: 'samtools' },
     { query: 'slice', name: 'Samtools Slice BAM', category: 'samtools' },
     { query: 'phase', name: 'Samtools Phase', category: 'samtools' },
+    { query: 'consensus sequence', name: 'Samtools Consensus', category: 'samtools' },
     { query: 'BAM CRAM QC', name: 'Cramino', category: 'qc' },
     { query: 'clip overlapping read pairs', name: 'BamUtil clipOverlap', category: 'alignment' },
     { query: 'compare SAM BAM files', name: 'BamUtil diff', category: 'alignment' },

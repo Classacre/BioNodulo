@@ -775,6 +775,12 @@ def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_m
             "output_name": ["phase_sets", "phase0", "phase1", "chimera"],
             "aliases": ["Galaxy", "phase", "heterozygous SNPs"],
         },
+        "samtools_consensus": {
+            "display_name": "Samtools Consensus",
+            "output": ["FASTA"],
+            "output_name": ["consensus"],
+            "aliases": ["Galaxy", "consensus", "Bayesian", "Gap5"],
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -1032,4 +1038,159 @@ def test_samtools_phase_renders_advanced_phase_command_and_outputs(tmp_path: Pat
         tmp_path / "samtools_phase" / "phase_wrapper.0.bam",
         tmp_path / "samtools_phase" / "phase_wrapper.1.bam",
         tmp_path / "samtools_phase" / "phase_wrapper.chimera.bam",
+    ]
+
+
+def test_samtools_consensus_renders_simple_mode_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_consensus")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.bam",
+            "threads": 5,
+            "format": "fastq",
+            "min_mq": 21,
+            "min_bq": 7,
+            "required_flags": [2, 64],
+            "skipped_flags": [4, 256],
+            "mode": "simple",
+            "use_qual": True,
+            "consensus_fraction": 0.9,
+            "heterozygous_fraction": 0.2,
+            "min_depth": 3,
+            "region": "chr1:100-200",
+            "line_len": -1,
+            "output_all": True,
+            "show_deletions": True,
+            "show_insertions": False,
+            "ambig": True,
+            "mark_insertions": True,
+            "output": "/work/samtools_consensus",
+        }
+    ) == [
+        "samtools",
+        "consensus",
+        "sample.bam",
+        "-f",
+        "fastq",
+        "-@",
+        "4",
+        "--min-MQ",
+        "21",
+        "--min-BQ",
+        "7",
+        "--rf",
+        "66",
+        "--ff",
+        "260",
+        "-m",
+        "simple",
+        "-q",
+        "-c",
+        "0.9",
+        "-H",
+        "0.2",
+        "--min-depth",
+        "3",
+        "-r",
+        "chr1:100-200",
+        "-l",
+        "-1",
+        "-a",
+        "--show-del",
+        "yes",
+        "--show-ins",
+        "no",
+        "--ambig",
+        "--mark-ins",
+        ">",
+        "/work/samtools_consensus/consensus.fastq",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"format": "fastq"}, tmp_path) == [
+        tmp_path / "samtools_consensus" / "consensus.fastq"
+    ]
+
+
+def test_samtools_consensus_renders_manual_bayesian_reference_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("samtools_consensus")
+
+    assert node_class.render_command(
+        {
+            "input": "reads.cram",
+            "threads": 2,
+            "format": "pileup",
+            "mode": "bayesian_116",
+            "config": "manual",
+            "cutoff": 5,
+            "use_mq": True,
+            "adjust_mq": False,
+            "nm_halo": 30,
+            "low_mq": 2,
+            "high_mq": 55,
+            "scale_mq": 1.5,
+            "p_het": 0.01,
+            "p_indel": 0.02,
+            "het_scale": 4.0,
+            "homopoly_fix": True,
+            "homopoly_score": 0.3,
+            "qual_calibration": ":hifi",
+            "min_depth": 1,
+            "reference": "reference.fa",
+            "line_len": 70,
+            "output": "/work/samtools_consensus",
+        }
+    ) == [
+        "samtools",
+        "consensus",
+        "reads.cram",
+        "-f",
+        "pileup",
+        "-@",
+        "1",
+        "--min-MQ",
+        "0",
+        "--min-BQ",
+        "0",
+        "-m",
+        "bayesian_116",
+        "-C",
+        "5",
+        "--use-MQ",
+        "--no-adj-MQ",
+        "--NM-halo",
+        "30",
+        "--low-MQ",
+        "2",
+        "--high-MQ",
+        "55",
+        "--scale-MQ",
+        "1.5",
+        "--P-het",
+        "0.01",
+        "--P-indel",
+        "0.02",
+        "--het-scale",
+        "4.0",
+        "-p",
+        "--homopoly-score",
+        "0.3",
+        "--qual-calibration",
+        ":hifi",
+        "--min-depth",
+        "1",
+        "-T",
+        "reference.fa",
+        "-l",
+        "70",
+        "--show-del",
+        "no",
+        "--show-ins",
+        "yes",
+        ">",
+        "/work/samtools_consensus/consensus.pileup",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({"format": "pileup"}, tmp_path) == [
+        tmp_path / "samtools_consensus" / "consensus.pileup"
     ]
