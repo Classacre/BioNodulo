@@ -513,6 +513,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "humann_renorm_table": {
+            "display_name": "HUMAnN Renormalize Table",
+            "category": "metagenomics",
+            "required_executables": ["humann_renorm_table"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6009,6 +6016,97 @@ def test_humann_join_tables_validates_wrapper_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({}) == "At least one HUMAnN or MetaPhlAn table is required"
     assert node_class.VALIDATE_INPUTS({"inputs": []}) == "At least one HUMAnN or MetaPhlAn table is required"
     assert node_class.VALIDATE_INPUTS({"inputs": ["pathabundance.tsv"]}) is True
+
+
+def test_humann_renorm_table_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_renorm_table"]
+
+    assert info["display_name"] == "HUMAnN Renormalize Table"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Renormalize HUMAnN gene or pathway tables to CPM or relative abundance units."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_renorm_table",
+        "Renormalize",
+        "copies per million",
+        "relative abundance",
+        "community total",
+        "levelwise total",
+        "UNMAPPED",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["humann_renorm_table"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["description"] == "HUMAnN gene or pathway table"
+    assert info["input"]["optional"]["units"][1]["default"] == "cpm"
+    assert info["input"]["optional"]["units"][1]["options"] == ["cpm", "relab"]
+    assert info["input"]["optional"]["mode"][1]["default"] == "community"
+    assert info["input"]["optional"]["mode"][1]["options"] == ["community", "levelwise"]
+    assert info["input"]["optional"]["special"][1]["default"] is True
+    assert info["input"]["optional"]["update_snames"][1]["default"] is True
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_renorm_table_renders_normalization_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("humann_renorm_table")
+
+    assert node_class.render_command(
+        {
+            "input": "demo pathabundance.tsv",
+            "units": "cpm",
+            "mode": "community",
+            "special": False,
+            "update_snames": False,
+            "output": "/work/humann_renorm_table",
+        }
+    ) == (
+        "humann_renorm_table --input 'demo pathabundance.tsv' "
+        "-o /work/humann_renorm_table/renormalized_table.tsv "
+        "--units cpm --mode community --special n"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "demo_pathabundance.tsv",
+            "units": "relab",
+            "mode": "levelwise",
+            "special": True,
+            "update_snames": True,
+            "output": "/work/humann_renorm_table",
+        }
+    ) == (
+        "humann_renorm_table --input demo_pathabundance.tsv "
+        "-o /work/humann_renorm_table/renormalized_table.tsv "
+        "--units relab --mode levelwise --special y --update-snames"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "humann_renorm_table" / "renormalized_table.tsv",
+    ]
+
+
+def test_humann_renorm_table_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_renorm_table")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HUMAnN gene or pathway table is required"
+    assert node_class.VALIDATE_INPUTS({"input": "pathabundance.tsv", "units": "rpm"}) == (
+        "Unsupported HUMAnN normalization units: rpm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "pathabundance.tsv", "mode": "samplewise"}) == (
+        "Unsupported HUMAnN normalization mode: samplewise"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "pathabundance.tsv"}) is True
 
 
 def test_merge_metaphlan_tables_renders_join_command_and_outputs(tmp_path: Path) -> None:

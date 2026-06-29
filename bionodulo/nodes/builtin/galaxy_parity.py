@@ -10140,6 +10140,114 @@ class HUMAnNJoinTablesNode(CommandNode):
         }
 
 
+class HUMAnNRenormTableNode(CommandNode):
+    """Renormalize HUMAnN gene and pathway tables."""
+
+    NODE_ID = "humann_renorm_table"
+    DISPLAY_NAME = "HUMAnN Renormalize Table"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Renormalize HUMAnN gene or pathway tables to CPM or relative abundance units."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_renorm_table",
+        "Renormalize",
+        "copies per million",
+        "relative abundance",
+        "community total",
+        "levelwise total",
+        "UNMAPPED",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["humann_renorm_table"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+    UNITS = ["cpm", "relab"]
+    MODES = ["community", "levelwise"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/renormalized_table.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "humann_renorm_table",
+            "--input",
+            str(inputs.get("input", "")),
+            "-o",
+            cls._output_path(inputs),
+            "--units",
+            str(inputs.get("units", "cpm")),
+            "--mode",
+            str(inputs.get("mode", "community")),
+            "--special",
+            "y" if inputs.get("special", True) else "n",
+        ]
+        if inputs.get("update_snames", True):
+            cmd.append("--update-snames")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "renormalized_table.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "HUMAnN gene or pathway table is required"
+        units = str(inputs.get("units", "cpm"))
+        if units not in cls.UNITS:
+            return f"Unsupported HUMAnN normalization units: {units}"
+        mode = str(inputs.get("mode", "community"))
+        if mode not in cls.MODES:
+            return f"Unsupported HUMAnN normalization mode: {mode}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "HUMAnN gene or pathway table"}),
+            },
+            "optional": {
+                "units": (
+                    "STRING",
+                    {
+                        "default": "cpm",
+                        "options": cls.UNITS,
+                        "description": "Normalize to copies per million or relative abundance units",
+                    },
+                ),
+                "mode": (
+                    "STRING",
+                    {
+                        "default": "community",
+                        "options": cls.MODES,
+                        "description": "Normalize using community totals or per-level totals",
+                    },
+                ),
+                "special": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Include special features such as UNMAPPED and UNINTEGRATED"},
+                ),
+                "update_snames": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Update sample-name RPK suffixes to the selected units"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MergeMetaPhlAnTablesNode(CommandNode):
     """Merge multiple MetaPhlAn relative abundance tables."""
 
