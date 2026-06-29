@@ -583,6 +583,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["hyphy"],
             "doi": "10.1093/molbev/msv022",
         },
+        "hyphy_annotate": {
+            "display_name": "HyPhy Annotate",
+            "category": "phylogeny",
+            "required_executables": ["hyphy"],
+            "required_conda_packages": ["hyphy"],
+            "doi": "10.1093/molbev/msz197",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -7350,6 +7357,142 @@ def test_hyphy_absrel_validates_wrapper_inputs() -> None:
             "kill_zero_lengths": "Yes",
             "threads": 4,
             "blb": 1.0,
+        }
+    ) is True
+
+
+def test_hyphy_annotate_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["hyphy_annotate"]
+
+    assert info["display_name"] == "HyPhy Annotate"
+    assert info["category"] == "phylogeny"
+    assert info["description"] == "Annotate a Newick/NHX phylogenetic tree with HyPhy label-tree."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HyPhy",
+        "label-tree",
+        "Annotate",
+        "Newick annotation",
+        "branch labels",
+        "phylogenetic tree annotation",
+    ]
+    assert info["output"] == ["PHYLOGENY_TREE", "TEXT"]
+    assert info["output_name"] == ["labeled_tree", "annotate_md_report"]
+    assert info["required_executables"] == ["hyphy"]
+    assert info["required_conda_packages"] == ["hyphy"]
+    assert info["documentation_url"] == "https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles/lib/label-tree.bf"
+    assert info["citation_dois"] == ["10.1093/molbev/msz197"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/molbev/msz197"]
+    assert info["citation_text"] == "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies."
+    assert info["version"] == "2.5.96"
+
+    assert info["input"]["required"]["input_tree"][0] == "STRING"
+    assert info["input"]["required"]["selection_method"][1]["default"] == "regexp"
+    assert info["input"]["required"]["selection_method"][1]["options"] == ["regexp", "list"]
+    assert info["input"]["optional"]["regexp"][0] == "STRING"
+    assert info["input"]["optional"]["list_file"][0] == "FILE"
+    assert info["input"]["optional"]["label"][1]["default"] == "Foreground"
+    assert info["input"]["optional"]["reroot"][1]["default"] == "None"
+    assert info["input"]["optional"]["invert"][1]["default"] is False
+    assert info["input"]["optional"]["internal_nodes"][1]["default"] == "All descendants"
+    assert info["input"]["optional"]["internal_nodes"][1]["options"] == [
+        "All descendants",
+        "None",
+        "All descendants, no MRCA",
+        "Some descendants",
+        "Parsimony",
+    ]
+    assert info["input"]["optional"]["leaf_nodes"][1]["default"] == "Label"
+    assert info["input"]["optional"]["leaf_nodes"][1]["options"] == ["Label", "Skip"]
+
+
+def test_hyphy_annotate_renders_regexp_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("hyphy_annotate")
+
+    assert node_class.render_command(
+        {
+            "input_tree": "annotate-in1.nhx",
+            "selection_method": "regexp",
+            "regexp": "_USA_",
+            "label": "Annotated",
+            "reroot": "None",
+            "invert": False,
+            "internal_nodes": "All descendants",
+            "leaf_nodes": "Label",
+            "output": "/work/hyphy_annotate",
+        }
+    ) == (
+        "cp annotate-in1.nhx input.nhx && "
+        "hyphy label-tree --tree input.nhx --output /work/hyphy_annotate/labeled_tree.nhx "
+        "--regexp _USA_ --label Annotated --reroot None --invert No "
+        "--internal-nodes 'All descendants' --leaf-nodes Label "
+        "> /work/hyphy_annotate/annotate_stdout.md 2>/dev/null"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "hyphy_annotate" / "labeled_tree.nhx",
+        tmp_path / "hyphy_annotate" / "annotate_stdout.md",
+    ]
+
+
+def test_hyphy_annotate_renders_list_command_with_inverted_selection() -> None:
+    node_class = _node_class("hyphy_annotate")
+
+    assert node_class.render_command(
+        {
+            "input_tree": "trees/input tree.nhx",
+            "selection_method": "list",
+            "list_file": "annotate-list1.txt",
+            "label": "Foreground clade",
+            "reroot": "gb_MW540268",
+            "invert": True,
+            "internal_nodes": "Parsimony",
+            "leaf_nodes": "Skip",
+            "output": "/work/hyphy_annotate",
+        }
+    ) == (
+        "cp 'trees/input tree.nhx' input.nhx && "
+        "hyphy label-tree --tree input.nhx --output /work/hyphy_annotate/labeled_tree.nhx "
+        "--list annotate-list1.txt --label 'Foreground clade' --reroot gb_MW540268 --invert Yes "
+        "--internal-nodes Parsimony --leaf-nodes Skip "
+        "> /work/hyphy_annotate/annotate_stdout.md 2>/dev/null"
+    )
+
+
+def test_hyphy_annotate_validates_wrapper_inputs() -> None:
+    node_class = _node_class("hyphy_annotate")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HyPhy Annotate input tree is required"
+    assert node_class.VALIDATE_INPUTS({"input_tree": "tree.nhx", "selection_method": "regexp"}) == (
+        "HyPhy Annotate regular expression is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tree": "tree.nhx", "selection_method": "list"}) == (
+        "HyPhy Annotate sequence list file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tree": "tree.nhx", "selection_method": "manual"}) == (
+        "Unsupported HyPhy Annotate selection method: manual"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_tree": "tree.nhx", "selection_method": "regexp", "regexp": "bad\\"}
+    ) == "HyPhy Annotate regular expression must not end with a backslash"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_tree": "tree.nhx", "selection_method": "regexp", "regexp": "_USA_", "label": ""}
+    ) == "HyPhy Annotate label is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_tree": "tree.nhx", "selection_method": "regexp", "regexp": "_USA_", "internal_nodes": "Everywhere"}
+    ) == "Unsupported HyPhy Annotate internal-node strategy: Everywhere"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_tree": "tree.nhx", "selection_method": "regexp", "regexp": "_USA_", "leaf_nodes": "Maybe"}
+    ) == "Unsupported HyPhy Annotate leaf-node strategy: Maybe"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_tree": "tree.nhx",
+            "selection_method": "list",
+            "list_file": "names.txt",
+            "label": "Annotated",
+            "reroot": "None",
+            "internal_nodes": "Some descendants",
+            "leaf_nodes": "Skip",
         }
     ) is True
 

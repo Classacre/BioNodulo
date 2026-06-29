@@ -2689,6 +2689,48 @@ const objectInfo = {
     citation_text:
       'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies; Less Is More: an adaptive branch-site random effects model for efficient detection of episodic diversifying selection.',
   },
+  hyphy_annotate: {
+    name: 'hyphy_annotate',
+    display_name: 'HyPhy Annotate',
+    category: 'phylogeny',
+    description: 'Annotate a Newick/NHX phylogenetic tree with HyPhy label-tree.',
+    search_aliases: [
+      'Galaxy',
+      'HyPhy',
+      'label-tree',
+      'Annotate',
+      'Newick annotation',
+      'branch labels',
+      'phylogenetic tree annotation',
+    ],
+    input: {
+      required: {
+        input_tree: { type: 'STRING' },
+        selection_method: { type: 'STRING', default: 'regexp', options: ['regexp', 'list'] },
+      },
+      optional: {
+        regexp: { type: 'STRING', default: '' },
+        list_file: { type: 'FILE', default: '' },
+        label: { type: 'STRING', default: 'Foreground' },
+        reroot: { type: 'STRING', default: 'None' },
+        invert: { type: 'BOOLEAN', default: false },
+        internal_nodes: {
+          type: 'STRING',
+          default: 'All descendants',
+          options: ['All descendants', 'None', 'All descendants, no MRCA', 'Some descendants', 'Parsimony'],
+        },
+        leaf_nodes: { type: 'STRING', default: 'Label', options: ['Label', 'Skip'] },
+      },
+    },
+    output: ['PHYLOGENY_TREE', 'TEXT'],
+    output_name: ['labeled_tree', 'annotate_md_report'],
+    required_executables: ['hyphy'],
+    required_conda_packages: ['hyphy'],
+    documentation_url: 'https://github.com/veg/hyphy/blob/master/res/TemplateBatchFiles/lib/label-tree.bf',
+    citation_dois: ['10.1093/molbev/msz197'],
+    citation_urls: ['https://doi.org/10.1093/molbev/msz197'],
+    citation_text: 'HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies.',
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5659,7 +5701,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('225 nodes available')).toBeVisible();
+  await expect(page.getByText('226 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5758,6 +5800,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'focal feature', name: 'HUMAnN Barplot', category: 'metagenomics' },
     { query: 'targeted sequence capture', name: 'HybPiper', category: 'phylogeny' },
     { query: 'episodic diversifying selection', name: 'HyPhy-aBSREL', category: 'phylogeny' },
+    { query: 'HyPhy Annotate', name: 'HyPhy Annotate', category: 'phylogeny' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },
