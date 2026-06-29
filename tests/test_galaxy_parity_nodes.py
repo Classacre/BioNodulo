@@ -22,6 +22,73 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def test_anndata2ri_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["anndata2ri"]
+
+    assert node_info["display_name"] == "anndata2ri"
+    assert node_info["category"] == "single_cell"
+    assert node_info["description"] == "Convert between AnnData and SingleCellExperiment objects."
+    assert node_info["output"] == ["H5AD", "FILE"]
+    assert node_info["output_name"] == ["output_anndata", "output_sce"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == [
+        "anndata2ri",
+        "anndata",
+        "bioconductor-singlecellexperiment",
+    ]
+    assert node_info["documentation_url"] == "https://github.com/theislab/anndata2ri"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/theislab/anndata2ri"]
+    assert "Convert between AnnData and SingleCellExperiment" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "SingleCellExperiment" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input_object"][0] == "FILE"
+    assert node_info["input"]["optional"]["direction"][1]["default"] == "sce2anndata"
+    assert node_info["input"]["optional"]["direction"][1]["options"] == ["sce2anndata", "anndata2sce"]
+    assert node_info["input"]["optional"]["script_path"][1]["default"] == "anndata2ri.py"
+
+
+def test_anndata2ri_renders_default_sce_to_anndata_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("anndata2ri")
+
+    assert node_class.render_command(
+        {
+            "input_object": "krumsiek11.rds",
+            "output": "/work/anndata2ri",
+        }
+    ) == "python anndata2ri.py sce2anndata krumsiek11.rds /work/anndata2ri/outfile.h5ad"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "anndata2ri" / "outfile.h5ad"]
+
+
+def test_anndata2ri_renders_anndata_to_sce_command_with_quoted_paths(tmp_path: Path) -> None:
+    node_class = _node_class("anndata2ri")
+
+    assert node_class.render_command(
+        {
+            "direction": "anndata2sce",
+            "input_object": "single cell matrix.h5ad",
+            "script_path": "/tools/anndata2ri/convert helper.py",
+            "output": "/work/anndata2ri",
+        }
+    ) == (
+        "python '/tools/anndata2ri/convert helper.py' anndata2sce "
+        "'single cell matrix.h5ad' /work/anndata2ri/outfile.rds"
+    )
+    assert node_class.PLAN_OUTPUTS({"direction": "anndata2sce"}, tmp_path) == [
+        tmp_path / "anndata2ri" / "outfile.rds",
+    ]
+
+
+def test_anndata2ri_validates_required_input_and_direction() -> None:
+    node_class = _node_class("anndata2ri")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_object is required"
+    assert node_class.VALIDATE_INPUTS({"input_object": "cells.h5ad", "direction": "bad"}) == (
+        "direction must be one of: sce2anndata, anndata2sce"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_object": "cells.h5ad", "direction": "anndata2sce"}) is True
+
+
 class _RecordingCommandContext:
     def __init__(self, node_dir: Path) -> None:
         self.node_dir = node_dir

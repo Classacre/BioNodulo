@@ -1161,6 +1161,30 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/fasta_stats'],
     citation_text: 'Fasta Statistics: Display summary statistics for a fasta file.',
   },
+  anndata2ri: {
+    name: 'anndata2ri',
+    display_name: 'anndata2ri',
+    category: 'single_cell',
+    description: 'Convert between AnnData and SingleCellExperiment objects.',
+    search_aliases: ['Galaxy', 'anndata2ri', 'AnnData', 'SingleCellExperiment', 'SingleCellexperiment', 'sce2anndata', 'anndata2sce', 'single-cell conversion', 'H5AD', 'RDS'],
+    input: {
+      required: {
+        input_object: { type: 'FILE' },
+      },
+      optional: {
+        direction: { type: 'STRING', default: 'sce2anndata', options: ['sce2anndata', 'anndata2sce'] },
+        script_path: { type: 'FILE', default: 'anndata2ri.py' },
+      },
+    },
+    output: ['H5AD', 'FILE'],
+    output_name: ['output_anndata', 'output_sce'],
+    required_executables: ['python'],
+    required_conda_packages: ['anndata2ri', 'anndata', 'bioconductor-singlecellexperiment'],
+    documentation_url: 'https://github.com/theislab/anndata2ri',
+    citation_dois: [],
+    citation_urls: ['https://github.com/theislab/anndata2ri'],
+    citation_text: 'Convert between AnnData and SingleCellExperiment objects.',
+  },
   chopper: {
     name: 'chopper',
     display_name: 'Chopper',
@@ -11614,7 +11638,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('398 nodes available')).toBeVisible();
+  await expect(page.getByText('399 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11668,6 +11692,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
+    { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
     { query: 'Graphical Fragment Assembly', name: 'GFA to FASTA', category: 'assembly' },
