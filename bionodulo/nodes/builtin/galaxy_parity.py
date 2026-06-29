@@ -1570,6 +1570,65 @@ class SeqTKHetyNode(CommandNode):
         }
 
 
+class SeqTKListHetNode(CommandNode):
+    """List heterozygous ambiguity-base positions with seqtk listhet."""
+
+    NODE_ID = "seqtk_listhet"
+    DISPLAY_NAME = "SeqTK List Heterozygous Bases"
+    REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "List positions of heterozygous IUPAC ambiguity bases in FASTA or FASTQ data."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "seqtk",
+        "seqtk listhet",
+        "SeqTK listhet",
+        "heterozygous bases",
+        "heterozygous positions",
+        "IUPAC ambiguity bases",
+        "ambiguous bases",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("heterozygous_bases",)
+    REQUIRED_EXECUTABLES = ["seqtk", "awk"]
+    DOCUMENTATION_URL = SEQTK_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SEQTK_CITATION_URL]
+    CITATION_TEXT = SEQTK_CITATION_TEXT
+    VERSION = "1.5+galaxy0"
+    SHELL = True
+
+    HEADER = r"#chr\tposition\tbase"
+
+    @classmethod
+    def _out_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/heterozygous_bases.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["seqtk", "listhet", str(inputs.get("in_file", ""))]
+        return (
+            f"{_shell_join(cmd)} | "
+            f"awk 'BEGIN{{print \"{cls.HEADER}\"}}1' "
+            f"> {shlex.quote(cls._out_path(inputs))}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "heterozygous_bases.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_file": ("FASTQ_LIST", {"description": "Input FASTA/Q file, optionally gzip-compressed"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class SeqKitGrepNode(CommandNode):
     """Search FASTA/Q records by ID, name, or sequence with SeqKit grep."""
 

@@ -1287,6 +1287,43 @@ def test_seqtk_hety_renders_masked_lowercase_command() -> None:
     )
 
 
+def test_seqtk_listhet_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
+    info = _registry().object_info()["seqtk_listhet"]
+
+    assert info["display_name"] == "SeqTK List Heterozygous Bases"
+    assert info["category"] == "sequence"
+    assert info["description"] == "List positions of heterozygous IUPAC ambiguity bases in FASTA or FASTQ data."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["heterozygous_bases"]
+    assert info["required_executables"] == ["seqtk", "awk"]
+    assert info["required_conda_packages"] == ["seqtk", "gawk"]
+    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
+    assert "Heng Li" in info["citation_text"]
+    assert "seqtk listhet" in info["search_aliases"]
+    assert "heterozygous bases" in info["search_aliases"]
+    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
+
+
+def test_seqtk_listhet_renders_heterozygous_base_positions_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("seqtk_listhet")
+
+    assert node_class.render_command(
+        {
+            "in_file": "ambiguous.fa.gz",
+            "output": "/work/seqtk_listhet",
+        }
+    ) == (
+        "seqtk listhet ambiguous.fa.gz | "
+        "awk 'BEGIN{print \"#chr\\tposition\\tbase\"}1' "
+        "> /work/seqtk_listhet/heterozygous_bases.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "seqtk_listhet" / "heterozygous_bases.tsv",
+    ]
+
+
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
     info = _registry().object_info()["seqkit_grep"]
 

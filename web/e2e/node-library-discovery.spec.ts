@@ -575,6 +575,26 @@ const objectInfo = {
     citation_urls: ['https://github.com/lh3/seqtk'],
     citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
   },
+  seqtk_listhet: {
+    name: 'seqtk_listhet',
+    display_name: 'SeqTK List Heterozygous Bases',
+    category: 'sequence',
+    description: 'List positions of heterozygous IUPAC ambiguity bases in FASTA or FASTQ data.',
+    search_aliases: ['Galaxy', 'seqtk', 'seqtk listhet', 'SeqTK listhet', 'heterozygous bases', 'heterozygous positions', 'IUPAC ambiguity bases', 'ambiguous bases'],
+    input: {
+      required: {
+        in_file: { type: 'FASTQ_LIST' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['heterozygous_bases'],
+    required_executables: ['seqtk', 'awk'],
+    required_conda_packages: ['seqtk', 'gawk'],
+    documentation_url: 'https://github.com/lh3/seqtk',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lh3/seqtk'],
+    citation_text: 'SeqTK FASTA/Q toolkit by Heng Li, distributed from the lh3/seqtk GitHub repository.',
+  },
   seqkit_head: {
     name: 'seqkit_head',
     display_name: 'SeqKit Head',
@@ -10913,7 +10933,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('374 nodes available')).toBeVisible();
+  await expect(page.getByText('375 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -10944,6 +10964,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'seqtk remove unpaired reads', name: 'SeqTK DropSE', category: 'sequence' },
     { query: 'seqtk base quality summary', name: 'SeqTK FASTQ Check', category: 'qc' },
     { query: 'seqtk regional heterozygosity', name: 'SeqTK Heterozygosity', category: 'sequence' },
+    { query: 'seqtk heterozygous bases', name: 'SeqTK List Heterozygous Bases', category: 'sequence' },
     { query: 'seqkit first records', name: 'SeqKit Head', category: 'sequence' },
     { query: 'FASTQ to TSV', name: 'SeqKit fx2tab', category: 'sequence' },
     { query: 'sort by length', name: 'SeqKit Sort', category: 'sequence' },
