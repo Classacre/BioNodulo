@@ -8386,6 +8386,189 @@ class AlphaGenomeSequencePredictorNode(CommandNode):
         }
 
 
+class AlphaGenomeVariantEffectNode(CommandNode):
+    """Annotate VCF variants with AlphaGenome variant-effect scores."""
+
+    NODE_ID = "alphagenome_variant_effect"
+    DISPLAY_NAME = "AlphaGenome Variant Effect"
+    REQUIRED_CONDA_PACKAGES = ["alphagenome", "cyvcf2", "pandas"]
+    CATEGORY = "ai"
+    DESCRIPTION = "Annotate VCF variants with AlphaGenome variant-effect scores."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AlphaGenome",
+        "alphagenome",
+        "AlphaGenome variant effect",
+        "predict_variant",
+        "regulatory variant effect",
+        "VCF annotation",
+        "log fold change",
+    ]
+    RETURN_TYPES = ("VCF",)
+    RETURN_NAMES = ("annotated_vcf",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://www.alphagenomedocs.com/"
+    CITATION_DOIS = [ALPHAGENOME_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{ALPHAGENOME_CITATION_DOI}"]
+    CITATION_TEXT = ALPHAGENOME_CITATION_TEXT
+    VERSION = "0.6.1+galaxy1"
+    SHELL = True
+
+    ORGANISMS = ["human", "mouse"]
+    OUTPUT_TYPES = [
+        "RNA_SEQ",
+        "ATAC",
+        "CAGE",
+        "DNASE",
+        "CHIP_HISTONE",
+        "CHIP_TF",
+        "SPLICE_SITES",
+        "SPLICE_SITE_USAGE",
+        "SPLICE_JUNCTIONS",
+        "CONTACT_MAPS",
+        "PROCAP",
+    ]
+    SEQUENCE_LENGTHS = ["16KB", "128KB", "512KB", "1MB"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/annotated.vcf"
+
+    @classmethod
+    def _output_types(cls, inputs: dict[str, Any], *, use_default: bool = True) -> list[str]:
+        if "output_types" not in inputs:
+            return ["RNA_SEQ"] if use_default else []
+        return _as_list(inputs.get("output_types"))
+
+    @classmethod
+    def _int_range(
+        cls,
+        inputs: dict[str, Any],
+        name: str,
+        default: int,
+        minimum: int,
+        maximum: int,
+    ) -> bool | str:
+        try:
+            value = int(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if value < minimum or value > maximum:
+            return f"{name} must be between {minimum} and {maximum}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "alphagenome_variant_effect.py")),
+            "--input",
+            str(inputs.get("input_vcf", "")),
+            "--output",
+            cls._output_path(inputs),
+            "--organism",
+            str(inputs.get("organism", "human") or "human"),
+            "--output-types",
+            *cls._output_types(inputs),
+            "--sequence-length",
+            str(inputs.get("sequence_length", "1MB") or "1MB"),
+            "--max-variants",
+            str(inputs.get("max_variants", 100)),
+        ]
+        _add_if_value(cmd, "--ontology-terms", inputs.get("ontology_terms"))
+        _add_if_value(cmd, "--test-fixture", inputs.get("test_fixture"))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "annotated.vcf"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_vcf", "")).strip():
+            return "input_vcf is required"
+        output_types = cls._output_types(inputs, use_default=True)
+        if not output_types:
+            return "at least one output type is required"
+        unsupported = [value for value in output_types if value not in cls.OUTPUT_TYPES]
+        if unsupported:
+            return f"output_types contains unsupported values: {', '.join(unsupported)}"
+        organism = str(inputs.get("organism", "human") or "human")
+        if organism not in cls.ORGANISMS:
+            return f"organism must be one of: {', '.join(cls.ORGANISMS)}"
+        sequence_length = str(inputs.get("sequence_length", "1MB") or "1MB")
+        if sequence_length not in cls.SEQUENCE_LENGTHS:
+            return f"sequence_length must be one of: {', '.join(cls.SEQUENCE_LENGTHS)}"
+        max_variants = cls._int_range(inputs, "max_variants", 100, 1, 10000)
+        if max_variants is not True:
+            return max_variants
+        ontology_terms = str(inputs.get("ontology_terms", "") or "")
+        if ontology_terms and not re.fullmatch(r"[A-Za-z0-9:, ]*", ontology_terms):
+            return "ontology_terms may contain only letters, numbers, colons, commas, and spaces"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_vcf": ("VCF", {"description": "VCF containing variants to score with AlphaGenome predict_variant"}),
+            },
+            "optional": {
+                "organism": (
+                    "STRING",
+                    {"default": "human", "options": cls.ORGANISMS, "description": "AlphaGenome organism assembly context"},
+                ),
+                "output_types": (
+                    "STRING_LIST",
+                    {
+                        "default": ["RNA_SEQ"],
+                        "multiple": True,
+                        "options": cls.OUTPUT_TYPES,
+                        "description": "AlphaGenome output tracks used to compute variant effect scores",
+                    },
+                ),
+                "ontology_terms": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Optional comma-separated UBERON or CL ontology terms for tissue context",
+                    },
+                ),
+                "sequence_length": (
+                    "STRING",
+                    {
+                        "default": "1MB",
+                        "options": cls.SEQUENCE_LENGTHS,
+                        "description": "Prediction window size centered on each variant",
+                    },
+                ),
+                "max_variants": (
+                    "INT",
+                    {"default": 100, "min": 1, "max": 10000, "description": "Maximum VCF records to score"},
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "alphagenome_variant_effect.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy AlphaGenome variant effect wrapper script",
+                    },
+                ),
+                "test_fixture": (
+                    "FILE",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "Optional precomputed variant score fixture JSON that bypasses the AlphaGenome API",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ALDEX2_CITATION_DOIS = [
     "10.1371/journal.pone.0067019",
     "10.1186/2049-2618-2-15",
