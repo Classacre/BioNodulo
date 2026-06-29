@@ -4115,6 +4115,58 @@ def test_filtlong_validates_thresholds_weights_and_unit_suffixes() -> None:
     assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "min_length": "1000"}) is True
 
 
+def test_gfa_to_fa_exposes_galaxy_metadata_inputs_outputs_and_spec_citation() -> None:
+    node_info = _registry().object_info()["gfa_to_fa"]
+
+    assert node_info["display_name"] == "GFA to FASTA"
+    assert node_info["category"] == "assembly"
+    assert node_info["description"] == "Convert Graphical Fragment Assembly files to FASTA format."
+    assert node_info["output"] == ["FASTA"]
+    assert node_info["output_name"] == ["out_fa"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["python"]
+    assert node_info["documentation_url"] == "http://gfa-spec.github.io/GFA-spec/GFA1.html"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["http://gfa-spec.github.io/GFA-spec/GFA1.html"]
+    assert "GFA v1 specification" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "GFA to FASTA" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["in_gfa"][0] == "GFA"
+    assert node_info["input"]["optional"]["script_path"][1]["default"] == "gfa_to_fa.py"
+    assert node_info["input"]["optional"]["script_path"][1]["advanced"] is True
+
+
+def test_gfa_to_fa_renders_default_conversion_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("gfa_to_fa")
+
+    assert node_class.render_command(
+        {
+            "in_gfa": "graph.gfa",
+            "output": "/work/gfa_to_fa",
+        }
+    ) == "cat graph.gfa | python gfa_to_fa.py > /work/gfa_to_fa/out.fa"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "gfa_to_fa" / "out.fa"]
+
+
+def test_gfa_to_fa_renders_custom_helper_with_quoted_gfa_input() -> None:
+    node_class = _node_class("gfa_to_fa")
+
+    assert node_class.render_command(
+        {
+            "in_gfa": "assembly graph.gfa",
+            "script_path": "/tools/gfa_to_fa/gfa_to_fa.py",
+            "output": "/work/gfa_to_fa",
+        }
+    ) == "cat 'assembly graph.gfa' | python /tools/gfa_to_fa/gfa_to_fa.py > /work/gfa_to_fa/out.fa"
+
+
+def test_gfa_to_fa_validates_required_gfa_input() -> None:
+    node_class = _node_class("gfa_to_fa")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_gfa is required"
+    assert node_class.VALIDATE_INPUTS({"in_gfa": "graph.gfa"}) is True
+
+
 def test_assembly_stats_exposes_galaxy_aligned_outputs() -> None:
     info = _registry().object_info()["assembly_stats"]
 

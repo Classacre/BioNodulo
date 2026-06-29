@@ -1233,6 +1233,29 @@ const objectInfo = {
     citation_urls: ['https://github.com/rrwick/Filtlong'],
     citation_text: 'Filtlong: quality filtering tool for long reads.',
   },
+  gfa_to_fa: {
+    name: 'gfa_to_fa',
+    display_name: 'GFA to FASTA',
+    category: 'assembly',
+    description: 'Convert Graphical Fragment Assembly files to FASTA format.',
+    search_aliases: ['Galaxy', 'gfa_to_fa', 'GFA to FASTA', 'Graphical Fragment Assembly', 'assembly graph conversion', 'GFA v1', 'FASTA conversion'],
+    input: {
+      required: {
+        in_gfa: { type: 'GFA' },
+      },
+      optional: {
+        script_path: { type: 'FILE', default: 'gfa_to_fa.py' },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['out_fa'],
+    required_executables: ['python'],
+    required_conda_packages: ['python'],
+    documentation_url: 'http://gfa-spec.github.io/GFA-spec/GFA1.html',
+    citation_dois: [],
+    citation_urls: ['http://gfa-spec.github.io/GFA-spec/GFA1.html'],
+    citation_text: 'GFA v1 specification for Graphical Fragment Assembly files.',
+  },
   checkm2: {
     name: 'checkm2',
     display_name: 'CheckM2',
@@ -11512,7 +11535,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('395 nodes available')).toBeVisible();
+  await expect(page.getByText('396 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11568,6 +11591,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
+    { query: 'Graphical Fragment Assembly', name: 'GFA to FASTA', category: 'assembly' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
