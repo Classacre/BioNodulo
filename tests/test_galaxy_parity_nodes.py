@@ -3249,6 +3249,173 @@ def test_nonpareil_renders_coverage_command_and_outputs(tmp_path: Path) -> None:
     assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "algo": "kmer", "input_format": "fastq"}) is True
 
 
+def test_bbtools_bbduk_exposes_galaxy_metadata_and_citation() -> None:
+    node_info = _registry().object_info()["bbtools_bbduk"]
+
+    assert node_info["display_name"] == "BBTools BBDuk"
+    assert node_info["category"] == "trimming"
+    assert node_info["description"].startswith("Filter, trim, and mask FASTQ reads")
+    assert node_info["output"] == [
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "TSV",
+        "TSV",
+        "TSV",
+        "FASTA",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "STATS_FILE",
+    ]
+    assert node_info["output_name"] == [
+        "forward_unmatched",
+        "reverse_unmatched",
+        "forward_matched",
+        "reverse_matched",
+        "singletons",
+        "stats",
+        "refstats",
+        "rpkm",
+        "dump",
+        "base_composition_histogram",
+        "quality_histogram",
+        "quality_count_histogram",
+        "average_quality_histogram",
+        "boxplot_quality_histogram",
+        "read_length_histogram",
+        "polymer_length_histogram",
+        "gc_histogram",
+        "entropy_histogram",
+        "log",
+    ]
+    assert node_info["required_executables"] == ["bbduk.sh"]
+    assert node_info["required_conda_packages"] == ["bbmap", "samtools"]
+    assert node_info["documentation_url"] == "https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbduk-guide/"
+    assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
+    assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "entropy filtering" in node_info["search_aliases"]
+
+
+def test_bbtools_bbduk_renders_filtering_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bbtools_bbduk")
+
+    assert node_class.render_command(
+        {
+            "input_type": "pair",
+            "read1": "sample R1.fastq.gz",
+            "read2": "sample R2.fastq.gz",
+            "reference_type": "files",
+            "reference": ["adapters.fa.gz", "phiX.fa"],
+            "outputs_select": ["outu", "outm", "outs"],
+            "output_stats_select": ["stats", "ref", "dump"],
+            "output_hists_select": ["quhist", "lhist"],
+            "ktrim": "r",
+            "minlength": 30,
+            "k": 23,
+            "rcomp": False,
+            "maskmiddle": False,
+            "minkmerhits": 2,
+            "minkmerfraction": 0.1,
+            "mincovfraction": 0.2,
+            "hammingdistance": 1,
+            "qhdist": 1,
+            "editdistance": 1,
+            "forbidn": True,
+            "trimfailures": True,
+            "findbestmatch": True,
+            "skipr1": True,
+            "skipr2": False,
+            "entropy": 0.9,
+            "entropymask": "t",
+            "entropywindow": 60,
+            "entropyk": 6,
+            "log_file": True,
+            "threads": 12,
+            "output": "/work/bbduk",
+        }
+    ) == (
+        "ln -s 'sample R1.fastq.gz' /work/bbduk/forward.fastq.gz && "
+        "ln -s 'sample R2.fastq.gz' /work/bbduk/reverse.fastq.gz && "
+        "gunzip -c adapters.fa.gz > /work/bbduk/adapters.fa.gz.fa && "
+        "ln -s phiX.fa /work/bbduk/phiX.fa.fa && "
+        "bbduk.sh in=/work/bbduk/forward.fastq.gz in2=/work/bbduk/reverse.fastq.gz "
+        "out=/work/bbduk/forward_unmatched.fastq out2=/work/bbduk/reverse_unmatched.fastq "
+        "outm=/work/bbduk/forward_matched.fastq outm2=/work/bbduk/reverse_matched.fastq "
+        "outs=/work/bbduk/singletons.fastq ref=/work/bbduk/adapters.fa.gz.fa,/work/bbduk/phiX.fa.fa "
+        "k=23 ktrim=r minlength=30 rcomp=f maskmiddle=f minkmerhits=2 minkmerfraction=0.1 "
+        "mincovfraction=0.2 hammingdistance=1 qhdist=1 editdistance=1 forbidn=t trimfailures=t "
+        "findbestmatch=t skipr1=t skipr2=f entropy=0.9 entropymask=t entropywindow=60 entropyk=6 "
+        "stats=/work/bbduk/stats.tsv refstats=/work/bbduk/refstats.tsv dump=/work/bbduk/kmer_dump.fasta "
+        "qhist=/work/bbduk/quality_histogram.tsv lhist=/work/bbduk/read_length_histogram.tsv "
+        "t=${GALAXY_SLOTS:-12} 2> >(tee /work/bbduk/bbduk.log >&2)"
+    )
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "read1": "reads.fastq",
+            "reference_type": "keywords",
+            "reference": ["adapters", "phix"],
+            "outputs_select": "outu",
+            "output": "/work/bbduk",
+        }
+    ) == (
+        "ln -s reads.fastq /work/bbduk/forward.fastq && "
+        "bbduk.sh in=/work/bbduk/forward.fastq out=/work/bbduk/forward_unmatched.fastq "
+        "ref=adapters,phix k=27 rcomp=t maskmiddle=t minkmerhits=1 minkmerfraction=0 "
+        "mincovfraction=0 hammingdistance=0 qhdist=0 editdistance=0 forbidn=f trimfailures=f "
+        "findbestmatch=f skipr1=f skipr2=f t=${GALAXY_SLOTS:-4}"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "input_type": "pair",
+            "outputs_select": ["outu", "outm", "outs"],
+            "output_stats_select": ["stats", "ref", "dump"],
+            "output_hists_select": ["quhist", "lhist"],
+            "log_file": True,
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "bbtools_bbduk" / "forward_unmatched.fastq",
+        tmp_path / "bbtools_bbduk" / "reverse_unmatched.fastq",
+        tmp_path / "bbtools_bbduk" / "forward_matched.fastq",
+        tmp_path / "bbtools_bbduk" / "reverse_matched.fastq",
+        tmp_path / "bbtools_bbduk" / "singletons.fastq",
+        tmp_path / "bbtools_bbduk" / "stats.tsv",
+        tmp_path / "bbtools_bbduk" / "refstats.tsv",
+        tmp_path / "bbtools_bbduk" / "kmer_dump.fasta",
+        tmp_path / "bbtools_bbduk" / "quality_histogram.tsv",
+        tmp_path / "bbtools_bbduk" / "read_length_histogram.tsv",
+        tmp_path / "bbtools_bbduk" / "bbduk.log",
+    ]
+    assert node_class.PLAN_OUTPUTS({"outputs_select": "outu"}, tmp_path) == [
+        tmp_path / "bbtools_bbduk" / "forward_unmatched.fastq",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": ""}) == "read1 FASTQ is required"
+    assert node_class.VALIDATE_INPUTS({"input_type": "pair", "read1": "r1.fq", "read2": ""}) == "read2 FASTQ is required for paired input"
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "reference_type": "files"}) == (
+        "at least one reference FASTA is required when reference_type is files"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "k": 0}) == "k must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "entropy": 2}) == (
+        "entropy must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "outputs_select": []}) == (
+        "at least one read output must be selected"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "outputs_select": "outu"}) is True
+
+
 def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["plasclass"]
 

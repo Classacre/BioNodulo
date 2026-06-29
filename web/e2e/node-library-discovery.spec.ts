@@ -1024,6 +1024,45 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btt584'],
     citation_text: 'Nonpareil: a redundancy-based approach to assess the level of coverage in metagenomic datasets.',
   },
+  bbtools_bbduk: {
+    name: 'bbtools_bbduk',
+    display_name: 'BBTools BBDuk',
+    category: 'trimming',
+    description: 'Filter, trim, and mask FASTQ reads with k-mer matching, entropy filtering, and BBDuk statistics.',
+    search_aliases: ['Galaxy', 'BBTools', 'BBDuk', 'bbduk', 'bbtools_bbduk', 'kmer decontamination', 'adapter trimming', 'entropy filtering', 'FASTQ filtering', 'quality histograms'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired'] },
+        read1: { type: 'FASTQ' },
+      },
+      optional: {
+        read2: { type: 'FASTQ', default: '' },
+        reads_collection: { type: 'FASTQ_LIST', default: '' },
+        reference_type: { type: 'STRING', default: 'no_reference', options: ['no_reference', 'files', 'keywords'] },
+        reference: { type: 'STRING_LIST', default: [], options: ['adapters', 'artifacts', 'phix', 'lambda', 'pjet', 'mtst', 'kapa'] },
+        outputs_select: { type: 'STRING_LIST', default: ['outu'], options: ['outu', 'outm', 'outs'] },
+        output_stats_select: { type: 'STRING_LIST', default: [], options: ['stats', 'ref', 'rpkm', 'dump'] },
+        output_hists_select: { type: 'STRING_LIST', default: [], options: ['bhist', 'quhist', 'quchist', 'aqhist', 'bqhist', 'lhist', 'phist', 'gchist', 'enthist'] },
+        k: { type: 'INT', default: 27, min: 1 },
+        ktrim: { type: 'STRING', default: '', options: ['', 'r', 'l'] },
+        minlength: { type: 'INT', default: 10, min: 0 },
+        entropy: { type: 'FLOAT', default: 0, min: 0, max: 1 },
+        entropymask: { type: 'STRING', default: 'f', options: ['f', 't', 'lc'] },
+        entropywindow: { type: 'INT', default: 50, min: 1 },
+        entropyk: { type: 'INT', default: 5, min: 1 },
+        log_file: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 4, min: 1, max: 128 },
+      },
+    },
+    output: ['FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'FASTQ', 'TSV', 'TSV', 'TSV', 'FASTA', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'STATS_FILE'],
+    output_name: ['forward_unmatched', 'reverse_unmatched', 'forward_matched', 'reverse_matched', 'singletons', 'stats', 'refstats', 'rpkm', 'dump', 'base_composition_histogram', 'quality_histogram', 'quality_count_histogram', 'average_quality_histogram', 'boxplot_quality_histogram', 'read_length_histogram', 'polymer_length_histogram', 'gc_histogram', 'entropy_histogram', 'log'],
+    required_executables: ['bbduk.sh'],
+    required_conda_packages: ['bbmap', 'samtools'],
+    documentation_url: 'https://jgi.doe.gov/data-and-tools/software-tools/bbtools/bb-tools-user-guide/bbduk-guide/',
+    citation_dois: ['10.1371/journal.pone.0185056'],
+    citation_urls: ['https://doi.org/10.1371/journal.pone.0185056'],
+    citation_text: 'BBMerge - Accurate paired shotgun read merging via overlap.',
+  },
   miniasm: {
     name: 'miniasm',
     display_name: 'Miniasm',
@@ -7316,7 +7355,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('265 nodes available')).toBeVisible();
+  await expect(page.getByText('266 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -7376,6 +7415,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'repeat masking', name: 'Red', category: 'genomics' },
     { query: 'metagenomic eukaryotes', name: 'EukRep', category: 'metagenomics' },
     { query: 'metagenomic coverage', name: 'Nonpareil', category: 'metagenomics' },
+    { query: 'entropy filtering', name: 'BBTools BBDuk', category: 'trimming' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },
