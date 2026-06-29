@@ -13185,6 +13185,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["taxonkit"],
             "doi": "10.1016/j.jgg.2021.03.006",
         },
+        "tracy_basecall": {
+            "display_name": "tracy Basecall",
+            "category": "sequence",
+            "required_executables": ["tracy"],
+            "required_conda_packages": ["tracy"],
+            "doi": "10.1186/s12864-020-6635-8",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -17242,6 +17249,71 @@ def test_taxonkit_profile2cami_renders_conversion_command_outputs_and_validation
         {"input_file": "profile.tsv", "taxonomy": "/ref/taxonomy", "ranks": ["species", "bad_rank"]}
     ) == "ranks contains unsupported values: bad_rank"
     assert node_class.VALIDATE_INPUTS({"input_file": "profile.tsv", "taxonomy": "/ref/taxonomy"}) is True
+
+
+def test_tracy_basecall_renders_chromatogram_basecall_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("tracy_basecall")
+    info = _registry().object_info()["tracy_basecall"]
+
+    assert info["display_name"] == "tracy Basecall"
+    assert info["description"] == "Basecall a Sanger chromatogram trace file with Tracy."
+    assert info["input"]["required"]["tracefile"][0] == "FILE"
+    assert info["input"]["optional"]["pratio"][1]["default"] == 0.33
+    assert info["input"]["optional"]["pratio"][1]["min"] == 0
+    assert info["input"]["optional"]["format"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["format"][1]["options"] == ["fasta", "fastq", "tsv", "json"]
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["basecalls"]
+    assert info["documentation_url"] == "https://www.gear-genomics.com/docs/tracy/cli/#basecalling-a-chromatogram-trace-file"
+    assert info["citation_dois"] == ["10.1186/s12864-020-6635-8"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/s12864-020-6635-8"]
+    assert "Sanger chromatogram trace files" in info["citation_text"]
+    assert "tracy Sanger basecalling" in info["search_aliases"]
+    assert node_class.render_command(
+        {
+            "tracefile": "input1_r.ab1",
+            "output": "/work/tracy_basecall",
+        }
+    ) == [
+        "tracy",
+        "basecall",
+        "--pratio",
+        "0.33",
+        "--format",
+        "fasta",
+        "--output",
+        "/work/tracy_basecall/basecalls.fasta",
+        "input1_r.ab1",
+    ]
+    assert node_class.render_command(
+        {
+            "tracefile": "trace file.scf",
+            "pratio": 0.2,
+            "format": "json",
+            "output": "/work/tracy basecall",
+        }
+    ) == [
+        "tracy",
+        "basecall",
+        "--pratio",
+        "0.2",
+        "--format",
+        "json",
+        "--output",
+        "/work/tracy basecall/basecalls.json",
+        "trace file.scf",
+    ]
+    assert node_class.PLAN_OUTPUTS({"format": "fasta"}, tmp_path) == [tmp_path / "tracy_basecall" / "basecalls.fasta"]
+    assert node_class.PLAN_OUTPUTS({"format": "fastq"}, tmp_path) == [tmp_path / "tracy_basecall" / "basecalls.fastq"]
+    assert node_class.PLAN_OUTPUTS({"format": "tsv"}, tmp_path) == [tmp_path / "tracy_basecall" / "basecalls.tsv"]
+    assert node_class.PLAN_OUTPUTS({"format": "json"}, tmp_path) == [tmp_path / "tracy_basecall" / "basecalls.json"]
+    assert node_class.VALIDATE_INPUTS({}) == "tracefile is required"
+    assert node_class.VALIDATE_INPUTS({"tracefile": "input.ab1", "pratio": -0.1}) == "pratio must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"tracefile": "input.ab1", "pratio": "bad"}) == "pratio must be a number"
+    assert node_class.VALIDATE_INPUTS({"tracefile": "input.ab1", "format": "xml"}) == (
+        "format must be one of: fasta, fastq, tsv, json"
+    )
+    assert node_class.VALIDATE_INPUTS({"tracefile": "input.ab1", "format": "fastq"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

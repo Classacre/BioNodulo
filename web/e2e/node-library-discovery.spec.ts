@@ -3023,6 +3023,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1016/j.jgg.2021.03.006'],
     citation_text: 'TaxonKit: a practical and efficient NCBI taxonomy toolkit.',
   },
+  tracy_basecall: {
+    name: 'tracy_basecall',
+    display_name: 'tracy Basecall',
+    category: 'sequence',
+    description: 'Basecall a Sanger chromatogram trace file with Tracy.',
+    search_aliases: ['Galaxy', 'Tracy', 'tracy Basecall', 'tracy Sanger basecalling', 'Sanger chromatogram', 'AB1 trace', 'SCF trace'],
+    input: {
+      required: {
+        tracefile: { type: 'FILE' },
+      },
+      optional: {
+        pratio: { type: 'FLOAT', default: 0.33 },
+        format: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq', 'tsv', 'json'] },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['basecalls'],
+    required_executables: ['tracy'],
+    required_conda_packages: ['tracy'],
+    documentation_url: 'https://www.gear-genomics.com/docs/tracy/cli/#basecalling-a-chromatogram-trace-file',
+    citation_dois: ['10.1186/s12864-020-6635-8'],
+    citation_urls: ['https://doi.org/10.1186/s12864-020-6635-8'],
+    citation_text: 'Tracy: basecalling, alignment, assembly and deconvolution of Sanger chromatogram trace files.',
+  },
   humann_join_tables: {
     name: 'humann_join_tables',
     display_name: 'HUMAnN Join Tables',
@@ -8910,7 +8934,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('311 nodes available')).toBeVisible();
+  await expect(page.getByText('312 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -9022,6 +9046,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'taxonomic profile standardisation', name: 'Taxpasta', category: 'taxonomy' },
     { query: 'TaxonKit name2taxid', name: 'Name2taxid', category: 'taxonomy' },
     { query: 'TaxonKit profile2cami', name: 'Profile2CAMI', category: 'taxonomy' },
+    { query: 'tracy Sanger basecalling', name: 'tracy Basecall', category: 'sequence' },
     { query: 'multi-sample table', name: 'HUMAnN Join Tables', category: 'metagenomics' },
     { query: 'copies per million', name: 'HUMAnN Renormalize Table', category: 'metagenomics' },
     { query: 'one file per sample', name: 'HUMAnN Split Table', category: 'metagenomics' },
