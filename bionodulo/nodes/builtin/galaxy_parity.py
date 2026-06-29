@@ -10944,6 +10944,311 @@ class HUMAnNUnpackPathwaysNode(CommandNode):
         }
 
 
+class HUMAnNBarplotNode(CommandNode):
+    """Plot one stratified HUMAnN feature across samples."""
+
+    NODE_ID = "humann_barplot"
+    DISPLAY_NAME = "HUMAnN Barplot"
+    REQUIRED_CONDA_PACKAGES = ["humann"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Plot a single stratified HUMAnN feature across samples."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "HUMAnN",
+        "humann_barplot",
+        "Barplot",
+        "stratified HUMAnN features",
+        "focal feature",
+        "top taxa",
+        "Bray-Curtis",
+        "metadata sorting",
+    ]
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("barplot",)
+    REQUIRED_EXECUTABLES = ["humann_barplot"]
+    DOCUMENTATION_URL = "https://huttenhower.sph.harvard.edu/humann/"
+    CITATION_DOIS = HUMANN_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HUMANN_CITATION_DOIS]
+    CITATION_TEXT = HUMANN_CITATION_TEXT
+    VERSION = "3.9"
+    SHELL = True
+    SORT_OPTIONS = ["none", "sum", "dominant", "braycurtis", "braycurtis_w", "metadata"]
+    SORT_ALIASES = {"brawcurtis": "braycurtis"}
+    SCALING_OPTIONS = ["original", "logstack", "totalsum"]
+    OUTPUT_FORMATS = ["pdf", "png", "svg"]
+    INT_DEFAULTS = {
+        "top_taxa": 18,
+        "max_metalevels": 7,
+        "legend_cols": 3,
+        "legend_rows": 10,
+    }
+    FLOAT_DEFAULTS = {
+        "height": 11.0,
+        "width": 6.0,
+        "legend_height": 1.0,
+    }
+
+    @classmethod
+    def _output_format(cls, inputs: dict[str, Any]) -> str:
+        output_format = str(inputs.get("format", "pdf") or "pdf").lower()
+        return output_format if output_format in cls.OUTPUT_FORMATS else "pdf"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.{cls._output_format(inputs)}"
+
+    @classmethod
+    def _sort_values(cls, inputs: dict[str, Any]) -> list[str]:
+        raw_sort = inputs.get("sort", ["none"])
+        if raw_sort is None or raw_sort == "":
+            values = ["none"]
+        elif isinstance(raw_sort, (list, tuple)):
+            values = [str(value) for value in raw_sort if str(value) != ""]
+        else:
+            values = str(raw_sort).split()
+        return [cls.SORT_ALIASES.get(value, value) for value in values] or ["none"]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "humann_barplot",
+            "--input",
+            str(inputs.get("input", "")),
+        ]
+        last_metadata = str(inputs.get("last_metadata", "")).strip()
+        if last_metadata:
+            cmd.extend(["--last-metadata", last_metadata])
+        cmd.extend(
+            [
+                "--focal-feature",
+                str(inputs.get("focal_feature", "")),
+                "--top-taxa",
+                str(inputs.get("top_taxa", 18)),
+            ]
+        )
+        if inputs.get("as_genera", False):
+            cmd.append("--as-genera")
+        if inputs.get("exclude_unclassified", False):
+            cmd.append("--exclude-unclassified")
+        if inputs.get("remove_zeros", False):
+            cmd.append("--remove-zeros")
+        cmd.append("--sort")
+        cmd.extend(cls._sort_values(inputs))
+        taxa_colormap = str(inputs.get("taxa_colormap", "")).strip()
+        if taxa_colormap:
+            cmd.extend(["--taxa-colormap", taxa_colormap])
+        focal_metadata = str(inputs.get("focal_metadata", "")).strip()
+        if focal_metadata:
+            cmd.extend(["--focal-metadata", focal_metadata])
+        meta_colormap = str(inputs.get("meta_colormap", "")).strip()
+        if meta_colormap:
+            cmd.extend(["--meta-colormap", meta_colormap])
+        cmd.extend(
+            [
+                "--max-metalevels",
+                str(inputs.get("max_metalevels", 7)),
+                "--scaling",
+                str(inputs.get("scaling", "original")),
+            ]
+        )
+        ymin = inputs.get("ymin", "")
+        ymax = inputs.get("ymax", "")
+        if str(ymin) != "" and str(ymax) != "":
+            cmd.extend(["--ylims", str(ymin), str(ymax)])
+        if inputs.get("no_grid", True):
+            cmd.append("--no-grid")
+        cmd.extend(
+            [
+                "--dimensions",
+                str(inputs.get("height", 11.0)),
+                str(inputs.get("width", 6.0)),
+            ]
+        )
+        units = str(inputs.get("units", "")).strip()
+        if units:
+            cmd.extend(["--units", units])
+        cmd.extend(
+            [
+                "--legend-cols",
+                str(inputs.get("legend_cols", 3)),
+                "--legend-rows",
+                str(inputs.get("legend_rows", 10)),
+                "--legend-height",
+                str(inputs.get("legend_height", 1.0)),
+                "--output",
+                cls._output_path(inputs),
+            ]
+        )
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / f"output.{cls._output_format(inputs)}"]
+
+    @staticmethod
+    def _validate_nonnegative_int(value: Any, message: str) -> str | None:
+        try:
+            if isinstance(value, bool):
+                return message
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return message
+        if str(value) != str(parsed):
+            return message
+        return message if parsed < 0 else None
+
+    @staticmethod
+    def _validate_positive_float(value: Any, message: str) -> str | None:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return message
+        return message if parsed <= 0 else None
+
+    @staticmethod
+    def _validate_nonnegative_float(value: Any, message: str) -> str | None:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return message
+        return message if parsed < 0 else None
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "HUMAnN table is required"
+        if not str(inputs.get("focal_feature", "")).strip():
+            return "HUMAnN focal feature is required"
+        sort_values = cls._sort_values(inputs)
+        for sort_value in sort_values:
+            if sort_value not in cls.SORT_OPTIONS:
+                return f"Unsupported HUMAnN barplot sort method: {sort_value}"
+        if any(sort_value in {"braycurtis", "braycurtis_w"} for sort_value in sort_values) and not inputs.get(
+            "remove_zeros", False
+        ):
+            return "HUMAnN Bray-Curtis sorting requires remove_zeros"
+        scaling = str(inputs.get("scaling", "original"))
+        if scaling not in cls.SCALING_OPTIONS:
+            return f"Unsupported HUMAnN barplot scaling: {scaling}"
+        output_format = str(inputs.get("format", "pdf") or "pdf").lower()
+        if output_format not in cls.OUTPUT_FORMATS:
+            return f"Unsupported HUMAnN barplot output format: {output_format}"
+        for key, message in (
+            ("top_taxa", "Top taxa must be zero or greater"),
+            ("max_metalevels", "Maximum metadata levels must be zero or greater"),
+            ("legend_cols", "Legend columns must be zero or greater"),
+            ("legend_rows", "Legend rows must be zero or greater"),
+        ):
+            error = cls._validate_nonnegative_int(inputs.get(key, cls.INT_DEFAULTS[key]), message)
+            if error:
+                return error
+        for key, message in (
+            ("height", "Plot height must be greater than zero"),
+            ("width", "Plot width must be greater than zero"),
+        ):
+            error = cls._validate_positive_float(inputs.get(key, cls.FLOAT_DEFAULTS[key]), message)
+            if error:
+                return error
+        error = cls._validate_nonnegative_float(
+            inputs.get("legend_height", cls.FLOAT_DEFAULTS["legend_height"]),
+            "Legend height must be zero or greater",
+        )
+        if error:
+            return error
+        ymin = inputs.get("ymin", "")
+        ymax = inputs.get("ymax", "")
+        if (str(ymin) == "") != (str(ymax) == ""):
+            return "Both y-axis limits are required when setting y-axis limits"
+        if str(ymin) != "" and str(ymax) != "":
+            try:
+                float(ymin)
+                float(ymax)
+            except (TypeError, ValueError):
+                return "Y-axis limits must be numeric"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "HUMAnN table with optional metadata"}),
+                "focal_feature": ("STRING", {"description": "Feature ID of interest"}),
+            },
+            "optional": {
+                "last_metadata": (
+                    "STRING",
+                    {"default": "", "description": "Name of the last metadata row before feature rows"},
+                ),
+                "top_taxa": ("INT", {"default": 18, "min": 0, "description": "Maximum taxa to highlight"}),
+                "as_genera": ("BOOLEAN", {"default": False, "description": "Collapse species to genera"}),
+                "exclude_unclassified": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Exclude the unclassified stratum"},
+                ),
+                "remove_zeros": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Remove samples with zero sum for the focal feature"},
+                ),
+                "sort": (
+                    "STRING",
+                    {
+                        "default": ["none"],
+                        "multiple": True,
+                        "options": cls.SORT_OPTIONS,
+                        "description": "Sample sorting methods evaluated in order",
+                    },
+                ),
+                "taxa_colormap": (
+                    "STRING",
+                    {"default": "", "description": "Named matplotlib colormap or taxa color mapping file"},
+                ),
+                "focal_metadata": (
+                    "STRING",
+                    {"default": "", "description": "Metadata row to highlight or group by"},
+                ),
+                "meta_colormap": (
+                    "STRING",
+                    {"default": "", "description": "Named matplotlib colormap or metadata color mapping file"},
+                ),
+                "max_metalevels": (
+                    "INT",
+                    {"default": 7, "min": 0, "description": "Metadata levels to keep before collapsing rare levels"},
+                ),
+                "scaling": (
+                    "STRING",
+                    {
+                        "default": "original",
+                        "options": cls.SCALING_OPTIONS,
+                        "description": "Scale total bar heights while preserving taxon proportions",
+                    },
+                ),
+                "ymin": ("FLOAT", {"default": "", "description": "Minimum y-axis limit"}),
+                "ymax": ("FLOAT", {"default": "", "description": "Maximum y-axis limit"}),
+                "no_grid": ("BOOLEAN", {"default": True, "description": "Hide y-axis grid lines"}),
+                "height": ("FLOAT", {"default": 11.0, "min": 0, "description": "Image height in inches"}),
+                "width": ("FLOAT", {"default": 6.0, "min": 0, "description": "Image width in inches"}),
+                "units": ("STRING", {"default": "", "description": "Y-axis abundance units"}),
+                "legend_cols": ("INT", {"default": 3, "min": 0, "description": "Legend columns"}),
+                "legend_rows": ("INT", {"default": 10, "min": 0, "description": "Legend rows"}),
+                "legend_height": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0, "description": "Legend-to-data-axis height ratio"},
+                ),
+                "format": (
+                    "STRING",
+                    {
+                        "default": "pdf",
+                        "options": cls.OUTPUT_FORMATS,
+                        "description": "Output plot format",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MergeMetaPhlAnTablesNode(CommandNode):
     """Merge multiple MetaPhlAn relative abundance tables."""
 

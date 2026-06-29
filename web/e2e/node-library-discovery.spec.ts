@@ -2512,6 +2512,60 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
     citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
   },
+  humann_barplot: {
+    name: 'humann_barplot',
+    display_name: 'HUMAnN Barplot',
+    category: 'metagenomics',
+    description: 'Plot a single stratified HUMAnN feature across samples.',
+    search_aliases: [
+      'Galaxy',
+      'HUMAnN',
+      'humann_barplot',
+      'Barplot',
+      'stratified HUMAnN features',
+      'focal feature',
+      'top taxa',
+      'Bray-Curtis',
+      'metadata sorting',
+    ],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+        focal_feature: { type: 'STRING' },
+      },
+      optional: {
+        last_metadata: { type: 'STRING', default: '' },
+        top_taxa: { type: 'INT', default: 18 },
+        as_genera: { type: 'BOOLEAN', default: false },
+        exclude_unclassified: { type: 'BOOLEAN', default: false },
+        remove_zeros: { type: 'BOOLEAN', default: false },
+        sort: { type: 'STRING', default: ['none'], options: ['none', 'sum', 'dominant', 'braycurtis', 'braycurtis_w', 'metadata'], list: true },
+        taxa_colormap: { type: 'STRING', default: '' },
+        focal_metadata: { type: 'STRING', default: '' },
+        meta_colormap: { type: 'STRING', default: '' },
+        max_metalevels: { type: 'INT', default: 7 },
+        scaling: { type: 'STRING', default: 'original', options: ['original', 'logstack', 'totalsum'] },
+        ymin: { type: 'FLOAT', default: '' },
+        ymax: { type: 'FLOAT', default: '' },
+        no_grid: { type: 'BOOLEAN', default: true },
+        height: { type: 'FLOAT', default: 11.0 },
+        width: { type: 'FLOAT', default: 6.0 },
+        units: { type: 'STRING', default: '' },
+        legend_cols: { type: 'INT', default: 3 },
+        legend_rows: { type: 'INT', default: 10 },
+        legend_height: { type: 'FLOAT', default: 1.0 },
+        format: { type: 'STRING', default: 'pdf', options: ['pdf', 'png', 'svg'] },
+      },
+    },
+    output: ['IMAGE'],
+    output_name: ['barplot'],
+    required_executables: ['humann_barplot'],
+    required_conda_packages: ['humann'],
+    documentation_url: 'https://huttenhower.sph.harvard.edu/humann/',
+    citation_dois: ['10.7554/eLife.65088', '10.1371/journal.pcbi.1002358'],
+    citation_urls: ['https://doi.org/10.7554/eLife.65088', 'https://doi.org/10.1371/journal.pcbi.1002358'],
+    citation_text: "bioBakery 3: a platform for analyzing meta'omic datasets; HUMAnN: the HMP Unified Metabolic Analysis Network.",
+  },
   merge_metaphlan_tables: {
     name: 'merge_metaphlan_tables',
     display_name: 'Merge MetaPhlAn Tables',
@@ -5482,7 +5536,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('222 nodes available')).toBeVisible();
+  await expect(page.getByText('223 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -5578,6 +5632,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MetaCyc reactions', name: 'HUMAnN Regroup Table', category: 'metagenomics' },
     { query: 'feature names', name: 'HUMAnN Rename Table', category: 'metagenomics' },
     { query: 'pathway abundance', name: 'HUMAnN Unpack Pathways', category: 'metagenomics' },
+    { query: 'focal feature', name: 'HUMAnN Barplot', category: 'metagenomics' },
     { query: 'GTDB profiles', name: 'Merge MetaPhlAn Tables', category: 'metagenomics' },
     { query: 'marker metadata', name: 'Extract MetaPhlAn DB', category: 'metagenomics' },
     { query: 'remove markers', name: 'Customize MetaPhlAn DB', category: 'metagenomics' },

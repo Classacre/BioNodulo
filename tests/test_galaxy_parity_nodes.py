@@ -562,6 +562,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["humann"],
             "doi": "10.7554/eLife.65088",
         },
+        "humann_barplot": {
+            "display_name": "HUMAnN Barplot",
+            "category": "metagenomics",
+            "required_executables": ["humann_barplot"],
+            "required_conda_packages": ["humann"],
+            "doi": "10.7554/eLife.65088",
+        },
         "merge_metaphlan_tables": {
             "display_name": "Merge MetaPhlAn Tables",
             "category": "metagenomics",
@@ -6728,6 +6735,157 @@ def test_humann_unpack_pathways_validates_wrapper_inputs() -> None:
     )
     assert node_class.VALIDATE_INPUTS(
         {"input_genes": "genes.tsv", "input_pathways": "pathways.tsv"}
+    ) is True
+
+
+def test_humann_barplot_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["humann_barplot"]
+
+    assert info["display_name"] == "HUMAnN Barplot"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Plot a single stratified HUMAnN feature across samples."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "HUMAnN",
+        "humann_barplot",
+        "Barplot",
+        "stratified HUMAnN features",
+        "focal feature",
+        "top taxa",
+        "Bray-Curtis",
+        "metadata sorting",
+    ]
+    assert info["version"] == "3.9"
+    assert info["output"] == ["IMAGE"]
+    assert info["output_name"] == ["barplot"]
+    assert info["required_executables"] == ["humann_barplot"]
+    assert info["required_conda_packages"] == ["humann"]
+    assert info["documentation_url"] == "https://huttenhower.sph.harvard.edu/humann/"
+    assert info["citation_dois"] == ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
+    assert info["citation_text"] == (
+        "bioBakery 3: a platform for analyzing meta'omic datasets; "
+        "HUMAnN: the HMP Unified Metabolic Analysis Network."
+    )
+
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["description"] == "HUMAnN table with optional metadata"
+    assert info["input"]["required"]["focal_feature"][0] == "STRING"
+    assert info["input"]["required"]["focal_feature"][1]["description"] == "Feature ID of interest"
+    assert info["input"]["optional"]["last_metadata"][1]["default"] == ""
+    assert info["input"]["optional"]["top_taxa"][1]["default"] == 18
+    assert info["input"]["optional"]["sort"][1]["default"] == ["none"]
+    assert info["input"]["optional"]["sort"][1]["multiple"] is True
+    assert info["input"]["optional"]["sort"][1]["options"] == [
+        "none",
+        "sum",
+        "dominant",
+        "braycurtis",
+        "braycurtis_w",
+        "metadata",
+    ]
+    assert info["input"]["optional"]["scaling"][1]["options"] == ["original", "logstack", "totalsum"]
+    assert info["input"]["optional"]["no_grid"][1]["default"] is True
+    assert info["input"]["optional"]["height"][1]["default"] == 11.0
+    assert info["input"]["optional"]["width"][1]["default"] == 6.0
+    assert info["input"]["optional"]["format"][1]["default"] == "pdf"
+    assert info["input"]["optional"]["format"][1]["options"] == ["pdf", "png", "svg"]
+    assert info["input"]["hidden"]["output"][0] == "STRING"
+
+
+def test_humann_barplot_renders_default_and_configured_commands(tmp_path: Path) -> None:
+    node_class = _node_class("humann_barplot")
+
+    assert node_class.render_command(
+        {
+            "input": "hmp pathabund.tsv",
+            "focal_feature": "ANAGLYCOLYSIS-PWY",
+            "output": "/work/humann_barplot",
+        }
+    ) == (
+        "humann_barplot --input 'hmp pathabund.tsv' --focal-feature ANAGLYCOLYSIS-PWY "
+        "--top-taxa 18 --sort none --max-metalevels 7 --scaling original --no-grid "
+        "--dimensions 11.0 6.0 --legend-cols 3 --legend-rows 10 --legend-height 1.0 "
+        "--output /work/humann_barplot/output.pdf"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "hmp_pathabund.txt",
+            "last_metadata": "STSite",
+            "focal_feature": "ANAGLYCOLYSIS-PWY",
+            "top_taxa": 12,
+            "as_genera": True,
+            "exclude_unclassified": True,
+            "remove_zeros": True,
+            "sort": ["brawcurtis", "metadata"],
+            "taxa_colormap": "tab20",
+            "focal_metadata": "STSite",
+            "meta_colormap": "Set2",
+            "max_metalevels": 5,
+            "scaling": "logstack",
+            "ymin": 0,
+            "ymax": 100,
+            "no_grid": False,
+            "height": 8,
+            "width": 4,
+            "units": "CPM",
+            "legend_cols": 2,
+            "legend_rows": 8,
+            "legend_height": 0.75,
+            "format": "svg",
+            "output": "/work/humann_barplot",
+        }
+    ) == (
+        "humann_barplot --input hmp_pathabund.txt --last-metadata STSite "
+        "--focal-feature ANAGLYCOLYSIS-PWY --top-taxa 12 --as-genera "
+        "--exclude-unclassified --remove-zeros --sort braycurtis metadata "
+        "--taxa-colormap tab20 --focal-metadata STSite --meta-colormap Set2 "
+        "--max-metalevels 5 --scaling logstack --ylims 0 100 --dimensions 8 4 "
+        "--units CPM --legend-cols 2 --legend-rows 8 --legend-height 0.75 "
+        "--output /work/humann_barplot/output.svg"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"format": "png"}, tmp_path) == [
+        tmp_path / "humann_barplot" / "output.png",
+    ]
+
+
+def test_humann_barplot_validates_wrapper_inputs() -> None:
+    node_class = _node_class("humann_barplot")
+
+    assert node_class.VALIDATE_INPUTS({}) == "HUMAnN table is required"
+    assert node_class.VALIDATE_INPUTS({"input": "pathabund.tsv"}) == "HUMAnN focal feature is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "pathabund.tsv", "focal_feature": "PWY", "sort": ["file"]}
+    ) == "Unsupported HUMAnN barplot sort method: file"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "pathabund.tsv", "focal_feature": "PWY", "sort": ["braycurtis"]}
+    ) == "HUMAnN Bray-Curtis sorting requires remove_zeros"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "pathabund.tsv", "focal_feature": "PWY", "scaling": "sqrt"}
+    ) == "Unsupported HUMAnN barplot scaling: sqrt"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "pathabund.tsv", "focal_feature": "PWY", "format": "jpg"}
+    ) == "Unsupported HUMAnN barplot output format: jpg"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "pathabund.tsv", "focal_feature": "PWY", "top_taxa": -1}
+    ) == "Top taxa must be zero or greater"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "pathabund.tsv", "focal_feature": "PWY", "top_taxa": 1.5}
+    ) == "Top taxa must be zero or greater"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "pathabund.tsv", "focal_feature": "PWY", "height": 0}
+    ) == "Plot height must be greater than zero"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "pathabund.tsv", "focal_feature": "PWY", "ymin": 0}
+    ) == "Both y-axis limits are required when setting y-axis limits"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "pathabund.tsv",
+            "focal_feature": "PWY",
+            "sort": ["braycurtis_w"],
+            "remove_zeros": True,
+        }
     ) is True
 
 
