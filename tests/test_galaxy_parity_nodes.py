@@ -13045,6 +13045,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["eastr-cpp", "bowtie2"],
             "doi": "10.1038/s41467-023-43017-4",
         },
+        "export2graphlan": {
+            "display_name": "Export to GraPhlAn",
+            "category": "visualization",
+            "required_executables": ["export2graphlan.py"],
+            "required_conda_packages": ["export2graphlan"],
+            "doi": "10.7717/peerj.1029",
+        },
         "ivar_trim": {
             "display_name": "iVar Trim",
             "category": "variant",
@@ -15635,6 +15642,131 @@ def test_eastr_renders_splice_junction_command_outputs_and_validation(tmp_path: 
         "input_select must be one of: bam, gtf, bed"
     )
     assert node_class.VALIDATE_INPUTS({"input_select": "bed", "input": "introns.bed", "reference": "reference.fa"}) is True
+
+
+def test_export2graphlan_renders_conversion_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("export2graphlan")
+    info = _registry().object_info()["export2graphlan"]
+
+    assert info["output"] == ["TXT", "TXT"]
+    assert info["output_name"] == ["tree", "annotation"]
+    assert info["input"]["required"]["lefse_input"][0] == "FILE"
+    assert "10.7717/peerj.1029" in info["citation_dois"]
+    assert node_class.render_command(
+        {
+            "lefse_input": "profile table.tsv",
+            "lefse_output": "lefse result.tsv",
+            "annotations": "2,3",
+            "external_annotations": "4",
+            "background_levels": "1,2",
+            "background_clades": "k__Bacteria,p__Firmicutes",
+            "background_colors": "(0;0;0.9),(60;0.4;0.8)",
+            "title": "Microbiome tree",
+            "title_font_size": 18,
+            "def_clade_size": 10,
+            "min_clade_size": 20,
+            "max_clade_size": 200,
+            "def_font_size": 10,
+            "min_font_size": 8,
+            "max_font_size": 12,
+            "annotation_legend_font_size": 10,
+            "abundance_threshold": 20.5,
+            "most_abundant": 15,
+            "least_biomarkers": 3,
+            "fname_row": 0,
+            "sname_row": 1,
+            "metadata_rows": 2,
+            "skip_rows": "0,1",
+            "sperc": 75.5,
+            "fperc": 80.0,
+            "stop": 6,
+            "ftop": 8,
+            "output": "/work/export2graphlan",
+        }
+    ) == [
+        "export2graphlan.py",
+        "--lefse_input",
+        "profile table.tsv",
+        "--lefse_output",
+        "lefse result.tsv",
+        "-t",
+        "/work/export2graphlan/tree.txt",
+        "-a",
+        "/work/export2graphlan/annotation.txt",
+        "--annotations",
+        "2,3",
+        "--external_annotations",
+        "4",
+        "--background_levels",
+        "1,2",
+        "--background_clades",
+        "k__Bacteria,p__Firmicutes",
+        "--background_colors",
+        "(0;0;0.9),(60;0.4;0.8)",
+        "--title",
+        "Microbiome tree",
+        "--title_font_size",
+        "18",
+        "--def_clade_size",
+        "10",
+        "--min_clade_size",
+        "20",
+        "--max_clade_size",
+        "200",
+        "--def_font_size",
+        "10",
+        "--min_font_size",
+        "8",
+        "--max_font_size",
+        "12",
+        "--annotation_legend_font_size",
+        "10",
+        "--abundance_threshold",
+        "20.5",
+        "--most_abundant",
+        "15",
+        "--least_biomarkers",
+        "3",
+        "--fname_row",
+        "0",
+        "--sname_row",
+        "1",
+        "--metadata_rows",
+        "2",
+        "--skip_rows",
+        "0,1",
+        "--sperc",
+        "75.5",
+        "--fperc",
+        "80.0",
+        "--stop",
+        "6",
+        "--ftop",
+        "8",
+    ]
+
+    assert node_class.render_command({"lefse_input": "profile.tsv", "output": "/work/export2graphlan"}) == [
+        "export2graphlan.py",
+        "--lefse_input",
+        "profile.tsv",
+        "-t",
+        "/work/export2graphlan/tree.txt",
+        "-a",
+        "/work/export2graphlan/annotation.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "export2graphlan" / "tree.txt",
+        tmp_path / "export2graphlan" / "annotation.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "lefse_input is required"
+    assert node_class.VALIDATE_INPUTS({"lefse_input": "profile.tsv", "title_font_size": 0}) == "title_font_size must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"lefse_input": "profile.tsv", "abundance_threshold": -0.1}) == (
+        "abundance_threshold must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"lefse_input": "profile.tsv", "skip_rows": "0,two"}) == (
+        "skip_rows must be comma-separated integer row indexes"
+    )
+    assert node_class.VALIDATE_INPUTS({"lefse_input": "profile.tsv"}) is True
 
 
 def test_ivar_variants_renders_mpileup_pipeline_and_outputs(tmp_path: Path) -> None:

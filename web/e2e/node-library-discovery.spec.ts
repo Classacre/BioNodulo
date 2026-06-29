@@ -5431,6 +5431,54 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41467-023-43017-4'],
     citation_text: 'EASTR: identifying and eliminating systematic spurious spliced alignments in RNA-seq data.',
   },
+  export2graphlan: {
+    name: 'export2graphlan',
+    display_name: 'Export to GraPhlAn',
+    category: 'visualization',
+    description: 'Convert MetaPhlAn, LEfSe, or HUMAnN profiles into GraPhlAn tree and annotation inputs.',
+    search_aliases: ['Galaxy', 'export2graphlan', 'export2graphlan GraPhlAn conversion', 'GraPhlAn annotation', 'LEfSe to GraPhlAn', 'MetaPhlAn tree visualization', 'taxonomic profile visualization'],
+    input: {
+      required: {
+        lefse_input: { type: 'FILE' },
+      },
+      optional: {
+        lefse_output: { type: 'FILE', default: '' },
+        annotations: { type: 'STRING', default: '' },
+        external_annotations: { type: 'STRING', default: '' },
+        background_levels: { type: 'STRING', default: '' },
+        background_clades: { type: 'STRING', default: '' },
+        background_colors: { type: 'STRING', default: '' },
+        title: { type: 'STRING', default: '' },
+        title_font_size: { type: 'INT', default: '' },
+        def_clade_size: { type: 'INT', default: '' },
+        min_clade_size: { type: 'INT', default: '' },
+        max_clade_size: { type: 'INT', default: '' },
+        def_font_size: { type: 'INT', default: '' },
+        min_font_size: { type: 'INT', default: '' },
+        max_font_size: { type: 'INT', default: '' },
+        annotation_legend_font_size: { type: 'INT', default: '' },
+        abundance_threshold: { type: 'FLOAT', default: '' },
+        most_abundant: { type: 'INT', default: '' },
+        least_biomarkers: { type: 'INT', default: '' },
+        fname_row: { type: 'INT', default: '' },
+        sname_row: { type: 'INT', default: '' },
+        metadata_rows: { type: 'INT', default: '' },
+        skip_rows: { type: 'STRING', default: '' },
+        sperc: { type: 'FLOAT', default: '' },
+        fperc: { type: 'FLOAT', default: '' },
+        stop: { type: 'INT', default: '' },
+        ftop: { type: 'INT', default: '' },
+      },
+    },
+    output: ['TXT', 'TXT'],
+    output_name: ['tree', 'annotation'],
+    required_executables: ['export2graphlan.py'],
+    required_conda_packages: ['export2graphlan'],
+    documentation_url: 'https://github.com/SegataLab/export2graphlan/',
+    citation_dois: ['10.7717/peerj.1029'],
+    citation_urls: ['https://doi.org/10.7717/peerj.1029'],
+    citation_text: 'Compact graphical representation of phylogenetic data and metadata with GraPhlAn.',
+  },
   ivar_variants: {
     name: 'ivar_variants',
     display_name: 'iVar Variants',
@@ -8176,7 +8224,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('291 nodes available')).toBeVisible();
+  await expect(page.getByText('292 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -8348,6 +8396,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BiG-SCAPE gene cluster families', name: 'BiG-SCAPE', category: 'secondary_metabolism' },
     { query: 'compleasm genome completeness', name: 'compleasm', category: 'assembly' },
     { query: 'EASTR splice junction filtering', name: 'EASTR', category: 'rna_seq' },
+    { query: 'export2graphlan GraPhlAn conversion', name: 'Export to GraPhlAn', category: 'visualization' },
     { query: 'ivar primer trimming', name: 'iVar Trim', category: 'variant' },
     { query: 'ivar viral variants', name: 'iVar Variants', category: 'variant' },
     { query: 'ivar viral consensus', name: 'iVar Consensus', category: 'variant' },
