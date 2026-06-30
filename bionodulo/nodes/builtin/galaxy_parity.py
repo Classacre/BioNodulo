@@ -27880,6 +27880,150 @@ class UcscNetFilterNode(CommandNode):
         }
 
 
+class UcscChainPreNetNode(CommandNode):
+    """Remove chains unlikely to be netted."""
+
+    NODE_ID = "ucsc_chainprenet"
+    DISPLAY_NAME = "chainPreNet"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-chainprenet"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Remove UCSC chains that do not have a chance of being netted."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_chainprenet",
+        "chainPreNet",
+        "UCSC chain",
+        "UCSC net",
+        "netted chains",
+        "chrom sizes",
+        "haplotype pseudochromosomes",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("out",)
+    REQUIRED_EXECUTABLES = ["chainPreNet"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/chain.html"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+
+    REFERENCE_SOURCE_OPTIONS = ["cached", "history"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.chain"
+
+    @classmethod
+    def _source(cls, inputs: dict[str, Any], prefix: str) -> str:
+        return str(inputs.get(f"{prefix}_reference_index_source_selector", "history") or "history")
+
+    @classmethod
+    def _index_path(cls, inputs: dict[str, Any], prefix: str) -> str:
+        source = cls._source(inputs, prefix)
+        if prefix == "target":
+            return str(inputs.get("tar_ref_index_path" if source == "cached" else "in_tar_ref_index", ""))
+        return str(inputs.get("que_ref_index_path" if source == "cached" else "in_que_ref_index", ""))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "chainPreNet",
+            str(inputs.get("in_chain", "")),
+            cls._index_path(inputs, "target"),
+            cls._index_path(inputs, "query"),
+            cls._output_path(inputs),
+        ]
+        if str(inputs.get("pad", "")) != "":
+            cmd.append(f"-pad={inputs.get('pad')}")
+        if inputs.get("inclHap"):
+            cmd.append("-inclHap")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out.chain"]
+
+    @classmethod
+    def _validate_index(cls, inputs: dict[str, Any], prefix: str) -> bool | str:
+        selector_name = f"{prefix}_reference_index_source_selector"
+        source = cls._source(inputs, prefix)
+        if source not in cls.REFERENCE_SOURCE_OPTIONS:
+            return f"{selector_name} must be one of: {', '.join(cls.REFERENCE_SOURCE_OPTIONS)}"
+        if prefix == "target":
+            required_name = "tar_ref_index_path" if source == "cached" else "in_tar_ref_index"
+        else:
+            required_name = "que_ref_index_path" if source == "cached" else "in_que_ref_index"
+        if not cls._index_path(inputs, prefix).strip():
+            return f"{required_name} is required"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("in_chain", "")).strip():
+            return "in_chain is required"
+        for prefix in ("target", "query"):
+            index_validation = cls._validate_index(inputs, prefix)
+            if index_validation is not True:
+                return index_validation
+        if str(inputs.get("pad", "")) != "" and int(inputs.get("pad")) < 0:
+            return "pad must be greater than or equal to 0"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_chain": ("FILE", {"description": "UCSC chain alignment file to pre-filter before netting"}),
+            },
+            "optional": {
+                "target_reference_index_source_selector": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.REFERENCE_SOURCE_OPTIONS,
+                        "description": "Use a cached or history target genome index",
+                    },
+                ),
+                "in_tar_ref_index": (
+                    "FILE",
+                    {"description": "History target chrom sizes or FASTA index file"},
+                ),
+                "tar_ref_index_path": (
+                    "STRING",
+                    {"default": "", "description": "Path to cached target chrom sizes or FASTA index file"},
+                ),
+                "query_reference_index_source_selector": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.REFERENCE_SOURCE_OPTIONS,
+                        "description": "Use a cached or history query genome index",
+                    },
+                ),
+                "in_que_ref_index": (
+                    "FILE",
+                    {"description": "History query chrom sizes or FASTA index file"},
+                ),
+                "que_ref_index_path": (
+                    "STRING",
+                    {"default": "", "description": "Path to cached query chrom sizes or FASTA index file"},
+                ),
+                "pad": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Extra bases to pad around blocks to decrease trash"},
+                ),
+                "inclHap": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include query sequences named *_hap* or *_alt*"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MafToAxtNode(CommandNode):
     """Convert UCSC MAF alignments to AXT format."""
 

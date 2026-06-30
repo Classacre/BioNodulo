@@ -6024,6 +6024,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_chainprenet: {
+    name: 'ucsc_chainprenet',
+    display_name: 'chainPreNet',
+    category: 'genomics',
+    description: 'Remove UCSC chains that do not have a chance of being netted.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainprenet', 'chainPreNet', 'UCSC chain', 'UCSC net', 'netted chains', 'chrom sizes', 'haplotype pseudochromosomes'],
+    input: {
+      required: {
+        in_chain: { type: 'FILE' },
+      },
+      optional: {
+        target_reference_index_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        in_tar_ref_index: { type: 'FILE' },
+        tar_ref_index_path: { type: 'STRING', default: '' },
+        query_reference_index_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        in_que_ref_index: { type: 'FILE' },
+        que_ref_index_path: { type: 'STRING', default: '' },
+        pad: { type: 'INT', default: '', min: 0 },
+        inclHap: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['chainPreNet'],
+    required_conda_packages: ['ucsc-chainprenet'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/chain.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -12842,7 +12872,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('444 nodes available')).toBeVisible();
+  await expect(page.getByText('445 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13056,6 +13086,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'synteny info', name: 'netSyntenic', category: 'genomics' },
     { query: 'liftOver', name: 'netChainSubset', category: 'genomics' },
     { query: 'synteny filter', name: 'netFilter', category: 'genomics' },
+    { query: 'netted chains', name: 'chainPreNet', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
