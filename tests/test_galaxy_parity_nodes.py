@@ -36302,6 +36302,175 @@ def test_gffread_validates_required_inputs_modes_ranges_and_reference_outputs() 
     ) is True
 
 
+def test_gffcompare_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["gffcompare"]
+
+    assert info["display_name"] == "GffCompare"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Compare, classify, merge, and track GFF/GTF transcript annotations."
+    assert info["output"] == ["GTF", "GTF", "TXT", "TSV", "TSV", "TSV", "TSV"]
+    assert info["output_name"] == [
+        "transcripts_annotated",
+        "transcripts_combined",
+        "transcripts_stats",
+        "transcripts_loci",
+        "transcripts_tracking",
+        "tmap_output",
+        "refmap_output",
+    ]
+    assert info["required_executables"] == ["gffcompare", "samtools"]
+    assert info["required_conda_packages"] == ["gffcompare", "samtools"]
+    assert info["documentation_url"] == "https://github.com/gpertea/gffcompare"
+    assert info["citation_dois"] == ["10.12688/f1000research.23297.2"]
+    assert info["citation_urls"] == ["https://doi.org/10.12688/f1000research.23297.2"]
+    assert "GFF Utilities: GffRead and GffCompare" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "transcript tracking" in info["search_aliases"]
+    assert info["input"]["required"]["gffinputs"][0] == "GFF_GTF"
+    assert info["input"]["required"]["gffinputs"][1]["multiple"] is True
+    assert info["input"]["optional"]["annotation_selector"][1]["options"] == ["no", "yes"]
+    assert info["input"]["optional"]["ref_source"][1]["options"] == ["history", "cached"]
+    assert info["input"]["optional"]["seq_selector"][1]["options"] == ["no", "yes"]
+    assert info["input"]["optional"]["seq_source"][1]["options"] == ["history", "cached"]
+    assert info["input"]["optional"]["discard_single_exon"][1]["options"] == ["", "-M", "-N"]
+    assert info["input"]["optional"]["duplication_selector"][1]["options"] == ["", "-D"]
+    assert info["input"]["optional"]["strict_match"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["refmap_tmap"][1]["default"] is True
+    assert info["input"]["optional"]["chr_stats"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["p"][1]["default"] == "TCONS"
+    assert info["input"]["optional"]["A"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["C"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["X"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["K"][0] == "BOOLEAN"
+
+
+def test_gffcompare_renders_multi_input_reference_and_sequence_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("gffcompare")
+
+    assert node_class.render_command(
+        {
+            "gffinputs": ["sample A.gtf", "sample-B.gff3"],
+            "element_identifiers": ["sample A.gtf", "sample-B.gff3"],
+            "output": "/work/gffcompare",
+        }
+    ) == (
+        "mkdir -p /work/gffcompare && ln -s 'sample A.gtf' sample_A_gtf && "
+        "ln -s sample-B.gff3 sample-B_gff3 && "
+        "gffcompare -V -o /work/gffcompare/gffcmp -d 100 -p TCONS sample_A_gtf sample-B_gff3"
+    )
+    assert node_class.render_command(
+        {
+            "gffinputs": ["query one.gtf"],
+            "annotation_selector": "yes",
+            "ref_source": "history",
+            "reference_annotation": "reference annotation.gtf",
+            "strict_match": True,
+            "e": 75,
+            "R": True,
+            "Q": True,
+            "discard_single_exon": "-M",
+            "duplication_selector": "-D",
+            "S": True,
+            "no_merge": True,
+            "seq_selector": "yes",
+            "seq_source": "history",
+            "ref_genome": "genome.fa",
+            "refmap_tmap": False,
+            "max_dist_group": 250,
+            "chr_stats": True,
+            "p": "CMP1",
+            "A": True,
+            "C": True,
+            "X": True,
+            "K": True,
+            "output": "/work/gffcompare",
+        }
+    ) == (
+        "mkdir -p /work/gffcompare && ln -s 'query one.gtf' query_one_gtf && "
+        "ln -s 'reference annotation.gtf' reference_annotation && "
+        "ln -s genome.fa ref_seq.fa && samtools faidx ref_seq.fa && "
+        "gffcompare -V -o /work/gffcompare/gffcmp -r reference_annotation -R -Q --strict-match -e 75 "
+        "-M -D -S --no-merge -T -s ref_seq.fa -d 250 --chr-stats -p CMP1 -A -C -X -K query_one_gtf"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"gffinputs": ["a.gtf", "b.gtf"]}, tmp_path) == [
+        tmp_path / "gffcompare" / "gffcmp.combined.gtf",
+        tmp_path / "gffcompare" / "gffcmp.stats",
+        tmp_path / "gffcompare" / "gffcmp.loci",
+        tmp_path / "gffcompare" / "gffcmp.tracking",
+        tmp_path / "gffcompare" / "gffcmp.a_gtf.tmap",
+        tmp_path / "gffcompare" / "gffcmp.b_gtf.tmap",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"gffinputs": ["query.gtf"], "annotation_selector": "yes", "reference_annotation": "ref.gtf"},
+        tmp_path,
+    ) == [
+        tmp_path / "gffcompare" / "gffcmp.annotated.gtf",
+        tmp_path / "gffcompare" / "gffcmp.stats",
+        tmp_path / "gffcompare" / "gffcmp.loci",
+        tmp_path / "gffcompare" / "gffcmp.tracking",
+        tmp_path / "gffcompare" / "output.tmap",
+        tmp_path / "gffcompare" / "output.refmap",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"gffinputs": ["query.gtf"], "annotation_selector": "yes", "reference_annotation": "ref.gtf", "refmap_tmap": False},
+        tmp_path,
+    ) == [
+        tmp_path / "gffcompare" / "gffcmp.annotated.gtf",
+        tmp_path / "gffcompare" / "gffcmp.stats",
+        tmp_path / "gffcompare" / "gffcmp.loci",
+        tmp_path / "gffcompare" / "gffcmp.tracking",
+    ]
+
+
+def test_gffcompare_validates_required_inputs_reference_sequence_and_ranges() -> None:
+    node_class = _node_class("gffcompare")
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one gffinputs value is required"
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "annotation_selector": "maybe"}) == (
+        "annotation_selector must be one of: no, yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "annotation_selector": "yes"}) == (
+        "reference_annotation is required when ref_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "annotation_selector": "yes", "ref_source": "cached"}) == (
+        "reference_index_path is required when ref_source is cached"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "seq_selector": "yes"}) == (
+        "ref_genome is required when seq_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "seq_selector": "yes", "seq_source": "cached"}) == (
+        "seq_index_path is required when seq_source is cached"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "discard_single_exon": "-Z"}) == (
+        "discard_single_exon must be one of: , -M, -N"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "duplication_selector": "yes"}) == (
+        "duplication_selector must be one of: , -D"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "e": -1}) == (
+        "e must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "max_dist_group": -1}) == (
+        "max_dist_group must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"], "p": "bad prefix"}) == (
+        "p must contain only letters, digits, underscores, and hyphens"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffinputs": ["query.gtf"]}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "gffinputs": ["query.gtf"],
+            "annotation_selector": "yes",
+            "reference_annotation": "ref.gtf",
+            "seq_selector": "yes",
+            "ref_genome": "genome.fa",
+            "duplication_selector": "-D",
+            "S": True,
+        }
+    ) is True
+
+
 def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_mafcoverage"]
 

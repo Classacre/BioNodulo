@@ -6558,6 +6558,53 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.12688/f1000research.23297.2'],
     citation_text: 'GFF Utilities: GffRead and GffCompare.',
   },
+  gffcompare: {
+    name: 'gffcompare',
+    display_name: 'GffCompare',
+    category: 'annotation',
+    description: 'Compare, classify, merge, and track GFF/GTF transcript annotations.',
+    search_aliases: ['Galaxy', 'gffcompare', 'GffCompare', 'GFF Utilities', 'CuffCompare', 'transcript tracking', 'transcript classification', 'GTF comparison', 'GFF comparison', 'annotation mode', 'RefMap', 'TMAP'],
+    input: {
+      required: {
+        gffinputs: { type: 'GFF_GTF', multiple: true },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+        annotation_selector: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        ref_source: { type: 'STRING', default: 'history', options: ['history', 'cached'] },
+        reference_annotation: { type: 'GFF_GTF' },
+        reference_index_path: { type: 'GFF_GTF' },
+        R: { type: 'BOOLEAN', default: false },
+        Q: { type: 'BOOLEAN', default: false },
+        strict_match: { type: 'BOOLEAN', default: false },
+        e: { type: 'INT', default: 100, min: 0 },
+        discard_single_exon: { type: 'STRING', default: '', options: ['', '-M', '-N'] },
+        duplication_selector: { type: 'STRING', default: '', options: ['', '-D'] },
+        S: { type: 'BOOLEAN', default: false },
+        no_merge: { type: 'BOOLEAN', default: false },
+        seq_selector: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        seq_source: { type: 'STRING', default: 'history', options: ['history', 'cached'] },
+        ref_genome: { type: 'FASTA' },
+        seq_index_path: { type: 'FASTA' },
+        max_dist_group: { type: 'INT', default: 100, min: 0 },
+        chr_stats: { type: 'BOOLEAN', default: false },
+        refmap_tmap: { type: 'BOOLEAN', default: true },
+        p: { type: 'STRING', default: 'TCONS' },
+        A: { type: 'BOOLEAN', default: false },
+        C: { type: 'BOOLEAN', default: false },
+        X: { type: 'BOOLEAN', default: false },
+        K: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['GTF', 'GTF', 'TXT', 'TSV', 'TSV', 'TSV', 'TSV'],
+    output_name: ['transcripts_annotated', 'transcripts_combined', 'transcripts_stats', 'transcripts_loci', 'transcripts_tracking', 'tmap_output', 'refmap_output'],
+    required_executables: ['gffcompare', 'samtools'],
+    required_conda_packages: ['gffcompare', 'samtools'],
+    documentation_url: 'https://github.com/gpertea/gffcompare',
+    citation_dois: ['10.12688/f1000research.23297.2'],
+    citation_urls: ['https://doi.org/10.12688/f1000research.23297.2'],
+    citation_text: 'GFF Utilities: GffRead and GffCompare.',
+  },
   ucsc_mafcoverage: {
     name: 'ucsc_mafcoverage',
     display_name: 'mafCoverage',
@@ -13403,7 +13450,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('462 nodes available')).toBeVisible();
+  await expect(page.getByText('463 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13634,6 +13681,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genePred protein alignments', name: 'mafGene', category: 'genomics' },
     { query: 'GTF to BED12', name: 'Convert GTF to BED12', category: 'genomics' },
     { query: 'GTF to GFF3', name: 'gffread', category: 'annotation' },
+    { query: 'transcript tracking', name: 'GffCompare', category: 'annotation' },
     { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
