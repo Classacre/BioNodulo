@@ -5927,6 +5927,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_chainsort: {
+    name: 'ucsc_chainsort',
+    display_name: 'chainSort',
+    category: 'genomics',
+    description: 'Sort UCSC chain alignment records by score, target start, or query start.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainsort', 'chainSort', 'chain file', 'UCSC chain', 'sort chains', 'target start', 'query start'],
+    input: {
+      required: {
+        in_chain: { type: 'FILE' },
+      },
+      optional: {
+        sort_by: { type: 'STRING', default: '', options: ['', '-target', '-query'] },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['chainSort'],
+    required_conda_packages: ['ucsc-chainsort'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/chain.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   ucsc_netsyntenic: {
     name: 'ucsc_netsyntenic',
     display_name: 'netSyntenic',
@@ -12713,7 +12736,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('439 nodes available')).toBeVisible();
+  await expect(page.getByText('440 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12923,6 +12946,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'optimal scoring subnetwork', name: 'Visualize Heinz subnetwork', category: 'visualization' },
     { query: 'Beta-Uniform Mixture', name: 'Fit a BUM model', category: 'statistics' },
     { query: 'swap target query', name: 'chainSwap', category: 'genomics' },
+    { query: 'sort chains', name: 'chainSort', category: 'genomics' },
     { query: 'synteny info', name: 'netSyntenic', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },

@@ -34401,6 +34401,59 @@ def test_ucsc_chainswap_validates_required_input() -> None:
     assert node_class.VALIDATE_INPUTS({"in_chain": "example.chain"}) is True
 
 
+def test_ucsc_chainsort_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_chainsort"]
+
+    assert info["display_name"] == "chainSort"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Sort UCSC chain alignment records by score, target start, or query start."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["chainSort"]
+    assert info["required_conda_packages"] == ["ucsc-chainsort"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/chain.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "UCSC Genome Browser Utilities" in info["search_aliases"]
+    assert info["input"]["required"]["in_chain"][0] == "FILE"
+    assert info["input"]["optional"]["sort_by"][1]["default"] == ""
+    assert info["input"]["optional"]["sort_by"][1]["options"] == ["", "-target", "-query"]
+
+
+def test_ucsc_chainsort_renders_default_and_query_sort_commands(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_chainsort")
+
+    assert node_class.render_command(
+        {
+            "in_chain": "input chain.chain",
+            "output": "/work/ucsc_chainsort",
+        }
+    ) == "chainSort 'input chain.chain' /work/ucsc_chainsort/out.chain"
+    assert node_class.render_command(
+        {
+            "in_chain": "input chain.chain",
+            "sort_by": "-query",
+            "output": "/work/ucsc_chainsort",
+        }
+    ) == "chainSort 'input chain.chain' -query /work/ucsc_chainsort/out.chain"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_chainsort" / "out.chain",
+    ]
+
+
+def test_ucsc_chainsort_validates_required_input_and_sort_mode() -> None:
+    node_class = _node_class("ucsc_chainsort")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_chain is required"
+    assert node_class.VALIDATE_INPUTS({"in_chain": "example.chain", "sort_by": "-bad"}) == (
+        "sort_by must be one of: , -target, -query"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_chain": "example.chain", "sort_by": "-target"}) is True
+
+
 def test_ucsc_netsyntenic_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_netsyntenic"]
 

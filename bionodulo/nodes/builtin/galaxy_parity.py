@@ -27578,6 +27578,74 @@ class UcscChainSwapNode(_UcscSingleFileUtilityNode):
     INPUT_DESCRIPTION = "UCSC chain alignment file whose target and query coordinates should be swapped"
 
 
+class UcscChainSortNode(_UcscSingleFileUtilityNode):
+    """Sort records in a UCSC chain file."""
+
+    NODE_ID = "ucsc_chainsort"
+    DISPLAY_NAME = "chainSort"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-chainsort"]
+    DESCRIPTION = "Sort UCSC chain alignment records by score, target start, or query start."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_chainsort",
+        "chainSort",
+        "chain file",
+        "UCSC chain",
+        "sort chains",
+        "target start",
+        "query start",
+    ]
+    REQUIRED_EXECUTABLES = ["chainSort"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/chain.html"
+    TOOL_NAME = "chainSort"
+    INPUT_NAME = "in_chain"
+    OUTPUT_FILENAME = "out.chain"
+    INPUT_DESCRIPTION = "UCSC chain alignment file to sort"
+    SORT_MODES = ["", "-target", "-query"]
+
+    @classmethod
+    def _sort_by(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("sort_by", "") or "")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [cls.TOOL_NAME, str(inputs.get(cls.INPUT_NAME, ""))]
+        if sort_by := cls._sort_by(inputs):
+            cmd.append(sort_by)
+        cmd.append(cls._output_path(inputs))
+        return _shell_join(cmd)
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        required = super().VALIDATE_INPUTS(inputs)
+        if required is not True:
+            return required
+        sort_by = cls._sort_by(inputs)
+        if sort_by not in cls.SORT_MODES:
+            return f"sort_by must be one of: {', '.join(cls.SORT_MODES)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                cls.INPUT_NAME: ("FILE", {"description": cls.INPUT_DESCRIPTION}),
+            },
+            "optional": {
+                "sort_by": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": cls.SORT_MODES,
+                        "description": "Sort chains by score, target start, or query start",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class UcscNetSyntenicNode(_UcscSingleFileUtilityNode):
     """Add synteny annotations to a UCSC net file."""
 
