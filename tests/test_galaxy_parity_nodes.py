@@ -223,6 +223,198 @@ def test_anndata_import_renders_custom_annotated_matrix_command_and_validates() 
     ) is True
 
 
+def test_anndata_inspect_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["anndata_inspect"]
+
+    assert node_info["display_name"] == "Inspect AnnData"
+    assert node_info["category"] == "single_cell"
+    assert node_info["description"] == "Inspect AnnData H5AD matrices, annotations, embeddings, and unstructured analysis results."
+    assert node_info["output"] == [
+        "TXT",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "FILE",
+        "FILE",
+        "FILE",
+        "FILE",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "DIRECTORY",
+        "TSV",
+        "TSV",
+    ]
+    assert node_info["output_name"][0:5] == ["general", "X", "obs", "var", "chunk_X"]
+    assert "obsm_X_draw_graph" in node_info["output_name"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["anndata", "scanpy", "loompy", "pandas"]
+    assert node_info["documentation_url"] == "https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.html"
+    assert node_info["citation_dois"] == ["10.1186/s13059-017-1382-0"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/s13059-017-1382-0"]
+    assert "AnnData" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "chunk_X" in node_info["search_aliases"]
+    assert node_info["version"] == "0.11.4+galaxy3"
+    assert node_info["input"]["required"]["input"][0] == "H5AD"
+    assert node_info["input"]["optional"]["info"][1]["default"] == "general"
+    assert node_info["input"]["optional"]["info"][1]["options"] == [
+        "general",
+        "obs",
+        "var",
+        "X",
+        "chunk_X",
+        "uns",
+        "obsm",
+        "varm",
+    ]
+    assert node_info["input"]["optional"]["uns_info"][1]["options"] == [
+        "neighbors",
+        "paga",
+        "pca",
+        "rank_genes_groups",
+    ]
+
+
+def test_anndata_inspect_renders_general_and_chunk_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("anndata_inspect")
+
+    assert node_class.render_command(
+        {
+            "input": "single cell.h5ad",
+            "info": "general",
+            "output": "/work/anndata_inspect",
+        }
+    ) == (
+        "mkdir -p /work/anndata_inspect && cd /work/anndata_inspect && cat > anndata_inspect.py <<'PY'\n"
+        "import anndata as ad\n"
+        "import pandas as pd\n"
+        "from scipy import io\n"
+        "pd.options.display.precision = 15\n"
+        "adata = ad.read_h5ad('single cell.h5ad', backed='r')\n"
+        "with open('/work/anndata_inspect/general.txt', 'w', encoding='utf-8') as f:\n"
+        "    print(adata, file=f)\n"
+        "PY\n"
+        "python anndata_inspect.py"
+    )
+    assert node_class.PLAN_OUTPUTS({"info": "general"}, tmp_path) == [
+        tmp_path / "anndata_inspect" / "general.txt",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input": "cells.h5ad",
+            "info": "chunk_X",
+            "chunk_info": "specified",
+            "chunk_list": "3, 5,8",
+            "output": "/work/anndata_inspect",
+        }
+    ) == (
+        "mkdir -p /work/anndata_inspect && cd /work/anndata_inspect && cat > anndata_inspect.py <<'PY'\n"
+        "import anndata as ad\n"
+        "import pandas as pd\n"
+        "from scipy import io\n"
+        "pd.options.display.precision = 15\n"
+        "adata = ad.read_h5ad('cells.h5ad', backed='r')\n"
+        "X = adata.chunk_X(select=[3, 5, 8])\n"
+        "pd.DataFrame(X).to_csv('/work/anndata_inspect/chunk_X.tsv', sep='\\t')\n"
+        "PY\n"
+        "python anndata_inspect.py"
+    )
+    assert node_class.PLAN_OUTPUTS({"info": "chunk_X"}, tmp_path) == [
+        tmp_path / "anndata_inspect" / "chunk_X.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "info": "bad"}) == (
+        "info must be one of: general, obs, var, X, chunk_X, uns, obsm, varm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "info": "chunk_X", "chunk_info": "bad"}) == (
+        "chunk_info must be one of: random, specified"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "info": "chunk_X", "chunk_info": "specified"}) == (
+        "chunk_list is required when chunk_info is specified"
+    )
+
+
+def test_anndata_inspect_renders_uns_obsm_and_varm_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("anndata_inspect")
+
+    assert node_class.render_command(
+        {
+            "input": "ranked.h5ad",
+            "info": "uns",
+            "uns_info": "rank_genes_groups",
+            "output": "/work/anndata_inspect",
+        }
+    ) == (
+        "mkdir -p /work/anndata_inspect && cd /work/anndata_inspect && cat > anndata_inspect.py <<'PY'\n"
+        "import anndata as ad\n"
+        "import pandas as pd\n"
+        "from scipy import io\n"
+        "pd.options.display.precision = 15\n"
+        "adata = ad.read_h5ad('ranked.h5ad', backed='r')\n"
+        "pd.DataFrame(adata.uns['rank_genes_groups']['logfoldchanges']).to_csv('/work/anndata_inspect/uns_rank_genes_groups_logfoldchanges.tsv', sep='\\t', index=False)\n"
+        "pd.DataFrame(adata.uns['rank_genes_groups']['names']).to_csv('/work/anndata_inspect/uns_rank_genes_groups_names.tsv', sep='\\t', index=False)\n"
+        "pd.DataFrame(adata.uns['rank_genes_groups']['pvals']).to_csv('/work/anndata_inspect/uns_rank_genes_groups_pvals.tsv', sep='\\t', index=False)\n"
+        "pd.DataFrame(adata.uns['rank_genes_groups']['pvals_adj']).to_csv('/work/anndata_inspect/uns_rank_genes_groups_pvals_adj.tsv', sep='\\t', index=False)\n"
+        "pd.DataFrame(adata.uns['rank_genes_groups']['scores']).to_csv('/work/anndata_inspect/uns_rank_genes_groups_scores.tsv', sep='\\t', index=False)\n"
+        "PY\n"
+        "python anndata_inspect.py"
+    )
+    assert node_class.PLAN_OUTPUTS({"info": "uns", "uns_info": "rank_genes_groups"}, tmp_path) == [
+        tmp_path / "anndata_inspect" / "uns_rank_genes_groups_names.tsv",
+        tmp_path / "anndata_inspect" / "uns_rank_genes_groups_scores.tsv",
+        tmp_path / "anndata_inspect" / "uns_rank_genes_groups_logfoldchanges.tsv",
+        tmp_path / "anndata_inspect" / "uns_rank_genes_groups_pvals.tsv",
+        tmp_path / "anndata_inspect" / "uns_rank_genes_groups_pvals_adj.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"info": "uns", "uns_info": "neighbors"}, tmp_path) == [
+        tmp_path / "anndata_inspect" / "uns_neighbors_connectivities.mtx",
+        tmp_path / "anndata_inspect" / "uns_neighbors_distances.mtx",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input": "draw_graph.h5ad",
+            "info": "obsm",
+            "obsm_info": "X_draw_graph",
+            "output": "/work/anndata_inspect",
+        }
+    ) == (
+        "mkdir -p /work/anndata_inspect && cd /work/anndata_inspect && mkdir -p /work/anndata_inspect/obsm_X_draw_graph && cat > anndata_inspect.py <<'PY'\n"
+        "import anndata as ad\n"
+        "import pandas as pd\n"
+        "from scipy import io\n"
+        "pd.options.display.precision = 15\n"
+        "adata = ad.read_h5ad('draw_graph.h5ad', backed='r')\n"
+        "for key in adata.obsm.keys():\n"
+        "    if key.startswith('X_draw_graph'):\n"
+        "        pd.DataFrame(adata.obsm[key]).to_csv(f'/work/anndata_inspect/obsm_X_draw_graph/{key}.tsv', sep='\\t', index=False)\n"
+        "PY\n"
+        "python anndata_inspect.py"
+    )
+    assert node_class.PLAN_OUTPUTS({"info": "obsm", "obsm_info": "X_draw_graph"}, tmp_path) == [
+        tmp_path / "anndata_inspect" / "obsm_X_draw_graph",
+    ]
+    assert node_class.PLAN_OUTPUTS({"info": "varm", "varm_info": "PCs"}, tmp_path) == [
+        tmp_path / "anndata_inspect" / "varm_PCs.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "info": "uns", "uns_info": "bad"}) == (
+        "uns_info must be one of: neighbors, paga, pca, rank_genes_groups"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "info": "obsm", "obsm_info": "X_umap"}) is True
+
+
 def test_anndata2ri_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["anndata2ri"]
 

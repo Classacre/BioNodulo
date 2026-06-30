@@ -2336,6 +2336,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
     citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
   },
+  anndata_inspect: {
+    name: 'anndata_inspect',
+    display_name: 'Inspect AnnData',
+    category: 'single_cell',
+    description: 'Inspect AnnData H5AD matrices, annotations, embeddings, and unstructured analysis results.',
+    search_aliases: ['Galaxy', 'AnnData', 'anndata_inspect', 'Inspect AnnData', 'H5AD', 'chunk_X', 'obs', 'var', 'uns', 'obsm', 'varm', 'rank_genes_groups', 'X_draw_graph'],
+    input: {
+      required: {
+        input: { type: 'H5AD' },
+      },
+      optional: {
+        info: { type: 'STRING', default: 'general', options: ['general', 'obs', 'var', 'X', 'chunk_X', 'uns', 'obsm', 'varm'] },
+        chunk_info: { type: 'STRING', default: 'random', options: ['random', 'specified'] },
+        chunk_size: { type: 'INT', default: 1000, min: 1 },
+        chunk_replace: { type: 'BOOLEAN', default: true },
+        chunk_list: { type: 'STRING', default: '' },
+        uns_info: { type: 'STRING', default: 'neighbors', options: ['neighbors', 'paga', 'pca', 'rank_genes_groups'] },
+        obsm_info: { type: 'STRING', default: 'X_pca', options: ['X_pca', 'X_umap', 'X_tsne', 'X_draw_graph', 'X_diffmap'] },
+        varm_info: { type: 'STRING', default: 'PCs', options: ['PCs'] },
+      },
+    },
+    output: ['TXT', 'TSV', 'TSV', 'TSV', 'TSV', 'FILE', 'FILE', 'FILE', 'FILE', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'DIRECTORY', 'TSV', 'TSV'],
+    output_name: ['general', 'X', 'obs', 'var', 'chunk_X', 'uns_neighbors_connectivities', 'uns_neighbors_distances', 'uns_paga_connectivities', 'uns_paga_connectivities_tree', 'uns_pca_variance', 'uns_pca_variance_ratio', 'uns_rank_genes_groups_names', 'uns_rank_genes_groups_scores', 'uns_rank_genes_groups_logfoldchanges', 'uns_rank_genes_groups_pvals', 'uns_rank_genes_groups_pvals_adj', 'obsm_X_pca', 'obsm_X_umap', 'obsm_X_tsne', 'obsm_X_draw_graph', 'obsm_X_diffmap', 'varm_PCs'],
+    required_executables: ['python'],
+    required_conda_packages: ['anndata', 'scanpy', 'loompy', 'pandas'],
+    documentation_url: 'https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.html',
+    citation_dois: ['10.1186/s13059-017-1382-0'],
+    citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
+    citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
+  },
   anndata2ri: {
     name: 'anndata2ri',
     display_name: 'anndata2ri',
@@ -15119,7 +15149,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('510 nodes available')).toBeVisible();
+  await expect(page.getByText('511 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15214,6 +15244,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'write_csvs', name: 'Export AnnData', category: 'single_cell' },
     { query: 'read_10x_mtx', name: 'Import Anndata', category: 'single_cell' },
+    { query: 'chunk_X', name: 'Inspect AnnData', category: 'single_cell' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
