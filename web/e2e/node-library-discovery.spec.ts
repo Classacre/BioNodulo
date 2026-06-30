@@ -9350,6 +9350,39 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-019-1841-x', 'https://doi.org/10.1186/s13059-016-0997-x'],
     citation_text: 'Mash Screen: high-throughput sequence containment estimation for genome discovery; Mash: fast genome and metagenome distance estimation using MinHash.',
   },
+  mashmap: {
+    name: 'mashmap',
+    display_name: 'MashMap',
+    category: 'genomics',
+    description: 'Compute fast approximate local alignment boundaries between query and reference DNA sequences.',
+    search_aliases: ['Galaxy', 'mashmap', 'MashMap3', 'local alignment boundaries', 'PAF', 'genome mapping', 'long read mapping', 'minmers', 'minhash'],
+    input: {
+      required: {
+        query: { type: 'STRING', multiple: true },
+        reflist: { type: 'STRING', multiple: true },
+      },
+      optional: {
+        perc_identity: { type: 'FLOAT', default: 85.0 },
+        seqLength: { type: 'INT', default: 5000 },
+        sketchSize: { type: 'INT', default: 0 },
+        dense: { type: 'BOOLEAN', default: true },
+        kmerThreshold: { type: 'FLOAT', default: '' },
+        kmerComplexity: { type: 'FLOAT', default: '' },
+        filter_mode: { type: 'STRING', default: 'map', options: ['map', 'one-to-one', 'none'] },
+        reportPercentage: { type: 'BOOLEAN', default: false },
+        noMerge: { type: 'BOOLEAN', default: false },
+        noHgFilter: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['PAF'],
+    output_name: ['mashout'],
+    required_executables: ['mashmap'],
+    required_conda_packages: ['mashmap'],
+    documentation_url: 'https://github.com/marbl/MashMap',
+    citation_dois: ['10.1093/bioinformatics/btad512', '10.1093/bioinformatics/bty597', '10.1007/978-3-319-56970-3_5'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btad512', 'https://doi.org/10.1093/bioinformatics/bty597', 'https://doi.org/10.1007/978-3-319-56970-3_5'],
+    citation_text: 'Minmers are a generalization of minimizers that enable unbiased local Jaccard estimation; a fast approximate algorithm for computing local alignment boundaries; A fast adaptive algorithm for computing whole-genome homology maps; A Fast Approximate Algorithm for Mapping Long Reads to Large Reference Databases.',
+  },
   fastani: {
     name: 'fastani',
     display_name: 'FastANI',
@@ -14003,7 +14036,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('483 nodes available')).toBeVisible();
+  await expect(page.getByText('484 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14128,6 +14161,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'presence absence matrix', name: 'ABRicate Summary', category: 'annotation' },
     { query: 'plasmid replicon', name: 'PlasmidFinder', category: 'annotation' },
     { query: 'staramr ResFinder', name: 'staramr', category: 'annotation' },
+    { query: 'MashMap local alignment boundaries', name: 'MashMap', category: 'genomics' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ampvis2 alpha diversity', name: 'ampvis2 alpha diversity', category: 'metagenomics' },
     { query: 'ampvis2 boxplot', name: 'ampvis2 boxplot', category: 'metagenomics' },

@@ -1218,7 +1218,16 @@ class _RecordingCommandContext:
             except (ValueError, IndexError):
                 output_path = self.node_dir / "fastani.tsv"
         else:
-            output_path = self.node_dir / "fastani.tsv"
+            parts = shlex.split(cmd)
+            if ">" in parts:
+                redirect_index = len(parts) - 1 - parts[::-1].index(">")
+                try:
+                    output_path = Path(parts[redirect_index + 1])
+                except IndexError:
+                    output_path = self.node_dir / "fastani.tsv"
+            else:
+                output_path = self.node_dir / "fastani.tsv"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text("q1.fna\tr1.fna\t99.9\t1200\t1200\n", encoding="utf-8")
         output_path.with_suffix(output_path.suffix + ".matrix").write_text("2\nq1\t0\n", encoding="utf-8")
         output_path.with_suffix(output_path.suffix + ".visual").write_text("q1\tr1\t1\t1200\n", encoding="utf-8")
@@ -24027,6 +24036,13 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
             "required_conda_packages": ["mash"],
             "doi": "10.1186/s13059-019-1841-x",
         },
+        "mashmap": {
+            "display_name": "MashMap",
+            "category": "genomics",
+            "required_executables": ["mashmap"],
+            "required_conda_packages": ["mashmap"],
+            "doi": "10.1093/bioinformatics/btad512",
+        },
         "fastani": {
             "display_name": "FastANI",
             "category": "genomics",
@@ -24568,6 +24584,140 @@ def test_mash_screen_renders_single_and_paired_commands_and_output(tmp_path: Pat
         "mash screen -i 0.0 -v 1.0 queries.msh R1.fastq.gz R2.fastq.gz > /work/mash_screen/screen.tsv"
     )
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mash_screen" / "screen.tsv"]
+
+
+def test_mashmap_exposes_galaxy_metadata_inputs_outputs_and_verified_dois() -> None:
+    node_info = _registry().object_info()["mashmap"]
+
+    assert node_info["display_name"] == "MashMap"
+    assert node_info["category"] == "genomics"
+    assert node_info["description"] == (
+        "Compute fast approximate local alignment boundaries between query and reference DNA sequences."
+    )
+    assert node_info["output"] == ["PAF"]
+    assert node_info["output_name"] == ["mashout"]
+    assert node_info["required_executables"] == ["mashmap"]
+    assert node_info["required_conda_packages"] == ["mashmap"]
+    assert node_info["documentation_url"] == "https://github.com/marbl/MashMap"
+    assert node_info["citation_dois"] == [
+        "10.1093/bioinformatics/btad512",
+        "10.1093/bioinformatics/bty597",
+        "10.1007/978-3-319-56970-3_5",
+    ]
+    assert "10.1093/bioinformatics/bts573" not in node_info["citation_dois"]
+    assert node_info["citation_urls"] == [
+        "https://doi.org/10.1093/bioinformatics/btad512",
+        "https://doi.org/10.1093/bioinformatics/bty597",
+        "https://doi.org/10.1007/978-3-319-56970-3_5",
+    ]
+    assert "fast approximate algorithm" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "local alignment boundaries" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["query"] == ("STRING", {"multiple": True, "description": "One or more query FASTA or FASTQ sequences"})
+    assert node_info["input"]["required"]["reflist"] == (
+        "STRING",
+        {"multiple": True, "description": "One or more reference FASTA or FASTQ sequences"},
+    )
+    assert node_info["input"]["optional"]["perc_identity"][1]["default"] == 85.0
+    assert node_info["input"]["optional"]["seqLength"][1]["default"] == 5000
+    assert node_info["input"]["optional"]["sketchSize"][1]["default"] == 0
+    assert node_info["input"]["optional"]["filter_mode"][1]["options"] == ["map", "one-to-one", "none"]
+    assert node_info["input"]["optional"]["dense"][1]["default"] is True
+    assert node_info["input"]["optional"]["reportPercentage"][1]["default"] is False
+    assert node_info["input"]["optional"]["noMerge"][1]["default"] is False
+    assert node_info["input"]["optional"]["noHgFilter"][1]["default"] is False
+
+
+def test_mashmap_renders_single_and_multi_input_commands_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("mashmap")
+
+    assert node_class.render_command(
+        {
+            "query": ["query.fasta"],
+            "reflist": ["ref.fasta"],
+            "perc_identity": 85.0,
+            "seqLength": 5000,
+            "sketchSize": 0,
+            "dense": True,
+            "filter_mode": "map",
+            "output": "/work/mashmap",
+        }
+    ) == (
+        "mashmap --threads ${GALAXY_SLOTS:-1} --perc_identity 85.0 --segLength 5000 "
+        "--filter_mode map --dense -r ref.fasta -q query.fasta > /work/mashmap/mashmap.out"
+    )
+
+    assert node_class.render_command(
+        {
+            "query": ["q1.fa", "q two.fa"],
+            "reflist": ["r1.fa", "ref two.fa"],
+            "perc_identity": 92.5,
+            "seqLength": 10000,
+            "sketchSize": 30000,
+            "dense": False,
+            "reportPercentage": True,
+            "noMerge": True,
+            "noHgFilter": True,
+            "kmerThreshold": 0.0,
+            "kmerComplexity": 0.7,
+            "filter_mode": "one-to-one",
+            "output": "/work/mashmap",
+        }
+    ) == (
+        "printf '%s\\n' r1.fa 'ref two.fa' > /work/mashmap/reflist && "
+        "printf '%s\\n' q1.fa 'q two.fa' > /work/mashmap/query && "
+        "mashmap --threads ${GALAXY_SLOTS:-1} --perc_identity 92.5 --segLength 10000 "
+        "--filter_mode one-to-one --reportPercentage --noMerge --noHgFilter "
+        "--kmerThreshold 0.0 --kmerComplexity 0.7 -J 30000 "
+        "--rl /work/mashmap/reflist --ql /work/mashmap/query > /work/mashmap/mashmap.out"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mashmap" / "mashmap.out"]
+
+
+def test_mashmap_run_writes_list_files_for_multi_inputs(tmp_path: Path) -> None:
+    node_class = _node_class("mashmap")
+    context = _RecordingCommandContext(tmp_path / "mashmap")
+
+    result = asyncio.run(
+        node_class().run(
+            query=["q1.fa", "q two.fa"],
+            reflist=["r1.fa", "ref two.fa"],
+            context=context,
+            output_dir=tmp_path,
+        )
+    )
+
+    assert result == (str(tmp_path / "mashmap" / "mashmap.out"),)
+    assert (tmp_path / "mashmap" / "query").read_text(encoding="utf-8") == "q1.fa\nq two.fa\n"
+    assert (tmp_path / "mashmap" / "reflist").read_text(encoding="utf-8") == "r1.fa\nref two.fa\n"
+    assert context.commands
+
+
+def test_mashmap_validates_required_inputs_ranges_and_modes() -> None:
+    node_class = _node_class("mashmap")
+
+    assert node_class.VALIDATE_INPUTS({}) == "At least one query sequence is required"
+    assert node_class.VALIDATE_INPUTS({"query": ["query.fa"]}) == "At least one reference sequence is required"
+    assert node_class.VALIDATE_INPUTS({"query": ["query.fa"], "reflist": ["ref.fa"], "perc_identity": -1}) == (
+        "perc_identity must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": ["query.fa"], "reflist": ["ref.fa"], "seqLength": 0}) == (
+        "seqLength must be at least 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": ["query.fa"], "reflist": ["ref.fa"], "sketchSize": -1}) == (
+        "sketchSize must be at least 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": ["query.fa"], "reflist": ["ref.fa"], "kmerThreshold": -0.1}) == (
+        "kmerThreshold must be at least 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": ["query.fa"], "reflist": ["ref.fa"], "kmerComplexity": 1.5}) == (
+        "kmerComplexity must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": ["query.fa"], "reflist": ["ref.fa"], "filter_mode": "bad"}) == (
+        "filter_mode must be one of: map, one-to-one, none"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": ["query.fa"], "reflist": ["ref.fa"], "filter_mode": "none"}) is True
 
 
 def test_fastani_renders_many_to_many_command_and_outputs(tmp_path: Path) -> None:
