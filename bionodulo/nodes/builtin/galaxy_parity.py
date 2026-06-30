@@ -36843,6 +36843,104 @@ class HeinzVisualizationNode(CommandNode):
         }
 
 
+class HeinzNode(CommandNode):
+    """Identify an optimal scoring subnetwork with Heinz."""
+
+    NODE_ID = "heinz"
+    DISPLAY_NAME = "Identify optimal scoring subnetwork"
+    REQUIRED_CONDA_PACKAGES = ["heinz"]
+    CATEGORY = "statistics"
+    DESCRIPTION = "Identify an optimal scoring subnetwork from Heinz score and edge files."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Heinz",
+        "heinz",
+        "optimal scoring subnetwork",
+        "protein-protein interaction networks",
+        "functional modules",
+        "score file",
+        "edge file",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("subnetwork",)
+    REQUIRED_EXECUTABLES = ["heinz"]
+    DOCUMENTATION_URL = "https://github.com/ls-cwi/heinz"
+    CITATION_DOIS = [HEINZ_CITATION_DOIS[0]]
+    CITATION_URLS = [f"{DOI_URL}{HEINZ_CITATION_DOIS[0]}"]
+    CITATION_TEXT = "Heinz identifies optimal scoring subnetworks in protein-protein interaction networks."
+    VERSION = "1.0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/subnetwork.txt"
+
+    @classmethod
+    def _threads_arg(cls, inputs: dict[str, Any]) -> str:
+        if "threads" not in inputs or inputs.get("threads") in (None, ""):
+            return "${GALAXY_SLOTS:-2}"
+        return str(inputs.get("threads"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        threads = cls._threads_arg(inputs)
+        cmd = ["heinz", "-m"]
+        if threads == "${GALAXY_SLOTS:-2}":
+            cmd_text = f"{_shell_join(cmd)} {threads}"
+        else:
+            cmd_text = _shell_join([*cmd, threads])
+        cmd_text = " ".join(
+            [
+                cmd_text,
+                _shell_join(["-n", str(inputs.get("score", "")), "-e", str(inputs.get("edge", ""))]),
+            ]
+        )
+        return f"{cmd_text} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "subnetwork.txt"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("score", "")).strip():
+            return "score is required"
+        if not str(inputs.get("edge", "")).strip():
+            return "edge is required"
+        if "threads" in inputs and inputs.get("threads") not in (None, ""):
+            try:
+                threads = int(inputs["threads"])
+            except (TypeError, ValueError):
+                return "threads must be an integer"
+            if threads <= 0:
+                return "threads must be greater than 0"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "score": (
+                    "TXT",
+                    {"description": "Two-column Heinz score file with node identifier and score"},
+                ),
+                "edge": (
+                    "TXT",
+                    {"description": "Two-column edge list defining the background network"},
+                ),
+            },
+            "optional": {
+                "threads": (
+                    "INT",
+                    {"default": 2, "min": 1, "description": "Worker count passed to heinz -m"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class HeinzBumNode(CommandNode):
     """Fit a Beta-Uniform Mixture model to p-values with BioNet."""
 

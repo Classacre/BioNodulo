@@ -8066,6 +8066,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btn161', 'https://doi.org/10.1093/bioinformatics/btg148'],
     citation_text: 'Heinz identifies optimal scoring subnetworks; Beta-Uniform Mixture models support p-value distribution scoring.',
   },
+  heinz: {
+    name: 'heinz',
+    display_name: 'Identify optimal scoring subnetwork',
+    category: 'statistics',
+    description: 'Identify an optimal scoring subnetwork from Heinz score and edge files.',
+    search_aliases: ['Galaxy', 'Heinz', 'heinz', 'optimal scoring subnetwork', 'protein-protein interaction networks', 'functional modules', 'score file', 'edge file'],
+    input: {
+      required: {
+        score: { type: 'STRING' },
+        edge: { type: 'STRING' },
+      },
+      optional: {
+        threads: { type: 'INT', default: 2 },
+      },
+    },
+    output: ['TXT'],
+    output_name: ['subnetwork'],
+    required_executables: ['heinz'],
+    required_conda_packages: ['heinz'],
+    documentation_url: 'https://github.com/ls-cwi/heinz',
+    citation_dois: ['10.1093/bioinformatics/btn161'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btn161'],
+    citation_text: 'Heinz identifies optimal scoring subnetworks in protein-protein interaction networks.',
+  },
   heinz_bum: {
     name: 'heinz_bum',
     display_name: 'Fit a BUM model',
@@ -15791,7 +15815,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('530 nodes available')).toBeVisible();
+  await expect(page.getByText('531 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16062,6 +16086,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
     { query: 'optimal scoring subnetwork', name: 'Visualize Heinz subnetwork', category: 'visualization' },
+    { query: 'protein-protein interaction networks', name: 'Identify optimal scoring subnetwork', category: 'statistics' },
     { query: 'Beta-Uniform Mixture', name: 'Fit a BUM model', category: 'statistics' },
     { query: 'swap target query', name: 'chainSwap', category: 'genomics' },
     { query: 'sort chains', name: 'chainSort', category: 'genomics' },

@@ -41172,6 +41172,62 @@ def test_heinz_visualization_validates_required_input() -> None:
     assert node_class.VALIDATE_INPUTS({"subnetwork": "Heinz_output.txt"}) is True
 
 
+def test_heinz_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["heinz"]
+
+    assert info["display_name"] == "Identify optimal scoring subnetwork"
+    assert info["category"] == "statistics"
+    assert info["description"] == "Identify an optimal scoring subnetwork from Heinz score and edge files."
+    assert info["output"] == ["TXT"]
+    assert info["output_name"] == ["subnetwork"]
+    assert info["required_executables"] == ["heinz"]
+    assert info["required_conda_packages"] == ["heinz"]
+    assert info["documentation_url"] == "https://github.com/ls-cwi/heinz"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btn161"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btn161"]
+    assert "optimal scoring subnetworks" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "protein-protein interaction networks" in info["search_aliases"]
+    assert info["version"] == "1.0"
+    assert info["input"]["required"]["score"][0] == "STRING"
+    assert info["input"]["required"]["edge"][0] == "STRING"
+    assert info["input"]["optional"]["threads"][1]["default"] == 2
+
+
+def test_heinz_renders_subnetwork_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("heinz")
+
+    assert node_class.render_command(
+        {
+            "score": "Nodes PCST.txt",
+            "edge": "Edges PCST.txt",
+            "threads": 8,
+            "output": "/work/heinz",
+        }
+    ) == "heinz -m 8 -n 'Nodes PCST.txt' -e 'Edges PCST.txt' > /work/heinz/subnetwork.txt"
+    assert node_class.render_command(
+        {
+            "score": "NodesPCST.txt",
+            "edge": "EdgesPCST.txt",
+            "output": "/work/heinz",
+        }
+    ) == "heinz -m ${GALAXY_SLOTS:-2} -n NodesPCST.txt -e EdgesPCST.txt > /work/heinz/subnetwork.txt"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "heinz" / "subnetwork.txt",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "score is required"
+    assert node_class.VALIDATE_INPUTS({"score": "scores.txt"}) == "edge is required"
+    assert node_class.VALIDATE_INPUTS({"score": "scores.txt", "edge": "edges.txt", "threads": 0}) == (
+        "threads must be greater than 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"score": "scores.txt", "edge": "edges.txt", "threads": "bad"}) == (
+        "threads must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"score": "scores.txt", "edge": "edges.txt"}) is True
+
+
 def test_heinz_bum_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["heinz_bum"]
 
