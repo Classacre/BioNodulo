@@ -35992,6 +35992,47 @@ class Beacon2IndividualsNode(_Beacon2SearchBaseNode):
     }
 
 
+class Beacon2RangeNode(_Beacon2SearchBaseNode):
+    """Query Beacon genomic variants by sequence range."""
+
+    NODE_ID = "beacon2_range"
+    DISPLAY_NAME = "Beacon2 Range"
+    DESCRIPTION = "Query Beacon genomic variants overlapping a start and end position range."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_range",
+        "Beacon2 Range",
+        "beacon2-search range",
+        "range query",
+        "genomic variants",
+        "start",
+        "end",
+        "referenceName",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_ranged_query",)
+    SEARCH_COLLECTION = "range"
+    OUTPUT_FILENAME = "ranged_query_findings.json"
+    REQUIRED_QUERY_FLAGS = (
+        ("start", "--start", "INT", "Start position"),
+        ("end", "--end", "INT", "End position"),
+    )
+    QUERY_FLAGS = (
+        ("referenceName", "--referenceName", "Reference name such as chr1/1, chr2/2, chr3/3"),
+        ("alternateBases", "--alternateBases", "Targeted alternate bases to search for"),
+        ("variantType", "--variantType", "Targeted variant type to search for"),
+        ("aminoacidChange", "--aminoacidChange", "Targeted amino-acid change to search for"),
+        ("variantMinLength", "--variantMinLength", "Targeted minimum variant length"),
+        ("variantMaxLength", "--variantMaxLength", "Targeted maximum variant length"),
+    )
+    TYPED_QUERY_FLAGS = (
+        ("variantMinLength", "--variantMinLength", "INT", "Targeted minimum variant length"),
+        ("variantMaxLength", "--variantMaxLength", "INT", "Targeted maximum variant length"),
+    )
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 
