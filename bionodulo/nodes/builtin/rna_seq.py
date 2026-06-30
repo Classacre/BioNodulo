@@ -253,7 +253,7 @@ class KallistoQuantNode(CommandNode):
 
 class FeatureCountsNode(CommandNode):
     """Count reads per gene with featureCounts."""
-    NODE_ID = "featurecounts"
+    NODE_ID = ""
     DISPLAY_NAME = "featureCounts"
     REQUIRED_CONDA_PACKAGES = ['subread']
     CATEGORY = "rna_seq"

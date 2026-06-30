@@ -493,9 +493,9 @@ def test_rna_seq_template_validates_annotation_before_counts_and_alignment_qc() 
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "annot_001", "annotation", "validate_annotation_001", "input")
-    assert _has_edge(workflow, "annot_001", "annotation", "counts_001", "gtf")
+    assert _has_edge(workflow, "annot_001", "annotation", "counts_001", "reference_gene_sets")
     assert _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
-    assert _has_edge(workflow, "annot_001", "annotation", "counts_001", "gtf")
+    assert _has_edge(workflow, "annot_001", "annotation", "counts_001", "reference_gene_sets")
     assert _has_edge(workflow, "annot_001", "annotation", "qualimap_001", "feature_file")
     assert workflow["outputs"]["validated_annotation"] == "annot_001"
 
@@ -505,12 +505,17 @@ def test_rna_seq_template_normalizes_featurecounts_output() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["normalize_counts_001"] == "normalize_data"
+    counts = next(node for node in workflow["nodes"] if node["id"] == "counts_001")
     # The normalized-count heatmap uses R's pheatmap (clustered expression
     # heatmap is the RNA-seq standard); normalization emits CSV so pheatmap and
     # the table preview can both read it.
     assert node_types["counts_heatmap_001"] == "r_pheatmap"
     normalizer = next(node for node in workflow["nodes"] if node["id"] == "normalize_counts_001")
     heatmap = next(node for node in workflow["nodes"] if node["id"] == "counts_heatmap_001")
+    assert counts["params"]["gff_feature_type"] == "gene"
+    assert counts["params"]["gff_feature_attribute"] == "gene_id"
+    assert _has_edge(workflow, "sort_001", "sorted_bam", "counts_001", "alignment")
+    assert _has_edge(workflow, "annot_001", "annotation", "counts_001", "reference_gene_sets")
     assert normalizer["params"]["method"] == "cpm"
     assert normalizer["params"]["id_columns"] == "Geneid"
     assert normalizer["params"]["axis"] == "rows"

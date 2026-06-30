@@ -2022,6 +2022,182 @@ def test_htseq_count_renders_counting_command_and_output(tmp_path: Path) -> None
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "htseq_count" / "counts.tsv"]
 
 
+def test_featurecounts_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["featurecounts"]
+
+    assert node_info["display_name"] == "featureCounts"
+    assert node_info["category"] == "rna_seq"
+    assert node_info["description"] == (
+        "Measure gene expression by counting SAM/BAM reads assigned to genomic features with featureCounts."
+    )
+    assert node_info["output"] == ["COUNTS", "TSV", "TSV", "BAM", "TSV"]
+    assert node_info["output_name"] == [
+        "counts",
+        "summary",
+        "feature_lengths",
+        "annotated_bam",
+        "junction_counts",
+    ]
+    assert node_info["required_executables"] == ["featureCounts", "samtools"]
+    assert node_info["required_conda_packages"] == ["subread", "samtools"]
+    assert node_info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btt656"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btt656"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt656"]
+    assert "assigning sequence reads to genomic features" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "subread" in node_info["search_aliases"]
+    assert "featureCounts gene counts" in node_info["search_aliases"]
+    assert "RNA-seq read counting" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["alignment"][0] == "BAM"
+    assert node_info["input"]["optional"]["anno_select"][1]["default"] == "history"
+    assert node_info["input"]["optional"]["anno_select"][1]["options"] == ["builtin", "cached", "history"]
+    assert node_info["input"]["optional"]["reference_gene_sets"][0] == "GFF_GTF"
+    assert node_info["input"]["optional"]["format"][1]["options"] == [
+        "tabdel_short",
+        "tabdel_medium",
+        "tabdel_full",
+    ]
+    assert node_info["input"]["optional"]["strand_specificity"][1]["options"] == ["0", "1", "2"]
+    assert node_info["input"]["optional"]["include_feature_length_file"][0] == "BOOLEAN"
+    assert node_info["input"]["optional"]["R"][0] == "BOOLEAN"
+
+
+def test_featurecounts_renders_history_annotation_medium_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("featurecounts")
+
+    cmd = node_class.render_command(
+        {
+            "alignment": "featureCounts_input1.bam",
+            "anno_select": "history",
+            "reference_gene_sets": "genes.gtf",
+            "format": "tabdel_medium",
+            "include_feature_length_file": True,
+            "strand_specificity": "1",
+            "mapping_quality": 10,
+            "gff_feature_type": "exon",
+            "gff_feature_attribute": "gene_id",
+            "summarization_level": True,
+            "output": "/work/featurecounts",
+        }
+    )
+
+    assert cmd == (
+        "export FC_PATH=$(command -v featureCounts | sed 's@/bin/featureCounts$@@') && "
+        "featureCounts -a genes.gtf -F GTF -o output -T ${GALAXY_SLOTS:-2} -s 1 -Q 10 "
+        "-t exon -g gene_id -f --minOverlap 1 --fracOverlap 0 --fracOverlapFeature 0 "
+        "featureCounts_input1.bam && "
+        "grep -v '^#' output | sed -e 's|featureCounts_input1.bam|featureCounts_input1.bam|g' > body.txt && "
+        "cut -f 1,7 body.txt > expression_matrix.txt && "
+        "cut -f 6 body.txt > gene_lengths.txt && "
+        "paste expression_matrix.txt gene_lengths.txt > expression_matrix.txt.bak && "
+        "mv -f expression_matrix.txt.bak /work/featurecounts/counts.tsv && "
+        "cut -f 1,6 body.txt > /work/featurecounts/feature_lengths.tsv && "
+        "sed -e 's|featureCounts_input1.bam|featureCounts_input1.bam|g' output.summary > "
+        "/work/featurecounts/summary.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"format": "tabdel_medium", "include_feature_length_file": True}, tmp_path) == [
+        tmp_path / "featurecounts" / "counts.tsv",
+        tmp_path / "featurecounts" / "summary.tsv",
+        tmp_path / "featurecounts" / "feature_lengths.tsv",
+    ]
+
+
+def test_featurecounts_renders_builtin_fragment_bam_and_junction_command(tmp_path: Path) -> None:
+    node_class = _node_class("featurecounts")
+
+    cmd = node_class.render_command(
+        {
+            "alignment": "paired reads.bam",
+            "anno_select": "builtin",
+            "bgenome": "hg19",
+            "format": "tabdel_short",
+            "paired_end_status": "PE_fragments",
+            "check_distance": True,
+            "only_both_ends": True,
+            "exclude_chimerics": True,
+            "R": True,
+            "multifeat": "-O -M",
+            "fraction": True,
+            "count_exon_exon_junction_reads": "-J",
+            "genome": "ref genome.fa",
+            "output": "/work/featurecounts",
+        }
+    )
+
+    assert cmd == (
+        "export FC_PATH=$(command -v featureCounts | sed 's@/bin/featureCounts$@@') && "
+        "featureCounts -a ${FC_PATH}/annotation/hg19_RefSeq_exon.txt -F SAF -o output "
+        "-T ${GALAXY_SLOTS:-2} -s 0 -Q 0 -O -M --fraction -J -G 'ref genome.fa' "
+        "--minOverlap 1 --fracOverlap 0 --fracOverlapFeature 0 -R BAM -p --countReadPairs "
+        "-P -d 50 -D 600 -B -C 'paired reads.bam' && "
+        "grep -v '^#' output | sed -e 's|paired reads.bam|paired reads.bam|g' > body.txt && "
+        "cut -f 1,7 body.txt > /work/featurecounts/counts.tsv && "
+        "sed -e 's|paired reads.bam|paired reads.bam|g' output.jcounts > "
+        "/work/featurecounts/junction_counts.tsv && "
+        "samtools sort --no-PG -o /work/featurecounts/annotated.bam -@ ${GALAXY_SLOTS:-2} "
+        "-T \"${TMPDIR:-.}\" *.featureCounts.bam && "
+        "sed -e 's|paired reads.bam|paired reads.bam|g' output.summary > /work/featurecounts/summary.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "R": True,
+            "count_exon_exon_junction_reads": "-J",
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "featurecounts" / "counts.tsv",
+        tmp_path / "featurecounts" / "summary.tsv",
+        tmp_path / "featurecounts" / "annotated.bam",
+        tmp_path / "featurecounts" / "junction_counts.tsv",
+    ]
+
+
+def test_featurecounts_validates_required_conditional_and_range_inputs() -> None:
+    node_class = _node_class("featurecounts")
+
+    assert node_class.VALIDATE_INPUTS({}) == "alignment is required"
+    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "history"}) == (
+        "reference_gene_sets is required for history anno_select"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "cached"}) == (
+        "reference_gene_sets_cached is required for cached anno_select"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "bad"}) == (
+        "anno_select must be one of: builtin, cached, history"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "builtin", "format": "bad"}) == (
+        "format must be one of: tabdel_short, tabdel_medium, tabdel_full"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"alignment": "reads.bam", "anno_select": "builtin", "strand_specificity": "bad"}
+    ) == "strand_specificity must be one of: 0, 1, 2"
+    assert node_class.VALIDATE_INPUTS(
+        {"alignment": "reads.bam", "anno_select": "builtin", "paired_end_status": "bad"}
+    ) == "paired_end_status must be one of: single_end, PE_individual, PE_fragments"
+    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "builtin", "multifeat": "-X"}) == (
+        "multifeat must be one of: , -M, -O, -O -M"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"alignment": "reads.bam", "anno_select": "builtin", "count_exon_exon_junction_reads": "-X"}
+    ) == "count_exon_exon_junction_reads must be one of: , -J"
+    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "builtin", "mapping_quality": -1}) == (
+        "mapping_quality must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "builtin", "frac_overlap": 1.5}) == (
+        "frac_overlap must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "alignment": "reads.bam",
+            "anno_select": "builtin",
+            "paired_end_status": "PE_fragments",
+            "minimum_fragment_length": 800,
+            "maximum_fragment_length": 600,
+        }
+    ) == "maximum_fragment_length must be >= minimum_fragment_length"
+    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "builtin"}) is True
+
+
 def test_seqkit_stats_renders_statistics_command() -> None:
     node_class = _node_class("seqkit_stats")
 

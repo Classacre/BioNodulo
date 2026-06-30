@@ -188,8 +188,8 @@
         80
       ],
       "params": {
-        "feature_type": "gene",
-        "attribute": "gene_id"
+        "gff_feature_type": "gene",
+        "gff_feature_attribute": "gene_id"
       },
       "ui": {
         "title": "featureCounts"
@@ -446,7 +446,7 @@
       },
       "to": {
         "node": "counts_001",
-        "input": "bam"
+        "input": "alignment"
       }
     },
     {
@@ -589,7 +589,7 @@
       },
       "to": {
         "node": "counts_001",
-        "input": "gtf"
+        "input": "reference_gene_sets"
       }
     },
     {

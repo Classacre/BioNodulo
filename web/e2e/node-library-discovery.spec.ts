@@ -1286,6 +1286,36 @@ const objectInfo = {
     citation_dois: ['10.1093/bioinformatics/btu638'],
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btu638'],
   },
+  featurecounts: {
+    name: 'featurecounts',
+    display_name: 'featureCounts',
+    category: 'rna_seq',
+    description: 'Measure gene expression by counting SAM/BAM reads assigned to genomic features with featureCounts.',
+    search_aliases: ['Galaxy', 'featureCounts', 'featurecounts', 'featureCounts gene counts', 'subread', 'gene counts', 'RNA-seq read counting', 'GTF annotation'],
+    input: {
+      required: {
+        alignment: { type: 'BAM' },
+      },
+      optional: {
+        anno_select: { type: 'STRING', default: 'history', options: ['builtin', 'cached', 'history'] },
+        reference_gene_sets: { type: 'GFF_GTF', default: '' },
+        reference_gene_sets_cached: { type: 'GFF_GTF', default: '' },
+        bgenome: { type: 'STRING', default: 'hg38', options: ['hg38', 'hg19', 'mm10', 'mm9'] },
+        format: { type: 'STRING', default: 'tabdel_short', options: ['tabdel_short', 'tabdel_medium', 'tabdel_full'] },
+        strand_specificity: { type: 'STRING', default: '0', options: ['0', '1', '2'] },
+        include_feature_length_file: { type: 'BOOLEAN', default: false },
+        R: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['COUNTS', 'TSV', 'TSV', 'BAM', 'TSV'],
+    output_name: ['counts', 'summary', 'feature_lengths', 'annotated_bam', 'junction_counts'],
+    required_executables: ['featureCounts', 'samtools'],
+    required_conda_packages: ['subread', 'samtools'],
+    documentation_url: 'https://doi.org/10.1093/bioinformatics/btt656',
+    citation_dois: ['10.1093/bioinformatics/btt656'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btt656'],
+    citation_text: 'featureCounts: an efficient general purpose program for assigning sequence reads to genomic features.',
+  },
   seqkit_grep: {
     name: 'seqkit_grep',
     display_name: 'SeqKit Grep',
@@ -13800,7 +13830,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('476 nodes available')).toBeVisible();
+  await expect(page.getByText('477 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13856,6 +13886,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bg_diamond', name: 'Diamond', category: 'alignment' },
     { query: 'bg_diamond_view', name: 'Diamond view', category: 'alignment' },
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
+    { query: 'featureCounts gene counts', name: 'featureCounts', category: 'rna_seq' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
     { query: 'seqtk composition', name: 'SeqTK Composition', category: 'sequence' },
     { query: 'seqtk split at N', name: 'SeqTK CutN', category: 'sequence' },
