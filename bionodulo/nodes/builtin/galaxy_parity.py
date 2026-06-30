@@ -29773,6 +29773,190 @@ class UcscMafFragsNode(CommandNode):
         }
 
 
+class UcscMafGeneNode(CommandNode):
+    """Extract FASTA gene alignments from UCSC MAF and genePred inputs."""
+
+    NODE_ID = "ucsc_mafgene"
+    DISPLAY_NAME = "mafGene"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-mafgene"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Extract FASTA protein or nucleotide alignments from UCSC MAF and genePred inputs."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_mafGene",
+        "ucsc_mafgene",
+        "mafGene",
+        "genePred protein alignments",
+        "multiple alignment format",
+        "species list",
+        "UTR alignment",
+    ]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["mafGene"]
+    DOCUMENTATION_URL = "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafGene/mafGene.c"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "490+galaxy0"
+    SHELL = True
+
+    SELECTION_TYPES = ["all", "single", "list", "bed", "chrom"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.fasta"
+
+    @classmethod
+    def _selection_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("selection_type", "all") or "all")
+
+    @classmethod
+    def _ucsc_db_connection(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ucsc_db_connection", "ucsc_db_connection.conf") or "ucsc_db_connection.conf")
+
+    @staticmethod
+    def _linked_name(path_value: Any) -> str:
+        return _safe_label(Path(str(path_value)).name)
+
+    @classmethod
+    def _should_use_file(cls, inputs: dict[str, Any], genepred_name: str) -> bool:
+        return bool(inputs.get("useFile")) or genepred_name.endswith(".gp")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        maf_name = cls._linked_name(inputs.get("maf_file", ""))
+        genepred_name = cls._linked_name(inputs.get("genepred_file", ""))
+        setup = [
+            f"cp {shlex.quote(cls._ucsc_db_connection(inputs))} ${{HOME}}/.hg.conf",
+            "chmod 600 ${HOME}/.hg.conf",
+            _shell_join(["ln", "-s", str(inputs.get("twoBitFile", "")), "input.2bit"]),
+            _shell_join(["ln", "-s", str(inputs.get("maf_file", "")), maf_name]),
+            _shell_join(["ln", "-s", str(inputs.get("genepred_file", "")), genepred_name]),
+        ]
+        cmd = [
+            "mafGene",
+            "-twoBit=input.2bit",
+            str(inputs.get("db_name", "")),
+            maf_name,
+            genepred_name,
+            str(inputs.get("species_list", "")),
+            cls._output_path(inputs),
+        ]
+        selection_type = cls._selection_type(inputs)
+        if selection_type == "single":
+            cmd.append(f"-geneName={inputs.get('gene_name')}")
+        elif selection_type == "list":
+            cmd.append(f"-geneList={inputs.get('gene_list')}")
+        elif selection_type == "bed":
+            cmd.append(f"-geneBeds={inputs.get('gene_beds')}")
+        elif selection_type == "chrom":
+            cmd.append(f"-chrom={inputs.get('chrom')}")
+        for flag in ("exons", "noTrans", "uniqAA", "includeUtr", "noDash"):
+            if inputs.get(flag):
+                cmd.append(f"-{flag}")
+        if cls._should_use_file(inputs, genepred_name):
+            cmd.append("-useFile")
+        if str(inputs.get("delay", "")) != "":
+            cmd.append(f"-delay={inputs.get('delay')}")
+        return " && ".join(setup + [_shell_join(cmd)])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.fasta"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for name in ("twoBitFile", "db_name", "maf_file", "genepred_file", "species_list"):
+            if not str(inputs.get(name, "")).strip():
+                return f"{name} is required"
+        selection_type = cls._selection_type(inputs)
+        if selection_type not in cls.SELECTION_TYPES:
+            return f"selection_type must be one of: {', '.join(cls.SELECTION_TYPES)}"
+        required_for_mode = {
+            "single": "gene_name",
+            "list": "gene_list",
+            "bed": "gene_beds",
+            "chrom": "chrom",
+        }
+        required_name = required_for_mode.get(selection_type)
+        if required_name and not str(inputs.get(required_name, "")).strip():
+            return f"{required_name} is required when selection_type is {selection_type}"
+        if inputs.get("includeUtr") and not inputs.get("noTrans"):
+            return "includeUtr requires noTrans"
+        delay = inputs.get("delay", "")
+        if str(delay) != "":
+            try:
+                delay_value = int(delay)
+            except (TypeError, ValueError):
+                return "delay must be an integer"
+            if delay_value < 0:
+                return "delay must be greater than or equal to 0"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "twoBitFile": ("FILE", {"description": "twoBit reference genome used to fill alignment gaps"}),
+                "db_name": ("STRING", {"description": "UCSC genome database name, such as hg38 or sacCer3"}),
+                "maf_file": ("FILE", {"description": "MAF, bigMaf, or UCSC MAF table to extract alignments from"}),
+                "genepred_file": ("FILE", {"description": "genePred table or .gp file containing gene predictions"}),
+                "species_list": (
+                    "STRING",
+                    {"description": "Species list file with one species name per line"},
+                ),
+            },
+            "optional": {
+                "selection_type": (
+                    "STRING",
+                    {
+                        "default": "all",
+                        "options": cls.SELECTION_TYPES,
+                        "description": "Select all genes, one gene, a gene list, BED-defined genes, or one chromosome",
+                    },
+                ),
+                "gene_name": ("STRING", {"default": "", "description": "Gene name used when selection_type is single"}),
+                "gene_list": (
+                    "STRING",
+                    {"default": "", "description": "File containing gene names used when selection_type is list"},
+                ),
+                "gene_beds": ("BED", {"description": "BED4 file of genes used when selection_type is bed"}),
+                "chrom": ("STRING", {"default": "", "description": "Chromosome name used when selection_type is chrom"}),
+                "exons": ("BOOLEAN", {"default": False, "description": "Output exon alignments instead of full genes"}),
+                "noTrans": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Keep nucleotide alignments instead of translating to amino acids"},
+                ),
+                "uniqAA": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Emit a unique pseudo-amino-acid code for every codon"},
+                ),
+                "includeUtr": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include untranslated regions; requires noTrans"},
+                ),
+                "noDash": ("BOOLEAN", {"default": False, "description": "Skip output rows containing only dashes"}),
+                "useFile": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Treat the genePred input as a file instead of a database table"},
+                ),
+                "delay": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Optional delay in seconds between genes"},
+                ),
+                "ucsc_db_connection": (
+                    "FILE",
+                    {"description": "UCSC database connection configuration copied to ~/.hg.conf"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class UcscMafCoverageNode(CommandNode):
     """Measure genome coverage from UCSC MAF alignments."""
 

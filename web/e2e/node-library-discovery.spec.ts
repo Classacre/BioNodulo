@@ -6448,6 +6448,45 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_mafgene: {
+    name: 'ucsc_mafgene',
+    display_name: 'mafGene',
+    category: 'genomics',
+    description: 'Extract FASTA protein or nucleotide alignments from UCSC MAF and genePred inputs.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafGene', 'ucsc_mafgene', 'mafGene', 'genePred protein alignments', 'multiple alignment format', 'species list', 'UTR alignment'],
+    input: {
+      required: {
+        twoBitFile: { type: 'FILE' },
+        db_name: { type: 'STRING' },
+        maf_file: { type: 'FILE' },
+        genepred_file: { type: 'FILE' },
+        species_list: { type: 'STRING' },
+      },
+      optional: {
+        selection_type: { type: 'STRING', default: 'all', options: ['all', 'single', 'list', 'bed', 'chrom'] },
+        gene_name: { type: 'STRING', default: '' },
+        gene_list: { type: 'STRING', default: '' },
+        gene_beds: { type: 'BED' },
+        chrom: { type: 'STRING', default: '' },
+        exons: { type: 'BOOLEAN', default: false },
+        noTrans: { type: 'BOOLEAN', default: false },
+        uniqAA: { type: 'BOOLEAN', default: false },
+        includeUtr: { type: 'BOOLEAN', default: false },
+        noDash: { type: 'BOOLEAN', default: false },
+        useFile: { type: 'BOOLEAN', default: false },
+        delay: { type: 'INT', default: '', min: 0 },
+        ucsc_db_connection: { type: 'FILE' },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['output'],
+    required_executables: ['mafGene'],
+    required_conda_packages: ['ucsc-mafgene'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafGene/mafGene.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   ucsc_mafcoverage: {
     name: 'ucsc_mafcoverage',
     display_name: 'mafCoverage',
@@ -13293,7 +13332,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('459 nodes available')).toBeVisible();
+  await expect(page.getByText('460 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13521,6 +13560,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MAF i rows', name: 'mafAddIRows', category: 'genomics' },
     { query: 'MAF region extract', name: 'mafFrag', category: 'genomics' },
     { query: 'BED region MAF extraction', name: 'mafFrags', category: 'genomics' },
+    { query: 'genePred protein alignments', name: 'mafGene', category: 'genomics' },
     { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },

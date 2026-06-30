@@ -35936,6 +35936,146 @@ def test_ucsc_maffrags_validates_required_inputs_and_bed12_incompatible_options(
     assert node_class.VALIDATE_INPUTS({"bed_file": "regions.bed", "genome": "hg19", "track": "multiz46way"}) is True
 
 
+def test_ucsc_mafgene_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_mafgene"]
+
+    assert info["display_name"] == "mafGene"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Extract FASTA protein or nucleotide alignments from UCSC MAF and genePred inputs."
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["mafGene"]
+    assert info["required_conda_packages"] == ["ucsc-mafgene"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafGene/mafGene.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "genePred protein alignments" in info["search_aliases"]
+    assert info["input"]["required"]["twoBitFile"][0] == "FILE"
+    assert info["input"]["required"]["db_name"][0] == "STRING"
+    assert info["input"]["required"]["maf_file"][0] == "FILE"
+    assert info["input"]["required"]["genepred_file"][0] == "FILE"
+    assert info["input"]["required"]["species_list"][0] == "STRING"
+    assert info["input"]["optional"]["selection_type"][1]["options"] == ["all", "single", "list", "bed", "chrom"]
+    assert info["input"]["optional"]["gene_name"][0] == "STRING"
+    assert info["input"]["optional"]["gene_list"][0] == "STRING"
+    assert info["input"]["optional"]["gene_beds"][0] == "BED"
+    assert info["input"]["optional"]["chrom"][0] == "STRING"
+    assert info["input"]["optional"]["useFile"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["delay"][1]["min"] == 0
+    assert info["input"]["optional"]["ucsc_db_connection"][0] == "FILE"
+
+
+def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_mafgene")
+
+    assert node_class.render_command(
+        {
+            "twoBitFile": "sacCer3.2bit",
+            "db_name": "sacCer3",
+            "maf_file": "sacCer3.bigMaf",
+            "genepred_file": "sgdGene.gp",
+            "species_list": "species.lst",
+            "output": "/work/ucsc_mafgene",
+        }
+    ) == (
+        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "ln -s sacCer3.2bit input.2bit && ln -s sacCer3.bigMaf sacCer3.bigMaf && "
+        "ln -s sgdGene.gp sgdGene.gp && mafGene -twoBit=input.2bit sacCer3 sacCer3.bigMaf "
+        "sgdGene.gp species.lst /work/ucsc_mafgene/output.fasta -useFile"
+    )
+    assert node_class.render_command(
+        {
+            "twoBitFile": "reference genome.2bit",
+            "db_name": "hg38",
+            "maf_file": "alignment big maf.bigMaf",
+            "genepred_file": "known genes.gp",
+            "species_list": "species order.txt",
+            "selection_type": "single",
+            "gene_name": "TP53",
+            "exons": True,
+            "noTrans": True,
+            "uniqAA": True,
+            "includeUtr": True,
+            "noDash": True,
+            "delay": 2,
+            "ucsc_db_connection": "custom hg.conf",
+            "output": "/work/ucsc_mafgene",
+        }
+    ) == (
+        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "ln -s 'reference genome.2bit' input.2bit && "
+        "ln -s 'alignment big maf.bigMaf' alignment_big_maf.bigMaf && "
+        "ln -s 'known genes.gp' known_genes.gp && "
+        "mafGene -twoBit=input.2bit hg38 alignment_big_maf.bigMaf known_genes.gp "
+        "'species order.txt' /work/ucsc_mafgene/output.fasta -geneName=TP53 -exons -noTrans "
+        "-uniqAA -includeUtr -noDash -useFile -delay=2"
+    )
+    assert node_class.render_command(
+        {
+            "twoBitFile": "hg38.2bit",
+            "db_name": "hg38",
+            "maf_file": "multiz100way",
+            "genepred_file": "knownGene",
+            "species_list": "species.lst",
+            "selection_type": "bed",
+            "gene_beds": "genes regions.bed",
+            "output": "/work/ucsc_mafgene",
+        }
+    ) == (
+        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "ln -s hg38.2bit input.2bit && ln -s multiz100way multiz100way && "
+        "ln -s knownGene knownGene && mafGene -twoBit=input.2bit hg38 multiz100way knownGene "
+        "species.lst /work/ucsc_mafgene/output.fasta '-geneBeds=genes regions.bed'"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_mafgene" / "output.fasta",
+    ]
+
+
+def test_ucsc_mafgene_validates_required_inputs_selection_modes_and_options() -> None:
+    node_class = _node_class("ucsc_mafgene")
+
+    assert node_class.VALIDATE_INPUTS({}) == "twoBitFile is required"
+    assert node_class.VALIDATE_INPUTS({"twoBitFile": "ref.2bit"}) == "db_name is required"
+    assert node_class.VALIDATE_INPUTS({"twoBitFile": "ref.2bit", "db_name": "hg38"}) == "maf_file is required"
+    assert node_class.VALIDATE_INPUTS({"twoBitFile": "ref.2bit", "db_name": "hg38", "maf_file": "maf.bigMaf"}) == (
+        "genepred_file is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"twoBitFile": "ref.2bit", "db_name": "hg38", "maf_file": "maf.bigMaf", "genepred_file": "genes.gp"}
+    ) == "species_list is required"
+    base = {
+        "twoBitFile": "ref.2bit",
+        "db_name": "hg38",
+        "maf_file": "maf.bigMaf",
+        "genepred_file": "genes.gp",
+        "species_list": "species.lst",
+    }
+    assert node_class.VALIDATE_INPUTS({**base, "selection_type": "bad"}) == (
+        "selection_type must be one of: all, single, list, bed, chrom"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "selection_type": "single"}) == (
+        "gene_name is required when selection_type is single"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "selection_type": "list"}) == (
+        "gene_list is required when selection_type is list"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "selection_type": "bed"}) == (
+        "gene_beds is required when selection_type is bed"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "selection_type": "chrom"}) == (
+        "chrom is required when selection_type is chrom"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "includeUtr": True}) == "includeUtr requires noTrans"
+    assert node_class.VALIDATE_INPUTS({**base, "delay": -1}) == "delay must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS({**base, "delay": "slow"}) == "delay must be an integer"
+    assert node_class.VALIDATE_INPUTS(base) is True
+    assert node_class.VALIDATE_INPUTS({**base, "selection_type": "chrom", "chrom": "chr1", "includeUtr": True, "noTrans": True}) is True
+
+
 def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_mafcoverage"]
 
