@@ -11093,6 +11093,96 @@ def test_chira_map_renders_alignment_command_outputs_and_validation(tmp_path: Pa
     ) is True
 
 
+def test_chira_merge_renders_locus_merging_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chira_merge")
+    info = _registry().object_info()["chira_merge"]
+
+    assert info["display_name"] == "ChiRA merge"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Merge overlapping ChiRA read alignments into read-concentrated loci."
+    assert info["input"]["required"]["alignments"][0] == "BED"
+    assert info["input"]["required"]["annotation_choice"][1]["options"] == ["yes", "no"]
+    assert info["input"]["required"]["merge_mode"][1]["options"] == ["overlap", "blockbuster"]
+    assert info["input"]["required"]["ref_type"][1]["options"] == ["single", "split"]
+    assert info["output"] == ["BED", "TSV"]
+    assert info["output_name"] == ["segments_bed", "merged_bed"]
+    assert info["required_executables"] == ["chira_merge.py"]
+    assert info["required_conda_packages"] == ["chira"]
+    assert info["documentation_url"] == "https://github.com/BackofenLab/ChiRA"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa158"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/gigascience/giaa158"]
+    assert "ChiRA merge" in info["search_aliases"]
+    assert "chira_merge.py" in info["search_aliases"]
+    assert info["version"] == "1.4.3+galaxy0"
+
+    assert node_class.render_command(
+        {
+            "alignments": "alignments.bed",
+            "annotation_choice": "yes",
+            "gtf": "annotation.gtf",
+            "segment_overlap": 0.7,
+            "length_threshold": 0.9,
+            "alignment_overlap": 0.7,
+            "merge_mode": "blockbuster",
+            "distance": 30,
+            "min_cluster_height": 0,
+            "min_block_height": 1,
+            "scale": 0.1,
+            "ref_type": "split",
+            "ref_fasta1": "ref 1.fasta",
+            "ref_fasta2": "ref2.fasta",
+            "chimeric_only": True,
+            "output": "/work/chira_merge",
+        }
+    ) == (
+        "mkdir -p /work/chira_merge && cd /work/chira_merge && chira_merge.py -b alignments.bed -g annotation.gtf "
+        "-so 0.7 -lt 0.9 -ao 0.7 -bb -d 30 -mc 0 -mb 1 -sc 0.1 -f1 'ref 1.fasta' -f2 ref2.fasta -c -o ./"
+    )
+    assert node_class.render_command(
+        {
+            "alignments": "alignments with spaces.bed",
+            "annotation_choice": "no",
+            "merge_mode": "overlap",
+            "min_locus_size": 5,
+            "ref_type": "single",
+            "output": "/work/chira_merge",
+        }
+    ) == (
+        "mkdir -p /work/chira_merge && cd /work/chira_merge && "
+        "chira_merge.py -b 'alignments with spaces.bed' -so 0.7 -lt 0.9 -ao 0.7 -ls 5 -o ./"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "chira_merge" / "segments.bed",
+        tmp_path / "chira_merge" / "merged.bed",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "alignments is required"
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed", "annotation_choice": "bad"}) == (
+        "annotation_choice must be one of: yes, no"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed", "annotation_choice": "yes"}) == (
+        "gtf is required when annotation_choice is yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed", "merge_mode": "bad"}) == (
+        "merge_mode must be one of: overlap, blockbuster"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed", "ref_type": "bad"}) == (
+        "ref_type must be one of: single, split"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed", "ref_type": "split", "ref_fasta1": "r1.fa"}) == (
+        "ref_fasta2 is required when ref_type is split"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed", "segment_overlap": 1.2}) == (
+        "segment_overlap must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed", "merge_mode": "overlap", "min_locus_size": 0}) == (
+        "min_locus_size must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed", "merge_mode": "blockbuster", "scale": 1.2}) == (
+        "scale must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "a.bed"}) is True
+
+
 def test_chewbbaca_allelecall_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["chewbbaca_allelecall"]
 

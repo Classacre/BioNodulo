@@ -21337,6 +21337,186 @@ class ChiraMapNode(CommandNode):
         return True
 
 
+class ChiraMergeNode(CommandNode):
+    """Merge ChiRA read alignments into loci."""
+
+    NODE_ID = "chira_merge"
+    DISPLAY_NAME = "ChiRA merge"
+    REQUIRED_CONDA_PACKAGES = ["chira"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Merge overlapping ChiRA read alignments into read-concentrated loci."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ChiRA",
+        "ChiRA merge",
+        "chira_merge",
+        "chira_merge.py",
+        "read-concentrated loci",
+        "chimeric read loci",
+        "blockbuster",
+    ]
+    RETURN_TYPES = ("BED", "TSV")
+    RETURN_NAMES = ("segments_bed", "merged_bed")
+    REQUIRED_EXECUTABLES = ["chira_merge.py"]
+    DOCUMENTATION_URL = CHIRA_DOCUMENTATION_URL
+    CITATION_DOIS = [CHIRA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHIRA_CITATION_DOI}"]
+    CITATION_TEXT = CHIRA_CITATION_TEXT
+    VERSION = "1.4.3+galaxy0"
+    SHELL = True
+
+    ANNOTATION_CHOICES = ["yes", "no"]
+    MERGE_MODES = ["overlap", "blockbuster"]
+    REF_TYPES = ["single", "split"]
+
+    @classmethod
+    def _annotation_choice(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("annotation_choice", inputs.get("choice", "no")) or "no")
+
+    @classmethod
+    def _merge_mode(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("merge_mode", inputs.get("mode", "overlap")) or "overlap")
+
+    @classmethod
+    def _ref_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ref_type", "single") or "single")
+
+    @staticmethod
+    def _bool_flag(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.lower() not in {"", "false", "0", "no", "off"}
+        return bool(value)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = ["chira_merge.py", "-b", str(inputs.get("alignments", ""))]
+        if cls._annotation_choice(inputs) == "yes":
+            cmd.extend(["-g", str(inputs.get("gtf", ""))])
+        cmd.extend(
+            [
+                "-so",
+                str(inputs.get("segment_overlap", 0.7)),
+                "-lt",
+                str(inputs.get("length_threshold", 0.9)),
+                "-ao",
+                str(inputs.get("alignment_overlap", 0.7)),
+            ]
+        )
+        if cls._merge_mode(inputs) == "blockbuster":
+            cmd.extend(
+                [
+                    "-bb",
+                    "-d",
+                    str(inputs.get("distance", 30)),
+                    "-mc",
+                    str(inputs.get("min_cluster_height", 10)),
+                    "-mb",
+                    str(inputs.get("min_block_height", 10)),
+                    "-sc",
+                    str(inputs.get("scale", 0.1)),
+                ]
+            )
+        else:
+            cmd.extend(["-ls", str(inputs.get("min_locus_size", 1))])
+        if cls._ref_type(inputs) == "split":
+            cmd.extend(["-f1", str(inputs.get("ref_fasta1", "")), "-f2", str(inputs.get("ref_fasta2", ""))])
+        if cls._bool_flag(inputs.get("chimeric_only", False)):
+            cmd.append("-c")
+        cmd.extend(["-o", "./"])
+        return f"{_shell_join(['mkdir', '-p', out])} && cd {shlex.quote(out)} && {_shell_join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "segments.bed", out / "merged.bed"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "alignments": ("BED", {"description": "ChiRA alignment BED file"}),
+                "annotation_choice": ("STRING", {"default": "no", "options": cls.ANNOTATION_CHOICES}),
+                "merge_mode": ("STRING", {"default": "overlap", "options": cls.MERGE_MODES}),
+                "ref_type": ("STRING", {"default": "single", "options": cls.REF_TYPES}),
+            },
+            "optional": {
+                "gtf": ("GTF", {"default": "", "description": "GTF/GFF annotation for genomic coordinate conversion"}),
+                "segment_overlap": ("FLOAT", {"default": 0.7, "min": 0, "max": 1}),
+                "length_threshold": ("FLOAT", {"default": 0.9, "min": 0, "max": 1}),
+                "alignment_overlap": ("FLOAT", {"default": 0.7, "min": 0, "max": 1}),
+                "min_locus_size": ("INT", {"default": 1, "min": 1}),
+                "distance": ("INT", {"default": 30, "min": 0}),
+                "min_cluster_height": ("INT", {"default": 10, "min": 0}),
+                "min_block_height": ("INT", {"default": 10, "min": 0}),
+                "scale": ("FLOAT", {"default": 0.1, "min": 0, "max": 1}),
+                "ref_fasta1": ("FASTA", {"default": "", "description": "First split-reference FASTA"}),
+                "ref_fasta2": ("FASTA", {"default": "", "description": "Second split-reference FASTA"}),
+                "chimeric_only": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def _validate_float_range(cls, inputs: dict[str, Any], name: str, default: float) -> bool | str:
+        try:
+            value = float(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be numeric"
+        if not 0 <= value <= 1:
+            return f"{name} must be between 0 and 1"
+        return True
+
+    @classmethod
+    def _validate_int_min(cls, inputs: dict[str, Any], name: str, default: int, minimum: int) -> bool | str:
+        try:
+            value = int(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if value < minimum:
+            return f"{name} must be >= {minimum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("alignments", "")).strip():
+            return "alignments is required"
+        annotation_choice = cls._annotation_choice(inputs)
+        if annotation_choice not in cls.ANNOTATION_CHOICES:
+            return f"annotation_choice must be one of: {', '.join(cls.ANNOTATION_CHOICES)}"
+        if annotation_choice == "yes" and not str(inputs.get("gtf", "")).strip():
+            return "gtf is required when annotation_choice is yes"
+        merge_mode = cls._merge_mode(inputs)
+        if merge_mode not in cls.MERGE_MODES:
+            return f"merge_mode must be one of: {', '.join(cls.MERGE_MODES)}"
+        ref_type = cls._ref_type(inputs)
+        if ref_type not in cls.REF_TYPES:
+            return f"ref_type must be one of: {', '.join(cls.REF_TYPES)}"
+        if ref_type == "split":
+            if not str(inputs.get("ref_fasta1", "")).strip():
+                return "ref_fasta1 is required when ref_type is split"
+            if not str(inputs.get("ref_fasta2", "")).strip():
+                return "ref_fasta2 is required when ref_type is split"
+        for name, default in {"segment_overlap": 0.7, "length_threshold": 0.9, "alignment_overlap": 0.7}.items():
+            result = cls._validate_float_range(inputs, name, default)
+            if result is not True:
+                return result
+        if merge_mode == "overlap":
+            result = cls._validate_int_min(inputs, "min_locus_size", 1, 1)
+            if result is not True:
+                return result
+        else:
+            for name, default in {"distance": 30, "min_cluster_height": 10, "min_block_height": 10}.items():
+                result = cls._validate_int_min(inputs, name, default, 0)
+                if result is not True:
+                    return result
+            result = cls._validate_float_range(inputs, "scale", 0.1)
+            if result is not True:
+                return result
+        return True
+
+
 class ChewBBACAAlleleCallNode(CommandNode):
     """Determine allelic profiles for genome assemblies with chewBBACA."""
 
