@@ -710,6 +710,97 @@ def test_bbgtobigwig_auto_detects_bed_input_and_validates_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input1": "reads.bam", "chromfile": "hg38.len"}) is True
 
 
+def test_bax2bam_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["bax2bam"]
+
+    assert node_info["display_name"] == "bax2bam"
+    assert node_info["category"] == "conversion"
+    assert node_info["description"] == "Convert PacBio basecall format bax.h5 files into BAM."
+    assert node_info["output"] == ["BAM", "BAM", "BAM", "BAM", "BAM"]
+    assert node_info["output_name"] == [
+        "output_scrap",
+        "output_subread",
+        "output_hqregion",
+        "output_lqregion",
+        "output_polymeraseread",
+    ]
+    assert node_info["required_executables"] == ["bax2bam"]
+    assert node_info["required_conda_packages"] == ["bax2bam"]
+    assert node_info["documentation_url"] == "https://github.com/pacificbiosciences/bax2bam/"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/pacificbiosciences/bax2bam/"]
+    assert "legacy PacBio basecall format" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "pulse features" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["files"][0] == "FILE"
+    assert node_info["input"]["required"]["files"][1]["is_list"] is True
+    assert node_info["input"]["optional"]["readtype"][1]["default"] == "--subread"
+    assert node_info["input"]["optional"]["readtype"][1]["options"] == [
+        "--hqregion",
+        "--polymeraseread",
+        "--subread",
+    ]
+    assert "DeletionQV" in node_info["input"]["optional"]["pulsefeatures"][1]["default"]
+    assert node_info["input"]["optional"]["losslessframes"][1]["default"] is False
+    assert node_info["input"]["optional"]["internal"][1]["default"] is False
+
+
+def test_bax2bam_renders_default_subread_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bax2bam")
+
+    assert node_class.render_command(
+        {
+            "files": ["set.3.bax.h5", "set.2.bax.h5", "set.1.bax.h5"],
+            "output": "/work/bax2bam",
+        }
+    ) == (
+        "bax2bam set.3.bax.h5 set.2.bax.h5 set.1.bax.h5 -o /work/bax2bam/output "
+        "--subread --pulsefeatures=DeletionQV,DeletionTag,InsertionQV,IPD,MergeQV,PulseWidth,SubstitutionQV"
+    )
+    assert node_class.PLAN_OUTPUTS({"readtype": "--subread"}, tmp_path) == [
+        tmp_path / "bax2bam" / "output.scraps.bam",
+        tmp_path / "bax2bam" / "output.subreads.bam",
+    ]
+
+
+def test_bax2bam_renders_custom_pulse_features_and_boolean_flags() -> None:
+    node_class = _node_class("bax2bam")
+
+    assert node_class.render_command(
+        {
+            "files": ["movie part 1.bax.h5"],
+            "readtype": "--polymeraseread",
+            "pulsefeatures": ["SubstitutionTag"],
+            "losslessframes": True,
+            "internal": True,
+            "output": "/work/bax2bam",
+        }
+    ) == (
+        "bax2bam 'movie part 1.bax.h5' -o /work/bax2bam/output --polymeraseread "
+        "--pulsefeatures=SubstitutionTag --losslessframes --internal"
+    )
+
+
+def test_bax2bam_plans_conditional_outputs_and_validates_options(tmp_path: Path) -> None:
+    node_class = _node_class("bax2bam")
+
+    assert node_class.PLAN_OUTPUTS({"readtype": "--hqregion"}, tmp_path) == [
+        tmp_path / "bax2bam" / "output.hqregions.bam",
+        tmp_path / "bax2bam" / "output.lqregions.bam",
+    ]
+    assert node_class.PLAN_OUTPUTS({"readtype": "--polymeraseread"}, tmp_path) == [
+        tmp_path / "bax2bam" / "output.polymerase.bam",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "files is required"
+    assert node_class.VALIDATE_INPUTS({"files": ["set.1.bax.h5"], "readtype": "bad"}) == (
+        "readtype must be one of: --hqregion, --polymeraseread, --subread"
+    )
+    assert node_class.VALIDATE_INPUTS({"files": ["set.1.bax.h5"], "pulsefeatures": ["bad"]}) == (
+        "pulsefeatures must be selected from supported PacBio pulse features"
+    )
+    assert node_class.VALIDATE_INPUTS({"files": ["set.1.bax.h5"], "readtype": "--subread"}) is True
+
+
 def test_berokka_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["berokka"]
 

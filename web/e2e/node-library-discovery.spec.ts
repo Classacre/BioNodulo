@@ -1374,6 +1374,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq351'],
     citation_text: 'BigWig and BigBed enable browsing of large distributed datasets in genome browsers.',
   },
+  bax2bam: {
+    name: 'bax2bam',
+    display_name: 'bax2bam',
+    category: 'conversion',
+    description: 'Convert PacBio basecall format bax.h5 files into BAM.',
+    search_aliases: ['Galaxy', 'bax2bam', 'PacBio', 'bax.h5', 'basecall format', 'BAM basecall', 'subreads', 'hqregion', 'polymerase read', 'scraps BAM', 'pulse features', 'Pacific Biosciences'],
+    input: {
+      required: {
+        files: { type: 'FILE', is_list: true },
+      },
+      optional: {
+        readtype: { type: 'STRING', default: '--subread', options: ['--hqregion', '--polymeraseread', '--subread'] },
+        pulsefeatures: { type: 'STRING', default: ['DeletionQV', 'DeletionTag', 'InsertionQV', 'IPD', 'MergeQV', 'PulseWidth', 'SubstitutionQV'], options: ['DeletionQV', 'DeletionTag', 'InsertionQV', 'IPD', 'MergeQV', 'PulseWidth', 'SubstitutionQV', 'SubstitutionTag'], is_list: true },
+        losslessframes: { type: 'BOOLEAN', default: false },
+        internal: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['BAM', 'BAM', 'BAM', 'BAM', 'BAM'],
+    output_name: ['output_scrap', 'output_subread', 'output_hqregion', 'output_lqregion', 'output_polymeraseread'],
+    required_executables: ['bax2bam'],
+    required_conda_packages: ['bax2bam'],
+    documentation_url: 'https://github.com/pacificbiosciences/bax2bam/',
+    citation_dois: [],
+    citation_urls: ['https://github.com/pacificbiosciences/bax2bam/'],
+    citation_text: 'bax2bam converts the legacy PacBio basecall format (bax.h5) into BAM.',
+  },
   berokka: {
     name: 'berokka',
     display_name: 'Berokka',
@@ -11933,7 +11959,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('409 nodes available')).toBeVisible();
+  await expect(page.getByText('410 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11995,6 +12021,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BioPerl', name: 'Genbank to GFF3', category: 'annotation' },
     { query: 'large insertions', name: 'basil', category: 'variant' },
     { query: 'bedGraphToBigWig', name: 'BAM BED GFF coverage bigWigs', category: 'genomics' },
+    { query: 'pulse features', name: 'bax2bam', category: 'conversion' },
     { query: 'Circlator', name: 'Berokka', category: 'assembly' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'G-quadruplex', name: 'Fasta regular expression finder', category: 'sequence' },
