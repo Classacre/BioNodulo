@@ -16290,6 +16290,99 @@ def test_kraken_mpa_report_validates_wrapper_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({"db": "/db/kraken", "classification": ["sample.kraken"]}) is True
 
 
+def test_bracken_est_abundance_exposes_galaxy_metadata_and_doi() -> None:
+    info = _registry().object_info()["est_abundance"]
+
+    assert info["display_name"] == "Bracken"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Re-estimate taxonomic abundance from a Kraken report with Bracken."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "Bracken",
+        "est_abundance",
+        "est_abundance.py",
+        "Kraken report",
+        "taxonomy abundance",
+        "Kraken-style Bracken report",
+        "Bayesian abundance",
+    ]
+    assert info["output"] == ["TSV", "TSV", "TXT"]
+    assert info["output_name"] == ["report", "kraken_report", "logfile"]
+    assert info["required_executables"] == ["est_abundance.py"]
+    assert info["required_conda_packages"] == ["bracken"]
+    assert info["documentation_url"] == "https://github.com/jenniferlu717/Bracken"
+    assert info["citation_dois"] == ["10.7717/peerj-cs.104"]
+    assert info["citation_urls"] == ["https://doi.org/10.7717/peerj-cs.104"]
+    assert info["citation_text"] == "Bracken: estimating species abundance in metagenomics data."
+    assert info["version"] == "3.1+galaxy0"
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["kmer_distr"][0] == "FILE"
+    assert info["input"]["optional"]["level"][1]["default"] == "S"
+    assert info["input"]["optional"]["level"][1]["options"] == ["S2", "S1", "S", "G", "F", "O", "C", "P", "D"]
+    assert info["input"]["optional"]["threshold"][1]["default"] == 10
+    assert info["input"]["optional"]["threshold"][1]["min"] == 0
+    assert info["input"]["optional"]["out_report"][1]["default"] is False
+    assert info["input"]["optional"]["logfile_output"][1]["default"] is False
+
+
+def test_bracken_est_abundance_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("est_abundance")
+
+    assert node_class.render_command(
+        {
+            "input": "sample kraken report.tsv",
+            "kmer_distr": "/db/bracken/database100mers.kmer_distrib",
+            "output": "/work/est_abundance",
+        }
+    ) == (
+        "set -o pipefail && est_abundance.py -i 'sample kraken report.tsv' "
+        "-k /db/bracken/database100mers.kmer_distrib -l S -t 10 "
+        "-o /work/est_abundance/report.tsv --out-report bracken.report"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "est_abundance" / "report.tsv",
+    ]
+
+
+def test_bracken_est_abundance_renders_optional_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("est_abundance")
+
+    assert node_class.render_command(
+        {
+            "input": "kraken.report",
+            "kmer_distr": "/db/bracken/kmer distribution.txt",
+            "level": "G",
+            "threshold": 4,
+            "out_report": True,
+            "logfile_output": True,
+            "output": "/work/est_abundance",
+        }
+    ) == (
+        "set -o pipefail && est_abundance.py -i kraken.report "
+        "-k '/db/bracken/kmer distribution.txt' -l G -t 4 "
+        "-o /work/est_abundance/report.tsv --out-report bracken.report "
+        "| tee /work/est_abundance/logfile.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({"out_report": True, "logfile_output": True}, tmp_path) == [
+        tmp_path / "est_abundance" / "report.tsv",
+        tmp_path / "est_abundance" / "kraken_report.tsv",
+        tmp_path / "est_abundance" / "logfile.txt",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "kraken.report"}) == "kmer_distr is required"
+    assert node_class.VALIDATE_INPUTS({"input": "kraken.report", "kmer_distr": "kmers.txt", "level": "X"}) == (
+        "level must be one of: S2, S1, S, G, F, O, C, P, D"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "kraken.report", "kmer_distr": "kmers.txt", "threshold": "bad"}) == (
+        "threshold must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "kraken.report", "kmer_distr": "kmers.txt", "threshold": -1}) == (
+        "threshold must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "kraken.report", "kmer_distr": "kmers.txt"}) is True
+
+
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
     node_class = _node_class("krakentools_combine_kreports")
     info = _registry().object_info()["krakentools_combine_kreports"]
