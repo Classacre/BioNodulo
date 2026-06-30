@@ -10369,6 +10369,106 @@ def test_plasflow_renders_galaxy_staging_command_and_outputs(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"read_file": "contigs.fasta", "threshold": 0.7}) is True
 
 
+def test_kleborate_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
+    node_info = _registry().object_info()["kleborate"]
+
+    assert node_info["display_name"] == "Kleborate"
+    assert node_info["category"] == "typing"
+    assert node_info["description"] == (
+        "Screen Klebsiella genome assemblies for species, MLST, virulence, resistance, and K/O loci."
+    )
+    assert node_info["input"]["required"]["assemblies"][0] == "FASTA"
+    assert node_info["input"]["required"]["assemblies"][1]["multiple"] is True
+    assert node_info["input"]["optional"]["resistance"][1]["default"] is True
+    assert node_info["input"]["optional"]["kaptive_k"][1]["default"] is False
+    assert node_info["input"]["optional"]["kaptive_o"][1]["default"] is False
+    assert node_info["input"]["optional"]["min_identity"][1]["default"] == 90
+    assert node_info["input"]["optional"]["min_coverage"][1]["default"] == 80
+    assert node_info["input"]["optional"]["min_spurious_identity"][1]["default"] == 80
+    assert node_info["input"]["optional"]["min_spurious_coverage"][1]["default"] == 40
+    assert node_info["output"] == ["TSV", "TSV", "TSV", "TSV"]
+    assert node_info["output_name"] == ["concise", "full", "kaptive_k", "kaptive_o"]
+    assert node_info["required_executables"] == ["kleborate"]
+    assert node_info["required_conda_packages"] == ["kleborate", "kaptive"]
+    assert node_info["documentation_url"] == "https://github.com/klebgenomics/Kleborate"
+    assert node_info["citation_dois"] == ["10.1038/s41467-021-24448-3", "10.1099/mgen.0.000102"]
+    assert node_info["citation_urls"] == [
+        "https://doi.org/10.1038/s41467-021-24448-3",
+        "https://doi.org/10.1099/mgen.0.000102",
+    ]
+    assert "genomic surveillance framework" in node_info["citation_text"]
+    assert "Kaptive" in node_info["citation_text"]
+    assert "Klebsiella" in node_info["search_aliases"]
+
+
+def test_kleborate_renders_default_and_kaptive_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("kleborate")
+
+    assert node_class.render_command(
+        {
+            "assemblies": ["KP011 S63.scfd.fasta", "KP012_S64.scfd.fasta"],
+            "assembly_labels": ["KP011 S63.scfd.fasta", "KP012_S64.scfd.fasta"],
+            "resistance": True,
+            "kaptive_k": True,
+            "kaptive_o": True,
+            "min_identity": 92,
+            "min_coverage": 85,
+            "min_spurious_identity": 75,
+            "min_spurious_coverage": 35,
+            "output": "/work/kleborate",
+        }
+    ) == (
+        "ln -s 'KP011 S63.scfd.fasta' KP011_S63.scfd.fasta && "
+        "ln -s KP012_S64.scfd.fasta KP012_S64.scfd.fasta && "
+        "kleborate --resistance -o /work/kleborate/kleborate_results.tsv --kaptive_k "
+        "--kaptive_k_outfile /work/kleborate/kleborate_kaptive_k_results.tsv --kaptive_o "
+        "--kaptive_o_outfile /work/kleborate/kleborate_kaptive_o_results.tsv --min_identity 92 "
+        "--min_coverage 85 --min_spurious_identity 75 --min_spurious_coverage 35 --assemblies "
+        "KP011_S63.scfd.fasta KP012_S64.scfd.fasta > /work/kleborate/kleborate_concise_results.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "assemblies": ["KP011.fasta", "KP012.fasta"],
+            "resistance": False,
+            "kaptive_k": False,
+            "kaptive_o": False,
+            "output": "/work/kleborate",
+        }
+    ) == (
+        "ln -s KP011.fasta KP011.fasta && "
+        "ln -s KP012.fasta KP012.fasta && "
+        "kleborate -o /work/kleborate/kleborate_results.tsv --min_identity 90 --min_coverage 80 "
+        "--min_spurious_identity 80 --min_spurious_coverage 40 --assemblies KP011.fasta KP012.fasta "
+        "> /work/kleborate/kleborate_concise_results.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"kaptive_k": True, "kaptive_o": True}, tmp_path) == [
+        tmp_path / "kleborate" / "kleborate_concise_results.tsv",
+        tmp_path / "kleborate" / "kleborate_results.tsv",
+        tmp_path / "kleborate" / "kleborate_kaptive_k_results.tsv",
+        tmp_path / "kleborate" / "kleborate_kaptive_o_results.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "kleborate" / "kleborate_concise_results.tsv",
+        tmp_path / "kleborate" / "kleborate_results.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({"assemblies": []}) == "at least one assembly FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"assemblies": ["assembly.fa"], "min_identity": -1}) == (
+        "min_identity must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"assemblies": ["assembly.fa"], "min_coverage": 101}) == (
+        "min_coverage must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"assemblies": ["assembly.fa"], "min_spurious_identity": "high"}) == (
+        "min_spurious_identity must be a number"
+    )
+    assert node_class.VALIDATE_INPUTS({"assemblies": ["assembly.fa"], "assembly_labels": ["a", "b"]}) == (
+        "assembly_labels must match the number of assemblies"
+    )
+    assert node_class.VALIDATE_INPUTS({"assemblies": ["assembly.fa"]}) is True
+
+
 def test_minia_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["minia"]
 

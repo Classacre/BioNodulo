@@ -3155,6 +3155,36 @@ const objectInfo = {
     citation_urls: ['https://github.com/tseemann/abricate'],
     citation_text: 'ABRicate: mass screening of contigs for antibiotic resistance genes.',
   },
+  kleborate: {
+    name: 'kleborate',
+    display_name: 'Kleborate',
+    category: 'typing',
+    description: 'Screen Klebsiella genome assemblies for species, MLST, virulence, resistance, and K/O loci.',
+    search_aliases: ['Galaxy', 'Kleborate', 'kleborate', 'Klebsiella', 'Klebsiella pneumoniae', 'KpSC', 'MLST', 'virulence score', 'resistance score', 'Kaptive', 'K locus', 'O locus'],
+    input: {
+      required: {
+        assemblies: { type: 'FASTA', multiple: true },
+      },
+      optional: {
+        resistance: { type: 'BOOLEAN', default: true },
+        kaptive_k: { type: 'BOOLEAN', default: false },
+        kaptive_o: { type: 'BOOLEAN', default: false },
+        min_identity: { type: 'INT', default: 90, min: 0, max: 100 },
+        min_coverage: { type: 'INT', default: 80, min: 0, max: 100 },
+        min_spurious_identity: { type: 'INT', default: 80, min: 0, max: 100 },
+        min_spurious_coverage: { type: 'INT', default: 40, min: 0, max: 100 },
+        assembly_labels: { type: 'STRING', default: [], multiple: true },
+      },
+    },
+    output: ['TSV', 'TSV', 'TSV', 'TSV'],
+    output_name: ['concise', 'full', 'kaptive_k', 'kaptive_o'],
+    required_executables: ['kleborate'],
+    required_conda_packages: ['kleborate', 'kaptive'],
+    documentation_url: 'https://github.com/klebgenomics/Kleborate',
+    citation_dois: ['10.1038/s41467-021-24448-3', '10.1099/mgen.0.000102'],
+    citation_urls: ['https://doi.org/10.1038/s41467-021-24448-3', 'https://doi.org/10.1099/mgen.0.000102'],
+    citation_text: 'A genomic surveillance framework and genotyping tool for Klebsiella pneumoniae and its related species complex; Kaptive: identification of Klebsiella capsule synthesis loci from whole genome data.',
+  },
   plasmidfinder: {
     name: 'plasmidfinder',
     display_name: 'PlasmidFinder',
@@ -14065,7 +14095,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('485 nodes available')).toBeVisible();
+  await expect(page.getByText('486 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14189,6 +14219,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'abricate antimicrobial resistance', name: 'ABRicate', category: 'annotation' },
     { query: 'ABRicate databases', name: 'ABRicate List', category: 'annotation' },
     { query: 'presence absence matrix', name: 'ABRicate Summary', category: 'annotation' },
+    { query: 'Klebsiella Kaptive', name: 'Kleborate', category: 'typing' },
     { query: 'plasmid replicon', name: 'PlasmidFinder', category: 'annotation' },
     { query: 'staramr ResFinder', name: 'staramr', category: 'annotation' },
     { query: 'MashMap local alignment boundaries', name: 'MashMap', category: 'genomics' },
