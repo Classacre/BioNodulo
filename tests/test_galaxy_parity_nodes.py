@@ -20520,6 +20520,136 @@ def test_biom_from_uc_renders_command_outputs_and_validates(tmp_path: Path) -> N
     assert node_class.VALIDATE_INPUTS({"input_fp": "uc_table.uc"}) is True
 
 
+def test_magicblast_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["magicblast"]
+
+    assert info["display_name"] == "Magic-BLAST"
+    assert info["category"] == "alignment"
+    assert info["description"] == "Map large RNA or DNA sequencing reads against a whole genome or transcriptome."
+    assert "Galaxy" in info["search_aliases"]
+    assert "Magic-BLAST" in info["search_aliases"]
+    assert "RNA-seq aligner" in info["search_aliases"]
+    assert info["output"] == ["BAM", "FILE"]
+    assert info["output_name"] == ["output", "output_unaligned"]
+    assert info["required_executables"] == ["magicblast", "samtools", "gunzip"]
+    assert info["required_conda_packages"] == ["magicblast", "samtools"]
+    assert info["documentation_url"] == "https://ncbi.github.io/magicblast/"
+    assert info["citation_dois"] == ["10.1186/s12859-019-2996-x"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/s12859-019-2996-x"]
+    assert "accurate RNA-seq aligner for long and short reads" in info["citation_text"]
+    assert info["version"] == "1.7.0+galaxy2"
+    assert info["input"]["required"]["query"][0] == "FASTQ"
+    assert info["input"]["optional"]["db_opts_selector"][1]["default"] == "histdb"
+    assert info["input"]["optional"]["db_opts_selector"][1]["options"] == ["histdb", "db", "file"]
+    assert info["input"]["optional"]["word_size"][1]["default"] == 18
+    assert info["input"]["optional"]["report_unaligned"][1]["default"] == "yes"
+    assert info["input"]["optional"]["outfmt"][1]["default"] == "bam"
+    assert info["input"]["optional"]["output_sort"][1]["options"] == ["coordinate", "name", "unsorted"]
+
+
+def test_magicblast_renders_subject_file_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("magicblast")
+
+    assert node_class.render_command(
+        {
+            "query": "query1.fasta.gz",
+            "query_type": "fasta.gz",
+            "db_opts_selector": "file",
+            "subject": "subject1.fasta.gz",
+            "word_size": 20,
+            "gapopen": 1,
+            "gapextend": 2,
+            "penalty": -3,
+            "max_intron_length": 100000,
+            "validate_seqs": False,
+            "limit_lookup": False,
+            "max_db_word_count": 25,
+            "lookup_stride": 2,
+            "score": 10,
+            "max_edit_dist": 4,
+            "splice": False,
+            "reftype": "transcriptome",
+            "report_unaligned": "no",
+            "outfmt": "tabular",
+            "no_discordant": True,
+            "threads": 12,
+            "output": "/work/magicblast",
+        }
+    ) == (
+        "magicblast -num_threads ${GALAXY_SLOTS:-12} -query <(gunzip -c query1.fasta.gz) "
+        "-subject <(gunzip -c subject1.fasta.gz) -word_size 20 -gapopen 1 -gapextend 2 -penalty -3 "
+        "-max_intron_length 100000 -validate_seqs false -limit_lookup false -max_db_word_count 25 "
+        "-lookup_stride 2 -score 10 -max_edit_dist 4 -splice false -reftype transcriptome "
+        "-no_unaligned -no_discordant -out /work/magicblast/output.tabular -outfmt tabular"
+    )
+    assert node_class.PLAN_OUTPUTS({"outfmt": "tabular"}, tmp_path) == [
+        tmp_path / "magicblast" / "output.tabular",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "query is required"
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fq", "db_opts_selector": "file"}) == (
+        "subject is required when db_opts_selector is file"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fq", "db_opts_selector": "db"}) == (
+        "database is required when db_opts_selector is db"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fq", "db_opts_selector": "bad"}) == (
+        "db_opts_selector must be one of: histdb, db, file"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fq", "histdb": "blastdb", "outfmt": "xml"}) == (
+        "outfmt must be one of: bam, tabular"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fq", "histdb": "blastdb", "outfmt": "bam"}) is True
+
+
+def test_magicblast_renders_paired_fastq_bam_and_unaligned_bam_command(tmp_path: Path) -> None:
+    node_class = _node_class("magicblast")
+
+    assert node_class.render_command(
+        {
+            "query": "reads R1.fastq.gz",
+            "query_type": "fastqsanger.gz",
+            "query_mate": "reads R2.fastq.gz",
+            "db_opts_selector": "db",
+            "database": "/indexes/phiX174/blastdb",
+            "gilist": "include.gi",
+            "taxids": "10847,10848",
+            "score": 5,
+            "outfmt": "bam",
+            "output_sort": "name",
+            "md_tag": True,
+            "no_query_id_trim": True,
+            "report_unaligned": "yes",
+            "report_unaligned_separately": "yes",
+            "unaligned_fmt": "bam",
+            "unaligned_output_sort": "unsorted",
+            "threads": 8,
+            "output": "/work/magicblast",
+        }
+    ) == (
+        "magicblast -num_threads ${GALAXY_SLOTS:-8} -query <(gunzip -c 'reads R1.fastq.gz') "
+        "-paired -query_mate <(gunzip -c 'reads R2.fastq.gz') -infmt fastq -db /indexes/phiX174/blastdb "
+        "-word_size 18 -gapopen 0 -gapextend 0 -penalty -4 -max_intron_length 500000 -validate_seqs true "
+        "-limit_lookup true -max_db_word_count 30 -lookup_stride 0 -gilist include.gi --taxids 10847,10848 "
+        "-score 5 -splice true -reftype genome -out_unaligned out_unaligned -unaligned_fmt sam "
+        "-md_tag -no_query_id_trim -out output.sam && "
+        "samtools sort -n -@${GALAXY_SLOTS:-4} -O bam output.sam > /work/magicblast/output.bam && "
+        "samtools view -@${GALAXY_SLOTS:-4} -bS out_unaligned > /work/magicblast/output_unaligned.bam"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "outfmt": "bam",
+            "report_unaligned": "yes",
+            "report_unaligned_separately": "yes",
+            "unaligned_fmt": "bam",
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "magicblast" / "output.bam",
+        tmp_path / "magicblast" / "output_unaligned.bam",
+    ]
+
+
 def test_biom_add_metadata_exposes_galaxy_metadata_and_doi() -> None:
     info = _registry().object_info()["biom_add_metadata"]
 
