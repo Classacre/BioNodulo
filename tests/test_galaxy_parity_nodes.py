@@ -3617,6 +3617,99 @@ def test_datamash_nodes_validate_inputs_operations_and_ranges() -> None:
     assert reverse.VALIDATE_INPUTS({"in_file": "matrix.tsv"}) is True
 
 
+def test_falco_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["falco"]
+
+    assert info["display_name"] == "Falco"
+    assert info["category"] == "qc"
+    assert info["description"] == (
+        "Run high-speed FastQC-compatible quality control on FASTQ, SAM, or BAM sequencing reads."
+    )
+    assert info["output"] == ["HTML_REPORT", "TXT", "TXT"]
+    assert info["output_name"] == ["html_file", "text_file", "summary_file"]
+    assert info["required_executables"] == ["falco"]
+    assert info["required_conda_packages"] == ["falco"]
+    assert info["documentation_url"] == "https://falco.readthedocs.io"
+    assert info["citation_dois"] == ["10.12688/f1000research.21142.2"]
+    assert info["citation_urls"] == ["https://doi.org/10.12688/f1000research.21142.2"]
+    assert "Falco: high-speed FastQC emulation" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "FastQC emulation" in info["search_aliases"]
+    assert info["input"]["required"]["input_file"][0] == "FASTQ"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fastq", "fastq.gz", "bam", "sam"]
+    assert info["input"]["optional"]["contaminants"][0] == "TSV"
+    assert info["input"]["optional"]["adapters"][0] == "TSV"
+    assert info["input"]["optional"]["limits"][0] == "STRING"
+    assert info["input"]["optional"]["subsample"][1]["default"] == 1
+    assert info["input"]["optional"]["generate_summary"][1]["default"] is False
+
+
+def test_falco_renders_fastq_command_and_default_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("falco")
+
+    assert node_class.render_command(
+        {
+            "input_file": "reads.fastq.gz",
+            "input_ext": "fastq.gz",
+            "output": "/work/falco",
+        }
+    ) == (
+        "mkdir -p /work/falco && ln -sf reads.fastq.gz reads_fastq_gz && "
+        "falco --outdir /work/falco --threads ${GALAXY_SLOTS:-2} --quiet "
+        "-f fastq.gz reads_fastq_gz -skip-summary"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "falco" / "fastqc_report.html",
+        tmp_path / "falco" / "fastqc_data.txt",
+    ]
+
+
+def test_falco_renders_optional_files_bam_flags_and_summary_output(tmp_path: Path) -> None:
+    node_class = _node_class("falco")
+
+    assert node_class.render_command(
+        {
+            "input_file": "aligned reads.bam",
+            "input_ext": "bam",
+            "contaminants": "contaminants.tsv",
+            "adapters": "adapter list.tsv",
+            "limits": "limits.txt",
+            "nogroup": True,
+            "subsample": 10,
+            "bisulfite": True,
+            "reverse_complement": True,
+            "generate_summary": True,
+            "output": "/work/falco",
+        }
+    ) == (
+        "mkdir -p /work/falco && ln -sf 'aligned reads.bam' aligned_reads_bam && "
+        "falco --outdir /work/falco --contaminants contaminants.tsv --adapters 'adapter list.tsv' "
+        "--limits limits.txt --threads ${GALAXY_SLOTS:-2} --quiet --nogroup -f bam aligned_reads_bam "
+        "-subsample 10 -bisulfite -reverse-complement"
+    )
+    assert node_class.PLAN_OUTPUTS({"generate_summary": True}, tmp_path) == [
+        tmp_path / "falco" / "fastqc_report.html",
+        tmp_path / "falco" / "fastqc_data.txt",
+        tmp_path / "falco" / "summary.txt",
+    ]
+
+
+def test_falco_validates_required_input_format_and_subsample() -> None:
+    node_class = _node_class("falco")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "input_ext": "fasta"}) == (
+        "input_ext must be one of: fastq, fastq.gz, bam, sam"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "subsample": 0}) == (
+        "subsample must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "subsample": "bad"}) == (
+        "subsample must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "input_ext": "fastq"}) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 

@@ -181,6 +181,37 @@ const objectInfo = {
     citation_urls: ['https://www.gnu.org/software/datamash/'],
     citation_text: 'GNU Datamash: command-line calculations on tabular data.',
   },
+  falco: {
+    name: 'falco',
+    display_name: 'Falco',
+    category: 'qc',
+    description: 'Run high-speed FastQC-compatible quality control on FASTQ, SAM, or BAM sequencing reads.',
+    search_aliases: ['Galaxy', 'Falco', 'falco', 'FastQC emulation', 'FASTQ QC', 'read quality control', 'sequencing quality report'],
+    input: {
+      required: {
+        input_file: { type: 'FASTQ' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'fastq', options: ['fastq', 'fastq.gz', 'bam', 'sam'] },
+        contaminants: { type: 'TSV', default: '' },
+        adapters: { type: 'TSV', default: '' },
+        limits: { type: 'STRING', default: '' },
+        nogroup: { type: 'BOOLEAN', default: false },
+        subsample: { type: 'INT', default: 1, min: 1 },
+        bisulfite: { type: 'BOOLEAN', default: false },
+        reverse_complement: { type: 'BOOLEAN', default: false },
+        generate_summary: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['HTML_REPORT', 'TXT', 'TXT'],
+    output_name: ['html_file', 'text_file', 'summary_file'],
+    required_executables: ['falco'],
+    required_conda_packages: ['falco'],
+    documentation_url: 'https://falco.readthedocs.io',
+    citation_dois: ['10.12688/f1000research.21142.2'],
+    citation_urls: ['https://doi.org/10.12688/f1000research.21142.2'],
+    citation_text: 'Falco: high-speed FastQC emulation for quality control of sequencing data.',
+  },
   Add_a_column1: {
     name: 'Add_a_column1',
     display_name: 'Compute on rows',
@@ -13531,7 +13562,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('466 nodes available')).toBeVisible();
+  await expect(page.getByText('467 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13542,6 +13573,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'group by fields', name: 'Datamash', category: 'data_transform' },
     { query: 'matrix transpose', name: 'Transpose', category: 'data_transform' },
     { query: 'reverse columns', name: 'Reverse', category: 'data_transform' },
+    { query: 'FastQC emulation', name: 'Falco', category: 'qc' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

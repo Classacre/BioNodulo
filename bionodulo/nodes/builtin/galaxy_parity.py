@@ -170,6 +170,9 @@ ADD_INPUT_NAME_AS_COLUMN_CITATION_TEXT = "Add input name as column on an existin
 DATAMASH_CITATION_URL = "https://www.gnu.org/software/datamash/"
 DATAMASH_DOCUMENTATION_URL = "https://www.gnu.org/software/datamash/manual/"
 DATAMASH_CITATION_TEXT = "GNU Datamash: command-line calculations on tabular data."
+FALCO_CITATION_DOI = "10.12688/f1000research.21142.2"
+FALCO_DOCUMENTATION_URL = "https://falco.readthedocs.io"
+FALCO_CITATION_TEXT = "Falco: high-speed FastQC emulation for quality control of sequencing data."
 COLUMN_MAKER_CITATION_DOI = "10.1093/nar/gkae410"
 COLUMN_MAKER_CITATION_TEXT = (
     "The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update."
@@ -2404,6 +2407,163 @@ class DatamashReverseNode(_DatamashBaseNode):
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
         return cls._validate_common(inputs)
+
+
+class FalcoNode(CommandNode):
+    """Run FastQC-compatible read quality control with Falco."""
+
+    NODE_ID = "falco"
+    DISPLAY_NAME = "Falco"
+    REQUIRED_CONDA_PACKAGES = ["falco"]
+    CATEGORY = "qc"
+    DESCRIPTION = "Run high-speed FastQC-compatible quality control on FASTQ, SAM, or BAM sequencing reads."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Falco",
+        "falco",
+        "FastQC emulation",
+        "FASTQ QC",
+        "read quality control",
+        "sequencing quality report",
+    ]
+    RETURN_TYPES = ("HTML_REPORT", "TXT", "TXT")
+    RETURN_NAMES = ("html_file", "text_file", "summary_file")
+    REQUIRED_EXECUTABLES = ["falco"]
+    DOCUMENTATION_URL = FALCO_DOCUMENTATION_URL
+    CITATION_DOIS = [FALCO_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{FALCO_CITATION_DOI}"]
+    CITATION_TEXT = FALCO_CITATION_TEXT
+    VERSION = "1.3.2+galaxy0"
+    SHELL = True
+
+    INPUT_EXT_OPTIONS = ["fastq", "fastq.gz", "bam", "sam"]
+
+    @classmethod
+    def _input_format(cls, inputs: dict[str, Any]) -> str:
+        explicit = str(inputs.get("input_ext", "") or "").strip().lower().lstrip(".")
+        if explicit:
+            return explicit
+        suffixes = [suffix.lower() for suffix in Path(str(inputs.get("input_file", ""))).suffixes]
+        if ".bam" in suffixes:
+            return "bam"
+        if ".sam" in suffixes:
+            return "sam"
+        if ".gz" in suffixes:
+            return "fastq.gz"
+        return "fastq"
+
+    @staticmethod
+    def _input_symlink_name(input_file: Any) -> str:
+        return sub(r"[^\w\-]", "_", Path(str(input_file or "")).name) or "input_reads"
+
+    @classmethod
+    def _summary_requested(cls, inputs: dict[str, Any]) -> bool:
+        return bool(inputs.get("generate_summary"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_file = str(inputs.get("input_file", ""))
+        input_name = cls._input_symlink_name(input_file)
+        cmd = [
+            "falco",
+            "--outdir",
+            out,
+        ]
+        _add_if_value(cmd, "--contaminants", inputs.get("contaminants"))
+        _add_if_value(cmd, "--adapters", inputs.get("adapters"))
+        _add_if_value(cmd, "--limits", inputs.get("limits"))
+        cmd.extend(["--threads", "${GALAXY_SLOTS:-2}", "--quiet"])
+        if inputs.get("nogroup"):
+            cmd.append("--nogroup")
+        cmd.extend(["-f", cls._input_format(inputs), input_name])
+        subsample = inputs.get("subsample", 1)
+        if int(subsample) > 1:
+            cmd.extend(["-subsample", str(subsample)])
+        if inputs.get("bisulfite"):
+            cmd.append("-bisulfite")
+        if inputs.get("reverse_complement"):
+            cmd.append("-reverse-complement")
+        if not cls._summary_requested(inputs):
+            cmd.append("-skip-summary")
+        falco_cmd = _shell_join(cmd).replace("'${GALAXY_SLOTS:-2}'", "${GALAXY_SLOTS:-2}")
+        return " && ".join(
+            [
+                _shell_join(["mkdir", "-p", out]),
+                _shell_join(["ln", "-sf", input_file, input_name]),
+                falco_cmd,
+            ]
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "fastqc_report.html", out / "fastqc_data.txt"]
+        if cls._summary_requested(inputs):
+            outputs.append(out / "summary.txt")
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_file", "")).strip():
+            return "input_file is required"
+        input_ext = cls._input_format(inputs)
+        if input_ext not in cls.INPUT_EXT_OPTIONS:
+            return f"input_ext must be one of: {', '.join(cls.INPUT_EXT_OPTIONS)}"
+        subsample = inputs.get("subsample", 1)
+        try:
+            subsample_int = int(subsample)
+        except (TypeError, ValueError):
+            return "subsample must be an integer"
+        if subsample_int < 1:
+            return "subsample must be greater than or equal to 1"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("FASTQ", {"description": "FASTQ, FASTQ.GZ, SAM, or BAM reads to inspect"}),
+            },
+            "optional": {
+                "input_ext": (
+                    "STRING",
+                    {
+                        "default": "fastq",
+                        "options": cls.INPUT_EXT_OPTIONS,
+                        "description": "Input format passed to Falco",
+                    },
+                ),
+                "contaminants": (
+                    "TSV",
+                    {"default": "", "description": "Optional contaminant list with name and sequence columns"},
+                ),
+                "adapters": (
+                    "TSV",
+                    {"default": "", "description": "Optional adapter list with name and sequence columns"},
+                ),
+                "limits": ("TXT", {"default": "", "description": "Optional custom FastQC limits configuration"}),
+                "nogroup": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Disable base grouping for reads longer than 50 bp"},
+                ),
+                "subsample": (
+                    "INT",
+                    {"default": 1, "min": 1, "description": "Process only reads whose index is a multiple of this value"},
+                ),
+                "bisulfite": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Account for whole-genome bisulfite sequencing base composition"},
+                ),
+                "reverse_complement": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Evaluate reads as reverse-complemented"},
+                ),
+                "generate_summary": ("BOOLEAN", {"default": False, "description": "Emit Falco summary.txt output"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
 
 
 class ColumnMakerNode(CommandNode):
