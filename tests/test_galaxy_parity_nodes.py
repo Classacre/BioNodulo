@@ -3873,6 +3873,146 @@ def test_extract_genomic_dna_validates_required_inputs_and_options() -> None:
     ) is True
 
 
+def test_barcode_splitter_exposes_galaxy_metadata_and_software_doi() -> None:
+    info = _registry().object_info()["barcode_splitter"]
+
+    assert info["display_name"] == "Barcode Splitter"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Split FASTQ reads into barcode-specific files using one or more index reads."
+    assert info["input"]["required"]["bcfile"][0] == "TSV"
+    assert info["input"]["optional"]["run_type"][1]["options"] == ["single", "paired", "flexible"]
+    assert info["input"]["optional"]["mismatches"][1]["default"] == 1
+    assert info["input"]["optional"]["mismatches"][1]["min"] == 0
+    assert info["input"]["optional"]["mismatches"][1]["max"] == 2
+    assert info["input"]["optional"]["barcodes_at_end"][1]["default"] is False
+    assert info["input"]["optional"]["split_all"][1]["default"] is False
+    assert info["input"]["optional"]["idxfiles"][1]["multiple"] is True
+    assert info["input"]["optional"]["flexible_seqfiles"][1]["is_list"] is True
+    assert info["output"] == ["TSV", "DIRECTORY"]
+    assert info["output_name"] == ["summary", "split_output"]
+    assert info["required_executables"] == ["barcode_splitter"]
+    assert info["required_conda_packages"] == ["barcode_splitter"]
+    assert info["documentation_url"] == "https://bitbucket.org/princeton_genomics/barcode_splitter/"
+    assert info["citation_dois"] == ["10.5281/zenodo.2566616"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.5281/zenodo.2566616",
+        "https://bitbucket.org/princeton_genomics/barcode_splitter/",
+    ]
+    assert "Barcode Splitter" in info["citation_text"]
+    assert "index reads" in info["search_aliases"]
+
+
+def test_barcode_splitter_renders_single_end_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("barcode_splitter")
+
+    assert node_class.render_command(
+        {
+            "bcfile": "barcodes.tsv",
+            "snglinput": "read 1.fastq",
+            "idxfiles": ["index1.fastq", "index two.fastq"],
+            "idxreadnames": ["index1", "index2"],
+            "mismatches": 2,
+            "split_all": True,
+            "format": "fastq",
+            "output": "/work/barcode_splitter",
+        }
+    ) == (
+        "mkdir -p /work/barcode_splitter/split && barcode_splitter --bcfile barcodes.tsv --mismatches 2 "
+        "--galaxy --prefix /work/barcode_splitter/split/ 'read 1.fastq' index1.fastq 'index two.fastq' "
+        "--idxread 2 3 --format fastq --suffix .fastq --split_all > /work/barcode_splitter/summary.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "barcode_splitter" / "summary.tsv",
+        tmp_path / "barcode_splitter" / "split",
+    ]
+
+
+def test_barcode_splitter_renders_paired_command_with_barcodes_at_end() -> None:
+    node_class = _node_class("barcode_splitter")
+
+    assert node_class.render_command(
+        {
+            "bcfile": "dual barcodes.tsv",
+            "run_type": "paired",
+            "fwdinput": "forward.fastq",
+            "revinput": "reverse.fastq",
+            "idxfiles": ["i7.fastq"],
+            "mismatches": 0,
+            "barcodes_at_end": True,
+            "output": "/work/barcode_splitter",
+        }
+    ) == (
+        "mkdir -p /work/barcode_splitter/split && barcode_splitter --bcfile 'dual barcodes.tsv' --mismatches 0 "
+        "--galaxy --barcodes_at_end --prefix /work/barcode_splitter/split/ forward.fastq reverse.fastq i7.fastq "
+        "--idxread 3 --format fastq --suffix .fastq > /work/barcode_splitter/summary.tsv"
+    )
+
+
+def test_barcode_splitter_renders_flexible_command_and_auto_split_all() -> None:
+    node_class = _node_class("barcode_splitter")
+
+    assert node_class.render_command(
+        {
+            "bcfile": "dual.tsv",
+            "run_type": "flexible",
+            "flexible_seqfiles": [
+                {"input": "read1.fastq", "readtype": "single", "readname": "read1"},
+                {"input": "read2.fastq", "readtype": "singleindex", "readname": "read2"},
+                {"input": "index2.fastq", "readtype": "index", "readname": "index2"},
+            ],
+            "mismatches": 2,
+            "split_all": False,
+            "format": "fastqsanger",
+            "output": "/work/barcode_splitter",
+        }
+    ) == (
+        "mkdir -p /work/barcode_splitter/split && barcode_splitter --bcfile dual.tsv --mismatches 2 "
+        "--galaxy --prefix /work/barcode_splitter/split/ read1.fastq read2.fastq index2.fastq "
+        "--idxread 2 3 --format fastqsanger --suffix .fastqsanger --split_all "
+        "> /work/barcode_splitter/summary.tsv"
+    )
+
+
+def test_barcode_splitter_validates_required_inputs_modes_and_index_reads() -> None:
+    node_class = _node_class("barcode_splitter")
+
+    assert node_class.VALIDATE_INPUTS({}) == "bcfile is required"
+    assert node_class.VALIDATE_INPUTS({"bcfile": "barcodes.tsv", "run_type": "bad"}) == (
+        "run_type must be one of: single, paired, flexible"
+    )
+    assert node_class.VALIDATE_INPUTS({"bcfile": "barcodes.tsv", "mismatches": 3}) == "mismatches must be between 0 and 2"
+    assert node_class.VALIDATE_INPUTS({"bcfile": "barcodes.tsv", "format": "fasta"}) == (
+        "format must be one of: fastq, fastqsanger, fastqsolexa, fastqillumina"
+    )
+    assert node_class.VALIDATE_INPUTS({"bcfile": "barcodes.tsv", "run_type": "single"}) == "snglinput is required"
+    assert node_class.VALIDATE_INPUTS({"bcfile": "barcodes.tsv", "run_type": "single", "snglinput": "reads.fastq"}) == (
+        "at least one index read is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"bcfile": "barcodes.tsv", "run_type": "paired", "fwdinput": "forward.fastq", "idxfiles": ["i7.fastq"]}
+    ) == "revinput is required"
+    assert node_class.VALIDATE_INPUTS({"bcfile": "barcodes.tsv", "run_type": "flexible", "flexible_seqfiles": []}) == (
+        "flexible_seqfiles must include at least one read"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "bcfile": "barcodes.tsv",
+            "run_type": "flexible",
+            "flexible_seqfiles": [{"input": "reads.fastq", "readtype": "single"}],
+        }
+    ) == "at least one index read is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "bcfile": "barcodes.tsv",
+            "run_type": "flexible",
+            "flexible_seqfiles": [{"input": "reads.fastq", "readtype": "weird"}],
+        }
+    ) == "readtype must be one of: single, forward, reverse, index, singleindex, forwardindex, reverseindex"
+    assert node_class.VALIDATE_INPUTS(
+        {"bcfile": "barcodes.tsv", "run_type": "single", "snglinput": "reads.fastq", "idxfiles": ["i7.fastq"]}
+    ) is True
+
+
 def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["aegean_canongff3"]
 

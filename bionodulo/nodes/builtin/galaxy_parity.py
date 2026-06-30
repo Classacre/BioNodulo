@@ -179,6 +179,11 @@ EXTRACT_GENOMIC_DNA_CITATION_URL = (
 EXTRACT_GENOMIC_DNA_CITATION_TEXT = (
     "Extract Genomic DNA fetches genomic DNA in FASTA or interval format from assembled or unassembled genomes."
 )
+BARCODE_SPLITTER_CITATION_DOI = "10.5281/zenodo.2566616"
+BARCODE_SPLITTER_CITATION_URL = "https://bitbucket.org/princeton_genomics/barcode_splitter/"
+BARCODE_SPLITTER_CITATION_TEXT = (
+    "Barcode Splitter: split sequence files using multiple sets of barcodes."
+)
 AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
 AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
 LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
@@ -2713,6 +2718,270 @@ class ExtractGenomicDnaNode(CommandNode):
                         "default": "extract_genomic_dna.py",
                         "advanced": True,
                         "description": "Path to the Galaxy extract_genomic_dna.py helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BarcodeSplitterNode(CommandNode):
+    """Split FASTQ files into barcode-specific output files."""
+
+    NODE_ID = "barcode_splitter"
+    DISPLAY_NAME = "Barcode Splitter"
+    REQUIRED_CONDA_PACKAGES = ["barcode_splitter"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Split FASTQ reads into barcode-specific files using one or more index reads."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Barcode Splitter",
+        "barcode_splitter",
+        "barcode demultiplexing",
+        "index reads",
+        "FASTQ splitting",
+        "barcodes",
+        "dual index",
+        "split_all",
+    ]
+    RETURN_TYPES = ("TSV", "DIRECTORY")
+    RETURN_NAMES = ("summary", "split_output")
+    REQUIRED_EXECUTABLES = ["barcode_splitter"]
+    DOCUMENTATION_URL = BARCODE_SPLITTER_CITATION_URL
+    CITATION_DOIS = [BARCODE_SPLITTER_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BARCODE_SPLITTER_CITATION_DOI}", BARCODE_SPLITTER_CITATION_URL]
+    CITATION_TEXT = BARCODE_SPLITTER_CITATION_TEXT
+    VERSION = "0.18.4.0"
+    SHELL = True
+
+    RUN_TYPES = ["single", "paired", "flexible"]
+    FORMATS = ["fastq", "fastqsanger", "fastqsolexa", "fastqillumina"]
+    READ_TYPES = ["single", "forward", "reverse", "index", "singleindex", "forwardindex", "reverseindex"]
+    INDEX_READ_TYPES = ["index", "singleindex", "forwardindex", "reverseindex"]
+
+    @classmethod
+    def _run_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("run_type", "single") or "single")
+
+    @classmethod
+    def _format(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("format", "fastq") or "fastq")
+
+    @classmethod
+    def _split_dir(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/split"
+
+    @classmethod
+    def _summary_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/summary.tsv"
+
+    @classmethod
+    def _idxfiles(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("idxfiles"))
+
+    @classmethod
+    def _flexible_seqfiles(cls, inputs: dict[str, Any]) -> list[dict[str, Any]]:
+        raw = inputs.get("flexible_seqfiles") or []
+        if isinstance(raw, dict):
+            return [raw]
+        if isinstance(raw, (list, tuple)):
+            return [item for item in raw if isinstance(item, dict)]
+        return []
+
+    @classmethod
+    def _single_files(cls, inputs: dict[str, Any]) -> tuple[list[str], list[int], bool]:
+        files = [str(inputs.get("snglinput", "")), *cls._idxfiles(inputs)]
+        idx_positions = [pos for pos in range(2, len(files) + 1)]
+        return files, idx_positions, bool(inputs.get("split_all", False))
+
+    @classmethod
+    def _paired_files(cls, inputs: dict[str, Any]) -> tuple[list[str], list[int], bool]:
+        files = [str(inputs.get("fwdinput", "")), str(inputs.get("revinput", "")), *cls._idxfiles(inputs)]
+        idx_positions = [pos for pos in range(3, len(files) + 1)]
+        return files, idx_positions, bool(inputs.get("split_all", False))
+
+    @classmethod
+    def _flexible_files(cls, inputs: dict[str, Any]) -> tuple[list[str], list[int], bool]:
+        files: list[str] = []
+        idx_positions: list[int] = []
+        auto_split_all = bool(inputs.get("split_all", False))
+        for index, item in enumerate(cls._flexible_seqfiles(inputs), start=1):
+            readtype = str(item.get("readtype", "single") or "single")
+            files.append(str(item.get("input", "")))
+            if readtype in cls.INDEX_READ_TYPES:
+                idx_positions.append(index)
+                auto_split_all = True
+        return files, idx_positions, auto_split_all
+
+    @classmethod
+    def _files_and_indexes(cls, inputs: dict[str, Any]) -> tuple[list[str], list[int], bool]:
+        run_type = cls._run_type(inputs)
+        if run_type == "paired":
+            return cls._paired_files(inputs)
+        if run_type == "flexible":
+            return cls._flexible_files(inputs)
+        return cls._single_files(inputs)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        files, idx_positions, auto_split_all = cls._files_and_indexes(inputs)
+        split_dir = cls._split_dir(inputs)
+        sequence_format = cls._format(inputs)
+        cmd = [
+            "mkdir",
+            "-p",
+            split_dir,
+            "&&",
+            "barcode_splitter",
+            "--bcfile",
+            str(inputs.get("bcfile", "")),
+            "--mismatches",
+            str(inputs.get("mismatches", 1)),
+            "--galaxy",
+        ]
+        if inputs.get("barcodes_at_end", False):
+            cmd.append("--barcodes_at_end")
+        cmd.extend(["--prefix", f"{split_dir}/"])
+        cmd.extend(files)
+        cmd.append("--idxread")
+        cmd.extend(str(position) for position in idx_positions)
+        cmd.extend(["--format", sequence_format, "--suffix", f".{sequence_format}"])
+        if auto_split_all:
+            cmd.append("--split_all")
+        cmd.extend([">", cls._summary_path(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        split_dir = out / "split"
+        split_dir.mkdir(parents=True, exist_ok=True)
+        return [out / "summary.tsv", split_dir]
+
+    @classmethod
+    def _validate_mismatches(cls, inputs: dict[str, Any]) -> bool | str:
+        try:
+            mismatches = int(inputs.get("mismatches", 1))
+        except (TypeError, ValueError):
+            return "mismatches must be an integer"
+        if mismatches < 0 or mismatches > 2:
+            return "mismatches must be between 0 and 2"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("bcfile", "")).strip():
+            return "bcfile is required"
+        run_type = cls._run_type(inputs)
+        if run_type not in cls.RUN_TYPES:
+            return f"run_type must be one of: {', '.join(cls.RUN_TYPES)}"
+        mismatches_result = cls._validate_mismatches(inputs)
+        if mismatches_result is not True:
+            return mismatches_result
+        sequence_format = cls._format(inputs)
+        if sequence_format not in cls.FORMATS:
+            return f"format must be one of: {', '.join(cls.FORMATS)}"
+        if run_type == "single":
+            if not str(inputs.get("snglinput", "")).strip():
+                return "snglinput is required"
+            if not cls._idxfiles(inputs):
+                return "at least one index read is required"
+        elif run_type == "paired":
+            if not str(inputs.get("fwdinput", "")).strip():
+                return "fwdinput is required"
+            if not str(inputs.get("revinput", "")).strip():
+                return "revinput is required"
+            if not cls._idxfiles(inputs):
+                return "at least one index read is required"
+        else:
+            seqfiles = cls._flexible_seqfiles(inputs)
+            if not seqfiles:
+                return "flexible_seqfiles must include at least one read"
+            has_index = False
+            for item in seqfiles:
+                if not str(item.get("input", "")).strip():
+                    return "flexible_seqfiles entries require input"
+                readtype = str(item.get("readtype", "single") or "single")
+                if readtype not in cls.READ_TYPES:
+                    return f"readtype must be one of: {', '.join(cls.READ_TYPES)}"
+                if readtype in cls.INDEX_READ_TYPES:
+                    has_index = True
+            if not has_index:
+                return "at least one index read is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bcfile": (
+                    "TSV",
+                    {
+                        "description": (
+                            "Tab-delimited barcode table: sample identifier followed by one or more barcode columns"
+                        ),
+                    },
+                ),
+            },
+            "optional": {
+                "run_type": (
+                    "STRING",
+                    {
+                        "default": "single",
+                        "options": cls.RUN_TYPES,
+                        "description": "Galaxy run interface: single-end, paired-end, or flexible read layout",
+                    },
+                ),
+                "snglinput": ("FASTQ", {"default": "", "description": "Single-end read file for single run mode"}),
+                "fwdinput": ("FASTQ", {"default": "", "description": "Forward read file for paired run mode"}),
+                "revinput": ("FASTQ", {"default": "", "description": "Reverse read file for paired run mode"}),
+                "idxfiles": (
+                    "FASTQ_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Index read files supplied after the main read files",
+                    },
+                ),
+                "idxreadnames": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional Galaxy index read labels used for collection identifiers",
+                    },
+                ),
+                "flexible_seqfiles": (
+                    "JSON",
+                    {
+                        "default": [],
+                        "is_list": True,
+                        "description": "Flexible-mode read objects with input, readtype, and optional readname fields",
+                    },
+                ),
+                "mismatches": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 2,
+                        "description": "Number of allowed mismatches per barcode",
+                    },
+                ),
+                "barcodes_at_end": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Match barcodes at the end of all index sequences"},
+                ),
+                "split_all": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Also split index-only files into the output directory"},
+                ),
+                "format": (
+                    "STRING",
+                    {
+                        "default": "fastq",
+                        "options": cls.FORMATS,
+                        "description": "FASTQ datatype extension used for discovered split files",
                     },
                 ),
             },

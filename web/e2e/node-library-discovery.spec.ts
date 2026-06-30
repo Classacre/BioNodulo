@@ -207,6 +207,39 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/extract_genomic_dna'],
     citation_text: 'Extract Genomic DNA fetches genomic DNA in FASTA or interval format from assembled or unassembled genomes.',
   },
+  barcode_splitter: {
+    name: 'barcode_splitter',
+    display_name: 'Barcode Splitter',
+    category: 'sequence',
+    description: 'Split FASTQ reads into barcode-specific files using one or more index reads.',
+    search_aliases: ['Galaxy', 'Barcode Splitter', 'barcode_splitter', 'barcode demultiplexing', 'index reads', 'FASTQ splitting', 'barcodes', 'dual index', 'split_all'],
+    input: {
+      required: {
+        bcfile: { type: 'TSV' },
+      },
+      optional: {
+        run_type: { type: 'STRING', default: 'single', options: ['single', 'paired', 'flexible'] },
+        snglinput: { type: 'FASTQ', default: '' },
+        fwdinput: { type: 'FASTQ', default: '' },
+        revinput: { type: 'FASTQ', default: '' },
+        idxfiles: { type: 'FASTQ_LIST', default: [], multiple: true },
+        idxreadnames: { type: 'STRING', default: [], multiple: true },
+        flexible_seqfiles: { type: 'JSON', default: [], is_list: true },
+        mismatches: { type: 'INT', default: 1, min: 0, max: 2 },
+        barcodes_at_end: { type: 'BOOLEAN', default: false },
+        split_all: { type: 'BOOLEAN', default: false },
+        format: { type: 'STRING', default: 'fastq', options: ['fastq', 'fastqsanger', 'fastqsolexa', 'fastqillumina'] },
+      },
+    },
+    output: ['TSV', 'DIRECTORY'],
+    output_name: ['summary', 'split_output'],
+    required_executables: ['barcode_splitter'],
+    required_conda_packages: ['barcode_splitter'],
+    documentation_url: 'https://bitbucket.org/princeton_genomics/barcode_splitter/',
+    citation_dois: ['10.5281/zenodo.2566616'],
+    citation_urls: ['https://doi.org/10.5281/zenodo.2566616', 'https://bitbucket.org/princeton_genomics/barcode_splitter/'],
+    citation_text: 'Barcode Splitter: split sequence files using multiple sets of barcodes.',
+  },
   aegean_canongff3: {
     name: 'aegean_canongff3',
     display_name: 'AEGeAn CanonGFF3',
@@ -12066,7 +12099,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('413 nodes available')).toBeVisible();
+  await expect(page.getByText('414 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12077,6 +12110,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },
+    { query: 'index reads', name: 'Barcode Splitter', category: 'sequence' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },
