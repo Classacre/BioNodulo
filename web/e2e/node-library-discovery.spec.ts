@@ -983,6 +983,44 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/1471-2105-13-187'],
     citation_text: 'ParsEval: parallel comparison and analysis of gene structure annotations.',
   },
+  augustus: {
+    name: 'augustus',
+    display_name: 'Augustus',
+    category: 'annotation',
+    description: 'Predict genes in prokaryotic and eukaryotic genomes with AUGUSTUS.',
+    search_aliases: ['Galaxy', 'Augustus', 'AUGUSTUS', 'augustus', 'ab initio gene prediction', 'gene prediction', 'eukaryotic genome annotation', 'extrinsic hints'],
+    input: {
+      required: {
+        input_genome: { type: 'FASTA' },
+        model_mode: { type: 'STRING', default: 'builtin', options: ['builtin', 'history'] },
+      },
+      optional: {
+        organism: { type: 'STRING', default: 'human', options: ['human', 'fly', 'generic', 'arabidopsis', 'rice', 'maize', 'chicken', 'zebrafish', 'caenorhabditis', 's_aureus', 'E_coli_K12', 'template_prokaryotic'] },
+        custom_model: { type: 'FILE', default: '' },
+        strand: { type: 'STRING', default: 'both', options: ['both', 'forward', 'backward'] },
+        genemodel: { type: 'STRING', default: 'partial', options: ['complete', 'partial', 'intronless', 'atleastone', 'exactlyone'] },
+        outputs: { type: 'STRING_LIST', default: ['protein', 'codingseq', 'cds'], options: ['protein', 'codingseq', 'introns', 'start', 'stop', 'cds'], multiple: true },
+        output_format: { type: 'STRING', default: 'gtf', options: ['gtf', 'gff3'] },
+        noInFrameStop: { type: 'BOOLEAN', default: false },
+        singlestrand: { type: 'BOOLEAN', default: false },
+        utr: { type: 'BOOLEAN', default: false },
+        softmasking: { type: 'BOOLEAN', default: true },
+        hintsfile: { type: 'GFF', default: '' },
+        extrinsiccfg: { type: 'FILE', default: '' },
+        range_start: { type: 'INT', default: '', min: 1 },
+        range_stop: { type: 'INT', default: '', min: 1 },
+        extract_features_path: { type: 'STRING', default: 'extract_features.py' },
+      },
+    },
+    output: ['GTF', 'FASTA', 'FASTA'],
+    output_name: ['output', 'protein_output', 'codingseq_output'],
+    required_executables: ['augustus', 'python'],
+    required_conda_packages: ['augustus'],
+    documentation_url: 'https://bioinf.uni-greifswald.de/augustus/',
+    citation_dois: ['10.1093/bioinformatics/btg1080', '10.1093/bioinformatics/btr010', '10.1093/bioinformatics/btn013'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btg1080', 'https://doi.org/10.1093/bioinformatics/btr010', 'https://doi.org/10.1093/bioinformatics/btn013'],
+    citation_text: 'AUGUSTUS predicts genes in eukaryotic genomic sequences, supports alternative transcripts and UTRs, and can incorporate extrinsic evidence hints.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -14259,7 +14297,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('491 nodes available')).toBeVisible();
+  await expect(page.getByText('492 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14301,6 +14339,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },
     { query: 'gene annotation comparison', name: 'AEGeAn ParsEval', category: 'annotation' },
+    { query: 'ab initio gene prediction', name: 'Augustus', category: 'annotation' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },

@@ -6661,6 +6661,154 @@ def test_aegean_parseval_renders_commands_outputs_and_validates(tmp_path: Path) 
     assert node_class.VALIDATE_INPUTS({"referencegff3": "ref.gff3", "predictiongff3": "pred.gff3"}) is True
 
 
+def test_augustus_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
+    info = _registry().object_info()["augustus"]
+
+    assert info["display_name"] == "Augustus"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Predict genes in prokaryotic and eukaryotic genomes with AUGUSTUS."
+    assert info["input"]["required"]["input_genome"][0] == "FASTA"
+    assert info["input"]["required"]["model_mode"][1]["default"] == "builtin"
+    assert info["input"]["required"]["model_mode"][1]["options"] == ["builtin", "history"]
+    assert info["input"]["optional"]["organism"][1]["default"] == "human"
+    assert "fly" in info["input"]["optional"]["organism"][1]["options"]
+    assert "generic" in info["input"]["optional"]["organism"][1]["options"]
+    assert info["input"]["optional"]["custom_model"][0] == "FILE"
+    assert info["input"]["optional"]["strand"][1]["options"] == ["both", "forward", "backward"]
+    assert info["input"]["optional"]["genemodel"][1]["options"] == [
+        "complete",
+        "partial",
+        "intronless",
+        "atleastone",
+        "exactlyone",
+    ]
+    assert info["input"]["optional"]["outputs"][1]["default"] == ["protein", "codingseq", "cds"]
+    assert info["input"]["optional"]["outputs"][1]["multiple"] is True
+    assert info["input"]["optional"]["output_format"][1]["options"] == ["gtf", "gff3"]
+    assert info["output"] == ["GTF", "FASTA", "FASTA"]
+    assert info["output_name"] == ["output", "protein_output", "codingseq_output"]
+    assert info["required_executables"] == ["augustus", "python"]
+    assert info["required_conda_packages"] == ["augustus"]
+    assert info["documentation_url"] == "https://bioinf.uni-greifswald.de/augustus/"
+    assert info["citation_dois"] == [
+        "10.1093/bioinformatics/btg1080",
+        "10.1093/bioinformatics/btr010",
+        "10.1093/bioinformatics/btn013",
+    ]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/bioinformatics/btg1080",
+        "https://doi.org/10.1093/bioinformatics/btr010",
+        "https://doi.org/10.1093/bioinformatics/btn013",
+    ]
+    assert "AUGUSTUS" in info["citation_text"]
+    assert "ab initio gene prediction" in info["search_aliases"]
+
+
+def test_augustus_renders_builtin_history_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("augustus")
+
+    assert node_class.render_command(
+        {
+            "input_genome": "human_augustus.fa",
+            "model_mode": "builtin",
+            "organism": "human",
+            "utr": True,
+            "softmasking": False,
+            "strand": "both",
+            "genemodel": "complete",
+            "outputs": ["protein", "codingseq", "introns", "start", "stop", "cds"],
+            "output_format": "gff3",
+            "output": "/work/augustus",
+        }
+    ) == (
+        "augustus --strand=both --noInFrameStop=false --gff3=on --uniqueGeneId=true "
+        "--protein=on --codingseq=on --introns=on --start=on --stop=on --cds=on "
+        "--singlestrand=false human_augustus.fa --UTR=on --genemodel=complete --softmasking=0 "
+        "--species=human | tee /work/augustus/augustus.gff3 | python extract_features.py "
+        "--protein /work/augustus/protein.fasta --codingseq /work/augustus/codingseq.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({"output_format": "gff3"}, tmp_path) == [
+        tmp_path / "augustus" / "augustus.gff3",
+        tmp_path / "augustus" / "protein.fasta",
+        tmp_path / "augustus" / "codingseq.fasta",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_genome": "chr2R truncated.fa",
+            "model_mode": "builtin",
+            "organism": "fly",
+            "hintsfile": "hints adjusted.gff",
+            "extrinsiccfg": "extrinsic.cfg",
+            "range_start": 7000,
+            "range_stop": 9000,
+            "outputs": [],
+            "output_format": "gtf",
+            "noInFrameStop": True,
+            "singlestrand": True,
+            "strand": "backward",
+            "output": "/work/augustus",
+        }
+    ) == (
+        "augustus --strand=backward --noInFrameStop=true --gff3=off --uniqueGeneId=true "
+        "--protein=off --codingseq=off --introns=off --start=off --stop=off --cds=off "
+        "--singlestrand=true 'chr2R truncated.fa' --UTR=off --genemodel=partial --softmasking=1 "
+        "--hintsfile 'hints adjusted.gff' --extrinsicCfgFile extrinsic.cfg "
+        "--predictionStart=7000 --predictionEnd=9000 --species=fly | tee /work/augustus/augustus.gtf"
+    )
+    assert node_class.PLAN_OUTPUTS({"outputs": [], "output_format": "gtf"}, tmp_path) == [
+        tmp_path / "augustus" / "augustus.gtf",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_genome": "genome.fa",
+            "model_mode": "history",
+            "custom_model": "trained model.tar.gz",
+            "outputs": ["codingseq"],
+            "output": "/work/augustus",
+        }
+    ) == (
+        "cp -r $(dirname $(command -v augustus))/../config/ augustus_dir/ && "
+        "mkdir -p augustus_dir/species/ && "
+        "tar -C augustus_dir/species/ -xzvf 'trained model.tar.gz' > /dev/null && "
+        "export AUGUSTUS_CONFIG_PATH=./augustus_dir/ && "
+        "augustus --strand=both --noInFrameStop=false --gff3=off --uniqueGeneId=true "
+        "--protein=off --codingseq=on --introns=off --start=off --stop=off --cds=off "
+        "--singlestrand=false genome.fa --UTR=off --genemodel=partial --softmasking=1 "
+        "--species=local | tee /work/augustus/augustus.gtf | python extract_features.py "
+        "--codingseq /work/augustus/codingseq.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({"outputs": ["codingseq"]}, tmp_path) == [
+        tmp_path / "augustus" / "augustus.gtf",
+        tmp_path / "augustus" / "codingseq.fasta",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_genome is required"
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa", "model_mode": "history"}) == (
+        "custom_model is required when model_mode is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa", "model_mode": "bad"}) == (
+        "model_mode must be one of: builtin, history"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa", "strand": "reverse"}) == (
+        "strand must be one of: both, forward, backward"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa", "genemodel": "bad"}) == (
+        "genemodel must be one of: complete, partial, intronless, atleastone, exactlyone"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa", "outputs": ["protein", "bad"]}) == (
+        "outputs values must be one of: protein, codingseq, introns, start, stop, cds"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa", "hintsfile": "hints.gff"}) == (
+        "extrinsiccfg is required when hintsfile is provided"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa", "range_start": 9000, "range_stop": 7000}) == (
+        "range_stop must be greater than range_start"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 
