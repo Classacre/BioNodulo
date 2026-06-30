@@ -34727,6 +34727,80 @@ def test_ucsc_chainprenet_validates_required_inputs_reference_sources_and_pad() 
     ) is True
 
 
+def test_ucsc_nettoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_nettoaxt"]
+
+    assert info["display_name"] == "netToAxt"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Convert UCSC net and chain alignments to AXT format."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["netToAxt"]
+    assert info["required_conda_packages"] == ["ucsc-nettoaxt"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/axt.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "net to AXT" in info["search_aliases"]
+    assert info["input"]["required"]["in_net"][0] == "FILE"
+    assert info["input"]["required"]["in_chain"][0] == "FILE"
+    assert info["input"]["required"]["in_target"][0] == "FILE"
+    assert info["input"]["required"]["in_query"][0] == "FILE"
+    assert info["input"]["optional"]["qChain"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["maxGap"][1]["min"] == 0
+    assert info["input"]["optional"]["noSplit"][0] == "BOOLEAN"
+
+
+def test_ucsc_nettoaxt_renders_flags_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_nettoaxt")
+
+    assert node_class.render_command(
+        {
+            "in_net": "target query.ucsc.net",
+            "in_chain": "target query.chain",
+            "in_target": "target.2bit",
+            "in_query": "query.2bit",
+            "qChain": True,
+            "maxGap": 250,
+            "noSplit": True,
+            "output": "/work/ucsc_nettoaxt",
+        }
+    ) == (
+        "netToAxt 'target query.ucsc.net' 'target query.chain' target.2bit query.2bit "
+        "/work/ucsc_nettoaxt/out.axt -qChain -maxGap=250 -noSplit"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_nettoaxt" / "out.axt",
+    ]
+
+
+def test_ucsc_nettoaxt_validates_required_inputs_and_max_gap() -> None:
+    node_class = _node_class("ucsc_nettoaxt")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_net is required"
+    assert node_class.VALIDATE_INPUTS({"in_net": "input.net"}) == "in_chain is required"
+    assert node_class.VALIDATE_INPUTS({"in_net": "input.net", "in_chain": "input.chain"}) == (
+        "in_target is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"in_net": "input.net", "in_chain": "input.chain", "in_target": "target.2bit"}
+    ) == "in_query is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "in_net": "input.net",
+            "in_chain": "input.chain",
+            "in_target": "target.2bit",
+            "in_query": "query.2bit",
+            "maxGap": -1,
+        }
+    ) == "maxGap must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_net": "input.net", "in_chain": "input.chain", "in_target": "target.2bit", "in_query": "query.2bit"}
+    ) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 

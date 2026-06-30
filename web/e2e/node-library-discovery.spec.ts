@@ -6054,6 +6054,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_nettoaxt: {
+    name: 'ucsc_nettoaxt',
+    display_name: 'netToAxt',
+    category: 'genomics',
+    description: 'Convert UCSC net and chain alignments to AXT format.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_nettoaxt', 'netToAxt', 'UCSC net', 'UCSC chain', 'net to AXT', 'pairwise alignment'],
+    input: {
+      required: {
+        in_net: { type: 'FILE' },
+        in_chain: { type: 'FILE' },
+        in_target: { type: 'FILE' },
+        in_query: { type: 'FILE' },
+      },
+      optional: {
+        qChain: { type: 'BOOLEAN', default: false },
+        maxGap: { type: 'INT', default: '', min: 0 },
+        noSplit: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['netToAxt'],
+    required_conda_packages: ['ucsc-nettoaxt'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/axt.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -12872,7 +12900,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('445 nodes available')).toBeVisible();
+  await expect(page.getByText('446 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13087,6 +13115,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'liftOver', name: 'netChainSubset', category: 'genomics' },
     { query: 'synteny filter', name: 'netFilter', category: 'genomics' },
     { query: 'netted chains', name: 'chainPreNet', category: 'genomics' },
+    { query: 'net to AXT', name: 'netToAxt', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },

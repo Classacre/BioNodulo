@@ -28024,6 +28024,97 @@ class UcscChainPreNetNode(CommandNode):
         }
 
 
+class UcscNetToAxtNode(CommandNode):
+    """Convert UCSC net and chain alignments to AXT."""
+
+    NODE_ID = "ucsc_nettoaxt"
+    DISPLAY_NAME = "netToAxt"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-nettoaxt"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Convert UCSC net and chain alignments to AXT format."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_nettoaxt",
+        "netToAxt",
+        "UCSC net",
+        "UCSC chain",
+        "net to AXT",
+        "pairwise alignment",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("out",)
+    REQUIRED_EXECUTABLES = ["netToAxt"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/axt.html"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.axt"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "netToAxt",
+            str(inputs.get("in_net", "")),
+            str(inputs.get("in_chain", "")),
+            str(inputs.get("in_target", "")),
+            str(inputs.get("in_query", "")),
+            cls._output_path(inputs),
+        ]
+        if inputs.get("qChain"):
+            cmd.append("-qChain")
+        if str(inputs.get("maxGap", "")) != "":
+            cmd.append(f"-maxGap={inputs.get('maxGap')}")
+        if inputs.get("noSplit"):
+            cmd.append("-noSplit")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out.axt"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for name in ("in_net", "in_chain", "in_target", "in_query"):
+            if not str(inputs.get(name, "")).strip():
+                return f"{name} is required"
+        if str(inputs.get("maxGap", "")) != "" and int(inputs.get("maxGap")) < 0:
+            return "maxGap must be greater than or equal to 0"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_net": ("FILE", {"description": "UCSC net alignment file"}),
+                "in_chain": ("FILE", {"description": "UCSC chain alignment file"}),
+                "in_target": ("FILE", {"description": "TwoBit file containing the target sequence"}),
+                "in_query": ("FILE", {"description": "TwoBit file containing the query sequence"}),
+            },
+            "optional": {
+                "qChain": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Treat the net as being with respect to the query side of chains"},
+                ),
+                "maxGap": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Maximum gap size before breaking alignment blocks"},
+                ),
+                "noSplit": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not split chains at insertions of another chain"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MafToAxtNode(CommandNode):
     """Convert UCSC MAF alignments to AXT format."""
 
