@@ -3017,6 +3017,133 @@ class CrossMapBedNode(CommandNode):
         }
 
 
+class CrossMapBamNode(CommandNode):
+    """Lift BAM alignments between genome assemblies with CrossMap."""
+
+    NODE_ID = "crossmap_bam"
+    DISPLAY_NAME = "CrossMap BAM"
+    REQUIRED_CONDA_PACKAGES = ["crossmap"]
+    CATEGORY = "alignment"
+    DESCRIPTION = "Lift BAM alignments between genome assemblies with CrossMap."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CrossMap",
+        "crossmap_bam",
+        "liftover BAM",
+        "coordinate conversion",
+        "BAM assembly conversion",
+        "chain file",
+        "optional BAM tags",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["CrossMap"]
+    DOCUMENTATION_URL = f"{DOI_URL}{CROSSMAP_CITATION_DOI}"
+    CITATION_DOIS = [CROSSMAP_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CROSSMAP_CITATION_DOI}"]
+    CITATION_TEXT = CROSSMAP_CITATION_TEXT
+    VERSION = "0.7.3+galaxy0"
+    SHELL = True
+
+    INDEX_SOURCE_OPTIONS = CrossMapBedNode.INDEX_SOURCE_OPTIONS
+
+    @classmethod
+    def _index_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("index_source", "history") or "history")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        staged_bam = f"{out}/input.bam"
+        cmd = ["CrossMap", "bam", str(inputs.get("input_chain", ""))]
+        if inputs.get("optional_tags"):
+            cmd.append("-a")
+        cmd.extend(
+            [
+                "-m",
+                str(inputs.get("insert_size", 200.0)),
+                "-s",
+                str(inputs.get("insert_size_stdev", 30.0)),
+                "-t",
+                str(inputs.get("insert_size_fold", 3.0)),
+                staged_bam,
+                f"{out}/output",
+            ]
+        )
+        return " && ".join([_shell_join(["ln", "-sf", str(inputs.get("input", "")), staged_bam]), _shell_join(cmd)])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.sorted.bam"]
+
+    @classmethod
+    def _validate_nonnegative_number(cls, inputs: dict[str, Any], key: str) -> bool | str:
+        value = inputs.get(key)
+        if value is None or value == "":
+            return True
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return f"{key} must be a number"
+        if number < 0:
+            return f"{key} must be greater than or equal to 0"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input BAM is required"
+        if not str(inputs.get("input_chain", "")).strip():
+            return "input_chain is required"
+        index_source = cls._index_source(inputs)
+        if index_source not in cls.INDEX_SOURCE_OPTIONS:
+            return f"index_source must be one of: {', '.join(cls.INDEX_SOURCE_OPTIONS)}"
+        for key in ("insert_size", "insert_size_stdev", "insert_size_fold"):
+            result = cls._validate_nonnegative_number(inputs, key)
+            if result is not True:
+                return result
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "BAM alignments to lift over"}),
+                "input_chain": ("TXT", {"description": "LiftOver chain file"}),
+            },
+            "optional": {
+                "index_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.INDEX_SOURCE_OPTIONS,
+                        "description": "Galaxy source selector for cached or history chain files",
+                    },
+                ),
+                "optional_tags": ("BOOLEAN", {"default": False, "description": "Add CrossMap optional BAM mapping tags"}),
+                "insert_size": (
+                    "FLOAT",
+                    {"default": 200.0, "min": 0, "description": "Average paired-end insert size in bp"},
+                ),
+                "insert_size_stdev": (
+                    "FLOAT",
+                    {"default": 30.0, "min": 0, "description": "Standard deviation of paired-end insert size"},
+                ),
+                "insert_size_fold": (
+                    "FLOAT",
+                    {
+                        "default": 3.0,
+                        "min": 0,
+                        "description": "Proper-pair distance threshold as a multiple of insert-size stdev",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class ColumnMakerNode(CommandNode):
     """Compute expressions on tabular rows and add, insert, or replace columns."""
 

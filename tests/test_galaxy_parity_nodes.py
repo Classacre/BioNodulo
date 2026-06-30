@@ -3980,6 +3980,85 @@ def test_crossmap_bed_validates_required_inputs_and_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over"}) is True
 
 
+def test_crossmap_bam_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["crossmap_bam"]
+
+    assert info["display_name"] == "CrossMap BAM"
+    assert info["category"] == "alignment"
+    assert info["description"] == "Lift BAM alignments between genome assemblies with CrossMap."
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["CrossMap"]
+    assert info["required_conda_packages"] == ["crossmap"]
+    assert info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btt730"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
+    assert "CrossMap" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "liftover BAM" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "BAM"
+    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["optional"]["optional_tags"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["insert_size"][1]["default"] == 200.0
+    assert info["input"]["optional"]["insert_size_stdev"][1]["default"] == 30.0
+    assert info["input"]["optional"]["insert_size_fold"][1]["default"] == 3.0
+    assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
+
+
+def test_crossmap_bam_renders_default_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("crossmap_bam")
+
+    assert node_class.render_command(
+        {
+            "input": "alignments.bam",
+            "input_chain": "hg19ToHg38.over.chain",
+            "output": "/work/crossmap_bam",
+        }
+    ) == (
+        "ln -sf alignments.bam /work/crossmap_bam/input.bam && "
+        "CrossMap bam hg19ToHg38.over.chain -m 200.0 -s 30.0 -t 3.0 "
+        "/work/crossmap_bam/input.bam /work/crossmap_bam/output"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "crossmap_bam" / "output.sorted.bam"]
+
+
+def test_crossmap_bam_renders_optional_tags_and_custom_insert_parameters() -> None:
+    node_class = _node_class("crossmap_bam")
+
+    assert node_class.render_command(
+        {
+            "input": "old alignments.bam",
+            "input_chain": "chain files/a to b.over.chain",
+            "optional_tags": True,
+            "insert_size": 350.5,
+            "insert_size_stdev": 45.25,
+            "insert_size_fold": 2.5,
+            "output": "/work/crossmap_bam",
+        }
+    ) == (
+        "ln -sf 'old alignments.bam' /work/crossmap_bam/input.bam && "
+        "CrossMap bam 'chain files/a to b.over.chain' -a -m 350.5 -s 45.25 -t 2.5 "
+        "/work/crossmap_bam/input.bam /work/crossmap_bam/output"
+    )
+
+
+def test_crossmap_bam_validates_required_inputs_and_numeric_parameters() -> None:
+    node_class = _node_class("crossmap_bam")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input BAM is required"
+    assert node_class.VALIDATE_INPUTS({"input": "alignments.bam"}) == "input_chain is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "alignments.bam", "input_chain": "chain.over", "index_source": "remote"}
+    ) == "index_source must be one of: cached, history"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "alignments.bam", "input_chain": "chain.over", "insert_size": "bad"}
+    ) == "insert_size must be a number"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "alignments.bam", "input_chain": "chain.over", "insert_size_stdev": -1}
+    ) == "insert_size_stdev must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS({"input": "alignments.bam", "input_chain": "chain.over"}) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 
