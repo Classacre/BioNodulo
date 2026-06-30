@@ -2543,6 +2543,41 @@ const objectInfo = {
     citation_urls: ['http://hyphy.org/'],
     citation_text: 'HyPhy: Hypothesis Testing using Phylogenies.',
   },
+  bioext_bealign: {
+    name: 'bioext_bealign',
+    display_name: 'Align sequences',
+    category: 'alignment',
+    description: "Align FASTA sequences to a preset or history reference using BioExt bealign's codon-aware algorithm.",
+    search_aliases: ['Galaxy', 'BioExt', 'bioext_bealign', 'bealign', 'Align sequences', 'codon alignment', 'reference alignment', 'BAM alignment', 'TN-93', 'HyPhy'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+      },
+      optional: {
+        reference_type: { type: 'STRING', default: 'preset', options: ['preset', 'dataset'] },
+        reference: { type: 'FASTA' },
+        save_reference: { type: 'BOOLEAN', default: false },
+        background_source: { type: 'STRING', default: 'data_table', options: ['data_table', 'history'] },
+        background_sequences: { type: 'FASTA' },
+        expected_identity: { type: 'FLOAT', default: '', min: 0, max: 1 },
+        alphabet: { type: 'STRING', default: 'codon', options: ['codon', 'dna', 'amino'] },
+        score_matrix: { type: 'STRING', default: 'BLOSUM62', options: ['BLOSUM62', 'DNA65', 'DNA70', 'DNA88', 'DNA80', 'DNA95', 'PAM200', 'PAM250', 'HIV_BETWEEN_F'] },
+        discard: { type: 'BOOLEAN', default: false },
+        reverse_complement: { type: 'BOOLEAN', default: false },
+        keep_reference: { type: 'BOOLEAN', default: false },
+        copy_reference_script: { type: 'FILE', default: 'copy_reference.py', advanced: true },
+        threads: { type: 'INT', default: 2, min: 1, max: 128 },
+      },
+    },
+    output: ['BAM', 'BAM', 'FASTA', 'FASTA'],
+    output_name: ['output', 'background', 'saved_reference', 'discarded_reads'],
+    required_executables: ['bealign', 'samtools', 'gawk', 'sed'],
+    required_conda_packages: ['python-bioext', 'gawk', 'samtools'],
+    documentation_url: 'https://github.com/veg/BioExt',
+    citation_dois: [],
+    citation_urls: ['http://hyphy.org/'],
+    citation_text: 'HyPhy: Hypothesis Testing using Phylogenies.',
+  },
   basil: {
     name: 'basil',
     display_name: 'basil',
@@ -14934,7 +14969,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('505 nodes available')).toBeVisible();
+  await expect(page.getByText('506 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15034,6 +15069,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'DisoMine', name: 'b2bTools: Biophysical predictors for single sequences', category: 'proteomics' },
     { query: 'BioPerl', name: 'Genbank to GFF3', category: 'annotation' },
     { query: 'BAM to FASTA MSA', name: 'Convert BAM', category: 'alignment' },
+    { query: 'codon alignment', name: 'Align sequences', category: 'alignment' },
     { query: 'large insertions', name: 'basil', category: 'variant' },
     { query: 'bedGraphToBigWig', name: 'BAM BED GFF coverage bigWigs', category: 'genomics' },
     { query: 'single gene', name: 'baredSC 1d', category: 'single_cell' },

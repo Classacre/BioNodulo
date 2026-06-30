@@ -28831,6 +28831,106 @@ def test_bioext_bam2msa_renders_indexed_bam_alignment_command_outputs_and_valida
     assert node_class.VALIDATE_INPUTS({"input": "reads.bam", "region_start": 0, "region_end": 0}) is True
 
 
+def test_bioext_bealign_renders_alignment_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("bioext_bealign")
+    info = _registry().object_info()["bioext_bealign"]
+
+    assert info["display_name"] == "Align sequences"
+    assert info["category"] == "alignment"
+    assert info["output"] == ["BAM", "BAM", "FASTA", "FASTA"]
+    assert info["output_name"] == ["output", "background", "saved_reference", "discarded_reads"]
+    assert info["required_executables"] == ["bealign", "samtools", "gawk", "sed"]
+    assert info["required_conda_packages"] == ["python-bioext", "gawk", "samtools"]
+    assert info["documentation_url"] == "https://github.com/veg/BioExt"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["http://hyphy.org/"]
+    assert "HyPhy: Hypothesis Testing using Phylogenies" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "bealign" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "FASTA"
+    assert info["input"]["optional"]["reference_type"][1]["options"] == ["preset", "dataset"]
+    assert info["input"]["optional"]["alphabet"][1]["default"] == "codon"
+    assert "HIV_BETWEEN_F" in info["input"]["optional"]["score_matrix"][1]["options"]
+
+    assert node_class.render_command(
+        {
+            "input": "query reads.fa",
+            "reference_type": "dataset",
+            "reference": "reference genome.fa",
+            "alphabet": "dna",
+            "expected_identity": 0.85,
+            "discard": True,
+            "score_matrix": "DNA80",
+            "reverse_complement": True,
+            "keep_reference": True,
+            "threads": 6,
+            "output": "/work/bioext_bealign",
+        }
+    ) == (
+        "set -o pipefail && "
+        "cat 'query reads.fa' | gawk '{ if ($0 ~ \"^[^>]\") {a = gensub(/[^ACGTURYKMSWBDHVNacgturykmswbdhvn?-]/, \"\", \"g\"); } else {a=gensub(/[^>A-Za-z0-9_]/, \"_\", \"g\"); }; print a } ' | sed 's,_\\+,_,g' > /work/bioext_bealign/reads.fa && "
+        "NCPU=${GALAXY_SLOTS:-6} bealign --reference 'reference genome.fa' --alphabet dna "
+        "--expected-identity 0.85 --discard /work/bioext_bealign/discarded_reads.fasta "
+        "--score-matrix DNA80 --reverse-complement --keep-reference --no-sort /work/bioext_bealign/reads.fa /work/bioext_bealign/bealign_out.bam && "
+        "samtools sort -@${GALAXY_SLOTS:-6} -T ${TMPDIR:-.} -O bam -o /work/bioext_bealign/output.bam /work/bioext_bealign/bealign_out.bam"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "background_source": "history",
+            "background_sequences": "background.fa",
+            "save_reference": True,
+            "discard": True,
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "bioext_bealign" / "output.bam",
+        tmp_path / "bioext_bealign" / "background.bam",
+        tmp_path / "bioext_bealign" / "saved_reference.fasta",
+        tmp_path / "bioext_bealign" / "discarded_reads.fasta",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input FASTA reads are required"
+    assert node_class.VALIDATE_INPUTS({"input": "query.fa", "reference_type": "dataset"}) == (
+        "reference FASTA is required when reference_type is dataset"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "query.fa", "reference_type": "preset", "reference": "bad"}) == (
+        "reference must be one of the BioExt preset references"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "query.fa", "reference_type": "dataset", "reference": "ref.fa", "alphabet": "rna"}) == (
+        "alphabet must be one of: codon, dna, amino"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "query.fa", "reference_type": "dataset", "reference": "ref.fa"}) is True
+
+
+def test_bioext_bealign_renders_preset_background_and_saved_reference_command() -> None:
+    node_class = _node_class("bioext_bealign")
+
+    assert node_class.render_command(
+        {
+            "input": "query.fa",
+            "reference_type": "preset",
+            "reference": "CoV2-nsp8",
+            "background_source": "data_table",
+            "background_sequences": "/data/bealign/CoV2-nsp8.fa",
+            "score_matrix": "HIV_BETWEEN_F",
+            "save_reference": True,
+            "copy_reference_script": "/tools/bioext/copy_reference.py",
+            "threads": 2,
+            "output": "/work/bioext_bealign",
+        }
+    ) == (
+        "set -o pipefail && "
+        "cat query.fa | gawk '{ if ($0 ~ \"^[^>]\") {a = gensub(/[^ACGTURYKMSWBDHVNacgturykmswbdhvn?-]/, \"\", \"g\"); } else {a=gensub(/[^>A-Za-z0-9_]/, \"_\", \"g\"); }; print a } ' | sed 's,_\\+,_,g' > /work/bioext_bealign/reads.fa && "
+        "NCPU=${GALAXY_SLOTS:-2} bealign --reference CoV2-nsp8 --alphabet codon "
+        "--score-matrix HIV_BETWEEN_F --no-sort /work/bioext_bealign/reads.fa /work/bioext_bealign/bealign_out.bam && "
+        "samtools sort -@${GALAXY_SLOTS:-2} -T ${TMPDIR:-.} -O bam -o /work/bioext_bealign/output.bam /work/bioext_bealign/bealign_out.bam && "
+        "cat /data/bealign/CoV2-nsp8.fa | gawk '{ if ($0 ~ \"^[^>]\") {a = gensub(/[^ACGTURYKMSWBDHVNacgturykmswbdhvn?-]/, \"\", \"g\"); } else {a=gensub(/[^>A-Za-z0-9_]/, \"_\", \"g\"); }; print a } ' | sed 's,_\\+,_,g' > /work/bioext_bealign/background.fa && "
+        "NCPU=${GALAXY_SLOTS:-2} bealign --reference CoV2-nsp8 --alphabet codon "
+        "--keep-reference --score-matrix HIV_BETWEEN_F --no-sort /work/bioext_bealign/background.fa /work/bioext_bealign/bealign_background.bam && "
+        "samtools sort -@${GALAXY_SLOTS:-2} -T ${TMPDIR:-.} -O bam -o /work/bioext_bealign/background.bam /work/bioext_bealign/bealign_background.bam && "
+        "python /tools/bioext/copy_reference.py --reference CoV2-nsp8 --dataset /work/bioext_bealign/saved_reference.fasta"
+    )
+
+
 def test_beagle_renders_phasing_imputation_command_outputs_and_validation(tmp_path: Path) -> None:
     node_class = _node_class("beagle")
     info = _registry().object_info()["beagle"]
