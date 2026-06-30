@@ -2875,6 +2875,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm2"],
             "doi": "10.1038/s41592-023-01940-w",
         },
+        "checkm_lineage_wf": {
+            "display_name": "CheckM lineage_wf",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "das_tool": {
             "display_name": "DAS Tool",
             "category": "metagenomics",
@@ -9460,6 +9467,267 @@ def test_checkm2_renders_specific_model_command_with_safe_input_names() -> None:
         "--output-directory",
         "/work/checkm2/output",
     ]
+
+
+def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_lineage_wf"]
+
+    assert info["display_name"] == "CheckM lineage_wf"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == (
+        "Assess genome-bin completeness and contamination using lineage-specific marker sets."
+    )
+    assert info["output"] == [
+        "TSV",
+        "FILE",
+        "TSV",
+        "DIRECTORY",
+        "FASTA",
+        "PHYLOXML",
+        "DIRECTORY",
+        "JSON",
+        "DIRECTORY",
+        "DIRECTORY",
+        "DIRECTORY",
+        "TSV",
+        "DIRECTORY",
+        "TSV",
+        "FILE",
+        "DIRECTORY",
+        "TSV",
+        "TSV",
+    ]
+    assert info["output_name"] == [
+        "results",
+        "phylo_hmm_info",
+        "bin_stats_tree",
+        "hmmer_tree",
+        "concatenated_fasta",
+        "concatenated_tre",
+        "hmmer_tree_ali",
+        "concatenated_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+        "marker_file",
+        "hmmer_analyze",
+        "bin_stats_analyze",
+        "checkm_hmm_info",
+        "hmmer_analyze_ali",
+        "bin_stats_ext",
+        "marker_gene_stats",
+    ]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "lineage-specific marker sets" in info["search_aliases"]
+    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
+    assert info["input"]["optional"]["unique"][1]["default"] == 10
+    assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
+    assert "marker_gene_stats" in info["input"]["optional"]["extra_outputs"][1]["options"]
+
+
+def test_checkm_lineage_wf_renders_individual_bins_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_lineage_wf")
+
+    assert node_class.render_command(
+        {
+            "bins": ["bin one.fna", "bin#2.fa"],
+            "input_mode": "individual",
+            "reduced_tree": True,
+            "ali": True,
+            "nt": True,
+            "genes": False,
+            "force_domain": True,
+            "no_refinement": True,
+            "individual_markers": True,
+            "skip_adj_correction": True,
+            "skip_pseudogene_correction": True,
+            "ignore_thresholds": True,
+            "unique": 12,
+            "multi": 7,
+            "aai_strain": 0.95,
+            "e_value": "1e-20",
+            "length": 0.6,
+            "threads": 8,
+            "output": "/work/checkm_lineage_wf",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_lineage_wf/bins",
+        "/work/checkm_lineage_wf/output",
+        "&&",
+        "ln",
+        "-sf",
+        "bin one.fna",
+        "/work/checkm_lineage_wf/bins/bin_one.fna.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "bin#2.fa",
+        "/work/checkm_lineage_wf/bins/bin_2.fa.fasta",
+        "&&",
+        "checkm",
+        "lineage_wf",
+        "/work/checkm_lineage_wf/bins",
+        "/work/checkm_lineage_wf/output",
+        "--reduced_tree",
+        "--ali",
+        "--nt",
+        "--unique",
+        "12",
+        "--multi",
+        "7",
+        "--force_domain",
+        "--no_refinement",
+        "--individual_markers",
+        "--skip_adj_correction",
+        "--skip_pseudogene_correction",
+        "--aai_strain",
+        "0.95",
+        "--ignore_thresholds",
+        "--e_value",
+        "1e-20",
+        "--length",
+        "0.6",
+        "--file",
+        "/work/checkm_lineage_wf/results.tsv",
+        "--tab_table",
+        "--extension",
+        "fasta",
+        "--threads",
+        "8",
+        "--pplacer_threads",
+        "8",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "extra_outputs": [
+                "phylo_hmm_info",
+                "bin_stats_tree",
+                "hmmer_tree",
+                "concatenated_fasta",
+                "concatenated_tre",
+                "hmmer_tree_ali",
+                "concatenate_pplacer_json",
+                "genes_fna",
+                "genes_faa",
+                "genes_gff",
+                "marker_file",
+                "hmmer_analyze",
+                "bin_stats_analyze",
+                "checkm_hmm_info",
+                "hmmer_analyze_ali",
+                "bin_stats_ext",
+                "marker_gene_stats",
+            ],
+            "ali": True,
+            "nt": True,
+            "genes": False,
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "checkm_lineage_wf" / "results.tsv",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "phylo_hmm_info.pkl.gz",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "bin_stats.tree.tsv",
+        tmp_path / "checkm_lineage_wf" / "output" / "bins" / "hmmer_tree",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "tree" / "concatenated.fasta",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "tree" / "concatenated.tre",
+        tmp_path / "checkm_lineage_wf" / "output" / "bins" / "hmmer_tree_ali",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "tree" / "concatenated.pplacer.json",
+        tmp_path / "checkm_lineage_wf" / "output" / "bins" / "genes_fna",
+        tmp_path / "checkm_lineage_wf" / "output" / "bins" / "genes_faa",
+        tmp_path / "checkm_lineage_wf" / "output" / "bins" / "genes_gff",
+        tmp_path / "checkm_lineage_wf" / "output" / "lineage.ms",
+        tmp_path / "checkm_lineage_wf" / "output" / "bins" / "hmmer_analyze",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "bin_stats.analyze.tsv",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "checkm_hmm_info.pkl.gz",
+        tmp_path / "checkm_lineage_wf" / "output" / "bins" / "hmmer_analyze_ali",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "bin_stats_ext.tsv",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "marker_gene_stats.tsv",
+    ]
+
+
+def test_checkm_lineage_wf_renders_collection_command_with_identifiers_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_lineage_wf")
+
+    assert node_class.render_command(
+        {
+            "bins": ["sample A.fasta", "sample B.fasta"],
+            "input_mode": "collection",
+            "element_identifiers": ["bin/A", "bin B"],
+            "genes": True,
+            "threads": 4,
+            "output": "/work/checkm_lineage_wf",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_lineage_wf/bins",
+        "/work/checkm_lineage_wf/output",
+        "&&",
+        "ln",
+        "-sf",
+        "sample A.fasta",
+        "/work/checkm_lineage_wf/bins/bin_A.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "sample B.fasta",
+        "/work/checkm_lineage_wf/bins/bin_B.fasta",
+        "&&",
+        "checkm",
+        "lineage_wf",
+        "/work/checkm_lineage_wf/bins",
+        "/work/checkm_lineage_wf/output",
+        "--genes",
+        "--unique",
+        "10",
+        "--multi",
+        "10",
+        "--aai_strain",
+        "0.9",
+        "--e_value",
+        "1e-10",
+        "--length",
+        "0.7",
+        "--file",
+        "/work/checkm_lineage_wf/results.tsv",
+        "--tab_table",
+        "--extension",
+        "fasta",
+        "--threads",
+        "4",
+        "--pplacer_threads",
+        "4",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"extra_outputs": ["hmmer_tree_ali", "genes_fna", "genes_gff", "marker_gene_stats"], "genes": True},
+        tmp_path,
+    ) == [
+        tmp_path / "checkm_lineage_wf" / "results.tsv",
+        tmp_path / "checkm_lineage_wf" / "output" / "storage" / "marker_gene_stats.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one bins value is required"
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "input_mode": "bad"}) == (
+        "input_mode must be one of: individual, collection"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "unique": -1}) == "unique must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "aai_strain": 1.5}) == (
+        "aai_strain must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "extra_outputs": ["bad"]}) == (
+        "extra_outputs values must be one of: phylo_hmm_info, bin_stats_tree, hmmer_tree, concatenated_tre, concatenated_fasta, hmmer_tree_ali, concatenate_pplacer_json, genes_fna, genes_faa, genes_gff, marker_file, hmmer_analyze, bin_stats_analyze, checkm_hmm_info, hmmer_analyze_ali, bin_stats_ext, marker_gene_stats"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"]}) is True
 
 
 def test_das_tool_exposes_galaxy_aligned_outputs() -> None:

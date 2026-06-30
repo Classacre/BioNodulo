@@ -16442,6 +16442,407 @@ CHECKM2_TRANSLATION_TABLES = [
 ]
 
 
+class CheckMLineageWFNode(CommandNode):
+    """Assess genome-bin quality with CheckM lineage-specific marker sets."""
+
+    NODE_ID = "checkm_lineage_wf"
+    DISPLAY_NAME = "CheckM lineage_wf"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Assess genome-bin completeness and contamination using lineage-specific marker sets."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "lineage_wf",
+        "lineage-specific marker sets",
+        "genome bin quality",
+        "MAG quality",
+        "SAG quality",
+        "completeness contamination",
+    ]
+    RETURN_TYPES = (
+        "TSV",
+        "FILE",
+        "TSV",
+        "DIRECTORY",
+        "FASTA",
+        "PHYLOXML",
+        "DIRECTORY",
+        "JSON",
+        "DIRECTORY",
+        "DIRECTORY",
+        "DIRECTORY",
+        "TSV",
+        "DIRECTORY",
+        "TSV",
+        "FILE",
+        "DIRECTORY",
+        "TSV",
+        "TSV",
+    )
+    RETURN_NAMES = (
+        "results",
+        "phylo_hmm_info",
+        "bin_stats_tree",
+        "hmmer_tree",
+        "concatenated_fasta",
+        "concatenated_tre",
+        "hmmer_tree_ali",
+        "concatenated_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+        "marker_file",
+        "hmmer_analyze",
+        "bin_stats_analyze",
+        "checkm_hmm_info",
+        "hmmer_analyze_ali",
+        "bin_stats_ext",
+        "marker_gene_stats",
+    )
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    INPUT_MODES = ["individual", "collection"]
+    EXTRA_OUTPUT_OPTIONS = [
+        "phylo_hmm_info",
+        "bin_stats_tree",
+        "hmmer_tree",
+        "concatenated_tre",
+        "concatenated_fasta",
+        "hmmer_tree_ali",
+        "concatenate_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+        "marker_file",
+        "hmmer_analyze",
+        "bin_stats_analyze",
+        "checkm_hmm_info",
+        "hmmer_analyze_ali",
+        "bin_stats_ext",
+        "marker_gene_stats",
+    ]
+    PLAN_OUTPUT_ORDER = [
+        "phylo_hmm_info",
+        "bin_stats_tree",
+        "hmmer_tree",
+        "concatenated_fasta",
+        "concatenated_tre",
+        "hmmer_tree_ali",
+        "concatenate_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+        "marker_file",
+        "hmmer_analyze",
+        "bin_stats_analyze",
+        "checkm_hmm_info",
+        "hmmer_analyze_ali",
+        "bin_stats_ext",
+        "marker_gene_stats",
+    ]
+    OPTIONAL_OUTPUT_PATHS = {
+        "phylo_hmm_info": ("phylo_hmm_info", ("output", "storage", "phylo_hmm_info.pkl.gz")),
+        "bin_stats_tree": ("bin_stats_tree", ("output", "storage", "bin_stats.tree.tsv")),
+        "hmmer_tree": ("hmmer_tree", ("output", "bins", "hmmer_tree")),
+        "concatenated_fasta": ("concatenated_fasta", ("output", "storage", "tree", "concatenated.fasta")),
+        "concatenated_tre": ("concatenated_tre", ("output", "storage", "tree", "concatenated.tre")),
+        "hmmer_tree_ali": ("hmmer_tree_ali", ("output", "bins", "hmmer_tree_ali")),
+        "concatenate_pplacer_json": (
+            "concatenated_pplacer_json",
+            ("output", "storage", "tree", "concatenated.pplacer.json"),
+        ),
+        "genes_fna": ("genes_fna", ("output", "bins", "genes_fna")),
+        "genes_faa": ("genes_faa", ("output", "bins", "genes_faa")),
+        "genes_gff": ("genes_gff", ("output", "bins", "genes_gff")),
+        "marker_file": ("marker_file", ("output", "lineage.ms")),
+        "hmmer_analyze": ("hmmer_analyze", ("output", "bins", "hmmer_analyze")),
+        "bin_stats_analyze": ("bin_stats_analyze", ("output", "storage", "bin_stats.analyze.tsv")),
+        "checkm_hmm_info": ("checkm_hmm_info", ("output", "storage", "checkm_hmm_info.pkl.gz")),
+        "hmmer_analyze_ali": ("hmmer_analyze_ali", ("output", "bins", "hmmer_analyze_ali")),
+        "bin_stats_ext": ("bin_stats_ext", ("output", "storage", "bin_stats_ext.tsv")),
+        "marker_gene_stats": ("marker_gene_stats", ("output", "storage", "marker_gene_stats.tsv")),
+    }
+    DIRECTORY_OUTPUTS = {
+        "hmmer_tree",
+        "hmmer_tree_ali",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+        "hmmer_analyze",
+        "hmmer_analyze_ali",
+    }
+
+    @classmethod
+    def _input_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("bins", inputs.get("bins_ind", inputs.get("bins_coll", inputs.get("input")))))
+
+    @classmethod
+    def _extra_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        raw = inputs.get("extra_outputs", [])
+        if isinstance(raw, str):
+            return [part.strip() for part in raw.split(",") if part.strip()]
+        if isinstance(raw, (list, tuple)):
+            return [str(value) for value in raw if str(value)]
+        return []
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any], input_files: list[str]) -> list[str]:
+        raw = inputs.get("element_identifiers", inputs.get("identifiers", inputs.get("labels")))
+        if isinstance(raw, (list, tuple)):
+            identifiers = [str(identifier) if identifier is not None else "" for identifier in raw]
+        elif raw is None or raw == "":
+            identifiers = []
+        else:
+            identifiers = [str(raw)]
+
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        resolved: list[str] = []
+        for index, input_file in enumerate(input_files):
+            identifier = identifiers[index] if index < len(identifiers) else ""
+            if input_mode == "collection" and identifier:
+                resolved.append(_safe_identifier(identifier))
+            else:
+                resolved.append(_safe_name(input_file))
+        return resolved
+
+    @classmethod
+    def _link_name(cls, input_mode: str, identifier: str) -> str:
+        if input_mode == "collection":
+            return f"{identifier}.fasta"
+        return f"{identifier}.fasta"
+
+    @classmethod
+    def _add_bool(cls, cmd: list[str], inputs: dict[str, Any], name: str, flag: str) -> None:
+        if inputs.get(name):
+            cmd.append(flag)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        bins_dir = f"{out}/bins"
+        checkm_out = f"{out}/output"
+        input_files = cls._input_files(inputs)
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        identifiers = cls._element_identifiers(inputs, input_files)
+
+        cmd = ["mkdir", "-p", bins_dir, checkm_out]
+        for input_file, identifier in zip(input_files, identifiers, strict=True):
+            cmd.extend(["&&", "ln", "-sf", input_file, f"{bins_dir}/{cls._link_name(input_mode, identifier)}"])
+        cmd.extend(["&&", "checkm", "lineage_wf", bins_dir, checkm_out])
+        for name, flag in [
+            ("reduced_tree", "--reduced_tree"),
+            ("ali", "--ali"),
+            ("nt", "--nt"),
+            ("genes", "--genes"),
+        ]:
+            cls._add_bool(cmd, inputs, name, flag)
+        cmd.extend(["--unique", str(inputs.get("unique", 10)), "--multi", str(inputs.get("multi", 10))])
+        for name, flag in [
+            ("force_domain", "--force_domain"),
+            ("no_refinement", "--no_refinement"),
+            ("individual_markers", "--individual_markers"),
+            ("skip_adj_correction", "--skip_adj_correction"),
+            ("skip_pseudogene_correction", "--skip_pseudogene_correction"),
+        ]:
+            cls._add_bool(cmd, inputs, name, flag)
+        cmd.extend(["--aai_strain", str(inputs.get("aai_strain", 0.9))])
+        cls._add_bool(cmd, inputs, "ignore_thresholds", "--ignore_thresholds")
+        threads = str(inputs.get("threads", 1))
+        cmd.extend(
+            [
+                "--e_value",
+                str(inputs.get("e_value", "1e-10")),
+                "--length",
+                str(inputs.get("length", 0.7)),
+                "--file",
+                f"{out}/results.tsv",
+                "--tab_table",
+                "--extension",
+                "fasta",
+                "--threads",
+                threads,
+                "--pplacer_threads",
+                threads,
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def _include_optional_output(cls, option: str, inputs: dict[str, Any]) -> bool:
+        if option in {"hmmer_tree_ali", "hmmer_analyze_ali"} and not inputs.get("ali"):
+            return False
+        if option == "genes_fna" and (inputs.get("genes") or not inputs.get("nt")):
+            return False
+        if option == "genes_gff" and inputs.get("genes"):
+            return False
+        return True
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "results.tsv"]
+        selected = cls._extra_outputs(inputs)
+        for option in cls.PLAN_OUTPUT_ORDER:
+            if option not in selected or not cls._include_optional_output(option, inputs):
+                continue
+            output_name, parts = cls.OPTIONAL_OUTPUT_PATHS[option]
+            path = out.joinpath(*parts)
+            if output_name in cls.DIRECTORY_OUTPUTS:
+                path.mkdir(parents=True, exist_ok=True)
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            outputs.append(path)
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bins": (
+                    "FASTA_LIST",
+                    {
+                        "multiple": True,
+                        "min_items": 1,
+                        "description": "Genome-bin FASTA files to assess",
+                    },
+                ),
+            },
+            "optional": {
+                "input_mode": (
+                    "STRING",
+                    {
+                        "default": "individual",
+                        "options": cls.INPUT_MODES,
+                        "description": "Galaxy bin input structure used for naming symlinks",
+                    },
+                ),
+                "element_identifiers": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional Galaxy collection element identifiers for bins",
+                    },
+                ),
+                "reduced_tree": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use the reduced reference tree for lineage placement"},
+                ),
+                "ali": ("BOOLEAN", {"default": False, "description": "Generate HMMER alignment files"}),
+                "nt": ("BOOLEAN", {"default": False, "description": "Generate nucleotide gene sequences"}),
+                "genes": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Input bins contain amino-acid genes instead of nucleotide contigs"},
+                ),
+                "unique": (
+                    "INT",
+                    {
+                        "default": 10,
+                        "min": 0,
+                        "description": "Minimum unique phylogenetic markers for lineage-specific marker sets",
+                    },
+                ),
+                "multi": (
+                    "INT",
+                    {
+                        "default": 10,
+                        "min": 0,
+                        "description": "Maximum multi-copy phylogenetic markers before using domain-level marker sets",
+                    },
+                ),
+                "force_domain": ("BOOLEAN", {"default": False, "description": "Use domain-level marker sets for all bins"}),
+                "no_refinement": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Disable lineage-specific marker set refinement"},
+                ),
+                "individual_markers": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Treat marker genes as independent during QA"},
+                ),
+                "skip_adj_correction": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not exclude adjacent marker genes when estimating contamination"},
+                ),
+                "skip_pseudogene_correction": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Skip pseudogene identification and filtering"},
+                ),
+                "aai_strain": (
+                    "FLOAT",
+                    {
+                        "default": 0.9,
+                        "min": 0,
+                        "max": 1,
+                        "description": "AAI threshold used to identify strain heterogeneity",
+                    },
+                ),
+                "ignore_thresholds": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Ignore model-specific score thresholds"},
+                ),
+                "e_value": ("FLOAT", {"default": 1e-10, "min": 0, "max": 1, "description": "E-value cutoff"}),
+                "length": (
+                    "FLOAT",
+                    {"default": 0.7, "min": 0, "max": 1, "description": "Minimum target-query overlap fraction"},
+                ),
+                "extra_outputs": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "options": cls.EXTRA_OUTPUT_OPTIONS,
+                        "multiple": True,
+                        "description": "Galaxy extra outputs to collect from the workflow",
+                    },
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_files(inputs):
+            return "at least one bins value is required"
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        if input_mode not in cls.INPUT_MODES:
+            return f"input_mode must be one of: {', '.join(cls.INPUT_MODES)}"
+        for name in ("unique", "multi"):
+            try:
+                value = int(inputs.get(name, 10))
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < 0:
+                return f"{name} must be >= 0"
+        for name, default in {"aai_strain": 0.9, "e_value": 1e-10, "length": 0.7}.items():
+            try:
+                value = float(inputs.get(name, default))
+            except (TypeError, ValueError):
+                return f"{name} must be a number"
+            if value < 0 or value > 1:
+                return f"{name} must be between 0 and 1"
+        try:
+            threads = int(inputs.get("threads", 1))
+        except (TypeError, ValueError):
+            return "threads must be an integer"
+        if threads < 1:
+            return "threads must be >= 1"
+        unknown = [value for value in cls._extra_outputs(inputs) if value not in cls.EXTRA_OUTPUT_OPTIONS]
+        if unknown:
+            return f"extra_outputs values must be one of: {', '.join(cls.EXTRA_OUTPUT_OPTIONS)}"
+        return True
+
+
 class CheckM2Node(CommandNode):
     """Assess MAG, SAG, or isolate genome quality with CheckM2."""
 

@@ -3371,6 +3371,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41592-023-01940-w'],
     citation_text: 'CheckM2: a rapid, scalable and accurate tool for assessing microbial genome quality using machine learning.',
   },
+  checkm_lineage_wf: {
+    name: 'checkm_lineage_wf',
+    display_name: 'CheckM lineage_wf',
+    category: 'metagenomics',
+    description: 'Assess genome-bin completeness and contamination using lineage-specific marker sets.',
+    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'lineage_wf', 'lineage-specific marker sets', 'genome bin quality', 'MAG quality', 'SAG quality', 'completeness contamination'],
+    input: {
+      required: {
+        bins: { type: 'FASTA_LIST', multiple: true },
+      },
+      optional: {
+        input_mode: { type: 'STRING', default: 'individual', options: ['individual', 'collection'] },
+        unique: { type: 'INT', default: 10 },
+        multi: { type: 'INT', default: 10 },
+        aai_strain: { type: 'FLOAT', default: 0.9 },
+        extra_outputs: { type: 'STRING_LIST', default: [], options: ['phylo_hmm_info', 'bin_stats_tree', 'hmmer_tree', 'concatenated_tre', 'concatenated_fasta', 'hmmer_tree_ali', 'concatenate_pplacer_json', 'genes_fna', 'genes_faa', 'genes_gff', 'marker_file', 'hmmer_analyze', 'bin_stats_analyze', 'checkm_hmm_info', 'hmmer_analyze_ali', 'bin_stats_ext', 'marker_gene_stats'] },
+      },
+    },
+    output: ['TSV', 'FILE', 'TSV', 'DIRECTORY', 'FASTA', 'PHYLOXML', 'DIRECTORY', 'JSON', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'TSV', 'DIRECTORY', 'TSV', 'FILE', 'DIRECTORY', 'TSV', 'TSV'],
+    output_name: ['results', 'phylo_hmm_info', 'bin_stats_tree', 'hmmer_tree', 'concatenated_fasta', 'concatenated_tre', 'hmmer_tree_ali', 'concatenated_pplacer_json', 'genes_fna', 'genes_faa', 'genes_gff', 'marker_file', 'hmmer_analyze', 'bin_stats_analyze', 'checkm_hmm_info', 'hmmer_analyze_ali', 'bin_stats_ext', 'marker_gene_stats'],
+    required_executables: ['checkm'],
+    required_conda_packages: ['checkm-genome'],
+    documentation_url: 'https://github.com/Ecogenomics/CheckM',
+    citation_dois: ['10.1101/gr.186072.114'],
+    citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
+    citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
+  },
   das_tool: {
     name: 'das_tool',
     display_name: 'DAS Tool',
@@ -15975,7 +16002,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('537 nodes available')).toBeVisible();
+  await expect(page.getByText('538 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16098,6 +16125,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
     { query: 'Graphical Fragment Assembly', name: 'GFA to FASTA', category: 'assembly' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
+    { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
     { query: 'unique sequences', name: 'VSEARCH Dereplication', category: 'metagenomics' },
