@@ -35763,6 +35763,44 @@ class Beacon2DatasetsNode(_Beacon2SearchBaseNode):
     )
 
 
+class Beacon2GeneNode(_Beacon2SearchBaseNode):
+    """Query Beacon genomic variants by gene symbol."""
+
+    NODE_ID = "beacon2_gene"
+    DISPLAY_NAME = "Beacon2 Gene"
+    DESCRIPTION = "Query Beacon genomic variants by HGNC gene symbol."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_gene",
+        "Beacon2 Gene",
+        "beacon2-search gene",
+        "geneId",
+        "HGNC gene symbol",
+        "genomic variants",
+        "aminoacidChange",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_gene_query",)
+    SEARCH_COLLECTION = "gene"
+    OUTPUT_FILENAME = "gene_query_findings.json"
+    REQUIRED_QUERY_FLAGS = (
+        ("geneId", "--geneId", "STRING", "HGNC gene symbol used to query Beacon variants"),
+    )
+    QUERY_FLAGS = (
+        ("alternateBases", "--alternateBases", "Targeted alternate bases to search for"),
+        ("variantType", "--variantType", "Targeted variant type to search for"),
+        ("aminoacidChange", "--aminoacidChange", "Targeted amino-acid change to search for"),
+        ("variantMinLength", "--variantMinLength", "Targeted minimum variant length"),
+        ("variantMaxLength", "--variantMaxLength", "Targeted maximum variant length"),
+    )
+    TYPED_QUERY_FLAGS = (
+        ("variantMinLength", "--variantMinLength", "INT", "Targeted minimum variant length"),
+        ("variantMaxLength", "--variantMaxLength", "INT", "Targeted maximum variant length"),
+    )
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 
