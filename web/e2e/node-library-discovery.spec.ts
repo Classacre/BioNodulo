@@ -6337,6 +6337,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_mafcoverage: {
+    name: 'ucsc_mafcoverage',
+    display_name: 'mafCoverage',
+    category: 'genomics',
+    description: 'Analyse chromosome and genome-wide coverage from sorted UCSC MAF alignments.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafCoverage', 'ucsc_mafcoverage', 'mafCoverage', 'MAF coverage', 'multiple alignment format', 'genome-wide coverage', 'restricted coverage'],
+    input: {
+      required: {
+        maf_file: { type: 'FILE' },
+        genome: { type: 'STRING' },
+      },
+      optional: {
+        restrict_select: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        restrict_bed: { type: 'BED' },
+        count: { type: 'INT', default: '', min: 1 },
+        ucsc_db_connection: { type: 'FILE' },
+      },
+    },
+    output: ['TXT'],
+    output_name: ['output'],
+    required_executables: ['mafCoverage'],
+    required_conda_packages: ['ucsc-mafcoverage'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/mafCoverage/mafCoverage.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -13155,7 +13182,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('454 nodes available')).toBeVisible();
+  await expect(page.getByText('455 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13379,6 +13406,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'split FASTA', name: 'faSplit', category: 'genomics' },
     { query: 'FASTA alignment to VCF', name: 'faToVcf', category: 'variant' },
     { query: 'MAF block filter', name: 'mafFilter', category: 'genomics' },
+    { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },

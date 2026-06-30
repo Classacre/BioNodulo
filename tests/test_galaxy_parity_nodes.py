@@ -35612,6 +35612,88 @@ def test_ucsc_maffilter_validates_required_input_thresholds_and_score_modes() ->
     assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "factor_enabled": "yes", "minFactor": 5}) is True
 
 
+def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_mafcoverage"]
+
+    assert info["display_name"] == "mafCoverage"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Analyse chromosome and genome-wide coverage from sorted UCSC MAF alignments."
+    assert info["output"] == ["TXT"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["mafCoverage"]
+    assert info["required_conda_packages"] == ["ucsc-mafcoverage"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/mafCoverage/mafCoverage.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "MAF coverage" in info["search_aliases"]
+    assert info["input"]["required"]["maf_file"][0] == "FILE"
+    assert info["input"]["required"]["genome"][0] == "STRING"
+    assert info["input"]["optional"]["restrict_select"][1]["default"] == "no"
+    assert info["input"]["optional"]["restrict_select"][1]["options"] == ["no", "yes"]
+    assert info["input"]["optional"]["restrict_bed"][0] == "BED"
+    assert info["input"]["optional"]["count"][1]["default"] == ""
+    assert info["input"]["optional"]["ucsc_db_connection"][0] == "FILE"
+
+
+def test_ucsc_mafcoverage_renders_galaxy_config_count_restrict_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_mafcoverage")
+
+    assert node_class.render_command(
+        {
+            "maf_file": "mafFetch output.maf",
+            "genome": "hg19",
+            "output": "/work/ucsc_mafcoverage",
+        }
+    ) == (
+        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafCoverage hg19 'mafFetch output.maf' > /work/ucsc_mafcoverage/coverage.txt"
+    )
+    assert node_class.render_command(
+        {
+            "maf_file": "mafFetch.maf",
+            "genome": "hg38",
+            "restrict_select": "yes",
+            "restrict_bed": "coding regions.bed",
+            "count": 2,
+            "ucsc_db_connection": "custom hg.conf",
+            "output": "/work/ucsc_mafcoverage",
+        }
+    ) == (
+        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafCoverage hg38 mafFetch.maf '-restrict=coding regions.bed' -count=2 "
+        "> /work/ucsc_mafcoverage/coverage.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_mafcoverage" / "coverage.txt",
+    ]
+
+
+def test_ucsc_mafcoverage_validates_required_inputs_restrict_and_count() -> None:
+    node_class = _node_class("ucsc_mafcoverage")
+
+    assert node_class.VALIDATE_INPUTS({}) == "maf_file is required"
+    assert node_class.VALIDATE_INPUTS({"maf_file": "input.maf"}) == "genome is required"
+    assert node_class.VALIDATE_INPUTS({"maf_file": "input.maf", "genome": "hg19", "restrict_select": "bad"}) == (
+        "restrict_select must be one of: no, yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"maf_file": "input.maf", "genome": "hg19", "restrict_select": "yes"}) == (
+        "restrict_bed is required when restrict_select is yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"maf_file": "input.maf", "genome": "hg19", "count": 0}) == (
+        "count must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"maf_file": "input.maf", "genome": "hg19", "count": "many"}) == (
+        "count must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"maf_file": "input.maf", "genome": "hg19"}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"maf_file": "input.maf", "genome": "hg19", "restrict_select": "yes", "restrict_bed": "regions.bed", "count": 3}
+    ) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 

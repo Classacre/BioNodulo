@@ -29358,6 +29358,126 @@ class UcscMafFilterNode(CommandNode):
         }
 
 
+class UcscMafCoverageNode(CommandNode):
+    """Measure genome coverage from UCSC MAF alignments."""
+
+    NODE_ID = "ucsc_mafcoverage"
+    DISPLAY_NAME = "mafCoverage"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-mafcoverage"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Analyse chromosome and genome-wide coverage from sorted UCSC MAF alignments."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_mafCoverage",
+        "ucsc_mafcoverage",
+        "mafCoverage",
+        "MAF coverage",
+        "multiple alignment format",
+        "genome-wide coverage",
+        "restricted coverage",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["mafCoverage"]
+    DOCUMENTATION_URL = "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/mafCoverage/mafCoverage.c"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+    SHELL = True
+
+    RESTRICT_OPTIONS = ["no", "yes"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/coverage.txt"
+
+    @classmethod
+    def _restrict_select(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("restrict_select", "no") or "no")
+
+    @classmethod
+    def _ucsc_db_connection(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ucsc_db_connection", "ucsc_db_connection.conf") or "ucsc_db_connection.conf")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        setup = (
+            f"cp {shlex.quote(cls._ucsc_db_connection(inputs))} ${{HOME}}/.hg.conf && "
+            "chmod 600 ${HOME}/.hg.conf"
+        )
+        cmd = [
+            "mafCoverage",
+            str(inputs.get("genome", "")),
+            str(inputs.get("maf_file", "")),
+        ]
+        if cls._restrict_select(inputs) == "yes":
+            cmd.append(f"-restrict={inputs.get('restrict_bed', '')}")
+        if str(inputs.get("count", "")) != "":
+            cmd.append(f"-count={inputs.get('count')}")
+        return f"{setup} && {_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "coverage.txt"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("maf_file", "")).strip():
+            return "maf_file is required"
+        if not str(inputs.get("genome", "")).strip():
+            return "genome is required"
+        restrict_select = cls._restrict_select(inputs)
+        if restrict_select not in cls.RESTRICT_OPTIONS:
+            return f"restrict_select must be one of: {', '.join(cls.RESTRICT_OPTIONS)}"
+        if restrict_select == "yes" and not str(inputs.get("restrict_bed", "")).strip():
+            return "restrict_bed is required when restrict_select is yes"
+        count = inputs.get("count", "")
+        if str(count) != "":
+            try:
+                count_value = int(count)
+            except (TypeError, ValueError):
+                return "count must be an integer"
+            if count_value < 1:
+                return "count must be greater than or equal to 1"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "maf_file": ("FILE", {"description": "Sorted UCSC MAF alignment file"}),
+                "genome": ("STRING", {"description": "UCSC genome database name"}),
+            },
+            "optional": {
+                "restrict_select": (
+                    "STRING",
+                    {
+                        "default": "no",
+                        "options": cls.RESTRICT_OPTIONS,
+                        "description": "Restrict coverage calculation to regions in a BED file",
+                    },
+                ),
+                "restrict_bed": (
+                    "BED",
+                    {"description": "BED intervals used when restricted coverage is enabled"},
+                ),
+                "count": (
+                    "INT",
+                    {"default": "", "min": 1, "description": "Threshold for bases covered by at least this many species"},
+                ),
+                "ucsc_db_connection": (
+                    "FILE",
+                    {"description": "UCSC database connection configuration copied to ~/.hg.conf"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MafToAxtNode(CommandNode):
     """Convert UCSC MAF alignments to AXT format."""
 
