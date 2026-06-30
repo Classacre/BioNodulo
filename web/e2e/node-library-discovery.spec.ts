@@ -240,6 +240,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.5281/zenodo.2566616', 'https://bitbucket.org/princeton_genomics/barcode_splitter/'],
     citation_text: 'Barcode Splitter: split sequence files using multiple sets of barcodes.',
   },
+  blastxml_to_gapped_gff3: {
+    name: 'blastxml_to_gapped_gff3',
+    display_name: 'BlastXML to gapped GFF3',
+    category: 'annotation',
+    description: 'Convert BLAST XML alignments into GFF3 features with Gap attributes.',
+    search_aliases: ['Galaxy', 'blastxml_to_gapped_gff3', 'BlastXML', 'gapped GFF3', 'BLAST XML', 'match_part', 'Gap', 'GFF3'],
+    input: {
+      required: {
+        blastxml: { type: 'FILE' },
+      },
+      optional: {
+        min_gap: { type: 'INT', default: 3, min: 0 },
+        trim: { type: 'STRING', default: '--trim_end', options: ['', '--trim', '--trim_end'] },
+        script_path: { type: 'FILE', default: 'blastxml_to_gapped_gff3.py' },
+      },
+    },
+    output: ['GFF3'],
+    output_name: ['output'],
+    required_executables: ['python'],
+    required_conda_packages: ['bcbiogff'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/blastxml_to_gapped_gff3',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/blastxml_to_gapped_gff3'],
+    citation_text: 'BlastXML to gapped GFF3 converts BLAST XML alignments into GFF3 with match_part features and Gap attributes.',
+  },
   aegean_canongff3: {
     name: 'aegean_canongff3',
     display_name: 'AEGeAn CanonGFF3',
@@ -12099,7 +12124,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('414 nodes available')).toBeVisible();
+  await expect(page.getByText('415 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12111,6 +12136,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },
     { query: 'index reads', name: 'Barcode Splitter', category: 'sequence' },
+    { query: 'gapped GFF3', name: 'BlastXML to gapped GFF3', category: 'annotation' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },

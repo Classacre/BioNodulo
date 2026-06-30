@@ -4013,6 +4013,89 @@ def test_barcode_splitter_validates_required_inputs_modes_and_index_reads() -> N
     ) is True
 
 
+def test_blastxml_to_gapped_gff3_exposes_galaxy_metadata_without_citation_doi() -> None:
+    info = _registry().object_info()["blastxml_to_gapped_gff3"]
+
+    assert info["display_name"] == "BlastXML to gapped GFF3"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Convert BLAST XML alignments into GFF3 features with Gap attributes."
+    assert info["input"]["required"]["blastxml"][0] == "FILE"
+    assert info["input"]["optional"]["min_gap"][1]["default"] == 3
+    assert info["input"]["optional"]["min_gap"][1]["min"] == 0
+    assert info["input"]["optional"]["trim"][1]["default"] == "--trim_end"
+    assert info["input"]["optional"]["trim"][1]["options"] == ["", "--trim", "--trim_end"]
+    assert info["input"]["optional"]["script_path"][1]["default"] == "blastxml_to_gapped_gff3.py"
+    assert info["output"] == ["GFF3"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["bcbiogff"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/blastxml_to_gapped_gff3"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == [
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/blastxml_to_gapped_gff3"
+    ]
+    assert "match_part" in info["citation_text"]
+    assert "Gap" in info["search_aliases"]
+
+
+def test_blastxml_to_gapped_gff3_renders_default_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("blastxml_to_gapped_gff3")
+
+    assert node_class.render_command(
+        {
+            "blastxml": "input.xml",
+            "output": "/work/blastxml_to_gapped_gff3",
+        }
+    ) == (
+        "python blastxml_to_gapped_gff3.py input.xml --min_gap 3 --trim_end "
+        "> /work/blastxml_to_gapped_gff3/output.gff3"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "blastxml_to_gapped_gff3" / "output.gff3",
+    ]
+
+
+def test_blastxml_to_gapped_gff3_renders_custom_trim_and_quoted_paths() -> None:
+    node_class = _node_class("blastxml_to_gapped_gff3")
+
+    assert node_class.render_command(
+        {
+            "blastxml": "blast results.xml",
+            "min_gap": 7,
+            "trim": "--trim",
+            "script_path": "/tools/blastxml to gff/blastxml_to_gapped_gff3.py",
+            "output": "/work/blastxml_to_gapped_gff3",
+        }
+    ) == (
+        "python '/tools/blastxml to gff/blastxml_to_gapped_gff3.py' 'blast results.xml' "
+        "--min_gap 7 --trim > /work/blastxml_to_gapped_gff3/output.gff3"
+    )
+
+
+def test_blastxml_to_gapped_gff3_omits_trim_when_none_selected() -> None:
+    node_class = _node_class("blastxml_to_gapped_gff3")
+
+    assert node_class.render_command(
+        {
+            "blastxml": "input.xml",
+            "trim": "",
+            "output": "/work/blastxml_to_gapped_gff3",
+        }
+    ) == "python blastxml_to_gapped_gff3.py input.xml --min_gap 3 > /work/blastxml_to_gapped_gff3/output.gff3"
+
+
+def test_blastxml_to_gapped_gff3_validates_required_inputs_and_options() -> None:
+    node_class = _node_class("blastxml_to_gapped_gff3")
+
+    assert node_class.VALIDATE_INPUTS({}) == "blastxml is required"
+    assert node_class.VALIDATE_INPUTS({"blastxml": "input.xml", "min_gap": "bad"}) == "min_gap must be an integer"
+    assert node_class.VALIDATE_INPUTS({"blastxml": "input.xml", "min_gap": -1}) == "min_gap must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"blastxml": "input.xml", "trim": "--both"}) == (
+        "trim must be one of: , --trim, --trim_end"
+    )
+    assert node_class.VALIDATE_INPUTS({"blastxml": "input.xml"}) is True
+
+
 def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["aegean_canongff3"]
 

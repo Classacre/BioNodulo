@@ -184,6 +184,12 @@ BARCODE_SPLITTER_CITATION_URL = "https://bitbucket.org/princeton_genomics/barcod
 BARCODE_SPLITTER_CITATION_TEXT = (
     "Barcode Splitter: split sequence files using multiple sets of barcodes."
 )
+BLASTXML_TO_GAPPED_GFF3_CITATION_URL = (
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/blastxml_to_gapped_gff3"
+)
+BLASTXML_TO_GAPPED_GFF3_CITATION_TEXT = (
+    "BlastXML to gapped GFF3 converts BLAST XML alignments into GFF3 with match_part features and Gap attributes."
+)
 AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
 AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
 LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
@@ -2982,6 +2988,123 @@ class BarcodeSplitterNode(CommandNode):
                         "default": "fastq",
                         "options": cls.FORMATS,
                         "description": "FASTQ datatype extension used for discovered split files",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BlastxmlToGappedGff3Node(CommandNode):
+    """Convert BLAST XML alignments into gapped GFF3 features."""
+
+    NODE_ID = "blastxml_to_gapped_gff3"
+    DISPLAY_NAME = "BlastXML to gapped GFF3"
+    REQUIRED_CONDA_PACKAGES = ["bcbiogff"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Convert BLAST XML alignments into GFF3 features with Gap attributes."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "blastxml_to_gapped_gff3",
+        "BlastXML",
+        "gapped GFF3",
+        "BLAST XML",
+        "match_part",
+        "Gap",
+        "GFF3",
+    ]
+    RETURN_TYPES = ("GFF3",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = BLASTXML_TO_GAPPED_GFF3_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [BLASTXML_TO_GAPPED_GFF3_CITATION_URL]
+    CITATION_TEXT = BLASTXML_TO_GAPPED_GFF3_CITATION_TEXT
+    VERSION = "1.1"
+    SHELL = True
+
+    TRIM_OPTIONS = ["", "--trim", "--trim_end"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.gff3"
+
+    @classmethod
+    def _min_gap(cls, inputs: dict[str, Any]) -> int:
+        value = inputs.get("min_gap", 3)
+        if value is None or value == "":
+            value = 3
+        return int(value)
+
+    @classmethod
+    def _trim(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("trim", "--trim_end") or "")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "blastxml_to_gapped_gff3.py") or "blastxml_to_gapped_gff3.py"),
+            str(inputs.get("blastxml", "")),
+            "--min_gap",
+            str(cls._min_gap(inputs)),
+        ]
+        trim = cls._trim(inputs)
+        if trim:
+            cmd.append(trim)
+        cmd.extend([">", cls._output_path(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.gff3"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("blastxml", "")).strip():
+            return "blastxml is required"
+        try:
+            min_gap = cls._min_gap(inputs)
+        except (TypeError, ValueError):
+            return "min_gap must be an integer"
+        if min_gap < 0:
+            return "min_gap must be >= 0"
+        trim = cls._trim(inputs)
+        if trim not in cls.TRIM_OPTIONS:
+            return f"trim must be one of: {', '.join(cls.TRIM_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "blastxml": ("FILE", {"description": "BLAST XML alignment results"}),
+            },
+            "optional": {
+                "min_gap": (
+                    "INT",
+                    {
+                        "default": 3,
+                        "min": 0,
+                        "description": "Maximum gap size before generating a new match_part",
+                    },
+                ),
+                "trim": (
+                    "STRING",
+                    {
+                        "default": "--trim_end",
+                        "options": cls.TRIM_OPTIONS,
+                        "description": "Trim neither end, both ends, or only the alignment end",
+                    },
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "blastxml_to_gapped_gff3.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy blastxml_to_gapped_gff3.py helper script",
                     },
                 ),
             },
