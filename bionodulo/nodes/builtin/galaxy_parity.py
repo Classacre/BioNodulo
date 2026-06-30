@@ -2210,6 +2210,163 @@ class BaredscCombine1DNode(Baredsc1DNode):
         return base
 
 
+class BaredscCombine2DNode(Baredsc2DNode):
+    """Combine multiple two-dimensional baredSC model archives."""
+
+    NODE_ID = "baredsc_combine_2d"
+    DISPLAY_NAME = "Combine multiple 2D Models"
+    DESCRIPTION = "Combine multiple two-dimensional baredSC model archives for a pair of genes."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "baredSC",
+        "baredsc_combine_2d",
+        "Combine multiple 2D Models",
+        "combine 2D",
+        "model averaging",
+        "pair of genes",
+        "Bayesian Approach",
+        "correlation",
+        "MCMC",
+    ]
+    RETURN_TYPES = ("TSV", "TSV", "IMAGE", "DIRECTORY")
+    RETURN_NAMES = ("pdf2d", "pdf2d_flat", "plot", "other_outputs")
+    REQUIRED_EXECUTABLES = ["combineMultipleModels_2d", "ln", "mkdir", "mv"]
+
+    @classmethod
+    def _output_paths(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        return [
+            out / "output" / "baredSC_pdf2d.txt",
+            out / "output" / "baredSC_pdf2d_flat.txt",
+            out / f"baredSC.{cls._image_format(inputs)}",
+            out / "other_outputs",
+        ]
+
+    @classmethod
+    def _append_model_outputs(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        outputs = _as_list(inputs.get("outputs"))
+        cmd.append("--outputs")
+        cmd.extend(str(idx) for idx, _ in enumerate(outputs))
+
+    @classmethod
+    def _append_mcmc(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        scale = str(inputs.get("xscale", "Seurat") or "Seurat")
+        cmd.extend(
+            [
+                "--xmin",
+                str(inputs.get("xmin", 0)),
+                "--xmax",
+                str(inputs.get("xmax", 2.5)),
+                "--nx",
+                str(inputs.get("nx", 100)),
+                "--minScalex",
+                str(inputs.get("minScalex", 0.1)),
+                "--ymin",
+                str(inputs.get("ymin", 0)),
+                "--ymax",
+                str(inputs.get("ymax", 2.5)),
+                "--ny",
+                str(inputs.get("ny", 100)),
+                "--minScaley",
+                str(inputs.get("minScaley", 0.1)),
+                "--scale",
+                scale,
+            ]
+        )
+        if scale == "Seurat":
+            cmd.extend(["--targetSum", str(inputs.get("targetSum", 10000))])
+        cmd.extend(["--seed", str(inputs.get("seed", 1))])
+
+    @classmethod
+    def _append_advanced(cls, cmd: list[str], inputs: dict[str, Any]) -> None:
+        cmd.extend(
+            [
+                "--osampx",
+                str(inputs.get("osampx", 10)),
+                "--osampxpdf",
+                str(inputs.get("osampxpdf", 4)),
+                "--osampy",
+                str(inputs.get("osampy", 10)),
+                "--osampypdf",
+                str(inputs.get("osampypdf", 4)),
+                "--coviscale",
+                str(inputs.get("coviscale", 1)),
+                "--nis",
+                str(inputs.get("nis", 1000)),
+                "--scalePrior",
+                str(inputs.get("scalePrior", 0.3)),
+            ]
+        )
+        if inputs.get("getPVal", False):
+            cmd.append("--getPVal")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        outputs = _as_list(inputs.get("outputs"))
+        commands = [_shell_join(["ln", "-s", output, f"{idx}.npz"]) for idx, output in enumerate(outputs)]
+        image_format = cls._image_format(inputs)
+        cmd = ["combineMultipleModels_2d"]
+        cls._append_required_inputs(cmd, inputs)
+        cls._append_filters(cmd, inputs)
+        cls._append_model_outputs(cmd, inputs)
+        cls._append_mcmc(cmd, inputs)
+        cls._append_plots(cmd, inputs)
+        cls._append_advanced(cmd, inputs)
+        cmd.extend(["--figure", f"baredSC.{image_format}"])
+        commands.extend(
+            [
+                _shell_join(cmd),
+                "mkdir output",
+                "mv baredSC_pdf2d.txt output",
+                "mv baredSC_pdf2d_flat.txt output",
+                f"mv baredSC.{shlex.quote(image_format)} baredSC",
+            ]
+        )
+        splity = str(inputs.get("splity", "") or "")
+        commands.extend(
+            _shell_join(["mv", f"baredSC_split{value}.txt", f"baredSC_split{value}_pdf.txt"])
+            for value in splity.split()
+        )
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        (out / "output").mkdir(parents=True, exist_ok=True)
+        (out / "other_outputs").mkdir(parents=True, exist_ok=True)
+        return cls._output_paths(inputs, output_dir)
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not _as_list(inputs.get("outputs")):
+            return "outputs is required"
+        result = super().VALIDATE_INPUTS(inputs)
+        if result is not True:
+            return result
+        for name in ("prettyBinsx", "prettyBinsy"):
+            try:
+                value = int(inputs.get(name, -1))
+            except (TypeError, ValueError):
+                return f"{name} must be numeric"
+            if value < -1:
+                return f"{name} must be greater than or equal to -1"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        base = super().INPUT_TYPES()
+        required = {"outputs": ("FILE", {"is_list": True, "description": "baredSC 2D model archives to combine"})}
+        required.update(base["required"])
+        base["required"] = required
+        optional = dict(base["optional"])
+        optional["getPVal"] = (
+            "BOOLEAN",
+            {"default": False, "advanced": True, "description": "Use fewer samples to estimate the p-value"},
+        )
+        base["optional"] = optional
+        return base
+
+
 class Bax2BamNode(CommandNode):
     """Convert legacy PacBio bax.h5 basecall files to BAM."""
 

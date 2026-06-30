@@ -1338,6 +1338,112 @@ def test_baredsc_combine_1d_renders_command_outputs_and_validates(tmp_path: Path
     )
 
 
+def test_baredsc_combine_2d_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["baredsc_combine_2d"]
+
+    assert info["display_name"] == "Combine multiple 2D Models"
+    assert info["category"] == "single_cell"
+    assert info["description"] == "Combine multiple two-dimensional baredSC model archives for a pair of genes."
+    assert info["input"]["required"]["outputs"][0] == "FILE"
+    assert info["input"]["required"]["outputs"][1]["is_list"] is True
+    assert info["input"]["required"]["geneXColName"][0] == "STRING"
+    assert info["input"]["required"]["geneYColName"][0] == "STRING"
+    assert info["input"]["optional"]["getPVal"][1]["default"] is False
+    assert info["input"]["optional"]["prettyBinsx"][1]["default"] == -1
+    assert info["input"]["optional"]["scalePrior"][1]["default"] == 0.3
+    assert info["output"] == ["TSV", "TSV", "IMAGE", "DIRECTORY"]
+    assert info["output_name"] == ["pdf2d", "pdf2d_flat", "plot", "other_outputs"]
+    assert info["required_executables"] == ["combineMultipleModels_2d", "ln", "mkdir", "mv"]
+    assert info["required_conda_packages"] == ["baredsc", "gzip"]
+    assert info["documentation_url"] == "https://baredsc.readthedocs.io/en/latest/index.html"
+    assert info["citation_dois"] == ["10.1186/s12859-021-04507-8"]
+    assert "Bayesian Approach" in info["citation_text"]
+    assert "combine 2D" in info["search_aliases"]
+
+
+def test_baredsc_combine_2d_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("baredsc_combine_2d")
+
+    assert node_class.render_command(
+        {
+            "outputs": ["2d small 1gauss.npz", "2d_small_2gauss.npz"],
+            "filetype": "tabular",
+            "input": "counts.tsv",
+            "geneXColName": "Gene X",
+            "geneYColName": "Gene Y",
+            "filter_nb": "1",
+            "metadata1ColName": "cluster",
+            "metadata1Values": "A,B",
+            "xmin": -2,
+            "xmax": 3,
+            "nx": 10,
+            "minScalex": 0.3,
+            "ymin": -1,
+            "ymax": 4,
+            "ny": 12,
+            "minScaley": 0.4,
+            "xscale": "Seurat",
+            "targetSum": 0,
+            "seed": 5,
+            "title": "combine 2d models",
+            "removeFirstSamples": 25,
+            "nsampInPlot": 4000,
+            "prettyBinsx": 20,
+            "prettyBinsy": 30,
+            "splity": "1 2",
+            "log1pColorScale": True,
+            "image_file_format": "pdf",
+            "getPVal": True,
+            "osampx": 12,
+            "osampxpdf": 4,
+            "osampy": 13,
+            "osampypdf": 5,
+            "coviscale": 1.5,
+            "nis": 900,
+            "scalePrior": 0.4,
+            "output": "/work/baredsc_combine_2d",
+        }
+    ) == (
+        "ln -s '2d small 1gauss.npz' 0.npz && ln -s 2d_small_2gauss.npz 1.npz && "
+        "combineMultipleModels_2d --input counts.tsv --geneXColName 'Gene X' --geneYColName 'Gene Y' "
+        "--metadata1ColName cluster --metadata1Values A,B --outputs 0 1 --xmin -2 --xmax 3 --nx 10 "
+        "--minScalex 0.3 --ymin -1 --ymax 4 --ny 12 --minScaley 0.4 --scale Seurat --targetSum 0 "
+        "--seed 5 --title 'combine 2d models' --removeFirstSamples 25 --nsampInPlot 4000 "
+        "--prettyBinsx 20 --prettyBinsy 30 --splity '1 2' --log1pColorScale --osampx 12 "
+        "--osampxpdf 4 --osampy 13 --osampypdf 5 --coviscale 1.5 --nis 900 --scalePrior 0.4 "
+        "--getPVal --figure baredSC.pdf && mkdir output && mv baredSC_pdf2d.txt output && "
+        "mv baredSC_pdf2d_flat.txt output && mv baredSC.pdf baredSC && "
+        "mv baredSC_split1.txt baredSC_split1_pdf.txt && mv baredSC_split2.txt baredSC_split2_pdf.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({"image_file_format": "pdf"}, tmp_path) == [
+        tmp_path / "baredsc_combine_2d" / "output" / "baredSC_pdf2d.txt",
+        tmp_path / "baredsc_combine_2d" / "output" / "baredSC_pdf2d_flat.txt",
+        tmp_path / "baredsc_combine_2d" / "baredSC.pdf",
+        tmp_path / "baredsc_combine_2d" / "other_outputs",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "outputs is required"
+    assert node_class.VALIDATE_INPUTS({"outputs": ["2d_small_1gauss.npz"]}) == "geneXColName is required"
+    assert node_class.VALIDATE_INPUTS({"outputs": ["2d_small_1gauss.npz"], "geneXColName": "Gene X"}) == (
+        "geneYColName is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "outputs": ["2d_small_1gauss.npz"],
+            "geneXColName": "Gene X",
+            "geneYColName": "Gene Y",
+            "input": "counts.tsv",
+            "prettyBinsx": -2,
+        }
+    ) == "prettyBinsx must be greater than or equal to -1"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {"outputs": ["2d_small_1gauss.npz"], "geneXColName": "Gene X", "geneYColName": "Gene Y", "input": "counts.tsv"}
+        )
+        is True
+    )
+
+
 def test_bax2bam_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["bax2bam"]
 
