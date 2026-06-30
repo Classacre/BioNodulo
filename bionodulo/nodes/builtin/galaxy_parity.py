@@ -35694,6 +35694,44 @@ class Beacon2CNVNode(_Beacon2SearchBaseNode):
     QUERY_FLAG_OPTIONS = {"variantStateId": VARIANT_STATE_OPTIONS}
 
 
+class Beacon2CohortsNode(_Beacon2SearchBaseNode):
+    """Query the cohorts collection in a Beacon database."""
+
+    NODE_ID = "beacon2_cohorts"
+    DISPLAY_NAME = "Beacon2 Cohorts"
+    DESCRIPTION = "Query the cohorts collection in a Beacon database for populations or groups sharing common attributes."
+    VERSION = "1.0.0"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_cohorts",
+        "Beacon2 Cohorts",
+        "beacon2-search cohorts",
+        "cohorts collection",
+        "cohortDataTypes",
+        "cohortType",
+        "genders",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_cohorts_query",)
+    SEARCH_COLLECTION = "cohorts"
+    OUTPUT_FILENAME = "cohorts_query_findings.json"
+    QUERY_FLAGS = (
+        ("cohortDataTypes", "--cohortDataTypes", "Type of cohort data, such as clinical history"),
+        ("cohortDesign", "--cohortDesign", "Study-design plan or protocol, such as longitudinal study design"),
+        ("cohortSize", "--cohortSize", "Count of unique individuals in the cohort"),
+        ("identification", "--identification", "Cohort identifier, such as cohort0001"),
+        ("cohortType", "--cohortType", "Cohort type by definition, such as study-defined"),
+        ("genders", "--genders", "Gender filter for the cohort"),
+        ("name", "--name", "Name of the cohort"),
+    )
+    TYPED_QUERY_FLAGS = (
+        ("cohortSize", "--cohortSize", "INT", "Count of unique individuals in the cohort"),
+    )
+    QUERY_FLAG_OPTIONS = {"genders": ["", "male", "female"]}
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 

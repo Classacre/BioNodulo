@@ -7638,6 +7638,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1002/humu.24369'],
     citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
   },
+  beacon2_cohorts: {
+    name: 'beacon2_cohorts',
+    display_name: 'Beacon2 Cohorts',
+    category: 'metadata',
+    description: 'Query the cohorts collection in a Beacon database for populations or groups sharing common attributes.',
+    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_cohorts', 'Beacon2 Cohorts', 'beacon2-search cohorts', 'cohorts collection', 'cohortDataTypes', 'cohortType', 'genders'],
+    input: {
+      required: {
+        database: { type: 'STRING' },
+        collection: { type: 'STRING' },
+      },
+      optional: {
+        db_host: { type: 'STRING', default: '127.0.0.1' },
+        db_port: { type: 'INT', default: 27017 },
+        db_auth_source: { type: 'STRING', default: 'admin' },
+        db_user: { type: 'STRING', default: 'root' },
+        db_password: { type: 'STRING', default: 'example' },
+        cohortDataTypes: { type: 'STRING', default: '' },
+        cohortDesign: { type: 'STRING', default: '' },
+        cohortSize: { type: 'INT', default: '' },
+        identification: { type: 'STRING', default: '' },
+        cohortType: { type: 'STRING', default: '' },
+        genders: { type: 'STRING', default: '', options: ['', 'male', 'female'] },
+        name: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['JSON'],
+    output_name: ['out_cohorts_query'],
+    required_executables: ['beacon2-search'],
+    required_conda_packages: ['beacon2-import'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import',
+    citation_dois: ['10.1002/humu.24369'],
+    citation_urls: ['https://doi.org/10.1002/humu.24369'],
+    citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
+  },
   beacon2_pxf2bff: {
     name: 'beacon2_pxf2bff',
     display_name: 'Beacon2 PXF2BFF',
@@ -15412,7 +15447,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('518 nodes available')).toBeVisible();
+  await expect(page.getByText('519 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15669,6 +15704,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'beacon2-search biosamples', name: 'Beacon2 Biosamples', category: 'metadata' },
     { query: 'beacon2-search bracket', name: 'Beacon2 Bracket', category: 'metadata' },
     { query: 'beacon2-search cnv', name: 'Beacon2 CNV', category: 'metadata' },
+    { query: 'beacon2-search cohorts', name: 'Beacon2 Cohorts', category: 'metadata' },
     { query: 'Phenopacket JSON', name: 'Beacon2 PXF2BFF', category: 'metadata' },
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
