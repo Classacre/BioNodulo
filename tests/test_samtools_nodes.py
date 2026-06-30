@@ -799,6 +799,12 @@ def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_m
             "output_name": ["sam"],
             "aliases": ["Galaxy", "BAM to SAM", "SAM output", "header only"],
         },
+        "bam_to_sam": {
+            "display_name": "BAM-to-SAM",
+            "output": ["SAM"],
+            "output_name": ["output1"],
+            "aliases": ["Galaxy", "bam_to_sam", "BAM-to-SAM", "converted SAM"],
+        },
         "samtools_sam_to_bam": {
             "display_name": "Samtools SAM to BAM",
             "output": ["BAM"],
@@ -1508,6 +1514,47 @@ def test_samtools_bam_to_sam_validates_header_mode() -> None:
         node_class.VALIDATE_INPUTS({"input": "sample.bam", "header": "--headers"})
         == "header must be one of -h, -H, or an empty string"
     )
+
+
+def test_galaxy_bam_to_sam_renders_wrapper_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bam_to_sam")
+
+    assert node_class.render_command(
+        {
+            "input1": "aligned reads.bam",
+            "header": "-h",
+            "output": "/work/bam_to_sam",
+        }
+    ) == ["samtools", "view", "-o", "/work/bam_to_sam/output1.sam", "-h", "aligned reads.bam"]
+
+    assert node_class.render_command(
+        {
+            "input1": "aligned reads.bam",
+            "header": "-H",
+            "output": "/work/bam_to_sam",
+        }
+    ) == ["samtools", "view", "-o", "/work/bam_to_sam/output1.sam", "-H", "aligned reads.bam"]
+
+    assert node_class.render_command(
+        {
+            "input1": "aligned reads.bam",
+            "header": "",
+            "output": "/work/bam_to_sam",
+        }
+    ) == ["samtools", "view", "-o", "/work/bam_to_sam/output1.sam", "aligned reads.bam"]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bam_to_sam" / "output1.sam"]
+
+
+def test_galaxy_bam_to_sam_validates_required_input_and_header_mode() -> None:
+    node_class = _node_class("bam_to_sam")
+
+    assert node_class.VALIDATE_INPUTS({"header": "-h"}) == "Required input 'input1' is missing"
+    assert (
+        node_class.VALIDATE_INPUTS({"input1": "aligned.bam", "header": "--headers"})
+        == "header must be one of -h, -H, or an empty string"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "aligned.bam", "header": ""}) is True
 
 
 def test_samtools_sam_to_bam_renders_sorted_conversion_pipeline_and_output(tmp_path: Path) -> None:
