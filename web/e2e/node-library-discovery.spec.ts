@@ -8090,6 +8090,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btn161'],
     citation_text: 'Heinz identifies optimal scoring subnetworks in protein-protein interaction networks.',
   },
+  heinz_scoring: {
+    name: 'heinz_scoring',
+    display_name: 'Calculate a Heinz score',
+    category: 'statistics',
+    description: 'Calculate Heinz node scores from p-values and BUM model parameters.',
+    search_aliases: ['Galaxy', 'Heinz', 'heinz_scoring', 'Calculate a Heinz score', 'Heinz score', 'BUM model', 'Beta-Uniform Mixture', 'p-value scoring', 'node p-values'],
+    input: {
+      required: {
+        node: { type: 'STRING' },
+      },
+      optional: {
+        FDR: { type: 'FLOAT', default: 0.5, min: 0, max: 1 },
+        input_type_selector: { type: 'STRING', default: 'bum_output', options: ['bum_output', 'bum_type'] },
+        input_bum: { type: 'STRING', default: '' },
+        lambda_param: { type: 'FLOAT', default: 0.5, min: 0, max: 1 },
+        alpha: { type: 'FLOAT', default: 0.5, min: 0, max: 1 },
+        script_path: { type: 'FILE', default: 'heinz_scoring.py', advanced: true },
+      },
+    },
+    output: ['TXT'],
+    output_name: ['score'],
+    required_executables: ['python'],
+    required_conda_packages: ['pandas', 'numpy'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/heinz',
+    citation_dois: ['10.1093/bioinformatics/btn161', '10.1093/bioinformatics/btg148'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btn161', 'https://doi.org/10.1093/bioinformatics/btg148'],
+    citation_text: 'Heinz identifies optimal scoring subnetworks; Beta-Uniform Mixture models support p-value distribution scoring.',
+  },
   heinz_bum: {
     name: 'heinz_bum',
     display_name: 'Fit a BUM model',
@@ -15815,7 +15843,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('531 nodes available')).toBeVisible();
+  await expect(page.getByText('532 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16087,6 +16115,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
     { query: 'optimal scoring subnetwork', name: 'Visualize Heinz subnetwork', category: 'visualization' },
     { query: 'protein-protein interaction networks', name: 'Identify optimal scoring subnetwork', category: 'statistics' },
+    { query: 'Heinz score', name: 'Calculate a Heinz score', category: 'statistics' },
     { query: 'Beta-Uniform Mixture', name: 'Fit a BUM model', category: 'statistics' },
     { query: 'swap target query', name: 'chainSwap', category: 'genomics' },
     { query: 'sort chains', name: 'chainSort', category: 'genomics' },

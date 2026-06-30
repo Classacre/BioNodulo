@@ -41228,6 +41228,98 @@ def test_heinz_renders_subnetwork_command_outputs_and_validation(tmp_path: Path)
     assert node_class.VALIDATE_INPUTS({"score": "scores.txt", "edge": "edges.txt"}) is True
 
 
+def test_heinz_scoring_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["heinz_scoring"]
+
+    assert info["display_name"] == "Calculate a Heinz score"
+    assert info["category"] == "statistics"
+    assert info["description"] == "Calculate Heinz node scores from p-values and BUM model parameters."
+    assert info["output"] == ["TXT"]
+    assert info["output_name"] == ["score"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["pandas", "numpy"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/heinz"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btn161", "10.1093/bioinformatics/btg148"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/bioinformatics/btn161",
+        "https://doi.org/10.1093/bioinformatics/btg148",
+    ]
+    assert "Beta-Uniform Mixture" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "Heinz score" in info["search_aliases"]
+    assert "BUM model" in info["search_aliases"]
+    assert info["version"] == "1.0"
+    assert info["input"]["required"]["node"][0] == "STRING"
+    assert info["input"]["optional"]["FDR"][1]["default"] == 0.5
+    assert info["input"]["optional"]["FDR"][1]["min"] == 0
+    assert info["input"]["optional"]["FDR"][1]["max"] == 1
+    assert info["input"]["optional"]["input_type_selector"][1]["default"] == "bum_output"
+    assert info["input"]["optional"]["input_type_selector"][1]["options"] == ["bum_output", "bum_type"]
+    assert info["input"]["optional"]["input_bum"][0] == "STRING"
+    assert info["input"]["optional"]["lambda_param"][1]["default"] == 0.5
+    assert info["input"]["optional"]["alpha"][1]["default"] == 0.5
+    assert info["input"]["optional"]["script_path"][1]["default"] == "heinz_scoring.py"
+
+
+def test_heinz_scoring_renders_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("heinz_scoring")
+
+    assert node_class.render_command(
+        {
+            "node": "genes with p.tsv",
+            "FDR": 0.001,
+            "input_type_selector": "bum_type",
+            "lambda_param": 0.546,
+            "alpha": 0.453,
+            "script_path": "/tools/heinz/heinz_scoring.py",
+            "output": "/work/heinz_scoring",
+        }
+    ) == (
+        "python /tools/heinz/heinz_scoring.py -n 'genes with p.tsv' -f 0.001 "
+        "-o /work/heinz_scoring/score.txt -l 0.546 -a 0.453"
+    )
+    assert node_class.render_command(
+        {
+            "node": "genes.tsv",
+            "input_bum": "BUM output.txt",
+            "output": "/work/heinz_scoring",
+        }
+    ) == "python heinz_scoring.py -n genes.tsv -f 0.5 -o /work/heinz_scoring/score.txt -m 'BUM output.txt'"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "heinz_scoring" / "score.txt",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "node is required"
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv", "FDR": "bad"}) == "FDR must be a number"
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv", "FDR": 0}) == (
+        "FDR must be greater than 0 and less than 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv", "FDR": 1}) == (
+        "FDR must be greater than 0 and less than 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv", "input_type_selector": "other"}) == (
+        "input_type_selector must be one of: bum_output, bum_type"
+    )
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv"}) == (
+        "input_bum is required when input_type_selector is bum_output"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"node": "genes.tsv", "input_type_selector": "bum_type", "lambda_param": "bad"}
+    ) == "lambda_param must be a number"
+    assert node_class.VALIDATE_INPUTS(
+        {"node": "genes.tsv", "input_type_selector": "bum_type", "lambda_param": -0.1}
+    ) == "lambda_param must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv", "input_type_selector": "bum_type", "alpha": "bad"}) == (
+        "alpha must be a number"
+    )
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv", "input_type_selector": "bum_type", "alpha": 1}) == (
+        "alpha must be greater than or equal to 0 and less than 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv", "input_bum": "BUM_output.txt"}) is True
+    assert node_class.VALIDATE_INPUTS({"node": "genes.tsv", "input_type_selector": "bum_type"}) is True
+
+
 def test_heinz_bum_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["heinz_bum"]
 
