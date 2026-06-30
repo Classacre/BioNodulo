@@ -7835,7 +7835,7 @@ def test_bctools_remaining_wrappers_validate_required_inputs_and_options() -> No
     assert remove_spurious.VALIDATE_INPUTS({"events": "events.bed", "threshold": 0.1}) is True
 
 
-def test_cat_prepare_contigs_add_names_and_summarise_expose_galaxy_metadata_and_dois() -> None:
+def test_cat_prepare_contigs_bins_add_names_and_summarise_expose_galaxy_metadata_and_dois() -> None:
     object_info = _registry().object_info()
 
     prepare = object_info["cat_prepare"]
@@ -7911,6 +7911,56 @@ def test_cat_prepare_contigs_add_names_and_summarise_expose_galaxy_metadata_and_
     assert contigs["citation_dois"] == prepare["citation_dois"]
     assert contigs["citation_urls"] == prepare["citation_urls"]
     assert "CAT contigs" in contigs["search_aliases"]
+
+    bins = object_info["cat_bins"]
+    assert bins["display_name"] == "CAT bins"
+    assert bins["category"] == "taxonomy"
+    assert bins["description"] == "Classify metagenome-assembled genome bins with BAT taxonomic assignments."
+    assert bins["input"]["required"]["mags"][0] == "FASTA"
+    assert bins["input"]["required"]["mags"][1]["multiple"] is True
+    assert bins["input"]["required"]["database_folder"][0] == "DIRECTORY"
+    assert bins["input"]["required"]["taxonomy_folder"][0] == "DIRECTORY"
+    assert bins["input"]["optional"]["range"][1]["default"] == 5
+    assert bins["input"]["optional"]["fraction"][1]["default"] == 0.3
+    assert bins["input"]["optional"]["use_previous"][1]["options"] == ["no", "yes"]
+    assert bins["input"]["optional"]["set_diamond_opts"][1]["default"] == "no"
+    assert bins["input"]["optional"]["add_names"][1]["options"] == ["no", "orf2lca", "classification", "both"]
+    assert bins["input"]["optional"]["summarise"][1]["options"] == ["no", "classification"]
+    assert bins["input"]["optional"]["select_outputs"][1]["default"] == [
+        "log",
+        "predicted_proteins_faa",
+        "orf2lca",
+        "bin2classification",
+    ]
+    assert bins["output"] == [
+        "TXT",
+        "FASTA",
+        "GFF",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+    ]
+    assert bins["output_name"] == [
+        "log",
+        "predicted_proteins_faa",
+        "predicted_proteins_gff",
+        "alignment_diamond",
+        "orf2lca",
+        "bin2classification",
+        "orf2lca_names",
+        "classification_names",
+        "classification_summary",
+    ]
+    assert bins["required_executables"] == ["CAT", "tabpad.py"]
+    assert bins["required_conda_packages"] == ["cat"]
+    assert bins["documentation_url"] == "https://github.com/dutilh/CAT"
+    assert bins["citation_dois"] == prepare["citation_dois"]
+    assert bins["citation_urls"] == prepare["citation_urls"]
+    assert "CAT bins" in bins["search_aliases"]
+    assert "Bin Annotation Tool" in bins["search_aliases"]
 
     add_names = object_info["cat_add_names"]
     assert add_names["display_name"] == "CAT add_names"
@@ -8123,6 +8173,148 @@ def test_cat_contigs_validates_modes_ranges_and_previous_inputs() -> None:
         "block_size must be between 1 and 10"
     )
     assert node_class.VALIDATE_INPUTS({**base, "set_diamond_opts": "yes", "top": 0}) == "top must be between 1 and 50"
+    assert node_class.VALIDATE_INPUTS({**base, "add_names": "bad"}) == (
+        "add_names must be one of: no, orf2lca, classification, both"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "summarise": "bad"}) == "summarise must be one of: no, classification"
+    assert node_class.VALIDATE_INPUTS({**base, "select_outputs": ["unknown"]}) == "at least one selected output is required"
+
+
+def test_cat_bins_renders_single_cached_database_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("cat_bins")
+
+    assert node_class.render_command(
+        {
+            "mags": ["genome 2.fna"],
+            "element_identifiers": ["genome 2.fna"],
+            "database_folder": "/data/CAT db",
+            "taxonomy_folder": "/data/taxonomy",
+            "output": "/work/cat_bins",
+        }
+    ) == (
+        "ln -s 'genome 2.fna' 'genome 2_fna' && "
+        "CAT bin -b 'genome 2_fna' --database_folder '/data/CAT db' --taxonomy_folder /data/taxonomy "
+        "--out_prefix cat_output --range 5 --fraction 0.3 && "
+        "tabpad.py cat_output.ORF2LCA.txt cat_output.bin2classification.txt && "
+        "cp cat_output.log /work/cat_bins/log.txt && "
+        "cp cat_output.predicted_proteins.faa /work/cat_bins/predicted_proteins.faa && "
+        "cp cat_output.ORF2LCA.tsv /work/cat_bins/ORF2LCA.tsv && "
+        "cp cat_output.bin2classification.tsv /work/cat_bins/bin2classification.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cat_bins" / "log.txt",
+        tmp_path / "cat_bins" / "predicted_proteins.faa",
+        tmp_path / "cat_bins" / "ORF2LCA.tsv",
+        tmp_path / "cat_bins" / "bin2classification.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "at least one mags value is required"
+    assert node_class.VALIDATE_INPUTS({"mags": ["genome.fna"]}) == "database_folder is required"
+    assert node_class.VALIDATE_INPUTS({"mags": ["genome.fna"], "database_folder": "/db"}) == (
+        "taxonomy_folder is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"mags": ["genome.fna"], "database_folder": "/db", "taxonomy_folder": "/tax"}) is True
+
+
+def test_cat_bins_renders_multi_history_database_previous_inputs_names_and_summary(tmp_path: Path) -> None:
+    node_class = _node_class("cat_bins")
+
+    assert node_class.render_command(
+        {
+            "mags": ["bin A.fa", "binB.fa"],
+            "element_identifiers": ["bin/A", "bin B"],
+            "db_src": "history",
+            "cat_db": "/history/cat_db.txt",
+            "cat_db_extra_files_path": "/history/cat data",
+            "use_previous": "yes",
+            "proteins_fasta": "proteins.faa",
+            "diamond_alignment": "alignment.diamond",
+            "range": 4,
+            "fraction": 0.2,
+            "set_diamond_opts": "yes",
+            "sensitive": True,
+            "block_size": 1.5,
+            "index_chunks": 3,
+            "top": 6,
+            "add_names": "both",
+            "only_official": True,
+            "exclude_scores": False,
+            "summarise": "classification",
+            "select_outputs": [
+                "log",
+                "predicted_proteins_gff",
+                "alignment_diamond",
+                "bin2classification",
+                "orf2lca_names",
+                "classification_summary",
+            ],
+            "tabpad_path": "/tools/cat/tab pad.py",
+            "output": "/work/cat_bins",
+        }
+    ) == (
+        "mkdir -p inputs && "
+        "ln -s 'bin A.fa' inputs/bin_A.FASTA && "
+        "ln -s binB.fa 'inputs/bin B.FASTA' && "
+        "CAT bins -s .FASTA -b inputs --database_folder '/history/cat data/CAT_database' "
+        "--taxonomy_folder '/history/cat data/taxonomy' --proteins_fasta proteins.faa "
+        "--diamond_alignment alignment.diamond --out_prefix cat_output --range 4 --fraction 0.2 --sensitive "
+        "--block_size 1.5 --index_chunks 3 --I_know_what_Im_doing --top 6 && "
+        "'/tools/cat/tab pad.py' *.ORF2LCA.txt *.bin2classification.txt && "
+        '(for i in *.concatenated.*; do ln -s "$i" "${i/concatenated./}"; done) && '
+        "CAT add_names --only_official --taxonomy_folder '/history/cat data/taxonomy' "
+        "-i cat_output.bin2classification.tsv -o classification_names.txt && "
+        "'/tools/cat/tab pad.py' -i classification_names.txt -o /work/cat_bins/classification_names.tsv && "
+        "CAT add_names --only_official --taxonomy_folder '/history/cat data/taxonomy' "
+        "-i cat_output.ORF2LCA.tsv -o orf2lca_names.txt && "
+        "'/tools/cat/tab pad.py' -i orf2lca_names.txt -o /work/cat_bins/ORF2LCA.names.tsv && "
+        "CAT summarise -i /work/cat_bins/classification_names.tsv -o classification_summary.txt && "
+        "'/tools/cat/tab pad.py' -i classification_summary.txt -o /work/cat_bins/classification_summary.tsv && "
+        "cp cat_output.log /work/cat_bins/log.txt && "
+        "cp cat_output.bin2classification.tsv /work/cat_bins/bin2classification.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "use_previous": "yes",
+            "add_names": "both",
+            "summarise": "classification",
+            "select_outputs": [
+                "log",
+                "predicted_proteins_gff",
+                "alignment_diamond",
+                "bin2classification",
+                "orf2lca_names",
+                "classification_summary",
+            ],
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "cat_bins" / "log.txt",
+        tmp_path / "cat_bins" / "bin2classification.tsv",
+        tmp_path / "cat_bins" / "ORF2LCA.names.tsv",
+        tmp_path / "cat_bins" / "classification_names.tsv",
+        tmp_path / "cat_bins" / "classification_summary.tsv",
+    ]
+
+
+def test_cat_bins_validates_modes_ranges_and_previous_inputs() -> None:
+    node_class = _node_class("cat_bins")
+    base = {"mags": ["genome.fna"], "database_folder": "/db", "taxonomy_folder": "/tax"}
+
+    assert node_class.VALIDATE_INPUTS({**base, "db_src": "bad"}) == "db_src must be one of: cached, history"
+    assert node_class.VALIDATE_INPUTS({"mags": ["genome.fna"], "db_src": "history", "cat_db_extra_files_path": ""}) == (
+        "cat_db_extra_files_path is required when db_src is history"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "use_previous": "maybe"}) == "use_previous must be one of: no, yes"
+    assert node_class.VALIDATE_INPUTS({**base, "use_previous": "yes", "diamond_alignment": "alignment.diamond"}) == (
+        "proteins_fasta is required when use_previous is yes"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "range": 50}) == "range must be between 0 and 49"
+    assert node_class.VALIDATE_INPUTS({**base, "fraction": 1}) == "fraction must be between 0 and 0.99"
+    assert node_class.VALIDATE_INPUTS({**base, "set_diamond_opts": "bad"}) == (
+        "set_diamond_opts must be one of: no, yes"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "set_diamond_opts": "yes", "index_chunks": 0}) == (
+        "index_chunks must be between 1 and 10"
+    )
     assert node_class.VALIDATE_INPUTS({**base, "add_names": "bad"}) == (
         "add_names must be one of: no, orf2lca, classification, both"
     )
