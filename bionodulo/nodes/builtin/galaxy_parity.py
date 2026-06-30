@@ -17070,6 +17070,164 @@ class CheckMTreeNode(CommandNode):
         return True
 
 
+class CheckMTreeQANode(CommandNode):
+    """Assess phylogenetic markers and placements in the CheckM genome tree."""
+
+    NODE_ID = "checkm_tree_qa"
+    DISPLAY_NAME = "CheckM tree_qa"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Assess phylogenetic markers and placements in the CheckM genome tree."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "checkm tree_qa",
+        "tree qa",
+        "genome tree placement",
+        "phylogenetic markers",
+        "Newick",
+        "alignment",
+    ]
+    RETURN_TYPES = ("TSV", "TSV", "PHYLOGENY_TREE", "PHYLOGENY_TREE", "ALIGNMENT")
+    RETURN_NAMES = ("output_f1", "output_f2", "output_f3", "output_f4", "output_f5")
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    OUT_FORMATS = ["1", "2", "3", "4", "5"]
+
+    @classmethod
+    def _as_csv_list(cls, inputs: dict[str, Any], name: str) -> list[str]:
+        return CheckMQANode._as_csv_list(inputs, name)
+
+    @classmethod
+    def _hmmer_tree(cls, inputs: dict[str, Any]) -> list[str]:
+        return cls._as_csv_list(inputs, "hmmer_tree")
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any], files: list[str]) -> list[str]:
+        return CheckMQANode._element_identifiers(inputs, files)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        inputs_dir = f"{out}/inputs"
+        storage = f"{inputs_dir}/storage"
+        tree_storage = f"{storage}/tree"
+        hmmer_files = cls._hmmer_tree(inputs)
+        identifiers = cls._element_identifiers(inputs, hmmer_files)
+        out_format = str(inputs.get("out_format", "1"))
+
+        cmd = [
+            "mkdir",
+            "-p",
+            storage,
+            "&&",
+            "ln",
+            "-sf",
+            str(inputs.get("phylo_hmm_info", "")),
+            f"{storage}/phylo_hmm_info.pkl.gz",
+            "&&",
+            "ln",
+            "-sf",
+            str(inputs.get("bin_stats_tree", "")),
+            f"{storage}/bin_stats.tree.tsv",
+        ]
+        for input_file, identifier in zip(hmmer_files, identifiers, strict=True):
+            bin_dir = f"{inputs_dir}/bins/{identifier}"
+            cmd.extend(["&&", "mkdir", "-p", bin_dir, "&&", "ln", "-sf", input_file, f"{bin_dir}/hmmer.tree.txt"])
+        cmd.extend(["&&", "mkdir", "-p", tree_storage, "&&", "ln", "-sf"])
+        if out_format == "5":
+            cmd.extend([str(inputs.get("concatenated_fasta", "")), f"{tree_storage}/concatenated.fasta"])
+        else:
+            cmd.extend([str(inputs.get("concatenated_tre", "")), f"{tree_storage}/concatenated.tre"])
+        cmd.extend(
+            [
+                "&&",
+                "checkm",
+                "tree_qa",
+                inputs_dir,
+                "--out_format",
+                out_format,
+                "--tab_table",
+                "--file",
+                f"{out}/output_file",
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        out_format = str(inputs.get("out_format", "1"))
+        if out_format in {"3", "4"}:
+            return [out / f"output_f{out_format}.nwk"]
+        if out_format == "5":
+            return [out / "output_f5.aln.fasta"]
+        return [out / f"output_f{out_format}.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "phylo_hmm_info": ("FILE", {"description": "Phylogenetic HMM model info from CheckM tree"}),
+                "bin_stats_tree": ("TSV", {"description": "Phylogenetic bin stats from CheckM tree"}),
+                "hmmer_tree": (
+                    "TXT",
+                    {"multiple": True, "description": "Phylogenetic HMM hits collection from CheckM tree"},
+                ),
+            },
+            "optional": {
+                "element_identifiers": (
+                    "STRING_LIST",
+                    {"default": [], "multiple": True, "description": "Optional identifiers for hmmer_tree entries"},
+                ),
+                "out_format": (
+                    "STRING",
+                    {
+                        "default": "1",
+                        "options": cls.OUT_FORMATS,
+                        "description": "CheckM tree_qa report format to emit",
+                    },
+                ),
+                "concatenated_tre": (
+                    "PHYLOGENY_TREE",
+                    {"default": "", "description": "Concatenated tree from CheckM tree for out_format 1-4"},
+                ),
+                "concatenated_fasta": (
+                    "FASTA",
+                    {"default": "", "description": "Concatenated masked sequences from CheckM tree for out_format 5"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for required in ("phylo_hmm_info", "bin_stats_tree"):
+            if not str(inputs.get(required, "")).strip():
+                return f"{required} is required"
+        if not cls._hmmer_tree(inputs):
+            return "at least one hmmer_tree value is required"
+        out_format = str(inputs.get("out_format", "1"))
+        if out_format not in cls.OUT_FORMATS:
+            return f"out_format must be one of: {', '.join(cls.OUT_FORMATS)}"
+        if out_format == "5":
+            if not str(inputs.get("concatenated_fasta", "")).strip():
+                return "concatenated_fasta is required when out_format is 5"
+        elif not str(inputs.get("concatenated_tre", "")).strip():
+            return "concatenated_tre is required unless out_format is 5"
+        return True
+
+
 class CheckMAnalyzeNode(CommandNode):
     """Identify marker genes in genome bins with CheckM analyze."""
 

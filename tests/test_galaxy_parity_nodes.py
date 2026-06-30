@@ -2889,6 +2889,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_tree_qa": {
+            "display_name": "CheckM tree_qa",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "checkm_analyze": {
             "display_name": "CheckM analyze",
             "category": "metagenomics",
@@ -9944,6 +9951,188 @@ def test_checkm_tree_renders_individual_gene_bins_and_validates(tmp_path: Path) 
         "extra_outputs values must be one of: hmmer_tree_ali, concatenate_pplacer_json, genes_fna, genes_faa, genes_gff"
     )
     assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"]}) is True
+
+
+def test_checkm_tree_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_tree_qa"]
+
+    assert info["display_name"] == "CheckM tree_qa"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Assess phylogenetic markers and placements in the CheckM genome tree."
+    assert info["output"] == ["TSV", "TSV", "PHYLOGENY_TREE", "PHYLOGENY_TREE", "ALIGNMENT"]
+    assert info["output_name"] == ["output_f1", "output_f2", "output_f3", "output_f4", "output_f5"]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm tree_qa" in info["search_aliases"]
+    assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
+    assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
+    assert info["input"]["required"]["hmmer_tree"][0] == "STRING"
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["1", "2", "3", "4", "5"]
+    assert info["input"]["optional"]["concatenated_tre"][0] == "STRING"
+    assert info["input"]["optional"]["concatenated_fasta"][0] == "FASTA"
+
+
+def test_checkm_tree_qa_renders_tree_report_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_tree_qa")
+
+    assert node_class.render_command(
+        {
+            "phylo_hmm_info": "phylo_hmm_info.pkl.gz",
+            "bin_stats_tree": "bin_stats.tree.tsv",
+            "hmmer_tree": ["637000110 hmmer.txt", "bin#2 hmmer.txt"],
+            "element_identifiers": ["637000110", "bin#2"],
+            "concatenated_tre": "concatenated.tre",
+            "out_format": "3",
+            "output": "/work/checkm_tree_qa",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_tree_qa/inputs/storage",
+        "&&",
+        "ln",
+        "-sf",
+        "phylo_hmm_info.pkl.gz",
+        "/work/checkm_tree_qa/inputs/storage/phylo_hmm_info.pkl.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "bin_stats.tree.tsv",
+        "/work/checkm_tree_qa/inputs/storage/bin_stats.tree.tsv",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_tree_qa/inputs/bins/637000110",
+        "&&",
+        "ln",
+        "-sf",
+        "637000110 hmmer.txt",
+        "/work/checkm_tree_qa/inputs/bins/637000110/hmmer.tree.txt",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_tree_qa/inputs/bins/bin_2",
+        "&&",
+        "ln",
+        "-sf",
+        "bin#2 hmmer.txt",
+        "/work/checkm_tree_qa/inputs/bins/bin_2/hmmer.tree.txt",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_tree_qa/inputs/storage/tree",
+        "&&",
+        "ln",
+        "-sf",
+        "concatenated.tre",
+        "/work/checkm_tree_qa/inputs/storage/tree/concatenated.tre",
+        "&&",
+        "checkm",
+        "tree_qa",
+        "/work/checkm_tree_qa/inputs",
+        "--out_format",
+        "3",
+        "--tab_table",
+        "--file",
+        "/work/checkm_tree_qa/output_file",
+    ]
+    assert node_class.PLAN_OUTPUTS({"out_format": "3"}, tmp_path) == [
+        tmp_path / "checkm_tree_qa" / "output_f3.nwk",
+    ]
+
+
+def test_checkm_tree_qa_renders_alignment_command_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_tree_qa")
+
+    assert node_class.render_command(
+        {
+            "phylo_hmm_info": "phylo_hmm_info.pkl.gz",
+            "bin_stats_tree": "bin_stats.tree.tsv",
+            "hmmer_tree": ["hmmer.tree.txt"],
+            "element_identifiers": ["bin/A"],
+            "concatenated_fasta": "concatenated.fasta",
+            "out_format": "5",
+            "output": "/work/checkm_tree_qa",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_tree_qa/inputs/storage",
+        "&&",
+        "ln",
+        "-sf",
+        "phylo_hmm_info.pkl.gz",
+        "/work/checkm_tree_qa/inputs/storage/phylo_hmm_info.pkl.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "bin_stats.tree.tsv",
+        "/work/checkm_tree_qa/inputs/storage/bin_stats.tree.tsv",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_tree_qa/inputs/bins/bin_A",
+        "&&",
+        "ln",
+        "-sf",
+        "hmmer.tree.txt",
+        "/work/checkm_tree_qa/inputs/bins/bin_A/hmmer.tree.txt",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_tree_qa/inputs/storage/tree",
+        "&&",
+        "ln",
+        "-sf",
+        "concatenated.fasta",
+        "/work/checkm_tree_qa/inputs/storage/tree/concatenated.fasta",
+        "&&",
+        "checkm",
+        "tree_qa",
+        "/work/checkm_tree_qa/inputs",
+        "--out_format",
+        "5",
+        "--tab_table",
+        "--file",
+        "/work/checkm_tree_qa/output_file",
+    ]
+    assert node_class.PLAN_OUTPUTS({"out_format": "5"}, tmp_path) == [
+        tmp_path / "checkm_tree_qa" / "output_f5.aln.fasta",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "phylo_hmm_info is required"
+    assert node_class.VALIDATE_INPUTS({"phylo_hmm_info": "hmm.zip"}) == "bin_stats_tree is required"
+    assert node_class.VALIDATE_INPUTS({"phylo_hmm_info": "hmm.zip", "bin_stats_tree": "stats.tsv"}) == (
+        "at least one hmmer_tree value is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"phylo_hmm_info": "hmm.zip", "bin_stats_tree": "stats.tsv", "hmmer_tree": ["hmmer.txt"], "out_format": "6"}
+    ) == "out_format must be one of: 1, 2, 3, 4, 5"
+    assert node_class.VALIDATE_INPUTS(
+        {"phylo_hmm_info": "hmm.zip", "bin_stats_tree": "stats.tsv", "hmmer_tree": ["hmmer.txt"]}
+    ) == "concatenated_tre is required unless out_format is 5"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "phylo_hmm_info": "hmm.zip",
+            "bin_stats_tree": "stats.tsv",
+            "hmmer_tree": ["hmmer.txt"],
+            "out_format": "5",
+        }
+    ) == "concatenated_fasta is required when out_format is 5"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "phylo_hmm_info": "hmm.zip",
+            "bin_stats_tree": "stats.tsv",
+            "hmmer_tree": ["hmmer.txt"],
+            "concatenated_tre": "tree.nwk",
+        }
+    ) is True
 
 
 def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
