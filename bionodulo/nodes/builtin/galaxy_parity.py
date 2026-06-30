@@ -21682,6 +21682,81 @@ class ChewBBACADownloadSchemaNode(CommandNode):
         return True
 
 
+class ChewBBACAExtractCgMLSTNode(CommandNode):
+    """Determine core-genome loci from chewBBACA allelic profiles."""
+
+    NODE_ID = "chewbbaca_extractcgmlst"
+    DISPLAY_NAME = "chewBBACA ExtractCgMLST"
+    REQUIRED_CONDA_PACKAGES = ["chewbbaca", "blast", "zip", "fasttree"]
+    CATEGORY = "typing"
+    DESCRIPTION = "Determine the set of loci that constitute the core genome."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "chewBBACA",
+        "chewbbaca_extractcgmlst",
+        "chewBBACA ExtractCgMLST",
+        "ExtractCgMLST",
+        "core genome",
+        "cgMLST",
+        "presence threshold",
+        "allelic profiles",
+        "bacterial typing",
+    ]
+    RETURN_TYPES = ("DIRECTORY",)
+    RETURN_NAMES = ("output_collection",)
+    REQUIRED_EXECUTABLES = ["chewBBACA.py"]
+    DOCUMENTATION_URL = "https://chewbbaca.readthedocs.io/"
+    CITATION_DOIS = [CHEWBBACA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHEWBBACA_CITATION_DOI}"]
+    CITATION_TEXT = CHEWBBACA_CITATION_TEXT
+    VERSION = "3.3.10+galaxy1"
+    SHELL = True
+
+    @classmethod
+    def _threshold(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("threshold", "0.95 0.99 1") or "")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = ["chewBBACA.py", "ExtractCgMLST", "--t", cls._threshold(inputs)]
+        _add_if_value(cmd, "--r", inputs.get("genes2remove"))
+        _add_if_value(cmd, "--g", inputs.get("genomes2remove"))
+        cmd.extend(["-i", str(inputs.get("input_file", "")), "-o", "output"])
+        return " && ".join([_shell_join(["mkdir", "-p", out]), f"cd {shlex.quote(out)}", _shell_join(cmd)])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID / "output_collection"
+        out.mkdir(parents=True, exist_ok=True)
+        return [out]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("TSV", {"description": "Allelic profiles table"}),
+            },
+            "optional": {
+                "genomes2remove": ("TXT", {"default": ""}),
+                "threshold": ("STRING", {"default": "0.95 0.99 1"}),
+                "genes2remove": ("TSV", {"default": ""}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_file", "")).strip():
+            return "input_file is required"
+        threshold = cls._threshold(inputs)
+        if not threshold.strip():
+            return "threshold is required"
+        if re.fullmatch(r"[ .0-9]+", threshold) is None:
+            return "threshold may contain only spaces, periods, and digits"
+        return True
+
+
 class DASToolNode(CommandNode):
     """Integrate metagenomic binning predictions with DAS Tool."""
 

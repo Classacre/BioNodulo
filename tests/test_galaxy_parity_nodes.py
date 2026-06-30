@@ -11271,6 +11271,57 @@ def test_chewbbaca_downloadschema_renders_command_outputs_and_validation(tmp_pat
     assert node_class.VALIDATE_INPUTS({"species_id": "13"}) is True
 
 
+def test_chewbbaca_extractcgmlst_exposes_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["chewbbaca_extractcgmlst"]
+
+    assert info["display_name"] == "chewBBACA ExtractCgMLST"
+    assert info["category"] == "typing"
+    assert info["description"] == "Determine the set of loci that constitute the core genome."
+    assert info["output"] == ["DIRECTORY"]
+    assert info["output_name"] == ["output_collection"]
+    assert info["required_executables"] == ["chewBBACA.py"]
+    assert info["required_conda_packages"] == ["chewbbaca", "blast", "zip", "fasttree"]
+    assert info["documentation_url"] == "https://chewbbaca.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
+    assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
+    assert "chewBBACA" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "core genome" in info["search_aliases"]
+    assert info["version"] == "3.3.10+galaxy1"
+    assert info["input"]["required"]["input_file"][0] == "TSV"
+    assert info["input"]["optional"]["threshold"][1]["default"] == "0.95 0.99 1"
+    assert info["input"]["optional"]["genes2remove"][0] == "TSV"
+    assert info["input"]["optional"]["genomes2remove"][0] == "STRING"
+
+
+def test_chewbbaca_extractcgmlst_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chewbbaca_extractcgmlst")
+
+    assert node_class.render_command(
+        {
+            "input_file": "results alleles.tsv",
+            "threshold": "0.95 0.99 1",
+            "genes2remove": "paralogous counts.tsv",
+            "genomes2remove": "genomes to remove.txt",
+            "output": "/work/chewbbaca_extractcgmlst",
+        }
+    ) == (
+        "mkdir -p /work/chewbbaca_extractcgmlst && cd /work/chewbbaca_extractcgmlst && "
+        "chewBBACA.py ExtractCgMLST --t '0.95 0.99 1' --r 'paralogous counts.tsv' "
+        "--g 'genomes to remove.txt' -i 'results alleles.tsv' -o output"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "chewbbaca_extractcgmlst" / "output_collection"
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "results.tsv", "threshold": "0.95,0.99"}) == (
+        "threshold may contain only spaces, periods, and digits"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "results.tsv", "threshold": ""}) == "threshold is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "results.tsv"}) is True
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 

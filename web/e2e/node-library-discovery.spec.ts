@@ -3859,6 +3859,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
     citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
   },
+  chewbbaca_extractcgmlst: {
+    name: 'chewbbaca_extractcgmlst',
+    display_name: 'chewBBACA ExtractCgMLST',
+    category: 'typing',
+    description: 'Determine the set of loci that constitute the core genome.',
+    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_extractcgmlst', 'chewBBACA ExtractCgMLST', 'ExtractCgMLST', 'core genome', 'cgMLST', 'presence threshold', 'allelic profiles', 'bacterial typing'],
+    input: {
+      required: {
+        input_file: { type: 'TSV' },
+      },
+      optional: {
+        genomes2remove: { type: 'STRING', default: '' },
+        threshold: { type: 'STRING', default: '0.95 0.99 1' },
+        genes2remove: { type: 'TSV', default: '' },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['output_collection'],
+    required_executables: ['chewBBACA.py'],
+    required_conda_packages: ['chewbbaca', 'blast', 'zip', 'fasttree'],
+    documentation_url: 'https://chewbbaca.readthedocs.io/',
+    citation_dois: ['10.1099/mgen.0.000166'],
+    citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
+    citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
+  },
   checkm_lineage_wf: {
     name: 'checkm_lineage_wf',
     display_name: 'CheckM lineage_wf',
@@ -16735,7 +16760,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('562 nodes available')).toBeVisible();
+  await expect(page.getByText('563 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16873,6 +16898,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },
     { query: 'Chewie-NS', name: 'chewBBACA DownloadSchema', category: 'typing' },
+    { query: 'core genome', name: 'chewBBACA ExtractCgMLST', category: 'typing' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },
