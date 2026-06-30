@@ -7051,6 +7051,118 @@ def test_arriba_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
     )
 
 
+def test_arriba_draw_fusions_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["arriba_draw_fusions"]
+
+    assert info["display_name"] == "Arriba Draw Fusions"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Render Arriba fusion predictions as transcript visualization PDFs."
+    assert info["input"]["required"]["fusions"][0] == "TSV"
+    assert info["input"]["required"]["alignments"][0] == "BAM"
+    assert info["input"]["required"]["annotation"][0] == "GTF"
+    assert info["input"]["optional"]["genome_assembly"][0] == "FASTA"
+    assert info["input"]["optional"]["alignments_format"][1]["options"] == ["bam", "sam"]
+    assert info["input"]["optional"]["transcript_selection"][1]["options"] == ["coverage", "provided", "canonical"]
+    assert info["input"]["optional"]["plot_panels"][1]["default"] is False
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["fusions_pdf"]
+    assert info["required_executables"] == ["draw_fusions.R", "samtools"]
+    assert info["required_conda_packages"] == ["arriba"]
+    assert info["documentation_url"] == "https://github.com/suhrig/arriba/wiki/06-Visualization"
+    assert info["citation_dois"] == ["10.1101/gr.257246.119"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.257246.119"]
+    assert "Arriba" in info["citation_text"]
+    assert "draw_fusions.R" in info["search_aliases"]
+
+
+def test_arriba_draw_fusions_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("arriba_draw_fusions")
+
+    assert node_class.render_command(
+        {
+            "fusions": "fusions.tsv",
+            "alignments": "Aligned.out.sam",
+            "alignments_format": "sam",
+            "genome_assembly": "genome.fa",
+            "annotation": "genes.gtf",
+            "protein_domains": "protein domains.gff3",
+            "cytobands": "cytobands.tsv",
+            "output": "/work/arriba_draw_fusions",
+        }
+    ) == (
+        "ln -sf genome.fa genome.fa && "
+        "samtools faidx genome.fa && "
+        "samtools view -b -@ ${GALAXY_SLOTS:-1} -t genome.fa.fai Aligned.out.sam | "
+        "samtools sort -O bam -@ ${GALAXY_SLOTS:-1} -T ${TMPDIR:-.} "
+        "-o /work/arriba_draw_fusions/Aligned.sortedByCoord.out.bam && "
+        "samtools index /work/arriba_draw_fusions/Aligned.sortedByCoord.out.bam && "
+        "draw_fusions.R --fusions=fusions.tsv "
+        "--alignments=/work/arriba_draw_fusions/Aligned.sortedByCoord.out.bam --annotation=genes.gtf "
+        "--output=/work/arriba_draw_fusions/fusions.pdf --cytobands=cytobands.tsv "
+        "--proteinDomains='protein domains.gff3'"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "arriba_draw_fusions" / "fusions.pdf",
+    ]
+
+    assert node_class.render_command(
+        {
+            "fusions": "fusions.tsv",
+            "alignments": "Aligned sorted.out.bam",
+            "alignments_index": "Aligned sorted.out.bam.bai",
+            "alignments_format": "bam",
+            "annotation": "gencode v38.gtf",
+            "sample_name": "Tumor 01",
+            "transcript_selection": "canonical",
+            "squish_introns": "FALSE",
+            "show_intergenic_vicinity": "closestGene",
+            "min_confidence_for_circos_plot": "medium",
+            "pdf_width": 11.5,
+            "plot_panels": True,
+            "output": "/work/arriba_draw_fusions",
+        }
+    ) == (
+        "ln -sf 'Aligned sorted.out.bam' /work/arriba_draw_fusions/Aligned.sortedByCoord.out.bam && "
+        "ln -sf 'Aligned sorted.out.bam.bai' /work/arriba_draw_fusions/Aligned.sortedByCoord.out.bam.bai && "
+        "draw_fusions.R --fusions=fusions.tsv "
+        "--alignments=/work/arriba_draw_fusions/Aligned.sortedByCoord.out.bam --annotation='gencode v38.gtf' "
+        "--output=/work/arriba_draw_fusions/fusions.pdf --transcriptSelection=canonical "
+        "--minConfidenceForCircosPlot=medium --squishIntrons=FALSE --showIntergenicVicinity=closestGene "
+        "--sampleName='Tumor 01' --pdfWidth=11.5 --plotPanels=TRUE"
+    )
+
+    assert node_class.VALIDATE_INPUTS({}) == "fusions is required"
+    assert node_class.VALIDATE_INPUTS({"fusions": "fusions.tsv"}) == "alignments is required"
+    assert node_class.VALIDATE_INPUTS({"fusions": "fusions.tsv", "alignments": "Aligned.out.bam"}) == (
+        "annotation is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"fusions": "fusions.tsv", "alignments": "Aligned.out.sam", "annotation": "genes.gtf", "alignments_format": "sam"}
+    ) == "genome_assembly is required when alignments_format is sam"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "fusions": "fusions.tsv",
+            "alignments": "Aligned.out.bam",
+            "annotation": "genes.gtf",
+            "alignments_format": "bad",
+        }
+    ) == "alignments_format must be one of: bam, sam"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "fusions": "fusions.tsv",
+            "alignments": "Aligned.out.bam",
+            "annotation": "genes.gtf",
+            "transcript_selection": "bad",
+        }
+    ) == "transcript_selection must be one of: coverage, provided, canonical"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {"fusions": "fusions.tsv", "alignments": "Aligned.out.bam", "annotation": "genes.gtf"}
+        )
+        is True
+    )
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

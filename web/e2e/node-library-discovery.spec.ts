@@ -1166,6 +1166,53 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.257246.119'],
     citation_text: 'Arriba detects gene fusions and other aberrant transcripts from STAR-aligned RNA-Seq data.',
   },
+  arriba_draw_fusions: {
+    name: 'arriba_draw_fusions',
+    display_name: 'Arriba Draw Fusions',
+    category: 'visualization',
+    description: 'Render Arriba fusion predictions as transcript visualization PDFs.',
+    search_aliases: ['Galaxy', 'Arriba Draw Fusions', 'arriba_draw_fusions', 'draw_fusions.R', 'fusion visualization', 'RNA-Seq fusion plot', 'fusions.pdf'],
+    input: {
+      required: {
+        fusions: { type: 'TSV' },
+        alignments: { type: 'BAM' },
+        annotation: { type: 'GTF' },
+      },
+      optional: {
+        alignments_format: { type: 'STRING', default: 'bam', options: ['bam', 'sam'] },
+        alignments_index: { type: 'BAI', default: '' },
+        genome_assembly: { type: 'FASTA', default: '' },
+        protein_domains: { type: 'GFF', default: '' },
+        cytobands: { type: 'TSV', default: '' },
+        sample_name: { type: 'STRING', default: '' },
+        transcript_selection: { type: 'STRING', default: 'provided', options: ['coverage', 'provided', 'canonical'] },
+        min_confidence_for_circos_plot: { type: 'STRING', default: '', options: ['none', 'low', 'medium', 'high'] },
+        squish_introns: { type: 'STRING', default: '', options: ['TRUE', 'FALSE'] },
+        show_intergenic_vicinity: { type: 'STRING', default: '' },
+        merge_domains_overlapping_by: { type: 'FLOAT', default: '', min: 0, max: 1 },
+        print_exon_labels: { type: 'STRING', default: '', options: ['TRUE', 'FALSE'] },
+        coverage_range: { type: 'STRING', default: '' },
+        render_3d_effect: { type: 'STRING', default: '', options: ['TRUE', 'FALSE'] },
+        optimize_domain_colors: { type: 'STRING', default: '', options: ['TRUE', 'FALSE'] },
+        color1: { type: 'STRING', default: '' },
+        color2: { type: 'STRING', default: '' },
+        pdf_width: { type: 'FLOAT', default: '', min: 1 },
+        pdf_height: { type: 'FLOAT', default: '', min: 1 },
+        font_family: { type: 'STRING', default: '' },
+        font_size: { type: 'FLOAT', default: '', min: 0 },
+        fixed_scale: { type: 'INT', default: '', min: 0 },
+        plot_panels: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['fusions_pdf'],
+    required_executables: ['draw_fusions.R', 'samtools'],
+    required_conda_packages: ['arriba'],
+    documentation_url: 'https://github.com/suhrig/arriba/wiki/06-Visualization',
+    citation_dois: ['10.1101/gr.257246.119'],
+    citation_urls: ['https://doi.org/10.1101/gr.257246.119'],
+    citation_text: 'Arriba detects gene fusions and other aberrant transcripts from STAR-aligned RNA-Seq data.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -14442,7 +14489,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('494 nodes available')).toBeVisible();
+  await expect(page.getByText('495 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14487,6 +14534,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ab initio gene prediction', name: 'Augustus', category: 'annotation' },
     { query: 'gene predictor training', name: 'Train Augustus', category: 'annotation' },
     { query: 'RNA-Seq fusion detection', name: 'Arriba', category: 'rna_seq' },
+    { query: 'fusion visualization', name: 'Arriba Draw Fusions', category: 'visualization' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },
