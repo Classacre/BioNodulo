@@ -2882,6 +2882,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_analyze": {
+            "display_name": "CheckM analyze",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "das_tool": {
             "display_name": "DAS Tool",
             "category": "metagenomics",
@@ -9728,6 +9735,142 @@ def test_checkm_lineage_wf_renders_collection_command_with_identifiers_and_valid
         "extra_outputs values must be one of: phylo_hmm_info, bin_stats_tree, hmmer_tree, concatenated_tre, concatenated_fasta, hmmer_tree_ali, concatenate_pplacer_json, genes_fna, genes_faa, genes_gff, marker_file, hmmer_analyze, bin_stats_analyze, checkm_hmm_info, hmmer_analyze_ali, bin_stats_ext, marker_gene_stats"
     )
     assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"]}) is True
+
+
+def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_analyze"]
+
+    assert info["display_name"] == "CheckM analyze"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Identify marker genes in genome bins and calculate genome statistics."
+    assert info["output"] == ["DIRECTORY", "TSV", "FILE", "DIRECTORY"]
+    assert info["output_name"] == ["hmmer_analyze", "bin_stats_analyze", "checkm_hmm_info", "hmmer_analyze_ali"]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm analyze" in info["search_aliases"]
+    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["marker_file"][0] == "TSV"
+    assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
+    assert info["input"]["optional"]["ali"][1]["default"] is False
+    assert info["input"]["optional"]["extra_outputs"][1]["options"] == ["hmmer_analyze_ali"]
+
+
+def test_checkm_analyze_renders_collection_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_analyze")
+
+    assert node_class.render_command(
+        {
+            "marker_file": "lineage marker set.tsv",
+            "bins": ["sample A.fasta", "sample B.fasta"],
+            "input_mode": "collection",
+            "element_identifiers": ["bin/A", "bin B"],
+            "ali": True,
+            "nt": True,
+            "genes": False,
+            "threads": 6,
+            "output": "/work/checkm_analyze",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_analyze/bins",
+        "/work/checkm_analyze/output",
+        "&&",
+        "ln",
+        "-sf",
+        "sample A.fasta",
+        "/work/checkm_analyze/bins/bin_A.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "sample B.fasta",
+        "/work/checkm_analyze/bins/bin_B.fasta",
+        "&&",
+        "checkm",
+        "analyze",
+        "lineage marker set.tsv",
+        "/work/checkm_analyze/bins",
+        "/work/checkm_analyze/output",
+        "--ali",
+        "--nt",
+        "--extension",
+        "fasta",
+        "--threads",
+        "6",
+    ]
+    assert node_class.PLAN_OUTPUTS({"extra_outputs": ["hmmer_analyze_ali"], "ali": True}, tmp_path) == [
+        tmp_path / "checkm_analyze" / "output" / "bins" / "hmmer_analyze",
+        tmp_path / "checkm_analyze" / "output" / "storage" / "bin_stats.analyze.tsv",
+        tmp_path / "checkm_analyze" / "output" / "storage" / "checkm_hmm_info.pkl.gz",
+        tmp_path / "checkm_analyze" / "output" / "bins" / "hmmer_analyze_ali",
+    ]
+
+
+def test_checkm_analyze_renders_individual_gene_bins_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_analyze")
+
+    assert node_class.render_command(
+        {
+            "marker_file": "lineage_marker_set.tsv",
+            "bins": ["bin one.faa", "bin#2.faa"],
+            "input_mode": "individual",
+            "ali": False,
+            "nt": False,
+            "genes": True,
+            "threads": 2,
+            "output": "/work/checkm_analyze",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_analyze/bins",
+        "/work/checkm_analyze/output",
+        "&&",
+        "ln",
+        "-sf",
+        "bin one.faa",
+        "/work/checkm_analyze/bins/bin_one.faa.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "bin#2.faa",
+        "/work/checkm_analyze/bins/bin_2.faa.fasta",
+        "&&",
+        "checkm",
+        "analyze",
+        "lineage_marker_set.tsv",
+        "/work/checkm_analyze/bins",
+        "/work/checkm_analyze/output",
+        "--genes",
+        "--extension",
+        "fasta",
+        "--threads",
+        "2",
+    ]
+    assert node_class.PLAN_OUTPUTS({"extra_outputs": ["hmmer_analyze_ali"], "ali": False}, tmp_path) == [
+        tmp_path / "checkm_analyze" / "output" / "bins" / "hmmer_analyze",
+        tmp_path / "checkm_analyze" / "output" / "storage" / "bin_stats.analyze.tsv",
+        tmp_path / "checkm_analyze" / "output" / "storage" / "checkm_hmm_info.pkl.gz",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "marker_file is required"
+    assert node_class.VALIDATE_INPUTS({"marker_file": "markers.tsv"}) == "at least one bins value is required"
+    assert node_class.VALIDATE_INPUTS({"marker_file": "markers.tsv", "bins": ["bin.fna"], "input_mode": "bad"}) == (
+        "input_mode must be one of: individual, collection"
+    )
+    assert node_class.VALIDATE_INPUTS({"marker_file": "markers.tsv", "bins": ["bin.fna"], "threads": 0}) == (
+        "threads must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"marker_file": "markers.tsv", "bins": ["bin.fna"], "extra_outputs": ["bad"]}
+    ) == "extra_outputs values must be one of: hmmer_analyze_ali"
+    assert node_class.VALIDATE_INPUTS({"marker_file": "markers.tsv", "bins": ["bin.fna"]}) is True
 
 
 def test_das_tool_exposes_galaxy_aligned_outputs() -> None:

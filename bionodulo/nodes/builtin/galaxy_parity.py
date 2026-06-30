@@ -16843,6 +16843,176 @@ class CheckMLineageWFNode(CommandNode):
         return True
 
 
+class CheckMAnalyzeNode(CommandNode):
+    """Identify marker genes in genome bins with CheckM analyze."""
+
+    NODE_ID = "checkm_analyze"
+    DISPLAY_NAME = "CheckM analyze"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Identify marker genes in genome bins and calculate genome statistics."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "checkm analyze",
+        "marker genes",
+        "genome bin statistics",
+        "MAG quality",
+        "completeness contamination",
+    ]
+    RETURN_TYPES = ("DIRECTORY", "TSV", "FILE", "DIRECTORY")
+    RETURN_NAMES = ("hmmer_analyze", "bin_stats_analyze", "checkm_hmm_info", "hmmer_analyze_ali")
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    INPUT_MODES = CheckMLineageWFNode.INPUT_MODES
+    EXTRA_OUTPUT_OPTIONS = ["hmmer_analyze_ali"]
+
+    @classmethod
+    def _input_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return CheckMLineageWFNode._input_files(inputs)
+
+    @classmethod
+    def _extra_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        raw = inputs.get("extra_outputs", [])
+        if isinstance(raw, str):
+            return [part.strip() for part in raw.split(",") if part.strip()]
+        if isinstance(raw, (list, tuple)):
+            return [str(value) for value in raw if str(value)]
+        return []
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any], input_files: list[str]) -> list[str]:
+        return CheckMLineageWFNode._element_identifiers(inputs, input_files)
+
+    @classmethod
+    def _link_name(cls, input_mode: str, identifier: str) -> str:
+        return CheckMLineageWFNode._link_name(input_mode, identifier)
+
+    @classmethod
+    def _add_bool(cls, cmd: list[str], inputs: dict[str, Any], name: str, flag: str) -> None:
+        if inputs.get(name):
+            cmd.append(flag)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        bins_dir = f"{out}/bins"
+        checkm_out = f"{out}/output"
+        input_files = cls._input_files(inputs)
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        identifiers = cls._element_identifiers(inputs, input_files)
+
+        cmd = ["mkdir", "-p", bins_dir, checkm_out]
+        for input_file, identifier in zip(input_files, identifiers, strict=True):
+            cmd.extend(["&&", "ln", "-sf", input_file, f"{bins_dir}/{cls._link_name(input_mode, identifier)}"])
+        cmd.extend([
+            "&&",
+            "checkm",
+            "analyze",
+            str(inputs.get("marker_file", "")),
+            bins_dir,
+            checkm_out,
+        ])
+        for name, flag in [("ali", "--ali"), ("nt", "--nt"), ("genes", "--genes")]:
+            cls._add_bool(cmd, inputs, name, flag)
+        cmd.extend(["--extension", "fasta", "--threads", str(inputs.get("threads", 1))])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        hmmer_out = out / "output" / "bins" / "hmmer_analyze"
+        hmmer_out.mkdir(parents=True, exist_ok=True)
+        storage = out / "output" / "storage"
+        storage.mkdir(parents=True, exist_ok=True)
+        outputs = [
+            hmmer_out,
+            storage / "bin_stats.analyze.tsv",
+            storage / "checkm_hmm_info.pkl.gz",
+        ]
+        if inputs.get("ali") and "hmmer_analyze_ali" in cls._extra_outputs(inputs):
+            ali_out = out / "output" / "bins" / "hmmer_analyze_ali"
+            ali_out.mkdir(parents=True, exist_ok=True)
+            outputs.append(ali_out)
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "marker_file": ("TSV", {"description": "Marker gene set from CheckM lineage_set or taxon_set"}),
+                "bins": (
+                    "FASTA_LIST",
+                    {"multiple": True, "min_items": 1, "description": "Genome-bin FASTA files to analyze"},
+                ),
+            },
+            "optional": {
+                "input_mode": (
+                    "STRING",
+                    {
+                        "default": "individual",
+                        "options": cls.INPUT_MODES,
+                        "description": "Galaxy bin input structure used for naming symlinks",
+                    },
+                ),
+                "element_identifiers": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional Galaxy collection element identifiers for bins",
+                    },
+                ),
+                "ali": ("BOOLEAN", {"default": False, "description": "Generate HMMER alignment files"}),
+                "nt": ("BOOLEAN", {"default": False, "description": "Generate nucleotide gene sequences"}),
+                "genes": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Input bins contain amino-acid genes instead of nucleotide contigs"},
+                ),
+                "extra_outputs": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "options": cls.EXTRA_OUTPUT_OPTIONS,
+                        "multiple": True,
+                        "description": "Galaxy extra outputs to collect from the analyze run",
+                    },
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("marker_file", "")).strip():
+            return "marker_file is required"
+        if not cls._input_files(inputs):
+            return "at least one bins value is required"
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        if input_mode not in cls.INPUT_MODES:
+            return f"input_mode must be one of: {', '.join(cls.INPUT_MODES)}"
+        try:
+            threads = int(inputs.get("threads", 1))
+        except (TypeError, ValueError):
+            return "threads must be an integer"
+        if threads < 1:
+            return "threads must be >= 1"
+        unknown = [value for value in cls._extra_outputs(inputs) if value not in cls.EXTRA_OUTPUT_OPTIONS]
+        if unknown:
+            return f"extra_outputs values must be one of: {', '.join(cls.EXTRA_OUTPUT_OPTIONS)}"
+        return True
+
+
 class CheckM2Node(CommandNode):
     """Assess MAG, SAG, or isolate genome quality with CheckM2."""
 

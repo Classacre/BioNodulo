@@ -3398,6 +3398,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
     citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
   },
+  checkm_analyze: {
+    name: 'checkm_analyze',
+    display_name: 'CheckM analyze',
+    category: 'metagenomics',
+    description: 'Identify marker genes in genome bins and calculate genome statistics.',
+    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm analyze', 'marker genes', 'genome bin statistics', 'MAG quality', 'completeness contamination'],
+    input: {
+      required: {
+        marker_file: { type: 'TSV' },
+        bins: { type: 'FASTA_LIST', multiple: true },
+      },
+      optional: {
+        input_mode: { type: 'STRING', default: 'individual', options: ['individual', 'collection'] },
+        ali: { type: 'BOOLEAN', default: false },
+        nt: { type: 'BOOLEAN', default: false },
+        genes: { type: 'BOOLEAN', default: false },
+        extra_outputs: { type: 'STRING_LIST', default: [], options: ['hmmer_analyze_ali'] },
+      },
+    },
+    output: ['DIRECTORY', 'TSV', 'FILE', 'DIRECTORY'],
+    output_name: ['hmmer_analyze', 'bin_stats_analyze', 'checkm_hmm_info', 'hmmer_analyze_ali'],
+    required_executables: ['checkm'],
+    required_conda_packages: ['checkm-genome'],
+    documentation_url: 'https://github.com/Ecogenomics/CheckM',
+    citation_dois: ['10.1101/gr.186072.114'],
+    citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
+    citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
+  },
   das_tool: {
     name: 'das_tool',
     display_name: 'DAS Tool',
@@ -16002,7 +16030,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('538 nodes available')).toBeVisible();
+  await expect(page.getByText('539 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16126,6 +16154,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Graphical Fragment Assembly', name: 'GFA to FASTA', category: 'assembly' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
+    { query: 'checkm analyze', name: 'CheckM analyze', category: 'metagenomics' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },
     { query: 'contig2bin', name: 'FASTA to Contig2Bin', category: 'metagenomics' },
     { query: 'unique sequences', name: 'VSEARCH Dereplication', category: 'metagenomics' },
