@@ -10949,6 +10949,55 @@ def test_cherri_train_renders_mixed_model_command_with_options() -> None:
     )
 
 
+def test_chira_collapse_renders_deduplication_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chira_collapse")
+    info = _registry().object_info()["chira_collapse"]
+
+    assert info["display_name"] == "ChiRA collapse"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Deduplicate FASTQ reads and write unique sequences with UMI and read counts."
+    assert info["input"]["required"]["input_fastq"][0] == "FASTQ"
+    assert info["input"]["optional"]["umi_len"][1]["default"] == 0
+    assert info["input"]["optional"]["umi_len"][1]["min"] == 0
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["collapsed_fasta"]
+    assert info["required_executables"] == ["chira_collapse.py", "gunzip"]
+    assert info["required_conda_packages"] == ["chira"]
+    assert info["documentation_url"] == "https://github.com/BackofenLab/ChiRA"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa158"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/gigascience/giaa158"]
+    assert "ChiRA: an integrated framework for chimeric read analysis" in info["citation_text"]
+    assert "ChiRA collapse" in info["search_aliases"]
+    assert "chira_collapse.py" in info["search_aliases"]
+    assert info["version"] == "1.4.3+galaxy1"
+
+    assert node_class.render_command(
+        {
+            "input_fastq": "reads.fastq.gz",
+            "umi_len": 8,
+            "output": "/work/chira_collapse",
+        }
+    ) == (
+        "mkdir -p /work/chira_collapse && "
+        "chira_collapse.py -i <(gunzip -c reads.fastq.gz) -u 8 -o /work/chira_collapse/collapsed.fasta"
+    )
+    assert node_class.render_command(
+        {
+            "input_fastq": "trimmed reads.fastq",
+            "umi_len": 0,
+            "output": "/work/chira_collapse",
+        }
+    ) == (
+        "mkdir -p /work/chira_collapse && "
+        "chira_collapse.py -i 'trimmed reads.fastq' -u 0 -o /work/chira_collapse/collapsed.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "chira_collapse" / "collapsed.fasta"]
+    assert node_class.VALIDATE_INPUTS({}) == "input_fastq is required"
+    assert node_class.VALIDATE_INPUTS({"input_fastq": "reads.fastq", "umi_len": -1}) == "umi_len must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"input_fastq": "reads.fastq", "umi_len": "x"}) == "umi_len must be an integer"
+    assert node_class.VALIDATE_INPUTS({"input_fastq": "reads.fastq", "umi_len": 0}) is True
+
+
 def test_chewbbaca_allelecall_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["chewbbaca_allelecall"]
 

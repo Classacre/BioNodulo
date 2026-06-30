@@ -3786,6 +3786,29 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/cherri'],
     citation_text: 'CheRRI evaluates RNA-RNA interaction sites and filters predicted or experimentally detected interactions with a trained model.',
   },
+  chira_collapse: {
+    name: 'chira_collapse',
+    display_name: 'ChiRA collapse',
+    category: 'rna_seq',
+    description: 'Deduplicate FASTQ reads and write unique sequences with UMI and read counts.',
+    search_aliases: ['Galaxy', 'ChiRA', 'ChiRA collapse', 'chira_collapse', 'chira_collapse.py', 'chimeric read analysis', 'RNA-RNA interactome', 'deduplicate fastq reads'],
+    input: {
+      required: {
+        input_fastq: { type: 'FASTQ' },
+      },
+      optional: {
+        umi_len: { type: 'INT', default: 0, min: 0 },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['collapsed_fasta'],
+    required_executables: ['chira_collapse.py', 'gunzip'],
+    required_conda_packages: ['chira'],
+    documentation_url: 'https://github.com/BackofenLab/ChiRA',
+    citation_dois: ['10.1093/gigascience/giaa158'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa158'],
+    citation_text: 'ChiRA: an integrated framework for chimeric read analysis from RNA-RNA interactome and structurome data.',
+  },
   chewbbaca_allelecall: {
     name: 'chewbbaca_allelecall',
     display_name: 'ChewBBACA AlleleCall',
@@ -16939,7 +16962,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('569 nodes available')).toBeVisible();
+  await expect(page.getByText('570 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17074,6 +17097,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'RNA-RNA interaction', name: 'Evaluation of RRIs using CheRRI', category: 'rna_seq' },
     { query: 'RRI model training', name: 'Train a CheRRI model using RRIs', category: 'rna_seq' },
+    { query: 'deduplicate fastq reads', name: 'ChiRA collapse', category: 'rna_seq' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },

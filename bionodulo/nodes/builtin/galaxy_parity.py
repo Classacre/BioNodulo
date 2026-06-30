@@ -134,6 +134,11 @@ CHERRI_CITATION_TEXT = (
     "CheRRI evaluates RNA-RNA interaction sites and filters predicted or experimentally detected "
     "interactions with a trained model."
 )
+CHIRA_DOCUMENTATION_URL = "https://github.com/BackofenLab/ChiRA"
+CHIRA_CITATION_DOI = "10.1093/gigascience/giaa158"
+CHIRA_CITATION_TEXT = (
+    "ChiRA: an integrated framework for chimeric read analysis from RNA-RNA interactome and structurome data."
+)
 CHEWBBACA_CITATION_DOI = "10.1099/mgen.0.000166"
 CHEWBBACA_CITATION_TEXT = (
     "chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing."
@@ -21045,6 +21050,86 @@ class CheRRITrainNode(CommandNode):
                 return f"{name} must be an integer"
             if value < 0:
                 return f"{name} must be greater than or equal to 0"
+        return True
+
+
+class ChiraCollapseNode(CommandNode):
+    """Deduplicate FASTQ reads for ChiRA analysis."""
+
+    NODE_ID = "chira_collapse"
+    DISPLAY_NAME = "ChiRA collapse"
+    REQUIRED_CONDA_PACKAGES = ["chira"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Deduplicate FASTQ reads and write unique sequences with UMI and read counts."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ChiRA",
+        "ChiRA collapse",
+        "chira_collapse",
+        "chira_collapse.py",
+        "chimeric read analysis",
+        "RNA-RNA interactome",
+        "deduplicate fastq reads",
+    ]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("collapsed_fasta",)
+    REQUIRED_EXECUTABLES = ["chira_collapse.py", "gunzip"]
+    DOCUMENTATION_URL = CHIRA_DOCUMENTATION_URL
+    CITATION_DOIS = [CHIRA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHIRA_CITATION_DOI}"]
+    CITATION_TEXT = CHIRA_CITATION_TEXT
+    VERSION = "1.4.3+galaxy1"
+    SHELL = True
+
+    @classmethod
+    def _input_fastq(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_fastq", inputs.get("in", "")) or "")
+
+    @classmethod
+    def _command_input(cls, input_fastq: str) -> str:
+        if input_fastq.endswith(".gz"):
+            return f"<(gunzip -c {shlex.quote(input_fastq)})"
+        return shlex.quote(input_fastq)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_fastq = cls._input_fastq(inputs)
+        command_input = cls._command_input(input_fastq)
+        cmd = (
+            f"chira_collapse.py -i {command_input} -u {shlex.quote(str(inputs.get('umi_len', 0)))} "
+            f"-o {shlex.quote(f'{out}/collapsed.fasta')}"
+        )
+        return f"{_shell_join(['mkdir', '-p', out])} && {cmd}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "collapsed.fasta"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_fastq": ("FASTQ", {"description": "Quality- and adapter-trimmed FASTQ reads"}),
+            },
+            "optional": {
+                "umi_len": ("INT", {"default": 0, "min": 0, "description": "5-prime UMI length"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_fastq(inputs).strip():
+            return "input_fastq is required"
+        try:
+            umi_len = int(inputs.get("umi_len", 0))
+        except (TypeError, ValueError):
+            return "umi_len must be an integer"
+        if umi_len < 0:
+            return "umi_len must be >= 0"
         return True
 
 
