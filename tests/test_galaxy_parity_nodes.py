@@ -10796,6 +10796,113 @@ def test_snippy_renders_paired_and_contigs_commands_outputs_and_validates(tmp_pa
     assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input_selector": "single", "fastq_input_single": "reads.fq"}) is True
 
 
+def test_snippy_core_exposes_galaxy_metadata_inputs_outputs_and_citation_url() -> None:
+    node_info = _registry().object_info()["snippy_core"]
+
+    assert node_info["display_name"] == "snippy-core"
+    assert node_info["category"] == "variant"
+    assert node_info["description"] == "Combine multiple Snippy outputs into a core SNP alignment."
+    assert node_info["output"] == ["FASTA", "FASTA", "TSV", "TXT"]
+    assert node_info["output_name"] == [
+        "alignment_fasta",
+        "full_alignment_fasta",
+        "alignment_table",
+        "alignment_summary",
+    ]
+    assert node_info["required_executables"] == ["snippy-core", "tar"]
+    assert node_info["required_conda_packages"] == ["snippy", "tar"]
+    assert node_info["documentation_url"] == "https://github.com/tseemann/snippy"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/tseemann/snippy"]
+    assert "fast bacterial variant calling from NGS reads" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "core SNP alignment" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["indirs"][0] == "FILE"
+    assert node_info["input"]["required"]["indirs"][1]["multiple"] is True
+    assert node_info["input"]["required"]["reference_source_selector"][1]["default"] == "history"
+    assert node_info["input"]["required"]["reference_source_selector"][1]["options"] == ["history", "cached"]
+    assert node_info["input"]["required"]["ref_file"][0] == "FILE"
+    assert node_info["input"]["optional"]["ref_type"][1]["default"] == "fasta"
+    assert node_info["input"]["optional"]["ref_type"][1]["options"] == ["fasta", "genbank"]
+    assert node_info["input"]["optional"]["outputs"][1]["default"] == ["outaln"]
+    assert node_info["input"]["optional"]["outputs"][1]["options"] == ["outaln", "outfull", "outtab", "outtxt"]
+    assert node_info["input"]["optional"]["outputs"][1]["multiple"] is True
+
+
+def test_snippy_core_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("snippy_core")
+
+    assert node_class.render_command(
+        {
+            "indirs": ["sample A.tgz", "sample-B.tgz", "sample_C.tgz"],
+            "reference_source_selector": "history",
+            "ref_file": "reference genome.fasta",
+            "ref_type": "fasta",
+            "outputs": ["outaln", "outtab", "outtxt"],
+            "output": "/work/snippy-core",
+        }
+    ) == (
+        "ln -sf 'reference genome.fasta' ref.fna && mkdir snippy_dirs && "
+        "tar -xf 'sample A.tgz' -C snippy_dirs && tar -xf sample-B.tgz -C snippy_dirs && "
+        "tar -xf sample_C.tgz -C snippy_dirs && snippy-core --ref ref.fna snippy_dirs/* && "
+        "mkdir -p /work/snippy-core && cp core.aln /work/snippy-core/core.aln && "
+        "cp core.tab /work/snippy-core/core.tab && cp core.txt /work/snippy-core/core.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({"outputs": ["outaln", "outtab", "outtxt"]}, tmp_path) == [
+        tmp_path / "snippy_core" / "core.aln",
+        tmp_path / "snippy_core" / "core.tab",
+        tmp_path / "snippy_core" / "core.txt",
+    ]
+
+    assert node_class.render_command(
+        {
+            "indirs": ["a.tgz", "b.tgz"],
+            "reference_source_selector": "history",
+            "ref_file": "NC_000962.gbk",
+            "ref_type": "genbank",
+            "outputs": ["outfull"],
+            "output": "/work/snippy-core",
+        }
+    ) == (
+        "ln -sf NC_000962.gbk ref.gbk && mkdir snippy_dirs && tar -xf a.tgz -C snippy_dirs && "
+        "tar -xf b.tgz -C snippy_dirs && snippy-core --ref ref.gbk snippy_dirs/* && "
+        "mkdir -p /work/snippy-core && cp core.full.aln /work/snippy-core/core.full.aln"
+    )
+
+    assert node_class.render_command(
+        {
+            "indirs": ["a.tgz", "b.tgz"],
+            "reference_source_selector": "cached",
+            "ref_file": "/data/tables/all_fasta/ecoli.fa",
+            "output": "/work/snippy-core",
+        }
+    ) == (
+        "ln -sf /data/tables/all_fasta/ecoli.fa ref.fna && mkdir snippy_dirs && "
+        "tar -xf a.tgz -C snippy_dirs && tar -xf b.tgz -C snippy_dirs && "
+        "snippy-core --ref ref.fna snippy_dirs/* && mkdir -p /work/snippy-core && "
+        "cp core.aln /work/snippy-core/core.aln"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "snippy_core" / "core.aln"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least two indirs are required"
+    assert node_class.VALIDATE_INPUTS({"indirs": ["a.tgz", ""]}) == "at least two indirs are required"
+    assert node_class.VALIDATE_INPUTS({"indirs": ["a.tgz", "b.tgz"]}) == "ref_file is required"
+    assert node_class.VALIDATE_INPUTS({"indirs": ["a.tgz", "b.tgz"], "ref_file": "ref.fa", "ref_type": "bad"}) == (
+        "ref_type must be one of: fasta, genbank"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "indirs": ["a.tgz", "b.tgz"],
+            "ref_file": "ref.fa",
+            "reference_source_selector": "bad",
+        }
+    ) == "reference_source_selector must be one of: history, cached"
+    assert node_class.VALIDATE_INPUTS({"indirs": ["a.tgz", "b.tgz"], "ref_file": "ref.fa", "outputs": ["bad"]}) == (
+        "outputs values must be one of: outaln, outfull, outtab, outtxt"
+    )
+    assert node_class.VALIDATE_INPUTS({"indirs": ["a.tgz", "b.tgz"], "ref_file": "ref.fa"}) is True
+
+
 def test_minia_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["minia"]
 

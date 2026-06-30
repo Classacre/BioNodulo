@@ -11413,6 +11413,148 @@ class SnippyNode(CommandNode):
         }
 
 
+class SnippyCoreNode(CommandNode):
+    """Combine multiple Snippy outputs into a core SNP alignment."""
+
+    NODE_ID = "snippy_core"
+    DISPLAY_NAME = "snippy-core"
+    REQUIRED_CONDA_PACKAGES = ["snippy", "tar"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Combine multiple Snippy outputs into a core SNP alignment."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "snippy-core",
+        "Snippy core",
+        "Snippy",
+        "core SNP alignment",
+        "core genome alignment",
+        "core SNP phylogeny",
+        "bacterial SNP alignment",
+    ]
+    RETURN_TYPES = ("FASTA", "FASTA", "TSV", "TXT")
+    RETURN_NAMES = ("alignment_fasta", "full_alignment_fasta", "alignment_table", "alignment_summary")
+    REQUIRED_EXECUTABLES = ["snippy-core", "tar"]
+    DOCUMENTATION_URL = SNIPPY_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SNIPPY_CITATION_URL]
+    CITATION_TEXT = SNIPPY_CITATION_TEXT
+    VERSION = "4.6.0+galaxy0"
+    SHELL = True
+
+    REFERENCE_SOURCES = ["history", "cached"]
+    REFERENCE_TYPES = ["fasta", "genbank"]
+    OUTPUT_SELECTIONS = ["outaln", "outfull", "outtab", "outtxt"]
+    DEFAULT_OUTPUTS = ["outaln"]
+    OUTPUT_FILES = {
+        "outaln": "core.aln",
+        "outfull": "core.full.aln",
+        "outtab": "core.tab",
+        "outtxt": "core.txt",
+    }
+
+    @classmethod
+    def _reference_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("reference_source_selector", "history") or "history")
+
+    @classmethod
+    def _reference_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ref_type", "fasta") or "fasta")
+
+    @classmethod
+    def _selected_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        selected = _as_list(inputs.get("outputs"))
+        return selected or list(cls.DEFAULT_OUTPUTS)
+
+    @classmethod
+    def _reference_stage_command(cls, inputs: dict[str, Any]) -> tuple[str, str]:
+        ref_file = str(inputs.get("ref_file", "") or "")
+        if cls._reference_source(inputs) == "cached":
+            return _shell_join(["ln", "-sf", ref_file, "ref.fna"]), "ref.fna"
+        if cls._reference_type(inputs) == "genbank":
+            return _shell_join(["ln", "-sf", ref_file, "ref.gbk"]), "ref.gbk"
+        return _shell_join(["ln", "-sf", ref_file, "ref.fna"]), "ref.fna"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        ref_stage, ref_name = cls._reference_stage_command(inputs)
+        commands = [ref_stage, "mkdir snippy_dirs"]
+        commands.extend(
+            _shell_join(["tar", "-xf", archive, "-C", "snippy_dirs"])
+            for archive in _as_list(inputs.get("indirs"))
+            if archive.strip()
+        )
+        snippy_cmd = f"{_shell_join(['snippy-core', '--ref', ref_name])} snippy_dirs/*"
+        commands.extend([snippy_cmd, f"mkdir -p {shlex.quote(_out(inputs))}"])
+        commands.extend(
+            f"cp {shlex.quote(filename)} {shlex.quote(f'{_out(inputs)}/{filename}')}"
+            for filename in (cls.OUTPUT_FILES[selection] for selection in cls._selected_outputs(inputs))
+        )
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls.OUTPUT_FILES[selection] for selection in cls._selected_outputs(inputs)]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        indirs = [indir for indir in _as_list(inputs.get("indirs")) if indir.strip()]
+        if len(indirs) < 2:
+            return "at least two indirs are required"
+        source = cls._reference_source(inputs)
+        if source not in cls.REFERENCE_SOURCES:
+            return f"reference_source_selector must be one of: {', '.join(cls.REFERENCE_SOURCES)}"
+        if not str(inputs.get("ref_file", "") or "").strip():
+            return "ref_file is required"
+        ref_type = cls._reference_type(inputs)
+        if source == "history" and ref_type not in cls.REFERENCE_TYPES:
+            return f"ref_type must be one of: {', '.join(cls.REFERENCE_TYPES)}"
+        invalid_outputs = [selection for selection in cls._selected_outputs(inputs) if selection not in cls.OUTPUT_SELECTIONS]
+        if invalid_outputs:
+            return f"outputs values must be one of: {', '.join(cls.OUTPUT_SELECTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "indirs": (
+                    "FILE",
+                    {
+                        "multiple": True,
+                        "description": "Snippy output tar archives produced with cleanup disabled",
+                    },
+                ),
+                "reference_source_selector": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.REFERENCE_SOURCES,
+                        "description": "Use a reference from history or a cached Galaxy fasta index",
+                    },
+                ),
+                "ref_file": ("FILE", {"description": "Reference genome FASTA, GenBank, or cached reference path"}),
+            },
+            "optional": {
+                "ref_type": (
+                    "STRING",
+                    {"default": "fasta", "options": cls.REFERENCE_TYPES, "description": "History reference datatype"},
+                ),
+                "outputs": (
+                    "STRING_LIST",
+                    {
+                        "default": cls.DEFAULT_OUTPUTS,
+                        "options": cls.OUTPUT_SELECTIONS,
+                        "multiple": True,
+                        "description": "Galaxy output files to collect from the snippy-core run",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ABRICATE_CITATION_TEXT = "ABRicate: mass screening of contigs for antibiotic resistance genes."
 ABRICATE_CITATION_URL = "https://github.com/tseemann/abricate"
 

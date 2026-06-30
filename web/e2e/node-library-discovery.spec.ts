@@ -3062,6 +3062,32 @@ const objectInfo = {
     citation_urls: ['https://github.com/tseemann/snippy'],
     citation_text: 'snippy: fast bacterial variant calling from NGS reads.',
   },
+  snippy_core: {
+    name: 'snippy_core',
+    display_name: 'snippy-core',
+    category: 'variant',
+    description: 'Combine multiple Snippy outputs into a core SNP alignment.',
+    search_aliases: ['Galaxy', 'snippy-core', 'Snippy core', 'Snippy', 'core SNP alignment', 'core genome alignment', 'core SNP phylogeny', 'bacterial SNP alignment'],
+    input: {
+      required: {
+        indirs: { type: 'FILE', multiple: true },
+        reference_source_selector: { type: 'STRING', default: 'history', options: ['history', 'cached'] },
+        ref_file: { type: 'FILE' },
+      },
+      optional: {
+        ref_type: { type: 'STRING', default: 'fasta', options: ['fasta', 'genbank'] },
+        outputs: { type: 'STRING_LIST', default: ['outaln'], options: ['outaln', 'outfull', 'outtab', 'outtxt'], multiple: true },
+      },
+    },
+    output: ['FASTA', 'FASTA', 'TSV', 'TXT'],
+    output_name: ['alignment_fasta', 'full_alignment_fasta', 'alignment_table', 'alignment_summary'],
+    required_executables: ['snippy-core', 'tar'],
+    required_conda_packages: ['snippy', 'tar'],
+    documentation_url: 'https://github.com/tseemann/snippy',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/snippy'],
+    citation_text: 'snippy: fast bacterial variant calling from NGS reads.',
+  },
   genomescope: {
     name: 'genomescope',
     display_name: 'GenomeScope',
@@ -14209,7 +14235,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('489 nodes available')).toBeVisible();
+  await expect(page.getByText('490 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14329,6 +14355,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Oxford Nanopore assembler', name: 'Raven', category: 'assembly' },
     { query: 'Faster SPAdes assembly', name: 'Shovill', category: 'assembly' },
     { query: 'haploid variant calling', name: 'Snippy', category: 'variant' },
+    { query: 'core SNP alignment', name: 'snippy-core', category: 'variant' },
     { query: 'reference-free genome profiling', name: 'GenomeScope', category: 'assembly' },
     { query: 'Illumina read simulator', name: 'ART Illumina', category: 'simulation' },
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },
