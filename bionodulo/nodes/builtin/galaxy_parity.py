@@ -36033,6 +36033,43 @@ class Beacon2RangeNode(_Beacon2SearchBaseNode):
     )
 
 
+class Beacon2RunsNode(_Beacon2SearchBaseNode):
+    """Query the runs collection in a Beacon database."""
+
+    NODE_ID = "beacon2_runs"
+    DISPLAY_NAME = "Beacon2 Runs"
+    DESCRIPTION = "Query the runs collection in a Beacon database for sequencing and library preparation metadata."
+    VERSION = "1.0.0"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_runs",
+        "Beacon2 Runs",
+        "beacon2-search runs",
+        "runs collection",
+        "sequencing runs",
+        "libraryLayout",
+        "librarySource",
+        "platformModel",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_runs_query",)
+    SEARCH_COLLECTION = "runs"
+    OUTPUT_FILENAME = "runs_query_findings.json"
+    QUERY_FLAGS = (
+        ("identification", "--identification", "Run identifier"),
+        ("individualId", "--individualId", "Reference to the individual ID, such as TCGA-AO-A0JJ"),
+        ("libraryLayout", "--libraryLayout", "Library layout, such as PAIRED or SINGLE"),
+        ("librarySelection", "--librarySelection", "Selection method for library preparation, such as RANDOM or RT-PCR"),
+        ("librarySource", "--librarySource", "Source of the sequencing or hybridization library"),
+        ("libraryStrategy", "--libraryStrategy", "Library strategy, such as WGS"),
+        ("platform", "--platform", "General platform technology label, such as Illumina"),
+        ("platformModel", "--platformModel", "Experimental platform model or methodology, such as Illumina HiSeq 3000"),
+        ("runDate", "--runDate", "Date at which the experiment was performed"),
+    )
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 
