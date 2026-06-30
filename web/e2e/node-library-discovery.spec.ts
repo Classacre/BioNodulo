@@ -8982,6 +8982,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41596-022-00738-y'],
     citation_text: 'Metagenome analysis using the Kraken software suite.',
   },
+  taxonomy_krona_chart: {
+    name: 'taxonomy_krona_chart',
+    display_name: 'Krona pie chart',
+    category: 'taxonomy',
+    description: 'Render taxonomic profiles as an interactive Krona HTML pie chart.',
+    search_aliases: ['Galaxy', 'Krona', 'taxonomy_krona_chart', 'ktImportGalaxy', 'ktImportText', 'taxonomy sunburst', 'metagenomic visualization', 'taxonomic profile'],
+    input: {
+      required: {
+        input: { type: 'TSV', multiple: true },
+      },
+      optional: {
+        type_of_data_selector: { type: 'STRING', default: 'taxonomy', options: ['taxonomy', 'text'] },
+        max_rank: { type: 'STRING', default: '8', options: ['8', '0', '1', '2', '3', '4', '5', '6', '7', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21'] },
+        root_name: { type: 'STRING', default: 'Root' },
+        combine_inputs: { type: 'BOOLEAN', default: false },
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+      },
+    },
+    output: ['HTML_REPORT'],
+    output_name: ['output'],
+    required_executables: ['ktImportGalaxy', 'ktImportText'],
+    required_conda_packages: ['krona'],
+    documentation_url: 'https://github.com/marbl/Krona/wiki',
+    citation_dois: ['10.1186/1471-2105-12-385', '10.1093/bioinformatics/btu135'],
+    citation_urls: ['https://doi.org/10.1186/1471-2105-12-385', 'https://doi.org/10.1093/bioinformatics/btu135'],
+    citation_text: 'Interactive metagenomic visualization in a Web browser; Orione, a web-based framework for NGS analysis in microbiology.',
+  },
   krakentools_kreport2mpa: {
     name: 'krakentools_kreport2mpa',
     display_name: 'Krakentools Kreport2MPA',
@@ -15718,7 +15745,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('527 nodes available')).toBeVisible();
+  await expect(page.getByText('528 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16020,6 +16047,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
     { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },
     { query: 'Krona-compatible', name: 'Krakentools Kreport2Krona', category: 'taxonomy' },
+    { query: 'ktImportText', name: 'Krona pie chart', category: 'taxonomy' },
     { query: 'MetaPhlAn-style', name: 'Krakentools Kreport2MPA', category: 'taxonomy' },
     { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
     { query: 'taxonomic profile standardisation', name: 'Taxpasta', category: 'taxonomy' },

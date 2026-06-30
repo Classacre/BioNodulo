@@ -22167,6 +22167,81 @@ def test_krakentools_kreport2krona_renders_conversion_command_and_outputs(tmp_pa
     ]
 
 
+def test_taxonomy_krona_chart_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["taxonomy_krona_chart"]
+
+    assert info["display_name"] == "Krona pie chart"
+    assert info["category"] == "taxonomy"
+    assert info["description"] == "Render taxonomic profiles as an interactive Krona HTML pie chart."
+    assert info["output"] == ["HTML_REPORT"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["ktImportGalaxy", "ktImportText"]
+    assert info["required_conda_packages"] == ["krona"]
+    assert info["documentation_url"] == "https://github.com/marbl/Krona/wiki"
+    assert info["citation_dois"] == ["10.1186/1471-2105-12-385", "10.1093/bioinformatics/btu135"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1186/1471-2105-12-385",
+        "https://doi.org/10.1093/bioinformatics/btu135",
+    ]
+    assert "Interactive metagenomic visualization" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "ktImportText" in info["search_aliases"]
+    assert info["version"] == "2.7.1+galaxy0"
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["required"]["input"][1]["multiple"] is True
+    assert info["input"]["optional"]["type_of_data_selector"][1]["options"] == ["taxonomy", "text"]
+    assert info["input"]["optional"]["max_rank"][1]["options"][0] == "8"
+    assert info["input"]["optional"]["root_name"][1]["default"] == "Root"
+    assert info["input"]["optional"]["combine_inputs"][1]["default"] is False
+
+
+def test_taxonomy_krona_chart_renders_taxonomy_and_text_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("taxonomy_krona_chart")
+
+    assert node_class.render_command(
+        {
+            "type_of_data_selector": "taxonomy",
+            "input": ["taxonomy_data.tax", "tax2.tax"],
+            "element_identifiers": ["taxonomy_data", "tax#2"],
+            "max_rank": "18",
+            "root_name": "Root",
+            "combine_inputs": False,
+            "output": "/work/taxonomy_krona_chart",
+        }
+    ) == (
+        "mkdir -p /work/taxonomy_krona_chart && "
+        "ktImportGalaxy -d 18 -n Root -o /work/taxonomy_krona_chart/krona.html "
+        "taxonomy_data.tax,taxonomy_data tax2.tax,tax_2"
+    )
+    assert node_class.render_command(
+        {
+            "type_of_data_selector": "text",
+            "input": ["pampa-small.tsv", "anguil-small.tsv"],
+            "element_identifiers": ["pampa-small", "anguil small"],
+            "root_name": "Samples Root",
+            "combine_inputs": True,
+            "output": "/work/taxonomy_krona_chart",
+        }
+    ) == (
+        "mkdir -p /work/taxonomy_krona_chart && "
+        "ktImportText -n 'Samples Root' -o /work/taxonomy_krona_chart/krona.html -c "
+        "pampa-small.tsv,pampa-small anguil-small.tsv,anguil_small"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "taxonomy_krona_chart" / "krona.html",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input file is required"
+    assert node_class.VALIDATE_INPUTS({"input": ["taxonomy_data.tax"], "type_of_data_selector": "bad"}) == (
+        "type_of_data_selector must be one of: taxonomy, text"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": ["taxonomy_data.tax"], "max_rank": "bad"}) == (
+        "max_rank must be one of: 8, 0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": ["taxonomy_data.tax"]}) is True
+
+
 def test_krakentools_kreport2mpa_renders_metaphlan_conversion_command_and_outputs(tmp_path: Path) -> None:
     node_class = _node_class("krakentools_kreport2mpa")
     info = _registry().object_info()["krakentools_kreport2mpa"]
