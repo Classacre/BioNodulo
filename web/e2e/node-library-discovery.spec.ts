@@ -3556,6 +3556,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
     citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
   },
+  checkm_plot: {
+    name: 'checkm_plot',
+    display_name: 'CheckM plot',
+    category: 'visualization',
+    description: 'Generate CheckM genome-bin quality assessment plots.',
+    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm plot', 'genome bin plots', 'GC plot', 'coding density plot', 'tetranucleotide distance plot', 'marker gene position plot'],
+    input: {
+      required: {
+        bins: { type: 'FASTA_LIST', multiple: true },
+        plot_command: { type: 'STRING', default: 'gc_plot', options: ['gc_plot', 'coding_plot', 'tetra_plot', 'dist_plot', 'nx_plot', 'len_hist', 'marker_plot'] },
+      },
+      optional: {
+        input_mode: { type: 'STRING', default: 'individual', options: ['individual', 'collection'] },
+        gff: { type: 'GFF_LIST', default: [], multiple: true },
+        tetra_profile: { type: 'TSV', default: '' },
+        genes_fna: { type: 'FASTA_LIST', default: [], multiple: true },
+        marker_gene_stats: { type: 'TSV', default: '' },
+        bin_stats_ext: { type: 'TSV', default: '' },
+        image_type: { type: 'STRING', default: 'png', options: ['eps', 'pdf', 'png', 'svg'] },
+        dpi: { type: 'INT', default: 600 },
+      },
+    },
+    output: ['DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY'],
+    output_name: ['gc_plot', 'coding_plot', 'tetra_plot', 'dist_plot', 'nx_plot', 'len_hist', 'marker_plot'],
+    required_executables: ['checkm'],
+    required_conda_packages: ['checkm-genome'],
+    documentation_url: 'https://github.com/Ecogenomics/CheckM',
+    citation_dois: ['10.1101/gr.186072.114'],
+    citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
+    citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
+  },
   checkm_analyze: {
     name: 'checkm_analyze',
     display_name: 'CheckM analyze',
@@ -16216,7 +16247,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('546 nodes available')).toBeVisible();
+  await expect(page.getByText('547 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16346,6 +16377,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'checkm taxon_set', name: 'CheckM taxon_set', category: 'metagenomics' },
     { query: 'checkm taxonomy_wf', name: 'CheckM taxonomy_wf', category: 'metagenomics' },
     { query: 'checkm tetra', name: 'CheckM tetra', category: 'metagenomics' },
+    { query: 'checkm plot', name: 'CheckM plot', category: 'visualization' },
     { query: 'checkm analyze', name: 'CheckM analyze', category: 'metagenomics' },
     { query: 'checkm qa', name: 'CheckM qa', category: 'metagenomics' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },

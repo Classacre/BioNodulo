@@ -2924,6 +2924,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_plot": {
+            "display_name": "CheckM plot",
+            "category": "visualization",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "checkm_analyze": {
             "display_name": "CheckM analyze",
             "category": "metagenomics",
@@ -10588,6 +10595,209 @@ def test_checkm_tetra_renders_command_outputs_and_validates(tmp_path: Path) -> N
     assert node_class.VALIDATE_INPUTS({"seq_file": "seqs.fna", "threads": "bad"}) == "threads must be an integer"
     assert node_class.VALIDATE_INPUTS({"seq_file": "seqs.fna", "threads": 0}) == "threads must be >= 1"
     assert node_class.VALIDATE_INPUTS({"seq_file": "seqs.fna"}) is True
+
+
+def test_checkm_plot_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_plot"]
+
+    assert info["display_name"] == "CheckM plot"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Generate CheckM genome-bin quality assessment plots."
+    assert info["output"] == ["DIRECTORY"] * 7
+    assert info["output_name"] == [
+        "gc_plot",
+        "coding_plot",
+        "tetra_plot",
+        "dist_plot",
+        "nx_plot",
+        "len_hist",
+        "marker_plot",
+    ]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm plot" in info["search_aliases"]
+    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["plot_command"][1]["options"] == [
+        "gc_plot",
+        "coding_plot",
+        "tetra_plot",
+        "dist_plot",
+        "nx_plot",
+        "len_hist",
+        "marker_plot",
+    ]
+    assert info["input"]["optional"]["image_type"][1]["options"] == ["eps", "pdf", "png", "svg"]
+    assert info["input"]["optional"]["dist_value"][1]["default"] == ""
+    assert info["input"]["optional"]["gff"][0] == "STRING"
+    assert info["input"]["optional"]["tetra_profile"][0] == "TSV"
+    assert info["input"]["optional"]["marker_gene_stats"][0] == "TSV"
+
+
+def test_checkm_plot_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_plot")
+
+    assert node_class.render_command(
+        {
+            "bins": ["sample A.fasta", "sample B.fasta"],
+            "input_mode": "collection",
+            "element_identifiers": ["bin/A", "bin B"],
+            "plot_command": "gc_plot",
+            "dist_value": 95,
+            "image_type": "eps",
+            "dpi": 300,
+            "font_size": 10,
+            "width": 7.5,
+            "height": 4.5,
+            "output": "/work/checkm_plot",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_plot/bins",
+        "/work/checkm_plot/output",
+        "&&",
+        "ln",
+        "-sf",
+        "sample A.fasta",
+        "/work/checkm_plot/bins/bin_A.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "sample B.fasta",
+        "/work/checkm_plot/bins/bin_B.fasta",
+        "&&",
+        "checkm",
+        "gc_plot",
+        "/work/checkm_plot/bins",
+        "/work/checkm_plot/output",
+        "95",
+        "--extension",
+        "fasta",
+        "--image_type",
+        "eps",
+        "--dpi",
+        "300",
+        "--font_size",
+        "10",
+        "--width",
+        "7.5",
+        "--height",
+        "4.5",
+    ]
+    assert node_class.PLAN_OUTPUTS({"plot_command": "gc_plot"}, tmp_path) == [
+        tmp_path / "checkm_plot" / "gc_plot",
+    ]
+
+    assert node_class.render_command(
+        {
+            "bins": ["bin one.fna"],
+            "input_mode": "individual",
+            "plot_command": "marker_plot",
+            "genes_fna": ["genes A.fna", "genes#2.fna"],
+            "genes_element_identifiers": ["bin/A", "bin 2"],
+            "marker_gene_stats": "marker stats.tsv",
+            "bin_stats_ext": "bin stats ext.tsv",
+            "image_type": "png",
+            "dpi": 600,
+            "font_size": 8,
+            "width": 6.5,
+            "height": 3.5,
+            "fig_padding": 0.3,
+            "output": "/work/checkm_plot",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_plot/bins",
+        "/work/checkm_plot/output",
+        "&&",
+        "ln",
+        "-sf",
+        "bin one.fna",
+        "/work/checkm_plot/bins/bin_one.fna.fasta",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_plot/inputs/storage",
+        "&&",
+        "cp",
+        "marker stats.tsv",
+        "/work/checkm_plot/inputs/storage/marker_gene_stats.tsv",
+        "&&",
+        "cp",
+        "bin stats ext.tsv",
+        "/work/checkm_plot/inputs/storage/bin_stats_ext.tsv",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_plot/inputs/bins/bin_A",
+        "&&",
+        "cp",
+        "genes A.fna",
+        "/work/checkm_plot/inputs/bins/bin_A/genes.faa",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_plot/inputs/bins/bin_2",
+        "&&",
+        "cp",
+        "genes#2.fna",
+        "/work/checkm_plot/inputs/bins/bin_2/genes.faa",
+        "&&",
+        "checkm",
+        "marker_plot",
+        "/work/checkm_plot/inputs",
+        "/work/checkm_plot/bins",
+        "/work/checkm_plot/output",
+        "--extension",
+        "fasta",
+        "--image_type",
+        "png",
+        "--dpi",
+        "600",
+        "--font_size",
+        "8",
+        "--width",
+        "6.5",
+        "--height",
+        "3.5",
+        "--fig_padding",
+        "0.3",
+    ]
+    assert node_class.PLAN_OUTPUTS({"plot_command": "marker_plot"}, tmp_path) == [
+        tmp_path / "checkm_plot" / "marker_plot",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one bins value is required"
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "plot_command": "bad"}) == (
+        "plot_command must be one of: gc_plot, coding_plot, tetra_plot, dist_plot, nx_plot, len_hist, marker_plot"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "input_mode": "bad"}) == (
+        "input_mode must be one of: individual, collection"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "plot_command": "coding_plot"}) == (
+        "at least one gff value is required for coding_plot"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "plot_command": "tetra_plot", "gff": ["genes.gff"]}) == (
+        "tetra_profile is required for tetra_plot"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "plot_command": "marker_plot"}) == (
+        "at least one genes_fna value is required for marker_plot"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"bins": ["bin.fna"], "plot_command": "marker_plot", "genes_fna": ["genes.fna"]}
+    ) == "marker_gene_stats is required for marker_plot"
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "plot_command": "gc_plot", "image_type": "jpg"}) == (
+        "image_type must be one of: eps, pdf, png, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "plot_command": "gc_plot", "dpi": -1}) == "dpi must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "plot_command": "gc_plot"}) is True
 
 
 def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
