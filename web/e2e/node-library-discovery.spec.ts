@@ -13549,6 +13549,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giy069'],
     citation_text: 'AMBER: Assessment of Metagenome BinnERs.',
   },
+  biobox_add_taxid: {
+    name: 'biobox_add_taxid',
+    display_name: 'Biobox add taxid',
+    category: 'metagenomics',
+    description: 'Add taxid output from BAT or GTDB to biobox binning data.',
+    search_aliases: ['Galaxy', 'Biobox add taxid', 'biobox_add_taxid.py', 'CAMI AMBER biobox taxid', 'ContigID2TaxID', 'BinID2TaxID'],
+    input: {
+      required: {
+        biobox_file: { type: 'TSV' },
+        input_mode: { type: 'STRING', default: 'contig', options: ['contig', 'bin'] },
+        key_col: { type: 'INT' },
+        taxid_col: { type: 'INT' },
+      },
+      optional: {
+        contig2taxid: { type: 'TSV', default: '' },
+        binid2taxid: { type: 'TSV', default: '' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['biobox_add_taxid.py'],
+    required_conda_packages: ['biobox_add_taxid'],
+    documentation_url: 'https://github.com/SantaMcCloud/biobox_add_taxid/tree/release-1.0',
+    citation_dois: [],
+    citation_urls: ['https://github.com/SantaMcCloud/biobox_add_taxid/tree/release-1.0'],
+    citation_text: 'biobox_add_taxid: add TaxID columns to CAMI AMBER biobox files.',
+  },
   fargene: {
     name: 'fargene',
     display_name: 'fargene',
@@ -16912,7 +16939,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('568 nodes available')).toBeVisible();
+  await expect(page.getByText('569 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17340,6 +17367,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'AMBER metagenome binning evaluation', name: 'CAMI AMBER', category: 'metagenomics' },
     { query: 'AMBER gold standard length', name: 'CAMI AMBER add length column', category: 'metagenomics' },
     { query: 'AMBER biobox conversion', name: 'CAMI AMBER convert to biobox', category: 'metagenomics' },
+    { query: 'CAMI AMBER biobox taxid', name: 'Biobox add taxid', category: 'metagenomics' },
     { query: 'fragmented antibiotic resistance genes', name: 'fargene', category: 'annotation' },
     { query: 'metabat2 bins', name: 'MetaBAT2', category: 'metagenomics' },
     { query: 'MetaBAT2 depth matrix', name: 'Calculate contig depths', category: 'metagenomics' },

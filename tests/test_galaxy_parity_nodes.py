@@ -35807,6 +35807,79 @@ def test_cami_amber_convert_renders_biobox_conversion_command_outputs_and_valida
     assert node_class.VALIDATE_INPUTS({"files": ["a.fa"], "work": "single"}) is True
 
 
+def test_biobox_add_taxid_renders_taxid_annotation_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("biobox_add_taxid")
+    info = _registry().object_info()["biobox_add_taxid"]
+
+    assert info["display_name"] == "Biobox add taxid"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Add taxid output from BAT or GTDB to biobox binning data."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["input"]["required"]["biobox_file"][0] == "TSV"
+    assert info["input"]["required"]["input_mode"][1]["options"] == ["contig", "bin"]
+    assert info["input"]["optional"]["contig2taxid"][0] == "TSV"
+    assert info["input"]["optional"]["binid2taxid"][0] == "TSV"
+    assert info["required_executables"] == ["biobox_add_taxid.py"]
+    assert info["required_conda_packages"] == ["biobox_add_taxid"]
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/SantaMcCloud/biobox_add_taxid/tree/release-1.0"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "biobox_add_taxid.py" in info["search_aliases"]
+    assert info["version"] == "1.2+galaxy0"
+    assert node_class.render_command(
+        {
+            "biobox_file": "biobox file.tsv",
+            "input_mode": "contig",
+            "contig2taxid": "kraken2.tsv",
+            "key_col": 2,
+            "taxid_col": 3,
+            "output": "/work/biobox_add_taxid",
+        }
+    ) == (
+        "mkdir -p /work/biobox_add_taxid && ln -s 'biobox file.tsv' biobox.tsv && ln -s kraken2.tsv contig.tsv && "
+        "biobox_add_taxid.py biobox.tsv -c contig.tsv -k_c 2 -t_c 3 && "
+        "cp modified_biobox_file.tsv /work/biobox_add_taxid/modified_biobox_file.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "biobox_file": "biobox.tsv",
+            "input_mode": "bin",
+            "binid2taxid": "binid2taxid.tsv",
+            "key_col": 1,
+            "taxid_col": 2,
+            "output": "/work/biobox_add_taxid",
+        }
+    ) == (
+        "mkdir -p /work/biobox_add_taxid && ln -s biobox.tsv biobox.tsv && ln -s binid2taxid.tsv bin.tsv && "
+        "biobox_add_taxid.py biobox.tsv -b bin.tsv -k_c 1 -t_c 2 && "
+        "cp modified_biobox_file.tsv /work/biobox_add_taxid/modified_biobox_file.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "biobox_add_taxid" / "modified_biobox_file.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "biobox_file is required"
+    assert node_class.VALIDATE_INPUTS({"biobox_file": "biobox.tsv", "input_mode": "bad"}) == "input_mode must be one of: contig, bin"
+    assert node_class.VALIDATE_INPUTS({"biobox_file": "biobox.tsv", "input_mode": "contig"}) == (
+        "contig2taxid is required when input_mode is contig"
+    )
+    assert node_class.VALIDATE_INPUTS({"biobox_file": "biobox.tsv", "input_mode": "bin"}) == (
+        "binid2taxid is required when input_mode is bin"
+    )
+    assert node_class.VALIDATE_INPUTS({"biobox_file": "biobox.tsv", "input_mode": "bin", "binid2taxid": "bin.tsv"}) == (
+        "key_col is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"biobox_file": "biobox.tsv", "input_mode": "bin", "binid2taxid": "bin.tsv", "key_col": "x", "taxid_col": 2}
+    ) == "key_col must be an integer"
+    assert node_class.VALIDATE_INPUTS(
+        {"biobox_file": "biobox.tsv", "input_mode": "bin", "binid2taxid": "bin.tsv", "key_col": 0, "taxid_col": 2}
+    ) == "key_col must be >= 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"biobox_file": "biobox.tsv", "input_mode": "bin", "binid2taxid": "bin.tsv", "key_col": 1, "taxid_col": 2}
+    ) is True
+
+
 def test_fargene_renders_arg_prediction_command_outputs_and_validation(tmp_path: Path) -> None:
     node_class = _node_class("fargene")
     info = _registry().object_info()["fargene"]
