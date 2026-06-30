@@ -270,6 +270,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.48550/arXiv.1401.1129', 'http://arxiv.org/abs/1401.1129'],
     citation_text: 'Fast and accurate alignment of long bisulfite-seq reads.',
   },
+  crossmap_bed: {
+    name: 'crossmap_bed',
+    display_name: 'CrossMap BED',
+    category: 'annotation',
+    description: 'Lift BED genome coordinates between assemblies with CrossMap.',
+    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_bed', 'liftover BED', 'coordinate conversion', 'genome assembly conversion', 'chain file'],
+    input: {
+      required: {
+        input: { type: 'BED' },
+        input_chain: { type: 'STRING' },
+      },
+      optional: {
+        index_source: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        chromid: { type: 'STRING', default: 'a', options: ['a', 'l', 's'] },
+        merge_unmapped_entries: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['BED', 'BED', 'BED'],
+    output_name: ['output_valid', 'output_failed', 'output_combined'],
+    required_executables: ['CrossMap'],
+    required_conda_packages: ['crossmap'],
+    documentation_url: 'https://doi.org/10.1093/bioinformatics/btt730',
+    citation_dois: ['10.1093/bioinformatics/btt730'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btt730'],
+    citation_text: 'CrossMap: a versatile tool for coordinate conversion between genome assemblies.',
+  },
   Add_a_column1: {
     name: 'Add_a_column1',
     display_name: 'Compute on rows',
@@ -13620,7 +13646,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('469 nodes available')).toBeVisible();
+  await expect(page.getByText('470 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13634,6 +13660,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'FastQC emulation', name: 'Falco', category: 'qc' },
     { query: 'variant benchmarking', name: 'som.py and hap.py', category: 'variant' },
     { query: 'BS-Seq alignment', name: 'bwameth', category: 'alignment' },
+    { query: 'liftover BED', name: 'CrossMap BED', category: 'annotation' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

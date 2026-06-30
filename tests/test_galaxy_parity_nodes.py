@@ -3903,6 +3903,83 @@ def test_bwameth_validates_reference_and_fastq_modes() -> None:
     ) is True
 
 
+def test_crossmap_bed_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["crossmap_bed"]
+
+    assert info["display_name"] == "CrossMap BED"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Lift BED genome coordinates between assemblies with CrossMap."
+    assert info["output"] == ["BED", "BED", "BED"]
+    assert info["output_name"] == ["output_valid", "output_failed", "output_combined"]
+    assert info["required_executables"] == ["CrossMap"]
+    assert info["required_conda_packages"] == ["crossmap"]
+    assert info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btt730"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
+    assert "CrossMap" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "liftover BED" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "BED"
+    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["chromid"][1]["options"] == ["a", "l", "s"]
+    assert info["input"]["optional"]["merge_unmapped_entries"][0] == "BOOLEAN"
+
+
+def test_crossmap_bed_renders_separate_valid_failed_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("crossmap_bed")
+
+    assert node_class.render_command(
+        {
+            "input": "regions.bed",
+            "input_chain": "hg19ToHg38.over.chain",
+            "chromid": "s",
+            "merge_unmapped_entries": False,
+            "output": "/work/crossmap_bed",
+        }
+    ) == (
+        "CrossMap bed hg19ToHg38.over.chain regions.bed /work/crossmap_bed/output "
+        "--unmap-file /work/crossmap_bed/output.unmap --chromid s"
+    )
+    assert node_class.PLAN_OUTPUTS({"merge_unmapped_entries": False}, tmp_path) == [
+        tmp_path / "crossmap_bed" / "output",
+        tmp_path / "crossmap_bed" / "output.unmap",
+    ]
+
+
+def test_crossmap_bed_renders_combined_output_and_quotes_paths(tmp_path: Path) -> None:
+    node_class = _node_class("crossmap_bed")
+
+    assert node_class.render_command(
+        {
+            "input": "old regions.bed",
+            "input_chain": "chain files/a to b.over.chain",
+            "merge_unmapped_entries": True,
+            "output": "/work/crossmap_bed",
+        }
+    ) == (
+        "CrossMap bed 'chain files/a to b.over.chain' 'old regions.bed' --chromid a "
+        "> /work/crossmap_bed/output_combined.bed"
+    )
+    assert node_class.PLAN_OUTPUTS({"merge_unmapped_entries": True}, tmp_path) == [
+        tmp_path / "crossmap_bed" / "output_combined.bed",
+    ]
+
+
+def test_crossmap_bed_validates_required_inputs_and_options() -> None:
+    node_class = _node_class("crossmap_bed")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input BED is required"
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed"}) == "input_chain is required"
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over", "chromid": "bad"}) == (
+        "chromid must be one of: a, l, s"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "regions.bed", "input_chain": "chain.over", "index_source": "remote"}
+    ) == "index_source must be one of: cached, history"
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over"}) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 

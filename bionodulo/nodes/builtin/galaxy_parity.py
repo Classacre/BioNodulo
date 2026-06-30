@@ -179,6 +179,8 @@ FALCO_DOCUMENTATION_URL = "https://falco.readthedocs.io"
 FALCO_CITATION_TEXT = "Falco: high-speed FastQC emulation for quality control of sequencing data."
 HAPPY_CITATION_URL = "https://github.com/Illumina/hap.py"
 HAPPY_CITATION_TEXT = "Illumina hap.py: haplotype VCF comparison and som.py allele-matching tools."
+CROSSMAP_CITATION_DOI = "10.1093/bioinformatics/btt730"
+CROSSMAP_CITATION_TEXT = "CrossMap: a versatile tool for coordinate conversion between genome assemblies."
 COLUMN_MAKER_CITATION_DOI = "10.1093/nar/gkae410"
 COLUMN_MAKER_CITATION_TEXT = (
     "The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update."
@@ -2899,6 +2901,116 @@ class BwaMethNode(CommandNode):
                 "readGroup": (
                     "STRING",
                     {"default": "", "description": "Optional complete SAM read group string, such as @RG\\tID:foo\\tSM:bar"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class CrossMapBedNode(CommandNode):
+    """Lift BED coordinates between genome assemblies with CrossMap."""
+
+    NODE_ID = "crossmap_bed"
+    DISPLAY_NAME = "CrossMap BED"
+    REQUIRED_CONDA_PACKAGES = ["crossmap"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Lift BED genome coordinates between assemblies with CrossMap."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CrossMap",
+        "crossmap_bed",
+        "liftover BED",
+        "coordinate conversion",
+        "genome assembly conversion",
+        "chain file",
+    ]
+    RETURN_TYPES = ("BED", "BED", "BED")
+    RETURN_NAMES = ("output_valid", "output_failed", "output_combined")
+    REQUIRED_EXECUTABLES = ["CrossMap"]
+    DOCUMENTATION_URL = f"{DOI_URL}{CROSSMAP_CITATION_DOI}"
+    CITATION_DOIS = [CROSSMAP_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CROSSMAP_CITATION_DOI}"]
+    CITATION_TEXT = CROSSMAP_CITATION_TEXT
+    VERSION = "0.7.3+galaxy0"
+    SHELL = True
+
+    CHROMID_OPTIONS = ["a", "l", "s"]
+    INDEX_SOURCE_OPTIONS = ["cached", "history"]
+
+    @classmethod
+    def _chromid(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("chromid", "a") or "a")
+
+    @classmethod
+    def _index_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("index_source", "history") or "history")
+
+    @classmethod
+    def _merge_unmapped(cls, inputs: dict[str, Any]) -> bool:
+        value = inputs.get("merge_unmapped_entries", False)
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = ["CrossMap", "bed", str(inputs.get("input_chain", "")), str(inputs.get("input", ""))]
+        if cls._merge_unmapped(inputs):
+            cmd.extend(["--chromid", cls._chromid(inputs), ">", f"{out}/output_combined.bed"])
+        else:
+            cmd.extend([f"{out}/output", "--unmap-file", f"{out}/output.unmap", "--chromid", cls._chromid(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        if cls._merge_unmapped(inputs):
+            return [out / "output_combined.bed"]
+        return [out / "output", out / "output.unmap"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input BED is required"
+        if not str(inputs.get("input_chain", "")).strip():
+            return "input_chain is required"
+        chromid = cls._chromid(inputs)
+        if chromid not in cls.CHROMID_OPTIONS:
+            return f"chromid must be one of: {', '.join(cls.CHROMID_OPTIONS)}"
+        index_source = cls._index_source(inputs)
+        if index_source not in cls.INDEX_SOURCE_OPTIONS:
+            return f"index_source must be one of: {', '.join(cls.INDEX_SOURCE_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "BED file with 3 to 12 columns"}),
+                "input_chain": ("TXT", {"description": "LiftOver chain file"}),
+            },
+            "optional": {
+                "index_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.INDEX_SOURCE_OPTIONS,
+                        "description": "Galaxy source selector for cached or history chain files",
+                    },
+                ),
+                "chromid": (
+                    "STRING",
+                    {
+                        "default": "a",
+                        "options": cls.CHROMID_OPTIONS,
+                        "description": "Chromosome ID style: as-is, long chrN, or short N",
+                    },
+                ),
+                "merge_unmapped_entries": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Merge failed and converted BED entries into one output"},
                 ),
             },
             "hidden": {"output": ("STRING", {})},
