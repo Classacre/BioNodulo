@@ -5884,6 +5884,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btn161', 'https://doi.org/10.1093/bioinformatics/btg148'],
     citation_text: 'Heinz identifies optimal scoring subnetworks; Beta-Uniform Mixture models support p-value distribution scoring.',
   },
+  heinz_bum: {
+    name: 'heinz_bum',
+    display_name: 'Fit a BUM model',
+    category: 'statistics',
+    description: 'Fit a Beta-Uniform Mixture model to a one-column p-value distribution.',
+    search_aliases: ['Galaxy', 'Heinz', 'BioNet', 'heinz_bum', 'BUM model', 'Beta-Uniform Mixture', 'p-value distribution', 'fitBumModel'],
+    input: {
+      required: {
+        p_values: { type: 'FILE' },
+      },
+      optional: {
+        script_path: { type: 'FILE', default: 'bum.R', advanced: true },
+      },
+    },
+    output: ['TXT'],
+    output_name: ['dist_params'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['bioconductor-bionet', 'r-getopt'],
+    documentation_url: 'https://bioconductor.org/packages/BioNet',
+    citation_dois: ['10.1093/bioinformatics/btq089', '10.1093/bioinformatics/btn161'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq089', 'https://doi.org/10.1093/bioinformatics/btn161'],
+    citation_text: 'BioNet provides Beta-Uniform Mixture modeling for p-value distributions; Heinz identifies optimal scoring subnetworks.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12650,7 +12673,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('436 nodes available')).toBeVisible();
+  await expect(page.getByText('437 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12858,6 +12881,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
     { query: 'optimal scoring subnetwork', name: 'Visualize Heinz subnetwork', category: 'visualization' },
+    { query: 'Beta-Uniform Mixture', name: 'Fit a BUM model', category: 'statistics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },

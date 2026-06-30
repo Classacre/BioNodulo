@@ -34312,3 +34312,49 @@ def test_heinz_visualization_validates_required_input() -> None:
 
     assert node_class.VALIDATE_INPUTS({}) == "subnetwork is required"
     assert node_class.VALIDATE_INPUTS({"subnetwork": "Heinz_output.txt"}) is True
+
+
+def test_heinz_bum_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["heinz_bum"]
+
+    assert info["display_name"] == "Fit a BUM model"
+    assert info["category"] == "statistics"
+    assert info["description"] == "Fit a Beta-Uniform Mixture model to a one-column p-value distribution."
+    assert info["output"] == ["TXT"]
+    assert info["output_name"] == ["dist_params"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["bioconductor-bionet", "r-getopt"]
+    assert info["documentation_url"] == "https://bioconductor.org/packages/BioNet"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btq089", "10.1093/bioinformatics/btn161"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/bioinformatics/btq089",
+        "https://doi.org/10.1093/bioinformatics/btn161",
+    ]
+    assert "Beta-Uniform Mixture" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "BioNet" in info["search_aliases"]
+    assert info["input"]["required"]["p_values"][0] == "FILE"
+    assert info["input"]["optional"]["script_path"][1]["default"] == "bum.R"
+
+
+def test_heinz_bum_renders_rscript_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("heinz_bum")
+
+    assert node_class.render_command(
+        {
+            "p_values": "p values.txt",
+            "script_path": "/tools/heinz/bum.R",
+            "output": "/work/heinz_bum",
+        }
+    ) == "Rscript /tools/heinz/bum.R --input 'p values.txt' --output /work/heinz_bum/dist_params.txt"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "heinz_bum" / "dist_params.txt",
+    ]
+
+
+def test_heinz_bum_validates_required_input() -> None:
+    node_class = _node_class("heinz_bum")
+
+    assert node_class.VALIDATE_INPUTS({}) == "p_values is required"
+    assert node_class.VALIDATE_INPUTS({"p_values": "BUM_input.txt"}) is True

@@ -26948,6 +26948,11 @@ HEINZ_CITATION_TEXT = (
     "Heinz identifies optimal scoring subnetworks; "
     "Beta-Uniform Mixture models support p-value distribution scoring."
 )
+HEINZ_BUM_CITATION_DOIS = ["10.1093/bioinformatics/btq089", "10.1093/bioinformatics/btn161"]
+HEINZ_BUM_CITATION_TEXT = (
+    "BioNet provides Beta-Uniform Mixture modeling for p-value distributions; "
+    "Heinz identifies optimal scoring subnetworks."
+)
 TAXPASTA_DOI = "10.21105/joss.05627"
 TAXPASTA_CITATION_TEXT = "TAXPASTA: TAXonomic Profile Aggregation and STAndardisation."
 HUMANN_CITATION_DOIS = ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
@@ -27420,6 +27425,81 @@ class HeinzVisualizationNode(CommandNode):
                 "script_path": (
                     "FILE",
                     {"default": "visualization.py", "advanced": True, "description": "Path to the Galaxy Heinz visualization script"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class HeinzBumNode(CommandNode):
+    """Fit a Beta-Uniform Mixture model to p-values with BioNet."""
+
+    NODE_ID = "heinz_bum"
+    DISPLAY_NAME = "Fit a BUM model"
+    REQUIRED_CONDA_PACKAGES = ["bioconductor-bionet", "r-getopt"]
+    CATEGORY = "statistics"
+    DESCRIPTION = "Fit a Beta-Uniform Mixture model to a one-column p-value distribution."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Heinz",
+        "BioNet",
+        "heinz_bum",
+        "BUM model",
+        "Beta-Uniform Mixture",
+        "p-value distribution",
+        "fitBumModel",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("dist_params",)
+    REQUIRED_EXECUTABLES = ["Rscript"]
+    DOCUMENTATION_URL = "https://bioconductor.org/packages/BioNet"
+    CITATION_DOIS = HEINZ_BUM_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HEINZ_BUM_CITATION_DOIS]
+    CITATION_TEXT = HEINZ_BUM_CITATION_TEXT
+    VERSION = "1.0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/dist_params.txt"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "Rscript",
+            str(inputs.get("script_path", "bum.R")),
+            "--input",
+            str(inputs.get("p_values", "")),
+            "--output",
+            cls._output_path(inputs),
+        ]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "dist_params.txt"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("p_values", "")).strip():
+            return "p_values is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "p_values": (
+                    "FILE",
+                    {"description": "Text file containing one p-value per line"},
+                ),
+            },
+            "optional": {
+                "script_path": (
+                    "FILE",
+                    {"default": "bum.R", "advanced": True, "description": "Path to the Galaxy Heinz BUM R wrapper script"},
                 ),
             },
             "hidden": {"output": ("STRING", {})},
