@@ -2477,6 +2477,47 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41598-021-91456-0'],
     citation_text: 'AMRFinderPlus and the Reference Gene Catalog facilitate examination of the genomic links among antimicrobial resistance, stress response, and virulence.',
   },
+  bakta: {
+    name: 'bakta',
+    display_name: 'Bakta',
+    category: 'annotation',
+    description: 'Rapid and standardized annotation of bacterial genomes, MAGs and plasmids.',
+    search_aliases: ['Galaxy', 'Bakta', 'bakta', 'bacterial genome annotation', 'MAGs', 'plasmids', 'AMRFinderPlus', 'GFF3'],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+        bakta_db: { type: 'DIRECTORY' },
+        amrfinder_db: { type: 'DIRECTORY' },
+      },
+      optional: {
+        min_contig_length: { type: 'INT', default: 1, min: 0 },
+        genus: { type: 'STRING', default: '' },
+        species: { type: 'STRING', default: '' },
+        strain: { type: 'STRING', default: '' },
+        plasmid: { type: 'STRING', default: '' },
+        complete: { type: 'BOOLEAN', default: false },
+        prodigal: { type: 'TXT', default: '' },
+        translation_table: { type: 'STRING', default: '11', options: ['4', '11'] },
+        keep_contig_headers: { type: 'BOOLEAN', default: false },
+        replicons: { type: 'TSV', default: '' },
+        compliant: { type: 'BOOLEAN', default: false },
+        proteins: { type: 'FASTA', default: '' },
+        meta: { type: 'BOOLEAN', default: false },
+        regions: { type: 'GFF', default: '' },
+        skip_analysis: { type: 'STRING_LIST', default: [], options: ['--skip-trna', '--skip-tmrna', '--skip-rrna', '--skip-ncrna', '--skip-ncrna-region', '--skip-crispr', '--skip-cds', '--skip-pseudo', '--skip-sorf', '--skip-gap', '--skip-ori', '--skip-plot'], is_list: true },
+        output_selection: { type: 'STRING_LIST', default: ['file_tsv', 'file_gff3', 'file_ffn', 'file_plot'], options: ['file_tsv', 'file_gff3', 'file_gbff', 'file_embl', 'file_fna', 'file_ffn', 'file_faa', 'hypo_tsv', 'hypo_fa', 'sum_txt', 'file_json', 'file_plot', 'log_txt'], is_list: true },
+        threads: { type: 'INT', default: 1, min: 1, max: 64 },
+      },
+    },
+    output: ['TSV', 'GFF3', 'GBFF', 'EMBL', 'FASTA', 'FASTA', 'FASTA', 'TSV', 'FASTA', 'TXT', 'JSON', 'SVG', 'TXT'],
+    output_name: ['annotation_tsv', 'annotation_gff3', 'annotation_gbff', 'annotation_embl', 'annotation_fna', 'annotation_ffn', 'annotation_faa', 'hypotheticals_tsv', 'hypotheticals_faa', 'summary_txt', 'annotation_json', 'annotation_plot', 'logfile'],
+    required_executables: ['bakta', 'ln', 'mkdir', 'cp'],
+    required_conda_packages: ['bakta'],
+    documentation_url: 'https://github.com/oschwengers/bakta',
+    citation_dois: ['10.1099/mgen.0.000685'],
+    citation_urls: ['https://doi.org/10.1099/mgen.0.000685'],
+    citation_text: 'Bakta: rapid and standardized annotation of bacterial genomes via alignment-free sequence identification.',
+  },
   barrnap: {
     name: 'barrnap',
     display_name: 'barrnap',
@@ -16871,7 +16912,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('567 nodes available')).toBeVisible();
+  await expect(page.getByText('568 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16972,6 +17013,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'DNA to protein', name: 'SeqKit Translate', category: 'sequence' },
     { query: 'split by length', name: 'SeqKit Split2', category: 'sequence' },
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
+    { query: 'bacterial genome annotation', name: 'Bakta', category: 'annotation' },
     { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'write_csvs', name: 'Export AnnData', category: 'single_cell' },
