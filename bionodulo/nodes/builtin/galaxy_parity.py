@@ -27446,6 +27446,127 @@ class BiomFromUcNode(CommandNode):
         }
 
 
+class BiomAddMetadataNode(CommandNode):
+    """Add sample and/or observation metadata to a BIOM table."""
+
+    NODE_ID = "biom_add_metadata"
+    DISPLAY_NAME = "BIOM add metadata"
+    REQUIRED_CONDA_PACKAGES = ["biom-format"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Add sample and/or observation metadata to a BIOM table."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BIOM",
+        "biom-format",
+        "biom_add_metadata",
+        "biom add-metadata",
+        "sample metadata",
+        "observation metadata",
+        "taxonomy metadata",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_fp",)
+    REQUIRED_EXECUTABLES = ["biom"]
+    DOCUMENTATION_URL = "https://biom-format.org/documentation/adding_metadata.html"
+    CITATION_DOIS = [BIOM_FORMAT_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BIOM_FORMAT_DOI}"]
+    CITATION_TEXT = BIOM_FORMAT_CITATION_TEXT
+    VERSION = "2.1.17+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_as_json(cls, inputs: dict[str, Any]) -> bool:
+        return bool(inputs.get("output_as_json", True))
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        suffix = "biom" if cls._output_as_json(inputs) else "h5"
+        return f"{_out(inputs)}/output.{suffix}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "biom",
+            "add-metadata",
+            "--input-fp",
+            str(inputs.get("input_fp", "")),
+            "--output-fp",
+            cls._output_path(inputs),
+        ]
+        for input_name, flag in (
+            ("sample_metadata_fp", "--sample-metadata-fp"),
+            ("observation_metadata_fp", "--observation-metadata-fp"),
+            ("sc_separated", "--sc-separated"),
+            ("sc_pipe_separated", "--sc-pipe-separated"),
+            ("int_fields", "--int-fields"),
+            ("float_fields", "--float-fields"),
+            ("sample_header", "--sample-header"),
+            ("observation_header", "--observation-header"),
+        ):
+            _add_if_value(cmd, flag, inputs.get(input_name))
+        if cls._output_as_json(inputs):
+            cmd.append("--output-as-json")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        filename = "output.biom" if cls._output_as_json(inputs) else "output.h5"
+        return [out / filename]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_fp", "")).strip():
+            return "input_fp is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        text_field_description = "Comma-separated BIOM metadata field list"
+        return {
+            "required": {
+                "input_fp": ("FILE", {"description": "Input BIOM table"}),
+            },
+            "optional": {
+                "sample_metadata_fp": ("TSV", {"default": "", "description": "Optional sample metadata table"}),
+                "observation_metadata_fp": (
+                    "TSV",
+                    {"default": "", "description": "Optional observation metadata table"},
+                ),
+                "sc_separated": (
+                    "STRING",
+                    {"default": "", "description": f"{text_field_description} to split on semicolons"},
+                ),
+                "sc_pipe_separated": (
+                    "STRING",
+                    {"default": "", "description": f"{text_field_description} to split on semicolons and pipes"},
+                ),
+                "int_fields": (
+                    "STRING",
+                    {"default": "", "description": f"{text_field_description} to cast as integers"},
+                ),
+                "float_fields": (
+                    "STRING",
+                    {"default": "", "description": f"{text_field_description} to cast as floating point numbers"},
+                ),
+                "sample_header": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated sample metadata field names"},
+                ),
+                "observation_header": (
+                    "STRING",
+                    {"default": "", "description": "Comma-separated observation metadata field names"},
+                ),
+                "output_as_json": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Write output as JSON-formatted BIOM1 instead of HDF5"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class KrakentoolsCombineKreportsNode(CommandNode):
     """Combine multiple Kraken-style reports with KrakenTools."""
 

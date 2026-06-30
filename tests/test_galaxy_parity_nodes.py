@@ -16636,6 +16636,84 @@ def test_biom_from_uc_renders_command_outputs_and_validates(tmp_path: Path) -> N
     assert node_class.VALIDATE_INPUTS({"input_fp": "uc_table.uc"}) is True
 
 
+def test_biom_add_metadata_exposes_galaxy_metadata_and_doi() -> None:
+    info = _registry().object_info()["biom_add_metadata"]
+
+    assert info["display_name"] == "BIOM add metadata"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Add sample and/or observation metadata to a BIOM table."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "BIOM",
+        "biom-format",
+        "biom_add_metadata",
+        "biom add-metadata",
+        "sample metadata",
+        "observation metadata",
+        "taxonomy metadata",
+    ]
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output_fp"]
+    assert info["required_executables"] == ["biom"]
+    assert info["required_conda_packages"] == ["biom-format"]
+    assert info["documentation_url"] == "https://biom-format.org/documentation/adding_metadata.html"
+    assert info["citation_dois"] == ["10.1186/2047-217X-1-7"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/2047-217X-1-7"]
+    assert info["citation_text"] == "The Biological Observation Matrix (BIOM) format."
+    assert info["version"] == "2.1.17+galaxy0"
+    assert info["input"]["required"]["input_fp"][0] == "FILE"
+    assert info["input"]["optional"]["sample_metadata_fp"][0] == "TSV"
+    assert info["input"]["optional"]["observation_metadata_fp"][0] == "TSV"
+    assert info["input"]["optional"]["sc_separated"][1]["default"] == ""
+    assert info["input"]["optional"]["output_as_json"][1]["default"] is True
+
+
+def test_biom_add_metadata_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("biom_add_metadata")
+
+    assert node_class.render_command(
+        {
+            "input_fp": "input abundance.biom",
+            "observation_metadata_fp": "input taxonomy.tsv",
+            "sc_separated": "taxonomy",
+            "output": "/work/biom_add_metadata",
+        }
+    ) == (
+        "biom add-metadata --input-fp 'input abundance.biom' "
+        "--output-fp /work/biom_add_metadata/output.biom "
+        "--observation-metadata-fp 'input taxonomy.tsv' --sc-separated taxonomy --output-as-json"
+    )
+    assert node_class.render_command(
+        {
+            "input_fp": "table.biom",
+            "sample_metadata_fp": "sample metadata.tsv",
+            "observation_metadata_fp": "observation metadata.tsv",
+            "sc_separated": "taxonomy",
+            "sc_pipe_separated": "functional_categories",
+            "int_fields": "DaysSinceStart",
+            "float_fields": "pH",
+            "sample_header": "SampleID,BarcodeSequence",
+            "observation_header": "OTUID,taxonomy",
+            "output_as_json": False,
+            "output": "/work/biom_add_metadata",
+        }
+    ) == (
+        "biom add-metadata --input-fp table.biom --output-fp /work/biom_add_metadata/output.h5 "
+        "--sample-metadata-fp 'sample metadata.tsv' --observation-metadata-fp 'observation metadata.tsv' "
+        "--sc-separated taxonomy --sc-pipe-separated functional_categories --int-fields DaysSinceStart "
+        "--float-fields pH --sample-header SampleID,BarcodeSequence --observation-header OTUID,taxonomy"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "biom_add_metadata" / "output.biom",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_as_json": False}, tmp_path) == [
+        tmp_path / "biom_add_metadata" / "output.h5",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_fp is required"
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom"}) is True
+
+
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
     node_class = _node_class("krakentools_combine_kreports")
     info = _registry().object_info()["krakentools_combine_kreports"]
