@@ -811,6 +811,12 @@ def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_m
             "output_name": ["bam"],
             "aliases": ["Galaxy", "SAM to BAM", "sorted BAM", "reference index"],
         },
+        "sam_to_bam": {
+            "display_name": "SAM-to-BAM",
+            "output": ["BAM"],
+            "output_name": ["output1"],
+            "aliases": ["Galaxy", "sam_to_bam", "SAM-to-BAM", "converted BAM"],
+        },
     }
 
     for node_id, metadata in expected.items():
@@ -1634,3 +1640,112 @@ def test_samtools_sam_to_bam_uses_default_reference_index_and_validates_referenc
         node_class.VALIDATE_INPUTS({"input": "sample.sam", "reference": "", "threads": 1})
         == "reference is required for SAM to BAM conversion"
     )
+
+
+def test_galaxy_sam_to_bam_renders_history_reference_conversion_pipeline_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("sam_to_bam")
+
+    assert node_class.render_command(
+        {
+            "input": "sample alignments.sam",
+            "addref_select": "history",
+            "ref": "reference genome.fa",
+            "threads": 6,
+            "memory_mb": 2048,
+            "output": "/work/sam_to_bam",
+        }
+    ) == [
+        "ln",
+        "-s",
+        "reference genome.fa",
+        "reference.fa",
+        "&&",
+        "samtools",
+        "faidx",
+        "reference.fa",
+        "&&",
+        "samtools",
+        "view",
+        "-b",
+        "-@",
+        "5",
+        "-t",
+        "reference.fa.fai",
+        "sample alignments.sam",
+        "|",
+        "samtools",
+        "sort",
+        "-O",
+        "bam",
+        "-@",
+        "5",
+        "-m",
+        "1536M",
+        "-o",
+        "/work/sam_to_bam/output1.bam",
+        "-T",
+        "${TMPDIR:-.}",
+    ]
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "sam_to_bam" / "output1.bam"]
+
+
+def test_galaxy_sam_to_bam_renders_cached_reference_conversion_pipeline() -> None:
+    node_class = _node_class("sam_to_bam")
+
+    assert node_class.render_command(
+        {
+            "input": "sample.sam",
+            "addref_select": "cached",
+            "cached_ref_path": "/data/db/equCab2chrM.fa",
+            "threads": 1,
+            "memory_mb": 768,
+            "output": "/work/sam_to_bam",
+        }
+    ) == [
+        "samtools",
+        "view",
+        "-b",
+        "-@",
+        "0",
+        "-t",
+        "/data/db/equCab2chrM.fa.fai",
+        "sample.sam",
+        "|",
+        "samtools",
+        "sort",
+        "-O",
+        "bam",
+        "-@",
+        "0",
+        "-m",
+        "576M",
+        "-o",
+        "/work/sam_to_bam/output1.bam",
+        "-T",
+        "${TMPDIR:-.}",
+    ]
+
+
+def test_galaxy_sam_to_bam_validates_reference_selection_and_resources() -> None:
+    node_class = _node_class("sam_to_bam")
+
+    assert node_class.VALIDATE_INPUTS({"addref_select": "history", "ref": "reference.fa"}) == (
+        "Required input 'input' is missing"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "sample.sam", "addref_select": "history"}) == (
+        "ref is required when addref_select is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "sample.sam", "addref_select": "cached"}) == (
+        "cached_ref_path is required when addref_select is cached"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "sample.sam", "addref_select": "other"}) == (
+        "addref_select must be one of: history, cached"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "sample.sam", "addref_select": "history", "ref": "reference.fa", "threads": 0}
+    ) == "threads must be greater than 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "sample.sam", "addref_select": "history", "ref": "reference.fa", "memory_mb": 0}
+    ) == "memory_mb must be greater than 0"
+    assert node_class.VALIDATE_INPUTS({"input": "sample.sam", "addref_select": "history", "ref": "reference.fa"}) is True

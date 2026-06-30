@@ -15550,6 +15550,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
     citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
   },
+  sam_to_bam: {
+    name: 'sam_to_bam',
+    display_name: 'SAM-to-BAM',
+    category: 'samtools',
+    description: 'Convert a SAM dataset into sorted BAM format using the Galaxy SAM-to-BAM wrapper.',
+    search_aliases: ['Galaxy', 'samtools', 'sam_to_bam', 'SAM-to-BAM', 'SAM to BAM', 'converted BAM', 'reference sequence'],
+    input: {
+      required: {
+        input: { type: 'SAM' },
+        addref_select: { type: 'STRING', default: 'history', options: ['history', 'cached'] },
+      },
+      optional: {
+        ref: { type: 'FASTA' },
+        cached_ref_path: { type: 'FILE', advanced: true },
+        threads: { type: 'INT', default: 1, min: 1, max: 64 },
+        memory_mb: { type: 'INT', default: 768, min: 1, advanced: true },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['output1'],
+    required_executables: ['samtools'],
+    required_conda_packages: ['samtools'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tool_collections/samtools/sam_to_bam',
+    citation_dois: ['10.1093/gigascience/giab008', '10.1093/bioinformatics/btr076'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btr076'],
+    citation_text: 'Twelve years of SAMtools and BCFtools; Improving SNP discovery by Base Alignment Quality.',
+  },
   cramino: {
     name: 'cramino',
     display_name: 'Cramino',
@@ -15866,7 +15893,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('533 nodes available')).toBeVisible();
+  await expect(page.getByText('534 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16390,6 +16417,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BAM to SAM', name: 'Samtools BAM to SAM', category: 'samtools' },
     { query: 'bam_to_sam', name: 'BAM-to-SAM', category: 'samtools' },
     { query: 'SAM to BAM', name: 'Samtools SAM to BAM', category: 'samtools' },
+    { query: 'sam_to_bam', name: 'SAM-to-BAM', category: 'samtools' },
     { query: 'BAM CRAM QC', name: 'Cramino', category: 'qc' },
     { query: 'clip overlapping read pairs', name: 'BamUtil clipOverlap', category: 'alignment' },
     { query: 'compare SAM BAM files', name: 'BamUtil diff', category: 'alignment' },

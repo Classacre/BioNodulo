@@ -2514,3 +2514,138 @@ class SamtoolsSamToBamNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class GalaxySamToBamNode(CommandNode):
+    """Galaxy wrapper parity node for SAM-to-BAM conversion."""
+
+    NODE_ID = "sam_to_bam"
+    DISPLAY_NAME = "SAM-to-BAM"
+    REQUIRED_CONDA_PACKAGES = ["samtools"]
+    CATEGORY = "samtools"
+    DESCRIPTION = "Convert a SAM dataset into sorted BAM format using the Galaxy SAM-to-BAM wrapper."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "samtools",
+        "sam_to_bam",
+        "SAM-to-BAM",
+        "SAM to BAM",
+        "converted BAM",
+        "reference sequence",
+    ]
+    RETURN_TYPES = ("BAM",)
+    RETURN_NAMES = ("output1",)
+    REQUIRED_EXECUTABLES = ["samtools"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tool_collections/samtools/sam_to_bam"
+    CITATION_DOIS = SAMTOOLS_GALAXY_CITATION_DOIS
+    CITATION_URLS = SAMTOOLS_GALAXY_CITATION_URLS
+    CITATION_TEXT = SAMTOOLS_GALAXY_CITATION_TEXT
+    VERSION = "2.1.5"
+    SHELL = True
+    REFERENCE_OPTIONS = ["history", "cached"]
+
+    @classmethod
+    def _reference_setup_and_index(cls, inputs: dict[str, Any]) -> tuple[list[str], str]:
+        addref_select = str(inputs.get("addref_select", "history") or "history")
+        if addref_select == "cached":
+            cached_ref_path = str(inputs.get("cached_ref_path", ""))
+            return [], f"{cached_ref_path}.fai"
+        ref = str(inputs.get("ref", ""))
+        return ["ln", "-s", ref, "reference.fa", "&&", "samtools", "faidx", "reference.fa", "&&"], "reference.fa.fai"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        setup, reference_index = cls._reference_setup_and_index(inputs)
+        addthreads = str(_additional_threads(inputs))
+        return [
+            *setup,
+            "samtools",
+            "view",
+            "-b",
+            "-@",
+            addthreads,
+            "-t",
+            reference_index,
+            str(inputs.get("input", "")),
+            "|",
+            "samtools",
+            "sort",
+            "-O",
+            "bam",
+            "-@",
+            addthreads,
+            "-m",
+            _sort_memory(inputs),
+            "-o",
+            f"{output}/output1.bam",
+            "-T",
+            "${TMPDIR:-.}",
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "output1.bam"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        addref_select = str(inputs.get("addref_select", "history") or "history")
+        if addref_select not in cls.REFERENCE_OPTIONS:
+            return f"addref_select must be one of: {', '.join(cls.REFERENCE_OPTIONS)}"
+        if addref_select == "history" and not str(inputs.get("ref", "") or "").strip():
+            return "ref is required when addref_select is history"
+        if addref_select == "cached" and not str(inputs.get("cached_ref_path", "") or "").strip():
+            return "cached_ref_path is required when addref_select is cached"
+        threads_value = inputs.get("threads", 1)
+        if threads_value in (None, ""):
+            threads_value = 1
+        try:
+            threads = int(threads_value)
+        except (TypeError, ValueError):
+            return "threads must be an integer"
+        if threads <= 0:
+            return "threads must be greater than 0"
+        memory_value = inputs.get("memory_mb", 768)
+        if memory_value in (None, ""):
+            memory_value = 768
+        try:
+            memory_mb = int(memory_value)
+        except (TypeError, ValueError):
+            return "memory_mb must be an integer"
+        if memory_mb <= 0:
+            return "memory_mb must be greater than 0"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("SAM", {"description": "SAM file to convert to BAM"}),
+                "addref_select": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.REFERENCE_OPTIONS,
+                        "description": "Use a reference FASTA from history or a cached built-in reference",
+                    },
+                ),
+            },
+            "optional": {
+                "ref": ("FASTA", {"description": "Reference FASTA used when addref_select is history"}),
+                "cached_ref_path": (
+                    "FILE",
+                    {"description": "Path to cached reference FASTA used when addref_select is cached", "advanced": True},
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
+                "memory_mb": (
+                    "INT",
+                    {"default": 768, "min": 1, "description": "Memory per sort thread in MB", "advanced": True},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
