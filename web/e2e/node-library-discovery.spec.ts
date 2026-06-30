@@ -2569,6 +2569,61 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq351'],
     citation_text: 'BigWig and BigBed enable browsing of large distributed datasets in genome browsers.',
   },
+  baredsc_1d: {
+    name: 'baredsc_1d',
+    display_name: 'baredSC 1d',
+    category: 'single_cell',
+    description: 'Compute a one-dimensional baredSC expression distribution for a single gene.',
+    search_aliases: ['Galaxy', 'baredSC', 'baredsc_1d', 'baredSC 1d', 'single gene', 'single-cell expression distribution', 'Bayesian Approach', 'probability density function', 'MCMC'],
+    input: {
+      required: {
+        geneColName: { type: 'STRING' },
+      },
+      optional: {
+        filetype: { type: 'STRING', default: 'tabular', options: ['tabular', 'anndata'] },
+        input: { type: 'TSV' },
+        inputAnnData: { type: 'H5AD' },
+        filter_nb: { type: 'STRING', default: '0', options: ['0', '1', '2', '3'] },
+        metadata1ColName: { type: 'STRING', default: '' },
+        metadata1Values: { type: 'STRING', default: '' },
+        metadata2ColName: { type: 'STRING', default: '' },
+        metadata2Values: { type: 'STRING', default: '' },
+        metadata3ColName: { type: 'STRING', default: '' },
+        metadata3Values: { type: 'STRING', default: '' },
+        xmin: { type: 'FLOAT', default: 0 },
+        xmax: { type: 'FLOAT', default: 2.5 },
+        xscale: { type: 'STRING', default: 'Seurat', options: ['Seurat', 'log'] },
+        targetSum: { type: 'FLOAT', default: 10000 },
+        nx: { type: 'INT', default: 100, min: 1 },
+        minScalex: { type: 'FLOAT', default: 0.1 },
+        seed: { type: 'INT', default: 1 },
+        nnorm: { type: 'INT', default: 2, min: 1 },
+        nsampMCMC: { type: 'INT', default: 100000, min: 1 },
+        automatic_restart: { type: 'STRING', default: 'yes', options: ['yes', 'no'] },
+        minNeff: { type: 'FLOAT', default: 200 },
+        image_file_format: { type: 'STRING', default: 'png', options: ['png', 'svg', 'pdf'] },
+        title: { type: 'STRING', default: '' },
+        removeFirstSamples: { type: 'INT', default: -1 },
+        nsampInPlot: { type: 'INT', default: 100000, min: 1 },
+        prettyBins: { type: 'INT', default: -1, min: -1 },
+        osampx: { type: 'INT', default: 10, min: 1, advanced: true },
+        osampxpdf: { type: 'INT', default: 5, min: 1, advanced: true },
+        coviscale: { type: 'FLOAT', default: 1, advanced: true },
+        nis: { type: 'INT', default: 1000, advanced: true },
+        burn_custom: { type: 'STRING', default: 'no', options: ['no', 'yes'], advanced: true },
+        nsampBurnMCMC: { type: 'INT', default: -1, advanced: true },
+        T0BurnMCMC: { type: 'FLOAT', default: 100, min: 1, advanced: true },
+      },
+    },
+    output: ['NPZ', 'TXT', 'DIRECTORY', 'TSV', 'IMAGE', 'DIRECTORY', 'TXT'],
+    output_name: ['output', 'neff', 'qc_plots', 'pdf', 'plot', 'other_outputs', 'logevidence'],
+    required_executables: ['baredSC_1d', 'mkdir', 'mv', 'gunzip'],
+    required_conda_packages: ['baredsc', 'gzip'],
+    documentation_url: 'https://baredsc.readthedocs.io/en/latest/index.html',
+    citation_dois: ['10.1186/s12859-021-04507-8'],
+    citation_urls: ['https://doi.org/10.1186/s12859-021-04507-8'],
+    citation_text: 'BARED (Bayesian Approach to Retrieve Expression Distribution of) Single Cell estimates confidence intervals on one- or two-gene single-cell expression probability density functions.',
+  },
   bax2bam: {
     name: 'bax2bam',
     display_name: 'bax2bam',
@@ -14588,7 +14643,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('498 nodes available')).toBeVisible();
+  await expect(page.getByText('499 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14689,6 +14744,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BioPerl', name: 'Genbank to GFF3', category: 'annotation' },
     { query: 'large insertions', name: 'basil', category: 'variant' },
     { query: 'bedGraphToBigWig', name: 'BAM BED GFF coverage bigWigs', category: 'genomics' },
+    { query: 'single gene', name: 'baredSC 1d', category: 'single_cell' },
     { query: 'pulse features', name: 'bax2bam', category: 'conversion' },
     { query: 'Circlator', name: 'Berokka', category: 'assembly' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },

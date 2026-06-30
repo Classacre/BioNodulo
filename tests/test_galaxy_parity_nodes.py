@@ -973,6 +973,142 @@ def test_bbgtobigwig_auto_detects_bed_input_and_validates_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input1": "reads.bam", "chromfile": "hg38.len"}) is True
 
 
+def test_baredsc_1d_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["baredsc_1d"]
+
+    assert info["display_name"] == "baredSC 1d"
+    assert info["category"] == "single_cell"
+    assert info["description"] == "Compute a one-dimensional baredSC expression distribution for a single gene."
+    assert info["input"]["required"]["geneColName"][0] == "STRING"
+    assert info["input"]["optional"]["filetype"][1]["default"] == "tabular"
+    assert info["input"]["optional"]["filetype"][1]["options"] == ["tabular", "anndata"]
+    assert info["input"]["optional"]["filter_nb"][1]["options"] == ["0", "1", "2", "3"]
+    assert info["input"]["optional"]["xscale"][1]["default"] == "Seurat"
+    assert info["input"]["optional"]["xscale"][1]["options"] == ["Seurat", "log"]
+    assert info["input"]["optional"]["automatic_restart"][1]["default"] == "yes"
+    assert info["input"]["optional"]["image_file_format"][1]["options"] == ["png", "svg", "pdf"]
+    assert info["output"] == ["NPZ", "TXT", "DIRECTORY", "TSV", "IMAGE", "DIRECTORY", "TXT"]
+    assert info["output_name"] == ["output", "neff", "qc_plots", "pdf", "plot", "other_outputs", "logevidence"]
+    assert info["required_executables"] == ["baredSC_1d", "mkdir", "mv", "gunzip"]
+    assert info["required_conda_packages"] == ["baredsc", "gzip"]
+    assert info["documentation_url"] == "https://baredsc.readthedocs.io/en/latest/index.html"
+    assert info["citation_dois"] == ["10.1186/s12859-021-04507-8"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/s12859-021-04507-8"]
+    assert "Bayesian Approach" in info["citation_text"]
+    assert "single gene" in info["search_aliases"]
+
+
+def test_baredsc_1d_renders_tabular_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("baredsc_1d")
+
+    assert node_class.render_command(
+        {
+            "filetype": "tabular",
+            "input": "counts table.tsv",
+            "geneColName": "Gene A",
+            "filter_nb": "2",
+            "metadata1ColName": "cluster",
+            "metadata1Values": "B,T",
+            "metadata2ColName": "batch",
+            "metadata2Values": "batch 1",
+            "xmin": -15,
+            "xmax": -7,
+            "xscale": "log",
+            "nx": 25,
+            "minScalex": 0.2,
+            "seed": 13,
+            "nnorm": 1,
+            "nsampMCMC": 20000,
+            "automatic_restart": "no",
+            "title": "first gene 1 gauss",
+            "removeFirstSamples": 500,
+            "nsampInPlot": 12000,
+            "image_file_format": "pdf",
+            "prettyBins": 200,
+            "osampx": 12,
+            "osampxpdf": 6,
+            "coviscale": 1.5,
+            "nis": 900,
+            "burn_custom": "yes",
+            "nsampBurnMCMC": 4000,
+            "T0BurnMCMC": 120,
+            "output": "/work/baredsc_1d",
+        }
+    ) == (
+        "baredSC_1d --input 'counts table.tsv' --geneColName 'Gene A' "
+        "--metadata1ColName cluster --metadata1Values B,T --metadata2ColName batch "
+        "--metadata2Values 'batch 1' --xmin -15 --xmax -7 --xscale log --nx 25 "
+        "--minScale 0.2 --seed 13 --nnorm 1 --nsampMCMC 20000 --title 'first gene 1 gauss' "
+        "--removeFirstSamples 500 --nsampInPlot 12000 --prettyBins 200 --osampx 12 "
+        "--osampxpdf 6 --coviscale 1.5 --nis 900 --nsampBurnMCMC 4000 --T0BurnMCMC 120 "
+        "--output output --figure baredSC.pdf --logevidence logevidence.txt && mkdir QC output && "
+        "mv baredSC_convergence.* QC && mv baredSC_p.pdf QC && mv baredSC_corner.* QC && "
+        "mv baredSC_neff.txt output && mv baredSC_pdf.txt output && mv baredSC.pdf baredSC && "
+        "gunzip baredSC_means.txt.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"image_file_format": "pdf"}, tmp_path) == [
+        tmp_path / "baredsc_1d" / "output.npz",
+        tmp_path / "baredsc_1d" / "output" / "baredSC_neff.txt",
+        tmp_path / "baredsc_1d" / "QC",
+        tmp_path / "baredsc_1d" / "output" / "baredSC_pdf.txt",
+        tmp_path / "baredsc_1d" / "baredSC.pdf",
+        tmp_path / "baredsc_1d" / "other_outputs",
+        tmp_path / "baredsc_1d" / "logevidence.txt",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "geneColName is required"
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A"}) == "input is required when filetype is tabular"
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A", "filetype": "bad", "input": "counts.tsv"}) == (
+        "filetype must be one of: tabular, anndata"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"geneColName": "Gene A", "filetype": "anndata", "input": "counts.tsv"}
+    ) == "inputAnnData is required when filetype is anndata"
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A", "input": "counts.tsv", "filter_nb": "4"}) == (
+        "filter_nb must be one of: 0, 1, 2, 3"
+    )
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A", "input": "counts.tsv", "xscale": "bad"}) == (
+        "xscale must be one of: Seurat, log"
+    )
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A", "input": "counts.tsv", "automatic_restart": "bad"}) == (
+        "automatic_restart must be one of: yes, no"
+    )
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A", "input": "counts.tsv", "image_file_format": "jpg"}) == (
+        "image_file_format must be one of: png, svg, pdf"
+    )
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A", "input": "counts.tsv", "nx": 0}) == (
+        "nx must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A", "input": "counts.tsv", "nnorm": 0}) == (
+        "nnorm must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"geneColName": "Gene A", "input": "counts.tsv"}) is True
+
+
+def test_baredsc_1d_renders_anndata_minimal_seurat_command() -> None:
+    node_class = _node_class("baredsc_1d")
+
+    assert node_class.render_command(
+        {
+            "filetype": "anndata",
+            "inputAnnData": "cells.h5ad",
+            "geneColName": "GeneB",
+            "targetSum": 0,
+            "automatic_restart": "yes",
+            "minNeff": 400,
+            "output": "/work/baredsc_1d",
+        }
+    ) == (
+        "baredSC_1d --inputAnnData cells.h5ad --geneColName GeneB --xmin 0 --xmax 2.5 "
+        "--xscale Seurat --targetSum 0 --nx 100 --minScale 0.1 --seed 1 --nnorm 2 "
+        "--nsampMCMC 100000 --minNeff 400 --nsampInPlot 100000 --osampx 10 --osampxpdf 5 "
+        "--coviscale 1 --nis 1000 --output output --figure baredSC.png --logevidence logevidence.txt && "
+        "mkdir QC output && mv baredSC_convergence.* QC && mv baredSC_p.png QC && "
+        "mv baredSC_corner.* QC && mv baredSC_neff.txt output && mv baredSC_pdf.txt output && "
+        "mv baredSC.png baredSC && gunzip baredSC_means.txt.gz"
+    )
+
+
 def test_bax2bam_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["bax2bam"]
 
