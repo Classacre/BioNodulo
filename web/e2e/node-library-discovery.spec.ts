@@ -5878,6 +5878,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/oxfordjournals.molbev.a040454'],
     citation_text: 'The neighbor-joining method: a new method for reconstructing phylogenetic trees.',
   },
+  rapidnj: {
+    name: 'rapidnj',
+    display_name: 'RapidNJ',
+    category: 'phylogeny',
+    description: 'Construct neighbour-joining phylogenetic trees or distance matrices rapidly with RapidNJ.',
+    search_aliases: ['Galaxy', 'RapidNJ', 'rapidnj', 'neighbor joining', 'neighbour joining', 'distance matrix', 'Kimura', 'Jukes-Cantor', 'bootstrap'],
+    input: {
+      required: {
+        alignments: { type: 'STRING' },
+      },
+      optional: {
+        input_format: { type: 'STRING', default: 'fasta', options: ['fasta', 'stockholm', 'phylip'] },
+        output_format: { type: 'STRING', default: 't', options: ['t', 'm'] },
+        evolution_model: { type: 'STRING', default: 'kim', options: ['kim', 'jc'] },
+        bootstrap: { type: 'INT', default: '', min: 0 },
+        alignment_type: { type: 'STRING', default: 'p', options: ['p', 'd'] },
+        no_negative_length: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 1, min: 1 },
+      },
+    },
+    output: ['PHYLOGENY_TREE'],
+    output_name: ['distances'],
+    required_executables: ['rapidnj'],
+    required_conda_packages: ['rapidnj'],
+    documentation_url: 'https://birc.au.dk/software/rapidnj',
+    citation_dois: ['10.1007/978-3-540-87361-7_10'],
+    citation_urls: ['https://doi.org/10.1007/978-3-540-87361-7_10'],
+    citation_text: 'Rapid Neighbour Joining: high-performance neighbour-joining phylogenetic inference.',
+  },
   phyml: {
     name: 'phyml',
     display_name: 'PhyML',
@@ -15689,7 +15718,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('526 nodes available')).toBeVisible();
+  await expect(page.getByText('527 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15880,6 +15909,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
     { query: 'clustalw2', name: 'ClustalW', category: 'phylogeny' },
     { query: 'distance matrix', name: 'Quicktree', category: 'phylogeny' },
+    { query: 'RapidNJ neighbour joining', name: 'RapidNJ', category: 'phylogeny' },
     { query: 'PhyML maximum likelihood', name: 'PhyML', category: 'phylogeny' },
     { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
     { query: 'PEAR paired-end read merger', name: 'Pear', category: 'trimming' },

@@ -10874,6 +10874,90 @@ def test_quicktree_renders_alignment_and_distance_commands(tmp_path: Path) -> No
     assert node_class.VALIDATE_INPUTS({"format": "dist", "input_file": "distances.phy", "output_type": "dist_out"}) is True
 
 
+def test_rapidnj_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["rapidnj"]
+
+    assert node_info["display_name"] == "RapidNJ"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"] == (
+        "Construct neighbour-joining phylogenetic trees or distance matrices rapidly with RapidNJ."
+    )
+    assert node_info["output"] == ["PHYLOGENY_TREE"]
+    assert node_info["output_name"] == ["distances"]
+    assert node_info["required_executables"] == ["rapidnj"]
+    assert node_info["required_conda_packages"] == ["rapidnj"]
+    assert node_info["documentation_url"] == "https://birc.au.dk/software/rapidnj"
+    assert node_info["citation_dois"] == ["10.1007/978-3-540-87361-7_10"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1007/978-3-540-87361-7_10"]
+    assert "Rapid Neighbour Joining" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "RapidNJ" in node_info["search_aliases"]
+    assert node_info["version"] == "2.3.2"
+    assert node_info["input"]["required"]["alignments"][0] == "STRING"
+    assert node_info["input"]["optional"]["output_format"][1]["options"] == ["t", "m"]
+    assert node_info["input"]["optional"]["evolution_model"][1]["options"] == ["kim", "jc"]
+    assert node_info["input"]["optional"]["alignment_type"][1]["options"] == ["p", "d"]
+    assert node_info["input"]["optional"]["no_negative_length"][1]["default"] is False
+
+
+def test_rapidnj_renders_tree_and_matrix_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("rapidnj")
+
+    assert node_class.render_command(
+        {
+            "alignments": "protein alignment.fa",
+            "input_format": "fasta",
+            "output_format": "t",
+            "evolution_model": "kim",
+            "bootstrap": 100,
+            "alignment_type": "p",
+            "no_negative_length": True,
+            "threads": 8,
+            "output": "/work/rapidnj",
+        }
+    ) == (
+        "mkdir -p /work/rapidnj && "
+        "ln -s 'protein alignment.fa' /work/rapidnj/input.fa && "
+        "rapidnj /work/rapidnj/input.fa --input-format fa --output-format t --evolution-model kim "
+        "--cores 8 --bootstrap 100 --alignment-type p --no-negative-length > /work/rapidnj/distances.nhx"
+    )
+    assert node_class.render_command(
+        {
+            "alignments": "distances.phy",
+            "input_format": "phylip",
+            "output_format": "m",
+            "evolution_model": "jc",
+            "alignment_type": "d",
+            "output": "/work/rapidnj",
+        }
+    ) == (
+        "mkdir -p /work/rapidnj && "
+        "ln -s distances.phy /work/rapidnj/input.pd && "
+        "rapidnj /work/rapidnj/input.pd --input-format pd --output-format m --evolution-model jc "
+        "--cores 1 --alignment-type d > /work/rapidnj/distances.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"output_format": "t"}, tmp_path) == [
+        tmp_path / "rapidnj" / "distances.nhx",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_format": "m"}, tmp_path) == [
+        tmp_path / "rapidnj" / "distances.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "alignments is required"
+    assert node_class.VALIDATE_INPUTS({"alignments": "alignment.fa", "input_format": "bad"}) == (
+        "input_format must be one of: fasta, stockholm, phylip"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "alignment.fa", "bootstrap": "bad"}) == (
+        "bootstrap must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "alignment.fa", "bootstrap": -1}) == "bootstrap must be >= 0"
+    assert node_class.VALIDATE_INPUTS({"alignments": "alignment.fa", "output_format": "bad"}) == (
+        "output_format must be one of: t, m"
+    )
+    assert node_class.VALIDATE_INPUTS({"alignments": "alignment.fa"}) is True
+
+
 def test_phyml_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     node_info = _registry().object_info()["phyml"]
 
