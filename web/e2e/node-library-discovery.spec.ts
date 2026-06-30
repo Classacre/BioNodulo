@@ -240,6 +240,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.5281/zenodo.2566616', 'https://bitbucket.org/princeton_genomics/barcode_splitter/'],
     citation_text: 'Barcode Splitter: split sequence files using multiple sets of barcodes.',
   },
+  bctools_convert_to_binary_barcode: {
+    name: 'bctools_convert_to_binary_barcode',
+    display_name: 'Create binary barcodes',
+    category: 'sequence',
+    description: 'Convert FASTQ barcode reads from nucleotide bases into binary R/Y barcode codes.',
+    search_aliases: ['Galaxy', 'bctools', 'Create binary barcodes', 'bctools_convert_to_binary_barcode', 'convert_bc_to_binary_RY.py', 'binary barcodes', 'RY-space barcodes', 'UMI', 'uvCLAP', 'FLASH'],
+    input: {
+      required: {
+        barcodes: { type: 'FASTQ' },
+      },
+      optional: {
+        script_path: { type: 'FILE', default: 'convert_bc_to_binary_RY.py' },
+      },
+    },
+    output: ['FASTQ'],
+    output_name: ['barcodes_ry'],
+    required_executables: ['convert_bc_to_binary_RY.py'],
+    required_conda_packages: ['bctools'],
+    documentation_url: 'https://github.com/dmaticzka/bctools',
+    citation_dois: ['10.1016/j.molcel.2013.07.001'],
+    citation_urls: ['https://doi.org/10.1016/j.molcel.2013.07.001', 'https://github.com/dmaticzka/bctools'],
+    citation_text: 'bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH.',
+  },
   blastxml_to_gapped_gff3: {
     name: 'blastxml_to_gapped_gff3',
     display_name: 'BlastXML to gapped GFF3',
@@ -12124,7 +12147,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('415 nodes available')).toBeVisible();
+  await expect(page.getByText('416 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12136,6 +12159,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },
     { query: 'index reads', name: 'Barcode Splitter', category: 'sequence' },
+    { query: 'RY-space barcodes', name: 'Create binary barcodes', category: 'sequence' },
     { query: 'gapped GFF3', name: 'BlastXML to gapped GFF3', category: 'annotation' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },

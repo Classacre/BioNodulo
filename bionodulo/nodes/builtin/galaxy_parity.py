@@ -184,6 +184,11 @@ BARCODE_SPLITTER_CITATION_URL = "https://bitbucket.org/princeton_genomics/barcod
 BARCODE_SPLITTER_CITATION_TEXT = (
     "Barcode Splitter: split sequence files using multiple sets of barcodes."
 )
+BCTOOLS_CITATION_DOI = "10.1016/j.molcel.2013.07.001"
+BCTOOLS_CITATION_URL = "https://github.com/dmaticzka/bctools"
+BCTOOLS_CITATION_TEXT = (
+    "bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH."
+)
 BLASTXML_TO_GAPPED_GFF3_CITATION_URL = (
     "https://github.com/galaxyproject/tools-iuc/tree/main/tools/blastxml_to_gapped_gff3"
 )
@@ -2988,6 +2993,82 @@ class BarcodeSplitterNode(CommandNode):
                         "default": "fastq",
                         "options": cls.FORMATS,
                         "description": "FASTQ datatype extension used for discovered split files",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BctoolsConvertToBinaryBarcodeNode(CommandNode):
+    """Convert FASTQ barcode bases into R/Y-space binary barcodes."""
+
+    NODE_ID = "bctools_convert_to_binary_barcode"
+    DISPLAY_NAME = "Create binary barcodes"
+    REQUIRED_CONDA_PACKAGES = ["bctools"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Convert FASTQ barcode reads from nucleotide bases into binary R/Y barcode codes."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "bctools",
+        "Create binary barcodes",
+        "bctools_convert_to_binary_barcode",
+        "convert_bc_to_binary_RY.py",
+        "binary barcodes",
+        "RY-space barcodes",
+        "UMI",
+        "uvCLAP",
+        "FLASH",
+    ]
+    RETURN_TYPES = ("FASTQ",)
+    RETURN_NAMES = ("barcodes_ry",)
+    REQUIRED_EXECUTABLES = ["convert_bc_to_binary_RY.py"]
+    DOCUMENTATION_URL = BCTOOLS_CITATION_URL
+    CITATION_DOIS = [BCTOOLS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BCTOOLS_CITATION_DOI}", BCTOOLS_CITATION_URL]
+    CITATION_TEXT = BCTOOLS_CITATION_TEXT
+    VERSION = "0.2.2+galaxy2"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/barcodes_ry.fastq"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            str(inputs.get("script_path", "convert_bc_to_binary_RY.py") or "convert_bc_to_binary_RY.py"),
+            str(inputs.get("barcodes", "")),
+            ">",
+            cls._output_path(inputs),
+        ]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "barcodes_ry.fastq"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("barcodes", "")).strip():
+            return "barcodes is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "barcodes": ("FASTQ", {"description": "FASTQ file containing barcode reads to convert"}),
+            },
+            "optional": {
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "convert_bc_to_binary_RY.py",
+                        "advanced": True,
+                        "description": "Path to the bctools convert_bc_to_binary_RY.py executable",
                     },
                 ),
             },

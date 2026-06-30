@@ -4013,6 +4013,59 @@ def test_barcode_splitter_validates_required_inputs_modes_and_index_reads() -> N
     ) is True
 
 
+def test_bctools_convert_to_binary_barcode_exposes_galaxy_metadata_and_doi() -> None:
+    info = _registry().object_info()["bctools_convert_to_binary_barcode"]
+
+    assert info["display_name"] == "Create binary barcodes"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Convert FASTQ barcode reads from nucleotide bases into binary R/Y barcode codes."
+    assert info["input"]["required"]["barcodes"][0] == "FASTQ"
+    assert info["input"]["optional"]["script_path"][1]["default"] == "convert_bc_to_binary_RY.py"
+    assert info["output"] == ["FASTQ"]
+    assert info["output_name"] == ["barcodes_ry"]
+    assert info["required_executables"] == ["convert_bc_to_binary_RY.py"]
+    assert info["required_conda_packages"] == ["bctools"]
+    assert info["documentation_url"] == "https://github.com/dmaticzka/bctools"
+    assert info["citation_dois"] == ["10.1016/j.molcel.2013.07.001"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1016/j.molcel.2013.07.001",
+        "https://github.com/dmaticzka/bctools",
+    ]
+    assert "binary RY-space barcodes" in info["citation_text"]
+    assert "uvCLAP" in info["search_aliases"]
+
+
+def test_bctools_convert_to_binary_barcode_renders_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bctools_convert_to_binary_barcode")
+
+    assert node_class.render_command(
+        {
+            "barcodes": "extracted_bcs.fastq",
+            "output": "/work/bctools_convert_to_binary_barcode",
+        }
+    ) == "convert_bc_to_binary_RY.py extracted_bcs.fastq > /work/bctools_convert_to_binary_barcode/barcodes_ry.fastq"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bctools_convert_to_binary_barcode" / "barcodes_ry.fastq",
+    ]
+
+
+def test_bctools_convert_to_binary_barcode_quotes_paths_and_validates_required_input() -> None:
+    node_class = _node_class("bctools_convert_to_binary_barcode")
+
+    assert node_class.render_command(
+        {
+            "barcodes": "barcode reads.fastq",
+            "script_path": "/tools/bctools/convert binary barcodes.py",
+            "output": "/work/bctools_convert_to_binary_barcode",
+        }
+    ) == (
+        "'/tools/bctools/convert binary barcodes.py' 'barcode reads.fastq' "
+        "> /work/bctools_convert_to_binary_barcode/barcodes_ry.fastq"
+    )
+    assert node_class.VALIDATE_INPUTS({}) == "barcodes is required"
+    assert node_class.VALIDATE_INPUTS({"barcodes": "extracted_bcs.fastq"}) is True
+
+
 def test_blastxml_to_gapped_gff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["blastxml_to_gapped_gff3"]
 
