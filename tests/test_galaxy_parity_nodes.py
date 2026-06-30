@@ -28061,6 +28061,133 @@ def test_bellerophon_renders_chimeric_read_filter_merge_command_output(tmp_path:
     ]
 
 
+def test_bellavista_prepare_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["bellavista_prepare"]
+
+    assert info["display_name"] == "Bellavista"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Prepare large images for bellavista visualizer."
+    assert info["input"]["required"]["images"][0] == "FILE"
+    assert info["input"]["required"]["images"][1]["is_list"] is True
+    assert info["input"]["optional"]["technology"][1]["default"] == "MERSCOPE"
+    assert info["input"]["optional"]["technology"][1]["options"] == ["Xenium", "MERSCOPE"]
+    assert info["input"]["optional"]["transcript_filename"][0] == "FILE"
+    assert info["input"]["optional"]["um_to_px_transform"][0] == "CSV"
+    assert info["input"]["optional"]["config"][1]["default"] is True
+    assert info["input"]["optional"]["script_path"][1]["default"] == "bellavista.bash"
+    assert info["output"] == ["TGZ", "JSON"]
+    assert info["output_name"] == ["bellavista_output", "config"]
+    assert info["required_executables"] == ["bash", "cat", "chmod", "cp", "mkdir", "tar"]
+    assert info["required_conda_packages"] == []
+    assert info["documentation_url"] == "https://github.com/pkosurilab/BellaVista"
+    assert info["citation_dois"] == ["10.1016/j.bpj.2024.11.3199"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1016/j.bpj.2024.11.3199",
+        "https://github.com/pkosurilab/BellaVista",
+    ]
+    assert "Imaging-Based Spatial Transcriptomics" in info["citation_text"]
+    assert "spatial transcriptomics" in info["search_aliases"]
+
+
+def test_bellavista_prepare_renders_merscope_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("bellavista_prepare")
+
+    assert node_class.render_command(
+        {
+            "technology": "MERSCOPE",
+            "images": ["mosaic PolyT z3.tif", "mosaic_PolyT_z4.ome.tiff"],
+            "plot_transcripts": True,
+            "transcript_filename": "detected transcripts.csv",
+            "plot_all_genes": "No",
+            "selected_genes": "Actb, Gapdh",
+            "plot_cell_seg": True,
+            "cell_segmentation": "cell boundaries.parquet",
+            "plot_nuclear_seg": False,
+            "um_to_px_transform": "micron transform.csv",
+            "z_plane": 3,
+            "transcript_point_size": 2,
+            "rotate_angle": -90,
+            "timeout": 42,
+            "script_path": "/tools/bellavista/bellavista.bash",
+            "output": "/work/bellavista_prepare",
+        }
+    ) == (
+        "export TIME_LIMIT_SECONDS=42 && export BELLAVISTA_DIR=/work/bellavista_prepare/input/ && "
+        "mkdir -p /work/bellavista_prepare/input /work/bellavista_prepare/input/BellaVista_output && "
+        "chmod -R 777 /work/bellavista_prepare/input/ && "
+        "cp 'detected transcripts.csv' /work/bellavista_prepare/input/detected_transcripts.csv && "
+        "cp 'mosaic PolyT z3.tif' /work/bellavista_prepare/input/mosaic_PolyT_z3.tif && "
+        "cp mosaic_PolyT_z4.ome.tiff /work/bellavista_prepare/input/mosaic_PolyT_z4.ome.tiff && "
+        "cp 'cell boundaries.parquet' /work/bellavista_prepare/input/cell_boundaries.parquet && "
+        "cp 'micron transform.csv' /work/bellavista_prepare/input/micron_to_mosaic_pixel_transform.csv && "
+        "printf %s '"
+        '{"system":"MERSCOPE","data_folder":"./","create_bellavista_inputs":true,'
+        '"visualization_parameters":{"plot_image":true,"plot_transcripts":true,"plot_cell_seg":true,'
+        '"plot_nuclear_seg":false,"genes_visible_on_startup":false,"plot_allgenes":false,'
+        '"selected_genes":["Actb","Gapdh"],"rotate_angle":-90,"transcript_point_size":2},'
+        '"input_files":{"images":["mosaic_PolyT_z3.tif","mosaic_PolyT_z4.ome.tiff"],'
+        '"cell_segmentation":"cell_boundaries.parquet",'
+        '"um_to_px_transform":"micron_to_mosaic_pixel_transform.csv",'
+        '"transcript_filename":"detected_transcripts.csv","z_plane":3}}'
+        "' > /work/bellavista_prepare/input/config.json && "
+        "cat /work/bellavista_prepare/input/config.json && "
+        "cp /work/bellavista_prepare/input/config.json /work/bellavista_prepare/input/config_orig.json && "
+        "cd /work/bellavista_prepare/input/ && bash /tools/bellavista/bellavista.bash && "
+        "cd /work/bellavista_prepare && tar -czf /work/bellavista_prepare/bellavista.tar.gz input/"
+    )
+    assert node_class.PLAN_OUTPUTS({"config": True}, tmp_path) == [
+        tmp_path / "bellavista_prepare" / "bellavista.tar.gz",
+        tmp_path / "bellavista_prepare" / "input" / "config_orig.json",
+    ]
+    assert node_class.PLAN_OUTPUTS({"config": False}, tmp_path) == [
+        tmp_path / "bellavista_prepare" / "bellavista.tar.gz",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "images is required"
+    assert node_class.VALIDATE_INPUTS({"images": ["mosaic.tif"], "technology": "bad"}) == (
+        "technology must be one of: Xenium, MERSCOPE"
+    )
+    assert node_class.VALIDATE_INPUTS({"images": ["mosaic.tif"], "technology": "MERSCOPE"}) == (
+        "um_to_px_transform is required for MERSCOPE"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "images": ["mosaic.tif"],
+            "technology": "Xenium",
+            "plot_transcripts": True,
+        }
+    ) == "transcript_filename is required when plot_transcripts is true"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "images": ["mosaic.tif"],
+            "technology": "Xenium",
+            "plot_transcripts": True,
+            "transcript_filename": "detected.csv",
+            "plot_all_genes": "No",
+        }
+    ) == "selected_genes is required when plot_all_genes is No"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "images": ["mosaic.tif"],
+            "technology": "Xenium",
+            "plot_transcripts": False,
+            "plot_cell_seg": True,
+        }
+    ) == "cell_segmentation is required when plot_cell_seg is true"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "images": ["mosaic.tif"],
+                "technology": "Xenium",
+                "plot_transcripts": False,
+                "plot_cell_seg": False,
+                "plot_nuclear_seg": False,
+            }
+        )
+        is True
+    )
+
+
 def test_chromeister_renders_pairwise_genome_comparison_command_outputs(tmp_path: Path) -> None:
     node_class = _node_class("chromeister")
     info = _registry().object_info()["chromeister"]

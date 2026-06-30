@@ -10689,6 +10689,44 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41586-021-03451-0'],
     citation_text: 'Semi-automated assembly of high-quality diploid human reference genomes.',
   },
+  bellavista_prepare: {
+    name: 'bellavista_prepare',
+    display_name: 'Bellavista',
+    category: 'visualization',
+    description: 'Prepare large images for bellavista visualizer.',
+    search_aliases: ['Galaxy', 'Bellavista', 'BellaVista', 'bellavista_prepare', 'spatial transcriptomics', 'imaging-based spatial transcriptomics', 'MERSCOPE', 'Xenium', 'OME-Zarr', 'visualizer'],
+    input: {
+      required: {
+        images: { type: 'FILE', is_list: true },
+      },
+      optional: {
+        technology: { type: 'STRING', default: 'MERSCOPE', options: ['Xenium', 'MERSCOPE'] },
+        um_to_px_transform: { type: 'CSV', default: '' },
+        plot_transcripts: { type: 'BOOLEAN', default: true },
+        transcript_filename: { type: 'FILE', default: '' },
+        plot_all_genes: { type: 'STRING', default: 'Yes', options: ['Yes', 'No'] },
+        selected_genes: { type: 'STRING', default: '' },
+        plot_cell_seg: { type: 'BOOLEAN', default: true },
+        cell_segmentation: { type: 'FILE', default: '' },
+        plot_nuclear_seg: { type: 'BOOLEAN', default: false },
+        nuclear_segmentation: { type: 'FILE', default: '' },
+        z_plane: { type: 'INT', default: 0 },
+        transcript_point_size: { type: 'INT', default: 1 },
+        rotate_angle: { type: 'INT', default: 0 },
+        config: { type: 'BOOLEAN', default: true },
+        timeout: { type: 'INT', default: 3600, advanced: true },
+        script_path: { type: 'FILE', default: 'bellavista.bash', advanced: true },
+      },
+    },
+    output: ['TGZ', 'JSON'],
+    output_name: ['bellavista_output', 'config'],
+    required_executables: ['bash', 'cat', 'chmod', 'cp', 'mkdir', 'tar'],
+    required_conda_packages: [],
+    documentation_url: 'https://github.com/pkosurilab/BellaVista',
+    citation_dois: ['10.1016/j.bpj.2024.11.3199'],
+    citation_urls: ['https://doi.org/10.1016/j.bpj.2024.11.3199', 'https://github.com/pkosurilab/BellaVista'],
+    citation_text: 'Open-source Visualization for Imaging-Based Spatial Transcriptomics.',
+  },
   chromeister: {
     name: 'chromeister',
     display_name: 'Chromeister',
@@ -14833,7 +14871,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('502 nodes available')).toBeVisible();
+  await expect(page.getByText('503 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15174,6 +15212,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bayescan natural selection', name: 'BayeScan', category: 'population_genetics' },
     { query: 'BayeScan (Galaxy)', name: 'BayeScan (Galaxy)', category: 'population_genetics' },
     { query: 'Arima chimeric reads', name: 'Bellerophon', category: 'assembly' },
+    { query: 'spatial transcriptomics', name: 'Bellavista', category: 'visualization' },
     { query: 'Chromeister dotplot', name: 'Chromeister', category: 'comparative_genomics' },
     { query: 'BigWig coverage outliers', name: 'Bigwig outliers to bed features', category: 'genomics' },
     { query: 'AmpliGone primer removal', name: 'AmpliGone', category: 'sequence' },
