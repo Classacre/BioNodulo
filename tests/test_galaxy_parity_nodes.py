@@ -16714,6 +16714,135 @@ def test_biom_add_metadata_renders_command_outputs_and_validates(tmp_path: Path)
     assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom"}) is True
 
 
+def test_biom_convert_exposes_galaxy_metadata_and_doi() -> None:
+    info = _registry().object_info()["biom_convert"]
+
+    assert info["display_name"] == "BIOM convert"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Convert between BIOM table formats and tabular text."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "BIOM",
+        "biom-format",
+        "biom_convert",
+        "biom convert",
+        "BIOM1",
+        "BIOM2",
+        "HDF5",
+        "TSV-formatted table",
+    ]
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output_fp"]
+    assert info["required_executables"] == ["biom"]
+    assert info["required_conda_packages"] == ["biom-format"]
+    assert info["documentation_url"] == "https://biom-format.org/documentation/biom_conversion.html"
+    assert info["citation_dois"] == ["10.1186/2047-217X-1-7"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/2047-217X-1-7"]
+    assert info["citation_text"] == "The Biological Observation Matrix (BIOM) format."
+    assert info["version"] == "2.1.17+galaxy0"
+    assert info["input"]["required"]["input_fp"][0] == "FILE"
+    assert info["input"]["optional"]["input_type"][1]["default"] == "tsv"
+    assert info["input"]["optional"]["input_type"][1]["options"] == ["tsv", "biom"]
+    assert info["input"]["optional"]["process_obs_metadata"][1]["options"] == ["", "taxonomy", "naive", "sc_separated"]
+    assert info["input"]["optional"]["output_type"][1]["default"] == "biom"
+    assert info["input"]["optional"]["output_type"][1]["options"] == ["tsv", "biom"]
+    assert info["input"]["optional"]["biom_type"][1]["default"] == "json"
+    assert info["input"]["optional"]["biom_type"][1]["options"] == ["json", "hdf5"]
+    assert info["input"]["optional"]["table_type"][1]["options"] == [
+        "OTU table",
+        "Pathway table",
+        "Function table",
+        "Ortholog table",
+        "Gene table",
+        "Metabolite table",
+        "Taxon table",
+        "Table",
+    ]
+
+
+def test_biom_convert_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("biom_convert")
+
+    assert node_class.render_command(
+        {
+            "input_fp": "input abundance taxonomy.tsv",
+            "input_type": "tsv",
+            "process_obs_metadata": "taxonomy",
+            "output_type": "biom",
+            "table_type": "OTU table",
+            "biom_type": "json",
+            "output": "/work/biom_convert",
+        }
+    ) == (
+        "sed '1s/^\\([^#].*\\)/#\\1/' 'input abundance taxonomy.tsv' > input && "
+        "biom convert --input-fp input --output-fp /work/biom_convert/output.biom "
+        "--process-obs-metadata taxonomy --table-type 'OTU table' --to-json"
+    )
+    assert node_class.render_command(
+        {
+            "input_fp": "input_abundance_1.biom1",
+            "input_type": "biom",
+            "output_type": "tsv",
+            "header_key": "taxonomy",
+            "output_metadata_id": "Consensus Lineage",
+            "tsv_metadata_formatter": "sc_separated",
+            "output": "/work/biom_convert",
+        }
+    ) == (
+        "ln -s input_abundance_1.biom1 input && "
+        "biom convert --input-fp input --output-fp /work/biom_convert/output.tsv "
+        "--to-tsv --header-key taxonomy --output-metadata-id 'Consensus Lineage' "
+        "--tsv-metadata-formatter sc_separated"
+    )
+    assert node_class.render_command(
+        {
+            "input_fp": "input_abundance_1.biom1",
+            "input_type": "biom",
+            "output_type": "biom",
+            "table_type": "Function table",
+            "biom_type": "hdf5",
+            "collapsed_samples": True,
+            "collapsed_observations": True,
+            "sample_metadata_fp": "sample metadata.tsv",
+            "observation_metadata_fp": "observation metadata.tsv",
+            "output": "/work/biom_convert",
+        }
+    ) == (
+        "ln -s input_abundance_1.biom1 input && "
+        "biom convert --input-fp input --output-fp /work/biom_convert/output.h5 "
+        "--table-type 'Function table' --to-hdf5 --collapsed-samples --collapsed-observations "
+        "--sample-metadata-fp 'sample metadata.tsv' --observation-metadata-fp 'observation metadata.tsv'"
+    )
+    assert node_class.PLAN_OUTPUTS({"output_type": "tsv"}, tmp_path) == [
+        tmp_path / "biom_convert" / "output.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_type": "biom", "biom_type": "json"}, tmp_path) == [
+        tmp_path / "biom_convert" / "output.biom",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_type": "biom", "biom_type": "hdf5"}, tmp_path) == [
+        tmp_path / "biom_convert" / "output.h5",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_fp is required"
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.tsv", "input_type": "bad"}) == (
+        "input_type must be one of: tsv, biom"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.tsv", "process_obs_metadata": "bad"}) == (
+        "process_obs_metadata must be one of: , taxonomy, naive, sc_separated"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom", "output_type": "bad"}) == (
+        "output_type must be one of: tsv, biom"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom", "output_type": "biom", "biom_type": "bad"}) == (
+        "biom_type must be one of: json, hdf5"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom", "output_type": "biom", "table_type": "bad"}) == (
+        "table_type must be one of: OTU table, Pathway table, Function table, Ortholog table, Gene table, "
+        "Metabolite table, Taxon table, Table"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom"}) is True
+
+
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
     node_class = _node_class("krakentools_combine_kreports")
     info = _registry().object_info()["krakentools_combine_kreports"]

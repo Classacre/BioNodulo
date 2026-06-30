@@ -27567,6 +27567,234 @@ class BiomAddMetadataNode(CommandNode):
         }
 
 
+class BiomConvertNode(CommandNode):
+    """Convert between BIOM table formats and tabular text."""
+
+    NODE_ID = "biom_convert"
+    DISPLAY_NAME = "BIOM convert"
+    REQUIRED_CONDA_PACKAGES = ["biom-format"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Convert between BIOM table formats and tabular text."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BIOM",
+        "biom-format",
+        "biom_convert",
+        "biom convert",
+        "BIOM1",
+        "BIOM2",
+        "HDF5",
+        "TSV-formatted table",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_fp",)
+    REQUIRED_EXECUTABLES = ["biom"]
+    DOCUMENTATION_URL = "https://biom-format.org/documentation/biom_conversion.html"
+    CITATION_DOIS = [BIOM_FORMAT_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BIOM_FORMAT_DOI}"]
+    CITATION_TEXT = BIOM_FORMAT_CITATION_TEXT
+    VERSION = "2.1.17+galaxy0"
+    SHELL = True
+
+    INPUT_TYPES_OPTIONS = ["tsv", "biom"]
+    OUTPUT_TYPES = ["tsv", "biom"]
+    PROCESS_OBS_METADATA_OPTIONS = ["", "taxonomy", "naive", "sc_separated"]
+    TSV_METADATA_FORMATTERS = ["naive", "sc_separated"]
+    BIOM_TYPES = ["json", "hdf5"]
+    TABLE_TYPES = [
+        "OTU table",
+        "Pathway table",
+        "Function table",
+        "Ortholog table",
+        "Gene table",
+        "Metabolite table",
+        "Taxon table",
+        "Table",
+    ]
+
+    @classmethod
+    def _input_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_type", "tsv") or "tsv")
+
+    @classmethod
+    def _output_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("output_type", "biom") or "biom")
+
+    @classmethod
+    def _biom_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("biom_type", "json") or "json")
+
+    @classmethod
+    def _table_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("table_type", "Table") or "Table")
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        if cls._output_type(inputs) == "tsv":
+            suffix = "tsv"
+        elif cls._biom_type(inputs) == "hdf5":
+            suffix = "h5"
+        else:
+            suffix = "biom"
+        return f"{_out(inputs)}/output.{suffix}"
+
+    @classmethod
+    def _setup_command(cls, inputs: dict[str, Any]) -> str:
+        input_fp = str(inputs.get("input_fp", ""))
+        if cls._input_type(inputs) == "tsv":
+            return f"sed '1s/^\\([^#].*\\)/#\\1/' {shlex.quote(input_fp)} > input"
+        return _shell_join(["ln", "-s", input_fp, "input"])
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "biom",
+            "convert",
+            "--input-fp",
+            "input",
+            "--output-fp",
+            cls._output_path(inputs),
+        ]
+        if cls._input_type(inputs) == "tsv":
+            _add_if_value(cmd, "--process-obs-metadata", inputs.get("process_obs_metadata"))
+
+        if cls._output_type(inputs) == "tsv":
+            cmd.append("--to-tsv")
+            header_key = inputs.get("header_key")
+            if header_key:
+                cmd.extend(["--header-key", str(header_key)])
+                _add_if_value(cmd, "--output-metadata-id", inputs.get("output_metadata_id"))
+                cmd.extend(["--tsv-metadata-formatter", str(inputs.get("tsv_metadata_formatter", "naive") or "naive")])
+        else:
+            cmd.extend(["--table-type", cls._table_type(inputs)])
+            if cls._biom_type(inputs) == "hdf5":
+                cmd.append("--to-hdf5")
+                if inputs.get("collapsed_samples", False):
+                    cmd.append("--collapsed-samples")
+                if inputs.get("collapsed_observations", False):
+                    cmd.append("--collapsed-observations")
+            else:
+                cmd.append("--to-json")
+            _add_if_value(cmd, "--sample-metadata-fp", inputs.get("sample_metadata_fp"))
+            _add_if_value(cmd, "--observation-metadata-fp", inputs.get("observation_metadata_fp"))
+
+        return f"{cls._setup_command(inputs)} && {_shell_join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / Path(cls._output_path(inputs)).name]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_fp", "")).strip():
+            return "input_fp is required"
+        input_type = cls._input_type(inputs)
+        if input_type not in cls.INPUT_TYPES_OPTIONS:
+            return f"input_type must be one of: {', '.join(cls.INPUT_TYPES_OPTIONS)}"
+        process_obs_metadata = str(inputs.get("process_obs_metadata", "") or "")
+        if process_obs_metadata not in cls.PROCESS_OBS_METADATA_OPTIONS:
+            return f"process_obs_metadata must be one of: {', '.join(cls.PROCESS_OBS_METADATA_OPTIONS)}"
+        output_type = cls._output_type(inputs)
+        if output_type not in cls.OUTPUT_TYPES:
+            return f"output_type must be one of: {', '.join(cls.OUTPUT_TYPES)}"
+        if output_type == "biom":
+            biom_type = cls._biom_type(inputs)
+            if biom_type not in cls.BIOM_TYPES:
+                return f"biom_type must be one of: {', '.join(cls.BIOM_TYPES)}"
+            table_type = cls._table_type(inputs)
+            if table_type not in cls.TABLE_TYPES:
+                return f"table_type must be one of: {', '.join(cls.TABLE_TYPES)}"
+        formatter = str(inputs.get("tsv_metadata_formatter", "naive") or "naive")
+        if formatter not in cls.TSV_METADATA_FORMATTERS:
+            return f"tsv_metadata_formatter must be one of: {', '.join(cls.TSV_METADATA_FORMATTERS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_fp": ("FILE", {"description": "Input tabular table or BIOM table"}),
+            },
+            "optional": {
+                "input_type": (
+                    "STRING",
+                    {
+                        "default": "tsv",
+                        "options": cls.INPUT_TYPES_OPTIONS,
+                        "description": "Source format: tabular text or BIOM",
+                    },
+                ),
+                "process_obs_metadata": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": cls.PROCESS_OBS_METADATA_OPTIONS,
+                        "description": "Process observation metadata when converting from tabular text",
+                    },
+                ),
+                "output_type": (
+                    "STRING",
+                    {
+                        "default": "biom",
+                        "options": cls.OUTPUT_TYPES,
+                        "description": "Target format: BIOM or TSV-formatted classic table",
+                    },
+                ),
+                "header_key": (
+                    "STRING",
+                    {"default": "", "description": "Observation metadata key to include when writing TSV"},
+                ),
+                "output_metadata_id": (
+                    "STRING",
+                    {"default": "", "description": "TSV output metadata column name"},
+                ),
+                "tsv_metadata_formatter": (
+                    "STRING",
+                    {
+                        "default": "naive",
+                        "options": cls.TSV_METADATA_FORMATTERS,
+                        "description": "Formatter for observation metadata when writing TSV",
+                    },
+                ),
+                "table_type": (
+                    "STRING",
+                    {
+                        "default": "Table",
+                        "options": cls.TABLE_TYPES,
+                        "description": "BIOM table semantic type",
+                    },
+                ),
+                "biom_type": (
+                    "STRING",
+                    {
+                        "default": "json",
+                        "options": cls.BIOM_TYPES,
+                        "description": "BIOM output representation: JSON BIOM1 or HDF5 BIOM2",
+                    },
+                ),
+                "collapsed_samples": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use collapsed samples when writing HDF5 BIOM"},
+                ),
+                "collapsed_observations": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use collapsed observations when writing HDF5 BIOM"},
+                ),
+                "sample_metadata_fp": (
+                    "TSV",
+                    {"default": "", "description": "Optional sample metadata mapping file for BIOM output"},
+                ),
+                "observation_metadata_fp": (
+                    "TSV",
+                    {"default": "", "description": "Optional observation metadata mapping file for BIOM output"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class KrakentoolsCombineKreportsNode(CommandNode):
     """Combine multiple Kraken-style reports with KrakenTools."""
 

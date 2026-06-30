@@ -5728,6 +5728,40 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/2047-217X-1-7'],
     citation_text: 'The Biological Observation Matrix (BIOM) format.',
   },
+  biom_convert: {
+    name: 'biom_convert',
+    display_name: 'BIOM convert',
+    category: 'metagenomics',
+    description: 'Convert between BIOM table formats and tabular text.',
+    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_convert', 'biom convert', 'BIOM1', 'BIOM2', 'HDF5', 'TSV-formatted table'],
+    input: {
+      required: {
+        input_fp: { type: 'FILE' },
+      },
+      optional: {
+        input_type: { type: 'STRING', default: 'tsv', options: ['tsv', 'biom'] },
+        process_obs_metadata: { type: 'STRING', default: '', options: ['', 'taxonomy', 'naive', 'sc_separated'] },
+        output_type: { type: 'STRING', default: 'biom', options: ['tsv', 'biom'] },
+        header_key: { type: 'STRING', default: '' },
+        output_metadata_id: { type: 'STRING', default: '' },
+        tsv_metadata_formatter: { type: 'STRING', default: 'naive', options: ['naive', 'sc_separated'] },
+        table_type: { type: 'STRING', default: 'Table', options: ['OTU table', 'Pathway table', 'Function table', 'Ortholog table', 'Gene table', 'Metabolite table', 'Taxon table', 'Table'] },
+        biom_type: { type: 'STRING', default: 'json', options: ['json', 'hdf5'] },
+        collapsed_samples: { type: 'BOOLEAN', default: false },
+        collapsed_observations: { type: 'BOOLEAN', default: false },
+        sample_metadata_fp: { type: 'TSV', default: '' },
+        observation_metadata_fp: { type: 'TSV', default: '' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output_fp'],
+    required_executables: ['biom'],
+    required_conda_packages: ['biom-format'],
+    documentation_url: 'https://biom-format.org/documentation/biom_conversion.html',
+    citation_dois: ['10.1186/2047-217X-1-7'],
+    citation_urls: ['https://doi.org/10.1186/2047-217X-1-7'],
+    citation_text: 'The Biological Observation Matrix (BIOM) format.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12494,7 +12528,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('430 nodes available')).toBeVisible();
+  await expect(page.getByText('431 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12696,6 +12730,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'biom subset-table', name: 'BIOM subset table', category: 'metagenomics' },
     { query: 'biom from-uc', name: 'BIOM from UC', category: 'metagenomics' },
     { query: 'biom add-metadata', name: 'BIOM add metadata', category: 'metagenomics' },
+    { query: 'biom convert', name: 'BIOM convert', category: 'metagenomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
