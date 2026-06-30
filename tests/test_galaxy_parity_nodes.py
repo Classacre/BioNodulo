@@ -10469,6 +10469,94 @@ def test_kleborate_renders_default_and_kaptive_commands_outputs_and_validates(tm
     assert node_class.VALIDATE_INPUTS({"assemblies": ["assembly.fa"]}) is True
 
 
+def test_raven_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["raven"]
+
+    assert node_info["display_name"] == "Raven"
+    assert node_info["category"] == "assembly"
+    assert node_info["description"] == "Assemble Oxford Nanopore or other long uncorrected reads with Raven."
+    assert node_info["output"] == ["FASTA", "GFA"]
+    assert node_info["output_name"] == ["out_fasta", "out_gfa"]
+    assert node_info["required_executables"] == ["raven"]
+    assert node_info["required_conda_packages"] == ["raven-assembler"]
+    assert node_info["documentation_url"] == "https://github.com/lbcb-sci/raven"
+    assert node_info["citation_dois"] == ["10.1038/s43588-021-00073-4"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1038/s43588-021-00073-4"]
+    assert "Time- and memory-efficient genome assembly with Raven" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "Oxford Nanopore" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input_reads"][0] == "FILE"
+    assert node_info["input"]["optional"]["kmer_len"][1]["default"] == 15
+    assert node_info["input"]["optional"]["window_len"][1]["default"] == 5
+    assert node_info["input"]["optional"]["frequency"][1]["default"] == 0.001
+    assert node_info["input"]["optional"]["graphical_fragment_assembly"][1]["default"] is True
+    assert node_info["input"]["optional"]["use_micromizers"][1]["default"] is False
+
+
+def test_raven_renders_galaxy_default_and_optional_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("raven")
+
+    assert node_class.render_command(
+        {
+            "input_reads": "ERA476754.fastq.gz",
+            "input_format": "fastq.gz",
+            "output": "/work/raven",
+        }
+    ) == (
+        "ln -s ERA476754.fastq.gz ./input.fq.gz && "
+        "raven --kmer-len 15 --window-len 5 --frequency 0.001 --polishing-rounds 2 "
+        "--match 3 --mismatch -5 --gap -4 --kMaxNumOverlaps 32 --identity 0 "
+        "--min-unitig-size 9999 --graphical-fragment-assembly /work/raven/out.gfa "
+        "--disable-checkpoints -t ${GALAXY_SLOTS:-4} ./input.fq.gz > /work/raven/out.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "raven" / "out.fasta",
+        tmp_path / "raven" / "out.gfa",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input_reads": "long reads.fastq",
+            "input_format": "fastq",
+            "kmer_len": 19,
+            "window_len": 7,
+            "frequency": 0.0025,
+            "polishing_rounds": 4,
+            "match": 5,
+            "mismatch": -6,
+            "gap": -3,
+            "kMaxNumOverlaps": 64,
+            "identity": 0.02,
+            "min_unitig_size": 15000,
+            "graphical_fragment_assembly": False,
+            "use_micromizers": True,
+            "output": "/work/raven",
+        }
+    ) == (
+        "ln -s 'long reads.fastq' ./input.fq && "
+        "raven --kmer-len 19 --window-len 7 --frequency 0.0025 --polishing-rounds 4 "
+        "--match 5 --mismatch -6 --gap -3 --kMaxNumOverlaps 64 --identity 0.02 "
+        "--min-unitig-size 15000 --use-micromizers --disable-checkpoints -t ${GALAXY_SLOTS:-4} "
+        "./input.fq > /work/raven/out.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({"graphical_fragment_assembly": False}, tmp_path) == [
+        tmp_path / "raven" / "out.fasta",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_reads is required"
+    assert node_class.VALIDATE_INPUTS({"input_reads": "reads.txt", "input_format": "txt"}) == (
+        "input_format must be one of: fasta, fasta.gz, fastq, fastq.gz"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_reads": "reads.fastq", "kmer_len": 0}) == (
+        "kmer_len must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_reads": "reads.fastq", "frequency": -0.1}) == (
+        "frequency must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_reads": "reads.fastq", "gap": 0}) == "gap must be less than or equal to -1"
+    assert node_class.VALIDATE_INPUTS({"input_reads": "reads.fastq"}) is True
+
+
 def test_minia_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["minia"]
 

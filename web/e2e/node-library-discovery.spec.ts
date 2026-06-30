@@ -2948,6 +2948,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/1748-7188-8-22'],
     citation_text: 'Space-efficient and exact de Bruijn graph representation based on a Bloom filter.',
   },
+  raven: {
+    name: 'raven',
+    display_name: 'Raven',
+    category: 'assembly',
+    description: 'Assemble Oxford Nanopore or other long uncorrected reads with Raven.',
+    search_aliases: ['Galaxy', 'Raven', 'raven', 'raven-assembler', 'Oxford Nanopore', 'long-read assembler', 'de novo assembly', 'Graphical Fragment Assembly', 'GFA'],
+    input: {
+      required: {
+        input_reads: { type: 'FILE' },
+      },
+      optional: {
+        input_format: { type: 'STRING', default: 'fastq.gz', options: ['fasta', 'fasta.gz', 'fastq', 'fastq.gz'] },
+        kmer_len: { type: 'INT', default: 15, min: 1 },
+        window_len: { type: 'INT', default: 5, min: 1 },
+        frequency: { type: 'FLOAT', default: 0.001, min: 0 },
+        identity: { type: 'FLOAT', default: 0, min: 0 },
+        kMaxNumOverlaps: { type: 'INT', default: 32, min: 1 },
+        min_unitig_size: { type: 'INT', default: 9999, min: 0 },
+        polishing_rounds: { type: 'INT', default: 2, min: 0 },
+        match: { type: 'INT', default: 3 },
+        mismatch: { type: 'INT', default: -5 },
+        gap: { type: 'INT', default: -4, max: -1 },
+        graphical_fragment_assembly: { type: 'BOOLEAN', default: true },
+        use_micromizers: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FASTA', 'GFA'],
+    output_name: ['out_fasta', 'out_gfa'],
+    required_executables: ['raven'],
+    required_conda_packages: ['raven-assembler'],
+    documentation_url: 'https://github.com/lbcb-sci/raven',
+    citation_dois: ['10.1038/s43588-021-00073-4'],
+    citation_urls: ['https://doi.org/10.1038/s43588-021-00073-4'],
+    citation_text: 'Time- and memory-efficient genome assembly with Raven.',
+  },
   genomescope: {
     name: 'genomescope',
     display_name: 'GenomeScope',
@@ -14095,7 +14130,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('486 nodes available')).toBeVisible();
+  await expect(page.getByText('487 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14212,6 +14247,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'trimns', name: 'TrimN (Galaxy)', category: 'trimming' },
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'Bloom filter', name: 'Minia', category: 'assembly' },
+    { query: 'Oxford Nanopore assembler', name: 'Raven', category: 'assembly' },
     { query: 'reference-free genome profiling', name: 'GenomeScope', category: 'assembly' },
     { query: 'Illumina read simulator', name: 'ART Illumina', category: 'simulation' },
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },
