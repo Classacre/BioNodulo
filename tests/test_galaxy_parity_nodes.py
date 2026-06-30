@@ -11411,6 +11411,67 @@ def test_chewbbaca_nsstats_renders_command_outputs_and_validation(tmp_path: Path
     assert node_class.VALIDATE_INPUTS({"mode": "species"}) is True
 
 
+def test_chewbbaca_prepexternalschema_exposes_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["chewbbaca_prepexternalschema"]
+
+    assert info["display_name"] == "chewBBACA PrepExternalSchema"
+    assert info["category"] == "typing"
+    assert info["description"] == "Adapt an external schema to be used with chewBBACA."
+    assert info["output"] == ["ZIP"]
+    assert info["output_name"] == ["schema"]
+    assert info["required_executables"] == ["unzip", "chewBBACA.py", "zip"]
+    assert info["required_conda_packages"] == ["chewbbaca", "blast", "zip", "fasttree"]
+    assert info["documentation_url"] == "https://chewbbaca.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
+    assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
+    assert "chewBBACA" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "PrepExternalSchema" in info["search_aliases"]
+    assert info["version"] == "3.3.10+galaxy1"
+    assert info["input"]["required"]["input_schema"][0] == "FILE"
+    assert info["input"]["optional"]["minimum_length"][1]["default"] == 0
+    assert info["input"]["optional"]["blast_score_ratio"][1]["default"] == 0.6
+    assert info["input"]["optional"]["size_filter"][0] == "BOOLEAN"
+
+
+def test_chewbbaca_prepexternalschema_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chewbbaca_prepexternalschema")
+
+    assert node_class.render_command(
+        {
+            "input_schema": "external schema.zip",
+            "training_file": "training.ptf",
+            "genes_list": "genes.txt",
+            "blast_score_ratio": 0.7,
+            "minimum_length": 201,
+            "translation_table": 11,
+            "size_threshold": 0.2,
+            "size_filter": True,
+            "output": "/work/chewbbaca_prepexternalschema",
+        }
+    ) == (
+        "mkdir -p /work/chewbbaca_prepexternalschema && cd /work/chewbbaca_prepexternalschema && "
+        "unzip 'external schema.zip' -d schema && chewBBACA.py PrepExternalSchema --ptf training.ptf "
+        "--gl genes.txt --bsr 0.7 --l 201 --t 11 --st 0.2 --size-filter -g schema/ -o schema_seed && "
+        "zip -r PExternalschema_seed.zip schema_seed"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "chewbbaca_prepexternalschema" / "PExternalschema_seed.zip"
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_schema is required"
+    assert node_class.VALIDATE_INPUTS({"input_schema": "schema.zip", "blast_score_ratio": 1.1}) == (
+        "blast_score_ratio must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_schema": "schema.zip", "minimum_length": -1}) == (
+        "minimum_length must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_schema": "schema.zip", "translation_table": "bad"}) == (
+        "translation_table must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_schema": "schema.zip"}) is True
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 

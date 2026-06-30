@@ -21930,6 +21930,116 @@ class ChewBBACANSStatsNode(CommandNode):
         return True
 
 
+class ChewBBACAPrepExternalSchemaNode(CommandNode):
+    """Adapt external schemas for chewBBACA."""
+
+    NODE_ID = "chewbbaca_prepexternalschema"
+    DISPLAY_NAME = "chewBBACA PrepExternalSchema"
+    REQUIRED_CONDA_PACKAGES = ["chewbbaca", "blast", "zip", "fasttree"]
+    CATEGORY = "typing"
+    DESCRIPTION = "Adapt an external schema to be used with chewBBACA."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "chewBBACA",
+        "chewbbaca_prepexternalschema",
+        "chewBBACA PrepExternalSchema",
+        "PrepExternalSchema",
+        "external schema",
+        "schema adaptation",
+        "schema_seed",
+        "cgMLST",
+        "bacterial typing",
+    ]
+    RETURN_TYPES = ("ZIP",)
+    RETURN_NAMES = ("schema",)
+    REQUIRED_EXECUTABLES = ["unzip", "chewBBACA.py", "zip"]
+    DOCUMENTATION_URL = "https://chewbbaca.readthedocs.io/"
+    CITATION_DOIS = [CHEWBBACA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHEWBBACA_CITATION_DOI}"]
+    CITATION_TEXT = CHEWBBACA_CITATION_TEXT
+    VERSION = "3.3.10+galaxy1"
+    SHELL = True
+
+    @classmethod
+    def _bool_flag(cls, inputs: dict[str, Any], key: str) -> bool:
+        value = inputs.get(key, False)
+        if isinstance(value, str):
+            return value.lower() not in {"", "false", "0", "no"}
+        return bool(value)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        commands = [
+            _shell_join(["mkdir", "-p", out]),
+            f"cd {shlex.quote(out)}",
+            _shell_join(["unzip", str(inputs.get("input_schema", "")), "-d", "schema"]),
+        ]
+        cmd = ["chewBBACA.py", "PrepExternalSchema"]
+        _add_if_value(cmd, "--ptf", inputs.get("training_file"))
+        _add_if_value(cmd, "--gl", inputs.get("genes_list"))
+        cmd.extend(
+            [
+                "--bsr",
+                str(inputs.get("blast_score_ratio", 0.6)),
+                "--l",
+                str(inputs.get("minimum_length", 0)),
+                "--t",
+                str(inputs.get("translation_table", 11)),
+                "--st",
+                str(inputs.get("size_threshold", 0.2)),
+            ]
+        )
+        if cls._bool_flag(inputs, "size_filter"):
+            cmd.append("--size-filter")
+        cmd.extend(["-g", "schema/", "-o", "schema_seed"])
+        commands.append(_shell_join(cmd))
+        commands.append("zip -r PExternalschema_seed.zip schema_seed")
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "PExternalschema_seed.zip"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_schema": ("FILE", {"description": "External schema ZIP archive"}),
+            },
+            "optional": {
+                "training_file": ("FILE", {"default": ""}),
+                "genes_list": ("TXT", {"default": ""}),
+                "minimum_length": ("INT", {"default": 0, "min": 0}),
+                "blast_score_ratio": ("FLOAT", {"default": 0.6, "min": 0, "max": 1}),
+                "translation_table": ("INT", {"default": 11, "min": 0}),
+                "size_threshold": ("FLOAT", {"default": 0.2, "min": 0}),
+                "size_filter": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_schema", "")).strip():
+            return "input_schema is required"
+        result = ChewBBACACreateSchemaNode._validate_float_min(inputs, "blast_score_ratio", 0.6, 0, 1)
+        if result is not True:
+            return result
+        result = ChewBBACACreateSchemaNode._validate_int_min(inputs, "minimum_length", 0, 0)
+        if result is not True:
+            return result
+        result = ChewBBACACreateSchemaNode._validate_int_min(inputs, "translation_table", 11, 0)
+        if result is not True:
+            return result
+        result = ChewBBACACreateSchemaNode._validate_float_min(inputs, "size_threshold", 0.2, 0)
+        if result is not True:
+            return result
+        return True
+
+
 class DASToolNode(CommandNode):
     """Integrate metagenomic binning predictions with DAS Tool."""
 

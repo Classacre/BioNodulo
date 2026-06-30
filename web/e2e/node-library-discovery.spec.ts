@@ -3931,6 +3931,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
     citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
   },
+  chewbbaca_prepexternalschema: {
+    name: 'chewbbaca_prepexternalschema',
+    display_name: 'chewBBACA PrepExternalSchema',
+    category: 'typing',
+    description: 'Adapt an external schema to be used with chewBBACA.',
+    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_prepexternalschema', 'chewBBACA PrepExternalSchema', 'PrepExternalSchema', 'external schema', 'schema adaptation', 'schema_seed', 'cgMLST', 'bacterial typing'],
+    input: {
+      required: {
+        input_schema: { type: 'FILE' },
+      },
+      optional: {
+        training_file: { type: 'FILE', default: '' },
+        genes_list: { type: 'STRING', default: '' },
+        minimum_length: { type: 'INT', default: 0, min: 0 },
+        blast_score_ratio: { type: 'FLOAT', default: 0.6, min: 0, max: 1 },
+        translation_table: { type: 'INT', default: 11, min: 0 },
+        size_threshold: { type: 'FLOAT', default: 0.2, min: 0 },
+        size_filter: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['ZIP'],
+    output_name: ['schema'],
+    required_executables: ['unzip', 'chewBBACA.py', 'zip'],
+    required_conda_packages: ['chewbbaca', 'blast', 'zip', 'fasttree'],
+    documentation_url: 'https://chewbbaca.readthedocs.io/',
+    citation_dois: ['10.1099/mgen.0.000166'],
+    citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
+    citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
+  },
   checkm_lineage_wf: {
     name: 'checkm_lineage_wf',
     display_name: 'CheckM lineage_wf',
@@ -16807,7 +16836,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('565 nodes available')).toBeVisible();
+  await expect(page.getByText('566 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16948,6 +16977,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'core genome', name: 'chewBBACA ExtractCgMLST', category: 'typing' },
     { query: 'common loci', name: 'chewBBACA JoinProfiles', category: 'typing' },
     { query: 'schema statistics', name: 'chewBBACA NSStats', category: 'typing' },
+    { query: 'external schema', name: 'chewBBACA PrepExternalSchema', category: 'typing' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },
