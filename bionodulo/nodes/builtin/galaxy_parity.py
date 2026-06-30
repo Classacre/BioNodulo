@@ -35732,6 +35732,37 @@ class Beacon2CohortsNode(_Beacon2SearchBaseNode):
     QUERY_FLAG_OPTIONS = {"genders": ["", "male", "female"]}
 
 
+class Beacon2DatasetsNode(_Beacon2SearchBaseNode):
+    """Query the datasets collection in a Beacon database."""
+
+    NODE_ID = "beacon2_datasets"
+    DISPLAY_NAME = "Beacon2 Datasets"
+    DESCRIPTION = "Query the datasets collection in a Beacon database for repositories containing variants or individuals."
+    VERSION = "1.0.0"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_datasets",
+        "Beacon2 Datasets",
+        "beacon2-search datasets",
+        "datasets collection",
+        "dataUseConditions",
+        "ontologyModifiers",
+        "repository",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_datasets_query",)
+    SEARCH_COLLECTION = "datasets"
+    OUTPUT_FILENAME = "datasets_query_findings.json"
+    QUERY_FLAGS = (
+        ("dataUseConditions", "--dataUseConditions", "Data-use conditions applying to this dataset"),
+        ("ontologyModifiers", "--ontologyModifiers", "Ontology modifiers that further specify the dataset"),
+        ("identification", "--identification", "Unique identifier of the dataset"),
+        ("name", "--name", "Name of the dataset"),
+    )
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 
