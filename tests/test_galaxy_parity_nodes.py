@@ -71,6 +71,158 @@ def test_anndata_export_renders_generated_script_command_outputs_and_validation(
     assert node_class.VALIDATE_INPUTS({"input": "krumsiek11.h5ad"}) is True
 
 
+def test_anndata_import_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["anndata_import"]
+
+    assert node_info["display_name"] == "Import Anndata"
+    assert node_info["category"] == "single_cell"
+    assert node_info["description"] == "Create an AnnData H5AD object from loom, tabular, 10x, MTX, UMI-tools, or annotated matrix inputs."
+    assert node_info["output"] == ["H5AD"]
+    assert node_info["output_name"] == ["anndata"]
+    assert node_info["required_executables"] == ["python", "gzip"]
+    assert node_info["required_conda_packages"] == ["anndata", "scanpy", "loompy", "pandas"]
+    assert node_info["documentation_url"] == "https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.html"
+    assert node_info["citation_dois"] == ["10.1186/s13059-017-1382-0"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/s13059-017-1382-0"]
+    assert "AnnData" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "read_10x_mtx" in node_info["search_aliases"]
+    assert node_info["version"] == "0.11.4+galaxy3"
+    assert node_info["input"]["optional"]["adata_format"][1]["default"] == "loom"
+    assert node_info["input"]["optional"]["adata_format"][1]["options"] == [
+        "loom",
+        "tabular",
+        "10x_h5",
+        "mtx",
+        "umi_tools",
+        "custom",
+    ]
+    assert node_info["input"]["optional"]["tenx_use"][1]["options"] == ["no", "legacy_10x", "v3_10x"]
+
+
+def test_anndata_import_renders_tabular_csv_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("anndata_import")
+
+    command = node_class.render_command(
+        {
+            "adata_format": "tabular",
+            "input": "cell counts.csv",
+            "delimiter": ",",
+            "first_column_names": True,
+            "output": "/work/anndata_import",
+        }
+    )
+    assert command == (
+        "mkdir -p /work/anndata_import && cd /work/anndata_import && cat > anndata_import.py <<'PY'\n"
+        "import anndata as ad\n"
+        "from scipy.sparse import csr_matrix\n"
+        "adata = ad.read_csv('cell counts.csv', delimiter=',', first_column_names=True)\n"
+        "adata.X = csr_matrix(adata.X)\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_import.py"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "anndata_import" / "anndata.h5ad"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required when adata_format is loom"
+    assert node_class.VALIDATE_INPUTS({"adata_format": "bad", "input": "cells.loom"}) == (
+        "adata_format must be one of: loom, tabular, 10x_h5, mtx, umi_tools, custom"
+    )
+    assert node_class.VALIDATE_INPUTS({"adata_format": "tabular", "input": "adata.tsv"}) is True
+
+
+def test_anndata_import_renders_mtx_legacy_10x_and_umi_tools_commands() -> None:
+    node_class = _node_class("anndata_import")
+
+    assert node_class.render_command(
+        {
+            "adata_format": "mtx",
+            "matrix": "matrix.mtx",
+            "tenx_use": "legacy_10x",
+            "genes": "genes.tsv",
+            "barcodes": "barcodes.tsv",
+            "var_names": "gene_symbols",
+            "make_unique": True,
+            "gex_only": True,
+            "output": "/work/anndata_import",
+        }
+    ) == (
+        "mkdir -p /work/anndata_import && cd /work/anndata_import && mkdir -p mtx && cp matrix.mtx mtx/matrix.mtx && "
+        "cp genes.tsv mtx/genes.tsv && cp barcodes.tsv mtx/barcodes.tsv && cat > anndata_import.py <<'PY'\n"
+        "import anndata as ad\n"
+        "import scanpy as sc\n"
+        "adata = sc.read_10x_mtx('mtx', var_names='gene_symbols', make_unique=True, cache=False, gex_only=True)\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_import.py"
+    )
+    assert node_class.render_command(
+        {
+            "adata_format": "umi_tools",
+            "input": "umi tools.tsv",
+            "output": "/work/anndata_import",
+        }
+    ) == (
+        "mkdir -p /work/anndata_import && cd /work/anndata_import && gzip -c 'umi tools.tsv' > umi_tools_input.gz && "
+        "cat > anndata_import.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_umi_tools('umi_tools_input.gz')\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_import.py"
+    )
+
+    assert node_class.VALIDATE_INPUTS({"adata_format": "mtx"}) == "matrix is required when adata_format is mtx"
+    assert node_class.VALIDATE_INPUTS({"adata_format": "mtx", "matrix": "matrix.mtx", "tenx_use": "bad"}) == (
+        "tenx_use must be one of: no, legacy_10x, v3_10x"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"adata_format": "mtx", "matrix": "matrix.mtx", "tenx_use": "legacy_10x", "genes": "genes.tsv"}
+    ) == "barcodes is required when tenx_use is legacy_10x"
+
+
+def test_anndata_import_renders_custom_annotated_matrix_command_and_validates() -> None:
+    node_class = _node_class("anndata_import")
+
+    assert node_class.render_command(
+        {
+            "adata_format": "custom",
+            "mtx": "counts.mtx",
+            "obs": "cells.tsv",
+            "var": "genes.tsv",
+            "output": "/work/anndata_import",
+        }
+    ) == (
+        "mkdir -p /work/anndata_import && cd /work/anndata_import && cat > anndata_import.py <<'PY'\n"
+        "import anndata as ad\n"
+        "import pandas as pd\n"
+        "adata = ad.read_mtx(filename='counts.mtx')\n"
+        "adata = adata.transpose().copy()\n"
+        "obs = pd.read_csv('cells.tsv', sep='\\t', index_col=0)\n"
+        "var = pd.read_csv('genes.tsv', sep='\\t', index_col=0)\n"
+        "if adata.shape[0] != obs.shape[0]:\n"
+        "    raise ValueError(f\"Mismatch: adata has {adata.shape[0]} cells, but obs has {obs.shape[0]} rows.\")\n"
+        "if adata.shape[1] != var.shape[0]:\n"
+        "    raise ValueError(f\"Mismatch: adata has {adata.shape[1]} genes, but var has {var.shape[0]} rows.\")\n"
+        "adata.obs = obs\n"
+        "adata.var = var\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_import.py"
+    )
+
+    assert node_class.VALIDATE_INPUTS({"adata_format": "custom", "mtx": "counts.mtx", "obs": "cells.tsv"}) == (
+        "var is required when adata_format is custom"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"adata_format": "custom", "mtx": "counts.mtx", "obs": "cells.tsv", "var": "genes.tsv"}
+    ) is True
+
+
 def test_anndata2ri_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["anndata2ri"]
 

@@ -2298,6 +2298,44 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
     citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
   },
+  anndata_import: {
+    name: 'anndata_import',
+    display_name: 'Import Anndata',
+    category: 'single_cell',
+    description: 'Create an AnnData H5AD object from loom, tabular, 10x, MTX, UMI-tools, or annotated matrix inputs.',
+    search_aliases: ['Galaxy', 'AnnData', 'anndata_import', 'Import Anndata', 'H5AD', 'read_loom', 'read_csv', 'read_10x_h5', 'read_10x_mtx', 'read_mtx', 'read_umi_tools', 'Matrix Market', 'UMI-tools'],
+    input: {
+      optional: {
+        adata_format: { type: 'STRING', default: 'loom', options: ['loom', 'tabular', '10x_h5', 'mtx', 'umi_tools', 'custom'] },
+        input: { type: 'FILE', default: '' },
+        sparse: { type: 'BOOLEAN', default: true },
+        cleanup: { type: 'BOOLEAN', default: false },
+        x_name: { type: 'STRING', default: 'spliced' },
+        obs_names: { type: 'STRING', default: 'CellID' },
+        var_names: { type: 'STRING', default: 'Gene', options: ['Gene', 'gene_symbols', 'gene_ids'] },
+        delimiter: { type: 'STRING', default: '\\t', options: ['\\t', ','] },
+        first_column_names: { type: 'BOOLEAN', default: true },
+        matrix: { type: 'FILE', default: '' },
+        tenx_use: { type: 'STRING', default: 'no', options: ['no', 'legacy_10x', 'v3_10x'] },
+        genes: { type: 'TSV', default: '' },
+        features: { type: 'TSV', default: '' },
+        barcodes: { type: 'TSV', default: '' },
+        make_unique: { type: 'BOOLEAN', default: true },
+        gex_only: { type: 'BOOLEAN', default: true },
+        mtx: { type: 'FILE', default: '' },
+        obs: { type: 'TSV', default: '' },
+        var: { type: 'TSV', default: '' },
+      },
+    },
+    output: ['H5AD'],
+    output_name: ['anndata'],
+    required_executables: ['python', 'gzip'],
+    required_conda_packages: ['anndata', 'scanpy', 'loompy', 'pandas'],
+    documentation_url: 'https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.html',
+    citation_dois: ['10.1186/s13059-017-1382-0'],
+    citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
+    citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
+  },
   anndata2ri: {
     name: 'anndata2ri',
     display_name: 'anndata2ri',
@@ -15081,7 +15119,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('509 nodes available')).toBeVisible();
+  await expect(page.getByText('510 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15175,6 +15213,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'write_csvs', name: 'Export AnnData', category: 'single_cell' },
+    { query: 'read_10x_mtx', name: 'Import Anndata', category: 'single_cell' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
