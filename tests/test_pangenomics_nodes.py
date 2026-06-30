@@ -22,15 +22,31 @@ def test_pangenome_graph_types_are_file_compatible() -> None:
     assert BioType.GFA.value == "GFA"
     assert BioType.ODGI.value == "ODGI"
     assert BioType.GBZ.value == "GBZ"
+    assert BioType.HAL.value == "HAL"
+    assert BioType.MAF.value == "MAF"
+    assert BioType.VG.value == "VG"
+    assert BioType.TAR.value == "TAR"
     assert is_compatible("GFA", "FILE")
     assert is_compatible("GFA", "STRING")
     assert is_compatible("ODGI", "FILE")
     assert is_compatible("ODGI", "STRING")
     assert is_compatible("GBZ", "FILE")
     assert is_compatible("GBZ", "STRING")
+    assert is_compatible("HAL", "FILE")
+    assert is_compatible("HAL", "STRING")
+    assert is_compatible("MAF", "FILE")
+    assert is_compatible("MAF", "STRING")
+    assert is_compatible("VG", "FILE")
+    assert is_compatible("VG", "STRING")
+    assert is_compatible("TAR", "FILE")
+    assert is_compatible("TAR", "STRING")
     assert file_extension_for("GFA") == ".gfa"
     assert file_extension_for("ODGI") == ".odgi"
     assert file_extension_for("GBZ") == ".gbz"
+    assert file_extension_for("HAL") == ".hal"
+    assert file_extension_for("MAF") == ".maf"
+    assert file_extension_for("VG") == ".vg"
+    assert file_extension_for("TAR") == ".tar"
 
 
 def test_embedding_type_is_file_compatible() -> None:
@@ -2331,3 +2347,134 @@ def test_galaxy_cactus_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["cactus"] == "cactus"
     assert EXECUTABLE_TO_CONDA_PACKAGE["cactus-pangenome"] == "cactus"
     assert PACKAGE_MIN_VERSIONS["cactus"] == ">=2.9.0"
+
+
+def test_cactus_export_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cactus_export"]
+    assert node_info["display_name"] == "Cactus Export"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"] == "Convert Cactus HAL whole-genome alignments to MAF, VG, or UCSC Assembly Hub archives."
+    assert node_info["output"] == ["MAF", "VG", "TAR"]
+    assert node_info["output_name"] == ["out_maf", "out_vg", "out_ah"]
+    assert node_info["required_executables"] == ["hal2maf", "hal2vg", "hal2assemblyHub.py", "tar"]
+    assert node_info["required_conda_packages"] == ["cactus", "tar"]
+    assert node_info["documentation_url"] == "https://github.com/ComparativeGenomicsToolkit/cactus#using-the-output"
+    assert node_info["citation_dois"] == ["10.1038/s41586-020-2871-y"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1038/s41586-020-2871-y"]
+    assert "Progressive Cactus" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "hal2maf" in node_info["search_aliases"]
+    assert node_info["version"] == "2.7.1+galaxy0"
+
+    inputs = node_info["input"]
+    assert inputs["required"]["hal_file"][0] == "HAL"
+    assert inputs["optional"]["format"][1]["default"] == "maf_selector"
+    assert inputs["optional"]["format"][1]["options"] == ["maf_selector", "vg_selector", "ah_selector"]
+    assert inputs["optional"]["ref_level"][0] == "STRING"
+    assert inputs["optional"]["max_cores"][1]["default"] == 4
+    assert inputs["optional"]["max_memory_mb"][1]["default"] == 8196
+
+
+def test_cactus_export_renders_maf_vg_and_assembly_hub_commands_and_outputs() -> None:
+    node_class = _node_class("cactus_export")
+
+    assert node_class.render_command({
+        "hal_file": "alignment results.hal",
+        "format": "maf_selector",
+        "ref_level": "simMouse_chr6",
+        "output": "/tmp/run/cactus_export",
+    }) == [
+        "ln",
+        "-s",
+        "alignment results.hal",
+        "/tmp/run/cactus_export/alignment.hal",
+        "&&",
+        "cd",
+        "/tmp/run/cactus_export",
+        "&&",
+        "hal2maf",
+        "--refGenome",
+        "simMouse_chr6",
+        "alignment.hal",
+        "alignment.maf",
+    ]
+    assert [str(path) for path in node_class.PLAN_OUTPUTS({"format": "maf_selector"}, "/tmp/run")] == [
+        "/tmp/run/cactus_export/alignment.maf",
+    ]
+
+    assert node_class.render_command({
+        "hal_file": "alignment.hal",
+        "format": "vg_selector",
+        "ref_level": "simCow_chr6",
+        "output": "/tmp/run/cactus_export",
+    })[-5:] == [
+        "hal2vg",
+        "alignment.hal",
+        "--progress",
+        ">",
+        "alignment.pg",
+    ]
+    assert [str(path) for path in node_class.PLAN_OUTPUTS({"format": "vg_selector"}, "/tmp/run")] == [
+        "/tmp/run/cactus_export/alignment.pg",
+    ]
+
+    assert node_class.render_command({
+        "hal_file": "alignment.hal",
+        "format": "ah_selector",
+        "max_cores": 12,
+        "max_memory_mb": 24000,
+        "output": "/tmp/run/cactus_export",
+    })[-14:] == [
+        "hal2assemblyHub.py",
+        "--maxCores",
+        "12",
+        "--maxMemory",
+        "24000M",
+        "./jobStore",
+        "alignment.hal",
+        "assemblyhub",
+        "&&",
+        "tar",
+        "-cv",
+        "assemblyhub",
+        ">",
+        "assemblyhub.tar",
+    ]
+    assert [str(path) for path in node_class.PLAN_OUTPUTS({"format": "ah_selector"}, "/tmp/run")] == [
+        "/tmp/run/cactus_export/assemblyhub.tar",
+    ]
+
+
+def test_cactus_export_validates_required_and_mode_specific_inputs() -> None:
+    node_class = _node_class("cactus_export")
+
+    assert node_class.VALIDATE_INPUTS({}) == "hal_file is required"
+    assert node_class.VALIDATE_INPUTS({"hal_file": "alignment.hal", "format": "bad"}) == (
+        "format must be one of: maf_selector, vg_selector, ah_selector"
+    )
+    assert node_class.VALIDATE_INPUTS({"hal_file": "alignment.hal", "format": "maf_selector"}) == (
+        "ref_level is required for MAF and VG export"
+    )
+    assert node_class.VALIDATE_INPUTS({"hal_file": "alignment.hal", "format": "vg_selector"}) == (
+        "ref_level is required for MAF and VG export"
+    )
+    assert node_class.VALIDATE_INPUTS({
+        "hal_file": "alignment.hal",
+        "format": "ah_selector",
+        "max_cores": 0,
+    }) == "max_cores must be greater than zero"
+    assert node_class.VALIDATE_INPUTS({
+        "hal_file": "alignment.hal",
+        "format": "ah_selector",
+        "max_memory_mb": 0,
+    }) == "max_memory_mb must be greater than zero"
+    assert node_class.VALIDATE_INPUTS({
+        "hal_file": "alignment.hal",
+        "format": "maf_selector",
+        "ref_level": "simMouse_chr6",
+    }) is True
+    assert node_class.VALIDATE_INPUTS({"hal_file": "alignment.hal", "format": "ah_selector"}) is True

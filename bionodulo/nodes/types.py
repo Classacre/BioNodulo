@@ -54,6 +54,10 @@ class BioType(str, Enum):
     SCAFFOLDS = "SCAFFOLDS"
 
     # Pangenomics
+    HAL = "HAL"
+    MAF = "MAF"
+    VG = "VG"
+    TAR = "TAR"
     GFA = "GFA"
     ODGI = "ODGI"
     GBZ = "GBZ"
@@ -135,6 +139,10 @@ _COMPATIBILITY: dict[BioType, set[BioType]] = {
     BioType.ASSEMBLY: {BioType.FILE, BioType.STRING, BioType.FASTA, BioType.CONTIGS},
     BioType.CONTIGS: {BioType.FILE, BioType.STRING, BioType.FASTA, BioType.ASSEMBLY},
     BioType.SCAFFOLDS: {BioType.FILE, BioType.STRING, BioType.FASTA, BioType.ASSEMBLY, BioType.CONTIGS},
+    BioType.HAL: {BioType.FILE, BioType.STRING},
+    BioType.MAF: {BioType.FILE, BioType.STRING},
+    BioType.VG: {BioType.FILE, BioType.STRING},
+    BioType.TAR: {BioType.FILE, BioType.STRING},
     BioType.GFA: {BioType.FILE, BioType.STRING},
     BioType.ODGI: {BioType.FILE, BioType.STRING},
     BioType.GBZ: {BioType.FILE, BioType.STRING},
@@ -258,6 +266,10 @@ def file_extension_for(biotype: str | BioType) -> str:
         BioType.ASSEMBLY: ".fasta",
         BioType.CONTIGS: ".fasta",
         BioType.SCAFFOLDS: ".fasta",
+        BioType.HAL: ".hal",
+        BioType.MAF: ".maf",
+        BioType.VG: ".vg",
+        BioType.TAR: ".tar",
         BioType.GFA: ".gfa",
         BioType.ODGI: ".odgi",
         BioType.GBZ: ".gbz",

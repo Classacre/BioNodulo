@@ -1426,6 +1426,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41586-020-2871-y'],
     citation_text: 'Progressive Cactus is a multiple-genome aligner for the thousand-genome era.',
   },
+  cactus_export: {
+    name: 'cactus_export',
+    display_name: 'Cactus Export',
+    category: 'pangenomics',
+    description: 'Convert Cactus HAL whole-genome alignments to MAF, VG, or UCSC Assembly Hub archives.',
+    search_aliases: ['Galaxy', 'Cactus Export', 'cactus_export', 'HAL export', 'hal2maf', 'hal2vg', 'hal2assemblyHub', 'MAF alignment', 'UCSC Assembly Hub'],
+    input: {
+      required: {
+        hal_file: { type: 'HAL' },
+      },
+      optional: {
+        format: { type: 'STRING', default: 'maf_selector', options: ['maf_selector', 'vg_selector', 'ah_selector'] },
+        ref_level: { type: 'STRING', default: '' },
+        max_cores: { type: 'INT', default: 4, min: 1, max: 512 },
+        max_memory_mb: { type: 'INT', default: 8196, min: 1 },
+      },
+    },
+    output: ['MAF', 'VG', 'TAR'],
+    output_name: ['out_maf', 'out_vg', 'out_ah'],
+    required_executables: ['hal2maf', 'hal2vg', 'hal2assemblyHub.py', 'tar'],
+    required_conda_packages: ['cactus', 'tar'],
+    documentation_url: 'https://github.com/ComparativeGenomicsToolkit/cactus#using-the-output',
+    citation_dois: ['10.1038/s41586-020-2871-y'],
+    citation_urls: ['https://doi.org/10.1038/s41586-020-2871-y'],
+    citation_text: 'Progressive Cactus is a multiple-genome aligner for the thousand-genome era.',
+  },
   roary: {
     name: 'roary',
     display_name: 'Roary',
@@ -15949,7 +15975,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('536 nodes available')).toBeVisible();
+  await expect(page.getByText('537 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16005,6 +16031,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'inverse folding', name: 'ProteinMPNN Design', category: 'ai' },
     { query: 'HPRC', name: 'Minigraph-Cactus', category: 'pangenomics' },
     { query: 'whole-genome multiple alignment', name: 'Cactus', category: 'pangenomics' },
+    { query: 'hal2maf', name: 'Cactus Export', category: 'pangenomics' },
     { query: 'nanopore', name: 'Clair3', category: 'variant' },
     { query: 'sage-proteomics', name: 'Sage Search', category: 'proteomics' },
     { query: 'proteomics workflow', name: 'FragPipe Workflow', category: 'proteomics' },
