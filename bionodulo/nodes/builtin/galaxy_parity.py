@@ -36070,6 +36070,43 @@ class Beacon2RunsNode(_Beacon2SearchBaseNode):
     )
 
 
+class Beacon2SequenceNode(_Beacon2SearchBaseNode):
+    """Query Beacon for a precise alternate/reference sequence."""
+
+    NODE_ID = "beacon2_sequence"
+    DISPLAY_NAME = "Beacon2 Sequence"
+    DESCRIPTION = "Query Beacon for the existence of a specified sequence at a genomic position."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_sequence",
+        "Beacon2 Sequence",
+        "beacon2-search sequence",
+        "sequence query",
+        "alternateBases",
+        "referenceBases",
+        "SNV",
+        "INDEL",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_sequence_query",)
+    SEARCH_COLLECTION = "sequence"
+    OUTPUT_FILENAME = "sequenced_query_findings.json"
+    REQUIRED_QUERY_FLAGS = (
+        ("alternateBases", "--alternateBases", "STRING", "Alternate bases to query for"),
+        ("referenceBases", "--referenceBases", "STRING", "Reference bases to query against"),
+    )
+    QUERY_FLAGS = (
+        ("referenceName", "--referenceName", "Reference name such as chr1/1, chr2/2, chr3/3"),
+        ("start", "--start", "Start position"),
+        ("collectionIds", "--collectionIds", "Dataset or collection ID filter"),
+    )
+    TYPED_QUERY_FLAGS = (
+        ("start", "--start", "INT", "Start position"),
+    )
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 
