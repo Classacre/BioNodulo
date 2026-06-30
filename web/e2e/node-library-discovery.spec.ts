@@ -2025,6 +2025,55 @@ const objectInfo = {
     citation_urls: ['https://github.com/Syph-and-VPD-Lab/autoBIGS.cli'],
     citation_text: 'Syph-and-VPD-Lab/autoBIGS.cli: automated MLST typing against BIGSdb databases.',
   },
+  mlst: {
+    name: 'mlst',
+    display_name: 'MLST',
+    category: 'typing',
+    description: "Scan genome assemblies against PubMLST schemes with Torsten Seemann's MLST.",
+    search_aliases: ['Galaxy', 'MLST', 'mlst', 'PubMLST', 'sequence typing', 'scheme typing', 'allele profile', 'novel alleles'],
+    input: {
+      required: {
+        input_files: { type: 'FASTA', multiple: true },
+      },
+      optional: {
+        advanced: { type: 'STRING', default: 'simple', options: ['simple', 'advanced'] },
+        minid: { type: 'INT', default: 95 },
+        mincov: { type: 'INT', default: 10 },
+        novel: { type: 'BOOLEAN', default: false },
+        set_scheme: { type: 'STRING', default: 'auto', options: ['auto', 'list', 'manual'] },
+        scheme: { type: 'STRING', default: '' },
+        legacy: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['TSV', 'FASTA'],
+    output_name: ['report', 'novel_alleles'],
+    required_executables: ['mlst'],
+    required_conda_packages: ['mlst'],
+    documentation_url: 'https://github.com/tseemann/mlst',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/mlst'],
+    citation_text: 'MLST: Scan contig files against PubMLST typing schemes.',
+  },
+  mlst_list: {
+    name: 'mlst_list',
+    display_name: 'MLST List',
+    category: 'typing',
+    description: 'List available PubMLST schemes and optional allele details from the MLST database.',
+    search_aliases: ['Galaxy', 'MLST List', 'mlst --list', 'mlst --longlist', 'PubMLST schemes', 'allele list'],
+    input: {
+      optional: {
+        list_type: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TXT'],
+    output_name: ['report'],
+    required_executables: ['mlst'],
+    required_conda_packages: ['mlst'],
+    documentation_url: 'https://github.com/tseemann/mlst',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/mlst'],
+    citation_text: 'MLST: Scan contig files against PubMLST typing schemes.',
+  },
   bam_to_scidx: {
     name: 'bam_to_scidx',
     display_name: 'Convert BAM to ScIdx',
@@ -13884,7 +13933,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('479 nodes available')).toBeVisible();
+  await expect(page.getByText('481 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13919,6 +13968,8 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'gapped GFF3', name: 'BlastXML to gapped GFF3', category: 'annotation' },
     { query: 'official taxonomic ranks', name: 'CAT add_names', category: 'taxonomy' },
     { query: 'classification.summary.txt', name: 'CAT summarise', category: 'taxonomy' },
+    { query: 'PubMLST sequence typing', name: 'MLST', category: 'typing' },
+    { query: 'PubMLST schemes', name: 'MLST List', category: 'typing' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },

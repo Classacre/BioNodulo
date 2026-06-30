@@ -268,6 +268,135 @@ def test_autobigs_cli_validates_operation_database_and_mode_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({"bigsdb": "pubmlst_bordetella_seqdef", "fasta": "sample.fasta"}) is True
 
 
+def test_mlst_exposes_iuc_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["mlst"]
+
+    assert node_info["display_name"] == "MLST"
+    assert node_info["category"] == "typing"
+    assert node_info["description"] == "Scan genome assemblies against PubMLST schemes with Torsten Seemann's MLST."
+    assert node_info["output"] == ["TSV", "FASTA"]
+    assert node_info["output_name"] == ["report", "novel_alleles"]
+    assert node_info["required_executables"] == ["mlst"]
+    assert node_info["required_conda_packages"] == ["mlst"]
+    assert node_info["documentation_url"] == "https://github.com/tseemann/mlst"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/tseemann/mlst"]
+    assert "Scan contig files against PubMLST typing schemes" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "PubMLST" in node_info["search_aliases"]
+    assert "sequence typing" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input_files"][0] == "FASTA"
+    assert node_info["input"]["required"]["input_files"][1]["multiple"] is True
+    assert node_info["input"]["optional"]["advanced"][1]["default"] == "simple"
+    assert node_info["input"]["optional"]["advanced"][1]["options"] == ["simple", "advanced"]
+    assert node_info["input"]["optional"]["set_scheme"][1]["options"] == ["auto", "list", "manual"]
+    assert node_info["input"]["optional"]["scheme"][1]["default"] == ""
+    assert node_info["input"]["optional"]["novel"][0] == "BOOLEAN"
+    assert node_info["input"]["optional"]["legacy"][0] == "BOOLEAN"
+
+
+def test_mlst_renders_simple_scan_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("mlst")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["MRSA 0252.fna", "Acetobacter.fna"],
+            "input_labels": ["MRSA 0252.fna", "Acetobacter.fna"],
+            "output": "/work/mlst",
+        }
+    ) == (
+        "ln -s 'MRSA 0252.fna' 'MRSA 0252.fna' && "
+        "ln -s Acetobacter.fna Acetobacter.fna && "
+        "mlst --nopath --threads ${GALAXY_SLOTS:-1} 'MRSA 0252.fna' Acetobacter.fna > /work/mlst/report.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "mlst" / "report.tsv",
+    ]
+
+
+def test_mlst_renders_advanced_manual_scheme_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("mlst")
+
+    assert node_class.render_command(
+        {
+            "input_files": ["assembly.fa"],
+            "advanced": "advanced",
+            "minid": 99,
+            "mincov": 80,
+            "novel": True,
+            "set_scheme": "manual",
+            "scheme": "saureus",
+            "legacy": True,
+            "output": "/work/mlst",
+        }
+    ) == (
+        "ln -s assembly.fa assembly.fa && "
+        "mlst --nopath --threads ${GALAXY_SLOTS:-1} --minid=99 --mincov=80 "
+        "--novel /work/mlst/novel_alleles.fasta --scheme=saureus --legacy assembly.fa > /work/mlst/report.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "input_files": ["assembly.fa"],
+            "advanced": "advanced",
+            "set_scheme": "auto",
+            "minscore": 70,
+            "exclude": "ecoli_2,abaumannii",
+            "output": "/work/mlst",
+        }
+    ) == (
+        "ln -s assembly.fa assembly.fa && "
+        "mlst --nopath --threads ${GALAXY_SLOTS:-1} --minscore=70 "
+        "--exclude ecoli_2,abaumannii assembly.fa > /work/mlst/report.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"novel": True}, tmp_path) == [
+        tmp_path / "mlst" / "report.tsv",
+        tmp_path / "mlst" / "novel_alleles.fasta",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input_files value is required"
+    assert node_class.VALIDATE_INPUTS({"input_files": ["assembly.fa"], "advanced": "bad"}) == (
+        "advanced must be one of: simple, advanced"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_files": ["assembly.fa"], "advanced": "advanced", "minid": 101}) == (
+        "minid must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_files": ["assembly.fa"], "advanced": "advanced", "mincov": -1}) == (
+        "mincov must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_files": ["assembly.fa"], "advanced": "advanced", "set_scheme": "bad"}) == (
+        "set_scheme must be one of: auto, list, manual"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_files": ["assembly.fa"], "advanced": "advanced", "set_scheme": "manual"}) == (
+        "scheme is required when set_scheme is list or manual"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_files": ["assembly.fa"], "advanced": "advanced", "set_scheme": "auto"}) is True
+
+
+def test_mlst_list_exposes_metadata_renders_command_and_outputs(tmp_path: Path) -> None:
+    node_info = _registry().object_info()["mlst_list"]
+    node_class = _node_class("mlst_list")
+
+    assert node_info["display_name"] == "MLST List"
+    assert node_info["category"] == "typing"
+    assert node_info["output"] == ["TXT"]
+    assert node_info["output_name"] == ["report"]
+    assert node_info["required_executables"] == ["mlst"]
+    assert node_info["required_conda_packages"] == ["mlst"]
+    assert node_info["documentation_url"] == "https://github.com/tseemann/mlst"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/tseemann/mlst"]
+    assert node_info["input"]["optional"]["list_type"][0] == "BOOLEAN"
+
+    assert node_class.render_command({"list_type": False, "output": "/work/mlst_list"}) == (
+        "mlst --list > /work/mlst_list/report.txt"
+    )
+    assert node_class.render_command({"list_type": True, "output": "/work/mlst_list"}) == (
+        "mlst --longlist > /work/mlst_list/report.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mlst_list" / "report.txt"]
+    assert node_class.VALIDATE_INPUTS({"list_type": "yes"}) == "Input 'list_type' must be a boolean"
+    assert node_class.VALIDATE_INPUTS({"list_type": True}) is True
+
+
 def test_bam_to_scidx_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["bam_to_scidx"]
 
