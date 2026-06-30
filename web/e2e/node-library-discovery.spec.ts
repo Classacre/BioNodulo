@@ -1348,6 +1348,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btv051'],
     citation_text: 'BASIL is a method to detect breakpoints for structural variants, including insertion breakpoints, from aligned paired high-throughput sequencing reads.',
   },
+  bbgtobigwig: {
+    name: 'bbgtobigwig',
+    display_name: 'BAM BED GFF coverage bigWigs',
+    category: 'genomics',
+    description: 'Convert BAM, BED, or GFF coverage over a reference genome into a bigWig track.',
+    search_aliases: ['Galaxy', 'bbgtobigwig', 'BAM BED GFF coverage bigWigs', 'bigWig', 'bedGraphToBigWig', 'bedtools genomecov', 'coverage tracks', 'JBrowse2', 'UCSC Genome Browser Utilities'],
+    input: {
+      required: {
+        input1: { type: 'FILE' },
+        chromfile: { type: 'FILE' },
+      },
+      optional: {
+        genosrc: { type: 'STRING', default: 'history', options: ['indexed', 'history'] },
+        input_format: { type: 'STRING', default: 'auto', options: ['auto', 'bam', 'bed', 'gff', 'gff3'] },
+        converter_script: { type: 'FILE', default: 'gff_to_bed_converter.py', advanced: true },
+      },
+    },
+    output: ['BIGWIG'],
+    output_name: ['output'],
+    required_executables: ['bedtools', 'bedGraphToBigWig', 'python'],
+    required_conda_packages: ['ucsc-bedgraphtobigwig', 'bedtools', 'coreutils', 'python'],
+    documentation_url: 'https://doi.org/10.1093/bioinformatics/btq351',
+    citation_dois: ['10.1093/bioinformatics/btq351'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq351'],
+    citation_text: 'BigWig and BigBed enable browsing of large distributed datasets in genome browsers.',
+  },
   cd_hit: {
     name: 'cd_hit',
     display_name: 'cd-hit',
@@ -11881,7 +11907,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('407 nodes available')).toBeVisible();
+  await expect(page.getByText('408 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11942,6 +11968,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'DisoMine', name: 'b2bTools: Biophysical predictors for single sequences', category: 'proteomics' },
     { query: 'BioPerl', name: 'Genbank to GFF3', category: 'annotation' },
     { query: 'large insertions', name: 'basil', category: 'variant' },
+    { query: 'bedGraphToBigWig', name: 'BAM BED GFF coverage bigWigs', category: 'genomics' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'G-quadruplex', name: 'Fasta regular expression finder', category: 'sequence' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },

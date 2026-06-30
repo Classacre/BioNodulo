@@ -620,6 +620,96 @@ def test_basil_validates_required_inputs_reference_source_and_support_threshold(
     assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "bam": "sample.bam"}) is True
 
 
+def test_bbgtobigwig_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["bbgtobigwig"]
+
+    assert node_info["display_name"] == "BAM BED GFF coverage bigWigs"
+    assert node_info["category"] == "genomics"
+    assert node_info["description"] == "Convert BAM, BED, or GFF coverage over a reference genome into a bigWig track."
+    assert node_info["output"] == ["BIGWIG"]
+    assert node_info["output_name"] == ["output"]
+    assert node_info["required_executables"] == ["bedtools", "bedGraphToBigWig", "python"]
+    assert node_info["required_conda_packages"] == ["ucsc-bedgraphtobigwig", "bedtools", "coreutils", "python"]
+    assert node_info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btq351"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btq351"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btq351"]
+    assert "BigWig and BigBed" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "bedGraphToBigWig" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input1"][0] == "FILE"
+    assert node_info["input"]["required"]["chromfile"][0] == "FILE"
+    assert node_info["input"]["optional"]["genosrc"][1]["default"] == "history"
+    assert node_info["input"]["optional"]["genosrc"][1]["options"] == ["indexed", "history"]
+    assert node_info["input"]["optional"]["input_format"][1]["default"] == "auto"
+    assert node_info["input"]["optional"]["input_format"][1]["options"] == ["auto", "bam", "bed", "gff", "gff3"]
+
+
+def test_bbgtobigwig_renders_bam_coverage_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bbgtobigwig")
+
+    assert node_class.render_command(
+        {
+            "input1": "featureCounts_input1.bam",
+            "chromfile": "/refs/hg38.len",
+            "input_format": "bam",
+            "genosrc": "indexed",
+            "output": "/work/bbgtobigwig",
+        }
+    ) == (
+        "ln -s /refs/hg38.len ./CHROMFILE && ln -s featureCounts_input1.bam input2 && "
+        "bedtools genomecov -bg -split -ibam input2 | LC_COLLATE=C sort -k1,1 -k2,2n > temp.bg && "
+        "bedGraphToBigWig temp.bg ./CHROMFILE /work/bbgtobigwig/output.bigwig"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bbgtobigwig" / "output.bigwig"]
+
+
+def test_bbgtobigwig_renders_gff_conversion_command() -> None:
+    node_class = _node_class("bbgtobigwig")
+
+    assert node_class.render_command(
+        {
+            "input1": "test5.gff3",
+            "chromfile": "testing.len",
+            "input_format": "gff3",
+            "converter_script": "/tools/bbgbigwig/gff_to_bed_converter.py",
+            "output": "/work/bbgtobigwig",
+        }
+    ) == (
+        "ln -s testing.len ./CHROMFILE && python /tools/bbgbigwig/gff_to_bed_converter.py "
+        "< test5.gff3 > input2 && bedtools genomecov -bg -i input2 -g ./CHROMFILE | "
+        "LC_COLLATE=C sort -k1,1 -k2,2n > temp.bg && "
+        "bedGraphToBigWig temp.bg ./CHROMFILE /work/bbgtobigwig/output.bigwig"
+    )
+
+
+def test_bbgtobigwig_auto_detects_bed_input_and_validates_options() -> None:
+    node_class = _node_class("bbgtobigwig")
+
+    assert node_class.render_command(
+        {
+            "input1": "intervals file.bed",
+            "chromfile": "testing.len",
+            "output": "/work/bbgtobigwig",
+        }
+    ) == (
+        "ln -s testing.len ./CHROMFILE && ln -s 'intervals file.bed' input2 && "
+        "bedtools genomecov -bg -i input2 -g ./CHROMFILE | LC_COLLATE=C sort -k1,1 -k2,2n > temp.bg && "
+        "bedGraphToBigWig temp.bg ./CHROMFILE /work/bbgtobigwig/output.bigwig"
+    )
+    assert node_class.VALIDATE_INPUTS({}) == "input1 is required"
+    assert node_class.VALIDATE_INPUTS({"input1": "reads.bam"}) == "chromfile is required"
+    assert node_class.VALIDATE_INPUTS({"input1": "reads.bam", "chromfile": "hg38.len", "genosrc": "bad"}) == (
+        "genosrc must be one of: indexed, history"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "reads.bam", "chromfile": "hg38.len", "input_format": "bad"}) == (
+        "input_format must be one of: auto, bam, bed, gff, gff3"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "reads.txt", "chromfile": "hg38.len"}) == (
+        "input_format could not be auto-detected from input1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "reads.bam", "chromfile": "hg38.len"}) is True
+
+
 def test_fasta_regex_finder_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["fasta_regex_finder"]
 
