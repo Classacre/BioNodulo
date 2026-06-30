@@ -28527,6 +28527,165 @@ class UcscAxtToMafNode(CommandNode):
         }
 
 
+class UcscAxtChainNode(CommandNode):
+    """Chain UCSC AXT or PSL pairwise alignments."""
+
+    NODE_ID = "ucsc_axtchain"
+    DISPLAY_NAME = "axtChain"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-axtchain"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Chain together UCSC AXT or PSL pairwise alignments into chain format."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_axtchain",
+        "axtChain",
+        "chain together axt",
+        "AXT chain",
+        "PSL chain",
+        "linear gap costs",
+    ]
+    RETURN_TYPES = ("FILE", "TXT")
+    RETURN_NAMES = ("out", "out_details")
+    REQUIRED_EXECUTABLES = ["axtChain", "gzip"]
+    DOCUMENTATION_URL = "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/axtChain/axtChain.c"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy2"
+    SHELL = True
+
+    ALIGNMENT_FORMATS = ["", "axt", "psl"]
+    LINEAR_GAP_OPTIONS = ["loose", "medium", "linear_gap_file"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.chain"
+
+    @classmethod
+    def _details_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out_details.txt"
+
+    @classmethod
+    def _alignment_format(cls, inputs: dict[str, Any]) -> str:
+        selected = str(inputs.get("alignment_format", "") or "")
+        if selected:
+            return selected
+        suffixes = [suffix.lower() for suffix in Path(str(inputs.get("in_aln", ""))).suffixes]
+        if suffixes and suffixes[-1] == ".gz":
+            suffixes = suffixes[:-1]
+        if suffixes and suffixes[-1] in {".axt", ".psl"}:
+            return suffixes[-1].lstrip(".")
+        return ""
+
+    @classmethod
+    def _linear_gap(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("linear_gap", "loose") or "loose")
+
+    @classmethod
+    def _linear_gap_value(cls, inputs: dict[str, Any]) -> str:
+        if cls._linear_gap(inputs) == "linear_gap_file":
+            return str(inputs.get("lineargap_input", ""))
+        return cls._linear_gap(inputs)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["axtChain", "-faQ", "-faT"]
+        if cls._alignment_format(inputs) == "psl":
+            cmd.append("-psl")
+        if str(inputs.get("minScore", "")) != "":
+            cmd.append(f"-minScore={inputs.get('minScore')}")
+        if str(inputs.get("scoreScheme", "")) != "":
+            cmd.append(f"-scoreScheme={inputs.get('scoreScheme')}")
+        if inputs.get("details_output"):
+            cmd.append(f"-details={cls._details_path(inputs)}")
+        cmd.append(f"-linearGap={cls._linear_gap_value(inputs)}")
+        command = _shell_join(cmd)
+        aln = shlex.quote(str(inputs.get("in_aln", "")))
+        tail = _shell_join(
+            [
+                str(inputs.get("in_target", "")),
+                str(inputs.get("in_query", "")),
+                cls._output_path(inputs),
+            ]
+        )
+        return f"{command} <(gzip -cdfq {aln}) {tail}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "out.chain"]
+        if inputs.get("details_output", False):
+            outputs.append(out / "out_details.txt")
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for name in ("in_aln", "in_target", "in_query"):
+            if not str(inputs.get(name, "")).strip():
+                return f"{name} is required"
+        selected_format = str(inputs.get("alignment_format", "") or "")
+        if selected_format not in cls.ALIGNMENT_FORMATS:
+            return f"alignment_format must be one of: {', '.join(cls.ALIGNMENT_FORMATS)}"
+        linear_gap = cls._linear_gap(inputs)
+        if linear_gap not in cls.LINEAR_GAP_OPTIONS:
+            return f"linear_gap must be one of: {', '.join(cls.LINEAR_GAP_OPTIONS)}"
+        if linear_gap == "linear_gap_file" and not str(inputs.get("lineargap_input", "")).strip():
+            return "lineargap_input is required when linear_gap is linear_gap_file"
+        if str(inputs.get("minScore", "")) != "" and int(inputs.get("minScore")) < 0:
+            return "minScore must be greater than or equal to 0"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_aln": (
+                    "FILE",
+                    {"description": "Pairwise AXT or PSL alignments, optionally gzip-compressed"},
+                ),
+                "in_target": ("FASTA", {"description": "Target FASTA sequence file matching alignment target names"}),
+                "in_query": ("FASTA", {"description": "Query FASTA sequence file matching alignment query names"}),
+            },
+            "optional": {
+                "alignment_format": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": cls.ALIGNMENT_FORMATS,
+                        "description": "Alignment format override; otherwise inferred from .axt/.psl extension",
+                    },
+                ),
+                "linear_gap": (
+                    "STRING",
+                    {
+                        "default": "loose",
+                        "options": cls.LINEAR_GAP_OPTIONS,
+                        "description": "Use UCSC loose/medium linear gap costs or a custom cost file",
+                    },
+                ),
+                "lineargap_input": (
+                    "FILE",
+                    {"description": "Custom tabular linear gap cost file used when linear_gap is linear_gap_file"},
+                ),
+                "minScore": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Minimum chain score to report"},
+                ),
+                "scoreScheme": (
+                    "FILE",
+                    {"description": "Optional BLASTZ-format scoring matrix"},
+                ),
+                "details_output": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write per-chain gap and scoring details"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class UcscChainNetNode(CommandNode):
     """Create UCSC alignment net files from chains."""
 

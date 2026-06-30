@@ -6171,6 +6171,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_axtchain: {
+    name: 'ucsc_axtchain',
+    display_name: 'axtChain',
+    category: 'genomics',
+    description: 'Chain together UCSC AXT or PSL pairwise alignments into chain format.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_axtchain', 'axtChain', 'chain together axt', 'AXT chain', 'PSL chain', 'linear gap costs'],
+    input: {
+      required: {
+        in_aln: { type: 'FILE' },
+        in_target: { type: 'FASTA' },
+        in_query: { type: 'FASTA' },
+      },
+      optional: {
+        alignment_format: { type: 'STRING', default: '', options: ['', 'axt', 'psl'] },
+        linear_gap: { type: 'STRING', default: 'loose', options: ['loose', 'medium', 'linear_gap_file'] },
+        lineargap_input: { type: 'FILE' },
+        minScore: { type: 'INT', default: '', min: 0 },
+        scoreScheme: { type: 'FILE' },
+        details_output: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FILE', 'TXT'],
+    output_name: ['out', 'out_details'],
+    required_executables: ['axtChain', 'gzip'],
+    required_conda_packages: ['ucsc-axtchain'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/axtChain/axtChain.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   ucsc_chainnet: {
     name: 'ucsc_chainnet',
     display_name: 'chainNet',
@@ -13091,7 +13121,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('452 nodes available')).toBeVisible();
+  await expect(page.getByText('453 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13310,6 +13340,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: '2bit to FASTA', name: 'twoBitToFa', category: 'genomics' },
     { query: 'wigToBigWig', name: 'wigtobigwig', category: 'genomics' },
     { query: 'AXT to MAF', name: 'axtToMaf', category: 'genomics' },
+    { query: 'chain together axt', name: 'axtChain', category: 'genomics' },
     { query: 'alignment nets', name: 'chainNet', category: 'genomics' },
     { query: 'split FASTA', name: 'faSplit', category: 'genomics' },
     { query: 'FASTA alignment to VCF', name: 'faToVcf', category: 'variant' },

@@ -35061,6 +35061,112 @@ def test_ucsc_axtomaf_validates_required_inputs_reference_sources_and_prefixes()
     ) is True
 
 
+def test_ucsc_axtchain_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_axtchain"]
+
+    assert info["display_name"] == "axtChain"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Chain together UCSC AXT or PSL pairwise alignments into chain format."
+    assert info["output"] == ["FILE", "TXT"]
+    assert info["output_name"] == ["out", "out_details"]
+    assert info["required_executables"] == ["axtChain", "gzip"]
+    assert info["required_conda_packages"] == ["ucsc-axtchain"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/axtChain/axtChain.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "chain together axt" in info["search_aliases"]
+    assert info["input"]["required"]["in_aln"][0] == "FILE"
+    assert info["input"]["required"]["in_target"][0] == "FASTA"
+    assert info["input"]["required"]["in_query"][0] == "FASTA"
+    assert info["input"]["optional"]["alignment_format"][1]["options"] == ["", "axt", "psl"]
+    assert info["input"]["optional"]["linear_gap"][1]["default"] == "loose"
+    assert info["input"]["optional"]["linear_gap"][1]["options"] == ["loose", "medium", "linear_gap_file"]
+    assert info["input"]["optional"]["lineargap_input"][0] == "FILE"
+    assert info["input"]["optional"]["minScore"][1]["min"] == 0
+    assert info["input"]["optional"]["scoreScheme"][0] == "FILE"
+    assert info["input"]["optional"]["details_output"][0] == "BOOLEAN"
+
+
+def test_ucsc_axtchain_renders_axt_psl_gap_options_details_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_axtchain")
+
+    assert node_class.render_command(
+        {
+            "in_aln": "hg38 chrM.mm39 chrM.axt.gz",
+            "in_target": "hg38.chrM.fa",
+            "in_query": "mm39.chrM.fa",
+            "output": "/work/ucsc_axtchain",
+        }
+    ) == (
+        "axtChain -faQ -faT -linearGap=loose <(gzip -cdfq 'hg38 chrM.mm39 chrM.axt.gz') "
+        "hg38.chrM.fa mm39.chrM.fa /work/ucsc_axtchain/out.chain"
+    )
+    assert node_class.render_command(
+        {
+            "in_aln": "mm39.chrM.hg38.chrM.psl",
+            "in_target": "target seq.fa",
+            "in_query": "query seq.fa",
+            "alignment_format": "psl",
+            "linear_gap": "linear_gap_file",
+            "lineargap_input": "linear gaps.tab",
+            "minScore": 2000,
+            "scoreScheme": "blastz scores.txt",
+            "details_output": True,
+            "output": "/work/ucsc_axtchain",
+        }
+    ) == (
+        "axtChain -faQ -faT -psl -minScore=2000 '-scoreScheme=blastz scores.txt' "
+        "-details=/work/ucsc_axtchain/out_details.txt '-linearGap=linear gaps.tab' "
+        "<(gzip -cdfq mm39.chrM.hg38.chrM.psl) 'target seq.fa' 'query seq.fa' "
+        "/work/ucsc_axtchain/out.chain"
+    )
+    assert node_class.render_command(
+        {
+            "in_aln": "aligned.psl.gz",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "linear_gap": "medium",
+            "output": "/work/ucsc_axtchain",
+        }
+    ) == (
+        "axtChain -faQ -faT -psl -linearGap=medium <(gzip -cdfq aligned.psl.gz) "
+        "target.fa query.fa /work/ucsc_axtchain/out.chain"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_axtchain" / "out.chain",
+    ]
+    assert node_class.PLAN_OUTPUTS({"details_output": True}, tmp_path) == [
+        tmp_path / "ucsc_axtchain" / "out.chain",
+        tmp_path / "ucsc_axtchain" / "out_details.txt",
+    ]
+
+
+def test_ucsc_axtchain_validates_required_inputs_formats_gap_options_and_scores() -> None:
+    node_class = _node_class("ucsc_axtchain")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_aln is required"
+    assert node_class.VALIDATE_INPUTS({"in_aln": "input.axt"}) == "in_target is required"
+    assert node_class.VALIDATE_INPUTS({"in_aln": "input.axt", "in_target": "target.fa"}) == (
+        "in_query is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "alignment_format": "bad"}
+    ) == "alignment_format must be one of: , axt, psl"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "linear_gap": "bad"}
+    ) == "linear_gap must be one of: loose, medium, linear_gap_file"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "linear_gap": "linear_gap_file"}
+    ) == "lineargap_input is required when linear_gap is linear_gap_file"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "minScore": -1}
+    ) == "minScore must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS({"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa"}) is True
+
+
 def test_ucsc_chainnet_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_chainnet"]
 
