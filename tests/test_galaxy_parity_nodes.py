@@ -34358,3 +34358,85 @@ def test_heinz_bum_validates_required_input() -> None:
 
     assert node_class.VALIDATE_INPUTS({}) == "p_values is required"
     assert node_class.VALIDATE_INPUTS({"p_values": "BUM_input.txt"}) is True
+
+
+def test_ucsc_chainswap_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_chainswap"]
+
+    assert info["display_name"] == "chainSwap"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Swap target and query sequences in a UCSC chain alignment file."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["chainSwap"]
+    assert info["required_conda_packages"] == ["ucsc-chainswap"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/chain.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "UCSC Genome Browser Utilities" in info["search_aliases"]
+    assert info["input"]["required"]["in_chain"][0] == "FILE"
+
+
+def test_ucsc_chainswap_renders_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_chainswap")
+
+    assert node_class.render_command(
+        {
+            "in_chain": "query target.chain",
+            "output": "/work/ucsc_chainswap",
+        }
+    ) == "chainSwap 'query target.chain' /work/ucsc_chainswap/out.chain"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_chainswap" / "out.chain",
+    ]
+
+
+def test_ucsc_chainswap_validates_required_input() -> None:
+    node_class = _node_class("ucsc_chainswap")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_chain is required"
+    assert node_class.VALIDATE_INPUTS({"in_chain": "example.chain"}) is True
+
+
+def test_ucsc_netsyntenic_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_netsyntenic"]
+
+    assert info["display_name"] == "netSyntenic"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Add synteny information to a UCSC net alignment file."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["netSyntenic"]
+    assert info["required_conda_packages"] == ["ucsc-netsyntenic"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/net.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "UCSC Genome Browser Utilities" in info["search_aliases"]
+    assert info["input"]["required"]["in_net"][0] == "FILE"
+
+
+def test_ucsc_netsyntenic_renders_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_netsyntenic")
+
+    assert node_class.render_command(
+        {
+            "in_net": "human mouse.ucsc.net",
+            "output": "/work/ucsc_netsyntenic",
+        }
+    ) == "netSyntenic 'human mouse.ucsc.net' /work/ucsc_netsyntenic/out.ucsc.net"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_netsyntenic" / "out.ucsc.net",
+    ]
+
+
+def test_ucsc_netsyntenic_validates_required_input() -> None:
+    node_class = _node_class("ucsc_netsyntenic")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_net is required"
+    assert node_class.VALIDATE_INPUTS({"in_net": "example.ucsc.net"}) is True

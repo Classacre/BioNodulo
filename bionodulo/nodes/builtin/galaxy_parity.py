@@ -26953,6 +26953,8 @@ HEINZ_BUM_CITATION_TEXT = (
     "BioNet provides Beta-Uniform Mixture modeling for p-value distributions; "
     "Heinz identifies optimal scoring subnetworks."
 )
+UCSC_UTILS_CITATION_DOI = "10.1093/bib/bbs038"
+UCSC_UTILS_CITATION_TEXT = "The UCSC genome browser and associated tools."
 TAXPASTA_DOI = "10.21105/joss.05627"
 TAXPASTA_CITATION_TEXT = "TAXPASTA: TAXonomic Profile Aggregation and STAndardisation."
 HUMANN_CITATION_DOIS = ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
@@ -27504,6 +27506,100 @@ class HeinzBumNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class _UcscSingleFileUtilityNode(CommandNode):
+    """Shared behavior for single-input UCSC Genome Browser utilities."""
+
+    CATEGORY = "genomics"
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("out",)
+    DOCUMENTATION_URL = ""
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+    TOOL_NAME = ""
+    INPUT_NAME = ""
+    OUTPUT_FILENAME = ""
+    INPUT_DESCRIPTION = ""
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls.OUTPUT_FILENAME}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        return _shell_join([cls.TOOL_NAME, str(inputs.get(cls.INPUT_NAME, "")), cls._output_path(inputs)])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls.OUTPUT_FILENAME]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get(cls.INPUT_NAME, "")).strip():
+            return f"{cls.INPUT_NAME} is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                cls.INPUT_NAME: ("FILE", {"description": cls.INPUT_DESCRIPTION}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class UcscChainSwapNode(_UcscSingleFileUtilityNode):
+    """Swap target and query sequences in a UCSC chain file."""
+
+    NODE_ID = "ucsc_chainswap"
+    DISPLAY_NAME = "chainSwap"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-chainswap"]
+    DESCRIPTION = "Swap target and query sequences in a UCSC chain alignment file."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_chainswap",
+        "chainSwap",
+        "chain file",
+        "UCSC chain",
+        "swap target query",
+    ]
+    REQUIRED_EXECUTABLES = ["chainSwap"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/chain.html"
+    TOOL_NAME = "chainSwap"
+    INPUT_NAME = "in_chain"
+    OUTPUT_FILENAME = "out.chain"
+    INPUT_DESCRIPTION = "UCSC chain alignment file whose target and query coordinates should be swapped"
+
+
+class UcscNetSyntenicNode(_UcscSingleFileUtilityNode):
+    """Add synteny annotations to a UCSC net file."""
+
+    NODE_ID = "ucsc_netsyntenic"
+    DISPLAY_NAME = "netSyntenic"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-netsyntenic"]
+    DESCRIPTION = "Add synteny information to a UCSC net alignment file."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_netsyntenic",
+        "netSyntenic",
+        "net file",
+        "UCSC net",
+        "synteny info",
+    ]
+    REQUIRED_EXECUTABLES = ["netSyntenic"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/net.html"
+    TOOL_NAME = "netSyntenic"
+    INPUT_NAME = "in_net"
+    OUTPUT_FILENAME = "out.ucsc.net"
+    INPUT_DESCRIPTION = "UCSC net alignment file to annotate with synteny information"
 
 
 class BrackenEstAbundanceNode(CommandNode):

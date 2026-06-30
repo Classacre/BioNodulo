@@ -5907,6 +5907,46 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq089', 'https://doi.org/10.1093/bioinformatics/btn161'],
     citation_text: 'BioNet provides Beta-Uniform Mixture modeling for p-value distributions; Heinz identifies optimal scoring subnetworks.',
   },
+  ucsc_chainswap: {
+    name: 'ucsc_chainswap',
+    display_name: 'chainSwap',
+    category: 'genomics',
+    description: 'Swap target and query sequences in a UCSC chain alignment file.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainswap', 'chainSwap', 'chain file', 'UCSC chain', 'swap target query'],
+    input: {
+      required: {
+        in_chain: { type: 'FILE' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['chainSwap'],
+    required_conda_packages: ['ucsc-chainswap'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/chain.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
+  ucsc_netsyntenic: {
+    name: 'ucsc_netsyntenic',
+    display_name: 'netSyntenic',
+    category: 'genomics',
+    description: 'Add synteny information to a UCSC net alignment file.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_netsyntenic', 'netSyntenic', 'net file', 'UCSC net', 'synteny info'],
+    input: {
+      required: {
+        in_net: { type: 'FILE' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['netSyntenic'],
+    required_conda_packages: ['ucsc-netsyntenic'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/net.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12673,7 +12713,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('437 nodes available')).toBeVisible();
+  await expect(page.getByText('439 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12882,6 +12922,8 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
     { query: 'optimal scoring subnetwork', name: 'Visualize Heinz subnetwork', category: 'visualization' },
     { query: 'Beta-Uniform Mixture', name: 'Fit a BUM model', category: 'statistics' },
+    { query: 'swap target query', name: 'chainSwap', category: 'genomics' },
+    { query: 'synteny info', name: 'netSyntenic', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
