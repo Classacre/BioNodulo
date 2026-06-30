@@ -3490,6 +3490,121 @@ def test_add_input_name_as_column_galaxy_id_inherits_validation() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": "sample"}) is True
 
 
+def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["Add_a_column1"]
+
+    assert info["display_name"] == "Compute on rows"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Compute one or more expressions on each tabular row and add, insert, or replace columns."
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["optional"]["expressions"][0] == "JSON"
+    assert info["input"]["optional"]["expressions"][1]["default"] == []
+    assert info["input"]["optional"]["expressions"][1]["is_list"] is True
+    assert info["input"]["optional"]["cond"][1]["default"] == "c3-c2"
+    assert info["input"]["optional"]["add_column_mode"][1]["options"] == ["", "I", "R"]
+    assert info["input"]["optional"]["header_lines_select"][1]["options"] == ["no", "yes"]
+    assert info["input"]["optional"]["avoid_scientific_notation"][1]["default"] is False
+    assert info["input"]["optional"]["auto_col_types"][1]["default"] is True
+    assert info["input"]["optional"]["fail_on_non_existent_columns"][1]["default"] is True
+    assert info["input"]["optional"]["non_computable_action"][1]["default"] == "--fail-on-non-computable"
+    assert info["input"]["optional"]["script_path"][1]["default"] == "column_maker.py"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["out_file1"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["python", "numpy"]
+    assert info["documentation_url"] == "https://doi.org/10.1093/nar/gkae410"
+    assert info["citation_dois"] == ["10.1093/nar/gkae410"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/nar/gkae410"]
+    assert "Galaxy platform for accessible" in info["citation_text"]
+    assert "computed columns" in info["search_aliases"]
+
+
+def test_column_maker_renders_default_append_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("Add_a_column1")
+
+    assert node_class.render_command(
+        {
+            "input": "intervals.bed",
+            "column_types": "str,int,int,str",
+            "output": "/work/Add_a_column1",
+        }
+    ) == (
+        "mkdir -p /work/Add_a_column1 && printf '%s\\n' 'c3-c2;;' > /work/Add_a_column1/expressions.txt && "
+        "python column_maker.py --column-types str,int,int,str --file /work/Add_a_column1/expressions.txt "
+        "--fail-on-non-existent-columns --fail-on-non-computable intervals.bed /work/Add_a_column1/out_file1.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "Add_a_column1" / "out_file1.tsv"]
+
+
+def test_column_maker_renders_header_multiple_expressions_and_error_defaults() -> None:
+    node_class = _node_class("Add_a_column1")
+
+    assert node_class.render_command(
+        {
+            "input": "olympics data.tsv",
+            "column_types": "str,str,str,int,int,int,int,int",
+            "header_lines_select": "yes",
+            "expressions": [
+                {
+                    "cond": "int(c8) / (int(c7) * int(c7)) * 10000",
+                    "mode": "",
+                    "new_column_name": "BMI",
+                },
+                {
+                    "cond": "round(c4*1)",
+                    "mode": "R",
+                    "pos": 4,
+                    "new_column_name": "rounded_score",
+                },
+            ],
+            "avoid_scientific_notation": True,
+            "auto_col_types": False,
+            "fail_on_non_existent_columns": False,
+            "non_computable_action": "--non-computable-default",
+            "non_computable_default": "NA",
+            "script_path": "/tools/column_maker/column_maker.py",
+            "output": "/work/Add_a_column1",
+        }
+    ) == (
+        "mkdir -p /work/Add_a_column1 && printf '%s\\n' "
+        "'int(c8) / (int(c7) * int(c7)) * 10000;;BMI' 'round(c4*1);4R;rounded_score' "
+        "> /work/Add_a_column1/expressions.txt && python /tools/column_maker/column_maker.py "
+        "--column-types str,str,str,str,str,str,str,str --avoid-scientific-notation --header "
+        "--file /work/Add_a_column1/expressions.txt --non-computable-default NA 'olympics data.tsv' "
+        "/work/Add_a_column1/out_file1.tsv"
+    )
+
+
+def test_column_maker_validates_required_inputs_actions_and_options() -> None:
+    node_class = _node_class("Add_a_column1")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "table.tsv", "column_types": ""}) == "column_types is required"
+    assert node_class.VALIDATE_INPUTS({"input": "table.tsv", "column_types": "str", "add_column_mode": "bad"}) == (
+        "add_column_mode must be one of: , I, R"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "table.tsv", "column_types": "str", "add_column_mode": "I", "pos": 0}
+    ) == "pos must be at least 1 when inserting or replacing"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "table.tsv", "column_types": "str", "header_lines_select": "maybe"}
+    ) == "header_lines_select must be one of: no, yes"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "table.tsv", "column_types": "str", "non_computable_action": "bad"}
+    ) == (
+        "non_computable_action must be one of: --fail-on-non-computable, --skip-non-computable, "
+        "--keep-non-computable, --non-computable-blank, --non-computable-default"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "table.tsv",
+            "column_types": "str",
+            "expressions": [{"cond": "c1", "mode": "R", "pos": 1, "new_column_name": "fixed"}],
+            "header_lines_select": "yes",
+        }
+    ) is True
+
+
 def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["aegean_canongff3"]
 

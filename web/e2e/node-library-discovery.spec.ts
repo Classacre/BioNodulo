@@ -100,6 +100,52 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column'],
     citation_text: 'Add input name as column on an existing tabular file.',
   },
+  Add_a_column1: {
+    name: 'Add_a_column1',
+    display_name: 'Compute on rows',
+    category: 'data_transform',
+    description: 'Compute one or more expressions on each tabular row and add, insert, or replace columns.',
+    search_aliases: [
+      'Galaxy',
+      'column_maker',
+      'Add_a_column1',
+      'Compute on rows',
+      'computed columns',
+      'append columns',
+      'insert columns',
+      'replace columns',
+      'tabular expression',
+      'data manipulation',
+    ],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+        column_types: { type: 'STRING' },
+      },
+      optional: {
+        expressions: { type: 'JSON', default: [], is_list: true },
+        cond: { type: 'STRING', default: 'c3-c2' },
+        add_column_mode: { type: 'STRING', default: '', options: ['', 'I', 'R'] },
+        pos: { type: 'INT', default: 1, min: 1 },
+        new_column_name: { type: 'STRING', default: '' },
+        header_lines_select: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        avoid_scientific_notation: { type: 'BOOLEAN', default: false },
+        auto_col_types: { type: 'BOOLEAN', default: true },
+        fail_on_non_existent_columns: { type: 'BOOLEAN', default: true },
+        non_computable_action: { type: 'STRING', default: '--fail-on-non-computable', options: ['--fail-on-non-computable', '--skip-non-computable', '--keep-non-computable', '--non-computable-blank', '--non-computable-default'] },
+        non_computable_default: { type: 'STRING', default: 'nan' },
+        script_path: { type: 'FILE', default: 'column_maker.py' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['out_file1'],
+    required_executables: ['python'],
+    required_conda_packages: ['python', 'numpy'],
+    documentation_url: 'https://doi.org/10.1093/nar/gkae410',
+    citation_dois: ['10.1093/nar/gkae410'],
+    citation_urls: ['https://doi.org/10.1093/nar/gkae410'],
+    citation_text: 'The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update.',
+  },
   aegean_canongff3: {
     name: 'aegean_canongff3',
     display_name: 'AEGeAn CanonGFF3',
@@ -11959,7 +12005,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('410 nodes available')).toBeVisible();
+  await expect(page.getByText('411 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11967,6 +12013,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'data transform', name: 'Filter Rows', category: 'data_transform' },
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
     { query: 'addName', name: 'Add input name as column (Galaxy)', category: 'data_transform' },
+    { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },

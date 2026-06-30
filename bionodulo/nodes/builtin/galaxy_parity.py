@@ -167,6 +167,10 @@ ADD_INPUT_NAME_AS_COLUMN_CITATION_URL = (
     "https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column"
 )
 ADD_INPUT_NAME_AS_COLUMN_CITATION_TEXT = "Add input name as column on an existing tabular file."
+COLUMN_MAKER_CITATION_DOI = "10.1093/nar/gkae410"
+COLUMN_MAKER_CITATION_TEXT = (
+    "The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update."
+)
 AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
 AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
 LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
@@ -2072,6 +2076,229 @@ class AddInputNameAsColumnGalaxyNode(AddInputNameAsColumnNode):
         "sample label column",
         "tabular label column",
     ]
+
+
+class ColumnMakerNode(CommandNode):
+    """Compute expressions on tabular rows and add, insert, or replace columns."""
+
+    NODE_ID = "Add_a_column1"
+    DISPLAY_NAME = "Compute on rows"
+    REQUIRED_CONDA_PACKAGES = ["python", "numpy"]
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Compute one or more expressions on each tabular row and add, insert, or replace columns."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "column_maker",
+        "Add_a_column1",
+        "Compute on rows",
+        "computed columns",
+        "append columns",
+        "insert columns",
+        "replace columns",
+        "tabular expression",
+        "data manipulation",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("out_file1",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = f"{DOI_URL}{COLUMN_MAKER_CITATION_DOI}"
+    CITATION_DOIS = [COLUMN_MAKER_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{COLUMN_MAKER_CITATION_DOI}"]
+    CITATION_TEXT = COLUMN_MAKER_CITATION_TEXT
+    VERSION = "2.1+galaxy0"
+    SHELL = True
+
+    ADD_COLUMN_MODES = ["", "I", "R"]
+    HEADER_OPTIONS = ["no", "yes"]
+    NON_COMPUTABLE_ACTIONS = [
+        "--fail-on-non-computable",
+        "--skip-non-computable",
+        "--keep-non-computable",
+        "--non-computable-blank",
+        "--non-computable-default",
+    ]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out_file1.tsv"
+
+    @classmethod
+    def _actions_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/expressions.txt"
+
+    @classmethod
+    def _header_lines_select(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("header_lines_select", "no") or "no")
+
+    @classmethod
+    def _column_types(cls, inputs: dict[str, Any]) -> str:
+        column_types = str(inputs.get("column_types", ""))
+        if inputs.get("auto_col_types", True):
+            return column_types
+        return ",".join("str" for _ in column_types.split(","))
+
+    @classmethod
+    def _expression_items(cls, inputs: dict[str, Any]) -> list[dict[str, Any]]:
+        expressions = inputs.get("expressions")
+        if isinstance(expressions, (list, tuple)) and expressions:
+            return [dict(item) for item in expressions if isinstance(item, dict)]
+        return [
+            {
+                "cond": inputs.get("cond", "c3-c2"),
+                "mode": inputs.get("add_column_mode", ""),
+                "pos": inputs.get("pos", ""),
+                "new_column_name": inputs.get("new_column_name", ""),
+            }
+        ]
+
+    @classmethod
+    def _action_spec(cls, item: dict[str, Any]) -> str:
+        mode = str(item.get("mode", item.get("add_column_mode", "")) or "")
+        pos = str(item.get("pos", "") or "")
+        col_add_spec = "" if mode == "" else f"{pos}{mode}"
+        return f"{item.get('cond', '')};{col_add_spec};{item.get('new_column_name', '')}"
+
+    @classmethod
+    def _action_specs(cls, inputs: dict[str, Any]) -> list[str]:
+        return [cls._action_spec(item) for item in cls._expression_items(inputs)]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        write_actions = ["printf", "%s\\n", *cls._action_specs(inputs)]
+        command = f"{_shell_join(['mkdir', '-p', out])} && {_shell_join(write_actions)} > {shlex.quote(cls._actions_path(inputs))}"
+        py_cmd = [
+            "python",
+            str(inputs.get("script_path", "column_maker.py") or "column_maker.py"),
+            "--column-types",
+            cls._column_types(inputs),
+        ]
+        if inputs.get("avoid_scientific_notation"):
+            py_cmd.append("--avoid-scientific-notation")
+        if cls._header_lines_select(inputs) == "yes":
+            py_cmd.append("--header")
+        py_cmd.extend(["--file", cls._actions_path(inputs)])
+        if inputs.get("fail_on_non_existent_columns", True):
+            py_cmd.append("--fail-on-non-existent-columns")
+        non_computable_action = str(
+            inputs.get("non_computable_action", "--fail-on-non-computable") or "--fail-on-non-computable"
+        )
+        py_cmd.append(non_computable_action)
+        if non_computable_action == "--non-computable-default":
+            py_cmd.append(str(inputs.get("non_computable_default", "nan") or "nan"))
+        py_cmd.extend([str(inputs.get("input", "")), cls._output_path(inputs)])
+        return f"{command} && {_shell_join(py_cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out_file1.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        if not str(inputs.get("column_types", "")).strip():
+            return "column_types is required"
+        if cls._header_lines_select(inputs) not in cls.HEADER_OPTIONS:
+            return f"header_lines_select must be one of: {', '.join(cls.HEADER_OPTIONS)}"
+        non_computable_action = str(
+            inputs.get("non_computable_action", "--fail-on-non-computable") or "--fail-on-non-computable"
+        )
+        if non_computable_action not in cls.NON_COMPUTABLE_ACTIONS:
+            return f"non_computable_action must be one of: {', '.join(cls.NON_COMPUTABLE_ACTIONS)}"
+        for item in cls._expression_items(inputs):
+            if not str(item.get("cond", "")).strip():
+                return "cond is required for every expression"
+            mode = str(item.get("mode", item.get("add_column_mode", "")) or "")
+            if mode not in cls.ADD_COLUMN_MODES:
+                return f"add_column_mode must be one of: {', '.join(cls.ADD_COLUMN_MODES)}"
+            if mode in {"I", "R"}:
+                try:
+                    pos = int(item.get("pos", 0) or 0)
+                except (TypeError, ValueError):
+                    return "pos must be an integer when inserting or replacing"
+                if pos < 1:
+                    return "pos must be at least 1 when inserting or replacing"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "Tabular dataset whose rows will receive computed columns"}),
+                "column_types": (
+                    "STRING",
+                    {"description": "Comma-separated Python/Galaxy column types, for example str,int,int,str"},
+                ),
+            },
+            "optional": {
+                "expressions": (
+                    "JSON",
+                    {
+                        "default": [],
+                        "is_list": True,
+                        "description": "Galaxy repeat-style expression objects with cond, mode, pos, and new_column_name",
+                    },
+                ),
+                "cond": ("STRING", {"default": "c3-c2", "description": "Single expression used when expressions is empty"}),
+                "add_column_mode": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": cls.ADD_COLUMN_MODES,
+                        "description": "Append, insert, or replace mode for the single expression",
+                    },
+                ),
+                "pos": ("INT", {"default": 1, "min": 1, "description": "1-based insert/replace column position"}),
+                "new_column_name": (
+                    "STRING",
+                    {"default": "", "description": "Header name for the computed column when header mode is enabled"},
+                ),
+                "header_lines_select": (
+                    "STRING",
+                    {
+                        "default": "no",
+                        "options": cls.HEADER_OPTIONS,
+                        "description": "Whether the input has a header line with column names",
+                    },
+                ),
+                "avoid_scientific_notation": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write fully expanded decimal values for new floating-point columns"},
+                ),
+                "auto_col_types": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Use supplied Galaxy column types instead of treating all columns as str"},
+                ),
+                "fail_on_non_existent_columns": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Fail if an expression references a missing column"},
+                ),
+                "non_computable_action": (
+                    "STRING",
+                    {
+                        "default": "--fail-on-non-computable",
+                        "options": cls.NON_COMPUTABLE_ACTIONS,
+                        "description": "How to handle rows where an expression cannot be computed",
+                    },
+                ),
+                "non_computable_default": (
+                    "STRING",
+                    {"default": "nan", "description": "Replacement value for --non-computable-default"},
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "column_maker.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy column_maker.py helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
 
 
 class AegeanCanonGff3Node(CommandNode):
