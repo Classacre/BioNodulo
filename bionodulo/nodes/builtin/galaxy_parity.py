@@ -21831,6 +21831,105 @@ class ChewBBACAJoinProfilesNode(CommandNode):
         return True
 
 
+class ChewBBACANSStatsNode(CommandNode):
+    """Retrieve Chewie-NS species and schema statistics with chewBBACA."""
+
+    NODE_ID = "chewbbaca_nsstats"
+    DISPLAY_NAME = "chewBBACA NSStats"
+    REQUIRED_CONDA_PACKAGES = ["chewbbaca", "blast", "zip", "fasttree"]
+    CATEGORY = "typing"
+    DESCRIPTION = "Retrieve basic information about the species and schemas in Chewie-NS."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "chewBBACA",
+        "chewbbaca_nsstats",
+        "chewBBACA NSStats",
+        "NSStats",
+        "Chewie-NS",
+        "species schemas",
+        "schema statistics",
+        "cgMLST",
+        "bacterial typing",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("NSStats",)
+    REQUIRED_EXECUTABLES = ["chewBBACA.py"]
+    DOCUMENTATION_URL = "https://chewbbaca.readthedocs.io/"
+    CITATION_DOIS = [CHEWBBACA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHEWBBACA_CITATION_DOI}"]
+    CITATION_TEXT = CHEWBBACA_CITATION_TEXT
+    VERSION = "3.3.10+galaxy1"
+    SHELL = True
+
+    MODES = ["species", "schemas"]
+
+    @classmethod
+    def _mode(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("mode", "") or "")
+
+    @classmethod
+    def _species_id(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("species_id", "") or "")
+
+    @classmethod
+    def _schema_id(cls, inputs: dict[str, Any]) -> Any:
+        return inputs.get("schema_id", "")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = ["chewBBACA.py", "NSStats", "-m", cls._mode(inputs)]
+        _add_if_value(cmd, "--sp", cls._species_id(inputs))
+        _add_if_value(cmd, "--sc", cls._schema_id(inputs))
+        _add_shell_redirect(cmd, "NSStats.txt")
+        return " && ".join([_shell_join(["mkdir", "-p", out]), f"cd {shlex.quote(out)}", _shell_join(cmd)])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "NSStats.txt"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "mode": ("STRING", {"options": cls.MODES}),
+            },
+            "optional": {
+                "species_id": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": list(ChewBBACADownloadSchemaNode.SPECIES_OPTIONS),
+                        "option_labels": ChewBBACADownloadSchemaNode.SPECIES_OPTIONS,
+                    },
+                ),
+                "schema_id": ("INT", {"default": "", "min": 1}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._mode(inputs).strip():
+            return "mode is required"
+        if cls._mode(inputs) not in cls.MODES:
+            return f"mode must be one of: {', '.join(cls.MODES)}"
+        species_id = cls._species_id(inputs)
+        if species_id and species_id not in ChewBBACADownloadSchemaNode.SPECIES_OPTIONS:
+            return f"species_id must be one of: {', '.join(ChewBBACADownloadSchemaNode.SPECIES_OPTIONS)}"
+        schema_id = cls._schema_id(inputs)
+        if schema_id != "":
+            try:
+                schema_id_value = int(schema_id)
+            except (TypeError, ValueError):
+                return "schema_id must be an integer"
+            if schema_id_value < 1:
+                return "schema_id must be greater than or equal to 1"
+        return True
+
+
 class DASToolNode(CommandNode):
     """Integrate metagenomic binning predictions with DAS Tool."""
 

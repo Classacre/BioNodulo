@@ -11365,6 +11365,52 @@ def test_chewbbaca_joinprofiles_renders_command_outputs_and_validation(tmp_path:
     assert node_class.VALIDATE_INPUTS({"input1": ["results.tsv"]}) is True
 
 
+def test_chewbbaca_nsstats_exposes_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["chewbbaca_nsstats"]
+
+    assert info["display_name"] == "chewBBACA NSStats"
+    assert info["category"] == "typing"
+    assert info["description"] == "Retrieve basic information about the species and schemas in Chewie-NS."
+    assert info["output"] == ["TXT"]
+    assert info["output_name"] == ["NSStats"]
+    assert info["required_executables"] == ["chewBBACA.py"]
+    assert info["required_conda_packages"] == ["chewbbaca", "blast", "zip", "fasttree"]
+    assert info["documentation_url"] == "https://chewbbaca.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
+    assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
+    assert "chewBBACA" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "NSStats" in info["search_aliases"]
+    assert info["version"] == "3.3.10+galaxy1"
+    assert info["input"]["required"]["mode"][0] == "STRING"
+    assert info["input"]["required"]["mode"][1]["options"] == ["species", "schemas"]
+    assert info["input"]["optional"]["species_id"][1]["option_labels"]["16"] == "Clostridium neonatale"
+    assert info["input"]["optional"]["schema_id"][1]["min"] == 1
+
+
+def test_chewbbaca_nsstats_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chewbbaca_nsstats")
+
+    assert node_class.render_command(
+        {"mode": "schemas", "species_id": "13", "schema_id": 1, "output": "/work/chewbbaca_nsstats"}
+    ) == (
+        "mkdir -p /work/chewbbaca_nsstats && cd /work/chewbbaca_nsstats && "
+        "chewBBACA.py NSStats -m schemas --sp 13 --sc 1 > NSStats.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "chewbbaca_nsstats" / "NSStats.txt"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "mode is required"
+    assert node_class.VALIDATE_INPUTS({"mode": "bad"}) == "mode must be one of: species, schemas"
+    assert node_class.VALIDATE_INPUTS({"mode": "species", "species_id": "99"}) == (
+        "species_id must be one of: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "species", "schema_id": 0}) == (
+        "schema_id must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "species", "schema_id": "bad"}) == "schema_id must be an integer"
+    assert node_class.VALIDATE_INPUTS({"mode": "species"}) is True
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 
