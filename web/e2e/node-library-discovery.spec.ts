@@ -1260,6 +1260,58 @@ const objectInfo = {
     citation_urls: ['https://github.com/artic-network/fieldbioinformatics'],
     citation_text: 'ARTIC toolkit by the ARTIC network for field bioinformatics workflows.',
   },
+  artic_minion: {
+    name: 'artic_minion',
+    display_name: 'ARTIC minion',
+    category: 'variant',
+    description: 'Build consensus sequences and call variants from amplicon-based Nanopore reads with ARTIC minion.',
+    search_aliases: ['Galaxy', 'ARTIC minion', 'artic_minion', 'amplicon consensus', 'Nanopore variants', 'Clair3', 'primertrimmed BAM'],
+    input: {
+      required: {
+        read_file: { type: 'FASTQ' },
+      },
+      optional: {
+        sample_name: { type: 'STRING', default: 'sample' },
+        fetch: { type: 'STRING', default: 'yes', options: ['yes', 'no'] },
+        scheme_name: { type: 'STRING', default: '' },
+        scheme_version: { type: 'STRING', default: '' },
+        scheme_length: { type: 'INT', default: 400, min: 1 },
+        primer_scheme_source_selector: { type: 'STRING', default: 'tool_data_table', options: ['tool_data_table', 'history'] },
+        bed: { type: 'BED' },
+        reference_source_selector: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        reference: { type: 'FASTA' },
+        model_source: { type: 'STRING', default: 'built-in', options: ['built-in', 'datatable', 'history'] },
+        select_built_in: { type: 'STRING', default: 'r941_prom_sup_g5014', options: ['r941_prom_sup_g5014', 'r941_prom_hac_g360+g422'] },
+        model: { type: 'FILE' },
+        model_data_source: { type: 'STRING', default: '' },
+        ont_license_agree: { type: 'BOOLEAN', default: false },
+        min_depth: { type: 'INT', default: 20, min: 0 },
+        min_mapq: { type: 'INT', default: 20, min: 0 },
+        primer_match_threshold: { type: 'INT', default: 35, min: 0 },
+        normalise: { type: 'INT', default: 0, min: 0 },
+        align_consensus: { type: 'BOOLEAN', default: false },
+        linearise_fasta: { type: 'BOOLEAN', default: false },
+        allow_mismatched_primers: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['BAM', 'TSV', 'VCF_GZ', 'VCF_GZ', 'VCF_GZ', 'FASTA', 'TSV', 'TXT'],
+    output_name: [
+      'alignment_trimmed',
+      'alignment_report',
+      'variants_merged_vcf',
+      'variants_fail_vcf',
+      'variants_pass_vcf',
+      'consensus_fasta',
+      'coverage_mask',
+      'analysis_log',
+    ],
+    required_executables: ['artic', 'run_clair3.sh', 'samtools', 'bgzip', 'sed', 'tar'],
+    required_conda_packages: ['artic'],
+    documentation_url: 'https://artic.readthedocs.io/en/latest/',
+    citation_dois: [],
+    citation_urls: ['https://github.com/artic-network/fieldbioinformatics'],
+    citation_text: 'ARTIC toolkit by the ARTIC network for field bioinformatics workflows.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -14536,7 +14588,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('497 nodes available')).toBeVisible();
+  await expect(page.getByText('498 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14584,6 +14636,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'fusion visualization', name: 'Arriba Draw Fusions', category: 'visualization' },
     { query: 'cytobands', name: 'Arriba Get Filters', category: 'databases' },
     { query: 'guppyplex', name: 'ARTIC guppyplex', category: 'sequence' },
+    { query: 'ARTIC minion', name: 'ARTIC minion', category: 'variant' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },

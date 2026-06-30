@@ -7333,6 +7333,157 @@ def test_artic_guppyplex_renders_commands_outputs_and_validates(tmp_path: Path) 
     assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq"}) is True
 
 
+def test_artic_minion_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["artic_minion"]
+
+    assert info["display_name"] == "ARTIC minion"
+    assert info["category"] == "variant"
+    assert info["description"] == (
+        "Build consensus sequences and call variants from amplicon-based Nanopore reads with ARTIC minion."
+    )
+    assert info["input"]["required"]["read_file"][0] == "FASTQ"
+    assert info["input"]["optional"]["fetch"][1]["default"] == "yes"
+    assert info["input"]["optional"]["fetch"][1]["options"] == ["yes", "no"]
+    assert info["input"]["optional"]["model_source"][1]["options"] == ["built-in", "datatable", "history"]
+    assert info["input"]["optional"]["select_built_in"][1]["options"] == [
+        "r941_prom_sup_g5014",
+        "r941_prom_hac_g360+g422",
+    ]
+    assert info["input"]["optional"]["primer_scheme_source_selector"][1]["options"] == [
+        "tool_data_table",
+        "history",
+    ]
+    assert info["input"]["optional"]["reference_source_selector"][1]["options"] == ["cached", "history"]
+    assert info["output"] == ["BAM", "TSV", "VCF_GZ", "VCF_GZ", "VCF_GZ", "FASTA", "TSV", "TXT"]
+    assert info["output_name"] == [
+        "alignment_trimmed",
+        "alignment_report",
+        "variants_merged_vcf",
+        "variants_fail_vcf",
+        "variants_pass_vcf",
+        "consensus_fasta",
+        "coverage_mask",
+        "analysis_log",
+    ]
+    assert info["required_executables"] == ["artic", "run_clair3.sh", "samtools", "bgzip", "sed", "tar"]
+    assert info["required_conda_packages"] == ["artic"]
+    assert info["documentation_url"] == "https://artic.readthedocs.io/en/latest/"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/artic-network/fieldbioinformatics"]
+    assert "ARTIC toolkit" in info["citation_text"]
+    assert "Clair3" in info["search_aliases"]
+
+
+def test_artic_minion_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("artic_minion")
+
+    assert node_class.render_command(
+        {
+            "read_file": "reads.fastq.gz",
+            "sample_name": "sample01",
+            "fetch": "yes",
+            "scheme_name": "artic-inrb-mpox",
+            "scheme_version": "v1.0.0",
+            "scheme_length": 400,
+            "model_source": "built-in",
+            "select_built_in": "r941_prom_hac_g360+g422",
+            "min_depth": 10,
+            "min_mapq": 30,
+            "primer_match_threshold": 40,
+            "normalise": 250,
+            "align_consensus": True,
+            "linearise_fasta": True,
+            "allow_mismatched_primers": True,
+            "output": "/work/artic_minion",
+        }
+    ) == (
+        "ln -s $(dirname $(which run_clair3.sh))/models/r941_prom_hac_g360+g422 clair3_model && "
+        "artic minion --read-file reads.fastq.gz --threads ${GALAXY_SLOTS:-1} "
+        "--scheme-name artic-inrb-mpox --scheme-version v1.0.0 --scheme-length 400 "
+        "--model-dir . --model clair3_model --min-depth 10 --min-mapq 30 --primer-match-threshold 40 "
+        "--align-consensus --linearise-fasta --allow-mismatched-primers --normalise 250 "
+        "\"'sample01'\" && bgzip -f sample01.fail.vcf && "
+        "sed -i \"1s/'sample01'/sample01/\" sample01.consensus.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({"sample_name": "sample01"}, tmp_path) == [
+        tmp_path / "artic_minion" / "sample01.primertrimmed.rg.sorted.bam",
+        tmp_path / "artic_minion" / "sample01.alignreport.txt",
+        tmp_path / "artic_minion" / "sample01.merged.vcf.gz",
+        tmp_path / "artic_minion" / "sample01.fail.vcf.gz",
+        tmp_path / "artic_minion" / "sample01.pass.vcf.gz",
+        tmp_path / "artic_minion" / "sample01.consensus.fasta",
+        tmp_path / "artic_minion" / "sample01.coverage_mask.txt",
+        tmp_path / "artic_minion" / "sample01.minion.log.txt",
+    ]
+
+    assert node_class.render_command(
+        {
+            "read_file": "reads sample.fastq.gz",
+            "sample_name": "sample02",
+            "fetch": "no",
+            "primer_scheme_source_selector": "history",
+            "bed": "primers.bed",
+            "reference_source_selector": "history",
+            "reference": "reference.fasta",
+            "model_source": "history",
+            "model": "clair3 model.tar.gz",
+            "normalise": 0,
+            "output": "/work/artic_minion",
+        }
+    ) == (
+        "OUTNAME=$(tar -tf 'clair3 model.tar.gz' | head -1 | cut -f1 -d/) && "
+        "tar -xf 'clair3 model.tar.gz' && mv $OUTNAME clair3_model && "
+        "ln -s primers.bed primer.bed && ln -s reference.fasta reference.fasta && samtools faidx reference.fasta && "
+        "artic minion --read-file 'reads sample.fastq.gz' --threads ${GALAXY_SLOTS:-1} "
+        "--bed primer.bed --ref reference.fasta --model-dir . --model clair3_model "
+        "--min-depth 20 --min-mapq 20 --primer-match-threshold 35 \"'sample02'\" && "
+        "bgzip -f sample02.fail.vcf && sed -i \"1s/'sample02'/sample02/\" sample02.consensus.fasta"
+    )
+
+    assert node_class.VALIDATE_INPUTS({}) == "read_file is required"
+    assert node_class.VALIDATE_INPUTS({"read_file": "reads.fastq.gz", "fetch": "bad"}) == (
+        "fetch must be one of: yes, no"
+    )
+    assert node_class.VALIDATE_INPUTS({"read_file": "reads.fastq.gz", "fetch": "yes"}) == (
+        "scheme_name is required when fetch is yes"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"read_file": "reads.fastq.gz", "fetch": "yes", "scheme_name": "scheme"}
+    ) == "scheme_version is required when fetch is yes"
+    assert node_class.VALIDATE_INPUTS({"read_file": "reads.fastq.gz", "fetch": "no"}) == (
+        "bed is required when fetch is no"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"read_file": "reads.fastq.gz", "fetch": "no", "bed": "primers.bed"}
+    ) == "reference is required when fetch is no"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "read_file": "reads.fastq.gz",
+            "fetch": "yes",
+            "scheme_name": "scheme",
+            "scheme_version": "v1",
+            "model_source": "datatable",
+            "model": "rerio-model",
+            "model_data_source": "rerio",
+        }
+    ) == "ont_license_agree is required for Rerio models"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "read_file": "reads.fastq.gz",
+            "fetch": "yes",
+            "scheme_name": "scheme",
+            "scheme_version": "v1",
+            "normalise": -1,
+        }
+    ) == "normalise must be greater than or equal to 0"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {"read_file": "reads.fastq.gz", "fetch": "yes", "scheme_name": "scheme", "scheme_version": "v1"}
+        )
+        is True
+    )
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 
