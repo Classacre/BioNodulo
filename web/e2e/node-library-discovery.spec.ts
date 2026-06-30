@@ -1021,6 +1021,27 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btg1080', 'https://doi.org/10.1093/bioinformatics/btr010', 'https://doi.org/10.1093/bioinformatics/btn013'],
     citation_text: 'AUGUSTUS predicts genes in eukaryotic genomic sequences, supports alternative transcripts and UTRs, and can incorporate extrinsic evidence hints.',
   },
+  augustus_training: {
+    name: 'augustus_training',
+    display_name: 'Train Augustus',
+    category: 'annotation',
+    description: 'Train an AUGUSTUS species model from genome sequence and MAKER gene annotations.',
+    search_aliases: ['Galaxy', 'Train Augustus', 'AUGUSTUS training', 'augustus_training', 'MAKER', 'maker2zff', 'autoAugTrain.pl', 'gene predictor training'],
+    input: {
+      required: {
+        genome: { type: 'FASTA' },
+        maker_gff: { type: 'GFF' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output_tar'],
+    required_executables: ['augustus', 'maker2zff', 'zff2gff3.pl', 'autoAugTrain.pl', 'perl', 'tar'],
+    required_conda_packages: ['augustus', 'maker'],
+    documentation_url: 'https://bioinf.uni-greifswald.de/augustus/',
+    citation_dois: ['10.1093/bioinformatics/btg1080', '10.1093/bioinformatics/btr010', '10.1093/bioinformatics/btn013'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btg1080', 'https://doi.org/10.1093/bioinformatics/btr010', 'https://doi.org/10.1093/bioinformatics/btn013'],
+    citation_text: 'AUGUSTUS predicts genes in eukaryotic genomic sequences, supports alternative transcripts and UTRs, and can incorporate extrinsic evidence hints.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -14297,7 +14318,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('492 nodes available')).toBeVisible();
+  await expect(page.getByText('493 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14340,6 +14361,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },
     { query: 'gene annotation comparison', name: 'AEGeAn ParsEval', category: 'annotation' },
     { query: 'ab initio gene prediction', name: 'Augustus', category: 'annotation' },
+    { query: 'gene predictor training', name: 'Train Augustus', category: 'annotation' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },

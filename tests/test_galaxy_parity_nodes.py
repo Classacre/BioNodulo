@@ -6809,6 +6809,54 @@ def test_augustus_renders_builtin_history_commands_outputs_and_validates(tmp_pat
     assert node_class.VALIDATE_INPUTS({"input_genome": "genome.fa"}) is True
 
 
+def test_augustus_training_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
+    info = _registry().object_info()["augustus_training"]
+
+    assert info["display_name"] == "Train Augustus"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Train an AUGUSTUS species model from genome sequence and MAKER gene annotations."
+    assert info["input"]["required"]["genome"][0] == "FASTA"
+    assert info["input"]["required"]["maker_gff"][0] == "GFF"
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output_tar"]
+    assert info["required_executables"] == ["augustus", "maker2zff", "zff2gff3.pl", "autoAugTrain.pl", "perl", "tar"]
+    assert info["required_conda_packages"] == ["augustus", "maker"]
+    assert info["documentation_url"] == "https://bioinf.uni-greifswald.de/augustus/"
+    assert info["citation_dois"] == [
+        "10.1093/bioinformatics/btg1080",
+        "10.1093/bioinformatics/btr010",
+        "10.1093/bioinformatics/btn013",
+    ]
+    assert "AUGUSTUS" in info["citation_text"]
+    assert "Train Augustus" in info["search_aliases"]
+    assert "MAKER" in info["search_aliases"]
+
+
+def test_augustus_training_renders_command_output_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("augustus_training")
+
+    assert node_class.render_command(
+        {
+            "genome": "genome assembly.fa",
+            "maker_gff": "maker annotations.gff3",
+            "output": "/work/augustus_training",
+        }
+    ) == (
+        "cp -r $(dirname $(command -v augustus))/../config/ augustus_dir/ && "
+        "export AUGUSTUS_CONFIG_PATH=$(pwd)/augustus_dir/ && "
+        "maker2zff 'maker annotations.gff3' && "
+        "zff2gff3.pl genome.ann | perl -plne 's/\\t(\\S+)$/\\t\\.\\t$1/' > genome.gff3 && "
+        "autoAugTrain.pl --genome='genome assembly.fa' --species=local --trainingset=genome.gff3 -v && "
+        "cd augustus_dir/species/ && tar cvfz /work/augustus_training/output_tar.augustus local"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "augustus_training" / "output_tar.augustus",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "genome is required"
+    assert node_class.VALIDATE_INPUTS({"genome": "genome.fa"}) == "maker_gff is required"
+    assert node_class.VALIDATE_INPUTS({"genome": "genome.fa", "maker_gff": "maker.gff3"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

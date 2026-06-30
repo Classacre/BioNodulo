@@ -6634,6 +6634,80 @@ class AugustusNode(CommandNode):
         }
 
 
+class AugustusTrainingNode(CommandNode):
+    """Train an AUGUSTUS species model from MAKER annotations."""
+
+    NODE_ID = "augustus_training"
+    DISPLAY_NAME = "Train Augustus"
+    REQUIRED_CONDA_PACKAGES = ["augustus", "maker"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Train an AUGUSTUS species model from genome sequence and MAKER gene annotations."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Train Augustus",
+        "AUGUSTUS training",
+        "augustus_training",
+        "MAKER",
+        "maker2zff",
+        "autoAugTrain.pl",
+        "gene predictor training",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_tar",)
+    REQUIRED_EXECUTABLES = ["augustus", "maker2zff", "zff2gff3.pl", "autoAugTrain.pl", "perl", "tar"]
+    DOCUMENTATION_URL = AUGUSTUS_DOCUMENTATION_URL
+    CITATION_DOIS = AUGUSTUS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in AUGUSTUS_CITATION_DOIS]
+    CITATION_TEXT = AUGUSTUS_CITATION_TEXT
+    VERSION = "3.5.0+galaxy0"
+    SHELL = True
+
+    OUTPUT_FILENAME = "output_tar.augustus"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls.OUTPUT_FILENAME}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        genome = str(inputs.get("genome", "") or "")
+        maker_gff = str(inputs.get("maker_gff", "") or "")
+        return " && ".join(
+            [
+                "cp -r $(dirname $(command -v augustus))/../config/ augustus_dir/",
+                "export AUGUSTUS_CONFIG_PATH=$(pwd)/augustus_dir/",
+                _shell_join(["maker2zff", maker_gff]),
+                "zff2gff3.pl genome.ann | perl -plne 's/\\t(\\S+)$/\\t\\.\\t$1/' > genome.gff3",
+                f"autoAugTrain.pl --genome={shlex.quote(genome)} --species=local --trainingset=genome.gff3 -v",
+                f"cd augustus_dir/species/ && tar cvfz {shlex.quote(cls._output_path(inputs))} local",
+            ]
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls.OUTPUT_FILENAME]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("genome", "") or "").strip():
+            return "genome is required"
+        if not str(inputs.get("maker_gff", "") or "").strip():
+            return "maker_gff is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "genome": ("FASTA", {"description": "Genome FASTA sequence used for AUGUSTUS training"}),
+                "maker_gff": ("GFF", {"description": "MAKER GFF/GFF3 annotation used as the training set"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 def _bedtools_add_genome(cmd: list[str], inputs: dict[str, Any]) -> None:
     _add_if_value(cmd, "-g", inputs.get("genome"))
 
