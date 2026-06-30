@@ -212,6 +212,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.12688/f1000research.21142.2'],
     citation_text: 'Falco: high-speed FastQC emulation for quality control of sequencing data.',
   },
+  'som.py': {
+    name: 'som.py',
+    display_name: 'som.py and hap.py',
+    category: 'variant',
+    description: 'Compare truth and query VCF callsets with hap.py haplotype benchmarking or som.py allele matching.',
+    search_aliases: ['Galaxy', 'hap.py', 'som.py', 'happy', 'Haplotype Comparison Tools', 'variant benchmarking', 'VCF comparison', 'truth query comparison'],
+    input: {
+      required: {
+        truth: { type: 'VCF' },
+        query: { type: 'VCF' },
+      },
+      optional: {
+        program_select: { type: 'STRING', default: 'som.py', options: ['som.py', 'hap.py'] },
+        reference_source: { type: 'STRING', default: 'indexed', options: ['indexed', 'history'] },
+        reference_path: { type: 'FASTA', default: '' },
+        history_item: { type: 'FASTA', default: '' },
+      },
+    },
+    output: ['TSV', 'JSON', 'JSON', 'CSV', 'CSV'],
+    output_name: ['results', 'sompy_metrics', 'happy_metrics', 'stats', 'summary'],
+    required_executables: ['som.py', 'hap.py', 'samtools'],
+    required_conda_packages: ['hap.py', 'samtools'],
+    documentation_url: 'https://github.com/Illumina/hap.py',
+    citation_dois: [],
+    citation_urls: ['https://github.com/Illumina/hap.py'],
+    citation_text: 'Illumina hap.py: haplotype VCF comparison and som.py allele-matching tools.',
+  },
   Add_a_column1: {
     name: 'Add_a_column1',
     display_name: 'Compute on rows',
@@ -13562,7 +13589,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('467 nodes available')).toBeVisible();
+  await expect(page.getByText('468 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13574,6 +13601,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'matrix transpose', name: 'Transpose', category: 'data_transform' },
     { query: 'reverse columns', name: 'Reverse', category: 'data_transform' },
     { query: 'FastQC emulation', name: 'Falco', category: 'qc' },
+    { query: 'variant benchmarking', name: 'som.py and hap.py', category: 'variant' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

@@ -173,6 +173,8 @@ DATAMASH_CITATION_TEXT = "GNU Datamash: command-line calculations on tabular dat
 FALCO_CITATION_DOI = "10.12688/f1000research.21142.2"
 FALCO_DOCUMENTATION_URL = "https://falco.readthedocs.io"
 FALCO_CITATION_TEXT = "Falco: high-speed FastQC emulation for quality control of sequencing data."
+HAPPY_CITATION_URL = "https://github.com/Illumina/hap.py"
+HAPPY_CITATION_TEXT = "Illumina hap.py: haplotype VCF comparison and som.py allele-matching tools."
 COLUMN_MAKER_CITATION_DOI = "10.1093/nar/gkae410"
 COLUMN_MAKER_CITATION_TEXT = (
     "The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update."
@@ -2561,6 +2563,151 @@ class FalcoNode(CommandNode):
                     {"default": False, "description": "Evaluate reads as reverse-complemented"},
                 ),
                 "generate_summary": ("BOOLEAN", {"default": False, "description": "Emit Falco summary.txt output"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class HappySompyNode(CommandNode):
+    """Compare truth and query VCFs with hap.py or som.py."""
+
+    NODE_ID = "som.py"
+    DISPLAY_NAME = "som.py and hap.py"
+    REQUIRED_CONDA_PACKAGES = ["hap.py", "samtools"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Compare truth and query VCF callsets with hap.py haplotype benchmarking or som.py allele matching."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "hap.py",
+        "som.py",
+        "happy",
+        "Haplotype Comparison Tools",
+        "variant benchmarking",
+        "VCF comparison",
+        "truth query comparison",
+    ]
+    RETURN_TYPES = ("TSV", "JSON", "JSON", "CSV", "CSV")
+    RETURN_NAMES = ("results", "sompy_metrics", "happy_metrics", "stats", "summary")
+    REQUIRED_EXECUTABLES = ["som.py", "hap.py", "samtools"]
+    DOCUMENTATION_URL = HAPPY_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [HAPPY_CITATION_URL]
+    CITATION_TEXT = HAPPY_CITATION_TEXT
+    VERSION = "0.3.15+galaxy0"
+    SHELL = True
+
+    PROGRAM_OPTIONS = ["som.py", "hap.py"]
+    REFERENCE_SOURCE_OPTIONS = ["indexed", "history"]
+
+    @classmethod
+    def _program(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("program_select", "som.py") or "som.py")
+
+    @classmethod
+    def _reference_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("reference_source", "indexed") or "indexed")
+
+    @classmethod
+    def _out_prefix(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output"
+
+    @classmethod
+    def _reference_path(cls, inputs: dict[str, Any]) -> str:
+        if cls._reference_source(inputs) == "history":
+            return f"{_out(inputs)}/reference.fasta"
+        return str(inputs.get("reference_path", ""))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        reference_path = cls._reference_path(inputs)
+        setup: list[str] = []
+        if cls._reference_source(inputs) == "history":
+            setup.extend(
+                [
+                    _shell_join(["ln", "-sf", str(inputs.get("history_item", "")), reference_path]),
+                    _shell_join(["samtools", "faidx", reference_path]),
+                ]
+            )
+        cmd = [
+            cls._program(inputs),
+            str(inputs.get("truth", "")),
+            str(inputs.get("query", "")),
+            "-r",
+            reference_path,
+            "-o",
+            cls._out_prefix(inputs),
+        ]
+        sed_whitespace_to_tab = shlex.quote(r"s/\s\+/\t/g")
+        results_path = shlex.quote(f"{out}/results.tsv")
+        compare_cmd = (
+            f"export HGREF={shlex.quote(reference_path)} && {_shell_join(cmd)} | "
+            f"sed {sed_whitespace_to_tab} | tail -n+2 > {results_path}"
+        )
+        setup.append(compare_cmd)
+        return " && ".join(setup)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "results.tsv"]
+        if cls._program(inputs) == "hap.py":
+            outputs.extend([out / "output.metrics.json.gz", out / "output.summary.csv"])
+        else:
+            outputs.extend([out / "output.metrics.json", out / "output.stats.csv"])
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("truth", "")).strip():
+            return "truth VCF is required"
+        if not str(inputs.get("query", "")).strip():
+            return "query VCF is required"
+        program = cls._program(inputs)
+        if program not in cls.PROGRAM_OPTIONS:
+            return f"program_select must be one of: {', '.join(cls.PROGRAM_OPTIONS)}"
+        reference_source = cls._reference_source(inputs)
+        if reference_source not in cls.REFERENCE_SOURCE_OPTIONS:
+            return f"reference_source must be one of: {', '.join(cls.REFERENCE_SOURCE_OPTIONS)}"
+        if reference_source == "indexed" and not str(inputs.get("reference_path", "")).strip():
+            return "reference_path is required for indexed reference_source"
+        if reference_source == "history" and not str(inputs.get("history_item", "")).strip():
+            return "history_item is required for history reference_source"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "truth": ("VCF", {"description": "Ground-truth variant calls"}),
+                "query": ("VCF", {"description": "Query variant calls to benchmark"}),
+            },
+            "optional": {
+                "program_select": (
+                    "STRING",
+                    {
+                        "default": "som.py",
+                        "options": cls.PROGRAM_OPTIONS,
+                        "description": "Comparison method: som.py allele matching or hap.py haplotype benchmarking",
+                    },
+                ),
+                "reference_source": (
+                    "STRING",
+                    {
+                        "default": "indexed",
+                        "options": cls.REFERENCE_SOURCE_OPTIONS,
+                        "description": "Use an indexed reference path or stage a history FASTA",
+                    },
+                ),
+                "reference_path": (
+                    "FASTA",
+                    {"default": "", "description": "Indexed reference FASTA path for built-in/reference data mode"},
+                ),
+                "history_item": (
+                    "FASTA",
+                    {"default": "", "description": "History reference FASTA to stage and index before comparison"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }

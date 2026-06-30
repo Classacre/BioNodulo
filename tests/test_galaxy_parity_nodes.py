@@ -3710,6 +3710,105 @@ def test_falco_validates_required_input_format_and_subsample() -> None:
     assert node_class.VALIDATE_INPUTS({"input_file": "reads.fastq", "input_ext": "fastq"}) is True
 
 
+def test_happy_sompy_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["som.py"]
+
+    assert info["display_name"] == "som.py and hap.py"
+    assert info["category"] == "variant"
+    assert info["description"] == (
+        "Compare truth and query VCF callsets with hap.py haplotype benchmarking or som.py allele matching."
+    )
+    assert info["output"] == ["TSV", "JSON", "JSON", "CSV", "CSV"]
+    assert info["output_name"] == ["results", "sompy_metrics", "happy_metrics", "stats", "summary"]
+    assert info["required_executables"] == ["som.py", "hap.py", "samtools"]
+    assert info["required_conda_packages"] == ["hap.py", "samtools"]
+    assert info["documentation_url"] == "https://github.com/Illumina/hap.py"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/Illumina/hap.py"]
+    assert "hap.py" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "variant benchmarking" in info["search_aliases"]
+    assert info["input"]["required"]["truth"][0] == "VCF"
+    assert info["input"]["required"]["query"][0] == "VCF"
+    assert info["input"]["optional"]["program_select"][1]["options"] == ["som.py", "hap.py"]
+    assert info["input"]["optional"]["reference_source"][1]["options"] == ["indexed", "history"]
+    assert info["input"]["optional"]["history_item"][0] == "FASTA"
+
+
+def test_happy_sompy_renders_history_reference_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("som.py")
+
+    assert node_class.render_command(
+        {
+            "program_select": "som.py",
+            "reference_source": "history",
+            "history_item": "chr21.fa",
+            "truth": "truth.vcf",
+            "query": "query.vcf",
+            "output": "/work/som.py",
+        }
+    ) == (
+        "ln -sf chr21.fa /work/som.py/reference.fasta && samtools faidx /work/som.py/reference.fasta && "
+        "export HGREF=/work/som.py/reference.fasta && som.py truth.vcf query.vcf "
+        "-r /work/som.py/reference.fasta -o /work/som.py/output | "
+        "sed 's/\\s\\+/\\t/g' | tail -n+2 > /work/som.py/results.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"program_select": "som.py"}, tmp_path) == [
+        tmp_path / "som.py" / "results.tsv",
+        tmp_path / "som.py" / "output.metrics.json",
+        tmp_path / "som.py" / "output.stats.csv",
+    ]
+
+
+def test_happy_sompy_renders_happy_indexed_reference_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("som.py")
+
+    assert node_class.render_command(
+        {
+            "program_select": "hap.py",
+            "reference_source": "indexed",
+            "reference_path": "/data/hg38.fa",
+            "truth": "truth calls.vcf.gz",
+            "query": "query calls.vcf.gz",
+            "output": "/work/som.py",
+        }
+    ) == (
+        "export HGREF=/data/hg38.fa && hap.py 'truth calls.vcf.gz' 'query calls.vcf.gz' "
+        "-r /data/hg38.fa -o /work/som.py/output | "
+        "sed 's/\\s\\+/\\t/g' | tail -n+2 > /work/som.py/results.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"program_select": "hap.py"}, tmp_path) == [
+        tmp_path / "som.py" / "results.tsv",
+        tmp_path / "som.py" / "output.metrics.json.gz",
+        tmp_path / "som.py" / "output.summary.csv",
+    ]
+
+
+def test_happy_sompy_validates_program_reference_and_vcfs() -> None:
+    node_class = _node_class("som.py")
+
+    assert node_class.VALIDATE_INPUTS({}) == "truth VCF is required"
+    assert node_class.VALIDATE_INPUTS({"truth": "truth.vcf"}) == "query VCF is required"
+    assert node_class.VALIDATE_INPUTS({"truth": "truth.vcf", "query": "query.vcf", "program_select": "bad"}) == (
+        "program_select must be one of: som.py, hap.py"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"truth": "truth.vcf", "query": "query.vcf", "reference_source": "indexed"}
+    ) == "reference_path is required for indexed reference_source"
+    assert node_class.VALIDATE_INPUTS(
+        {"truth": "truth.vcf", "query": "query.vcf", "reference_source": "history"}
+    ) == "history_item is required for history reference_source"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "truth": "truth.vcf",
+            "query": "query.vcf",
+            "reference_source": "history",
+            "history_item": "reference.fa",
+            "program_select": "hap.py",
+        }
+    ) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 
