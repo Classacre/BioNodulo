@@ -355,6 +355,105 @@ def test_bam_to_scidx_validates_required_inputs_modes_and_insert_sizes() -> None
     assert node_class.VALIDATE_INPUTS({"input_bam": "input.bam", "bam_index": "input.bam.bai"}) is True
 
 
+def test_b2btools_single_sequence_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
+    node_info = _registry().object_info()["b2btools_single_sequence"]
+
+    assert node_info["display_name"] == "b2bTools: Biophysical predictors for single sequences"
+    assert node_info["category"] == "proteomics"
+    assert node_info["description"] == "Predict protein biophysical properties from amino-acid FASTA sequences."
+    assert node_info["output"] == ["JSON", "DIRECTORY", "DIRECTORY"]
+    assert node_info["output_name"] == ["predictions_output", "split_output", "split_output_plots"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["b2btools"]
+    assert node_info["documentation_url"] == "https://bio2byte.be/"
+    assert node_info["citation_dois"] == [
+        "10.1093/bioinformatics/btae543",
+        "10.1038/ncomms3741",
+        "10.1101/2020.05.25.115253",
+        "10.1038/s41598-017-08366-3",
+        "10.1093/bioinformatics/btz912",
+    ]
+    assert node_info["citation_urls"] == [
+        "https://doi.org/10.1093/bioinformatics/btae543",
+        "https://doi.org/10.1038/ncomms3741",
+        "https://doi.org/10.1101/2020.05.25.115253",
+        "https://doi.org/10.1038/s41598-017-08366-3",
+        "https://doi.org/10.1093/bioinformatics/btz912",
+    ]
+    assert "DynaMine" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "DisoMine" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input"][0] == "FASTA"
+    assert node_info["input"]["optional"]["dynamine"][1]["default"] is True
+    assert node_info["input"]["optional"]["disomine"][1]["default"] is True
+    assert node_info["input"]["optional"]["efoldmine"][1]["default"] is True
+    assert node_info["input"]["optional"]["agmata"][1]["default"] is True
+    assert node_info["input"]["optional"]["plot"][1]["default"] is False
+    assert node_info["input"]["optional"]["plot_all"][1]["default"] is False
+    assert node_info["input"]["optional"]["highlight"][1]["default"] is False
+
+
+def test_b2btools_single_sequence_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("b2btools_single_sequence")
+
+    assert node_class.render_command(
+        {
+            "input": "input.fasta",
+            "output": "/work/b2btools_single_sequence",
+        }
+    ) == (
+        "mkdir -p /work/b2btools_single_sequence/tabular /work/b2btools_single_sequence/plots && "
+        "python script.py --file input.fasta --output /work/b2btools_single_sequence/tabular "
+        "--json /work/b2btools_single_sequence/predictions.json --dynamine --disomine --efoldmine --agmata"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "b2btools_single_sequence" / "predictions.json",
+        tmp_path / "b2btools_single_sequence" / "tabular",
+        tmp_path / "b2btools_single_sequence" / "plots",
+    ]
+
+
+def test_b2btools_single_sequence_renders_plot_command_with_selected_predictor() -> None:
+    node_class = _node_class("b2btools_single_sequence")
+
+    assert node_class.render_command(
+        {
+            "input": "single protein.fasta",
+            "script_path": "/tools/b2btools/script.py",
+            "dynamine": True,
+            "disomine": False,
+            "efoldmine": False,
+            "agmata": False,
+            "plot": True,
+            "plot_all": True,
+            "highlight": True,
+            "output": "/work/b2btools_single_sequence",
+        }
+    ) == (
+        "mkdir -p /work/b2btools_single_sequence/tabular /work/b2btools_single_sequence/plots && "
+        "python /tools/b2btools/script.py --file 'single protein.fasta' "
+        "--output /work/b2btools_single_sequence/tabular "
+        "--json /work/b2btools_single_sequence/predictions.json --dynamine "
+        "--plot-output /work/b2btools_single_sequence/plots --plot --plot_all --highlight"
+    )
+
+
+def test_b2btools_single_sequence_validates_required_input_and_predictors() -> None:
+    node_class = _node_class("b2btools_single_sequence")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "input.fasta",
+            "dynamine": False,
+            "disomine": False,
+            "efoldmine": False,
+            "agmata": False,
+        }
+    ) == "at least one predictor must be selected"
+    assert node_class.VALIDATE_INPUTS({"input": "input.fasta", "dynamine": True}) is True
+
+
 def test_fasta_regex_finder_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["fasta_regex_finder"]
 

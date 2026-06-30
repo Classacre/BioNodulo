@@ -1265,6 +1265,36 @@ const objectInfo = {
     citation_urls: ['http://www.huck.psu.edu/content/research/independent-centers-excellence/center-for-eukaryotic-gene-regulation'],
     citation_text: 'Convert BAM data to ScIdx, the Strand-specific coordinate count format used by ChIP-exo tools.',
   },
+  b2btools_single_sequence: {
+    name: 'b2btools_single_sequence',
+    display_name: 'b2bTools: Biophysical predictors for single sequences',
+    category: 'proteomics',
+    description: 'Predict protein biophysical properties from amino-acid FASTA sequences.',
+    search_aliases: ['Galaxy', 'b2btools', 'Bio2Byte', 'DynaMine', 'DisoMine', 'EFoldMine', 'AgMata', 'protein disorder', 'backbone dynamics', 'early folding', 'beta aggregation', 'biophysical predictors'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+      },
+      optional: {
+        dynamine: { type: 'BOOLEAN', default: true },
+        disomine: { type: 'BOOLEAN', default: true },
+        efoldmine: { type: 'BOOLEAN', default: true },
+        agmata: { type: 'BOOLEAN', default: true },
+        plot: { type: 'BOOLEAN', default: false },
+        plot_all: { type: 'BOOLEAN', default: false },
+        highlight: { type: 'BOOLEAN', default: false },
+        script_path: { type: 'FILE', default: 'script.py', advanced: true },
+      },
+    },
+    output: ['JSON', 'DIRECTORY', 'DIRECTORY'],
+    output_name: ['predictions_output', 'split_output', 'split_output_plots'],
+    required_executables: ['python'],
+    required_conda_packages: ['b2btools'],
+    documentation_url: 'https://bio2byte.be/',
+    citation_dois: ['10.1093/bioinformatics/btae543', '10.1038/ncomms3741', '10.1101/2020.05.25.115253', '10.1038/s41598-017-08366-3', '10.1093/bioinformatics/btz912'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btae543', 'https://doi.org/10.1038/ncomms3741', 'https://doi.org/10.1101/2020.05.25.115253', 'https://doi.org/10.1038/s41598-017-08366-3', 'https://doi.org/10.1093/bioinformatics/btz912'],
+    citation_text: 'Bio2Byte Tools: a suite of protein sequence-based predictors; DynaMine backbone dynamics prediction; AgMata beta-aggregation prediction; EFoldMine early folding prediction; DisoMine protein disorder prediction.',
+  },
   cd_hit: {
     name: 'cd_hit',
     display_name: 'cd-hit',
@@ -11798,7 +11828,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('404 nodes available')).toBeVisible();
+  await expect(page.getByText('405 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11856,6 +11886,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
     { query: 'ScIdx', name: 'Convert BAM to ScIdx', category: 'chip_seq' },
+    { query: 'DisoMine', name: 'b2bTools: Biophysical predictors for single sequences', category: 'proteomics' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'G-quadruplex', name: 'Fasta regular expression finder', category: 'sequence' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
