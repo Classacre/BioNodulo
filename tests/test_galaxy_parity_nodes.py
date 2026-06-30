@@ -4059,6 +4059,63 @@ def test_crossmap_bam_validates_required_inputs_and_numeric_parameters() -> None
     assert node_class.VALIDATE_INPUTS({"input": "alignments.bam", "input_chain": "chain.over"}) is True
 
 
+def test_crossmap_bw_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["crossmap_bw"]
+
+    assert info["display_name"] == "CrossMap BigWig"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Lift BigWig signal tracks between genome assemblies with CrossMap."
+    assert info["output"] == ["BIGWIG"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["CrossMap"]
+    assert info["required_conda_packages"] == ["crossmap"]
+    assert info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btt730"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
+    assert "CrossMap" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "liftover BigWig" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "BIGWIG"
+    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
+
+
+def test_crossmap_bw_renders_default_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("crossmap_bw")
+
+    assert node_class.render_command(
+        {
+            "input": "signal.bw",
+            "input_chain": "hg19ToHg38.over.chain",
+            "output": "/work/crossmap_bw",
+        }
+    ) == "CrossMap bigwig hg19ToHg38.over.chain signal.bw /work/crossmap_bw/output"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "crossmap_bw" / "output.bw"]
+
+
+def test_crossmap_bw_quotes_paths() -> None:
+    node_class = _node_class("crossmap_bw")
+
+    assert node_class.render_command(
+        {
+            "input": "signal track.bw",
+            "input_chain": "chain files/a to b.over.chain",
+            "output": "/work/crossmap_bw",
+        }
+    ) == "CrossMap bigwig 'chain files/a to b.over.chain' 'signal track.bw' /work/crossmap_bw/output"
+
+
+def test_crossmap_bw_validates_required_inputs_and_options() -> None:
+    node_class = _node_class("crossmap_bw")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input BigWig is required"
+    assert node_class.VALIDATE_INPUTS({"input": "signal.bw"}) == "input_chain is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "signal.bw", "input_chain": "chain.over", "index_source": "remote"}
+    ) == "index_source must be one of: cached, history"
+    assert node_class.VALIDATE_INPUTS({"input": "signal.bw", "input_chain": "chain.over"}) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 

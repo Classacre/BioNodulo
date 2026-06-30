@@ -577,6 +577,7 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "GTF",
         "GFF_GTF",
         "BED",
+        "BIGWIG",
         "ASSEMBLY",
         "CONTIGS",
         "SCAFFOLDS",
