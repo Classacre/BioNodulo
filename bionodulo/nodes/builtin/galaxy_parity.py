@@ -27179,6 +27179,105 @@ class BiomSummarizeTableNode(CommandNode):
         }
 
 
+class BiomNormalizeTableNode(CommandNode):
+    """Normalize a BIOM table over samples or observations."""
+
+    NODE_ID = "biom_normalize_table"
+    DISPLAY_NAME = "BIOM normalize table"
+    REQUIRED_CONDA_PACKAGES = ["biom-format"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Normalize a BIOM table."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BIOM",
+        "biom-format",
+        "biom_normalize_table",
+        "biom normalize-table",
+        "relative abundance",
+        "presence absence",
+        "normalize microbiome table",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_fp",)
+    REQUIRED_EXECUTABLES = ["biom"]
+    DOCUMENTATION_URL = "https://biom-format.org/documentation/biom_commands.html#normalize-table"
+    CITATION_DOIS = [BIOM_FORMAT_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BIOM_FORMAT_DOI}"]
+    CITATION_TEXT = BIOM_FORMAT_CITATION_TEXT
+    VERSION = "2.1.17+galaxy0"
+    SHELL = True
+    AXES = ["sample", "observation"]
+
+    @classmethod
+    def _axis(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("axis", "sample") or "sample")
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.biom"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "biom",
+            "normalize-table",
+            "--input-fp",
+            str(inputs.get("input_fp", "")),
+            "--output-fp",
+            cls._output_path(inputs),
+        ]
+        if inputs.get("relative_abund", True):
+            cmd.append("--relative-abund")
+        if inputs.get("presence_absence", True):
+            cmd.append("--presence-absence")
+        cmd.extend(["--axis", cls._axis(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.biom"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_fp", "")).strip():
+            return "input_fp is required"
+        axis = cls._axis(inputs)
+        if axis not in cls.AXES:
+            return f"axis must be one of: {', '.join(cls.AXES)}"
+        if not inputs.get("relative_abund", True) and not inputs.get("presence_absence", True):
+            return "At least one normalization mode must be enabled"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_fp": ("FILE", {"description": "Input BIOM table to normalize"}),
+            },
+            "optional": {
+                "relative_abund": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Convert table values to relative abundance"},
+                ),
+                "presence_absence": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Convert table values to presence or absence"},
+                ),
+                "axis": (
+                    "STRING",
+                    {
+                        "default": "sample",
+                        "options": cls.AXES,
+                        "description": "Normalize over samples or observations",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class KrakentoolsCombineKreportsNode(CommandNode):
     """Combine multiple Kraken-style reports with KrakenTools."""
 

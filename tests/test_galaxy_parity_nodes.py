@@ -16441,6 +16441,76 @@ def test_biom_summarize_table_renders_command_outputs_and_validates(tmp_path: Pa
     assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom"}) is True
 
 
+def test_biom_normalize_table_exposes_galaxy_metadata_and_doi() -> None:
+    info = _registry().object_info()["biom_normalize_table"]
+
+    assert info["display_name"] == "BIOM normalize table"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Normalize a BIOM table."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "BIOM",
+        "biom-format",
+        "biom_normalize_table",
+        "biom normalize-table",
+        "relative abundance",
+        "presence absence",
+        "normalize microbiome table",
+    ]
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output_fp"]
+    assert info["required_executables"] == ["biom"]
+    assert info["required_conda_packages"] == ["biom-format"]
+    assert info["documentation_url"] == "https://biom-format.org/documentation/biom_commands.html#normalize-table"
+    assert info["citation_dois"] == ["10.1186/2047-217X-1-7"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/2047-217X-1-7"]
+    assert info["citation_text"] == "The Biological Observation Matrix (BIOM) format."
+    assert info["version"] == "2.1.17+galaxy0"
+    assert info["input"]["required"]["input_fp"][0] == "FILE"
+    assert info["input"]["optional"]["relative_abund"][1]["default"] is True
+    assert info["input"]["optional"]["presence_absence"][1]["default"] is True
+    assert info["input"]["optional"]["axis"][1]["default"] == "sample"
+    assert info["input"]["optional"]["axis"][1]["options"] == ["sample", "observation"]
+
+
+def test_biom_normalize_table_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("biom_normalize_table")
+
+    assert node_class.render_command(
+        {
+            "input_fp": "input abundance.biom",
+            "output": "/work/biom_normalize_table",
+        }
+    ) == (
+        "biom normalize-table --input-fp 'input abundance.biom' "
+        "--output-fp /work/biom_normalize_table/output.biom --relative-abund --presence-absence --axis sample"
+    )
+    assert node_class.render_command(
+        {
+            "input_fp": "input_abundance_1.biom1",
+            "relative_abund": False,
+            "presence_absence": True,
+            "axis": "observation",
+            "output": "/work/biom_normalize_table",
+        }
+    ) == (
+        "biom normalize-table --input-fp input_abundance_1.biom1 "
+        "--output-fp /work/biom_normalize_table/output.biom --presence-absence --axis observation"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "biom_normalize_table" / "output.biom",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_fp is required"
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom", "axis": "bad"}) == (
+        "axis must be one of: sample, observation"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_fp": "table.biom", "relative_abund": False, "presence_absence": False}
+    ) == "At least one normalization mode must be enabled"
+    assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom", "axis": "sample"}) is True
+
+
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
     node_class = _node_class("krakentools_combine_kreports")
     info = _registry().object_info()["krakentools_combine_kreports"]
