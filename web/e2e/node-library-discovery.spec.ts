@@ -6236,6 +6236,43 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  fatovcf: {
+    name: 'fatovcf',
+    display_name: 'faToVcf',
+    category: 'variant',
+    description: 'Convert a FASTA alignment file to Variant Call Format single-nucleotide differences.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'fatovcf', 'faToVcf', 'FASTA alignment to VCF', 'single-nucleotide diffs', 'ambiguous bases', 'mask sites'],
+    input: {
+      required: {
+        in_fasta: { type: 'FASTA' },
+      },
+      optional: {
+        refSeq: { type: 'STRING', default: '', options: ['', 'customRef'] },
+        ref: { type: 'STRING', default: '' },
+        ambiguous: { type: 'STRING', default: '', options: ['', '-ambiguousToN', '-resolveAmbiguous'] },
+        excludeFile: { type: 'FILE' },
+        maxDiff: { type: 'INT', default: 0, min: 0 },
+        maskSites: { type: 'VCF' },
+        windowSize: { type: 'INT', default: 0, min: 0 },
+        minAmbigInWindow: { type: 'INT', default: 2, min: 1 },
+        includeNoAltN: { type: 'BOOLEAN', default: false },
+        minAc: { type: 'INT', default: 0, min: 0 },
+        minAf: { type: 'FLOAT', default: 0.0, min: 0.0, max: 1.0 },
+        startOffset: { type: 'INT', default: 0, min: 0 },
+        includeRef: { type: 'BOOLEAN', default: false },
+        noGenotypes: { type: 'BOOLEAN', default: false },
+        vcfChrom: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['VCF'],
+    output_name: ['out'],
+    required_executables: ['faToVcf'],
+    required_conda_packages: ['ucsc-fatovcf'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/utils/faToVcf/faToVcf.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -13054,7 +13091,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('451 nodes available')).toBeVisible();
+  await expect(page.getByText('452 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13275,6 +13312,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'AXT to MAF', name: 'axtToMaf', category: 'genomics' },
     { query: 'alignment nets', name: 'chainNet', category: 'genomics' },
     { query: 'split FASTA', name: 'faSplit', category: 'genomics' },
+    { query: 'FASTA alignment to VCF', name: 'faToVcf', category: 'variant' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },

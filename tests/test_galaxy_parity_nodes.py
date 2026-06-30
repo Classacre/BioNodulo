@@ -35281,6 +35281,120 @@ def test_fasplit_validates_required_inputs_modes_counts_and_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "sequence", "count": 10}) is True
 
 
+def test_fatovcf_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["fatovcf"]
+
+    assert info["display_name"] == "faToVcf"
+    assert info["category"] == "variant"
+    assert info["description"] == "Convert a FASTA alignment file to Variant Call Format single-nucleotide differences."
+    assert info["output"] == ["VCF"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["faToVcf"]
+    assert info["required_conda_packages"] == ["ucsc-fatovcf"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/utils/faToVcf/faToVcf.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "FASTA alignment to VCF" in info["search_aliases"]
+    assert info["input"]["required"]["in_fasta"][0] == "FASTA"
+    assert info["input"]["optional"]["refSeq"][1]["default"] == ""
+    assert info["input"]["optional"]["refSeq"][1]["options"] == ["", "customRef"]
+    assert info["input"]["optional"]["ref"][0] == "STRING"
+    assert info["input"]["optional"]["ambiguous"][1]["options"] == ["", "-ambiguousToN", "-resolveAmbiguous"]
+    assert info["input"]["optional"]["excludeFile"][0] == "FILE"
+    assert info["input"]["optional"]["maxDiff"][1]["min"] == 0
+    assert info["input"]["optional"]["maskSites"][0] == "VCF"
+    assert info["input"]["optional"]["windowSize"][1]["min"] == 0
+    assert info["input"]["optional"]["minAmbigInWindow"][1]["default"] == 2
+    assert info["input"]["optional"]["includeNoAltN"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["minAc"][1]["min"] == 0
+    assert info["input"]["optional"]["minAf"][1]["max"] == 1.0
+    assert info["input"]["optional"]["startOffset"][1]["min"] == 0
+    assert info["input"]["optional"]["includeRef"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["noGenotypes"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["vcfChrom"][0] == "STRING"
+
+
+def test_fatovcf_renders_default_and_all_galaxy_options(tmp_path: Path) -> None:
+    node_class = _node_class("fatovcf")
+
+    assert node_class.render_command(
+        {
+            "in_fasta": "aligned sequences.fa",
+            "output": "/work/fatovcf",
+        }
+    ) == "ln -s 'aligned sequences.fa' /work/fatovcf/in.fa && faToVcf /work/fatovcf/in.fa /work/fatovcf/out.vcf -maxDiff=0 -minAc=0 -minAf=0.0"
+    assert node_class.render_command(
+        {
+            "in_fasta": "aligned.fa",
+            "refSeq": "customRef",
+            "ref": "sample3",
+            "ambiguous": "-ambiguousToN",
+            "excludeFile": "excluded samples.txt",
+            "maxDiff": 3,
+            "maskSites": "mask sites.vcf",
+            "windowSize": 7,
+            "minAmbigInWindow": 3,
+            "includeNoAltN": True,
+            "minAc": 1,
+            "minAf": 0.1,
+            "startOffset": 1,
+            "includeRef": True,
+            "noGenotypes": True,
+            "vcfChrom": "sample1",
+            "output": "/work/fatovcf",
+        }
+    ) == (
+        "ln -s aligned.fa /work/fatovcf/in.fa && faToVcf /work/fatovcf/in.fa /work/fatovcf/out.vcf "
+        "-ref=sample3 -ambiguousToN '-excludeFile=excluded samples.txt' -maxDiff=3 '-maskSites=mask sites.vcf' "
+        "-windowSize=7 -minAmbigInWindow=3 -includeNoAltN -minAc=1 -minAf=0.1 -startOffset=1 "
+        "-includeRef -noGenotypes -vcfChrom=sample1"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "fatovcf" / "out.vcf",
+    ]
+
+
+def test_fatovcf_validates_required_inputs_modes_and_numeric_options() -> None:
+    node_class = _node_class("fatovcf")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_fasta is required"
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "refSeq": "bad"}) == (
+        "refSeq must be one of: , customRef"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "refSeq": "customRef"}) == (
+        "ref is required when refSeq is customRef"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "ambiguous": "-bad"}) == (
+        "ambiguous must be one of: , -ambiguousToN, -resolveAmbiguous"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "maxDiff": -1}) == (
+        "maxDiff must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "windowSize": -1}) == (
+        "windowSize must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "minAmbigInWindow": 0}) == (
+        "minAmbigInWindow must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "minAc": -1}) == (
+        "minAc must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "minAf": -0.1}) == (
+        "minAf must be between 0.0 and 1.0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "minAf": 1.1}) == (
+        "minAf must be between 0.0 and 1.0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "startOffset": -1}) == (
+        "startOffset must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa"}) is True
+    assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "refSeq": "customRef", "ref": "sample3"}) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 
