@@ -6022,6 +6022,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_chainantirepeat: {
+    name: 'ucsc_chainantirepeat',
+    display_name: 'chainAntiRepeat',
+    category: 'genomics',
+    description: 'Remove UCSC chains that primarily represent repeats or degenerate DNA.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainantirepeat', 'chainAntiRepeat', 'UCSC chain', 'twoBit', 'repeat chains', 'degenerate DNA'],
+    input: {
+      required: {
+        in_target: { type: 'FILE' },
+        in_query: { type: 'FILE' },
+        in_chain: { type: 'FILE' },
+      },
+      optional: {
+        minScore: { type: 'INT', default: '', min: 0 },
+        noCheckScore: { type: 'INT', default: '', min: 0 },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['chainAntiRepeat'],
+    required_conda_packages: ['ucsc-chainantirepeat'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/chain.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12788,7 +12814,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('442 nodes available')).toBeVisible();
+  await expect(page.getByText('443 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13002,6 +13028,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'synteny info', name: 'netSyntenic', category: 'genomics' },
     { query: 'liftOver', name: 'netChainSubset', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
+    { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },

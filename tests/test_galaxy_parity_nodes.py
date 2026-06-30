@@ -34609,3 +34609,65 @@ def test_maftoaxt_validates_required_inputs_and_target_mode() -> None:
         "targetSeq is required when tarSeq is customTar"
     )
     assert node_class.VALIDATE_INPUTS({"in_maf": "input.maf", "querySeq": "panTro1"}) is True
+
+
+def test_ucsc_chainantirepeat_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_chainantirepeat"]
+
+    assert info["display_name"] == "chainAntiRepeat"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Remove UCSC chains that primarily represent repeats or degenerate DNA."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["chainAntiRepeat"]
+    assert info["required_conda_packages"] == ["ucsc-chainantirepeat"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/chain.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "degenerate DNA" in info["search_aliases"]
+    assert info["input"]["required"]["in_target"][0] == "FILE"
+    assert info["input"]["required"]["in_query"][0] == "FILE"
+    assert info["input"]["required"]["in_chain"][0] == "FILE"
+    assert info["input"]["optional"]["minScore"][0] == "INT"
+    assert info["input"]["optional"]["noCheckScore"][0] == "INT"
+
+
+def test_ucsc_chainantirepeat_renders_thresholds_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_chainantirepeat")
+
+    assert node_class.render_command(
+        {
+            "in_target": "hg38 chrM.twobit",
+            "in_query": "mm39 chrM.twobit",
+            "in_chain": "hg38.mm39.chain",
+            "minScore": 5000,
+            "noCheckScore": 200000,
+            "output": "/work/ucsc_chainantirepeat",
+        }
+    ) == (
+        "chainAntiRepeat 'hg38 chrM.twobit' 'mm39 chrM.twobit' hg38.mm39.chain "
+        "/work/ucsc_chainantirepeat/out.chain -minScore=5000 -noCheckScore=200000"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_chainantirepeat" / "out.chain",
+    ]
+
+
+def test_ucsc_chainantirepeat_validates_required_inputs_and_scores() -> None:
+    node_class = _node_class("ucsc_chainantirepeat")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_target is required"
+    assert node_class.VALIDATE_INPUTS({"in_target": "target.2bit"}) == "in_query is required"
+    assert node_class.VALIDATE_INPUTS({"in_target": "target.2bit", "in_query": "query.2bit"}) == (
+        "in_chain is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"in_target": "target.2bit", "in_query": "query.2bit", "in_chain": "input.chain", "minScore": -1}
+    ) == "minScore must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_target": "target.2bit", "in_query": "query.2bit", "in_chain": "input.chain", "noCheckScore": -1}
+    ) == "noCheckScore must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS({"in_target": "target.2bit", "in_query": "query.2bit", "in_chain": "input.chain"}) is True
