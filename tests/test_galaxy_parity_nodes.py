@@ -36160,6 +36160,148 @@ def test_gtftobed12_validates_required_inputs_selector_and_source_prefixes() -> 
     ) is True
 
 
+def test_gffread_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["gffread"]
+
+    assert info["display_name"] == "gffread"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Filter, convert, cluster, and extract sequences from GFF3, GTF, or BED annotations."
+    assert info["output"] == ["GFF3", "GTF", "BED", "FASTA", "FASTA", "FASTA", "TXT"]
+    assert info["output_name"] == [
+        "output_gff",
+        "output_gtf",
+        "output_bed",
+        "output_exons",
+        "output_cds",
+        "output_pep",
+        "output_dupinfo",
+    ]
+    assert info["required_executables"] == ["gffread"]
+    assert info["required_conda_packages"] == ["gffread"]
+    assert info["documentation_url"] == "https://github.com/gpertea/gffread"
+    assert info["citation_dois"] == ["10.12688/f1000research.23297.2"]
+    assert info["citation_urls"] == ["https://doi.org/10.12688/f1000research.23297.2"]
+    assert "GFF Utilities: GffRead and GffCompare" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "GTF to GFF3" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "GFF_GTF"
+    assert info["input"]["optional"]["gff_fmt"][1]["options"] == ["none", "gff", "gtf", "bed"]
+    assert info["input"]["optional"]["filtering"][1]["multiple"] is True
+    assert info["input"]["optional"]["reference_genome_source"][1]["options"] == ["none", "cached", "history"]
+    assert info["input"]["optional"]["fa_outputs"][1]["multiple"] is True
+    assert info["input"]["optional"]["merge_sel"][1]["options"] == ["none", "merge", "cluster"]
+    assert info["input"]["optional"]["merge_options"][1]["multiple"] is True
+    assert info["input"]["optional"]["full_gff_attribute_preservation"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["decode_url"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["expose"][0] == "BOOLEAN"
+
+
+def test_gffread_renders_conversion_filtering_fasta_and_merge_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("gffread")
+
+    assert node_class.render_command({"input": "genes.gtf", "gff_fmt": "gff", "output": "/work/gffread"}) == (
+        "gffread genes.gtf -o /work/gffread/output.gff"
+    )
+    assert node_class.render_command(
+        {
+            "input": "annotations with spaces.gtf",
+            "gff_fmt": "gtf",
+            "filtering": ["-C", "-O"],
+            "region_filter": "filter",
+            "range": "chr1:1000..2000",
+            "discard_partial": True,
+            "maxintron": 50000,
+            "chr_replace": "chr map.tsv",
+            "tname": "track1",
+            "full_gff_attribute_preservation": True,
+            "decode_url": True,
+            "expose": True,
+            "output": "/work/gffread",
+        }
+    ) == (
+        "gffread 'annotations with spaces.gtf' -C -O -i 50000 -r chr1:1000..2000 -R "
+        "'-m=chr map.tsv' -F -D -E -t track1 -T -o /work/gffread/output.gtf"
+    )
+    assert node_class.render_command(
+        {
+            "input": "features.bed",
+            "gff_fmt": "bed",
+            "input_format": "bed",
+            "reference_genome_source": "history",
+            "genome_fasta": "genome.fa",
+            "ref_filtering": ["-V", "-H"],
+            "fa_outputs": ["exons", "cds", "pep", "project_coords", "stop_star"],
+            "merge_sel": "merge",
+            "merge_options": ["force_exons", "merge_close_exons", "collapse_contained", "relaxed_containment", "dupinfo"],
+            "output": "/work/gffread",
+        }
+    ) == (
+        "ln -s genome.fa genomeref.fa && gffread features.bed --in-bed -g genomeref.fa -V -H --merge "
+        "--force-exons -Z -K -Q '-d=/work/gffread/dupinfo.txt' -w /work/gffread/exons.fa "
+        "-x /work/gffread/cds.fa -y /work/gffread/pep.fa -W -S --bed -o /work/gffread/output.bed"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "gffread" / "output.gff",
+    ]
+    assert node_class.PLAN_OUTPUTS({"gff_fmt": "gtf"}, tmp_path) == [
+        tmp_path / "gffread" / "output.gtf",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "gff_fmt": "bed",
+            "reference_genome_source": "history",
+            "fa_outputs": ["exons", "cds", "pep"],
+            "merge_sel": "merge",
+            "merge_options": ["dupinfo"],
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "gffread" / "output.bed",
+        tmp_path / "gffread" / "exons.fa",
+        tmp_path / "gffread" / "cds.fa",
+        tmp_path / "gffread" / "pep.fa",
+        tmp_path / "gffread" / "dupinfo.txt",
+    ]
+
+
+def test_gffread_validates_required_inputs_modes_ranges_and_reference_outputs() -> None:
+    node_class = _node_class("gffread")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "gff_fmt": "bad"}) == (
+        "gff_fmt must be one of: none, gff, gtf, bed"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "filtering": ["-C", "--bad"]}) == (
+        "filtering values must be one of: -U, -C, -G, -O, --no-pseudo"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "region_filter": "filter"}) == (
+        "range is required when region_filter is filter"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "region_filter": "filter", "range": "chr1:100-200"}) == (
+        "range must use gffread coordinate syntax like chr1:100..200"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "maxintron": -1}) == (
+        "maxintron must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "reference_genome_source": "history"}) == (
+        "genome_fasta is required when reference_genome_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "fa_outputs": ["exons"]}) == (
+        "reference_genome_source cannot be none when FASTA outputs are requested"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "merge_sel": "merge", "merge_options": ["bad"]}) == (
+        "merge_options values must be one of: force_exons, merge_close_exons, collapse_contained, relaxed_containment, dupinfo"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "gff_fmt": "gff", "tname": "track name"}) == (
+        "tname must contain only letters, digits, and underscores"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf"}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "genes.gtf", "reference_genome_source": "history", "genome_fasta": "genome.fa", "fa_outputs": ["pep"]}
+    ) is True
+
+
 def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_mafcoverage"]
 

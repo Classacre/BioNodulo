@@ -6517,6 +6517,47 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.229102'],
     citation_text: 'The Human Genome Browser at UCSC.',
   },
+  gffread: {
+    name: 'gffread',
+    display_name: 'gffread',
+    category: 'annotation',
+    description: 'Filter, convert, cluster, and extract sequences from GFF3, GTF, or BED annotations.',
+    search_aliases: ['Galaxy', 'gffread', 'GffRead', 'GFF Utilities', 'GTF to GFF3', 'GFF3 to GTF', 'GFF to BED', 'annotation conversion', 'extract transcript FASTA', 'transcript clustering'],
+    input: {
+      required: {
+        input: { type: 'GFF_GTF' },
+      },
+      optional: {
+        gff_fmt: { type: 'STRING', default: 'none', options: ['none', 'gff', 'gtf', 'bed'] },
+        input_format: { type: 'STRING', default: 'auto', options: ['auto', 'bed', 'gff', 'gtf'] },
+        filtering: { type: 'STRING', default: [], options: ['-U', '-C', '-G', '-O', '--no-pseudo'], multiple: true },
+        region_filter: { type: 'STRING', default: 'none', options: ['none', 'filter'] },
+        range: { type: 'STRING', default: '' },
+        discard_partial: { type: 'BOOLEAN', default: false },
+        maxintron: { type: 'INT', default: '', min: 0 },
+        chr_replace: { type: 'TSV' },
+        reference_genome_source: { type: 'STRING', default: 'none', options: ['none', 'cached', 'history'] },
+        genome_fasta: { type: 'FASTA' },
+        fasta_index_path: { type: 'FASTA' },
+        ref_filtering: { type: 'STRING', default: [], options: ['-N', '-J', '-V', '-H'], multiple: true },
+        fa_outputs: { type: 'STRING', default: [], options: ['exons', 'cds', 'pep', 'project_coords', 'stop_star'], multiple: true },
+        merge_sel: { type: 'STRING', default: 'none', options: ['none', 'merge', 'cluster'] },
+        merge_options: { type: 'STRING', default: [], options: ['force_exons', 'merge_close_exons', 'collapse_contained', 'relaxed_containment', 'dupinfo'], multiple: true },
+        full_gff_attribute_preservation: { type: 'BOOLEAN', default: false },
+        decode_url: { type: 'BOOLEAN', default: false },
+        expose: { type: 'BOOLEAN', default: false },
+        tname: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['GFF3', 'GTF', 'BED', 'FASTA', 'FASTA', 'FASTA', 'TXT'],
+    output_name: ['output_gff', 'output_gtf', 'output_bed', 'output_exons', 'output_cds', 'output_pep', 'output_dupinfo'],
+    required_executables: ['gffread'],
+    required_conda_packages: ['gffread'],
+    documentation_url: 'https://github.com/gpertea/gffread',
+    citation_dois: ['10.12688/f1000research.23297.2'],
+    citation_urls: ['https://doi.org/10.12688/f1000research.23297.2'],
+    citation_text: 'GFF Utilities: GffRead and GffCompare.',
+  },
   ucsc_mafcoverage: {
     name: 'ucsc_mafcoverage',
     display_name: 'mafCoverage',
@@ -13362,7 +13403,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('461 nodes available')).toBeVisible();
+  await expect(page.getByText('462 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13592,6 +13633,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BED region MAF extraction', name: 'mafFrags', category: 'genomics' },
     { query: 'genePred protein alignments', name: 'mafGene', category: 'genomics' },
     { query: 'GTF to BED12', name: 'Convert GTF to BED12', category: 'genomics' },
+    { query: 'GTF to GFF3', name: 'gffread', category: 'annotation' },
     { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
