@@ -6487,6 +6487,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  gtftobed12: {
+    name: 'gtftobed12',
+    display_name: 'Convert GTF to BED12',
+    category: 'genomics',
+    description: 'Convert a GTF gene annotation to blocked BED12 using UCSC gtfToGenePred and genePredToBed.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'gtfToBed12', 'gtftobed12', 'GTF to BED12', 'gtfToGenePred', 'genePredToBed', 'gene annotation conversion', 'transcript info'],
+    input: {
+      required: {
+        gtf_file: { type: 'GTF' },
+      },
+      optional: {
+        advanced_options_selector: { type: 'STRING', default: 'default', options: ['default', 'advanced'] },
+        sourcePrefixes: { type: 'STRING', default: [], multiple: true },
+        ignoreGroupsWithoutExons: { type: 'BOOLEAN', default: false },
+        simple: { type: 'BOOLEAN', default: false },
+        allErrors: { type: 'BOOLEAN', default: false },
+        impliedStopAfterCds: { type: 'BOOLEAN', default: false },
+        includeVersion: { type: 'BOOLEAN', default: false },
+        infoOut: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['BED', 'TSV'],
+    output_name: ['bed_file', 'transcript_info_file'],
+    required_executables: ['gtfToGenePred', 'genePredToBed'],
+    required_conda_packages: ['ucsc-gtftogenepred', 'ucsc-genepredtobed'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/utils/gtfToGenePred/gtfToGenePred.c',
+    citation_dois: ['10.1101/gr.229102'],
+    citation_urls: ['https://doi.org/10.1101/gr.229102'],
+    citation_text: 'The Human Genome Browser at UCSC.',
+  },
   ucsc_mafcoverage: {
     name: 'ucsc_mafcoverage',
     display_name: 'mafCoverage',
@@ -13332,7 +13362,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('460 nodes available')).toBeVisible();
+  await expect(page.getByText('461 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13561,6 +13591,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MAF region extract', name: 'mafFrag', category: 'genomics' },
     { query: 'BED region MAF extraction', name: 'mafFrags', category: 'genomics' },
     { query: 'genePred protein alignments', name: 'mafGene', category: 'genomics' },
+    { query: 'GTF to BED12', name: 'Convert GTF to BED12', category: 'genomics' },
     { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },

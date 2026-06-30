@@ -36076,6 +36076,90 @@ def test_ucsc_mafgene_validates_required_inputs_selection_modes_and_options() ->
     assert node_class.VALIDATE_INPUTS({**base, "selection_type": "chrom", "chrom": "chr1", "includeUtr": True, "noTrans": True}) is True
 
 
+def test_gtftobed12_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["gtftobed12"]
+
+    assert info["display_name"] == "Convert GTF to BED12"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Convert a GTF gene annotation to blocked BED12 using UCSC gtfToGenePred and genePredToBed."
+    assert info["output"] == ["BED", "TSV"]
+    assert info["output_name"] == ["bed_file", "transcript_info_file"]
+    assert info["required_executables"] == ["gtfToGenePred", "genePredToBed"]
+    assert info["required_conda_packages"] == ["ucsc-gtftogenepred", "ucsc-genepredtobed"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/utils/gtfToGenePred/gtfToGenePred.c"
+    assert info["citation_dois"] == ["10.1101/gr.229102"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.229102"]
+    assert "Human Genome Browser at UCSC" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "GTF to BED12" in info["search_aliases"]
+    assert info["input"]["required"]["gtf_file"][0] == "GTF"
+    assert info["input"]["optional"]["advanced_options_selector"][1]["options"] == ["default", "advanced"]
+    assert info["input"]["optional"]["sourcePrefixes"][1]["multiple"] is True
+    assert info["input"]["optional"]["ignoreGroupsWithoutExons"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["simple"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["allErrors"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["impliedStopAfterCds"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["includeVersion"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["infoOut"][0] == "BOOLEAN"
+
+
+def test_gtftobed12_renders_default_and_advanced_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("gtftobed12")
+
+    assert node_class.render_command(
+        {
+            "gtf_file": "genes.gtf",
+            "output": "/work/gtftobed12",
+        }
+    ) == "gtfToGenePred genes.gtf /work/gtftobed12/temp.genePred && genePredToBed /work/gtftobed12/temp.genePred /work/gtftobed12/converted.bed"
+    assert node_class.render_command(
+        {
+            "gtf_file": "annotation file.gtf",
+            "advanced_options_selector": "advanced",
+            "sourcePrefixes": ["hav", "ens gene"],
+            "ignoreGroupsWithoutExons": True,
+            "simple": True,
+            "allErrors": True,
+            "impliedStopAfterCds": True,
+            "includeVersion": True,
+            "infoOut": True,
+            "output": "/work/gtftobed12",
+        }
+    ) == (
+        "gtfToGenePred -ignoreGroupsWithoutExons -simple -allErrors -impliedStopAfterCds "
+        "-includeVersion -infoOut=/work/gtftobed12/transcript_info.tsv -sourcePrefix=hav "
+        "'-sourcePrefix=ens gene' 'annotation file.gtf' /work/gtftobed12/temp.genePred && "
+        "genePredToBed /work/gtftobed12/temp.genePred /work/gtftobed12/converted.bed"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "gtftobed12" / "converted.bed",
+    ]
+    assert node_class.PLAN_OUTPUTS({"advanced_options_selector": "advanced", "infoOut": True}, tmp_path) == [
+        tmp_path / "gtftobed12" / "converted.bed",
+        tmp_path / "gtftobed12" / "transcript_info.tsv",
+    ]
+
+
+def test_gtftobed12_validates_required_inputs_selector_and_source_prefixes() -> None:
+    node_class = _node_class("gtftobed12")
+
+    assert node_class.VALIDATE_INPUTS({}) == "gtf_file is required"
+    assert node_class.VALIDATE_INPUTS({"gtf_file": "genes.gtf", "advanced_options_selector": "bad"}) == (
+        "advanced_options_selector must be one of: default, advanced"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"gtf_file": "genes.gtf", "advanced_options_selector": "default", "sourcePrefixes": ["hav"]}
+    ) == "sourcePrefixes can only be used when advanced_options_selector is advanced"
+    assert node_class.VALIDATE_INPUTS(
+        {"gtf_file": "genes.gtf", "advanced_options_selector": "advanced", "sourcePrefixes": ["hav", " "]}
+    ) == "sourcePrefixes cannot contain blank values"
+    assert node_class.VALIDATE_INPUTS({"gtf_file": "genes.gtf"}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"gtf_file": "genes.gtf", "advanced_options_selector": "advanced", "sourcePrefixes": ["hav"]}
+    ) is True
+
+
 def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_mafcoverage"]
 
