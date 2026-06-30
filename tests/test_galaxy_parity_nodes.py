@@ -1109,6 +1109,152 @@ def test_baredsc_1d_renders_anndata_minimal_seurat_command() -> None:
     )
 
 
+def test_baredsc_2d_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["baredsc_2d"]
+
+    assert info["display_name"] == "baredSC 2d"
+    assert info["category"] == "single_cell"
+    assert info["description"] == "Compute a two-dimensional baredSC expression distribution for a pair of genes."
+    assert info["input"]["required"]["geneXColName"][0] == "STRING"
+    assert info["input"]["required"]["geneYColName"][0] == "STRING"
+    assert info["input"]["optional"]["filetype"][1]["options"] == ["tabular", "anndata"]
+    assert info["input"]["optional"]["ny"][1]["default"] == 100
+    assert info["input"]["optional"]["prettyBinsx"][1]["default"] == -1
+    assert info["input"]["optional"]["prettyBinsy"][1]["default"] == -1
+    assert info["input"]["optional"]["log1pColorScale"][1]["default"] is False
+    assert info["input"]["optional"]["scalePrior"][1]["default"] == 0.3
+    assert info["output"] == ["NPZ", "TXT", "DIRECTORY", "TSV", "TSV", "IMAGE", "DIRECTORY", "TXT"]
+    assert info["output_name"] == [
+        "output",
+        "neff",
+        "qc_plots",
+        "pdf2d",
+        "pdf2d_flat",
+        "plot",
+        "other_outputs",
+        "logevidence",
+    ]
+    assert info["required_executables"] == ["baredSC_2d", "mkdir", "mv"]
+    assert info["required_conda_packages"] == ["baredsc", "gzip"]
+    assert info["documentation_url"] == "https://baredsc.readthedocs.io/en/latest/index.html"
+    assert info["citation_dois"] == ["10.1186/s12859-021-04507-8"]
+    assert "Bayesian Approach" in info["citation_text"]
+    assert "pair of genes" in info["search_aliases"]
+
+
+def test_baredsc_2d_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("baredsc_2d")
+
+    assert node_class.render_command(
+        {
+            "filetype": "tabular",
+            "input": "counts.tsv",
+            "geneXColName": "Gene X",
+            "geneYColName": "Gene Y",
+            "filter_nb": "1",
+            "metadata1ColName": "cluster",
+            "metadata1Values": "1.0",
+            "xmin": -12,
+            "xmax": -7,
+            "nx": 25,
+            "minScalex": 0.2,
+            "ymin": -11,
+            "ymax": -6,
+            "ny": 30,
+            "minScaley": 0.25,
+            "xscale": "log",
+            "seed": 3,
+            "nnorm": 2,
+            "nsampMCMC": 10000,
+            "automatic_restart": "yes",
+            "minNeff": 300,
+            "title": "TEST2",
+            "removeFirstSamples": 250,
+            "nsampInPlot": 8000,
+            "image_file_format": "pdf",
+            "prettyBinsx": 50,
+            "prettyBinsy": 60,
+            "splity": "-10.5 -9.5",
+            "log1pColorScale": True,
+            "osampx": 12,
+            "osampxpdf": 4,
+            "osampy": 13,
+            "osampypdf": 5,
+            "coviscale": 1.2,
+            "nis": 700,
+            "scalePrior": 0.4,
+            "burn_custom": "yes",
+            "nsampBurnMCMC": -1,
+            "T0BurnMCMC": 110,
+            "output": "/work/baredsc_2d",
+        }
+    ) == (
+        "baredSC_2d --input counts.tsv --geneXColName 'Gene X' --geneYColName 'Gene Y' "
+        "--metadata1ColName cluster --metadata1Values 1.0 --xmin -12 --xmax -7 --nx 25 "
+        "--minScalex 0.2 --ymin -11 --ymax -6 --ny 30 --minScaley 0.25 --scale log --seed 3 "
+        "--nnorm 2 --nsampMCMC 10000 --minNeff 300 --title TEST2 --removeFirstSamples 250 "
+        "--nsampInPlot 8000 --prettyBinsx 50 --prettyBinsy 60 --splity '-10.5 -9.5' "
+        "--log1pColorScale --osampx 12 --osampxpdf 4 --osampy 13 --osampypdf 5 --coviscale 1.2 "
+        "--nis 700 --scalePrior 0.4 --T0BurnMCMC 110 --output output --figure baredSC.pdf "
+        "--logevidence logevidence.txt && mkdir QC && mv baredSC_convergence.* QC && "
+        "mv baredSC_p.pdf QC && mv baredSC_corner.* QC && mkdir output && mv baredSC_neff.txt output && "
+        "mv baredSC_pdf2d.txt output && mv baredSC_pdf2d_flat.txt output && mv baredSC.pdf baredSC && "
+        "mv baredSC_split-10.5.txt baredSC_split-10.5_pdf.txt && "
+        "mv baredSC_split-9.5.txt baredSC_split-9.5_pdf.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({"image_file_format": "pdf"}, tmp_path) == [
+        tmp_path / "baredsc_2d" / "output.npz",
+        tmp_path / "baredsc_2d" / "output" / "baredSC_neff.txt",
+        tmp_path / "baredsc_2d" / "QC",
+        tmp_path / "baredsc_2d" / "output" / "baredSC_pdf2d.txt",
+        tmp_path / "baredsc_2d" / "output" / "baredSC_pdf2d_flat.txt",
+        tmp_path / "baredsc_2d" / "baredSC.pdf",
+        tmp_path / "baredsc_2d" / "other_outputs",
+        tmp_path / "baredsc_2d" / "logevidence.txt",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "geneXColName is required"
+    assert node_class.VALIDATE_INPUTS({"geneXColName": "Gene X"}) == "geneYColName is required"
+    assert node_class.VALIDATE_INPUTS({"geneXColName": "Gene X", "geneYColName": "Gene Y"}) == (
+        "input is required when filetype is tabular"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"geneXColName": "Gene X", "geneYColName": "Gene Y", "input": "counts.tsv", "ny": 0}
+    ) == "ny must be greater than or equal to 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"geneXColName": "Gene X", "geneYColName": "Gene Y", "input": "counts.tsv", "xscale": "bad"}
+    ) == "xscale must be one of: Seurat, log"
+    assert node_class.VALIDATE_INPUTS(
+        {"geneXColName": "Gene X", "geneYColName": "Gene Y", "input": "counts.tsv", "splity": "bad"}
+    ) == "splity must be space-separated numeric thresholds"
+    assert node_class.VALIDATE_INPUTS({"geneXColName": "Gene X", "geneYColName": "Gene Y", "input": "counts.tsv"}) is True
+
+
+def test_baredsc_2d_renders_anndata_minimal_seurat_command() -> None:
+    node_class = _node_class("baredsc_2d")
+
+    assert node_class.render_command(
+        {
+            "filetype": "anndata",
+            "inputAnnData": "cells.h5ad",
+            "geneXColName": "GeneX",
+            "geneYColName": "GeneY",
+            "targetSum": 0,
+            "automatic_restart": "no",
+            "output": "/work/baredsc_2d",
+        }
+    ) == (
+        "baredSC_2d --inputAnnData cells.h5ad --geneXColName GeneX --geneYColName GeneY "
+        "--xmin 0 --xmax 2.5 --nx 100 --minScalex 0.1 --ymin 0 --ymax 2.5 --ny 100 "
+        "--minScaley 0.1 --scale Seurat --targetSum 0 --seed 1 --nnorm 2 --nsampMCMC 100000 "
+        "--nsampInPlot 100000 --osampx 10 --osampxpdf 4 --osampy 10 --osampypdf 4 "
+        "--coviscale 1 --nis 1000 --scalePrior 0.3 --output output --figure baredSC.png "
+        "--logevidence logevidence.txt && mkdir QC && mv baredSC_convergence.* QC && "
+        "mv baredSC_p.png QC && mv baredSC_corner.* QC && mkdir output && mv baredSC_neff.txt output && "
+        "mv baredSC_pdf2d.txt output && mv baredSC_pdf2d_flat.txt output && mv baredSC.png baredSC"
+    )
+
+
 def test_bax2bam_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["bax2bam"]
 
