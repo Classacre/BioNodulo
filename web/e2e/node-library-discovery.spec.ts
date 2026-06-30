@@ -2518,6 +2518,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.361602'],
     citation_text: 'BioPerl GenBank-to-GFF3 converter using Bio::SeqFeature::Tools::Unflattener and Bio::Tools::GFF.',
   },
+  bioext_bam2msa: {
+    name: 'bioext_bam2msa',
+    display_name: 'Convert BAM',
+    category: 'alignment',
+    description: 'Convert indexed BAM or SAM alignments to a FASTA multiple sequence alignment with BioExt bam2msa.',
+    search_aliases: ['Galaxy', 'BioExt', 'bioext_bam2msa', 'bam2msa', 'Convert BAM', 'BAM to FASTA MSA', 'multiple sequence alignment', 'alignment extraction', 'HyPhy'],
+    input: {
+      required: {
+        input: { type: 'BAM' },
+      },
+      optional: {
+        bam_index: { type: 'FILE' },
+        region_start: { type: 'INT', default: 0, min: 0 },
+        region_end: { type: 'INT', default: 0, min: 0 },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['output'],
+    required_executables: ['bam2msa'],
+    required_conda_packages: ['python-bioext'],
+    documentation_url: 'https://github.com/veg/BioExt',
+    citation_dois: [],
+    citation_urls: ['http://hyphy.org/'],
+    citation_text: 'HyPhy: Hypothesis Testing using Phylogenies.',
+  },
   basil: {
     name: 'basil',
     display_name: 'basil',
@@ -14909,7 +14934,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('504 nodes available')).toBeVisible();
+  await expect(page.getByText('505 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15008,6 +15033,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ScIdx', name: 'Convert BAM to ScIdx', category: 'chip_seq' },
     { query: 'DisoMine', name: 'b2bTools: Biophysical predictors for single sequences', category: 'proteomics' },
     { query: 'BioPerl', name: 'Genbank to GFF3', category: 'annotation' },
+    { query: 'BAM to FASTA MSA', name: 'Convert BAM', category: 'alignment' },
     { query: 'large insertions', name: 'basil', category: 'variant' },
     { query: 'bedGraphToBigWig', name: 'BAM BED GFF coverage bigWigs', category: 'genomics' },
     { query: 'single gene', name: 'baredSC 1d', category: 'single_cell' },

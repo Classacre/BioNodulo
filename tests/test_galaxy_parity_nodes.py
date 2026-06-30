@@ -28787,6 +28787,50 @@ def test_bin_refiner_renders_refinement_command_outputs_and_validation(tmp_path:
     assert node_class.VALIDATE_INPUTS({"input_bins": ["bin.fa"], "m": 1}) is True
 
 
+def test_bioext_bam2msa_renders_indexed_bam_alignment_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("bioext_bam2msa")
+    info = _registry().object_info()["bioext_bam2msa"]
+
+    assert info["display_name"] == "Convert BAM"
+    assert info["category"] == "alignment"
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["bam2msa"]
+    assert info["required_conda_packages"] == ["python-bioext"]
+    assert info["documentation_url"] == "https://github.com/veg/BioExt"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["http://hyphy.org/"]
+    assert "HyPhy: Hypothesis Testing using Phylogenies" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "bam2msa" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "BAM"
+    assert info["input"]["optional"]["region_start"][1]["default"] == 0
+    assert info["input"]["optional"]["region_end"][1]["default"] == 0
+
+    assert node_class.render_command(
+        {
+            "input": "sample reads.bam",
+            "bam_index": "sample reads.bam.bai",
+            "region_start": 12,
+            "region_end": 98,
+            "output": "/work/bioext_bam2msa",
+        }
+    ) == (
+        "ln -sf 'sample reads.bam' /work/bioext_bam2msa/input_bam && "
+        "ln -sf 'sample reads.bam.bai' /work/bioext_bam2msa/input_bam.bai && "
+        "bam2msa -r 12:98 /work/bioext_bam2msa/input_bam /work/bioext_bam2msa/output.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bioext_bam2msa" / "output.fasta"]
+    assert node_class.VALIDATE_INPUTS({}) == "input BAM/SAM file is required"
+    assert node_class.VALIDATE_INPUTS({"input": "reads.bam", "region_start": 10}) == (
+        "region_start and region_end must be provided together"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "reads.bam", "region_start": 20, "region_end": 10}) == (
+        "region_end must be greater than or equal to region_start"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "reads.bam", "region_start": 0, "region_end": 0}) is True
+
+
 def test_beagle_renders_phasing_imputation_command_outputs_and_validation(tmp_path: Path) -> None:
     node_class = _node_class("beagle")
     info = _registry().object_info()["beagle"]

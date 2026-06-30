@@ -161,6 +161,9 @@ BAM_TO_SCIDX_CITATION_URL = (
 BAM_TO_SCIDX_CITATION_TEXT = (
     "Convert BAM data to ScIdx, the Strand-specific coordinate count format used by ChIP-exo tools."
 )
+BIOEXT_CITATION_URL = "http://hyphy.org/"
+BIOEXT_CITATION_TEXT = "HyPhy: Hypothesis Testing using Phylogenies."
+BIOEXT_DOCUMENTATION_URL = "https://github.com/veg/BioExt"
 CD_HIT_CITATION_DOIS = ["10.1093/bioinformatics/btl158", "10.1093/bioinformatics/bts565"]
 CD_HIT_CITATION_TEXT = (
     "CD-HIT: a fast program for clustering and comparing large sets of protein or nucleotide sequences; "
@@ -51028,6 +51031,97 @@ class BinningRefinerNode(CommandNode):
             return "at least one binned FASTA is required"
         if int(inputs.get("m", 512)) < 1:
             return "minimum refined bin size must be >= 1 Kbp"
+        return super().VALIDATE_INPUTS(inputs)
+
+
+class BioExtBam2MsaNode(CommandNode):
+    """Extract a FASTA multiple sequence alignment from an indexed BAM/SAM alignment."""
+
+    NODE_ID = "bioext_bam2msa"
+    DISPLAY_NAME = "Convert BAM"
+    REQUIRED_CONDA_PACKAGES = ["python-bioext"]
+    CATEGORY = "alignment"
+    DESCRIPTION = "Convert indexed BAM or SAM alignments to a FASTA multiple sequence alignment with BioExt bam2msa."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BioExt",
+        "bioext_bam2msa",
+        "bam2msa",
+        "Convert BAM",
+        "BAM to FASTA MSA",
+        "multiple sequence alignment",
+        "alignment extraction",
+        "HyPhy",
+    ]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["bam2msa"]
+    DOCUMENTATION_URL = BIOEXT_DOCUMENTATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [BIOEXT_CITATION_URL]
+    CITATION_TEXT = BIOEXT_CITATION_TEXT
+    VERSION = "0.21.10+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _region_values(cls, inputs: dict[str, Any]) -> tuple[int, int]:
+        start = int(inputs.get("region_start", 0) or 0)
+        end = int(inputs.get("region_end", 0) or 0)
+        return start, end
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_bam = f"{out}/input_bam"
+        input_index = f"{input_bam}.bai"
+        output = f"{out}/output.fasta"
+        cmd = [
+            f"ln -sf {shlex.quote(str(inputs.get('input', '')))} {shlex.quote(input_bam)}",
+            f"ln -sf {shlex.quote(str(inputs.get('bam_index', inputs.get('input_index', ''))))} {shlex.quote(input_index)}",
+        ]
+        bam2msa = ["bam2msa"]
+        start, end = cls._region_values(inputs)
+        if start and end:
+            bam2msa.extend(["-r", f"{start}:{end}"])
+        bam2msa.extend([input_bam, output])
+        cmd.append(_shell_join(bam2msa))
+        return " && ".join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.fasta"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BAM", {"description": "Indexed BAM or SAM alignment to convert to a FASTA alignment"}),
+            },
+            "optional": {
+                "bam_index": ("FILE", {"description": "BAM index used by bam2msa"}),
+                "region_start": (
+                    "INT",
+                    {"default": 0, "min": 0, "description": "Optional starting coordinate for region extraction"},
+                ),
+                "region_end": (
+                    "INT",
+                    {"default": 0, "min": 0, "description": "Optional ending coordinate for region extraction"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input BAM/SAM file is required"
+        start, end = cls._region_values(inputs)
+        if bool(start) != bool(end):
+            return "region_start and region_end must be provided together"
+        if start and end < start:
+            return "region_end must be greater than or equal to region_start"
         return super().VALIDATE_INPUTS(inputs)
 
 
