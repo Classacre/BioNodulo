@@ -3453,6 +3453,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
     citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
   },
+  checkm_lineage_set: {
+    name: 'checkm_lineage_set',
+    display_name: 'CheckM lineage_set',
+    category: 'metagenomics',
+    description: 'Infer lineage-specific marker sets for each genome bin.',
+    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm lineage_set', 'lineage set', 'lineage-specific marker sets', 'marker genes', 'bin marker set'],
+    input: {
+      required: {
+        phylo_hmm_info: { type: 'FILE' },
+        bin_stats_tree: { type: 'TSV' },
+        hmmer_tree: { type: 'TXT', multiple: true },
+        concatenated_tre: { type: 'PHYLOGENY_TREE' },
+      },
+      optional: {
+        unique: { type: 'INT', default: 10 },
+        multi: { type: 'INT', default: 10 },
+        force_domain: { type: 'BOOLEAN', default: false },
+        no_refinement: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['marker'],
+    required_executables: ['checkm'],
+    required_conda_packages: ['checkm-genome'],
+    documentation_url: 'https://github.com/Ecogenomics/CheckM',
+    citation_dois: ['10.1101/gr.186072.114'],
+    citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
+    citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
+  },
   checkm_analyze: {
     name: 'checkm_analyze',
     display_name: 'CheckM analyze',
@@ -16113,7 +16142,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('542 nodes available')).toBeVisible();
+  await expect(page.getByText('543 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16239,6 +16268,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },
+    { query: 'checkm lineage_set', name: 'CheckM lineage_set', category: 'metagenomics' },
     { query: 'checkm analyze', name: 'CheckM analyze', category: 'metagenomics' },
     { query: 'checkm qa', name: 'CheckM qa', category: 'metagenomics' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },

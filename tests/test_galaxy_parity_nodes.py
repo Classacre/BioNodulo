@@ -2896,6 +2896,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_lineage_set": {
+            "display_name": "CheckM lineage_set",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "checkm_analyze": {
             "display_name": "CheckM analyze",
             "category": "metagenomics",
@@ -10125,6 +10132,146 @@ def test_checkm_tree_qa_renders_alignment_command_and_validates(tmp_path: Path) 
             "out_format": "5",
         }
     ) == "concatenated_fasta is required when out_format is 5"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "phylo_hmm_info": "hmm.zip",
+            "bin_stats_tree": "stats.tsv",
+            "hmmer_tree": ["hmmer.txt"],
+            "concatenated_tre": "tree.nwk",
+        }
+    ) is True
+
+
+def test_checkm_lineage_set_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_lineage_set"]
+
+    assert info["display_name"] == "CheckM lineage_set"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Infer lineage-specific marker sets for each genome bin."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["marker"]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm lineage_set" in info["search_aliases"]
+    assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
+    assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
+    assert info["input"]["required"]["hmmer_tree"][0] == "STRING"
+    assert info["input"]["required"]["concatenated_tre"][0] == "STRING"
+    assert info["input"]["optional"]["unique"][1]["default"] == 10
+    assert info["input"]["optional"]["multi"][1]["default"] == 10
+    assert info["input"]["optional"]["force_domain"][1]["default"] is False
+    assert info["input"]["optional"]["no_refinement"][1]["default"] is False
+
+
+def test_checkm_lineage_set_renders_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_lineage_set")
+
+    assert node_class.render_command(
+        {
+            "phylo_hmm_info": "phylo_hmm_info.pkl.gz",
+            "bin_stats_tree": "bin_stats.tree.tsv",
+            "hmmer_tree": ["637000110 hmmer.txt", "bin#2 hmmer.txt"],
+            "element_identifiers": ["637000110", "bin#2"],
+            "concatenated_tre": "concatenated.tre",
+            "unique": 12,
+            "multi": 8,
+            "force_domain": True,
+            "no_refinement": True,
+            "output": "/work/checkm_lineage_set",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_lineage_set/inputs/storage",
+        "&&",
+        "ln",
+        "-sf",
+        "phylo_hmm_info.pkl.gz",
+        "/work/checkm_lineage_set/inputs/storage/phylo_hmm_info.pkl.gz",
+        "&&",
+        "ln",
+        "-sf",
+        "bin_stats.tree.tsv",
+        "/work/checkm_lineage_set/inputs/storage/bin_stats.tree.tsv",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_lineage_set/inputs/bins/637000110",
+        "&&",
+        "ln",
+        "-sf",
+        "637000110 hmmer.txt",
+        "/work/checkm_lineage_set/inputs/bins/637000110/hmmer.tree.txt",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_lineage_set/inputs/bins/bin_2",
+        "&&",
+        "ln",
+        "-sf",
+        "bin#2 hmmer.txt",
+        "/work/checkm_lineage_set/inputs/bins/bin_2/hmmer.tree.txt",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_lineage_set/inputs/storage/tree",
+        "&&",
+        "ln",
+        "-sf",
+        "concatenated.tre",
+        "/work/checkm_lineage_set/inputs/storage/tree/concatenated.tre",
+        "&&",
+        "checkm",
+        "lineage_set",
+        "/work/checkm_lineage_set/inputs",
+        "/work/checkm_lineage_set/marker.tsv",
+        "--unique",
+        "12",
+        "--multi",
+        "8",
+        "--force_domain",
+        "--no_refinement",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "checkm_lineage_set" / "marker.tsv",
+    ]
+
+
+def test_checkm_lineage_set_validates_required_inputs_and_thresholds() -> None:
+    node_class = _node_class("checkm_lineage_set")
+
+    assert node_class.VALIDATE_INPUTS({}) == "phylo_hmm_info is required"
+    assert node_class.VALIDATE_INPUTS({"phylo_hmm_info": "hmm.zip"}) == "bin_stats_tree is required"
+    assert node_class.VALIDATE_INPUTS({"phylo_hmm_info": "hmm.zip", "bin_stats_tree": "stats.tsv"}) == (
+        "at least one hmmer_tree value is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"phylo_hmm_info": "hmm.zip", "bin_stats_tree": "stats.tsv", "hmmer_tree": ["hmmer.txt"]}
+    ) == "concatenated_tre is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "phylo_hmm_info": "hmm.zip",
+            "bin_stats_tree": "stats.tsv",
+            "hmmer_tree": ["hmmer.txt"],
+            "concatenated_tre": "tree.nwk",
+            "unique": -1,
+        }
+    ) == "unique must be >= 0"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "phylo_hmm_info": "hmm.zip",
+            "bin_stats_tree": "stats.tsv",
+            "hmmer_tree": ["hmmer.txt"],
+            "concatenated_tre": "tree.nwk",
+            "multi": "bad",
+        }
+    ) == "multi must be an integer"
     assert node_class.VALIDATE_INPUTS(
         {
             "phylo_hmm_info": "hmm.zip",

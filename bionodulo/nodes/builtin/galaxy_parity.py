@@ -17228,6 +17228,172 @@ class CheckMTreeQANode(CommandNode):
         return True
 
 
+class CheckMLineageSetNode(CommandNode):
+    """Infer lineage-specific marker sets for each genome bin."""
+
+    NODE_ID = "checkm_lineage_set"
+    DISPLAY_NAME = "CheckM lineage_set"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Infer lineage-specific marker sets for each genome bin."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "checkm lineage_set",
+        "lineage set",
+        "lineage-specific marker sets",
+        "marker genes",
+        "bin marker set",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("marker",)
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _hmmer_tree(cls, inputs: dict[str, Any]) -> list[str]:
+        return CheckMTreeQANode._hmmer_tree(inputs)
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any], files: list[str]) -> list[str]:
+        return CheckMTreeQANode._element_identifiers(inputs, files)
+
+    @classmethod
+    def _add_bool(cls, cmd: list[str], inputs: dict[str, Any], name: str, flag: str) -> None:
+        if inputs.get(name):
+            cmd.append(flag)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        inputs_dir = f"{out}/inputs"
+        storage = f"{inputs_dir}/storage"
+        tree_storage = f"{storage}/tree"
+        hmmer_files = cls._hmmer_tree(inputs)
+        identifiers = cls._element_identifiers(inputs, hmmer_files)
+
+        cmd = [
+            "mkdir",
+            "-p",
+            storage,
+            "&&",
+            "ln",
+            "-sf",
+            str(inputs.get("phylo_hmm_info", "")),
+            f"{storage}/phylo_hmm_info.pkl.gz",
+            "&&",
+            "ln",
+            "-sf",
+            str(inputs.get("bin_stats_tree", "")),
+            f"{storage}/bin_stats.tree.tsv",
+        ]
+        for input_file, identifier in zip(hmmer_files, identifiers, strict=True):
+            bin_dir = f"{inputs_dir}/bins/{identifier}"
+            cmd.extend(["&&", "mkdir", "-p", bin_dir, "&&", "ln", "-sf", input_file, f"{bin_dir}/hmmer.tree.txt"])
+        cmd.extend(
+            [
+                "&&",
+                "mkdir",
+                "-p",
+                tree_storage,
+                "&&",
+                "ln",
+                "-sf",
+                str(inputs.get("concatenated_tre", "")),
+                f"{tree_storage}/concatenated.tre",
+                "&&",
+                "checkm",
+                "lineage_set",
+                inputs_dir,
+                f"{out}/marker.tsv",
+                "--unique",
+                str(inputs.get("unique", 10)),
+                "--multi",
+                str(inputs.get("multi", 10)),
+            ]
+        )
+        cls._add_bool(cmd, inputs, "force_domain", "--force_domain")
+        cls._add_bool(cmd, inputs, "no_refinement", "--no_refinement")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "marker.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "phylo_hmm_info": ("FILE", {"description": "Phylogenetic HMM model info from CheckM tree"}),
+                "bin_stats_tree": ("TSV", {"description": "Phylogenetic bin stats from CheckM tree"}),
+                "hmmer_tree": (
+                    "TXT",
+                    {"multiple": True, "description": "Phylogenetic HMM hits collection from CheckM tree"},
+                ),
+                "concatenated_tre": (
+                    "PHYLOGENY_TREE",
+                    {"description": "Concatenated tree from CheckM tree"},
+                ),
+            },
+            "optional": {
+                "element_identifiers": (
+                    "STRING_LIST",
+                    {"default": [], "multiple": True, "description": "Optional identifiers for hmmer_tree entries"},
+                ),
+                "unique": (
+                    "INT",
+                    {
+                        "default": 10,
+                        "min": 0,
+                        "description": "Minimum unique phylogenetic markers for lineage-specific marker sets",
+                    },
+                ),
+                "multi": (
+                    "INT",
+                    {
+                        "default": 10,
+                        "min": 0,
+                        "description": "Maximum multi-copy phylogenetic markers before using domain-level marker sets",
+                    },
+                ),
+                "force_domain": ("BOOLEAN", {"default": False, "description": "Use domain-level marker sets for all bins"}),
+                "no_refinement": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Disable lineage-specific marker set refinement"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for required in ("phylo_hmm_info", "bin_stats_tree"):
+            if not str(inputs.get(required, "")).strip():
+                return f"{required} is required"
+        if not cls._hmmer_tree(inputs):
+            return "at least one hmmer_tree value is required"
+        if not str(inputs.get("concatenated_tre", "")).strip():
+            return "concatenated_tre is required"
+        for name in ("unique", "multi"):
+            try:
+                value = int(inputs.get(name, 10))
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < 0:
+                return f"{name} must be >= 0"
+        return True
+
+
 class CheckMAnalyzeNode(CommandNode):
     """Identify marker genes in genome bins with CheckM analyze."""
 
