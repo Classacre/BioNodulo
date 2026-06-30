@@ -5601,6 +5601,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj-cs.104'],
     citation_text: 'Bracken: estimating species abundance in metagenomics data.',
   },
+  biom_summarize_table: {
+    name: 'biom_summarize_table',
+    display_name: 'BIOM summarize table',
+    category: 'metagenomics',
+    description: 'Summarize sample or observation data in a BIOM table.',
+    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_summarize_table', 'biom summarize-table', 'summarize sample data', 'summarize observation data', 'microbiome table summary'],
+    input: {
+      required: {
+        input_fp: { type: 'FILE' },
+      },
+      optional: {
+        qualitative: { type: 'BOOLEAN', default: true },
+        observations: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['TXT'],
+    output_name: ['output_fp'],
+    required_executables: ['biom'],
+    required_conda_packages: ['biom-format'],
+    documentation_url: 'https://biom-format.org/documentation/biom_commands.html#summarize-table',
+    citation_dois: ['10.1186/2047-217X-1-7'],
+    citation_urls: ['https://doi.org/10.1186/2047-217X-1-7'],
+    citation_text: 'The Biological Observation Matrix (BIOM) format.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12367,7 +12391,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('425 nodes available')).toBeVisible();
+  await expect(page.getByText('426 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12564,6 +12588,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'VSC breadth', name: 'MetaPhlAn', category: 'metagenomics' },
     { query: 'intermediate output files', name: 'HUMAnN', category: 'metagenomics' },
     { query: 'Bayesian abundance', name: 'Bracken', category: 'metagenomics' },
+    { query: 'biom summarize-table', name: 'BIOM summarize table', category: 'metagenomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },

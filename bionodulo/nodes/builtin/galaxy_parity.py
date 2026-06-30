@@ -26935,6 +26935,8 @@ KRAKENTOOLS_DOI = "10.1038/s41596-022-00738-y"
 KRAKENTOOLS_CITATION_TEXT = "Metagenome analysis using the Kraken software suite."
 BRACKEN_DOI = "10.7717/peerj-cs.104"
 BRACKEN_CITATION_TEXT = "Bracken: estimating species abundance in metagenomics data."
+BIOM_FORMAT_DOI = "10.1186/2047-217X-1-7"
+BIOM_FORMAT_CITATION_TEXT = "The Biological Observation Matrix (BIOM) format."
 TAXPASTA_DOI = "10.21105/joss.05627"
 TAXPASTA_CITATION_TEXT = "TAXPASTA: TAXonomic Profile Aggregation and STAndardisation."
 HUMANN_CITATION_DOIS = ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
@@ -27088,6 +27090,89 @@ class BrackenEstAbundanceNode(CommandNode):
                 "logfile_output": (
                     "BOOLEAN",
                     {"default": False, "description": "Capture Bracken stdout and stderr into a log file"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class BiomSummarizeTableNode(CommandNode):
+    """Summarize sample or observation data in a BIOM table."""
+
+    NODE_ID = "biom_summarize_table"
+    DISPLAY_NAME = "BIOM summarize table"
+    REQUIRED_CONDA_PACKAGES = ["biom-format"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Summarize sample or observation data in a BIOM table."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BIOM",
+        "biom-format",
+        "biom_summarize_table",
+        "biom summarize-table",
+        "summarize sample data",
+        "summarize observation data",
+        "microbiome table summary",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("output_fp",)
+    REQUIRED_EXECUTABLES = ["biom"]
+    DOCUMENTATION_URL = "https://biom-format.org/documentation/biom_commands.html#summarize-table"
+    CITATION_DOIS = [BIOM_FORMAT_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BIOM_FORMAT_DOI}"]
+    CITATION_TEXT = BIOM_FORMAT_CITATION_TEXT
+    VERSION = "2.1.17+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.txt"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "biom",
+            "summarize-table",
+            "--input-fp",
+            str(inputs.get("input_fp", "")),
+            "--output-fp",
+            cls._output_path(inputs),
+        ]
+        if inputs.get("qualitative", True):
+            cmd.append("--qualitative")
+        if inputs.get("observations", True):
+            cmd.append("--observations")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.txt"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_fp", "")).strip():
+            return "input_fp is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_fp": ("FILE", {"description": "Input BIOM table"}),
+            },
+            "optional": {
+                "qualitative": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "description": "Present counts as unique observation ids rather than observation counts",
+                    },
+                ),
+                "observations": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Summarize over observations instead of samples"},
                 ),
             },
             "hidden": {"output": ("STRING", {})},
