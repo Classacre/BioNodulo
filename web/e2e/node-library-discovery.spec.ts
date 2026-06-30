@@ -7598,6 +7598,46 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1002/humu.24369'],
     citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
   },
+  beacon2_cnv: {
+    name: 'beacon2_cnv',
+    display_name: 'Beacon2 CNV',
+    category: 'metadata',
+    description: 'Query copy number variants from the Beacon genomicVariations collection with optional overlap filters.',
+    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_cnv', 'Beacon2 CNV', 'beacon2-search cnv', 'copy number variants', 'genomicVariations', 'variantStateId', 'copy number loss', 'copy number gain'],
+    input: {
+      required: {
+        database: { type: 'STRING' },
+        collection: { type: 'STRING' },
+      },
+      optional: {
+        db_host: { type: 'STRING', default: '127.0.0.1' },
+        db_port: { type: 'INT', default: 27017 },
+        db_auth_source: { type: 'STRING', default: 'admin' },
+        db_user: { type: 'STRING', default: 'root' },
+        db_password: { type: 'STRING', default: 'example' },
+        variantInternalId: { type: 'STRING', default: '' },
+        analysisId: { type: 'STRING', default: '' },
+        individualId: { type: 'STRING', default: '' },
+        start: { type: 'INT', default: '' },
+        end: { type: 'INT', default: '' },
+        chromosome: { type: 'STRING', default: '' },
+        variantStateId: { type: 'STRING', default: '', options: ['', 'EFO:0030070', 'EFO:0030071', 'EFO:0030072', 'EFO:0030073', 'EFO:0030067', 'EFO:0030068', 'EFO:0020073', 'EFO:0030069'] },
+        sequenceId: { type: 'STRING', default: '' },
+        variantType: { type: 'STRING', default: '' },
+        primarySite: { type: 'STRING', default: '' },
+        diseaseType: { type: 'STRING', default: '' },
+        gene: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['JSON'],
+    output_name: ['out_cnv_query'],
+    required_executables: ['beacon2-search'],
+    required_conda_packages: ['beacon2-import'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import',
+    citation_dois: ['10.1002/humu.24369'],
+    citation_urls: ['https://doi.org/10.1002/humu.24369'],
+    citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
+  },
   beacon2_pxf2bff: {
     name: 'beacon2_pxf2bff',
     display_name: 'Beacon2 PXF2BFF',
@@ -15372,7 +15412,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('517 nodes available')).toBeVisible();
+  await expect(page.getByText('518 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15628,6 +15668,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'beacon2-search analyses', name: 'Beacon2 Analyses', category: 'metadata' },
     { query: 'beacon2-search biosamples', name: 'Beacon2 Biosamples', category: 'metadata' },
     { query: 'beacon2-search bracket', name: 'Beacon2 Bracket', category: 'metadata' },
+    { query: 'beacon2-search cnv', name: 'Beacon2 CNV', category: 'metadata' },
     { query: 'Phenopacket JSON', name: 'Beacon2 PXF2BFF', category: 'metadata' },
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },

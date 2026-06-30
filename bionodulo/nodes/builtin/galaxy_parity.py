@@ -35377,6 +35377,8 @@ class _Beacon2SearchBaseNode(CommandNode):
     OUTPUT_FILENAME = ""
     REQUIRED_QUERY_FLAGS: tuple[tuple[str, str, str, str], ...] = ()
     QUERY_FLAGS: tuple[tuple[str, str, str], ...] = ()
+    TYPED_QUERY_FLAGS: tuple[tuple[str, str, str, str], ...] = ()
+    QUERY_FLAG_OPTIONS: dict[str, list[str]] = {}
 
     @classmethod
     def _db_host(cls, inputs: dict[str, Any]) -> str:
@@ -35462,6 +35464,22 @@ class _Beacon2SearchBaseNode(CommandNode):
                     int(value)
                 except (TypeError, ValueError):
                     return f"{key} must be an integer"
+        for key, _flag, type_name, _description in cls.TYPED_QUERY_FLAGS:
+            value = inputs.get(key)
+            if value is not None and str(value) != "":
+                if type_name == "INT":
+                    try:
+                        int(value)
+                    except (TypeError, ValueError):
+                        return f"{key} must be an integer"
+                options = cls.QUERY_FLAG_OPTIONS.get(key)
+                if options is not None and str(value) not in options:
+                    return f"{key} must be one of: {', '.join(options)}"
+        for key, _flag, _description in cls.QUERY_FLAGS:
+            value = inputs.get(key)
+            options = cls.QUERY_FLAG_OPTIONS.get(key)
+            if options is not None and value is not None and str(value) != "" and str(value) not in options:
+                return f"{key} must be one of: {', '.join(options)}"
         return True
 
     @classmethod
@@ -35483,7 +35501,17 @@ class _Beacon2SearchBaseNode(CommandNode):
             ),
         }
         for key, _flag, description in cls.QUERY_FLAGS:
-            optional[key] = ("STRING", {"default": "", "description": description})
+            metadata: dict[str, Any] = {"default": "", "description": description}
+            options = cls.QUERY_FLAG_OPTIONS.get(key)
+            if options is not None:
+                metadata["options"] = options
+            optional[key] = ("STRING", metadata)
+        for key, _flag, type_name, description in cls.TYPED_QUERY_FLAGS:
+            metadata = {"default": "", "description": description}
+            options = cls.QUERY_FLAG_OPTIONS.get(key)
+            if options is not None:
+                metadata["options"] = options
+            optional[key] = (type_name, metadata)
         required: dict[str, Any] = {
             "database": ("STRING", {"description": "Targeted Beacon database"}),
             "collection": ("STRING", {"description": "Targeted Beacon collection in the selected database"}),
@@ -35609,6 +35637,61 @@ class Beacon2BracketNode(_Beacon2SearchBaseNode):
         ("variantType", "--variantType", "Targeted variant type to search for"),
         ("referenceName", "--referenceName", "Reference name such as chr1/1, chr2/2, chr3/3"),
     )
+
+
+class Beacon2CNVNode(_Beacon2SearchBaseNode):
+    """Query Beacon copy number variants from genomicVariations."""
+
+    NODE_ID = "beacon2_cnv"
+    DISPLAY_NAME = "Beacon2 CNV"
+    DESCRIPTION = "Query copy number variants from the Beacon genomicVariations collection with optional overlap filters."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_cnv",
+        "Beacon2 CNV",
+        "beacon2-search cnv",
+        "copy number variants",
+        "genomicVariations",
+        "variantStateId",
+        "copy number loss",
+        "copy number gain",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_cnv_query",)
+    SEARCH_COLLECTION = "cnv"
+    OUTPUT_FILENAME = "cnv_query_findings.json"
+    VARIANT_STATE_OPTIONS = [
+        "",
+        "EFO:0030070",
+        "EFO:0030071",
+        "EFO:0030072",
+        "EFO:0030073",
+        "EFO:0030067",
+        "EFO:0030068",
+        "EFO:0020073",
+        "EFO:0030069",
+    ]
+    QUERY_FLAGS = (
+        ("variantInternalId", "--variantInternalId", "Variant internal ID, such as 11:52900000-134452384:DEL"),
+        ("analysisId", "--analysisId", "Analysis identifier"),
+        ("individualId", "--individualId", "Individual identifier"),
+        ("start", "--start", "Start position"),
+        ("end", "--end", "End position"),
+        ("chromosome", "--chromosome", "Chromosome number without chr prefix"),
+        ("variantStateId", "--variantStateId", "Copy-number state ontology term"),
+        ("sequenceId", "--sequenceId", "Reference sequence ID, such as refseq:NC_000011.10"),
+        ("variantType", "--variantType", "Variant type such as DEL or DUP"),
+        ("primarySite", "--primarySite", "Primary site, such as breast or brain"),
+        ("diseaseType", "--diseaseType", "Disease type"),
+        ("gene", "--gene", "Gene name, such as BRCA1"),
+    )
+    TYPED_QUERY_FLAGS = (
+        ("start", "--start", "INT", "Start position"),
+        ("end", "--end", "INT", "End position"),
+    )
+    QUERY_FLAG_OPTIONS = {"variantStateId": VARIANT_STATE_OPTIONS}
 
 
 class _Beacon2MultiInputBaseNode(CommandNode):

@@ -39965,6 +39965,93 @@ def test_beacon2_bracket_renders_search_command_outputs_and_validation(tmp_path:
     ) is True
 
 
+def test_beacon2_cnv_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["beacon2_cnv"]
+
+    assert node_info["display_name"] == "Beacon2 CNV"
+    assert node_info["category"] == "metadata"
+    assert node_info["description"] == (
+        "Query copy number variants from the Beacon genomicVariations collection with optional overlap filters."
+    )
+    assert node_info["output"] == ["JSON"]
+    assert node_info["output_name"] == ["out_cnv_query"]
+    assert node_info["required_executables"] == ["beacon2-search"]
+    assert node_info["required_conda_packages"] == ["beacon2-import"]
+    assert node_info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import"
+    assert node_info["citation_dois"] == ["10.1002/humu.24369"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
+    assert "Beacon v2" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "beacon2-search cnv" in node_info["search_aliases"]
+    assert node_info["version"] == "2.2.4+galaxy0"
+    assert node_info["input"]["required"]["database"][0] == "STRING"
+    assert node_info["input"]["required"]["collection"][0] == "STRING"
+    assert node_info["input"]["optional"]["start"][0] == "INT"
+    assert node_info["input"]["optional"]["end"][0] == "INT"
+    assert node_info["input"]["optional"]["variantStateId"][1]["options"] == [
+        "",
+        "EFO:0030070",
+        "EFO:0030071",
+        "EFO:0030072",
+        "EFO:0030073",
+        "EFO:0030067",
+        "EFO:0030068",
+        "EFO:0020073",
+        "EFO:0030069",
+    ]
+
+
+def test_beacon2_cnv_renders_search_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("beacon2_cnv")
+
+    assert node_class.render_command(
+        {
+            "database": "beacon",
+            "collection": "test",
+            "db_host": "20.108.51.167",
+            "chromosome": "17",
+            "start": 43044295,
+            "end": 43170245,
+            "primarySite": "breast",
+            "diseaseType": "adnexal and skin appendage neoplasms",
+            "gene": "BRCA1",
+            "variantStateId": "EFO:0030068",
+            "output": "/work/beacon2_cnv",
+        }
+    ) == (
+        "mkdir -p /work/beacon2_cnv && "
+        "cat > /work/beacon2_cnv/beacon2_db_auth.json <<'JSON'\n"
+        "{\n"
+        '  "db_auth_source": "admin",\n'
+        '  "db_user": "root",\n'
+        '  "db_password": "example"\n'
+        "}\n"
+        "JSON\n"
+        "beacon2-search cnv --db-host 20.108.51.167 --db-port 27017 --database beacon "
+        "--collection test --advance-connection --db-auth-config /work/beacon2_cnv/beacon2_db_auth.json "
+        "--start 43044295 --end 43170245 --chromosome 17 --variantStateId EFO:0030068 "
+        "--primarySite breast --diseaseType 'adnexal and skin appendage neoplasms' --gene BRCA1 "
+        "> /work/beacon2_cnv/cnv_query_findings.json"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "beacon2_cnv" / "cnv_query_findings.json",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "database is required"
+    assert node_class.VALIDATE_INPUTS({"database": "beacon"}) == "collection is required"
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test", "start": "bad"}) == (
+        "start must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"database": "beacon", "collection": "test", "variantStateId": "EFO:9999999"}
+    ) == (
+        "variantStateId must be one of: , EFO:0030070, EFO:0030071, EFO:0030072, EFO:0030073, "
+        "EFO:0030067, EFO:0030068, EFO:0020073, EFO:0030069"
+    )
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test", "start": 43044295}) is True
+
+
 def test_beacon2_nodes_expose_galaxy_metadata_inputs_outputs_and_citation() -> None:
     object_info = _registry().object_info()
 
