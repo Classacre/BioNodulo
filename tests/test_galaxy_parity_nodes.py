@@ -415,6 +415,255 @@ def test_anndata_inspect_renders_uns_obsm_and_varm_commands_and_outputs(tmp_path
     assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "info": "obsm", "obsm_info": "X_umap"}) is True
 
 
+def test_anndata_manipulate_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["anndata_manipulate"]
+
+    assert node_info["display_name"] == "Manipulate AnnData"
+    assert node_info["category"] == "single_cell"
+    assert node_info["description"] == "Manipulate AnnData H5AD objects by concatenating, renaming, annotating, copying, splitting, or transposing."
+    assert node_info["output"] == ["H5AD", "DIRECTORY"]
+    assert node_info["output_name"] == ["anndata", "output_h5ad_split"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["anndata", "scanpy", "loompy", "pandas"]
+    assert node_info["documentation_url"] == "https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.html"
+    assert node_info["citation_dois"] == ["10.1186/s13059-017-1382-0"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/s13059-017-1382-0"]
+    assert "AnnData" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "split_on_obs" in node_info["search_aliases"]
+    assert "copy_layers" in node_info["search_aliases"]
+    assert node_info["version"] == "0.11.4+galaxy3"
+    assert node_info["input"]["required"]["input"][0] == "H5AD"
+    assert node_info["input"]["optional"]["function"][1]["default"] == "concatenate"
+    assert node_info["input"]["optional"]["function"][1]["options"] == [
+        "concatenate",
+        "obs_names_make_unique",
+        "var_names_make_unique",
+        "rename_categories",
+        "remove_keys",
+        "flag_genes",
+        "rename_obs",
+        "rename_var",
+        "strings_to_categoricals",
+        "transpose",
+        "add_annotation",
+        "split_on_obs",
+        "copy_obs",
+        "copy_uns",
+        "copy_embed",
+        "copy_layers",
+        "copy_X",
+        "save_raw",
+    ]
+    assert node_info["input"]["optional"]["other_adatas"][1]["multiple"] is True
+    assert node_info["input"]["optional"]["gene_flags"][0] == "JSON"
+    assert node_info["input"]["optional"]["gene_flags"][1]["is_list"] is True
+    assert node_info["input"]["optional"]["keys"][0] == "JSON"
+    assert node_info["input"]["optional"]["keys"][1]["is_list"] is True
+
+
+def test_anndata_manipulate_renders_concatenate_and_annotation_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("anndata_manipulate")
+
+    assert node_class.render_command(
+        {
+            "input": "base cells.h5ad",
+            "function": "concatenate",
+            "other_adatas": ["batch 2.h5ad", "batch3.h5ad"],
+            "join": "outer",
+            "index_unique": "",
+            "uns_merge": "same",
+            "batch_key": "sample_batch",
+            "output": "/work/anndata_manipulate",
+        }
+    ) == (
+        "mkdir -p /work/anndata_manipulate && cd /work/anndata_manipulate && cat > anndata_manipulate.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_h5ad('base cells.h5ad', backed='r')\n"
+        "adata = adata.to_memory()\n"
+        "adata_0 = ad.read_h5ad('batch 2.h5ad', backed='r').to_memory()\n"
+        "adata_1 = ad.read_h5ad('batch3.h5ad', backed='r').to_memory()\n"
+        "adata = adata.concatenate(\n"
+        "    adata_0,\n"
+        "    adata_1,\n"
+        "    join='outer',\n"
+        "    index_unique=None,\n"
+        "    uns_merge='same',\n"
+        "    batch_key='sample_batch')\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_manipulate.py"
+    )
+    assert node_class.PLAN_OUTPUTS({"function": "concatenate"}, tmp_path) == [
+        tmp_path / "anndata_manipulate" / "anndata.h5ad",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input": "cells.h5ad",
+            "function": "add_annotation",
+            "var_obs": "obs",
+            "new_annot": "obs_add_annotation.tabular",
+            "output": "/work/anndata_manipulate",
+        }
+    ) == (
+        "mkdir -p /work/anndata_manipulate && cd /work/anndata_manipulate && cat > anndata_manipulate.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_h5ad('cells.h5ad', backed='r')\n"
+        "import pandas as pd\n"
+        "extra_annot_t = pd.read_csv('obs_add_annotation.tabular', sep='\\t').reset_index(drop=True)\n"
+        "obs_index = adata.obs.index\n"
+        "obs = pd.concat([adata.obs.reset_index(drop=True), extra_annot_t], axis=1)\n"
+        "obs.index = obs_index\n"
+        "adata.obs = obs\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_manipulate.py"
+    )
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "function": "bad"}) == (
+        "function must be one of: concatenate, obs_names_make_unique, var_names_make_unique, rename_categories, "
+        "remove_keys, flag_genes, rename_obs, rename_var, strings_to_categoricals, transpose, add_annotation, "
+        "split_on_obs, copy_obs, copy_uns, copy_embed, copy_layers, copy_X, save_raw"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "function": "concatenate"}) == (
+        "other_adatas is required when function is concatenate"
+    )
+
+
+def test_anndata_manipulate_renders_rename_flag_copy_and_split_commands(tmp_path: Path) -> None:
+    node_class = _node_class("anndata_manipulate")
+
+    assert node_class.render_command(
+        {
+            "input": "cells.h5ad",
+            "function": "rename_categories",
+            "key": "cell_type",
+            "categories": "ery, mk, mo, progenitor",
+            "new_key": "yes",
+            "key_name": "new_cell_type",
+            "output": "/work/anndata_manipulate",
+        }
+    ) == (
+        "mkdir -p /work/anndata_manipulate && cd /work/anndata_manipulate && cat > anndata_manipulate.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_h5ad('cells.h5ad', backed='r')\n"
+        "categories = ['ery', 'mk', 'mo', 'progenitor']\n"
+        "if 'cell_type' in adata.obs:\n"
+        "    print('changing key in obs')\n"
+        "    adata.obs['new_cell_type'] = adata.obs['cell_type']\n"
+        "    adata.rename_categories(key='new_cell_type', categories=categories)\n"
+        "elif 'cell_type' in adata.var:\n"
+        "    print('changing key in var')\n"
+        "    adata.var['new_cell_type'] = adata.var['cell_type']\n"
+        "    adata.rename_categories(key='new_cell_type', categories=categories)\n"
+        "else:\n"
+        "    print('changing key in uns')\n"
+        "    adata.uns['new_cell_type'] = adata.uns['cell_type']\n"
+        "    adata.rename_categories(key='new_cell_type', categories=categories)\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_manipulate.py"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "genes.h5ad",
+            "function": "flag_genes",
+            "gene_flags": [
+                {"startswith": "MT-", "col_out": "mito"},
+                {"startswith": "ENSG", "col_in": "gene_ids", "col_out": "ensembl"},
+            ],
+            "output": "/work/anndata_manipulate",
+        }
+    ) == (
+        "mkdir -p /work/anndata_manipulate && cd /work/anndata_manipulate && cat > anndata_manipulate.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_h5ad('genes.h5ad', backed='r')\n"
+        "k_cat = adata.var_names.str.startswith('MT-')\n"
+        "if k_cat.sum() > 0:\n"
+        "    adata.var['mito'] = k_cat\n"
+        "else:\n"
+        "    print(\"No genes starting with MT- found.\")\n"
+        "k_cat = adata.var['gene_ids'].str.startswith('ENSG')\n"
+        "if k_cat.sum() > 0:\n"
+        "    adata.var['ensembl'] = k_cat\n"
+        "else:\n"
+        "    print(\"No genes starting with ENSG found.\")\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_manipulate.py"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "target.h5ad",
+            "function": "copy_layers",
+            "source_adata": "source.h5ad",
+            "keys": [
+                {"source_key": "count", "target_key": "new_count"},
+                {"source_key": "lognorm", "target_key": ""},
+            ],
+            "output": "/work/anndata_manipulate",
+        }
+    ) == (
+        "mkdir -p /work/anndata_manipulate && cd /work/anndata_manipulate && cat > anndata_manipulate.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_h5ad('target.h5ad', backed='r')\n"
+        "source_adata = ad.read_h5ad('source.h5ad', backed='r')\n"
+        "if 'count' in source_adata.layers:\n"
+        "    adata.layers['new_count'] = source_adata.layers['count']\n"
+        "else:\n"
+        "    print(\"Layer count not found in source AnnData.\")\n"
+        "if 'lognorm' in source_adata.layers:\n"
+        "    adata.layers['lognorm'] = source_adata.layers['lognorm']\n"
+        "else:\n"
+        "    print(\"Layer lognorm not found in source AnnData.\")\n"
+        "adata.write('anndata.h5ad', compression='gzip')\n"
+        "print(adata)\n"
+        "PY\n"
+        "python anndata_manipulate.py"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "cells.h5ad",
+            "function": "split_on_obs",
+            "key": "cell_type",
+            "output": "/work/anndata_manipulate",
+        }
+    ) == (
+        "mkdir -p /work/anndata_manipulate && cd /work/anndata_manipulate && cat > anndata_manipulate.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_h5ad('cells.h5ad', backed='r')\n"
+        "import os\n"
+        "adata = adata.to_memory()\n"
+        "res_dir = 'output_split'\n"
+        "os.makedirs(res_dir, exist_ok=True)\n"
+        "for s, field_value in enumerate(adata.obs['cell_type'].unique()):\n"
+        "    ad_s = adata[adata.obs['cell_type'] == field_value].copy()\n"
+        "    ad_s.write(f\"{res_dir}/cell_type_{s}.h5ad\", compression='gzip')\n"
+        "PY\n"
+        "python anndata_manipulate.py"
+    )
+    assert node_class.PLAN_OUTPUTS({"function": "split_on_obs"}, tmp_path) == [
+        tmp_path / "anndata_manipulate" / "output_split",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "function": "flag_genes"}) == (
+        "gene_flags is required when function is flag_genes"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "target.h5ad", "function": "copy_layers", "keys": [{"source_key": "count"}]}) == (
+        "source_adata is required when function is copy_layers"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "function": "split_on_obs", "key": "cell_type"}) is True
+
+
 def test_anndata2ri_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["anndata2ri"]
 

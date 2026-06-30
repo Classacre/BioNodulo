@@ -2366,6 +2366,51 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
     citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
   },
+  anndata_manipulate: {
+    name: 'anndata_manipulate',
+    display_name: 'Manipulate AnnData',
+    category: 'single_cell',
+    description: 'Manipulate AnnData H5AD objects by concatenating, renaming, annotating, copying, splitting, or transposing.',
+    search_aliases: ['Galaxy', 'AnnData', 'anndata_manipulate', 'Manipulate AnnData', 'H5AD', 'concatenate', 'obs_names_make_unique', 'var_names_make_unique', 'rename_categories', 'remove_keys', 'flag_genes', 'rename_obs', 'rename_var', 'strings_to_categoricals', 'transpose', 'add_annotation', 'split_on_obs', 'copy_obs', 'copy_uns', 'copy_embed', 'copy_layers', 'copy_X', 'save_raw'],
+    input: {
+      required: {
+        input: { type: 'H5AD' },
+      },
+      optional: {
+        function: { type: 'STRING', default: 'concatenate', options: ['concatenate', 'obs_names_make_unique', 'var_names_make_unique', 'rename_categories', 'remove_keys', 'flag_genes', 'rename_obs', 'rename_var', 'strings_to_categoricals', 'transpose', 'add_annotation', 'split_on_obs', 'copy_obs', 'copy_uns', 'copy_embed', 'copy_layers', 'copy_X', 'save_raw'] },
+        other_adatas: { type: 'H5AD', default: '', multiple: true },
+        join: { type: 'STRING', default: '-', options: ['-', '_', ' ', '/', 'inner', 'outer'] },
+        batch_key: { type: 'STRING', default: 'batch' },
+        uns_merge: { type: 'STRING', default: 'None', options: ['None', 'same', 'unique', 'first', 'only'] },
+        index_unique: { type: 'STRING', default: '-', options: ['', '-', '_', ' ', '/'] },
+        key: { type: 'STRING', default: '' },
+        categories: { type: 'STRING', default: '' },
+        new_key: { type: 'STRING', default: 'no', options: ['yes', 'no'] },
+        key_name: { type: 'STRING', default: '' },
+        obs_keys: { type: 'STRING', default: '' },
+        var_keys: { type: 'STRING', default: '' },
+        gene_flags: { type: 'JSON', default: [], is_list: true },
+        from_obs: { type: 'STRING', default: '' },
+        to_obs: { type: 'STRING', default: '' },
+        from_var: { type: 'STRING', default: '' },
+        to_var: { type: 'STRING', default: '' },
+        keep_original: { type: 'BOOLEAN', default: false },
+        var_obs: { type: 'STRING', default: 'var', options: ['var', 'obs'] },
+        new_annot: { type: 'TSV', default: '' },
+        source_adata: { type: 'H5AD', default: '' },
+        keys: { type: 'JSON', default: [], is_list: true },
+        target_key: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['H5AD', 'DIRECTORY'],
+    output_name: ['anndata', 'output_h5ad_split'],
+    required_executables: ['python'],
+    required_conda_packages: ['anndata', 'scanpy', 'loompy', 'pandas'],
+    documentation_url: 'https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.html',
+    citation_dois: ['10.1186/s13059-017-1382-0'],
+    citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
+    citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
+  },
   anndata2ri: {
     name: 'anndata2ri',
     display_name: 'anndata2ri',
@@ -15149,7 +15194,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('511 nodes available')).toBeVisible();
+  await expect(page.getByText('512 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15245,6 +15290,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'write_csvs', name: 'Export AnnData', category: 'single_cell' },
     { query: 'read_10x_mtx', name: 'Import Anndata', category: 'single_cell' },
     { query: 'chunk_X', name: 'Inspect AnnData', category: 'single_cell' },
+    { query: 'split_on_obs', name: 'Manipulate AnnData', category: 'single_cell' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
