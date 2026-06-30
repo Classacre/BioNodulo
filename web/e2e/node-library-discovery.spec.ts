@@ -3805,6 +3805,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
     citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
   },
+  chewbbaca_createschema: {
+    name: 'chewbbaca_createschema',
+    display_name: 'chewBBACA CreateSchema',
+    category: 'typing',
+    description: 'Create a gene-by-gene schema.',
+    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_createschema', 'chewBBACA CreateSchema', 'CreateSchema', 'schema_seed', 'cgMLST', 'wgMLST', 'gene-by-gene schema', 'bacterial typing'],
+    input: {
+      required: {
+        input_file: { type: 'FASTA', is_list: true, multiple: true },
+      },
+      optional: {
+        training_file: { type: 'FILE', default: '' },
+        cds_input: { type: 'BOOLEAN', default: false },
+        minimum_length: { type: 'INT', default: 201, min: 0 },
+        blast_score_ratio: { type: 'FLOAT', default: 0.6, min: 0, max: 1 },
+        translation_table: { type: 'INT', default: 11, min: 0 },
+        size_threshold: { type: 'FLOAT', default: 0.2, min: 0 },
+        prodigal_mode: { type: 'STRING', default: 'single', options: ['single', 'meta'] },
+        show_cds_invalid: { type: 'BOOLEAN', default: false },
+        show_cds_coord: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['ZIP', 'TXT', 'TSV'],
+    output_name: ['schema', 'txt_file', 'tsv_file'],
+    required_executables: ['chewBBACA.py', 'zip'],
+    required_conda_packages: ['chewbbaca', 'blast', 'zip', 'fasttree'],
+    documentation_url: 'https://chewbbaca.readthedocs.io/',
+    citation_dois: ['10.1099/mgen.0.000166'],
+    citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
+    citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
+  },
   checkm_lineage_wf: {
     name: 'checkm_lineage_wf',
     display_name: 'CheckM lineage_wf',
@@ -16681,7 +16712,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('560 nodes available')).toBeVisible();
+  await expect(page.getByText('561 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16817,6 +16848,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'RRI model training', name: 'Train a CheRRI model using RRIs', category: 'rna_seq' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
+    { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },

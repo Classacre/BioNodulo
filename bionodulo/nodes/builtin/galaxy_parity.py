@@ -21383,6 +21383,185 @@ class ChewBBACAAlleleCallEvaluatorNode(CommandNode):
         return True
 
 
+class ChewBBACACreateSchemaNode(CommandNode):
+    """Create chewBBACA gene-by-gene schemas from genome assemblies."""
+
+    NODE_ID = "chewbbaca_createschema"
+    DISPLAY_NAME = "chewBBACA CreateSchema"
+    REQUIRED_CONDA_PACKAGES = ["chewbbaca", "blast", "zip", "fasttree"]
+    CATEGORY = "typing"
+    DESCRIPTION = "Create a gene-by-gene schema."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "chewBBACA",
+        "chewbbaca_createschema",
+        "chewBBACA CreateSchema",
+        "CreateSchema",
+        "schema_seed",
+        "cgMLST",
+        "wgMLST",
+        "gene-by-gene schema",
+        "bacterial typing",
+    ]
+    RETURN_TYPES = ("ZIP", "TXT", "TSV")
+    RETURN_NAMES = ("schema", "txt_file", "tsv_file")
+    REQUIRED_EXECUTABLES = ["chewBBACA.py", "zip"]
+    DOCUMENTATION_URL = "https://chewbbaca.readthedocs.io/"
+    CITATION_DOIS = [CHEWBBACA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHEWBBACA_CITATION_DOI}"]
+    CITATION_TEXT = CHEWBBACA_CITATION_TEXT
+    VERSION = "3.3.10+galaxy1"
+    SHELL = True
+
+    PRODIGAL_MODES = ["single", "meta"]
+
+    @classmethod
+    def _input_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("input_file", inputs.get("input_files")))
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("element_identifiers"))
+
+    @classmethod
+    def _element_extensions(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("element_extensions"))
+
+    @classmethod
+    def _input_name(cls, input_file: str, index: int, inputs: dict[str, Any]) -> str:
+        element_identifiers = cls._element_identifiers(inputs)
+        base = element_identifiers[index] if index < len(element_identifiers) else Path(input_file).stem
+        element_extensions = cls._element_extensions(inputs)
+        if index < len(element_extensions) and element_extensions[index]:
+            ext = element_extensions[index]
+        else:
+            suffix = Path(input_file).suffix.lstrip(".")
+            ext = suffix or "fasta"
+        return f"{_safe_element_identifier(base)}.{_safe_element_identifier(ext)}"
+
+    @classmethod
+    def _prodigal_mode(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("prodigal_mode", "single") or "single")
+
+    @classmethod
+    def _bool_flag(cls, inputs: dict[str, Any], key: str) -> bool:
+        value = inputs.get(key, False)
+        if isinstance(value, str):
+            return value.lower() not in {"", "false", "0", "no"}
+        return bool(value)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        commands = [_shell_join(["mkdir", "-p", out]), f"cd {shlex.quote(out)}", "mkdir input"]
+        for index, input_file in enumerate(cls._input_files(inputs)):
+            commands.append(_shell_join(["ln", "-sf", input_file, f"input/{cls._input_name(input_file, index, inputs)}"]))
+        cmd = ["chewBBACA.py", "CreateSchema"]
+        _add_if_value(cmd, "--ptf", inputs.get("training_file"))
+        if cls._bool_flag(inputs, "cds_input"):
+            cmd.append("--cds-input")
+        cmd.extend(
+            [
+                "--bsr",
+                str(inputs.get("blast_score_ratio", 0.6)),
+                "--l",
+                str(inputs.get("minimum_length", 201)),
+                "--t",
+                str(inputs.get("translation_table", 11)),
+                "--st",
+                str(inputs.get("size_threshold", 0.2)),
+                "--pm",
+                cls._prodigal_mode(inputs),
+                "-i",
+                "input",
+                "-o",
+                "output",
+            ]
+        )
+        commands.append(_shell_join(cmd))
+        commands.extend(["cd output/", "zip -r schema_seed.zip schema_seed"])
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID / "output"
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "schema_seed.zip"]
+        if cls._bool_flag(inputs, "show_cds_invalid"):
+            outputs.append(out / "invalid_cds.txt")
+        if cls._bool_flag(inputs, "show_cds_coord"):
+            outputs.append(out / "cds_coordinates.tsv")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("FASTA", {"is_list": True, "multiple": True, "description": "Genome assemblies"}),
+            },
+            "optional": {
+                "training_file": ("FILE", {"default": ""}),
+                "cds_input": ("BOOLEAN", {"default": False}),
+                "minimum_length": ("INT", {"default": 201, "min": 0}),
+                "blast_score_ratio": ("FLOAT", {"default": 0.6, "min": 0, "max": 1}),
+                "translation_table": ("INT", {"default": 11, "min": 0}),
+                "size_threshold": ("FLOAT", {"default": 0.2, "min": 0}),
+                "prodigal_mode": ("STRING", {"default": "single", "options": cls.PRODIGAL_MODES}),
+                "show_cds_invalid": ("BOOLEAN", {"default": False}),
+                "show_cds_coord": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {
+                "element_identifiers": ("STRING_LIST", {"default": []}),
+                "element_extensions": ("STRING_LIST", {"default": []}),
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def _validate_int_min(cls, inputs: dict[str, Any], name: str, default: int, minimum: int) -> bool | str:
+        try:
+            value = int(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if value < minimum:
+            return f"{name} must be greater than or equal to {minimum}"
+        return True
+
+    @classmethod
+    def _validate_float_min(
+        cls, inputs: dict[str, Any], name: str, default: float, minimum: float, maximum: float | None = None
+    ) -> bool | str:
+        try:
+            value = float(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be numeric"
+        if value < minimum:
+            return f"{name} must be greater than or equal to {minimum:g}"
+        if maximum is not None and value > maximum:
+            return f"{name} must be between {minimum:g} and {maximum:g}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_files(inputs):
+            return "at least one input_file value is required"
+        if cls._prodigal_mode(inputs) not in cls.PRODIGAL_MODES:
+            return f"prodigal_mode must be one of: {', '.join(cls.PRODIGAL_MODES)}"
+        result = cls._validate_float_min(inputs, "blast_score_ratio", 0.6, 0, 1)
+        if result is not True:
+            return result
+        result = cls._validate_int_min(inputs, "minimum_length", 201, 0)
+        if result is not True:
+            return result
+        result = cls._validate_int_min(inputs, "translation_table", 11, 0)
+        if result is not True:
+            return result
+        result = cls._validate_float_min(inputs, "size_threshold", 0.2, 0)
+        if result is not True:
+            return result
+        return True
+
+
 class DASToolNode(CommandNode):
     """Integrate metagenomic binning predictions with DAS Tool."""
 

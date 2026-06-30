@@ -11151,6 +11151,79 @@ def test_chewbbaca_allelecallevaluator_renders_command_outputs_and_validation(tm
     assert node_class.VALIDATE_INPUTS({"input_file": ["results.tsv"], "input_schema": "schema.zip"}) is True
 
 
+def test_chewbbaca_createschema_exposes_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["chewbbaca_createschema"]
+
+    assert info["display_name"] == "chewBBACA CreateSchema"
+    assert info["category"] == "typing"
+    assert info["description"] == "Create a gene-by-gene schema."
+    assert info["output"] == ["ZIP", "TXT", "TSV"]
+    assert info["output_name"] == ["schema", "txt_file", "tsv_file"]
+    assert info["required_executables"] == ["chewBBACA.py", "zip"]
+    assert info["required_conda_packages"] == ["chewbbaca", "blast", "zip", "fasttree"]
+    assert info["documentation_url"] == "https://chewbbaca.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
+    assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
+    assert "chewBBACA" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "CreateSchema" in info["search_aliases"]
+    assert info["version"] == "3.3.10+galaxy1"
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["is_list"] is True
+    assert info["input"]["optional"]["minimum_length"][1]["default"] == 201
+    assert info["input"]["optional"]["blast_score_ratio"][1]["default"] == 0.6
+    assert info["input"]["optional"]["prodigal_mode"][1]["options"] == ["single", "meta"]
+
+
+def test_chewbbaca_createschema_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chewbbaca_createschema")
+
+    assert node_class.render_command(
+        {
+            "input_file": ["GCA_000007265.fna", "Genome B.fa"],
+            "element_identifiers": ["GCA_000007265", "Genome B"],
+            "element_extensions": ["fna", "fasta"],
+            "training_file": "training.ptf",
+            "cds_input": True,
+            "blast_score_ratio": 0.7,
+            "minimum_length": 201,
+            "translation_table": 11,
+            "size_threshold": 0.2,
+            "prodigal_mode": "meta",
+            "output": "/work/chewbbaca_createschema",
+        }
+    ) == (
+        "mkdir -p /work/chewbbaca_createschema && cd /work/chewbbaca_createschema && mkdir input && "
+        "ln -sf GCA_000007265.fna input/GCA_000007265.fna && "
+        "ln -sf 'Genome B.fa' input/Genome_B.fasta && "
+        "chewBBACA.py CreateSchema --ptf training.ptf --cds-input --bsr 0.7 --l 201 --t 11 --st 0.2 "
+        "--pm meta -i input -o output && cd output/ && zip -r schema_seed.zip schema_seed"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {"show_cds_invalid": True, "show_cds_coord": True},
+        tmp_path,
+    ) == [
+        tmp_path / "chewbbaca_createschema" / "output" / "schema_seed.zip",
+        tmp_path / "chewbbaca_createschema" / "output" / "invalid_cds.txt",
+        tmp_path / "chewbbaca_createschema" / "output" / "cds_coordinates.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input_file value is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"], "prodigal_mode": "bad"}) == (
+        "prodigal_mode must be one of: single, meta"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"], "blast_score_ratio": 1.1}) == (
+        "blast_score_ratio must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"], "minimum_length": -1}) == (
+        "minimum_length must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"], "translation_table": "bad"}) == (
+        "translation_table must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"]}) is True
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 
