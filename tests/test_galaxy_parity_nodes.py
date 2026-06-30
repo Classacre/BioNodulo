@@ -11322,6 +11322,49 @@ def test_chewbbaca_extractcgmlst_renders_command_outputs_and_validation(tmp_path
     assert node_class.VALIDATE_INPUTS({"input_file": "results.tsv"}) is True
 
 
+def test_chewbbaca_joinprofiles_exposes_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["chewbbaca_joinprofiles"]
+
+    assert info["display_name"] == "chewBBACA JoinProfiles"
+    assert info["category"] == "typing"
+    assert info["description"] == "Join allele calling results from different runs."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["JoinedProfile"]
+    assert info["required_executables"] == ["chewBBACA.py"]
+    assert info["required_conda_packages"] == ["chewbbaca", "blast", "zip", "fasttree"]
+    assert info["documentation_url"] == "https://chewbbaca.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
+    assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
+    assert "chewBBACA" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "JoinProfiles" in info["search_aliases"]
+    assert info["version"] == "3.3.10+galaxy1"
+    assert info["input"]["required"]["input1"][0] == "TSV"
+    assert info["input"]["required"]["input1"][1]["is_list"] is True
+    assert info["input"]["optional"]["common"][0] == "BOOLEAN"
+
+
+def test_chewbbaca_joinprofiles_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chewbbaca_joinprofiles")
+
+    assert node_class.render_command(
+        {
+            "input1": ["results_alleles.tsv", "second run.tsv"],
+            "common": True,
+            "output": "/work/chewbbaca_joinprofiles",
+        }
+    ) == (
+        "mkdir -p /work/chewbbaca_joinprofiles && cd /work/chewbbaca_joinprofiles && "
+        "chewBBACA.py JoinProfiles -p results_alleles.tsv 'second run.tsv' -o JoinedProfile.tsv --common"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "chewbbaca_joinprofiles" / "JoinedProfile.tsv"
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input1 value is required"
+    assert node_class.VALIDATE_INPUTS({"input1": ["results.tsv"]}) is True
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 

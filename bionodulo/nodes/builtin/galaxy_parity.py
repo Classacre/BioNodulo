@@ -21757,6 +21757,80 @@ class ChewBBACAExtractCgMLSTNode(CommandNode):
         return True
 
 
+class ChewBBACAJoinProfilesNode(CommandNode):
+    """Join chewBBACA allele calling profiles from multiple runs."""
+
+    NODE_ID = "chewbbaca_joinprofiles"
+    DISPLAY_NAME = "chewBBACA JoinProfiles"
+    REQUIRED_CONDA_PACKAGES = ["chewbbaca", "blast", "zip", "fasttree"]
+    CATEGORY = "typing"
+    DESCRIPTION = "Join allele calling results from different runs."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "chewBBACA",
+        "chewbbaca_joinprofiles",
+        "chewBBACA JoinProfiles",
+        "JoinProfiles",
+        "allele calling results",
+        "common loci",
+        "cgMLST",
+        "wgMLST",
+        "bacterial typing",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("JoinedProfile",)
+    REQUIRED_EXECUTABLES = ["chewBBACA.py"]
+    DOCUMENTATION_URL = "https://chewbbaca.readthedocs.io/"
+    CITATION_DOIS = [CHEWBBACA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHEWBBACA_CITATION_DOI}"]
+    CITATION_TEXT = CHEWBBACA_CITATION_TEXT
+    VERSION = "3.3.10+galaxy1"
+    SHELL = True
+
+    @classmethod
+    def _profiles(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("input1", inputs.get("profiles")))
+
+    @classmethod
+    def _bool_flag(cls, inputs: dict[str, Any], key: str) -> bool:
+        value = inputs.get(key, False)
+        if isinstance(value, str):
+            return value.lower() not in {"", "false", "0", "no"}
+        return bool(value)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = ["chewBBACA.py", "JoinProfiles", "-p", *cls._profiles(inputs), "-o", "JoinedProfile.tsv"]
+        if cls._bool_flag(inputs, "common"):
+            cmd.append("--common")
+        return " && ".join([_shell_join(["mkdir", "-p", out]), f"cd {shlex.quote(out)}", _shell_join(cmd)])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "JoinedProfile.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input1": ("TSV", {"is_list": True, "multiple": True, "description": "AlleleCall result tables"}),
+            },
+            "optional": {
+                "common": ("BOOLEAN", {"default": False}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._profiles(inputs):
+            return "at least one input1 value is required"
+        return True
+
+
 class DASToolNode(CommandNode):
     """Integrate metagenomic binning predictions with DAS Tool."""
 

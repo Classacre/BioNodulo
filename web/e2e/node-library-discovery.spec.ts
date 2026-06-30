@@ -3884,6 +3884,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
     citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
   },
+  chewbbaca_joinprofiles: {
+    name: 'chewbbaca_joinprofiles',
+    display_name: 'chewBBACA JoinProfiles',
+    category: 'typing',
+    description: 'Join allele calling results from different runs.',
+    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_joinprofiles', 'chewBBACA JoinProfiles', 'JoinProfiles', 'allele calling results', 'common loci', 'cgMLST', 'wgMLST', 'bacterial typing'],
+    input: {
+      required: {
+        input1: { type: 'TSV', is_list: true, multiple: true },
+      },
+      optional: {
+        common: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['JoinedProfile'],
+    required_executables: ['chewBBACA.py'],
+    required_conda_packages: ['chewbbaca', 'blast', 'zip', 'fasttree'],
+    documentation_url: 'https://chewbbaca.readthedocs.io/',
+    citation_dois: ['10.1099/mgen.0.000166'],
+    citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
+    citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
+  },
   checkm_lineage_wf: {
     name: 'checkm_lineage_wf',
     display_name: 'CheckM lineage_wf',
@@ -16760,7 +16783,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('563 nodes available')).toBeVisible();
+  await expect(page.getByText('564 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16899,6 +16922,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },
     { query: 'Chewie-NS', name: 'chewBBACA DownloadSchema', category: 'typing' },
     { query: 'core genome', name: 'chewBBACA ExtractCgMLST', category: 'typing' },
+    { query: 'common loci', name: 'chewBBACA JoinProfiles', category: 'typing' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },
