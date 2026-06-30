@@ -1255,6 +1255,89 @@ def test_baredsc_2d_renders_anndata_minimal_seurat_command() -> None:
     )
 
 
+def test_baredsc_combine_1d_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["baredsc_combine_1d"]
+
+    assert info["display_name"] == "Combine multiple 1D Models"
+    assert info["category"] == "single_cell"
+    assert info["description"] == "Combine multiple one-dimensional baredSC model archives for a single gene."
+    assert info["input"]["required"]["outputs"][0] == "FILE"
+    assert info["input"]["required"]["outputs"][1]["is_list"] is True
+    assert info["input"]["required"]["geneColName"][0] == "STRING"
+    assert info["input"]["optional"]["filetype"][1]["options"] == ["tabular", "anndata"]
+    assert info["input"]["optional"]["prettyBins"][1]["default"] == -1
+    assert info["output"] == ["TSV", "IMAGE", "DIRECTORY"]
+    assert info["output_name"] == ["pdf", "plot", "other_outputs"]
+    assert info["required_executables"] == ["combineMultipleModels_1d", "ln", "mkdir", "mv", "gunzip"]
+    assert info["required_conda_packages"] == ["baredsc", "gzip"]
+    assert info["documentation_url"] == "https://baredsc.readthedocs.io/en/latest/index.html"
+    assert info["citation_dois"] == ["10.1186/s12859-021-04507-8"]
+    assert "Bayesian Approach" in info["citation_text"]
+    assert "combine 1D" in info["search_aliases"]
+
+
+def test_baredsc_combine_1d_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("baredsc_combine_1d")
+
+    assert node_class.render_command(
+        {
+            "outputs": ["small 1gauss.npz", "small_2gauss.npz"],
+            "filetype": "tabular",
+            "input": "counts.tsv",
+            "geneColName": "Gene A",
+            "filter_nb": "1",
+            "metadata1ColName": "cluster",
+            "metadata1Values": "A,B",
+            "xmin": -2,
+            "xmax": 3,
+            "xscale": "Seurat",
+            "targetSum": 0,
+            "nx": 10,
+            "minScalex": 0.3,
+            "seed": 5,
+            "title": "combine 1 and 2 gauss",
+            "removeFirstSamples": 25,
+            "nsampInPlot": 4000,
+            "prettyBins": 100,
+            "image_file_format": "svg",
+            "osampx": 12,
+            "osampxpdf": 6,
+            "coviscale": 1.5,
+            "nis": 900,
+            "output": "/work/baredsc_combine_1d",
+        }
+    ) == (
+        "ln -s 'small 1gauss.npz' 0.npz && ln -s small_2gauss.npz 1.npz && "
+        "combineMultipleModels_1d --input counts.tsv --geneColName 'Gene A' "
+        "--metadata1ColName cluster --metadata1Values A,B --outputs 0 1 --xmin -2 --xmax 3 "
+        "--xscale Seurat --targetSum 0 --nx 10 --minScale 0.3 --seed 5 "
+        "--title 'combine 1 and 2 gauss' --removeFirstSamples 25 --nsampInPlot 4000 "
+        "--prettyBins 100 --osampx 12 --osampxpdf 6 --coviscale 1.5 --nis 900 "
+        "--figure baredSC.svg && mkdir output && mv baredSC_pdf.txt output && "
+        "mv baredSC.svg baredSC && gunzip baredSC_means.txt.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"image_file_format": "svg"}, tmp_path) == [
+        tmp_path / "baredsc_combine_1d" / "output" / "baredSC_pdf.txt",
+        tmp_path / "baredsc_combine_1d" / "baredSC.svg",
+        tmp_path / "baredsc_combine_1d" / "other_outputs",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "outputs is required"
+    assert node_class.VALIDATE_INPUTS({"outputs": ["small_1gauss.npz"]}) == "geneColName is required"
+    assert node_class.VALIDATE_INPUTS({"outputs": ["small_1gauss.npz"], "geneColName": "Gene A"}) == (
+        "input is required when filetype is tabular"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"outputs": ["small_1gauss.npz"], "geneColName": "Gene A", "input": "counts.tsv", "prettyBins": -2}
+    ) == "prettyBins must be greater than or equal to -1"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {"outputs": ["small_1gauss.npz"], "geneColName": "Gene A", "input": "counts.tsv"}
+        )
+        is True
+    )
+
+
 def test_bax2bam_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["bax2bam"]
 
