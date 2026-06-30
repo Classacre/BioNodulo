@@ -17765,6 +17765,79 @@ class CheckMTaxonomyWFNode(CommandNode):
         return True
 
 
+class CheckMTetraNode(CommandNode):
+    """Calculate tetranucleotide signatures for FASTA sequences."""
+
+    NODE_ID = "checkm_tetra"
+    DISPLAY_NAME = "CheckM tetra"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Calculate tetranucleotide signatures for FASTA sequences."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "checkm tetra",
+        "tetra",
+        "tetranucleotide",
+        "tetranucleotide signatures",
+        "sequence composition",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("tetra_profile",)
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "checkm",
+            "tetra",
+            str(inputs.get("seq_file", "")),
+            f"{out}/tetra_profile.tsv",
+            "--threads",
+            str(inputs.get("threads", 1)),
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "tetra_profile.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "seq_file": ("FASTA", {"description": "Sequences used to generate tetranucleotide signatures"}),
+            },
+            "optional": {
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("seq_file", "")).strip():
+            return "seq_file is required"
+        try:
+            threads = int(inputs.get("threads", 1))
+        except (TypeError, ValueError):
+            return "threads must be an integer"
+        if threads < 1:
+            return "threads must be >= 1"
+        return True
+
+
 class CheckMAnalyzeNode(CommandNode):
     """Identify marker genes in genome bins with CheckM analyze."""
 

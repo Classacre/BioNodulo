@@ -3533,6 +3533,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
     citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
   },
+  checkm_tetra: {
+    name: 'checkm_tetra',
+    display_name: 'CheckM tetra',
+    category: 'metagenomics',
+    description: 'Calculate tetranucleotide signatures for FASTA sequences.',
+    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm tetra', 'tetra', 'tetranucleotide', 'tetranucleotide signatures', 'sequence composition'],
+    input: {
+      required: {
+        seq_file: { type: 'FASTA' },
+      },
+      optional: {
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['tetra_profile'],
+    required_executables: ['checkm'],
+    required_conda_packages: ['checkm-genome'],
+    documentation_url: 'https://github.com/Ecogenomics/CheckM',
+    citation_dois: ['10.1101/gr.186072.114'],
+    citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
+    citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
+  },
   checkm_analyze: {
     name: 'checkm_analyze',
     display_name: 'CheckM analyze',
@@ -16193,7 +16216,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('545 nodes available')).toBeVisible();
+  await expect(page.getByText('546 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16322,6 +16345,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'checkm lineage_set', name: 'CheckM lineage_set', category: 'metagenomics' },
     { query: 'checkm taxon_set', name: 'CheckM taxon_set', category: 'metagenomics' },
     { query: 'checkm taxonomy_wf', name: 'CheckM taxonomy_wf', category: 'metagenomics' },
+    { query: 'checkm tetra', name: 'CheckM tetra', category: 'metagenomics' },
     { query: 'checkm analyze', name: 'CheckM analyze', category: 'metagenomics' },
     { query: 'checkm qa', name: 'CheckM qa', category: 'metagenomics' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },

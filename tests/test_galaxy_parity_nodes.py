@@ -2917,6 +2917,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_tetra": {
+            "display_name": "CheckM tetra",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "checkm_analyze": {
             "display_name": "CheckM analyze",
             "category": "metagenomics",
@@ -10537,6 +10544,50 @@ def test_checkm_taxonomy_wf_renders_command_outputs_and_validates(tmp_path: Path
         "extra_outputs values must be one of: marker_file, hmmer_analyze, bin_stats_analyze, checkm_hmm_info, hmmer_analyze_ali, bin_stats_ext, marker_gene_stats"
     )
     assert node_class.VALIDATE_INPUTS({"rank": "domain", "taxon": "Bacteria", "bins": ["bin.fna"]}) is True
+
+
+def test_checkm_tetra_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_tetra"]
+
+    assert info["display_name"] == "CheckM tetra"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Calculate tetranucleotide signatures for FASTA sequences."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["tetra_profile"]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm tetra" in info["search_aliases"]
+    assert info["input"]["required"]["seq_file"][0] == "FASTA"
+    assert info["input"]["optional"]["threads"][1]["default"] == 1
+
+
+def test_checkm_tetra_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_tetra")
+
+    assert node_class.render_command(
+        {"seq_file": "637000110.fna", "threads": 4, "output": "/work/checkm_tetra"}
+    ) == [
+        "checkm",
+        "tetra",
+        "637000110.fna",
+        "/work/checkm_tetra/tetra_profile.tsv",
+        "--threads",
+        "4",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "checkm_tetra" / "tetra_profile.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "seq_file is required"
+    assert node_class.VALIDATE_INPUTS({"seq_file": "seqs.fna", "threads": "bad"}) == "threads must be an integer"
+    assert node_class.VALIDATE_INPUTS({"seq_file": "seqs.fna", "threads": 0}) == "threads must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"seq_file": "seqs.fna"}) is True
 
 
 def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
