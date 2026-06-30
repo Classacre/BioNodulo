@@ -16843,6 +16843,233 @@ class CheckMLineageWFNode(CommandNode):
         return True
 
 
+class CheckMTreeNode(CommandNode):
+    """Place genome bins in the CheckM reference genome tree."""
+
+    NODE_ID = "checkm_tree"
+    DISPLAY_NAME = "CheckM tree"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Place genome bins in the CheckM reference genome tree."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "checkm tree",
+        "genome tree",
+        "phylogenetic placement",
+        "phylogenetic marker",
+        "pplacer",
+    ]
+    RETURN_TYPES = (
+        "FILE",
+        "TSV",
+        "DIRECTORY",
+        "FASTA",
+        "PHYLOXML",
+        "DIRECTORY",
+        "JSON",
+        "DIRECTORY",
+        "DIRECTORY",
+        "DIRECTORY",
+    )
+    RETURN_NAMES = (
+        "phylo_hmm_info",
+        "bin_stats_tree",
+        "hmmer_tree",
+        "concatenated_fasta",
+        "concatenated_tre",
+        "hmmer_tree_ali",
+        "concatenated_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+    )
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    INPUT_MODES = CheckMLineageWFNode.INPUT_MODES
+    EXTRA_OUTPUT_OPTIONS = [
+        "hmmer_tree_ali",
+        "concatenate_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+    ]
+    PLAN_OUTPUT_ORDER = [
+        "hmmer_tree_ali",
+        "concatenate_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+    ]
+    DEFAULT_OUTPUT_PATHS = [
+        ("phylo_hmm_info", ("output", "storage", "phylo_hmm_info.pkl.gz")),
+        ("bin_stats_tree", ("output", "storage", "bin_stats.tree.tsv")),
+        ("hmmer_tree", ("output", "bins", "hmmer_tree")),
+        ("concatenated_fasta", ("output", "storage", "tree", "concatenated.fasta")),
+        ("concatenated_tre", ("output", "storage", "tree", "concatenated.tre")),
+    ]
+    OPTIONAL_OUTPUT_PATHS = {
+        key: CheckMLineageWFNode.OPTIONAL_OUTPUT_PATHS[key]
+        for key in PLAN_OUTPUT_ORDER
+    }
+    DIRECTORY_OUTPUTS = CheckMLineageWFNode.DIRECTORY_OUTPUTS
+
+    @classmethod
+    def _input_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return CheckMLineageWFNode._input_files(inputs)
+
+    @classmethod
+    def _extra_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        return CheckMLineageWFNode._extra_outputs(inputs)
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any], input_files: list[str]) -> list[str]:
+        return CheckMLineageWFNode._element_identifiers(inputs, input_files)
+
+    @classmethod
+    def _link_name(cls, input_mode: str, identifier: str) -> str:
+        return CheckMLineageWFNode._link_name(input_mode, identifier)
+
+    @classmethod
+    def _add_bool(cls, cmd: list[str], inputs: dict[str, Any], name: str, flag: str) -> None:
+        if inputs.get(name):
+            cmd.append(flag)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        bins_dir = f"{out}/bins"
+        checkm_out = f"{out}/output"
+        input_files = cls._input_files(inputs)
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        identifiers = cls._element_identifiers(inputs, input_files)
+
+        cmd = ["mkdir", "-p", bins_dir, checkm_out]
+        for input_file, identifier in zip(input_files, identifiers, strict=True):
+            cmd.extend(["&&", "ln", "-sf", input_file, f"{bins_dir}/{cls._link_name(input_mode, identifier)}"])
+        cmd.extend(["&&", "checkm", "tree", bins_dir, checkm_out])
+        for name, flag in [
+            ("reduced_tree", "--reduced_tree"),
+            ("ali", "--ali"),
+            ("nt", "--nt"),
+            ("genes", "--genes"),
+        ]:
+            cls._add_bool(cmd, inputs, name, flag)
+        threads = str(inputs.get("threads", 1))
+        cmd.extend(["--extension", "fasta", "--threads", threads, "--pplacer_threads", threads])
+        return cmd
+
+    @classmethod
+    def _include_optional_output(cls, option: str, inputs: dict[str, Any]) -> bool:
+        return CheckMLineageWFNode._include_optional_output(option, inputs)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs: list[Path] = []
+        for output_name, parts in cls.DEFAULT_OUTPUT_PATHS:
+            path = out.joinpath(*parts)
+            if output_name in cls.DIRECTORY_OUTPUTS:
+                path.mkdir(parents=True, exist_ok=True)
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            outputs.append(path)
+        selected = cls._extra_outputs(inputs)
+        for option in cls.PLAN_OUTPUT_ORDER:
+            if option not in selected or not cls._include_optional_output(option, inputs):
+                continue
+            output_name, parts = cls.OPTIONAL_OUTPUT_PATHS[option]
+            path = out.joinpath(*parts)
+            if output_name in cls.DIRECTORY_OUTPUTS:
+                path.mkdir(parents=True, exist_ok=True)
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            outputs.append(path)
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bins": (
+                    "FASTA_LIST",
+                    {
+                        "multiple": True,
+                        "min_items": 1,
+                        "description": "Genome-bin FASTA files to place in the CheckM tree",
+                    },
+                ),
+            },
+            "optional": {
+                "input_mode": (
+                    "STRING",
+                    {
+                        "default": "individual",
+                        "options": cls.INPUT_MODES,
+                        "description": "Galaxy bin input structure used for naming symlinks",
+                    },
+                ),
+                "element_identifiers": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional Galaxy collection element identifiers for bins",
+                    },
+                ),
+                "reduced_tree": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use the reduced reference tree for lineage placement"},
+                ),
+                "ali": ("BOOLEAN", {"default": False, "description": "Generate phylogenetic HMMER alignment files"}),
+                "nt": ("BOOLEAN", {"default": False, "description": "Generate nucleotide gene sequences"}),
+                "genes": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Input bins contain amino-acid genes instead of nucleotide contigs"},
+                ),
+                "extra_outputs": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "options": cls.EXTRA_OUTPUT_OPTIONS,
+                        "multiple": True,
+                        "description": "Galaxy extra outputs to collect from CheckM tree",
+                    },
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_files(inputs):
+            return "at least one bins value is required"
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        if input_mode not in cls.INPUT_MODES:
+            return f"input_mode must be one of: {', '.join(cls.INPUT_MODES)}"
+        try:
+            threads = int(inputs.get("threads", 1))
+        except (TypeError, ValueError):
+            return "threads must be an integer"
+        if threads < 1:
+            return "threads must be >= 1"
+        unknown = [value for value in cls._extra_outputs(inputs) if value not in cls.EXTRA_OUTPUT_OPTIONS]
+        if unknown:
+            return f"extra_outputs values must be one of: {', '.join(cls.EXTRA_OUTPUT_OPTIONS)}"
+        return True
+
+
 class CheckMAnalyzeNode(CommandNode):
     """Identify marker genes in genome bins with CheckM analyze."""
 

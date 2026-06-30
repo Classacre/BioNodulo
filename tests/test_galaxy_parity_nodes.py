@@ -2882,6 +2882,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_tree": {
+            "display_name": "CheckM tree",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "checkm_analyze": {
             "display_name": "CheckM analyze",
             "category": "metagenomics",
@@ -9740,6 +9747,201 @@ def test_checkm_lineage_wf_renders_collection_command_with_identifiers_and_valid
     )
     assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "extra_outputs": ["bad"]}) == (
         "extra_outputs values must be one of: phylo_hmm_info, bin_stats_tree, hmmer_tree, concatenated_tre, concatenated_fasta, hmmer_tree_ali, concatenate_pplacer_json, genes_fna, genes_faa, genes_gff, marker_file, hmmer_analyze, bin_stats_analyze, checkm_hmm_info, hmmer_analyze_ali, bin_stats_ext, marker_gene_stats"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"]}) is True
+
+
+def test_checkm_tree_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_tree"]
+
+    assert info["display_name"] == "CheckM tree"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Place genome bins in the CheckM reference genome tree."
+    assert info["output"] == [
+        "FILE",
+        "TSV",
+        "DIRECTORY",
+        "FASTA",
+        "PHYLOXML",
+        "DIRECTORY",
+        "JSON",
+        "DIRECTORY",
+        "DIRECTORY",
+        "DIRECTORY",
+    ]
+    assert info["output_name"] == [
+        "phylo_hmm_info",
+        "bin_stats_tree",
+        "hmmer_tree",
+        "concatenated_fasta",
+        "concatenated_tre",
+        "hmmer_tree_ali",
+        "concatenated_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+    ]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm tree" in info["search_aliases"]
+    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
+    assert info["input"]["optional"]["reduced_tree"][1]["default"] is False
+    assert info["input"]["optional"]["extra_outputs"][1]["options"] == [
+        "hmmer_tree_ali",
+        "concatenate_pplacer_json",
+        "genes_fna",
+        "genes_faa",
+        "genes_gff",
+    ]
+
+
+def test_checkm_tree_renders_collection_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_tree")
+
+    assert node_class.render_command(
+        {
+            "bins": ["sample A.fasta", "sample B.fasta"],
+            "input_mode": "collection",
+            "element_identifiers": ["bin/A", "bin B"],
+            "reduced_tree": True,
+            "ali": True,
+            "nt": True,
+            "genes": False,
+            "threads": 4,
+            "extra_outputs": [
+                "hmmer_tree_ali",
+                "concatenate_pplacer_json",
+                "genes_fna",
+                "genes_faa",
+                "genes_gff",
+            ],
+            "output": "/work/checkm_tree",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_tree/bins",
+        "/work/checkm_tree/output",
+        "&&",
+        "ln",
+        "-sf",
+        "sample A.fasta",
+        "/work/checkm_tree/bins/bin_A.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "sample B.fasta",
+        "/work/checkm_tree/bins/bin_B.fasta",
+        "&&",
+        "checkm",
+        "tree",
+        "/work/checkm_tree/bins",
+        "/work/checkm_tree/output",
+        "--reduced_tree",
+        "--ali",
+        "--nt",
+        "--extension",
+        "fasta",
+        "--threads",
+        "4",
+        "--pplacer_threads",
+        "4",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "ali": True,
+            "nt": True,
+            "genes": False,
+            "extra_outputs": [
+                "hmmer_tree_ali",
+                "concatenate_pplacer_json",
+                "genes_fna",
+                "genes_faa",
+                "genes_gff",
+            ],
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "checkm_tree" / "output" / "storage" / "phylo_hmm_info.pkl.gz",
+        tmp_path / "checkm_tree" / "output" / "storage" / "bin_stats.tree.tsv",
+        tmp_path / "checkm_tree" / "output" / "bins" / "hmmer_tree",
+        tmp_path / "checkm_tree" / "output" / "storage" / "tree" / "concatenated.fasta",
+        tmp_path / "checkm_tree" / "output" / "storage" / "tree" / "concatenated.tre",
+        tmp_path / "checkm_tree" / "output" / "bins" / "hmmer_tree_ali",
+        tmp_path / "checkm_tree" / "output" / "storage" / "tree" / "concatenated.pplacer.json",
+        tmp_path / "checkm_tree" / "output" / "bins" / "genes_fna",
+        tmp_path / "checkm_tree" / "output" / "bins" / "genes_faa",
+        tmp_path / "checkm_tree" / "output" / "bins" / "genes_gff",
+    ]
+
+
+def test_checkm_tree_renders_individual_gene_bins_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_tree")
+
+    assert node_class.render_command(
+        {
+            "bins": ["bin one.faa", "bin#2.faa"],
+            "input_mode": "individual",
+            "reduced_tree": False,
+            "ali": False,
+            "nt": False,
+            "genes": True,
+            "threads": 2,
+            "output": "/work/checkm_tree",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_tree/bins",
+        "/work/checkm_tree/output",
+        "&&",
+        "ln",
+        "-sf",
+        "bin one.faa",
+        "/work/checkm_tree/bins/bin_one.faa.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "bin#2.faa",
+        "/work/checkm_tree/bins/bin_2.faa.fasta",
+        "&&",
+        "checkm",
+        "tree",
+        "/work/checkm_tree/bins",
+        "/work/checkm_tree/output",
+        "--genes",
+        "--extension",
+        "fasta",
+        "--threads",
+        "2",
+        "--pplacer_threads",
+        "2",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"ali": False, "nt": True, "genes": True, "extra_outputs": ["hmmer_tree_ali", "genes_fna", "genes_gff"]},
+        tmp_path,
+    ) == [
+        tmp_path / "checkm_tree" / "output" / "storage" / "phylo_hmm_info.pkl.gz",
+        tmp_path / "checkm_tree" / "output" / "storage" / "bin_stats.tree.tsv",
+        tmp_path / "checkm_tree" / "output" / "bins" / "hmmer_tree",
+        tmp_path / "checkm_tree" / "output" / "storage" / "tree" / "concatenated.fasta",
+        tmp_path / "checkm_tree" / "output" / "storage" / "tree" / "concatenated.tre",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one bins value is required"
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "input_mode": "bad"}) == (
+        "input_mode must be one of: individual, collection"
+    )
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "threads": 0}) == "threads must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"], "extra_outputs": ["bad"]}) == (
+        "extra_outputs values must be one of: hmmer_tree_ali, concatenate_pplacer_json, genes_fna, genes_faa, genes_gff"
     )
     assert node_class.VALIDATE_INPUTS({"bins": ["bin.fna"]}) is True
 
