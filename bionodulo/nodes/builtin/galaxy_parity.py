@@ -195,6 +195,17 @@ BLASTXML_TO_GAPPED_GFF3_CITATION_URL = (
 BLASTXML_TO_GAPPED_GFF3_CITATION_TEXT = (
     "BlastXML to gapped GFF3 converts BLAST XML alignments into GFF3 with match_part features and Gap attributes."
 )
+CAT_CITATION_DOIS = [
+    "10.1101/072868",
+    "10.1186/s13059-019-1817-x",
+    "10.1038/nmeth.3176",
+    "10.1186/1471-2105-11-119",
+]
+CAT_CITATION_URL = "https://github.com/dutilh/CAT"
+CAT_CITATION_TEXT = (
+    "CAT and BAT classify contigs and metagenome-assembled genomes taxonomically; "
+    "the Galaxy wrappers also cite DIAMOND protein alignment and Prodigal prokaryotic gene recognition."
+)
 AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
 AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
 LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
@@ -3607,6 +3618,189 @@ class BlastxmlToGappedGff3Node(CommandNode):
                         "description": "Path to the Galaxy blastxml_to_gapped_gff3.py helper script",
                     },
                 ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class _CatBaseNode(CommandNode):
+    """Shared metadata for CAT/BAT Galaxy wrappers."""
+
+    REQUIRED_CONDA_PACKAGES = ["cat"]
+    CATEGORY = "taxonomy"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CAT",
+        "BAT",
+        "Contig Annotation Tool",
+        "Bin Annotation Tool",
+        "taxonomic classification",
+        "metagenomics",
+    ]
+    REQUIRED_EXECUTABLES = ["CAT", "tabpad.py"]
+    DOCUMENTATION_URL = CAT_CITATION_URL
+    CITATION_DOIS = CAT_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CAT_CITATION_DOIS]
+    CITATION_TEXT = CAT_CITATION_TEXT
+    VERSION = "5.2.3+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.tsv"
+
+    @classmethod
+    def _tabpad_path(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("tabpad_path", "tabpad.py") or "tabpad.py")
+
+    @classmethod
+    def _tabpad_command(cls, inputs: dict[str, Any], input_txt: str) -> list[str]:
+        return [cls._tabpad_path(inputs), "-i", input_txt, "-o", cls._output_path(inputs)]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.tsv"]
+
+    @classmethod
+    def _tabpad_input(cls) -> tuple[str, dict[str, Any]]:
+        return (
+            "FILE",
+            {
+                "default": "tabpad.py",
+                "advanced": True,
+                "description": "Path to the Galaxy CAT tabpad.py helper script",
+            },
+        )
+
+
+class CatAddNamesNode(_CatBaseNode):
+    """Add taxonomic names to CAT or BAT classification outputs."""
+
+    NODE_ID = "cat_add_names"
+    DISPLAY_NAME = "CAT add_names"
+    DESCRIPTION = "Annotate CAT or BAT classification tables with taxonomic names."
+    SEARCH_ALIASES = [
+        *_CatBaseNode.SEARCH_ALIASES,
+        "cat_add_names",
+        "CAT add_names",
+        "taxonomic names",
+        "official taxonomic ranks",
+        "ORF2LCA",
+        "contig2classification",
+        "bin2classification",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+
+    @classmethod
+    def _names_txt_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output_names.txt"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        names_txt = cls._names_txt_path(inputs)
+        cmd = [
+            "CAT",
+            "add_names",
+            "-i",
+            str(inputs.get("input", "")),
+            "--taxonomy_folder",
+            str(inputs.get("taxonomy_folder", "")),
+        ]
+        if inputs.get("only_official", True):
+            cmd.append("--only_official")
+        if inputs.get("exclude_scores", False):
+            cmd.append("--exclude_scores")
+        cmd.extend(["-o", names_txt])
+        return f"{_shell_join(cmd)} && {_shell_join(cls._tabpad_command(inputs, names_txt))}"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        if not str(inputs.get("taxonomy_folder", "")).strip():
+            return "taxonomy_folder is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "CAT or BAT classification table or ORF2LCA output"}),
+                "taxonomy_folder": (
+                    "DIRECTORY",
+                    {"description": "CAT taxonomy folder containing NCBI taxonomy files"},
+                ),
+            },
+            "optional": {
+                "only_official": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Only output official taxonomic rank names"},
+                ),
+                "exclude_scores": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Exclude bit-score support scores in the lineage columns"},
+                ),
+                "tabpad_path": cls._tabpad_input(),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class CatSummariseNode(_CatBaseNode):
+    """Summarise CAT or BAT taxonomic assignments by official name."""
+
+    NODE_ID = "cat_summarise"
+    DISPLAY_NAME = "CAT summarise"
+    DESCRIPTION = "Summarise CAT or BAT assignments by official taxonomic name."
+    SEARCH_ALIASES = [
+        *_CatBaseNode.SEARCH_ALIASES,
+        "cat_summarise",
+        "CAT summarise",
+        "classification.summary.txt",
+        "number of assignments",
+        "taxonomic summary",
+        "official taxonomic names",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+
+    @classmethod
+    def _summary_txt_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output_names_summary.txt"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        summary_txt = cls._summary_txt_path(inputs)
+        cmd = ["CAT", "summarise"]
+        if str(inputs.get("contigs_fasta", "")).strip():
+            cmd.extend(["-c", str(inputs.get("contigs_fasta", ""))])
+        cmd.extend(["-i", str(inputs.get("input", "")), "-o", summary_txt])
+        return f"{_shell_join(cmd)} && {_shell_join(cls._tabpad_command(inputs, summary_txt))}"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "Official-name CAT/BAT classification table from CAT add_names"}),
+            },
+            "optional": {
+                "contigs_fasta": (
+                    "FASTA",
+                    {
+                        "default": "",
+                        "description": "Contigs FASTA used for CAT contigs summaries; optional for BAT bin summaries",
+                    },
+                ),
+                "tabpad_path": cls._tabpad_input(),
             },
             "hidden": {"output": ("STRING", {})},
         }

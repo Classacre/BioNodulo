@@ -4304,6 +4304,133 @@ def test_bctools_remaining_wrappers_validate_required_inputs_and_options() -> No
     assert remove_spurious.VALIDATE_INPUTS({"events": "events.bed", "threshold": 0.1}) is True
 
 
+def test_cat_add_names_and_summarise_expose_galaxy_metadata_and_dois() -> None:
+    object_info = _registry().object_info()
+
+    add_names = object_info["cat_add_names"]
+    assert add_names["display_name"] == "CAT add_names"
+    assert add_names["category"] == "taxonomy"
+    assert add_names["description"] == "Annotate CAT or BAT classification tables with taxonomic names."
+    assert add_names["input"]["required"]["input"][0] == "TSV"
+    assert add_names["input"]["required"]["taxonomy_folder"][0] == "DIRECTORY"
+    assert add_names["input"]["optional"]["only_official"][1]["default"] is True
+    assert add_names["input"]["optional"]["exclude_scores"][1]["default"] is False
+    assert add_names["input"]["optional"]["tabpad_path"][1]["default"] == "tabpad.py"
+    assert add_names["output"] == ["TSV"]
+    assert add_names["output_name"] == ["output"]
+    assert add_names["required_executables"] == ["CAT", "tabpad.py"]
+    assert add_names["required_conda_packages"] == ["cat"]
+    assert add_names["documentation_url"] == "https://github.com/dutilh/CAT"
+    assert add_names["citation_dois"] == [
+        "10.1101/072868",
+        "10.1186/s13059-019-1817-x",
+        "10.1038/nmeth.3176",
+        "10.1186/1471-2105-11-119",
+    ]
+    assert add_names["citation_urls"] == [
+        "https://doi.org/10.1101/072868",
+        "https://doi.org/10.1186/s13059-019-1817-x",
+        "https://doi.org/10.1038/nmeth.3176",
+        "https://doi.org/10.1186/1471-2105-11-119",
+    ]
+    assert "CAT and BAT" in add_names["citation_text"]
+    assert "official taxonomic ranks" in add_names["search_aliases"]
+
+    summarise = object_info["cat_summarise"]
+    assert summarise["display_name"] == "CAT summarise"
+    assert summarise["category"] == "taxonomy"
+    assert summarise["description"] == "Summarise CAT or BAT assignments by official taxonomic name."
+    assert summarise["input"]["required"]["input"][0] == "TSV"
+    assert summarise["input"]["optional"]["contigs_fasta"][0] == "FASTA"
+    assert summarise["input"]["optional"]["contigs_fasta"][1]["default"] == ""
+    assert summarise["input"]["optional"]["tabpad_path"][1]["default"] == "tabpad.py"
+    assert summarise["output"] == ["TSV"]
+    assert summarise["output_name"] == ["output"]
+    assert summarise["required_executables"] == ["CAT", "tabpad.py"]
+    assert summarise["required_conda_packages"] == ["cat"]
+    assert summarise["documentation_url"] == "https://github.com/dutilh/CAT"
+    assert summarise["citation_dois"] == add_names["citation_dois"]
+    assert summarise["citation_urls"] == add_names["citation_urls"]
+    assert "number of assignments" in summarise["search_aliases"]
+
+
+def test_cat_add_names_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("cat_add_names")
+
+    assert node_class.render_command(
+        {
+            "input": "test_contig.contig2classification.txt",
+            "taxonomy_folder": "/data/CAT taxonomy",
+            "only_official": True,
+            "exclude_scores": True,
+            "output": "/work/cat_add_names",
+        }
+    ) == (
+        "CAT add_names -i test_contig.contig2classification.txt "
+        "--taxonomy_folder '/data/CAT taxonomy' --only_official --exclude_scores "
+        "-o /work/cat_add_names/output_names.txt && "
+        "tabpad.py -i /work/cat_add_names/output_names.txt -o /work/cat_add_names/output.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "ORF2LCA names.txt",
+            "taxonomy_folder": "/data/taxonomy",
+            "only_official": False,
+            "exclude_scores": False,
+            "tabpad_path": "/tools/cat/tab pad.py",
+            "output": "/work/cat_add_names",
+        }
+    ) == (
+        "CAT add_names -i 'ORF2LCA names.txt' --taxonomy_folder /data/taxonomy "
+        "-o /work/cat_add_names/output_names.txt && "
+        "'/tools/cat/tab pad.py' -i /work/cat_add_names/output_names.txt -o /work/cat_add_names/output.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cat_add_names" / "output.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "classification.txt"}) == "taxonomy_folder is required"
+    assert node_class.VALIDATE_INPUTS({"input": "classification.txt", "taxonomy_folder": "taxonomy"}) is True
+
+
+def test_cat_summarise_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("cat_summarise")
+
+    assert node_class.render_command(
+        {
+            "input": "test_contig.contig2classification.names.txt",
+            "contigs_fasta": "contigs.fasta",
+            "output": "/work/cat_summarise",
+        }
+    ) == (
+        "CAT summarise -c contigs.fasta -i test_contig.contig2classification.names.txt "
+        "-o /work/cat_summarise/output_names_summary.txt && "
+        "tabpad.py -i /work/cat_summarise/output_names_summary.txt -o /work/cat_summarise/output.tsv"
+    )
+
+    assert node_class.render_command(
+        {
+            "input": "bin classification.names.txt",
+            "contigs_fasta": "",
+            "tabpad_path": "/tools/cat/tab pad.py",
+            "output": "/work/cat_summarise",
+        }
+    ) == (
+        "CAT summarise -i 'bin classification.names.txt' "
+        "-o /work/cat_summarise/output_names_summary.txt && "
+        "'/tools/cat/tab pad.py' -i /work/cat_summarise/output_names_summary.txt "
+        "-o /work/cat_summarise/output.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cat_summarise" / "output.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "classification.names.txt"}) is True
+
+
 def test_blastxml_to_gapped_gff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["blastxml_to_gapped_gff3"]
 

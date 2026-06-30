@@ -431,6 +431,56 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/blastxml_to_gapped_gff3'],
     citation_text: 'BlastXML to gapped GFF3 converts BLAST XML alignments into GFF3 with match_part features and Gap attributes.',
   },
+  cat_add_names: {
+    name: 'cat_add_names',
+    display_name: 'CAT add_names',
+    category: 'taxonomy',
+    description: 'Annotate CAT or BAT classification tables with taxonomic names.',
+    search_aliases: ['Galaxy', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_add_names', 'CAT add_names', 'taxonomic names', 'official taxonomic ranks', 'ORF2LCA', 'contig2classification', 'bin2classification'],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+        taxonomy_folder: { type: 'DIRECTORY' },
+      },
+      optional: {
+        only_official: { type: 'BOOLEAN', default: true },
+        exclude_scores: { type: 'BOOLEAN', default: false },
+        tabpad_path: { type: 'FILE', default: 'tabpad.py' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['CAT', 'tabpad.py'],
+    required_conda_packages: ['cat'],
+    documentation_url: 'https://github.com/dutilh/CAT',
+    citation_dois: ['10.1101/072868', '10.1186/s13059-019-1817-x', '10.1038/nmeth.3176', '10.1186/1471-2105-11-119'],
+    citation_urls: ['https://doi.org/10.1101/072868', 'https://doi.org/10.1186/s13059-019-1817-x', 'https://doi.org/10.1038/nmeth.3176', 'https://doi.org/10.1186/1471-2105-11-119'],
+    citation_text: 'CAT and BAT classify contigs and metagenome-assembled genomes taxonomically; the Galaxy wrappers also cite DIAMOND protein alignment and Prodigal prokaryotic gene recognition.',
+  },
+  cat_summarise: {
+    name: 'cat_summarise',
+    display_name: 'CAT summarise',
+    category: 'taxonomy',
+    description: 'Summarise CAT or BAT assignments by official taxonomic name.',
+    search_aliases: ['Galaxy', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_summarise', 'CAT summarise', 'classification.summary.txt', 'number of assignments', 'taxonomic summary', 'official taxonomic names'],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+      },
+      optional: {
+        contigs_fasta: { type: 'FASTA', default: '' },
+        tabpad_path: { type: 'FILE', default: 'tabpad.py' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['CAT', 'tabpad.py'],
+    required_conda_packages: ['cat'],
+    documentation_url: 'https://github.com/dutilh/CAT',
+    citation_dois: ['10.1101/072868', '10.1186/s13059-019-1817-x', '10.1038/nmeth.3176', '10.1186/1471-2105-11-119'],
+    citation_urls: ['https://doi.org/10.1101/072868', 'https://doi.org/10.1186/s13059-019-1817-x', 'https://doi.org/10.1038/nmeth.3176', 'https://doi.org/10.1186/1471-2105-11-119'],
+    citation_text: 'CAT and BAT classify contigs and metagenome-assembled genomes taxonomically; the Galaxy wrappers also cite DIAMOND protein alignment and Prodigal prokaryotic gene recognition.',
+  },
   aegean_canongff3: {
     name: 'aegean_canongff3',
     display_name: 'AEGeAn CanonGFF3',
@@ -12290,7 +12340,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('422 nodes available')).toBeVisible();
+  await expect(page.getByText('424 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12310,6 +12360,8 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: '3-prime tail', name: "Remove 3'-end nts", category: 'sequence' },
     { query: 'spurious events', name: 'Remove spurious', category: 'sequence' },
     { query: 'gapped GFF3', name: 'BlastXML to gapped GFF3', category: 'annotation' },
+    { query: 'official taxonomic ranks', name: 'CAT add_names', category: 'taxonomy' },
+    { query: 'classification.summary.txt', name: 'CAT summarise', category: 'taxonomy' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },
