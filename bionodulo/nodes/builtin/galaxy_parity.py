@@ -3441,6 +3441,128 @@ class CrossMapRegionNode(CommandNode):
         }
 
 
+class CrossMapVcfNode(CommandNode):
+    """Lift VCF variants between genome assemblies with CrossMap."""
+
+    NODE_ID = "crossmap_vcf"
+    DISPLAY_NAME = "CrossMap VCF"
+    REQUIRED_CONDA_PACKAGES = ["crossmap", "coreutils"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Lift VCF variants between genome assemblies with CrossMap."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CrossMap",
+        "crossmap_vcf",
+        "liftover VCF",
+        "variant coordinate conversion",
+        "reference allele liftover",
+        "VCF assembly conversion",
+        "chain file",
+    ]
+    RETURN_TYPES = ("VCF", "VCF")
+    RETURN_NAMES = ("output", "output_unmapped")
+    REQUIRED_EXECUTABLES = ["CrossMap", "ln"]
+    DOCUMENTATION_URL = f"{DOI_URL}{CROSSMAP_CITATION_DOI}"
+    CITATION_DOIS = [CROSSMAP_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CROSSMAP_CITATION_DOI}"]
+    CITATION_TEXT = CROSSMAP_CITATION_TEXT
+    VERSION = "0.7.3+galaxy0"
+    SHELL = True
+
+    SOURCE_OPTIONS = ["cached", "history"]
+    INDEX_SOURCE_OPTIONS = CrossMapBedNode.INDEX_SOURCE_OPTIONS
+
+    @classmethod
+    def _index_source_s(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("index_source_s", "history") or "history")
+
+    @classmethod
+    def _index_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("index_source", "history") or "history")
+
+    @staticmethod
+    def _no_comp_alleles(inputs: dict[str, Any]) -> bool:
+        value = inputs.get("no_comp_alleles", False)
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        genome_fasta = f"{out}/genome.fasta"
+        link_cmd = ["ln", "-s", str(inputs.get("input_fasta", "")), genome_fasta]
+        crossmap_cmd = [
+            "CrossMap",
+            "vcf",
+            str(inputs.get("input_chain", "")),
+            str(inputs.get("input", "")),
+            genome_fasta,
+        ]
+        if cls._no_comp_alleles(inputs):
+            crossmap_cmd.append("--no-comp-alleles")
+        crossmap_cmd.append(f"{out}/output")
+        return " && ".join([_shell_join(link_cmd), _shell_join(crossmap_cmd)])
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output", out / "output.unmap"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input VCF is required"
+        if not str(inputs.get("input_fasta", "")).strip():
+            return "input_fasta FASTA is required"
+        if not str(inputs.get("input_chain", "")).strip():
+            return "input_chain is required"
+        index_source_s = cls._index_source_s(inputs)
+        if index_source_s not in cls.SOURCE_OPTIONS:
+            return f"index_source_s must be one of: {', '.join(cls.SOURCE_OPTIONS)}"
+        index_source = cls._index_source(inputs)
+        if index_source not in cls.INDEX_SOURCE_OPTIONS:
+            return f"index_source must be one of: {', '.join(cls.INDEX_SOURCE_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("VCF", {"description": "VCF variants to lift over"}),
+                "input_fasta": ("FASTA", {"description": "Target assembly genome FASTA"}),
+                "input_chain": ("TXT", {"description": "LiftOver chain file"}),
+            },
+            "optional": {
+                "index_source_s": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.SOURCE_OPTIONS,
+                        "description": "Galaxy source selector for input VCF and target FASTA",
+                    },
+                ),
+                "index_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.INDEX_SOURCE_OPTIONS,
+                        "description": "Galaxy source selector for cached or history chain files",
+                    },
+                ),
+                "no_comp_alleles": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Pass --no-comp-alleles to skip reference/alternate allele comparison",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class ColumnMakerNode(CommandNode):
     """Compute expressions on tabular rows and add, insert, or replace columns."""
 

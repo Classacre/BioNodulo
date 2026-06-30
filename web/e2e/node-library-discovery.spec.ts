@@ -399,6 +399,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btt730'],
     citation_text: 'CrossMap: a versatile tool for coordinate conversion between genome assemblies.',
   },
+  crossmap_vcf: {
+    name: 'crossmap_vcf',
+    display_name: 'CrossMap VCF',
+    category: 'variant',
+    description: 'Lift VCF variants between genome assemblies with CrossMap.',
+    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_vcf', 'liftover VCF', 'variant coordinate conversion', 'reference allele liftover', 'VCF assembly conversion', 'chain file'],
+    input: {
+      required: {
+        input: { type: 'VCF' },
+        input_fasta: { type: 'FASTA' },
+        input_chain: { type: 'STRING' },
+      },
+      optional: {
+        index_source_s: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        index_source: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        no_comp_alleles: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['VCF', 'VCF'],
+    output_name: ['output', 'output_unmapped'],
+    required_executables: ['CrossMap', 'ln'],
+    required_conda_packages: ['crossmap', 'coreutils'],
+    documentation_url: 'https://doi.org/10.1093/bioinformatics/btt730',
+    citation_dois: ['10.1093/bioinformatics/btt730'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btt730'],
+    citation_text: 'CrossMap: a versatile tool for coordinate conversion between genome assemblies.',
+  },
   Add_a_column1: {
     name: 'Add_a_column1',
     display_name: 'Compute on rows',
@@ -13749,7 +13776,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('474 nodes available')).toBeVisible();
+  await expect(page.getByText('475 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13768,6 +13795,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'liftover BigWig', name: 'CrossMap BigWig', category: 'genomics' },
     { query: 'liftover GFF', name: 'CrossMap GFF', category: 'annotation' },
     { query: 'liftover BED regions', name: 'CrossMap region', category: 'annotation' },
+    { query: 'liftover VCF', name: 'CrossMap VCF', category: 'variant' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

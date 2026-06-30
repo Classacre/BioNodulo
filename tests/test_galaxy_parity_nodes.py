@@ -4258,6 +4258,88 @@ def test_crossmap_region_validates_required_inputs_and_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over"}) is True
 
 
+def test_crossmap_vcf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["crossmap_vcf"]
+
+    assert info["display_name"] == "CrossMap VCF"
+    assert info["category"] == "variant"
+    assert info["description"] == "Lift VCF variants between genome assemblies with CrossMap."
+    assert info["output"] == ["VCF", "VCF"]
+    assert info["output_name"] == ["output", "output_unmapped"]
+    assert info["required_executables"] == ["CrossMap", "ln"]
+    assert info["required_conda_packages"] == ["crossmap", "coreutils"]
+    assert info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btt730"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
+    assert "CrossMap" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "liftover VCF" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "VCF"
+    assert info["input"]["required"]["input_fasta"][0] == "FASTA"
+    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["optional"]["index_source_s"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["no_comp_alleles"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["no_comp_alleles"][1]["default"] is False
+
+
+def test_crossmap_vcf_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("crossmap_vcf")
+
+    assert node_class.render_command(
+        {
+            "input": "variants.vcf",
+            "input_fasta": "hg38.fa",
+            "input_chain": "hg19ToHg38.over.chain",
+            "output": "/work/crossmap_vcf",
+        }
+    ) == (
+        "ln -s hg38.fa /work/crossmap_vcf/genome.fasta && "
+        "CrossMap vcf hg19ToHg38.over.chain variants.vcf /work/crossmap_vcf/genome.fasta /work/crossmap_vcf/output"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "crossmap_vcf" / "output",
+        tmp_path / "crossmap_vcf" / "output.unmap",
+    ]
+
+
+def test_crossmap_vcf_renders_no_comp_alleles_and_quotes_paths() -> None:
+    node_class = _node_class("crossmap_vcf")
+
+    assert node_class.render_command(
+        {
+            "input": "old variants.vcf",
+            "input_fasta": "target genome.fa",
+            "input_chain": "chain files/a to b.over.chain",
+            "no_comp_alleles": True,
+            "output": "/work/crossmap_vcf",
+        }
+    ) == (
+        "ln -s 'target genome.fa' /work/crossmap_vcf/genome.fasta && "
+        "CrossMap vcf 'chain files/a to b.over.chain' 'old variants.vcf' "
+        "/work/crossmap_vcf/genome.fasta --no-comp-alleles /work/crossmap_vcf/output"
+    )
+
+
+def test_crossmap_vcf_validates_required_inputs_and_options() -> None:
+    node_class = _node_class("crossmap_vcf")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input VCF is required"
+    assert node_class.VALIDATE_INPUTS({"input": "variants.vcf"}) == "input_fasta FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"input": "variants.vcf", "input_fasta": "hg38.fa"}) == (
+        "input_chain is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "variants.vcf", "input_fasta": "hg38.fa", "input_chain": "chain.over", "index_source_s": "remote"}
+    ) == "index_source_s must be one of: cached, history"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "variants.vcf", "input_fasta": "hg38.fa", "input_chain": "chain.over", "index_source": "remote"}
+    ) == "index_source must be one of: cached, history"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "variants.vcf", "input_fasta": "hg38.fa", "input_chain": "chain.over"}
+    ) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 
