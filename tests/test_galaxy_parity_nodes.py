@@ -10903,6 +10903,65 @@ def test_snippy_core_renders_commands_outputs_and_validates(tmp_path: Path) -> N
     assert node_class.VALIDATE_INPUTS({"indirs": ["a.tgz", "b.tgz"], "ref_file": "ref.fa"}) is True
 
 
+def test_snippy_clean_full_aln_exposes_galaxy_metadata_inputs_outputs_and_citation_url() -> None:
+    node_info = _registry().object_info()["snippy_clean_full_aln"]
+
+    assert node_info["display_name"] == "snippy-clean_full_aln"
+    assert node_info["category"] == "variant"
+    assert node_info["description"] == (
+        "Replace non-standard sequence characters in a Snippy core.full.aln alignment."
+    )
+    assert node_info["output"] == ["FASTA"]
+    assert node_info["output_name"] == ["clean_full_aln"]
+    assert node_info["required_executables"] == ["snippy-clean_full_aln"]
+    assert node_info["required_conda_packages"] == ["snippy", "tar"]
+    assert node_info["documentation_url"] == "https://github.com/tseemann/snippy"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/tseemann/snippy"]
+    assert "fast bacterial variant calling from NGS reads" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "core.full.aln" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["full_aln"][0] == "FASTA"
+    assert node_info["input"]["optional"]["custom_char_selector"][1]["default"] is False
+    assert node_info["input"]["optional"]["to_char"][1]["default"] == "N"
+
+
+def test_snippy_clean_full_aln_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("snippy_clean_full_aln")
+
+    assert node_class.render_command(
+        {
+            "full_aln": "core.full.aln",
+            "output": "/work/snippy-clean",
+        }
+    ) == "snippy-clean_full_aln core.full.aln > /work/snippy-clean/clean.full.aln"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "snippy_clean_full_aln" / "clean.full.aln",
+    ]
+
+    assert node_class.render_command(
+        {
+            "full_aln": "core full nonclean.aln",
+            "custom_char_selector": True,
+            "to_char": "X",
+            "output": "/work/snippy-clean",
+        }
+    ) == "snippy-clean_full_aln 'core full nonclean.aln' --to X > /work/snippy-clean/clean.full.aln"
+
+    assert node_class.VALIDATE_INPUTS({}) == "full_aln is required"
+    assert node_class.VALIDATE_INPUTS({"full_aln": "core.full.aln", "custom_char_selector": True, "to_char": ""}) == (
+        "to_char is required when custom_char_selector is true"
+    )
+    assert node_class.VALIDATE_INPUTS({"full_aln": "core.full.aln", "custom_char_selector": True, "to_char": "XX"}) == (
+        "to_char must be a single replacement character"
+    )
+    assert node_class.VALIDATE_INPUTS({"full_aln": "core.full.aln", "custom_char_selector": True, "to_char": "'"}) == (
+        "to_char must not contain a single quote"
+    )
+    assert node_class.VALIDATE_INPUTS({"full_aln": "core.full.aln", "custom_char_selector": True, "to_char": "X"}) is True
+    assert node_class.VALIDATE_INPUTS({"full_aln": "core.full.aln"}) is True
+
+
 def test_minia_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["minia"]
 

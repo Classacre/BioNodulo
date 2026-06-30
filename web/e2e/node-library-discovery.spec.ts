@@ -3088,6 +3088,30 @@ const objectInfo = {
     citation_urls: ['https://github.com/tseemann/snippy'],
     citation_text: 'snippy: fast bacterial variant calling from NGS reads.',
   },
+  snippy_clean_full_aln: {
+    name: 'snippy_clean_full_aln',
+    display_name: 'snippy-clean_full_aln',
+    category: 'variant',
+    description: 'Replace non-standard sequence characters in a Snippy core.full.aln alignment.',
+    search_aliases: ['Galaxy', 'snippy-clean_full_aln', 'Snippy clean full alignment', 'Snippy', 'core.full.aln', 'clean.full.aln', 'whole genome SNP alignment', 'Gubbins'],
+    input: {
+      required: {
+        full_aln: { type: 'FASTA' },
+      },
+      optional: {
+        custom_char_selector: { type: 'BOOLEAN', default: false },
+        to_char: { type: 'STRING', default: 'N' },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['clean_full_aln'],
+    required_executables: ['snippy-clean_full_aln'],
+    required_conda_packages: ['snippy', 'tar'],
+    documentation_url: 'https://github.com/tseemann/snippy',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/snippy'],
+    citation_text: 'snippy: fast bacterial variant calling from NGS reads.',
+  },
   genomescope: {
     name: 'genomescope',
     display_name: 'GenomeScope',
@@ -14235,7 +14259,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('490 nodes available')).toBeVisible();
+  await expect(page.getByText('491 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14356,6 +14380,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Faster SPAdes assembly', name: 'Shovill', category: 'assembly' },
     { query: 'haploid variant calling', name: 'Snippy', category: 'variant' },
     { query: 'core SNP alignment', name: 'snippy-core', category: 'variant' },
+    { query: 'core.full.aln', name: 'snippy-clean_full_aln', category: 'variant' },
     { query: 'reference-free genome profiling', name: 'GenomeScope', category: 'assembly' },
     { query: 'Illumina read simulator', name: 'ART Illumina', category: 'simulation' },
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },

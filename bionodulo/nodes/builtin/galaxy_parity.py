@@ -11555,6 +11555,93 @@ class SnippyCoreNode(CommandNode):
         }
 
 
+class SnippyCleanFullAlnNode(CommandNode):
+    """Replace non-standard characters in a Snippy whole-genome alignment."""
+
+    NODE_ID = "snippy_clean_full_aln"
+    DISPLAY_NAME = "snippy-clean_full_aln"
+    REQUIRED_CONDA_PACKAGES = ["snippy", "tar"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Replace non-standard sequence characters in a Snippy core.full.aln alignment."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "snippy-clean_full_aln",
+        "Snippy clean full alignment",
+        "Snippy",
+        "core.full.aln",
+        "clean.full.aln",
+        "whole genome SNP alignment",
+        "Gubbins",
+    ]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("clean_full_aln",)
+    REQUIRED_EXECUTABLES = ["snippy-clean_full_aln"]
+    DOCUMENTATION_URL = SNIPPY_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [SNIPPY_CITATION_URL]
+    CITATION_TEXT = SNIPPY_CITATION_TEXT
+    VERSION = "4.6.0+galaxy0"
+    SHELL = True
+
+    OUTPUT_FILENAME = "clean.full.aln"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls.OUTPUT_FILENAME}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["snippy-clean_full_aln", str(inputs.get("full_aln", "") or "")]
+        if inputs.get("custom_char_selector"):
+            cmd.extend(["--to", str(inputs.get("to_char", "N") or "N")])
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls.OUTPUT_FILENAME]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("full_aln", "") or "").strip():
+            return "full_aln is required"
+        if inputs.get("custom_char_selector"):
+            to_char = str(inputs.get("to_char", "") or "")
+            if not to_char:
+                return "to_char is required when custom_char_selector is true"
+            if "'" in to_char:
+                return "to_char must not contain a single quote"
+            if len(to_char) != 1:
+                return "to_char must be a single replacement character"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "full_aln": (
+                    "FASTA",
+                    {"description": "Snippy core.full.aln FASTA alignment to clean"},
+                ),
+            },
+            "optional": {
+                "custom_char_selector": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use a custom replacement character instead of Snippy's N"},
+                ),
+                "to_char": (
+                    "STRING",
+                    {
+                        "default": "N",
+                        "description": "Single replacement character for non-AGTCN-gap symbols when custom mode is enabled",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 ABRICATE_CITATION_TEXT = "ABRicate: mass screening of contigs for antibiotic resistance genes."
 ABRICATE_CITATION_URL = "https://github.com/tseemann/abricate"
 
