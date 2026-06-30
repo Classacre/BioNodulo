@@ -5861,6 +5861,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/005165', 'https://doi.org/10.21105/joss.00731'],
     citation_text: 'qqman: an R package for visualizing GWAS results using Q-Q and manhattan plots.',
   },
+  heinz_visualization: {
+    name: 'heinz_visualization',
+    display_name: 'Visualize Heinz subnetwork',
+    category: 'visualization',
+    description: 'Render a Heinz optimal scoring subnetwork DOT output as a PDF graph.',
+    search_aliases: ['Galaxy', 'Heinz', 'heinz_visualization', 'Visualize Heinz subnetwork', 'optimal scoring subnetwork', 'DOT graph', 'Graphviz', 'subnetwork PDF'],
+    input: {
+      required: {
+        subnetwork: { type: 'FILE' },
+      },
+      optional: {
+        script_path: { type: 'FILE', default: 'visualization.py', advanced: true },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['visualization'],
+    required_executables: ['python'],
+    required_conda_packages: ['graphviz', 'py-graphviz', 'fonts-conda-ecosystem'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/heinz',
+    citation_dois: ['10.1093/bioinformatics/btn161', '10.1093/bioinformatics/btg148'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btn161', 'https://doi.org/10.1093/bioinformatics/btg148'],
+    citation_text: 'Heinz identifies optimal scoring subnetworks; Beta-Uniform Mixture models support p-value distribution scoring.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12627,7 +12650,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('435 nodes available')).toBeVisible();
+  await expect(page.getByText('436 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12834,6 +12857,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Phenopacket JSON', name: 'Beacon2 PXF2BFF', category: 'metadata' },
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
+    { query: 'optimal scoring subnetwork', name: 'Visualize Heinz subnetwork', category: 'visualization' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },

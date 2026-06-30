@@ -26943,6 +26943,11 @@ BIOM_FORMAT_DOI = "10.1186/2047-217X-1-7"
 BIOM_FORMAT_CITATION_TEXT = "The Biological Observation Matrix (BIOM) format."
 QQMAN_CITATION_DOIS = ["10.1101/005165", "10.21105/joss.00731"]
 QQMAN_CITATION_TEXT = "qqman: an R package for visualizing GWAS results using Q-Q and manhattan plots."
+HEINZ_CITATION_DOIS = ["10.1093/bioinformatics/btn161", "10.1093/bioinformatics/btg148"]
+HEINZ_CITATION_TEXT = (
+    "Heinz identifies optimal scoring subnetworks; "
+    "Beta-Uniform Mixture models support p-value distribution scoring."
+)
 TAXPASTA_DOI = "10.21105/joss.05627"
 TAXPASTA_CITATION_TEXT = "TAXPASTA: TAXonomic Profile Aggregation and STAndardisation."
 HUMANN_CITATION_DOIS = ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
@@ -27340,6 +27345,81 @@ class QQManhattanNode(CommandNode):
                 "script_path": (
                     "FILE",
                     {"default": "manhattan.R", "advanced": True, "description": "Path to the Galaxy qqman R wrapper script"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class HeinzVisualizationNode(CommandNode):
+    """Render a Heinz optimal scoring subnetwork as a PDF graph."""
+
+    NODE_ID = "heinz_visualization"
+    DISPLAY_NAME = "Visualize Heinz subnetwork"
+    REQUIRED_CONDA_PACKAGES = ["graphviz", "py-graphviz", "fonts-conda-ecosystem"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Render a Heinz optimal scoring subnetwork DOT output as a PDF graph."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Heinz",
+        "heinz_visualization",
+        "Visualize Heinz subnetwork",
+        "optimal scoring subnetwork",
+        "DOT graph",
+        "Graphviz",
+        "subnetwork PDF",
+    ]
+    RETURN_TYPES = ("PDF",)
+    RETURN_NAMES = ("visualization",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/heinz"
+    CITATION_DOIS = HEINZ_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in HEINZ_CITATION_DOIS]
+    CITATION_TEXT = HEINZ_CITATION_TEXT
+    VERSION = "0.1.1"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/visualization.pdf"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "visualization.py")),
+            "-i",
+            str(inputs.get("subnetwork", "")),
+            "-o",
+            cls._output_path(inputs),
+        ]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "visualization.pdf"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("subnetwork", "")).strip():
+            return "subnetwork is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "subnetwork": (
+                    "FILE",
+                    {"description": "Raw Heinz optimal scoring subnetwork output containing DOT graph content"},
+                ),
+            },
+            "optional": {
+                "script_path": (
+                    "FILE",
+                    {"default": "visualization.py", "advanced": True, "description": "Path to the Galaxy Heinz visualization script"},
                 ),
             },
             "hidden": {"output": ("STRING", {})},

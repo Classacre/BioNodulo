@@ -34263,3 +34263,52 @@ def test_qq_manhattan_validates_required_columns_and_title() -> None:
     assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv", "snp": ""}) == "snp column name is required"
     assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv", "name": ""}) == "plot title is required"
     assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv"}) is True
+
+
+def test_heinz_visualization_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["heinz_visualization"]
+
+    assert info["display_name"] == "Visualize Heinz subnetwork"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Render a Heinz optimal scoring subnetwork DOT output as a PDF graph."
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["visualization"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["graphviz", "py-graphviz", "fonts-conda-ecosystem"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/heinz"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btn161", "10.1093/bioinformatics/btg148"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/bioinformatics/btn161",
+        "https://doi.org/10.1093/bioinformatics/btg148",
+    ]
+    assert "Heinz" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "optimal scoring subnetwork" in info["search_aliases"]
+    assert info["input"]["required"]["subnetwork"][0] == "FILE"
+    assert info["input"]["optional"]["script_path"][1]["default"] == "visualization.py"
+
+
+def test_heinz_visualization_renders_python_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("heinz_visualization")
+
+    assert node_class.render_command(
+        {
+            "subnetwork": "Heinz output.txt",
+            "script_path": "/tools/heinz/visualization.py",
+            "output": "/work/heinz_visualization",
+        }
+    ) == (
+        "python /tools/heinz/visualization.py -i 'Heinz output.txt' "
+        "-o /work/heinz_visualization/visualization.pdf"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "heinz_visualization" / "visualization.pdf",
+    ]
+
+
+def test_heinz_visualization_validates_required_input() -> None:
+    node_class = _node_class("heinz_visualization")
+
+    assert node_class.VALIDATE_INPUTS({}) == "subnetwork is required"
+    assert node_class.VALIDATE_INPUTS({"subnetwork": "Heinz_output.txt"}) is True
