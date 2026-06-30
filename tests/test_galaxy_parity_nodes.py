@@ -10826,6 +10826,129 @@ def test_cherri_eval_renders_command_outputs_and_validation(tmp_path: Path) -> N
     )
 
 
+def test_cherri_train_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["cherri_train"]
+
+    assert info["display_name"] == "Train a CheRRI model using RRIs"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Train a CheRRI model from RNA-RNA interaction summary files."
+    assert info["output"] == ["TGZ"]
+    assert info["output_name"] == ["out_model"]
+    assert info["required_executables"] == ["cherri", "tar"]
+    assert info["required_conda_packages"] == ["cherri"]
+    assert info["documentation_url"] == "https://github.com/BackofenLab/CheRRI"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/cherri"]
+    assert "RNA-RNA interaction" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "cherri train" in info["search_aliases"]
+    assert info["version"] == "0.7+galaxy0"
+    assert info["input"]["optional"]["experiments"][0] == "JSON"
+    assert info["input"]["optional"]["experiment_name"][1]["default"] == "myExperiment"
+    assert info["input"]["optional"]["rep_samples"][0] == "TSV"
+    assert info["input"]["optional"]["rep_samples"][1]["is_list"] is True
+    assert info["input"]["optional"]["context"][1] == {"default": 150, "min": 0}
+    assert info["input"]["optional"]["run_time"][1] == {"default": 43200, "min": 0}
+    assert info["input"]["optional"]["use_structure"][1]["default"] is True
+    assert info["input"]["optional"]["filter_hybrid"][1]["default"] is False
+
+
+def test_cherri_train_renders_single_experiment_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cherri_train")
+
+    assert node_class.render_command(
+        {
+            "experiment_name": "myExperiment1",
+            "genome_fasta": "train genome.fa",
+            "chrom_len_file": "train lengths.tsv",
+            "rep_samples": ["rep 1.tabular", "rep2.tabular"],
+            "context": 150,
+            "run_time": 60,
+            "use_structure": True,
+            "output": "/work/cherri_train",
+        }
+    ) == (
+        "mkdir -p /work/cherri_train && cd /work/cherri_train && export PYTHONHASHSEED=31337 && "
+        "mkdir myExperiment1 && mkdir myExperiment1/tmp && ln -s 'train genome.fa' myExperiment1/genome.fa && "
+        "ln -s 'rep 1.tabular' myExperiment1/0.tabular && ln -s rep2.tabular myExperiment1/1.tabular && "
+        "cherri train -i1 myExperiment1 -r 0.tabular 1.tabular -g myExperiment1/genome.fa -l 'train lengths.tsv' "
+        "-n myExperiment1 -o . -on myExperiment1 -tp myExperiment1/tmp -c 150 -st on -t 60 "
+        "-me ${GALAXY_MEMORY_MB_PER_SLOT:-8000} -j ${GALAXY_SLOTS:-1} && "
+        "ln -s myExperiment1/model/optimized/full_myExperiment1_context_150.model final_full.model && "
+        "ln -s myExperiment1/feature_files/training_data_myExperiment1_context_150.npz features.npz && "
+        "tar -zhcvf model.tgz final_full.model features.npz"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cherri_train" / "model.tgz"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "genome_fasta is required"
+    assert node_class.VALIDATE_INPUTS({"genome_fasta": "genome.fa"}) == "chrom_len_file is required"
+    assert node_class.VALIDATE_INPUTS({"genome_fasta": "genome.fa", "chrom_len_file": "lengths.tsv"}) == (
+        "at least one rep_samples value is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"genome_fasta": "genome.fa", "chrom_len_file": "lengths.tsv", "rep_samples": ["rep.tabular"], "context": -1}
+    ) == "context must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"genome_fasta": "genome.fa", "chrom_len_file": "lengths.tsv", "rep_samples": ["rep.tabular"], "run_time": -1}
+    ) == "run_time must be greater than or equal to 0"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {"genome_fasta": "genome.fa", "chrom_len_file": "lengths.tsv", "rep_samples": ["rep.tabular"]}
+        )
+        is True
+    )
+
+
+def test_cherri_train_renders_mixed_model_command_with_options() -> None:
+    node_class = _node_class("cherri_train")
+
+    assert node_class.render_command(
+        {
+            "experiments": [
+                {
+                    "exp_name": "exp one",
+                    "genome_fasta": "train_1.fa",
+                    "chrom_len_file": "train_1_len.tabular",
+                    "rep_samples": ["train_1_pos.tabular"],
+                    "occupied_regions": "occupied 1.bed",
+                },
+                {
+                    "exp_name": "Exp-2",
+                    "genome_fasta": "train_2.fa",
+                    "chrom_len_file": "train_2_len.tabular",
+                    "rep_samples": ["train_2_pos.tabular", "train_2_second.tabular"],
+                },
+            ],
+            "context": 100,
+            "intarna_param_file": "intarna params.txt",
+            "use_structure": False,
+            "run_time": 60,
+            "output": "/work/cherri_train",
+        }
+    ) == (
+        "mkdir -p /work/cherri_train && cd /work/cherri_train && export PYTHONHASHSEED=31337 && "
+        "mkdir exp_one && mkdir exp_one/tmp && ln -s train_1.fa exp_one/genome.fa && "
+        "ln -s train_1_pos.tabular exp_one/0.tabular && cherri train -i1 exp_one -r 0.tabular "
+        "-g exp_one/genome.fa -l train_1_len.tabular -n exp_one -i2 'occupied 1.bed' -o . -on exp_one "
+        "-tp exp_one/tmp -p 'intarna params.txt' -c 100 -st off -t 60 -me ${GALAXY_MEMORY_MB_PER_SLOT:-8000} "
+        "-j ${GALAXY_SLOTS:-1} && mkdir -p mixed_model && ln -s ../exp_one mixed_model/exp_one && "
+        "mkdir Exp_2 && mkdir Exp_2/tmp && ln -s train_2.fa Exp_2/genome.fa && "
+        "ln -s train_2_pos.tabular Exp_2/0.tabular && ln -s train_2_second.tabular Exp_2/1.tabular && "
+        "cherri train -i1 Exp_2 -r 0.tabular 1.tabular -g Exp_2/genome.fa -l train_2_len.tabular "
+        "-n Exp_2 -o . -on Exp_2 -tp Exp_2/tmp -p 'intarna params.txt' -c 100 -st off -t 60 "
+        "-me ${GALAXY_MEMORY_MB_PER_SLOT:-8000} -j ${GALAXY_SLOTS:-1} && mkdir -p mixed_model && "
+        "ln -s ../Exp_2 mixed_model/Exp_2 && mkdir mixed_model/tmp && cherri train -mi on -i1 mixed_model "
+        "-r exp_one Exp_2 -g /not/needed/ -l /not/needed/ -n mixed -o . -on mixed_model -tp mixed_model/tmp "
+        "-p 'intarna params.txt' -c 100 -st off -t 60 -me ${GALAXY_MEMORY_MB_PER_SLOT:-8000} "
+        "-j ${GALAXY_SLOTS:-1} && ln -s mixed_model/mixed/model/optimized/full_mixed_context_100.model "
+        "final_full.model && ln -s mixed_model/mixed/model/features/mixed_context_100.npz features.npz && "
+        "tar -zhcvf model.tgz final_full.model features.npz"
+    )
+    assert node_class.VALIDATE_INPUTS({"experiments": [{"exp_name": "bad"}]}) == (
+        "experiments[0].genome_fasta is required"
+    )
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 
