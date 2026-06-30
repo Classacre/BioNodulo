@@ -3852,6 +3852,127 @@ def test_abricate_summary_renders_summary_command_outputs_and_validates(tmp_path
     assert node_class.VALIDATE_INPUTS({"abricate_reports": ["card.tsv", "megares.tsv"]}) is True
 
 
+def test_plasmidfinder_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["plasmidfinder"]
+
+    assert info["display_name"] == "PlasmidFinder"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Identify plasmid replicons in bacterial assemblies or reads with PlasmidFinder."
+    assert info["input"]["required"]["input_file"][0] == "FILE"
+    assert info["input"]["required"]["database"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["input_format"][1]["default"] == "fasta"
+    assert info["input"]["optional"]["input_format"][1]["options"] == ["fasta", "fastq"]
+    assert info["input"]["optional"]["min_cov"][1]["default"] == 0.6
+    assert info["input"]["optional"]["min_cov"][1]["min"] == 0
+    assert info["input"]["optional"]["min_cov"][1]["max"] == 1
+    assert info["input"]["optional"]["threshold"][1]["default"] == 0.95
+    assert info["input"]["optional"]["threshold"][1]["min"] == 0
+    assert info["input"]["optional"]["threshold"][1]["max"] == 1
+    assert info["input"]["optional"]["output_selection"][1]["default"] == [
+        "hit_fasta",
+        "plasmid_fasta",
+        "result_tsv",
+        "result_txt",
+    ]
+    assert info["input"]["optional"]["output_selection"][1]["options"] == [
+        "data_json",
+        "hit_fasta",
+        "plasmid_fasta",
+        "result_tsv",
+        "result_txt",
+        "logfile",
+    ]
+    assert info["output"] == ["JSON", "FASTA", "FASTA", "TSV", "TXT", "TXT"]
+    assert info["output_name"] == [
+        "json_file",
+        "hit_file",
+        "plasmid_file",
+        "result_file",
+        "raw_file",
+        "log_file",
+    ]
+    assert info["required_executables"] == ["plasmidfinder.py"]
+    assert info["required_conda_packages"] == ["plasmidfinder"]
+    assert info["documentation_url"] == "https://bitbucket.org/genomicepidemiology/plasmidfinder"
+    assert info["citation_dois"] == ["10.1007/978-1-4939-9877-7_20"]
+    assert info["citation_urls"] == ["https://doi.org/10.1007/978-1-4939-9877-7_20"]
+    assert "PlasmidFinder and In Silico pMLST" in info["citation_text"]
+    assert "plasmid replicon" in info["search_aliases"]
+
+
+def test_plasmidfinder_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("plasmidfinder")
+
+    assert node_class.render_command(
+        {
+            "input_file": "assembly contigs.fasta",
+            "database": "/db/plasmidfinder/latest",
+            "input_format": "fasta",
+            "min_cov": 0.2,
+            "threshold": 0.6,
+            "output": "/work/plasmidfinder",
+        }
+    ) == (
+        "mkdir -p /work/plasmidfinder/output_dir /work/plasmidfinder/temp_dir && "
+        "plasmidfinder.py -i 'assembly contigs.fasta' -p /db/plasmidfinder/latest -l 0.2 -t 0.6 "
+        "-mp blastn -x -o /work/plasmidfinder/output_dir -tmp /work/plasmidfinder/temp_dir "
+        "| tee /work/plasmidfinder/log.txt"
+    )
+
+    assert node_class.render_command(
+        {
+            "input_file": "reads.fastq.gz",
+            "database": "/db/plasmidfinder/2022-12-20",
+            "input_format": "fastq",
+            "output": "/work/plasmidfinder",
+        }
+    ) == (
+        "mkdir -p /work/plasmidfinder/output_dir /work/plasmidfinder/temp_dir && "
+        "plasmidfinder.py -i reads.fastq.gz -p /db/plasmidfinder/2022-12-20 -l 0.6 -t 0.95 "
+        "-mp kma -x -o /work/plasmidfinder/output_dir -tmp /work/plasmidfinder/temp_dir "
+        "| tee /work/plasmidfinder/log.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "plasmidfinder" / "Hit_in_genome_seq.fsa",
+        tmp_path / "plasmidfinder" / "Plasmid_seqs.fsa",
+        tmp_path / "plasmidfinder" / "results_tab.tsv",
+        tmp_path / "plasmidfinder" / "results.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"output_selection": ["data_json", "result_tsv", "logfile"]}, tmp_path) == [
+        tmp_path / "plasmidfinder" / "data.json",
+        tmp_path / "plasmidfinder" / "results_tab.tsv",
+        tmp_path / "plasmidfinder" / "log.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({"input_file": "", "database": "/db/plasmidfinder"}) == (
+        "input_file is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "assembly.fa", "database": ""}) == "database is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "assembly.fa", "database": "/db/plasmidfinder", "input_format": "bad"}
+    ) == "input_format must be one of: fasta, fastq"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "assembly.fa", "database": "/db/plasmidfinder", "min_cov": -0.1}
+    ) == "min_cov must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "assembly.fa", "database": "/db/plasmidfinder", "threshold": 1.1}
+    ) == "threshold must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "assembly.fa", "database": "/db/plasmidfinder", "threshold": "high"}
+    ) == "threshold must be a number"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "assembly.fa",
+            "database": "/db/plasmidfinder",
+            "output_selection": ["result_tsv", "unknown"],
+        }
+    ) == (
+        "output_selection values must be one of: data_json, hit_fasta, plasmid_fasta, result_tsv, result_txt, "
+        "logfile"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "assembly.fa", "database": "/db/plasmidfinder"}) is True
+
+
 def test_add_input_name_as_column_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["add_input_name_as_column"]
 

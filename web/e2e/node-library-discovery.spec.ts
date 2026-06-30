@@ -3126,6 +3126,33 @@ const objectInfo = {
     citation_urls: ['https://github.com/tseemann/abricate'],
     citation_text: 'ABRicate: mass screening of contigs for antibiotic resistance genes.',
   },
+  plasmidfinder: {
+    name: 'plasmidfinder',
+    display_name: 'PlasmidFinder',
+    category: 'annotation',
+    description: 'Identify plasmid replicons in bacterial assemblies or reads with PlasmidFinder.',
+    search_aliases: ['Galaxy', 'PlasmidFinder', 'plasmidfinder', 'plasmid identification', 'plasmid replicon', 'pMLST', 'bacterial WGS', 'replicon typing'],
+    input: {
+      required: {
+        input_file: { type: 'FILE' },
+        database: { type: 'DIRECTORY' },
+      },
+      optional: {
+        input_format: { type: 'STRING', default: 'fasta', options: ['fasta', 'fastq'] },
+        min_cov: { type: 'FLOAT', default: 0.6, min: 0, max: 1 },
+        threshold: { type: 'FLOAT', default: 0.95, min: 0, max: 1 },
+        output_selection: { type: 'STRING', default: ['hit_fasta', 'plasmid_fasta', 'result_tsv', 'result_txt'], options: ['data_json', 'hit_fasta', 'plasmid_fasta', 'result_tsv', 'result_txt', 'logfile'], multiple: true },
+      },
+    },
+    output: ['JSON', 'FASTA', 'FASTA', 'TSV', 'TXT', 'TXT'],
+    output_name: ['json_file', 'hit_file', 'plasmid_file', 'result_file', 'raw_file', 'log_file'],
+    required_executables: ['plasmidfinder.py'],
+    required_conda_packages: ['plasmidfinder'],
+    documentation_url: 'https://bitbucket.org/genomicepidemiology/plasmidfinder',
+    citation_dois: ['10.1007/978-1-4939-9877-7_20'],
+    citation_urls: ['https://doi.org/10.1007/978-1-4939-9877-7_20'],
+    citation_text: 'PlasmidFinder and In Silico pMLST: Identification and Typing of Plasmid Replicons in Whole-Genome Sequencing (WGS).',
+  },
   amplican: {
     name: 'amplican',
     display_name: 'AmpliCan',
@@ -13933,7 +13960,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('481 nodes available')).toBeVisible();
+  await expect(page.getByText('482 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14056,6 +14083,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'abricate antimicrobial resistance', name: 'ABRicate', category: 'annotation' },
     { query: 'ABRicate databases', name: 'ABRicate List', category: 'annotation' },
     { query: 'presence absence matrix', name: 'ABRicate Summary', category: 'annotation' },
+    { query: 'plasmid replicon', name: 'PlasmidFinder', category: 'annotation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ampvis2 alpha diversity', name: 'ampvis2 alpha diversity', category: 'metagenomics' },
     { query: 'ampvis2 boxplot', name: 'ampvis2 boxplot', category: 'metagenomics' },
