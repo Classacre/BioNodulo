@@ -521,6 +521,37 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_numeric_param'],
     citation_text: 'Galaxy calculate_numeric_param expression tool for deriving integer or floating-point parameter values.',
   },
+  calculate_contrast_threshold: {
+    name: 'calculate_contrast_threshold',
+    display_name: 'Calculate Contrast threshold',
+    category: 'visualization',
+    description: 'Calculate heatmap contrast thresholds from tag pileup CDT matrices.',
+    search_aliases: ['Galaxy', 'calculate_contrast_threshold', 'Calculate Contrast threshold', 'tag pileup CDT', 'heatmap contrast', 'contrast threshold', 'calcThreshold.txt', 'ChIP-QC'],
+    input: {
+      required: {
+        input_file: { type: 'STRING' },
+      },
+      optional: {
+        header: { type: 'BOOLEAN', default: true },
+        start_col: { type: 'INT', default: 2, min: 1 },
+        col_num: { type: 'INT', default: 300, min: 1 },
+        row_num: { type: 'INT', default: 600, min: 1 },
+        quantile_type_selector: { type: 'STRING', default: 'b_option', options: ['b_option', 't_option'] },
+        quantile: { type: 'FLOAT', default: 95.0, min: 0, max: 100 },
+        min_contrast: { type: 'FLOAT', default: 0.0, min: 0 },
+        quantile2: { type: 'FLOAT', default: 0.0, min: 0 },
+        script_path: { type: 'FILE', default: 'calculate_contrast_threshold.py' },
+      },
+    },
+    output: ['TXT'],
+    output_name: ['threshold_output'],
+    required_executables: ['python'],
+    required_conda_packages: ['python', 'numpy'],
+    documentation_url: 'https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold',
+    citation_dois: [],
+    citation_urls: ['https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold', 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_contrast_threshold', 'http://www.pughlab.psu.edu/'],
+    citation_text: 'calculate_contrast_threshold is an unpublished Pugh Lab / CEGR ChIP-QC helper for calculating heatmap contrast thresholds from tag pileup CDT matrices.',
+  },
   CoverageReport2: {
     name: 'CoverageReport2',
     display_name: 'Panel Coverage Report',
@@ -16272,7 +16303,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('548 nodes available')).toBeVisible();
+  await expect(page.getByText('549 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16295,6 +16326,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'liftover Wiggle', name: 'CrossMap Wig', category: 'genomics' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'arithmetic parameter', name: 'Calculate numeric parameter value', category: 'data_transform' },
+    { query: 'tag pileup CDT', name: 'Calculate Contrast threshold', category: 'visualization' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },
     { query: 'index reads', name: 'Barcode Splitter', category: 'sequence' },

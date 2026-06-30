@@ -7025,6 +7025,117 @@ def test_calculate_numeric_param_validates_components_and_operators() -> None:
     ) == "division by zero is not allowed"
 
 
+def test_calculate_contrast_threshold_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["calculate_contrast_threshold"]
+
+    assert info["display_name"] == "Calculate Contrast threshold"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Calculate heatmap contrast thresholds from tag pileup CDT matrices."
+    assert info["input"]["required"]["input_file"][0] == "STRING"
+    assert info["input"]["optional"]["header"][1]["default"] is True
+    assert info["input"]["optional"]["start_col"][1]["default"] == 2
+    assert info["input"]["optional"]["col_num"][1]["default"] == 300
+    assert info["input"]["optional"]["row_num"][1]["default"] == 600
+    assert info["input"]["optional"]["quantile_type_selector"][1]["default"] == "b_option"
+    assert info["input"]["optional"]["quantile_type_selector"][1]["options"] == ["b_option", "t_option"]
+    assert info["input"]["optional"]["quantile"][1]["default"] == 95.0
+    assert info["input"]["optional"]["min_contrast"][1]["default"] == 0.0
+    assert info["input"]["optional"]["quantile2"][1]["default"] == 0.0
+    assert info["input"]["optional"]["script_path"][1]["default"] == "calculate_contrast_threshold.py"
+    assert info["output"] == ["TXT"]
+    assert info["output_name"] == ["threshold_output"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["python", "numpy"]
+    assert info["documentation_url"] == (
+        "https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold"
+    )
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == [
+        "https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold",
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_contrast_threshold",
+        "http://www.pughlab.psu.edu/",
+    ]
+    assert "unpublished Pugh Lab" in info["citation_text"]
+    assert "tag pileup CDT" in info["search_aliases"]
+
+
+def test_calculate_contrast_threshold_renders_quantile_and_absolute_commands(tmp_path: Path) -> None:
+    node_class = _node_class("calculate_contrast_threshold")
+
+    assert node_class.render_command(
+        {
+            "input_file": "pileup matrix.tabular",
+            "header": True,
+            "start_col": 2,
+            "row_num": 600,
+            "col_num": 300,
+            "quantile_type_selector": "b_option",
+            "quantile": 95,
+            "min_contrast": 5,
+            "script_path": "/tools/contrast threshold/calculate_contrast_threshold.py",
+            "output": "/work/calculate_contrast_threshold",
+        }
+    ) == (
+        "mkdir -p /work/calculate_contrast_threshold && "
+        "cd /work/calculate_contrast_threshold && "
+        "python '/tools/contrast threshold/calculate_contrast_threshold.py' -i 'pileup matrix.tabular' "
+        "-q 95 -m 5 -d T -s 2 -r 600 -l 300 && "
+        "cp calcThreshold.txt /work/calculate_contrast_threshold/threshold_output.txt"
+    )
+    assert node_class.render_command(
+        {
+            "input_file": "pileup.tabular",
+            "header": False,
+            "quantile_type_selector": "t_option",
+            "quantile2": 10.0,
+            "output": "/work/calculate_contrast_threshold",
+        }
+    ) == (
+        "mkdir -p /work/calculate_contrast_threshold && "
+        "cd /work/calculate_contrast_threshold && "
+        "python calculate_contrast_threshold.py -i pileup.tabular -t 10.0 -d F -s 2 -r 600 -l 300 && "
+        "cp calcThreshold.txt /work/calculate_contrast_threshold/threshold_output.txt"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "calculate_contrast_threshold" / "threshold_output.txt"
+    ]
+
+
+def test_calculate_contrast_threshold_validates_required_inputs_modes_and_ranges() -> None:
+    node_class = _node_class("calculate_contrast_threshold")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular", "quantile_type_selector": "bad"}) == (
+        "quantile_type_selector must be one of: b_option, t_option"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular", "quantile": -1}) == (
+        "quantile must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular", "quantile": 101}) == (
+        "quantile must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular", "min_contrast": -1}) == (
+        "min_contrast must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular", "quantile_type_selector": "t_option", "quantile2": -1}) == (
+        "quantile2 must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular", "start_col": 0}) == (
+        "start_col must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular", "row_num": 0}) == (
+        "row_num must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular", "col_num": 0}) == (
+        "col_num must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "pileup.tabular"}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": "pileup.tabular", "quantile_type_selector": "t_option", "quantile2": 10.0}
+    ) is True
+
+
 def test_coverage_report_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["CoverageReport2"]
 

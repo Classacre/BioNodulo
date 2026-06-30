@@ -219,6 +219,18 @@ CALCULATE_NUMERIC_PARAM_CITATION_URL = (
 CALCULATE_NUMERIC_PARAM_CITATION_TEXT = (
     "Galaxy calculate_numeric_param expression tool for deriving integer or floating-point parameter values."
 )
+CALCULATE_CONTRAST_THRESHOLD_DOCUMENTATION_URL = (
+    "https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold"
+)
+CALCULATE_CONTRAST_THRESHOLD_CITATION_URLS = [
+    CALCULATE_CONTRAST_THRESHOLD_DOCUMENTATION_URL,
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_contrast_threshold",
+    "http://www.pughlab.psu.edu/",
+]
+CALCULATE_CONTRAST_THRESHOLD_CITATION_TEXT = (
+    "calculate_contrast_threshold is an unpublished Pugh Lab / CEGR ChIP-QC helper for calculating "
+    "heatmap contrast thresholds from tag pileup CDT matrices."
+)
 COVERAGE_REPORT_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report"
 COVERAGE_REPORT_CITATION_TEXT = "Panel Coverage Report creates a coverage report for QC purposes."
 EXTRACT_GENOMIC_DNA_CITATION_URL = (
@@ -6676,6 +6688,170 @@ class CalculateNumericParamNode(BaseNode):
         if str(kwargs.get("output_type", "integer") or "integer") == "integer":
             value = float(int(value))
         return (value, int(value))
+
+
+class CalculateContrastThresholdNode(CommandNode):
+    """Calculate heatmap contrast thresholds from tag pileup CDT matrices."""
+
+    NODE_ID = "calculate_contrast_threshold"
+    DISPLAY_NAME = "Calculate Contrast threshold"
+    REQUIRED_CONDA_PACKAGES = ["python", "numpy"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Calculate heatmap contrast thresholds from tag pileup CDT matrices."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "calculate_contrast_threshold",
+        "Calculate Contrast threshold",
+        "tag pileup CDT",
+        "heatmap contrast",
+        "contrast threshold",
+        "calcThreshold.txt",
+        "ChIP-QC",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("threshold_output",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = CALCULATE_CONTRAST_THRESHOLD_DOCUMENTATION_URL
+    CITATION_URLS = CALCULATE_CONTRAST_THRESHOLD_CITATION_URLS
+    CITATION_TEXT = CALCULATE_CONTRAST_THRESHOLD_CITATION_TEXT
+    VERSION = "1.0.0"
+    SHELL = True
+
+    QUANTILE_TYPE_OPTIONS = ["b_option", "t_option"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/threshold_output.txt"
+
+    @classmethod
+    def _quantile_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("quantile_type_selector", "b_option") or "b_option")
+
+    @classmethod
+    def _header_value(cls, inputs: dict[str, Any]) -> str:
+        return "T" if inputs.get("header", True) else "F"
+
+    @classmethod
+    def _numeric_at_least(
+        cls, inputs: dict[str, Any], name: str, default: int | float, minimum: int | float, *, integer: bool
+    ) -> bool | str:
+        raw = inputs.get(name, default)
+        try:
+            value = int(raw) if integer else float(raw)
+        except (TypeError, ValueError):
+            return f"{name} must be {'an integer' if integer else 'numeric'}"
+        if value < minimum:
+            return f"{name} must be greater than or equal to {minimum}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "calculate_contrast_threshold.py") or "calculate_contrast_threshold.py"),
+            "-i",
+            str(inputs.get("input_file", "")),
+        ]
+        if cls._quantile_type(inputs) == "t_option":
+            cmd.extend(["-t", str(inputs.get("quantile2", 0.0))])
+        else:
+            cmd.extend(["-q", str(inputs.get("quantile", 95.0)), "-m", str(inputs.get("min_contrast", 0.0))])
+        cmd.extend(
+            [
+                "-d",
+                cls._header_value(inputs),
+                "-s",
+                str(inputs.get("start_col", 2)),
+                "-r",
+                str(inputs.get("row_num", 600)),
+                "-l",
+                str(inputs.get("col_num", 300)),
+            ]
+        )
+        return (
+            f"{_shell_join(['mkdir', '-p', out])} && "
+            f"cd {shlex.quote(out)} && "
+            f"{_shell_join(cmd)} && "
+            f"{_shell_join(['cp', 'calcThreshold.txt', cls._output_path(inputs)])}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "threshold_output.txt"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_file", "")).strip():
+            return "input_file is required"
+        quantile_type = cls._quantile_type(inputs)
+        if quantile_type not in cls.QUANTILE_TYPE_OPTIONS:
+            return f"quantile_type_selector must be one of: {', '.join(cls.QUANTILE_TYPE_OPTIONS)}"
+        for name, default in [("start_col", 2), ("row_num", 600), ("col_num", 300)]:
+            result = cls._numeric_at_least(inputs, name, default, 1, integer=True)
+            if result is not True:
+                return result
+        if quantile_type == "t_option":
+            result = cls._numeric_at_least(inputs, "quantile2", 0.0, 0, integer=False)
+            if result is not True:
+                return result
+        else:
+            try:
+                quantile = float(inputs.get("quantile", 95.0))
+            except (TypeError, ValueError):
+                return "quantile must be numeric"
+            if quantile < 0 or quantile > 100:
+                return "quantile must be between 0 and 100"
+            result = cls._numeric_at_least(inputs, "min_contrast", 0.0, 0, integer=False)
+            if result is not True:
+                return result
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("TXT", {"description": "Tag pileup CDT data matrix"}),
+            },
+            "optional": {
+                "header": ("BOOLEAN", {"default": True, "description": "Whether the input file has a header row"}),
+                "start_col": ("INT", {"default": 2, "min": 1, "description": "1-based valid data start column"}),
+                "col_num": ("INT", {"default": 300, "min": 1, "description": "Heatmap plot width in pixels"}),
+                "row_num": ("INT", {"default": 600, "min": 1, "description": "Heatmap plot height in pixels"}),
+                "quantile_type_selector": (
+                    "STRING",
+                    {
+                        "default": "b_option",
+                        "options": cls.QUANTILE_TYPE_OPTIONS,
+                        "description": "Calculate thresholds from data or enforce an absolute threshold",
+                    },
+                ),
+                "quantile": ("FLOAT", {"default": 95.0, "min": 0, "max": 100, "description": "Percentile threshold"}),
+                "min_contrast": (
+                    "FLOAT",
+                    {
+                        "default": 0.0,
+                        "min": 0,
+                        "description": "Minimum upper limit after quantile calculation",
+                    },
+                ),
+                "quantile2": (
+                    "FLOAT",
+                    {"default": 0.0, "min": 0, "description": "Absolute tag threshold for t_option mode"},
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "calculate_contrast_threshold.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy calculate_contrast_threshold.py helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
 
 
 class CoverageReportNode(CommandNode):
