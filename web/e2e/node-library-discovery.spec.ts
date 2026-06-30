@@ -5762,6 +5762,77 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/2047-217X-1-7'],
     citation_text: 'The Biological Observation Matrix (BIOM) format.',
   },
+  beacon2_csv2xlsx: {
+    name: 'beacon2_csv2xlsx',
+    display_name: 'Beacon2 CSV2XLSX',
+    category: 'metadata',
+    description: 'Convert Beacon v2 Model CSV files into a multi-sheet XLSX template.',
+    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'Beacon v2 Models', 'beacon2_csv2xlsx', 'csv2xlsx', 'CSV Models to XLSX', 'Beacon-v2-Models_template'],
+    input: {
+      required: {
+        csvs: { type: 'CSV', multiple: true },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+      },
+    },
+    output: ['XLSX'],
+    output_name: ['Beacon_v2_Models_template'],
+    required_executables: ['csv2xlsx'],
+    required_conda_packages: ['beacon2-ri-tools', 'gzip'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2',
+    citation_dois: ['10.1093/bioinformatics/btac568'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btac568'],
+    citation_text: 'Beacon v2 Reference Implementation: a toolkit to enable federated sharing of genomic and phenotypic data.',
+  },
+  beacon2_pxf2bff: {
+    name: 'beacon2_pxf2bff',
+    display_name: 'Beacon2 PXF2BFF',
+    category: 'metadata',
+    description: 'Combine Phenopacket JSON files into Beacon Friendly Format JSON.',
+    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_pxf2bff', 'pxf2bff', 'Phenopacket', 'Phenopacket JSON', 'Beacon Friendly Format', 'individuals.json'],
+    input: {
+      required: {
+        input: { type: 'JSON', multiple: true },
+      },
+      optional: {
+        element_identifiers: { type: 'STRING', default: [], multiple: true },
+      },
+    },
+    output: ['JSON'],
+    output_name: ['BFF_JSON_File'],
+    required_executables: ['pxf2bff'],
+    required_conda_packages: ['beacon2-ri-tools', 'gzip'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2',
+    citation_dois: ['10.1093/bioinformatics/btac568'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btac568'],
+    citation_text: 'Beacon v2 Reference Implementation: a toolkit to enable federated sharing of genomic and phenotypic data.',
+  },
+  beacon2_vcf2bff: {
+    name: 'beacon2_vcf2bff',
+    display_name: 'Beacon2 VCF2BFF',
+    category: 'variant',
+    description: 'Convert annotated VCF files to Beacon v2 genomic variations JSON.',
+    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_vcf2bff', 'vcf2bff.pl', 'annotated VCF', 'Beacon Friendly Format', 'genomicVariations', 'genomicVariationsVcf'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+      },
+      optional: {
+        format: { type: 'STRING', default: 'bff', options: ['bff', 'hash', 'json'] },
+        dataset_id: { type: 'STRING', default: '' },
+        genome: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['JSON'],
+    output_name: ['genomicVariationsVcf'],
+    required_executables: ['vcf2bff.pl', 'gunzip'],
+    required_conda_packages: ['beacon2-ri-tools', 'gzip'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2',
+    citation_dois: ['10.1093/bioinformatics/btac568'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btac568'],
+    citation_text: 'Beacon v2 Reference Implementation: a toolkit to enable federated sharing of genomic and phenotypic data.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12528,7 +12599,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('431 nodes available')).toBeVisible();
+  await expect(page.getByText('434 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12731,6 +12802,9 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'biom from-uc', name: 'BIOM from UC', category: 'metagenomics' },
     { query: 'biom add-metadata', name: 'BIOM add metadata', category: 'metagenomics' },
     { query: 'biom convert', name: 'BIOM convert', category: 'metagenomics' },
+    { query: 'Beacon v2 Models', name: 'Beacon2 CSV2XLSX', category: 'metadata' },
+    { query: 'Phenopacket JSON', name: 'Beacon2 PXF2BFF', category: 'metadata' },
+    { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },

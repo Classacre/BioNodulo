@@ -34073,3 +34073,132 @@ def test_bcftools_plugin_split_vep_renders_annotation_command_and_output(tmp_pat
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bcftools_plugin_split_vep" / "split_vep.vcf.gz",
     ]
+
+
+def test_beacon2_nodes_expose_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    object_info = _registry().object_info()
+
+    csv2xlsx = object_info["beacon2_csv2xlsx"]
+    assert csv2xlsx["display_name"] == "Beacon2 CSV2XLSX"
+    assert csv2xlsx["category"] == "metadata"
+    assert csv2xlsx["description"] == "Convert Beacon v2 Model CSV files into a multi-sheet XLSX template."
+    assert csv2xlsx["output"] == ["XLSX"]
+    assert csv2xlsx["output_name"] == ["Beacon_v2_Models_template"]
+    assert csv2xlsx["required_executables"] == ["csv2xlsx"]
+    assert csv2xlsx["required_conda_packages"] == ["beacon2-ri-tools", "gzip"]
+    assert csv2xlsx["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2"
+    assert csv2xlsx["citation_dois"] == ["10.1093/bioinformatics/btac568"]
+    assert csv2xlsx["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btac568"]
+    assert "Beacon v2" in csv2xlsx["citation_text"]
+    assert "Galaxy" in csv2xlsx["search_aliases"]
+    assert "Beacon v2 Models" in csv2xlsx["search_aliases"]
+    assert csv2xlsx["input"]["required"]["csvs"][0] == "CSV"
+    assert csv2xlsx["input"]["required"]["csvs"][1]["multiple"] is True
+
+    pxf2bff = object_info["beacon2_pxf2bff"]
+    assert pxf2bff["display_name"] == "Beacon2 PXF2BFF"
+    assert pxf2bff["category"] == "metadata"
+    assert pxf2bff["description"] == "Combine Phenopacket JSON files into Beacon Friendly Format JSON."
+    assert pxf2bff["output"] == ["JSON"]
+    assert pxf2bff["output_name"] == ["BFF_JSON_File"]
+    assert pxf2bff["required_executables"] == ["pxf2bff"]
+    assert pxf2bff["required_conda_packages"] == ["beacon2-ri-tools", "gzip"]
+    assert pxf2bff["citation_dois"] == ["10.1093/bioinformatics/btac568"]
+    assert pxf2bff["input"]["required"]["input"][0] == "JSON"
+    assert pxf2bff["input"]["required"]["input"][1]["multiple"] is True
+
+    vcf2bff = object_info["beacon2_vcf2bff"]
+    assert vcf2bff["display_name"] == "Beacon2 VCF2BFF"
+    assert vcf2bff["category"] == "variant"
+    assert vcf2bff["description"] == "Convert annotated VCF files to Beacon v2 genomic variations JSON."
+    assert vcf2bff["output"] == ["JSON"]
+    assert vcf2bff["output_name"] == ["genomicVariationsVcf"]
+    assert vcf2bff["required_executables"] == ["vcf2bff.pl", "gunzip"]
+    assert vcf2bff["required_conda_packages"] == ["beacon2-ri-tools", "gzip"]
+    assert vcf2bff["citation_dois"] == ["10.1093/bioinformatics/btac568"]
+    assert vcf2bff["input"]["required"]["input"][0] == "FILE"
+    assert vcf2bff["input"]["optional"]["format"][1]["default"] == "bff"
+    assert vcf2bff["input"]["optional"]["format"][1]["options"] == ["bff", "hash", "json"]
+
+
+def test_beacon2_csv2xlsx_renders_symlinked_csv_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("beacon2_csv2xlsx")
+
+    assert node_class.render_command(
+        {
+            "csvs": ["data/analyses.csv", "data/genomic variations.csv", "data/runs?.csv"],
+            "element_identifiers": ["analyses.csv", "genomic variations.csv", "runs?.csv"],
+            "output": "/work/beacon2_csv2xlsx",
+        }
+    ) == (
+        "ln -s data/analyses.csv /work/beacon2_csv2xlsx/analyses.csv && "
+        "ln -s 'data/genomic variations.csv' /work/beacon2_csv2xlsx/genomic_variations.csv && "
+        "ln -s 'data/runs?.csv' /work/beacon2_csv2xlsx/runs_.csv && "
+        "csv2xlsx /work/beacon2_csv2xlsx/analyses.csv "
+        "/work/beacon2_csv2xlsx/genomic_variations.csv /work/beacon2_csv2xlsx/runs_.csv "
+        "-o /work/beacon2_csv2xlsx/Beacon-v2-Models_template.xlsx"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "beacon2_csv2xlsx" / "Beacon-v2-Models_template.xlsx",
+    ]
+
+
+def test_beacon2_pxf2bff_renders_symlinked_phenopacket_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("beacon2_pxf2bff")
+
+    assert node_class.render_command(
+        {
+            "input": ["phenopackets/EGAF00005572750.json", "phenopackets/case two.json"],
+            "element_identifiers": ["EGAF00005572750.json", "case two.json"],
+            "output": "/work/beacon2_pxf2bff",
+        }
+    ) == (
+        "ln -s phenopackets/EGAF00005572750.json /work/beacon2_pxf2bff/EGAF00005572750.json && "
+        "ln -s 'phenopackets/case two.json' /work/beacon2_pxf2bff/case_two.json && "
+        "pxf2bff -i /work/beacon2_pxf2bff/EGAF00005572750.json "
+        "-i /work/beacon2_pxf2bff/case_two.json -o /work/beacon2_pxf2bff"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "beacon2_pxf2bff" / "individuals.json",
+    ]
+
+
+def test_beacon2_vcf2bff_renders_vcf_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("beacon2_vcf2bff")
+
+    assert node_class.render_command(
+        {
+            "input": "variants/test.vcf.gz",
+            "format": "hash",
+            "dataset_id": "beacon",
+            "genome": "hg19",
+            "output": "/work/beacon2_vcf2bff",
+        }
+    ) == (
+        "ln -s variants/test.vcf.gz /work/beacon2_vcf2bff/sample.vcf.gz && "
+        "vcf2bff.pl --input /work/beacon2_vcf2bff/sample.vcf.gz --format hash "
+        "--project-dir /work/beacon2_vcf2bff --dataset-id beacon --genome hg19 && "
+        "gunzip /work/beacon2_vcf2bff/genomicVariationsVcf.json.gz"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "beacon2_vcf2bff" / "genomicVariationsVcf.json",
+    ]
+
+
+def test_beacon2_nodes_validate_required_and_option_inputs() -> None:
+    csv2xlsx = _node_class("beacon2_csv2xlsx")
+    pxf2bff = _node_class("beacon2_pxf2bff")
+    vcf2bff = _node_class("beacon2_vcf2bff")
+
+    assert csv2xlsx.VALIDATE_INPUTS({}) == "at least one CSV file is required"
+    assert csv2xlsx.VALIDATE_INPUTS({"csvs": ["analyses.csv"]}) is True
+    assert pxf2bff.VALIDATE_INPUTS({}) == "at least one Phenopacket JSON file is required"
+    assert pxf2bff.VALIDATE_INPUTS({"input": ["EGAF00005572750.json"]}) is True
+    assert vcf2bff.VALIDATE_INPUTS({}) == "input VCF.GZ is required"
+    assert vcf2bff.VALIDATE_INPUTS({"input": "test.vcf.gz", "format": "bad"}) == (
+        "format must be one of: bff, hash, json"
+    )
+    assert vcf2bff.VALIDATE_INPUTS({"input": "test.vcf.gz", "dataset_id": "beacon", "genome": "hg19"}) is True
