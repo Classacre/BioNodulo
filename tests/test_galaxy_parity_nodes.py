@@ -2903,6 +2903,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_taxon_set": {
+            "display_name": "CheckM taxon_set",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "checkm_analyze": {
             "display_name": "CheckM analyze",
             "category": "metagenomics",
@@ -10280,6 +10287,76 @@ def test_checkm_lineage_set_validates_required_inputs_and_thresholds() -> None:
             "concatenated_tre": "tree.nwk",
         }
     ) is True
+
+
+def test_checkm_taxon_set_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_taxon_set"]
+
+    assert info["display_name"] == "CheckM taxon_set"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Generate a taxonomic-specific CheckM marker set."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["marker"]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm taxon_set" in info["search_aliases"]
+    assert info["input"]["required"]["rank"][0] == "STRING"
+    assert info["input"]["required"]["rank"][1]["options"] == [
+        "life",
+        "domain",
+        "phylum",
+        "order",
+        "family",
+        "genus",
+        "species",
+    ]
+    assert info["input"]["required"]["taxon"][0] == "STRING"
+    assert info["input"]["required"]["taxon"][1]["default"] == "Prokaryote"
+
+
+def test_checkm_taxon_set_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_taxon_set")
+
+    assert node_class.render_command(
+        {"rank": "life", "taxon": "Prokaryote", "output": "/work/checkm_taxon_set"}
+    ) == [
+        "checkm",
+        "taxon_set",
+        "life",
+        "Prokaryote",
+        "/work/checkm_taxon_set/marker.tsv",
+    ]
+    assert node_class.render_command(
+        {"rank": "domain", "taxon": "Bacteria", "output": "/work/checkm_taxon_set"}
+    ) == [
+        "checkm",
+        "taxon_set",
+        "domain",
+        "Bacteria",
+        "/work/checkm_taxon_set/marker.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "checkm_taxon_set" / "marker.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "rank is required"
+    assert node_class.VALIDATE_INPUTS({"rank": "bad", "taxon": "Prokaryote"}) == (
+        "rank must be one of: life, domain, phylum, order, family, genus, species"
+    )
+    assert node_class.VALIDATE_INPUTS({"rank": "life"}) == "taxon is required"
+    assert node_class.VALIDATE_INPUTS({"rank": "life", "taxon": "Bacteria"}) == (
+        "taxon for rank life must be Prokaryote"
+    )
+    assert node_class.VALIDATE_INPUTS({"rank": "domain", "taxon": "Eukaryota"}) == (
+        "taxon for rank domain must be one of: Archaea, Bacteria"
+    )
+    assert node_class.VALIDATE_INPUTS({"rank": "genus", "taxon": "Streptococcus"}) is True
 
 
 def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:

@@ -17394,6 +17394,97 @@ class CheckMLineageSetNode(CommandNode):
         return True
 
 
+class CheckMTaxonSetNode(CommandNode):
+    """Generate a taxonomic-specific CheckM marker set."""
+
+    NODE_ID = "checkm_taxon_set"
+    DISPLAY_NAME = "CheckM taxon_set"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Generate a taxonomic-specific CheckM marker set."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "checkm taxon_set",
+        "taxon set",
+        "taxonomic marker set",
+        "marker genes",
+        "Prokaryote",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("marker",)
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    RANKS = ["life", "domain", "phylum", "order", "family", "genus", "species"]
+    DOMAIN_TAXA = ["Archaea", "Bacteria"]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        return [
+            "checkm",
+            "taxon_set",
+            str(inputs.get("rank", "")),
+            str(inputs.get("taxon", "")),
+            f"{out}/marker.tsv",
+        ]
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "marker.tsv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "rank": (
+                    "STRING",
+                    {
+                        "default": "life",
+                        "options": cls.RANKS,
+                        "description": "Taxonomic rank for the CheckM marker set",
+                    },
+                ),
+                "taxon": (
+                    "STRING",
+                    {
+                        "default": "Prokaryote",
+                        "description": "Taxon value supported by CheckM for the selected rank",
+                    },
+                ),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        rank = str(inputs.get("rank", "")).strip()
+        if not rank:
+            return "rank is required"
+        if rank not in cls.RANKS:
+            return f"rank must be one of: {', '.join(cls.RANKS)}"
+        taxon = str(inputs.get("taxon", "")).strip()
+        if not taxon:
+            return "taxon is required"
+        if rank == "life" and taxon != "Prokaryote":
+            return "taxon for rank life must be Prokaryote"
+        if rank == "domain" and taxon not in cls.DOMAIN_TAXA:
+            return f"taxon for rank domain must be one of: {', '.join(cls.DOMAIN_TAXA)}"
+        return True
+
+
 class CheckMAnalyzeNode(CommandNode):
     """Identify marker genes in genome bins with CheckM analyze."""
 
