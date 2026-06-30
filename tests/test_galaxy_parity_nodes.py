@@ -4177,6 +4177,87 @@ def test_crossmap_gff_validates_required_inputs_and_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "annotation.gff3", "input_chain": "chain.over"}) is True
 
 
+def test_crossmap_region_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["crossmap_region"]
+
+    assert info["display_name"] == "CrossMap region"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Lift whole BED regions between genome assemblies with CrossMap."
+    assert info["output"] == ["BED"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["CrossMap"]
+    assert info["required_conda_packages"] == ["crossmap"]
+    assert info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btt730"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
+    assert "CrossMap" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "liftover BED regions" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "BED"
+    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["optional"]["ratio"][1]["default"] == 0.85
+    assert info["input"]["optional"]["ratio"][1]["min"] == 0
+    assert info["input"]["optional"]["ratio"][1]["max"] == 1
+    assert info["input"]["optional"]["chromid"][1]["options"] == ["a", "s", "l"]
+    assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
+
+
+def test_crossmap_region_renders_default_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("crossmap_region")
+
+    assert node_class.render_command(
+        {
+            "input": "regions.bed",
+            "input_chain": "hg19ToHg38.over.chain",
+            "output": "/work/crossmap_region",
+        }
+    ) == (
+        "CrossMap region hg19ToHg38.over.chain regions.bed /work/crossmap_region/output "
+        "--chromid a --ratio 0.85"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "crossmap_region" / "output"]
+
+
+def test_crossmap_region_renders_custom_options_and_quotes_paths() -> None:
+    node_class = _node_class("crossmap_region")
+
+    assert node_class.render_command(
+        {
+            "input": "old regions.bed",
+            "input_chain": "chain files/a to b.over.chain",
+            "chromid": "l",
+            "ratio": 0.5,
+            "output": "/work/crossmap_region",
+        }
+    ) == (
+        "CrossMap region 'chain files/a to b.over.chain' 'old regions.bed' /work/crossmap_region/output "
+        "--chromid l --ratio 0.5"
+    )
+
+
+def test_crossmap_region_validates_required_inputs_and_options() -> None:
+    node_class = _node_class("crossmap_region")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input BED is required"
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed"}) == "input_chain is required"
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over", "chromid": "bad"}) == (
+        "chromid must be one of: a, s, l"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "regions.bed", "input_chain": "chain.over", "index_source": "remote"}
+    ) == "index_source must be one of: cached, history"
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over", "ratio": "bad"}) == (
+        "ratio must be a number"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over", "ratio": -0.1}) == (
+        "ratio must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over", "ratio": 1.1}) == (
+        "ratio must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "regions.bed", "input_chain": "chain.over"}) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 

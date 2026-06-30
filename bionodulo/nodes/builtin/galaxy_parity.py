@@ -3318,6 +3318,129 @@ class CrossMapGffNode(CommandNode):
         }
 
 
+class CrossMapRegionNode(CommandNode):
+    """Lift whole BED regions between genome assemblies with CrossMap."""
+
+    NODE_ID = "crossmap_region"
+    DISPLAY_NAME = "CrossMap region"
+    REQUIRED_CONDA_PACKAGES = ["crossmap"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Lift whole BED regions between genome assemblies with CrossMap."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CrossMap",
+        "crossmap_region",
+        "liftover BED regions",
+        "whole region liftover",
+        "coordinate conversion",
+        "BED assembly conversion",
+        "chain file",
+    ]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["CrossMap"]
+    DOCUMENTATION_URL = f"{DOI_URL}{CROSSMAP_CITATION_DOI}"
+    CITATION_DOIS = [CROSSMAP_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CROSSMAP_CITATION_DOI}"]
+    CITATION_TEXT = CROSSMAP_CITATION_TEXT
+    VERSION = "0.7.3+galaxy0"
+    SHELL = True
+
+    CHROMID_OPTIONS = ["a", "s", "l"]
+    INDEX_SOURCE_OPTIONS = CrossMapBedNode.INDEX_SOURCE_OPTIONS
+
+    @classmethod
+    def _chromid(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("chromid", "a") or "a")
+
+    @classmethod
+    def _index_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("index_source", "history") or "history")
+
+    @staticmethod
+    def _ratio(inputs: dict[str, Any]) -> Any:
+        return inputs.get("ratio", 0.85)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = [
+            "CrossMap",
+            "region",
+            str(inputs.get("input_chain", "")),
+            str(inputs.get("input", "")),
+            f"{out}/output",
+            "--chromid",
+            cls._chromid(inputs),
+            "--ratio",
+            str(cls._ratio(inputs)),
+        ]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input BED is required"
+        if not str(inputs.get("input_chain", "")).strip():
+            return "input_chain is required"
+        chromid = cls._chromid(inputs)
+        if chromid not in cls.CHROMID_OPTIONS:
+            return f"chromid must be one of: {', '.join(cls.CHROMID_OPTIONS)}"
+        index_source = cls._index_source(inputs)
+        if index_source not in cls.INDEX_SOURCE_OPTIONS:
+            return f"index_source must be one of: {', '.join(cls.INDEX_SOURCE_OPTIONS)}"
+        try:
+            ratio = float(cls._ratio(inputs))
+        except (TypeError, ValueError):
+            return "ratio must be a number"
+        if ratio < 0 or ratio > 1:
+            return "ratio must be between 0 and 1"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BED", {"description": "BED regions to lift over as whole intervals"}),
+                "input_chain": ("TXT", {"description": "LiftOver chain file"}),
+            },
+            "optional": {
+                "index_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.INDEX_SOURCE_OPTIONS,
+                        "description": "Galaxy source selector for cached or history chain files",
+                    },
+                ),
+                "ratio": (
+                    "FLOAT",
+                    {
+                        "default": 0.85,
+                        "min": 0,
+                        "max": 1,
+                        "description": "Minimum ratio of bases that must remap",
+                    },
+                ),
+                "chromid": (
+                    "STRING",
+                    {
+                        "default": "a",
+                        "options": cls.CHROMID_OPTIONS,
+                        "description": "Chromosome ID style: as-is, short N, or long chrN",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class ColumnMakerNode(CommandNode):
     """Compute expressions on tabular rows and add, insert, or replace columns."""
 
