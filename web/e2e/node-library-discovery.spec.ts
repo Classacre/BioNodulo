@@ -859,6 +859,49 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/072868', 'https://doi.org/10.1186/s13059-019-1817-x', 'https://doi.org/10.1038/nmeth.3176', 'https://doi.org/10.1186/1471-2105-11-119'],
     citation_text: 'CAT and BAT classify contigs and metagenome-assembled genomes taxonomically; the Galaxy wrappers also cite DIAMOND protein alignment and Prodigal prokaryotic gene recognition.',
   },
+  cat_contigs: {
+    name: 'cat_contigs',
+    display_name: 'CAT contigs',
+    category: 'taxonomy',
+    description: 'Classify metagenomic contigs with CAT taxonomic assignments.',
+    search_aliases: ['Galaxy', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_contigs', 'CAT contigs', 'contig classification', 'contig2classification', 'ORF2LCA', 'predicted_proteins', 'classification.summary.txt'],
+    input: {
+      required: {
+        contigs_fasta: { type: 'FASTA' },
+        database_folder: { type: 'DIRECTORY' },
+        taxonomy_folder: { type: 'DIRECTORY' },
+      },
+      optional: {
+        db_src: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        cat_db: { type: 'TXT', default: '' },
+        cat_db_extra_files_path: { type: 'DIRECTORY', default: '' },
+        use_previous: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        proteins_fasta: { type: 'FASTA', default: '' },
+        diamond_alignment: { type: 'TSV', default: '' },
+        range: { type: 'INT', default: 10, min: 0, max: 49 },
+        fraction: { type: 'FLOAT', default: 0.5, min: 0, max: 0.99 },
+        set_diamond_opts: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        sensitive: { type: 'BOOLEAN', default: false },
+        block_size: { type: 'FLOAT', default: 2.0, min: 1, max: 10 },
+        index_chunks: { type: 'INT', default: 4, min: 1, max: 10 },
+        top: { type: 'INT', default: 50, min: 1, max: 50 },
+        add_names: { type: 'STRING', default: 'no', options: ['no', 'orf2lca', 'classification', 'both'] },
+        only_official: { type: 'BOOLEAN', default: true },
+        exclude_scores: { type: 'BOOLEAN', default: false },
+        summarise: { type: 'STRING', default: 'no', options: ['no', 'classification'] },
+        select_outputs: { type: 'STRING', default: ['log', 'predicted_proteins_faa', 'orf2lca', 'contig2classification'], options: ['log', 'predicted_proteins_faa', 'predicted_proteins_gff', 'alignment_diamond', 'orf2lca', 'contig2classification'] },
+        tabpad_path: { type: 'FILE', default: 'tabpad.py' },
+      },
+    },
+    output: ['TXT', 'FASTA', 'GFF', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV'],
+    output_name: ['log', 'predicted_proteins_faa', 'predicted_proteins_gff', 'alignment_diamond', 'orf2lca', 'contig2classification', 'orf2lca_names', 'classification_names', 'classification_summary'],
+    required_executables: ['CAT', 'tabpad.py'],
+    required_conda_packages: ['cat'],
+    documentation_url: 'https://github.com/dutilh/CAT',
+    citation_dois: ['10.1101/072868', '10.1186/s13059-019-1817-x', '10.1038/nmeth.3176', '10.1186/1471-2105-11-119'],
+    citation_urls: ['https://doi.org/10.1101/072868', 'https://doi.org/10.1186/s13059-019-1817-x', 'https://doi.org/10.1038/nmeth.3176', 'https://doi.org/10.1186/1471-2105-11-119'],
+    citation_text: 'CAT and BAT classify contigs and metagenome-assembled genomes taxonomically; the Galaxy wrappers also cite DIAMOND protein alignment and Prodigal prokaryotic gene recognition.',
+  },
   cat_add_names: {
     name: 'cat_add_names',
     display_name: 'CAT add_names',
@@ -16325,7 +16368,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('550 nodes available')).toBeVisible();
+  await expect(page.getByText('551 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16361,6 +16404,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'spurious events', name: 'Remove spurious', category: 'sequence' },
     { query: 'gapped GFF3', name: 'BlastXML to gapped GFF3', category: 'annotation' },
     { query: 'CAT reference data', name: 'CAT prepare', category: 'taxonomy' },
+    { query: 'contig2classification', name: 'CAT contigs', category: 'taxonomy' },
     { query: 'official taxonomic ranks', name: 'CAT add_names', category: 'taxonomy' },
     { query: 'classification.summary.txt', name: 'CAT summarise', category: 'taxonomy' },
     { query: 'PubMLST sequence typing', name: 'MLST', category: 'typing' },
