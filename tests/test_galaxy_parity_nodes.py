@@ -11043,6 +11043,114 @@ def test_chewbbaca_allelecall_renders_command_outputs_and_validation(tmp_path: P
     assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"], "input_schema": "schema.zip"}) is True
 
 
+def test_chewbbaca_allelecallevaluator_exposes_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["chewbbaca_allelecallevaluator"]
+
+    assert info["display_name"] == "chewBBACA AlleleCallEvaluator"
+    assert info["category"] == "typing"
+    assert info["description"] == "Build an interactive report for chewBBACA allele calling result evaluation."
+    assert info["output"] == ["HTML_REPORT", "FASTA", "TSV", "TSV", "TSV", "TSV"]
+    assert info["output_name"] == [
+        "html_file",
+        "cgMLST_MSA",
+        "cgMLST_profiles",
+        "distance_matrix_symmetric",
+        "masked_profiles",
+        "presence_absence",
+    ]
+    assert info["required_executables"] == ["chewBBACA.py", "unzip", "cp", "mv"]
+    assert info["required_conda_packages"] == ["chewbbaca", "blast", "zip", "fasttree"]
+    assert info["documentation_url"] == "https://chewbbaca.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
+    assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
+    assert "chewBBACA" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "AlleleCallEvaluator" in info["search_aliases"]
+    assert info["version"] == "3.3.10+galaxy1"
+    assert info["input"]["required"]["input_file"][0] == "TSV"
+    assert info["input"]["required"]["input_file"][1]["is_list"] is True
+    assert info["input"]["required"]["input_schema"][0] == "FILE"
+    assert info["input"]["optional"]["computation"][1]["options"] == [
+        "light",
+        "no-pa",
+        "no-dm",
+        "no-tree",
+        "cg-alignment",
+    ]
+    assert info["input"]["optional"]["output_selector"][1]["options"] == [
+        "cgMLST_MSA.fasta",
+        "cgMLST_profiles.tsv",
+        "distance_matrix_symmetric.tsv",
+        "masked_profiles.tsv",
+        "presence_absence.tsv",
+    ]
+
+
+def test_chewbbaca_allelecallevaluator_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chewbbaca_allelecallevaluator")
+
+    assert node_class.render_command(
+        {
+            "input_file": ["cds coordinates.tsv", "results_alleles.tsv"],
+            "element_identifiers": ["cds_coordinates", "results_alleles"],
+            "input_schema": "schema files.zip",
+            "annotations": "schema annotations.tsv",
+            "computation": ["light", "no-pa", "no-dm", "no-tree", "cg-alignment"],
+            "output_selector": [
+                "cgMLST_MSA.fasta",
+                "cgMLST_profiles.tsv",
+                "distance_matrix_symmetric.tsv",
+                "masked_profiles.tsv",
+                "presence_absence.tsv",
+            ],
+            "output": "/work/chewbbaca_allelecallevaluator",
+        }
+    ) == (
+        "mkdir -p /work/chewbbaca_allelecallevaluator && cd /work/chewbbaca_allelecallevaluator && "
+        "mkdir input && mkdir -p schema /work/chewbbaca_allelecallevaluator/html_files && "
+        "ln -sf 'cds coordinates.tsv' input/cds_coordinates.tsv && "
+        "ln -sf results_alleles.tsv input/results_alleles.tsv && unzip 'schema files.zip' -d schema && "
+        "chewBBACA.py AlleleCallEvaluator -a 'schema annotations.tsv' --light --no-pa --no-dm --no-tree "
+        "--cg-alignment -i input -g schema/schema_seed/ -o /work/chewbbaca_allelecallevaluator/html_files && "
+        "cp /work/chewbbaca_allelecallevaluator/html_files/allelecall_report.html "
+        "/work/chewbbaca_allelecallevaluator/output.html && "
+        "mv /work/chewbbaca_allelecallevaluator/html_files/*.fasta "
+        "/work/chewbbaca_allelecallevaluator/html_files/*.tsv ."
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "output_selector": [
+                "cgMLST_MSA.fasta",
+                "cgMLST_profiles.tsv",
+                "distance_matrix_symmetric.tsv",
+                "masked_profiles.tsv",
+                "presence_absence.tsv",
+            ]
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "chewbbaca_allelecallevaluator" / "output.html",
+        tmp_path / "chewbbaca_allelecallevaluator" / "cgMLST_MSA.fasta",
+        tmp_path / "chewbbaca_allelecallevaluator" / "cgMLST_profiles.tsv",
+        tmp_path / "chewbbaca_allelecallevaluator" / "distance_matrix_symmetric.tsv",
+        tmp_path / "chewbbaca_allelecallevaluator" / "masked_profiles.tsv",
+        tmp_path / "chewbbaca_allelecallevaluator" / "presence_absence.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input_file value is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": ["results.tsv"]}) == "input_schema is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": ["results.tsv"], "input_schema": "schema.zip", "computation": ["bad"]}
+    ) == "computation values must be one or more of: light, no-pa, no-dm, no-tree, cg-alignment"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": ["results.tsv"], "input_schema": "schema.zip", "output_selector": ["bad"]}
+    ) == (
+        "output_selector values must be one or more of: cgMLST_MSA.fasta, cgMLST_profiles.tsv, "
+        "distance_matrix_symmetric.tsv, masked_profiles.tsv, presence_absence.tsv"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": ["results.tsv"], "input_schema": "schema.zip"}) is True
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 

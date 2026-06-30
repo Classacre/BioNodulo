@@ -21239,6 +21239,150 @@ class ChewBBACAAlleleCallNode(CommandNode):
         return True
 
 
+class ChewBBACAAlleleCallEvaluatorNode(CommandNode):
+    """Build chewBBACA allele calling evaluation reports."""
+
+    NODE_ID = "chewbbaca_allelecallevaluator"
+    DISPLAY_NAME = "chewBBACA AlleleCallEvaluator"
+    REQUIRED_CONDA_PACKAGES = ["chewbbaca", "blast", "zip", "fasttree"]
+    CATEGORY = "typing"
+    DESCRIPTION = "Build an interactive report for chewBBACA allele calling result evaluation."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "chewBBACA",
+        "chewbbaca_allelecallevaluator",
+        "chewBBACA AlleleCallEvaluator",
+        "AlleleCallEvaluator",
+        "AlleleCall",
+        "cgMLST",
+        "presence absence",
+        "distance matrix",
+        "Neighbor-Joining tree",
+    ]
+    RETURN_TYPES = ("HTML_REPORT", "FASTA", "TSV", "TSV", "TSV", "TSV")
+    RETURN_NAMES = (
+        "html_file",
+        "cgMLST_MSA",
+        "cgMLST_profiles",
+        "distance_matrix_symmetric",
+        "masked_profiles",
+        "presence_absence",
+    )
+    REQUIRED_EXECUTABLES = ["chewBBACA.py", "unzip", "cp", "mv"]
+    DOCUMENTATION_URL = "https://chewbbaca.readthedocs.io/"
+    CITATION_DOIS = [CHEWBBACA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHEWBBACA_CITATION_DOI}"]
+    CITATION_TEXT = CHEWBBACA_CITATION_TEXT
+    VERSION = "3.3.10+galaxy1"
+    SHELL = True
+
+    COMPUTATION_OPTIONS = ["light", "no-pa", "no-dm", "no-tree", "cg-alignment"]
+    OUTPUT_OPTIONS = [
+        "cgMLST_MSA.fasta",
+        "cgMLST_profiles.tsv",
+        "distance_matrix_symmetric.tsv",
+        "masked_profiles.tsv",
+        "presence_absence.tsv",
+    ]
+
+    @classmethod
+    def _input_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("input_file", inputs.get("input_files")))
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("element_identifiers"))
+
+    @classmethod
+    def _input_name(cls, input_file: str, index: int, inputs: dict[str, Any]) -> str:
+        element_identifiers = cls._element_identifiers(inputs)
+        if index < len(element_identifiers):
+            return f"{_safe_element_identifier(element_identifiers[index])}.tsv"
+        return f"{_safe_element_identifier(Path(input_file).stem)}.tsv"
+
+    @classmethod
+    def _computation(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("computation"))
+
+    @classmethod
+    def _output_selector(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("output_selector"))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        html_files = f"{out}/html_files"
+        commands = [
+            _shell_join(["mkdir", "-p", out]),
+            f"cd {shlex.quote(out)}",
+            "mkdir input",
+            _shell_join(["mkdir", "-p", "schema", html_files]),
+        ]
+        for index, input_file in enumerate(cls._input_files(inputs)):
+            commands.append(_shell_join(["ln", "-sf", input_file, f"input/{cls._input_name(input_file, index, inputs)}"]))
+        commands.append(_shell_join(["unzip", str(inputs.get("input_schema", "")), "-d", "schema"]))
+        cmd = ["chewBBACA.py", "AlleleCallEvaluator"]
+        _add_if_value(cmd, "-a", inputs.get("annotations"))
+        selected_computation = set(cls._computation(inputs))
+        for option in cls.COMPUTATION_OPTIONS:
+            if option in selected_computation:
+                cmd.append(f"--{option}")
+        cmd.extend(["-i", "input", "-g", "schema/schema_seed/", "-o", html_files])
+        commands.append(_shell_join(cmd))
+        commands.append(_shell_join(["cp", f"{html_files}/allelecall_report.html", f"{out}/output.html"]))
+        commands.append(f"mv {html_files}/*.fasta {html_files}/*.tsv .")
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "output.html"]
+        selected = set(cls._output_selector(inputs))
+        for output_name in cls.OUTPUT_OPTIONS:
+            if output_name in selected:
+                outputs.append(out / output_name)
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("TSV", {"is_list": True, "multiple": True, "description": "AlleleCall result tables"}),
+                "input_schema": ("FILE", {"description": "chewBBACA schema ZIP archive"}),
+            },
+            "optional": {
+                "annotations": ("TSV", {"default": ""}),
+                "computation": (
+                    "STRING_LIST",
+                    {"default": [], "options": cls.COMPUTATION_OPTIONS, "multiple": True, "display": "checkboxes"},
+                ),
+                "output_selector": (
+                    "STRING_LIST",
+                    {"default": [], "options": cls.OUTPUT_OPTIONS, "multiple": True, "display": "checkboxes"},
+                ),
+            },
+            "hidden": {
+                "element_identifiers": ("STRING_LIST", {"default": []}),
+                "output": ("STRING", {}),
+            },
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_files(inputs):
+            return "at least one input_file value is required"
+        if not str(inputs.get("input_schema", "")).strip():
+            return "input_schema is required"
+        unsupported = [value for value in cls._computation(inputs) if value not in cls.COMPUTATION_OPTIONS]
+        if unsupported:
+            return f"computation values must be one or more of: {', '.join(cls.COMPUTATION_OPTIONS)}"
+        unsupported = [value for value in cls._output_selector(inputs) if value not in cls.OUTPUT_OPTIONS]
+        if unsupported:
+            return f"output_selector values must be one or more of: {', '.join(cls.OUTPUT_OPTIONS)}"
+        return True
+
+
 class DASToolNode(CommandNode):
     """Integrate metagenomic binning predictions with DAS Tool."""
 

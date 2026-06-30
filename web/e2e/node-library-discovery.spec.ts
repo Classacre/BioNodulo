@@ -3779,6 +3779,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
     citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
   },
+  chewbbaca_allelecallevaluator: {
+    name: 'chewbbaca_allelecallevaluator',
+    display_name: 'chewBBACA AlleleCallEvaluator',
+    category: 'typing',
+    description: 'Build an interactive report for chewBBACA allele calling result evaluation.',
+    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_allelecallevaluator', 'chewBBACA AlleleCallEvaluator', 'AlleleCallEvaluator', 'AlleleCall', 'cgMLST', 'presence absence', 'distance matrix', 'Neighbor-Joining tree'],
+    input: {
+      required: {
+        input_file: { type: 'TSV', is_list: true, multiple: true },
+        input_schema: { type: 'FILE' },
+      },
+      optional: {
+        annotations: { type: 'TSV', default: '' },
+        computation: { type: 'STRING_LIST', default: [], options: ['light', 'no-pa', 'no-dm', 'no-tree', 'cg-alignment'], multiple: true, display: 'checkboxes' },
+        output_selector: { type: 'STRING_LIST', default: [], options: ['cgMLST_MSA.fasta', 'cgMLST_profiles.tsv', 'distance_matrix_symmetric.tsv', 'masked_profiles.tsv', 'presence_absence.tsv'], multiple: true, display: 'checkboxes' },
+      },
+    },
+    output: ['HTML_REPORT', 'FASTA', 'TSV', 'TSV', 'TSV', 'TSV'],
+    output_name: ['html_file', 'cgMLST_MSA', 'cgMLST_profiles', 'distance_matrix_symmetric', 'masked_profiles', 'presence_absence'],
+    required_executables: ['chewBBACA.py', 'unzip', 'cp', 'mv'],
+    required_conda_packages: ['chewbbaca', 'blast', 'zip', 'fasttree'],
+    documentation_url: 'https://chewbbaca.readthedocs.io/',
+    citation_dois: ['10.1099/mgen.0.000166'],
+    citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
+    citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
+  },
   checkm_lineage_wf: {
     name: 'checkm_lineage_wf',
     display_name: 'CheckM lineage_wf',
@@ -16655,7 +16681,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('559 nodes available')).toBeVisible();
+  await expect(page.getByText('560 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16790,6 +16816,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'RNA-RNA interaction', name: 'Evaluation of RRIs using CheRRI', category: 'rna_seq' },
     { query: 'RRI model training', name: 'Train a CheRRI model using RRIs', category: 'rna_seq' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
+    { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },
