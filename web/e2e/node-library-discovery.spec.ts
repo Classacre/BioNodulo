@@ -1316,6 +1316,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btl158', 'https://doi.org/10.1093/bioinformatics/bts565'],
     citation_text: 'CD-HIT: a fast program for clustering and comparing large sets of protein or nucleotide sequences; CD-HIT Suite: a web server for clustering and comparing biological sequences.',
   },
+  fasta_regex_finder: {
+    name: 'fasta_regex_finder',
+    display_name: 'Fasta regular expression finder',
+    category: 'sequence',
+    description: 'Search FASTA sequences for regular-expression matches and report BED coordinates.',
+    search_aliases: ['Galaxy', 'fasta_regex_finder', 'fastaRegexFinder', 'FASTA regex', 'regular expression finder', 'motif search', 'G-quadruplex', 'BED coordinates', 'reverse complement'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+      },
+      optional: {
+        regex: { type: 'STRING', default: '([gG]{3,}\\w{1,7}){3,}[gG]{3,}' },
+        advanced: { type: 'STRING', default: 'simple', options: ['simple', 'advanced'] },
+        matchcase: { type: 'BOOLEAN', default: false },
+        noreverse: { type: 'BOOLEAN', default: false },
+        maxstr: { type: 'INT', default: 10000, min: 1 },
+        seqnames: { type: 'STRING', default: '' },
+        script_path: { type: 'FILE', default: 'fastaregexfinder.py', advanced: true },
+      },
+    },
+    output: ['BED'],
+    output_name: ['output'],
+    required_executables: ['python'],
+    required_conda_packages: ['python'],
+    documentation_url: 'https://github.com/dariober/bioinformatics-cafe/tree/master/fastaRegexFinder',
+    citation_dois: [],
+    citation_urls: ['https://github.com/dariober/bioinformatics-cafe/tree/master/fastaRegexFinder'],
+    citation_text: 'fastaRegexFinder: search FASTA files for regular-expression matches.',
+  },
   chopper: {
     name: 'chopper',
     display_name: 'Chopper',
@@ -11769,7 +11798,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('403 nodes available')).toBeVisible();
+  await expect(page.getByText('404 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11828,6 +11857,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
     { query: 'ScIdx', name: 'Convert BAM to ScIdx', category: 'chip_seq' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
+    { query: 'G-quadruplex', name: 'Fasta regular expression finder', category: 'sequence' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
     { query: 'Graphical Fragment Assembly', name: 'GFA to FASTA', category: 'assembly' },

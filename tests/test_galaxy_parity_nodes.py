@@ -355,6 +355,81 @@ def test_bam_to_scidx_validates_required_inputs_modes_and_insert_sizes() -> None
     assert node_class.VALIDATE_INPUTS({"input_bam": "input.bam", "bam_index": "input.bam.bai"}) is True
 
 
+def test_fasta_regex_finder_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["fasta_regex_finder"]
+
+    assert node_info["display_name"] == "Fasta regular expression finder"
+    assert node_info["category"] == "sequence"
+    assert node_info["description"] == "Search FASTA sequences for regular-expression matches and report BED coordinates."
+    assert node_info["output"] == ["BED"]
+    assert node_info["output_name"] == ["output"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["python"]
+    assert node_info["documentation_url"] == "https://github.com/dariober/bioinformatics-cafe/tree/master/fastaRegexFinder"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/dariober/bioinformatics-cafe/tree/master/fastaRegexFinder"]
+    assert "fastaRegexFinder" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "G-quadruplex" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input"][0] == "FASTA"
+    assert node_info["input"]["optional"]["regex"][1]["default"] == r"([gG]{3,}\w{1,7}){3,}[gG]{3,}"
+    assert node_info["input"]["optional"]["advanced"][1]["default"] == "simple"
+    assert node_info["input"]["optional"]["advanced"][1]["options"] == ["simple", "advanced"]
+    assert node_info["input"]["optional"]["maxstr"][1]["default"] == 10000
+    assert node_info["input"]["optional"]["script_path"][1]["default"] == "fastaregexfinder.py"
+
+
+def test_fasta_regex_finder_renders_default_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("fasta_regex_finder")
+
+    assert node_class.render_command(
+        {
+            "input": "TestSeqGroup-G4.fasta",
+            "output": "/work/fasta_regex_finder",
+        }
+    ) == (
+        "python fastaregexfinder.py --fasta TestSeqGroup-G4.fasta "
+        "--regex '([gG]{3,}\\w{1,7}){3,}[gG]{3,}' --quiet > /work/fasta_regex_finder/output.bed"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "fasta_regex_finder" / "output.bed"]
+
+
+def test_fasta_regex_finder_renders_advanced_command_with_flags() -> None:
+    node_class = _node_class("fasta_regex_finder")
+
+    assert node_class.render_command(
+        {
+            "input": "test.fas",
+            "regex": "ACTG",
+            "advanced": "advanced",
+            "matchcase": True,
+            "noreverse": True,
+            "maxstr": 3,
+            "seqnames": "HJ24-Shp2_oncogenicProtein2 HJ24-Shp2_oncogenicProtein",
+            "script_path": "/tools/fastaregexfinder.py",
+            "output": "/work/fasta_regex_finder",
+        }
+    ) == (
+        "python /tools/fastaregexfinder.py --fasta test.fas --regex ACTG --matchcase --noreverse "
+        "--maxstr 3 --seqnames 'HJ24-Shp2_oncogenicProtein2 HJ24-Shp2_oncogenicProtein' "
+        "--quiet > /work/fasta_regex_finder/output.bed"
+    )
+
+
+def test_fasta_regex_finder_validates_required_inputs_and_advanced_options() -> None:
+    node_class = _node_class("fasta_regex_finder")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "advanced": "bad"}) == (
+        "advanced must be one of: simple, advanced"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "regex": ""}) == "regex is required"
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "advanced": "advanced", "maxstr": 0}) == (
+        "maxstr must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa"}) is True
+
+
 def test_cd_hit_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
     node_info = _registry().object_info()["cd_hit"]
 
