@@ -543,6 +543,83 @@ def test_bp_genbank2gff3_validates_required_inputs_and_select_options() -> None:
     assert node_class.VALIDATE_INPUTS({"genbank": "seq.gb"}) is True
 
 
+def test_basil_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["basil"]
+
+    assert node_info["display_name"] == "basil"
+    assert node_info["category"] == "variant"
+    assert node_info["description"] == "Detect structural-variant breakpoints, including large insertions, from BAM reads."
+    assert node_info["output"] == ["VCF"]
+    assert node_info["output_name"] == ["vcf"]
+    assert node_info["required_executables"] == ["basil"]
+    assert node_info["required_conda_packages"] == ["anise_basil"]
+    assert node_info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btv051"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btv051"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btv051"]
+    assert "detect breakpoints for structural variants" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "large insertions" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["bam"][0] == "BAM"
+    assert node_info["input"]["required"]["ref"][0] == "FASTA"
+    assert node_info["input"]["optional"]["reference_source_selector"][1]["default"] == "history"
+    assert node_info["input"]["optional"]["reference_source_selector"][1]["options"] == ["cached", "history"]
+    assert node_info["input"]["optional"]["min_oea_each_side"][1]["default"] == 2
+    assert node_info["input"]["optional"]["min_oea_each_side"][1]["min"] == 1
+
+
+def test_basil_renders_history_reference_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("basil")
+
+    assert node_class.render_command(
+        {
+            "ref": "ref.fa",
+            "bam": "simulated.bam",
+            "min_oea_each_side": 2,
+            "output": "/work/basil",
+        }
+    ) == (
+        "ln -f -s ref.fa ref.fa && ln -s simulated.bam in.bam && "
+        "basil --input-reference ref.fa --input-mapping in.bam --out-vcf /work/basil/out.vcf "
+        "--oea-min-support-each-side 2"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "basil" / "out.vcf"]
+
+
+def test_basil_renders_cached_reference_and_support_threshold() -> None:
+    node_class = _node_class("basil")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "cached",
+            "ref": "/refs/hg38.fa",
+            "bam": "sample alignments.bam",
+            "min_oea_each_side": 10,
+            "output": "/work/basil",
+        }
+    ) == (
+        "ln -f -s /refs/hg38.fa ref.fa && ln -s 'sample alignments.bam' in.bam && "
+        "basil --input-reference ref.fa --input-mapping in.bam --out-vcf /work/basil/out.vcf "
+        "--oea-min-support-each-side 10"
+    )
+
+
+def test_basil_validates_required_inputs_reference_source_and_support_threshold() -> None:
+    node_class = _node_class("basil")
+
+    assert node_class.VALIDATE_INPUTS({}) == "ref is required"
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa"}) == "bam is required"
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "bam": "sample.bam", "reference_source_selector": "bad"}) == (
+        "reference_source_selector must be one of: cached, history"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "bam": "sample.bam", "min_oea_each_side": "bad"}) == (
+        "min_oea_each_side must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "bam": "sample.bam", "min_oea_each_side": 0}) == (
+        "min_oea_each_side must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "bam": "sample.bam"}) is True
+
+
 def test_fasta_regex_finder_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["fasta_regex_finder"]
 

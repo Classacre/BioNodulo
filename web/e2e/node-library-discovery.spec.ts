@@ -1323,6 +1323,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.361602'],
     citation_text: 'BioPerl GenBank-to-GFF3 converter using Bio::SeqFeature::Tools::Unflattener and Bio::Tools::GFF.',
   },
+  basil: {
+    name: 'basil',
+    display_name: 'basil',
+    category: 'variant',
+    description: 'Detect structural-variant breakpoints, including large insertions, from BAM reads.',
+    search_aliases: ['Galaxy', 'basil', 'BASIL', 'anise_basil', 'breakpoint detection', 'structural variants', 'large insertions', 'insertion breakpoints', 'one-end-anchor reads', 'OEA'],
+    input: {
+      required: {
+        ref: { type: 'FASTA' },
+        bam: { type: 'BAM' },
+      },
+      optional: {
+        reference_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        min_oea_each_side: { type: 'INT', default: 2, min: 1 },
+      },
+    },
+    output: ['VCF'],
+    output_name: ['vcf'],
+    required_executables: ['basil'],
+    required_conda_packages: ['anise_basil'],
+    documentation_url: 'https://doi.org/10.1093/bioinformatics/btv051',
+    citation_dois: ['10.1093/bioinformatics/btv051'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btv051'],
+    citation_text: 'BASIL is a method to detect breakpoints for structural variants, including insertion breakpoints, from aligned paired high-throughput sequencing reads.',
+  },
   cd_hit: {
     name: 'cd_hit',
     display_name: 'cd-hit',
@@ -11856,7 +11881,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('406 nodes available')).toBeVisible();
+  await expect(page.getByText('407 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11916,6 +11941,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ScIdx', name: 'Convert BAM to ScIdx', category: 'chip_seq' },
     { query: 'DisoMine', name: 'b2bTools: Biophysical predictors for single sequences', category: 'proteomics' },
     { query: 'BioPerl', name: 'Genbank to GFF3', category: 'annotation' },
+    { query: 'large insertions', name: 'basil', category: 'variant' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'G-quadruplex', name: 'Fasta regular expression finder', category: 'sequence' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
