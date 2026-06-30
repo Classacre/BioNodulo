@@ -5833,6 +5833,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btac568'],
     citation_text: 'Beacon v2 Reference Implementation: a toolkit to enable federated sharing of genomic and phenotypic data.',
   },
+  qq_manhattan: {
+    name: 'qq_manhattan',
+    display_name: 'Manhattan Plots',
+    category: 'visualization',
+    description: 'Create a GWAS Manhattan plot PDF from a tabular association-results file.',
+    search_aliases: ['Galaxy', 'qqman', 'qq_manhattan', 'Manhattan Plots', 'GWAS Manhattan plot', 'association results', 'genome-wide association study', 'SNP p-values'],
+    input: {
+      required: {
+        data: { type: 'TSV' },
+      },
+      optional: {
+        pval: { type: 'STRING', default: 'P' },
+        chr: { type: 'STRING', default: 'CHR' },
+        bp: { type: 'STRING', default: 'BP' },
+        snp: { type: 'STRING', default: 'SNP' },
+        name: { type: 'STRING', default: 'Manhattan Plot' },
+        script_path: { type: 'FILE', default: 'manhattan.R', advanced: true },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['manhattan'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-qqman', 'r-optparse'],
+    documentation_url: 'https://cran.r-project.org/package=qqman',
+    citation_dois: ['10.1101/005165', '10.21105/joss.00731'],
+    citation_urls: ['https://doi.org/10.1101/005165', 'https://doi.org/10.21105/joss.00731'],
+    citation_text: 'qqman: an R package for visualizing GWAS results using Q-Q and manhattan plots.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12599,7 +12627,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('434 nodes available')).toBeVisible();
+  await expect(page.getByText('435 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12805,6 +12833,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Beacon v2 Models', name: 'Beacon2 CSV2XLSX', category: 'metadata' },
     { query: 'Phenopacket JSON', name: 'Beacon2 PXF2BFF', category: 'metadata' },
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
+    { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },

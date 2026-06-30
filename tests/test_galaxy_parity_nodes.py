@@ -34202,3 +34202,64 @@ def test_beacon2_nodes_validate_required_and_option_inputs() -> None:
         "format must be one of: bff, hash, json"
     )
     assert vcf2bff.VALIDATE_INPUTS({"input": "test.vcf.gz", "dataset_id": "beacon", "genome": "hg19"}) is True
+
+
+def test_qq_manhattan_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["qq_manhattan"]
+
+    assert info["display_name"] == "Manhattan Plots"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Create a GWAS Manhattan plot PDF from a tabular association-results file."
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["manhattan"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["r-qqman", "r-optparse"]
+    assert info["documentation_url"] == "https://cran.r-project.org/package=qqman"
+    assert info["citation_dois"] == ["10.1101/005165", "10.21105/joss.00731"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/005165", "https://doi.org/10.21105/joss.00731"]
+    assert "qqman" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "GWAS Manhattan plot" in info["search_aliases"]
+    assert info["input"]["required"]["data"][0] == "TSV"
+    assert info["input"]["optional"]["pval"][1]["default"] == "P"
+    assert info["input"]["optional"]["chr"][1]["default"] == "CHR"
+    assert info["input"]["optional"]["bp"][1]["default"] == "BP"
+    assert info["input"]["optional"]["snp"][1]["default"] == "SNP"
+    assert info["input"]["optional"]["name"][1]["default"] == "Manhattan Plot"
+
+
+def test_qq_manhattan_renders_rscript_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("qq_manhattan")
+
+    assert node_class.render_command(
+        {
+            "data": "assoc results.tsv",
+            "pval": "P_BOLT_LMM",
+            "chr": "#CHR",
+            "bp": "POS",
+            "snp": "rsid",
+            "name": "Height GWAS",
+            "script_path": "/tools/qq_tools/manhattan.R",
+            "output": "/work/qq_manhattan",
+        }
+    ) == (
+        "Rscript /tools/qq_tools/manhattan.R --file 'assoc results.tsv' --pval P_BOLT_LMM "
+        "--chr '#CHR' --bp POS --snp rsid --name 'Height GWAS' && "
+        "mv manhattan.pdf /work/qq_manhattan/manhattan.pdf"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "qq_manhattan" / "manhattan.pdf",
+    ]
+
+
+def test_qq_manhattan_validates_required_columns_and_title() -> None:
+    node_class = _node_class("qq_manhattan")
+
+    assert node_class.VALIDATE_INPUTS({}) == "data is required"
+    assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv", "pval": ""}) == "pval column name is required"
+    assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv", "chr": ""}) == "chr column name is required"
+    assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv", "bp": ""}) == "bp column name is required"
+    assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv", "snp": ""}) == "snp column name is required"
+    assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv", "name": ""}) == "plot title is required"
+    assert node_class.VALIDATE_INPUTS({"data": "assoc.tsv"}) is True
