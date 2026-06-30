@@ -263,6 +263,149 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1016/j.molcel.2013.07.001', 'https://github.com/dmaticzka/bctools'],
     citation_text: 'bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH.',
   },
+  bctools_extract_crosslinked_nucleotides: {
+    name: 'bctools_extract_crosslinked_nucleotides',
+    display_name: 'Get crosslinked nucleotides',
+    category: 'sequence',
+    description: 'Calculate crosslinked nucleotide BED coordinates from aligned-read BED intervals.',
+    search_aliases: ['Galaxy', 'bctools', 'Get crosslinked nucleotides', 'bctools_extract_crosslinked_nucleotides', 'coords2clnt.py', 'crosslinking coordinates', 'threeprime', 'UMI', 'barcodes'],
+    input: {
+      required: {
+        alignment_coordinates: { type: 'BED' },
+      },
+      optional: {
+        threeprime: { type: 'BOOLEAN', default: false },
+        script_path: { type: 'FILE', default: 'coords2clnt.py' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['crosslinking_coordinates'],
+    required_executables: ['coords2clnt.py'],
+    required_conda_packages: ['bctools'],
+    documentation_url: 'https://github.com/dmaticzka/bctools',
+    citation_dois: ['10.1016/j.molcel.2013.07.001'],
+    citation_urls: ['https://doi.org/10.1016/j.molcel.2013.07.001', 'https://github.com/dmaticzka/bctools'],
+    citation_text: 'bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH.',
+  },
+  bctools_extract_alignment_ends: {
+    name: 'bctools_extract_alignment_ends',
+    display_name: 'Extract alignment ends',
+    category: 'sequence',
+    description: 'Extract outer alignment-end coordinates from paired SAM or BAM alignments into BED.',
+    search_aliases: ['Galaxy', 'bctools', 'Extract alignment ends', 'bctools_extract_alignment_ends', 'extract_aln_ends.py', 'SAM', 'BAM', 'outer coordinates', 'UMI', 'barcodes'],
+    input: {
+      required: {
+        alignments: { type: 'FILE' },
+      },
+      optional: {
+        script_path: { type: 'FILE', default: 'extract_aln_ends.py' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['alignment_ends'],
+    required_executables: ['extract_aln_ends.py'],
+    required_conda_packages: ['bctools'],
+    documentation_url: 'https://github.com/dmaticzka/bctools',
+    citation_dois: ['10.1016/j.molcel.2013.07.001'],
+    citation_urls: ['https://doi.org/10.1016/j.molcel.2013.07.001', 'https://github.com/dmaticzka/bctools'],
+    citation_text: 'bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH.',
+  },
+  bctools_extract_barcodes: {
+    name: 'bctools_extract_barcodes',
+    display_name: 'Extract barcodes',
+    category: 'sequence',
+    description: 'Extract barcode nucleotides from FASTQ reads according to an X/N pattern.',
+    search_aliases: ['Galaxy', 'bctools', 'Extract barcodes', 'bctools_extract_barcodes', 'extract_bcs.py', 'barcode pattern', 'cleaned reads', 'UMI', 'barcodes'],
+    input: {
+      required: {
+        reads: { type: 'FASTQ' },
+      },
+      optional: {
+        barcode_pattern: { type: 'STRING', default: '', pattern: '^[XN]*$' },
+        script_path: { type: 'FILE', default: 'extract_bcs.py' },
+      },
+    },
+    output: ['FASTQ', 'FASTQ'],
+    output_name: ['reads_cleaned', 'extracted_barcodes'],
+    required_executables: ['extract_bcs.py'],
+    required_conda_packages: ['bctools'],
+    documentation_url: 'https://github.com/dmaticzka/bctools',
+    citation_dois: ['10.1016/j.molcel.2013.07.001'],
+    citation_urls: ['https://doi.org/10.1016/j.molcel.2013.07.001', 'https://github.com/dmaticzka/bctools'],
+    citation_text: 'bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH.',
+  },
+  bctools_merge_pcr_duplicates: {
+    name: 'bctools_merge_pcr_duplicates',
+    display_name: 'Merge PCR duplicates',
+    category: 'sequence',
+    description: 'Merge PCR duplicates from BED alignments according to FASTQ unique molecular identifiers.',
+    search_aliases: ['Galaxy', 'bctools', 'Merge PCR duplicates', 'bctools_merge_pcr_duplicates', 'merge_pcr_duplicates.py', 'PCR duplicates', 'unique molecular identifiers', 'UMI', 'barcodes'],
+    input: {
+      required: {
+        alignments_bed: { type: 'BED' },
+        barcode_library: { type: 'FASTQ' },
+      },
+      optional: {
+        script_path: { type: 'FILE', default: 'merge_pcr_duplicates.py' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['events'],
+    required_executables: ['merge_pcr_duplicates.py'],
+    required_conda_packages: ['bctools', 'coreutils'],
+    documentation_url: 'https://github.com/dmaticzka/bctools',
+    citation_dois: ['10.1016/j.molcel.2013.07.001'],
+    citation_urls: ['https://doi.org/10.1016/j.molcel.2013.07.001', 'https://github.com/dmaticzka/bctools'],
+    citation_text: 'bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH.',
+  },
+  bctools_remove_tail: {
+    name: 'bctools_remove_tail',
+    display_name: "Remove 3'-end nts",
+    category: 'sequence',
+    description: 'Remove a fixed number of nucleotides from the 3-prime tails of FASTQ reads.',
+    search_aliases: ['Galaxy', 'bctools', "Remove 3'-end nts", 'bctools_remove_tail', 'remove_tail.py', '3-prime tail', 'FASTQ trimming', 'UMI', 'barcodes'],
+    input: {
+      required: {
+        reads_fastq: { type: 'FASTQ' },
+      },
+      optional: {
+        length: { type: 'INT', default: 0, min: 0 },
+        script_path: { type: 'FILE', default: 'remove_tail.py' },
+      },
+    },
+    output: ['FASTQ'],
+    output_name: ['default'],
+    required_executables: ['remove_tail.py'],
+    required_conda_packages: ['bctools'],
+    documentation_url: 'https://github.com/dmaticzka/bctools',
+    citation_dois: ['10.1016/j.molcel.2013.07.001'],
+    citation_urls: ['https://doi.org/10.1016/j.molcel.2013.07.001', 'https://github.com/dmaticzka/bctools'],
+    citation_text: 'bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH.',
+  },
+  bctools_remove_spurious_events: {
+    name: 'bctools_remove_spurious_events',
+    display_name: 'Remove spurious',
+    category: 'sequence',
+    description: 'Remove spurious crosslinking events caused by UMI errors from BED intervals.',
+    search_aliases: ['Galaxy', 'bctools', 'Remove spurious', 'bctools_remove_spurious_events', 'rm_spurious_events.py', 'spurious events', 'crosslinking events', 'threshold', 'UMI', 'barcodes'],
+    input: {
+      required: {
+        events: { type: 'BED' },
+      },
+      optional: {
+        threshold: { type: 'FLOAT', default: 0.1, min: 0 },
+        script_path: { type: 'FILE', default: 'rm_spurious_events.py' },
+      },
+    },
+    output: ['BED'],
+    output_name: ['events_filtered'],
+    required_executables: ['rm_spurious_events.py'],
+    required_conda_packages: ['bctools', 'coreutils'],
+    documentation_url: 'https://github.com/dmaticzka/bctools',
+    citation_dois: ['10.1016/j.molcel.2013.07.001'],
+    citation_urls: ['https://doi.org/10.1016/j.molcel.2013.07.001', 'https://github.com/dmaticzka/bctools'],
+    citation_text: 'bctools handles barcodes and UMIs in NGS data, including binary RY-space barcodes used with uvCLAP and FLASH.',
+  },
   blastxml_to_gapped_gff3: {
     name: 'blastxml_to_gapped_gff3',
     display_name: 'BlastXML to gapped GFF3',
@@ -12147,7 +12290,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('416 nodes available')).toBeVisible();
+  await expect(page.getByText('422 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12160,6 +12303,12 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },
     { query: 'index reads', name: 'Barcode Splitter', category: 'sequence' },
     { query: 'RY-space barcodes', name: 'Create binary barcodes', category: 'sequence' },
+    { query: 'crosslinking coordinates', name: 'Get crosslinked nucleotides', category: 'sequence' },
+    { query: 'outer coordinates', name: 'Extract alignment ends', category: 'sequence' },
+    { query: 'barcode pattern', name: 'Extract barcodes', category: 'sequence' },
+    { query: 'PCR duplicates', name: 'Merge PCR duplicates', category: 'sequence' },
+    { query: '3-prime tail', name: "Remove 3'-end nts", category: 'sequence' },
+    { query: 'spurious events', name: 'Remove spurious', category: 'sequence' },
     { query: 'gapped GFF3', name: 'BlastXML to gapped GFF3', category: 'annotation' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },

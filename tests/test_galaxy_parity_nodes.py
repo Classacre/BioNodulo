@@ -4066,6 +4066,244 @@ def test_bctools_convert_to_binary_barcode_quotes_paths_and_validates_required_i
     assert node_class.VALIDATE_INPUTS({"barcodes": "extracted_bcs.fastq"}) is True
 
 
+def test_bctools_remaining_wrappers_expose_galaxy_metadata_and_doi() -> None:
+    object_info = _registry().object_info()
+
+    expected = {
+        "bctools_extract_crosslinked_nucleotides": (
+            "Get crosslinked nucleotides",
+            "Calculate crosslinked nucleotide BED coordinates from aligned-read BED intervals.",
+            ["BED"],
+            ["crosslinking_coordinates"],
+            {"alignment_coordinates": "BED"},
+            ["coords2clnt.py"],
+            ["bctools"],
+        ),
+        "bctools_extract_alignment_ends": (
+            "Extract alignment ends",
+            "Extract outer alignment-end coordinates from paired SAM or BAM alignments into BED.",
+            ["BED"],
+            ["alignment_ends"],
+            {"alignments": "FILE"},
+            ["extract_aln_ends.py"],
+            ["bctools"],
+        ),
+        "bctools_extract_barcodes": (
+            "Extract barcodes",
+            "Extract barcode nucleotides from FASTQ reads according to an X/N pattern.",
+            ["FASTQ", "FASTQ"],
+            ["reads_cleaned", "extracted_barcodes"],
+            {"reads": "FASTQ"},
+            ["extract_bcs.py"],
+            ["bctools"],
+        ),
+        "bctools_merge_pcr_duplicates": (
+            "Merge PCR duplicates",
+            "Merge PCR duplicates from BED alignments according to FASTQ unique molecular identifiers.",
+            ["BED"],
+            ["events"],
+            {"alignments_bed": "BED", "barcode_library": "FASTQ"},
+            ["merge_pcr_duplicates.py"],
+            ["bctools", "coreutils"],
+        ),
+        "bctools_remove_tail": (
+            "Remove 3'-end nts",
+            "Remove a fixed number of nucleotides from the 3-prime tails of FASTQ reads.",
+            ["FASTQ"],
+            ["default"],
+            {"reads_fastq": "FASTQ"},
+            ["remove_tail.py"],
+            ["bctools"],
+        ),
+        "bctools_remove_spurious_events": (
+            "Remove spurious",
+            "Remove spurious crosslinking events caused by UMI errors from BED intervals.",
+            ["BED"],
+            ["events_filtered"],
+            {"events": "BED"},
+            ["rm_spurious_events.py"],
+            ["bctools", "coreutils"],
+        ),
+    }
+
+    for node_id, (
+        display_name,
+        description,
+        outputs,
+        output_names,
+        required_inputs,
+        executables,
+        packages,
+    ) in expected.items():
+        info = object_info[node_id]
+        assert info["display_name"] == display_name
+        assert info["category"] == "sequence"
+        assert info["description"] == description
+        assert info["output"] == outputs
+        assert info["output_name"] == output_names
+        assert info["required_executables"] == executables
+        assert info["required_conda_packages"] == packages
+        assert info["documentation_url"] == "https://github.com/dmaticzka/bctools"
+        assert info["citation_dois"] == ["10.1016/j.molcel.2013.07.001"]
+        assert info["citation_urls"] == [
+            "https://doi.org/10.1016/j.molcel.2013.07.001",
+            "https://github.com/dmaticzka/bctools",
+        ]
+        assert "barcodes and UMIs" in info["citation_text"]
+        assert "bctools" in info["search_aliases"]
+        for input_name, input_type in required_inputs.items():
+            assert info["input"]["required"][input_name][0] == input_type
+        assert info["input"]["optional"]["script_path"][1]["default"] == executables[0]
+
+    assert object_info["bctools_extract_crosslinked_nucleotides"]["input"]["optional"]["threeprime"][1][
+        "default"
+    ] is False
+    assert object_info["bctools_extract_barcodes"]["input"]["optional"]["barcode_pattern"][1]["default"] == ""
+    assert object_info["bctools_extract_barcodes"]["input"]["optional"]["barcode_pattern"][1]["pattern"] == "^[XN]*$"
+    assert object_info["bctools_remove_tail"]["input"]["optional"]["length"][1]["default"] == 0
+    assert object_info["bctools_remove_tail"]["input"]["optional"]["length"][1]["min"] == 0
+    assert object_info["bctools_remove_spurious_events"]["input"]["optional"]["threshold"][1]["default"] == 0.1
+    assert object_info["bctools_remove_spurious_events"]["input"]["optional"]["threshold"][1]["min"] == 0
+
+
+def test_bctools_remaining_wrappers_render_commands_and_outputs(tmp_path: Path) -> None:
+    crosslinked = _node_class("bctools_extract_crosslinked_nucleotides")
+    assert crosslinked.render_command(
+        {
+            "alignment_coordinates": "merged pcr dupes.bed",
+            "threeprime": True,
+            "script_path": "/tools/bctools/coords2clnt.py",
+            "output": "/work/bctools_extract_crosslinked_nucleotides",
+        }
+    ) == (
+        "/tools/bctools/coords2clnt.py --threeprime 'merged pcr dupes.bed' "
+        "> /work/bctools_extract_crosslinked_nucleotides/crosslinking_coordinates.bed"
+    )
+    assert crosslinked.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bctools_extract_crosslinked_nucleotides" / "crosslinking_coordinates.bed",
+    ]
+
+    alignment_ends = _node_class("bctools_extract_alignment_ends")
+    assert alignment_ends.render_command(
+        {
+            "alignments": "two mates.sam",
+            "output": "/work/bctools_extract_alignment_ends",
+        }
+    ) == "extract_aln_ends.py 'two mates.sam' > /work/bctools_extract_alignment_ends/alignment_ends.bed"
+    assert alignment_ends.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bctools_extract_alignment_ends" / "alignment_ends.bed",
+    ]
+
+    extract_barcodes = _node_class("bctools_extract_barcodes")
+    assert extract_barcodes.render_command(
+        {
+            "reads": "reads.fastq",
+            "barcode_pattern": "XXXNNXXX",
+            "output": "/work/bctools_extract_barcodes",
+        }
+    ) == (
+        "extract_bcs.py reads.fastq XXXNNXXX --bcs "
+        "/work/bctools_extract_barcodes/extracted_barcodes.fastq "
+        "> /work/bctools_extract_barcodes/reads_cleaned.fastq"
+    )
+    assert extract_barcodes.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bctools_extract_barcodes" / "reads_cleaned.fastq",
+        tmp_path / "bctools_extract_barcodes" / "extracted_barcodes.fastq",
+    ]
+    assert extract_barcodes.render_command(
+        {
+            "reads": "reads.fastq",
+            "barcode_pattern": "",
+            "output": "/work/bctools_extract_barcodes",
+        }
+    ) == (
+        "extract_bcs.py reads.fastq --bcs /work/bctools_extract_barcodes/extracted_barcodes.fastq "
+        "> /work/bctools_extract_barcodes/reads_cleaned.fastq"
+    )
+
+    merge_pcr = _node_class("bctools_merge_pcr_duplicates")
+    assert merge_pcr.render_command(
+        {
+            "alignments_bed": "pcr dupes.bed",
+            "barcode_library": "barcodes.fastq",
+            "output": "/work/bctools_merge_pcr_duplicates",
+        }
+    ) == (
+        "merge_pcr_duplicates.py 'pcr dupes.bed' barcodes.fastq "
+        "--outfile /work/bctools_merge_pcr_duplicates/events.bed"
+    )
+    assert merge_pcr.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bctools_merge_pcr_duplicates" / "events.bed",
+    ]
+
+    remove_tail = _node_class("bctools_remove_tail")
+    assert remove_tail.render_command(
+        {
+            "reads_fastq": "reads with tail.fastq",
+            "length": 7,
+            "output": "/work/bctools_remove_tail",
+        }
+    ) == "remove_tail.py 'reads with tail.fastq' 7 > /work/bctools_remove_tail/default.fastq"
+    assert remove_tail.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bctools_remove_tail" / "default.fastq",
+    ]
+
+    remove_spurious = _node_class("bctools_remove_spurious_events")
+    assert remove_spurious.render_command(
+        {
+            "events": "merged pcr dupes spurious.bed",
+            "threshold": 0.5,
+            "output": "/work/bctools_remove_spurious_events",
+        }
+    ) == (
+        "rm_spurious_events.py 'merged pcr dupes spurious.bed' --threshold 0.5 "
+        "--outfile /work/bctools_remove_spurious_events/events_filtered.bed"
+    )
+    assert remove_spurious.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "bctools_remove_spurious_events" / "events_filtered.bed",
+    ]
+
+
+def test_bctools_remaining_wrappers_validate_required_inputs_and_options() -> None:
+    crosslinked = _node_class("bctools_extract_crosslinked_nucleotides")
+    assert crosslinked.VALIDATE_INPUTS({}) == "alignment_coordinates is required"
+    assert crosslinked.VALIDATE_INPUTS({"alignment_coordinates": "alignments.bed", "threeprime": True}) is True
+
+    alignment_ends = _node_class("bctools_extract_alignment_ends")
+    assert alignment_ends.VALIDATE_INPUTS({}) == "alignments is required"
+    assert alignment_ends.VALIDATE_INPUTS({"alignments": "twomates.sam"}) is True
+
+    extract_barcodes = _node_class("bctools_extract_barcodes")
+    assert extract_barcodes.VALIDATE_INPUTS({}) == "reads is required"
+    assert extract_barcodes.VALIDATE_INPUTS({"reads": "reads.fastq", "barcode_pattern": "XXAB"}) == (
+        "barcode_pattern must contain only X and N"
+    )
+    assert extract_barcodes.VALIDATE_INPUTS({"reads": "reads.fastq", "barcode_pattern": "XXXNNXXX"}) is True
+
+    merge_pcr = _node_class("bctools_merge_pcr_duplicates")
+    assert merge_pcr.VALIDATE_INPUTS({}) == "alignments_bed is required"
+    assert merge_pcr.VALIDATE_INPUTS({"alignments_bed": "alignments.bed"}) == "barcode_library is required"
+    assert merge_pcr.VALIDATE_INPUTS({"alignments_bed": "alignments.bed", "barcode_library": "barcodes.fastq"}) is True
+
+    remove_tail = _node_class("bctools_remove_tail")
+    assert remove_tail.VALIDATE_INPUTS({}) == "reads_fastq is required"
+    assert remove_tail.VALIDATE_INPUTS({"reads_fastq": "reads.fastq", "length": "bad"}) == (
+        "length must be an integer"
+    )
+    assert remove_tail.VALIDATE_INPUTS({"reads_fastq": "reads.fastq", "length": -1}) == "length must be >= 0"
+    assert remove_tail.VALIDATE_INPUTS({"reads_fastq": "reads.fastq", "length": 0}) is True
+
+    remove_spurious = _node_class("bctools_remove_spurious_events")
+    assert remove_spurious.VALIDATE_INPUTS({}) == "events is required"
+    assert remove_spurious.VALIDATE_INPUTS({"events": "events.bed", "threshold": "bad"}) == (
+        "threshold must be a number"
+    )
+    assert remove_spurious.VALIDATE_INPUTS({"events": "events.bed", "threshold": -0.1}) == (
+        "threshold must be >= 0"
+    )
+    assert remove_spurious.VALIDATE_INPUTS({"events": "events.bed", "threshold": 0.1}) is True
+
+
 def test_blastxml_to_gapped_gff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["blastxml_to_gapped_gff3"]
 
