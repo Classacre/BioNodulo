@@ -28572,6 +28572,183 @@ def test_binette_renders_binning_refinement_command_outputs_and_validation(tmp_p
     ) is True
 
 
+def test_biapy_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["biapy"]
+
+    assert info["display_name"] == "Build a workflow with BiaPy"
+    assert info["category"] == "ai"
+    assert info["description"] == "Run BiaPy deep-learning workflows for bioimage analysis."
+    assert info["input"]["optional"]["selected_mode"][1]["default"] == "custom_cfg"
+    assert info["input"]["optional"]["selected_mode"][1]["options"] == ["custom_cfg", "create_new_cfg"]
+    assert info["input"]["optional"]["workflow"][1]["options"] == [
+        "semantic",
+        "instance",
+        "detection",
+        "denoising",
+        "sr",
+        "cls",
+        "sr2",
+        "i2i",
+    ]
+    assert info["input"]["optional"]["phase"][1]["options"] == ["train_test", "train", "test"]
+    assert info["input"]["optional"]["selected_outputs"][1]["multiple"] is True
+    assert info["input"]["optional"]["raw_train"][0] == "FILE"
+    assert info["input"]["optional"]["raw_train"][1]["is_list"] is True
+    assert info["output"] == ["DIRECTORY", "DIRECTORY", "DIRECTORY", "DIRECTORY", "DIRECTORY", "YAML"]
+    assert info["output_name"] == [
+        "predictions_raw",
+        "predictions_post_proc",
+        "test_metrics",
+        "train_charts",
+        "train_logs",
+        "config_file",
+    ]
+    assert info["required_executables"] == ["biapy", "ln", "mkdir", "mktemp", "mv", "python3"]
+    assert info["required_conda_packages"] == []
+    assert info["documentation_url"] == "https://biapy.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1038/s41592-025-02699-y"]
+    assert info["citation_urls"] == ["https://doi.org/10.1038/s41592-025-02699-y"]
+    assert "accessible deep learning on bioimages" in info["citation_text"]
+    assert "BioImage Model Zoo" in info["search_aliases"]
+
+
+def test_biapy_renders_create_new_config_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("biapy")
+
+    assert node_class.render_command(
+        {
+            "selected_mode": "create_new_cfg",
+            "workflow": "semantic",
+            "is_3d": "2d",
+            "obj_slices": "",
+            "obj_size": "0-25",
+            "img_channel": 1,
+            "model_source": "bmz_pretrained",
+            "bmz_model_name": "sensible-cat",
+            "phase": "test",
+            "raw_test": ["im 0000.png"],
+            "gt_test": ["mask_0000.png"],
+            "selected_outputs": ["raw", "metrics"],
+            "create_yaml_script": "/tools/biapy/create_yaml.py",
+            "threads": 4,
+            "output": "/work/biapy",
+        }
+    ) == (
+        "set -xeu && export OPENCV_IO_ENABLE_OPENEXR=0 && "
+        "WORKTMP=$(mktemp -d galaxy-torchinductor.XXXXXX) && "
+        "export TORCHINDUCTOR_CACHE_DIR=$WORKTMP/torchinductor && mkdir -p $TORCHINDUCTOR_CACHE_DIR && "
+        "mkdir -p /work/biapy/output /work/biapy/output/my_experiment/checkpoints && "
+        "python3 /tools/biapy/create_yaml.py --new_config --num_cpus ${GALAXY_SLOTS:-4} "
+        "--out_config_path /work/biapy/config.yaml --biapy_version 3.6.8 --workflow semantic --dims 2d "
+        "--obj_slices '' --obj_size 0-25 --img_channel 1 --model_source bmz --model sensible-cat "
+        "--test_raw_path /work/biapy/dataset/test/raw --test_gt_path /work/biapy/dataset/test/gt && "
+        "mkdir -p /work/biapy/dataset/test/raw && ln -fs 'im 0000.png' /work/biapy/dataset/test/raw/test-0.png && "
+        "mkdir -p /work/biapy/dataset/test/gt && ln -fs mask_0000.png /work/biapy/dataset/test/gt/test-gt-0.png && "
+        "biapy --config /work/biapy/config.yaml --result_dir /work/biapy/output --name my_experiment --run_id 1 "
+        "--gpu ${GALAXY_BIAPY_GPU_STRING:-\"\"} && "
+        "mkdir -p /work/biapy/raw && { if [ -d /work/biapy/output/my_experiment/results/my_experiment_1/per_image_instances ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/per_image_instances/* /work/biapy/raw/; "
+        "elif [ -d /work/biapy/output/my_experiment/results/my_experiment_1/full_image_instances ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/full_image_instances/* /work/biapy/raw/; "
+        "elif [ -d /work/biapy/output/my_experiment/results/my_experiment_1/per_image_binarized ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/per_image_binarized/* /work/biapy/raw/; "
+        "elif [ -d /work/biapy/output/my_experiment/results/my_experiment_1/full_image_binarized ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/full_image_binarized/* /work/biapy/raw/; "
+        "elif [ -d /work/biapy/output/my_experiment/results/my_experiment_1/full_image ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/full_image/* /work/biapy/raw/; "
+        "elif [ -d /work/biapy/output/my_experiment/results/my_experiment_1/per_image_local_max_check ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/per_image_local_max_check/* /work/biapy/raw/; "
+        "elif [ -d /work/biapy/output/my_experiment/results/my_experiment_1/as_3d_stack_binarized ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/as_3d_stack_binarized/* /work/biapy/raw/; "
+        "elif [ -d /work/biapy/output/my_experiment/results/my_experiment_1/per_image ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/per_image/* /work/biapy/raw/; "
+        "elif [ -f /work/biapy/output/my_experiment/results/my_experiment_1/predictions.csv ]; "
+        "then mv /work/biapy/output/my_experiment/results/my_experiment_1/predictions.csv /work/biapy/raw/; fi; } && "
+        "mkdir -p /work/biapy/metrics && "
+        "mv /work/biapy/output/my_experiment/results/my_experiment_1/test_results_metrics.csv /work/biapy/metrics/ 2>/dev/null || true"
+    )
+    assert node_class.PLAN_OUTPUTS({"selected_outputs": ["raw", "metrics"]}, tmp_path) == [
+        tmp_path / "biapy" / "raw",
+        tmp_path / "biapy" / "metrics",
+        tmp_path / "biapy" / "config.yaml",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"selected_mode": "bad"}) == (
+        "selected_mode must be one of: custom_cfg, create_new_cfg"
+    )
+    assert node_class.VALIDATE_INPUTS({"selected_mode": "custom_cfg"}) == "config_path is required for custom_cfg mode"
+    assert node_class.VALIDATE_INPUTS({"selected_mode": "create_new_cfg", "workflow": "bad"}) == (
+        "workflow must be one of: semantic, instance, detection, denoising, sr, cls, sr2, i2i"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "selected_mode": "create_new_cfg",
+            "workflow": "semantic",
+            "phase": "test",
+            "model_source": "bmz_pretrained",
+        }
+    ) == "raw_test is required when phase includes test"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "selected_mode": "create_new_cfg",
+            "workflow": "semantic",
+            "phase": "test",
+            "raw_test": ["im.png"],
+            "model_source": "bmz_pretrained",
+            "bmz_model_name": "",
+        }
+    ) == "bmz_model_name is required for BioImage Model Zoo models"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "selected_mode": "create_new_cfg",
+                "workflow": "semantic",
+                "phase": "test",
+                "raw_test": ["im.png"],
+                "model_source": "bmz_pretrained",
+                "bmz_model_name": "sensible-cat",
+            }
+        )
+        is True
+    )
+
+
+def test_biapy_renders_custom_config_command_outputs() -> None:
+    node_class = _node_class("biapy")
+
+    assert node_class.render_command(
+        {
+            "selected_mode": "custom_cfg",
+            "config_path": "example.yaml",
+            "biapy_model_path": "checkpoint.safetensors",
+            "raw_train": ["train-a.tif"],
+            "gt_train": ["mask-a.tif"],
+            "raw_test": ["test-a.tif"],
+            "selected_outputs": ["tlogs", "checkpoint"],
+            "create_yaml_script": "create_yaml.py",
+            "threads": 2,
+            "output": "/work/biapy",
+        }
+    ) == (
+        "set -xeu && export OPENCV_IO_ENABLE_OPENEXR=0 && "
+        "WORKTMP=$(mktemp -d galaxy-torchinductor.XXXXXX) && "
+        "export TORCHINDUCTOR_CACHE_DIR=$WORKTMP/torchinductor && mkdir -p $TORCHINDUCTOR_CACHE_DIR && "
+        "mkdir -p /work/biapy/output /work/biapy/output/my_experiment/checkpoints && "
+        "ln -fs checkpoint.safetensors /work/biapy/output/my_experiment/checkpoints/checkpoint.safetensors && "
+        "python3 create_yaml.py --input_config_path example.yaml --num_cpus ${GALAXY_SLOTS:-2} "
+        "--out_config_path /work/biapy/config.yaml --biapy_version 3.6.8 "
+        "--raw_train /work/biapy/dataset/train/raw --gt_train /work/biapy/dataset/train/gt "
+        "--test_raw_path /work/biapy/dataset/test/raw "
+        "--model /work/biapy/output/my_experiment/checkpoints/checkpoint.safetensors --model_source biapy && "
+        "mkdir -p /work/biapy/dataset/train/raw && ln -fs train-a.tif /work/biapy/dataset/train/raw/training-0.tif && "
+        "mkdir -p /work/biapy/dataset/train/gt && ln -fs mask-a.tif /work/biapy/dataset/train/gt/training-gt-0.tif && "
+        "mkdir -p /work/biapy/dataset/test/raw && ln -fs test-a.tif /work/biapy/dataset/test/raw/test-0.tif && "
+        "biapy --config /work/biapy/config.yaml --result_dir /work/biapy/output --name my_experiment --run_id 1 "
+        "--gpu ${GALAXY_BIAPY_GPU_STRING:-\"\"} && "
+        "mkdir -p /work/biapy/train_logs && mkdir -p /work/biapy/checkpoints"
+    )
+
+
 def test_bin_refiner_renders_refinement_command_outputs_and_validation(tmp_path: Path) -> None:
     node_class = _node_class("bin_refiner")
     info = _registry().object_info()["bin_refiner"]

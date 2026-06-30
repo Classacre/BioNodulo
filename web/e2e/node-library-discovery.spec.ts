@@ -10727,6 +10727,44 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1016/j.bpj.2024.11.3199', 'https://github.com/pkosurilab/BellaVista'],
     citation_text: 'Open-source Visualization for Imaging-Based Spatial Transcriptomics.',
   },
+  biapy: {
+    name: 'biapy',
+    display_name: 'Build a workflow with BiaPy',
+    category: 'ai',
+    description: 'Run BiaPy deep-learning workflows for bioimage analysis.',
+    search_aliases: ['Galaxy', 'BiaPy', 'biapy', 'Build a workflow with BiaPy', 'accessible deep learning on bioimages', 'bioimage analysis', 'image segmentation', 'object detection', 'image denoising', 'BioImage Model Zoo'],
+    input: {
+      required: {},
+      optional: {
+        selected_mode: { type: 'STRING', default: 'custom_cfg', options: ['custom_cfg', 'create_new_cfg'] },
+        config_path: { type: 'STRING', default: '' },
+        biapy_model_path: { type: 'FILE', default: '' },
+        workflow: { type: 'STRING', default: 'semantic', options: ['semantic', 'instance', 'detection', 'denoising', 'sr', 'cls', 'sr2', 'i2i'] },
+        phase: { type: 'STRING', default: 'train_test', options: ['train_test', 'train', 'test'] },
+        is_3d: { type: 'STRING', default: '2d', options: ['2d', '3d', '2d_stack'] },
+        obj_slices: { type: 'STRING', default: '', options: ['', '1-5', '5-10', '10-20', '20-60', '60+'] },
+        obj_size: { type: 'STRING', default: '0-25', options: ['0-25', '25-100', '100-200', '200-500', '500+'] },
+        img_channel: { type: 'INT', default: 1 },
+        model_source: { type: 'STRING', default: 'biapy', options: ['biapy', 'biapy_pretrained', 'bmz_pretrained'] },
+        bmz_model_name: { type: 'STRING', default: '' },
+        raw_train: { type: 'FILE', default: [], is_list: true },
+        gt_train: { type: 'FILE', default: [], is_list: true },
+        raw_test: { type: 'FILE', default: [], is_list: true },
+        gt_test: { type: 'FILE', default: [], is_list: true },
+        selected_outputs: { type: 'STRING', default: ['raw'], options: ['raw', 'post_proc', 'metrics', 'tcharts', 'tlogs', 'checkpoint'], multiple: true },
+        create_yaml_script: { type: 'FILE', default: 'create_yaml.py', advanced: true },
+        threads: { type: 'INT', default: 1 },
+      },
+    },
+    output: ['DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'DIRECTORY', 'YAML'],
+    output_name: ['predictions_raw', 'predictions_post_proc', 'test_metrics', 'train_charts', 'train_logs', 'config_file'],
+    required_executables: ['biapy', 'ln', 'mkdir', 'mktemp', 'mv', 'python3'],
+    required_conda_packages: [],
+    documentation_url: 'https://biapy.readthedocs.io/',
+    citation_dois: ['10.1038/s41592-025-02699-y'],
+    citation_urls: ['https://doi.org/10.1038/s41592-025-02699-y'],
+    citation_text: 'BiaPy: accessible deep learning on bioimages.',
+  },
   chromeister: {
     name: 'chromeister',
     display_name: 'Chromeister',
@@ -14871,7 +14909,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('503 nodes available')).toBeVisible();
+  await expect(page.getByText('504 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15213,6 +15251,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BayeScan (Galaxy)', name: 'BayeScan (Galaxy)', category: 'population_genetics' },
     { query: 'Arima chimeric reads', name: 'Bellerophon', category: 'assembly' },
     { query: 'spatial transcriptomics', name: 'Bellavista', category: 'visualization' },
+    { query: 'accessible deep learning', name: 'Build a workflow with BiaPy', category: 'ai' },
     { query: 'Chromeister dotplot', name: 'Chromeister', category: 'comparative_genomics' },
     { query: 'BigWig coverage outliers', name: 'Bigwig outliers to bed features', category: 'genomics' },
     { query: 'AmpliGone primer removal', name: 'AmpliGone', category: 'sequence' },
