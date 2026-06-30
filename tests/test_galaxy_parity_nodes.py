@@ -8322,6 +8322,109 @@ def test_cat_bins_validates_modes_ranges_and_previous_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({**base, "select_outputs": ["unknown"]}) == "at least one selected output is required"
 
 
+def test_cawlign_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["cawlign"]
+
+    assert node_info["display_name"] == "cawlign"
+    assert node_info["category"] == "alignment"
+    assert node_info["description"] == "Codon-aware pairwise alignment of FASTA sequences to a reference."
+    assert node_info["input"]["required"]["fasta"][0] == "FASTA"
+    assert node_info["input"]["optional"]["reference_source"][1]["default"] == "builtin"
+    assert node_info["input"]["optional"]["reference_source"][1]["options"] == ["builtin", "history"]
+    assert node_info["input"]["optional"]["reference_builtin"][1]["default"] == "HXB2_pol"
+    assert "CoV2-S" in node_info["input"]["optional"]["reference_builtin"][1]["options"]
+    assert node_info["input"]["optional"]["datatype"][1]["default"] == "codon"
+    assert node_info["input"]["optional"]["datatype"][1]["options"] == ["codon", "nucleotide", "protein"]
+    assert node_info["input"]["optional"]["scoring_matrix_source"][1]["default"] == "builtin"
+    assert node_info["input"]["optional"]["scoring_matrix"][1]["default"] == "BLOSUM62"
+    assert node_info["input"]["optional"]["scoring_matrix"][1]["options"] == ["BLOSUM62", "HIV_BETWEEN_F", "NUC4.4"]
+    assert node_info["input"]["optional"]["local_alignment"][1]["options"] == ["trim", "global", "local"]
+    assert node_info["input"]["optional"]["format"][1]["options"] == ["refmap", "refalign", "pairwise"]
+    assert node_info["input"]["optional"]["reverse_complement"][1]["options"] == ["none", "silent", "annotated"]
+    assert node_info["input"]["optional"]["affine_gap"][1]["default"] is False
+    assert node_info["input"]["optional"]["write_reference"][1]["default"] is False
+    assert node_info["output"] == ["FASTA"]
+    assert node_info["output_name"] == ["output"]
+    assert node_info["required_executables"] == ["cawlign"]
+    assert node_info["required_conda_packages"] == ["cawlign"]
+    assert node_info["documentation_url"] == "https://github.com/veg/cawlign"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/veg/cawlign"]
+    assert "C++ port of bealign" in node_info["citation_text"]
+    assert node_info["version"] == "0.1.15+galaxy0"
+    assert "codon-aware alignment" in node_info["search_aliases"]
+    assert "HXB2_pol" in node_info["search_aliases"]
+
+
+def test_cawlign_renders_builtin_reference_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("cawlign")
+
+    assert node_class.render_command({"fasta": "query.fa", "output": "/work/cawlign"}) == (
+        "cawlign -r HXB2_pol -s BLOSUM62 -t codon -l trim -f refmap -R none query.fa > /work/cawlign/output.fasta"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cawlign" / "output.fasta"]
+    assert node_class.VALIDATE_INPUTS({}) == "fasta is required"
+    assert node_class.VALIDATE_INPUTS({"fasta": "query.fa"}) is True
+
+
+def test_cawlign_renders_history_reference_custom_matrix_flags_and_validates() -> None:
+    node_class = _node_class("cawlign")
+
+    assert node_class.render_command(
+        {
+            "fasta": "query sequences.fa",
+            "reference_source": "history",
+            "reference_history": "custom reference.fa",
+            "datatype": "protein",
+            "scoring_matrix_source": "history",
+            "scoring_matrix": "protein matrix.tsv",
+            "local_alignment": "local",
+            "format": "pairwise",
+            "reverse_complement": "annotated",
+            "affine_gap": True,
+            "write_reference": True,
+            "output": "/work/cawlign",
+        }
+    ) == (
+        "cawlign -r 'custom reference.fa' -s 'protein matrix.tsv' -t protein -l local -f pairwise "
+        "-R annotated -a -I 'query sequences.fa' > /work/cawlign/output.fasta"
+    )
+
+    base = {"fasta": "query.fa"}
+    assert node_class.VALIDATE_INPUTS({**base, "reference_source": "bad"}) == (
+        "reference_source must be one of: builtin, history"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "reference_source": "history", "reference_history": ""}) == (
+        "reference_history is required when reference_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "reference_source": "builtin", "reference_builtin": "bad"}) == (
+        "reference_builtin must be one of the built-in cawlign references"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "datatype": "bad"}) == "datatype must be one of: codon, nucleotide, protein"
+    assert node_class.VALIDATE_INPUTS({**base, "scoring_matrix_source": "bad"}) == (
+        "scoring_matrix_source must be one of: builtin, history"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "datatype": "protein", "scoring_matrix_source": "builtin"}) == (
+        "protein alignments require scoring_matrix_source history"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "datatype": "nucleotide", "scoring_matrix": "BLOSUM62"}) == (
+        "scoring_matrix must be one of for nucleotide: NUC4.4"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "datatype": "codon", "scoring_matrix": "NUC4.4"}) == (
+        "scoring_matrix must be one of for codon: BLOSUM62, HIV_BETWEEN_F"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "scoring_matrix_source": "history", "scoring_matrix": ""}) == (
+        "scoring_matrix is required when scoring_matrix_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "local_alignment": "bad"}) == (
+        "local_alignment must be one of: trim, global, local"
+    )
+    assert node_class.VALIDATE_INPUTS({**base, "format": "bad"}) == "format must be one of: refmap, refalign, pairwise"
+    assert node_class.VALIDATE_INPUTS({**base, "reverse_complement": "bad"}) == (
+        "reverse_complement must be one of: none, silent, annotated"
+    )
+
+
 def test_cat_add_names_renders_command_outputs_and_validates(tmp_path: Path) -> None:
     node_class = _node_class("cat_add_names")
 

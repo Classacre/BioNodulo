@@ -270,6 +270,8 @@ CAT_CITATION_TEXT = (
     "CAT and BAT classify contigs and metagenome-assembled genomes taxonomically; "
     "the Galaxy wrappers also cite DIAMOND protein alignment and Prodigal prokaryotic gene recognition."
 )
+CAWLIGN_CITATION_URL = "https://github.com/veg/cawlign"
+CAWLIGN_CITATION_TEXT = "cawlign: a C++ port of bealign for codon-aware, nucleotide, and protein alignments."
 AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
 AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
 LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
@@ -9076,6 +9078,249 @@ class CatSummariseNode(_CatBaseNode):
                     },
                 ),
                 "tabpad_path": cls._tabpad_input(),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class CawlignNode(CommandNode):
+    """Codon-aware pairwise alignment with cawlign."""
+
+    NODE_ID = "cawlign"
+    DISPLAY_NAME = "cawlign"
+    REQUIRED_CONDA_PACKAGES = ["cawlign"]
+    CATEGORY = "alignment"
+    DESCRIPTION = "Codon-aware pairwise alignment of FASTA sequences to a reference."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "cawlign",
+        "codon-aware alignment",
+        "pairwise alignment",
+        "reference alignment",
+        "bealign",
+        "HXB2_pol",
+        "CoV2-S",
+        "reverse complement",
+    ]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["cawlign"]
+    DOCUMENTATION_URL = CAWLIGN_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [CAWLIGN_CITATION_URL]
+    CITATION_TEXT = CAWLIGN_CITATION_TEXT
+    VERSION = "0.1.15+galaxy0"
+    SHELL = True
+
+    REFERENCE_OPTIONS = [
+        "CoV2-E",
+        "CoV2-endornase",
+        "CoV2-exonuclease",
+        "CoV2-helicase",
+        "CoV2-leader",
+        "CoV2-M",
+        "CoV2-methyltransferase",
+        "CoV2-N",
+        "CoV2-nsp10",
+        "CoV2-nsp2",
+        "CoV2-nsp3",
+        "CoV2-nsp4",
+        "CoV2-nsp6",
+        "CoV2-nsp7",
+        "CoV2-nsp8",
+        "CoV2-nsp9",
+        "CoV2-ORF10",
+        "CoV2-ORF1a",
+        "CoV2-ORF1b",
+        "CoV2-ORF3a",
+        "CoV2-ORF5",
+        "CoV2-ORF6",
+        "CoV2-ORF7a",
+        "CoV2-ORF7b",
+        "CoV2-ORF8",
+        "CoV2-RdRp",
+        "CoV2-S",
+        "CoV2-threeC",
+        "HXB2_gag",
+        "HXB2_int",
+        "HXB2_nef",
+        "HXB2_pol",
+        "HXB2_pr",
+        "HXB2_prrt",
+        "HXB2_rev",
+        "HXB2_rt",
+        "HXB2_tat",
+        "HXB2_vif",
+    ]
+    REFERENCE_SOURCE_OPTIONS = ["builtin", "history"]
+    DATATYPE_OPTIONS = ["codon", "nucleotide", "protein"]
+    SCORING_MATRIX_SOURCE_OPTIONS = ["builtin", "history"]
+    BUILTIN_MATRIX_OPTIONS = ["BLOSUM62", "HIV_BETWEEN_F", "NUC4.4"]
+    MATRIX_OPTIONS_BY_DATATYPE = {
+        "codon": ["BLOSUM62", "HIV_BETWEEN_F"],
+        "nucleotide": ["NUC4.4"],
+    }
+    LOCAL_ALIGNMENT_OPTIONS = ["trim", "global", "local"]
+    FORMAT_OPTIONS = ["refmap", "refalign", "pairwise"]
+    REVERSE_COMPLEMENT_OPTIONS = ["none", "silent", "annotated"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.fasta"
+
+    @classmethod
+    def _bool_input(cls, value: Any, default: bool = False) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @classmethod
+    def _reference_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("reference_source", "builtin") or "builtin")
+
+    @classmethod
+    def _reference_value(cls, inputs: dict[str, Any]) -> str:
+        if cls._reference_source(inputs) == "history":
+            return str(inputs.get("reference_history", "") or "")
+        return str(inputs.get("reference_builtin", "HXB2_pol") or "HXB2_pol")
+
+    @classmethod
+    def _datatype(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("datatype", "codon") or "codon")
+
+    @classmethod
+    def _scoring_matrix_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("scoring_matrix_source", "builtin") or "builtin")
+
+    @classmethod
+    def _scoring_matrix(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("scoring_matrix", "BLOSUM62") or "BLOSUM62")
+
+    @classmethod
+    def _choice_validation(cls, value: str, name: str, options: list[str]) -> bool | str:
+        if value not in options:
+            return f"{name} must be one of: {', '.join(options)}"
+        return True
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "cawlign",
+            "-r",
+            cls._reference_value(inputs),
+            "-s",
+            cls._scoring_matrix(inputs),
+            "-t",
+            cls._datatype(inputs),
+            "-l",
+            str(inputs.get("local_alignment", "trim") or "trim"),
+            "-f",
+            str(inputs.get("format", "refmap") or "refmap"),
+            "-R",
+            str(inputs.get("reverse_complement", "none") or "none"),
+        ]
+        if cls._bool_input(inputs.get("affine_gap"), False):
+            cmd.append("-a")
+        if cls._bool_input(inputs.get("write_reference"), False):
+            cmd.append("-I")
+        cmd.extend([str(inputs.get("fasta", "")), ">", cls._output_path(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.fasta"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("fasta", "")).strip():
+            return "fasta is required"
+
+        reference_source = cls._reference_source(inputs)
+        choice = cls._choice_validation(reference_source, "reference_source", cls.REFERENCE_SOURCE_OPTIONS)
+        if choice is not True:
+            return choice
+        if reference_source == "history":
+            if not str(inputs.get("reference_history", "")).strip():
+                return "reference_history is required when reference_source is history"
+        elif cls._reference_value(inputs) not in cls.REFERENCE_OPTIONS:
+            return "reference_builtin must be one of the built-in cawlign references"
+
+        datatype = cls._datatype(inputs)
+        choice = cls._choice_validation(datatype, "datatype", cls.DATATYPE_OPTIONS)
+        if choice is not True:
+            return choice
+
+        matrix_source = cls._scoring_matrix_source(inputs)
+        choice = cls._choice_validation(matrix_source, "scoring_matrix_source", cls.SCORING_MATRIX_SOURCE_OPTIONS)
+        if choice is not True:
+            return choice
+        if datatype == "protein" and matrix_source == "builtin":
+            return "protein alignments require scoring_matrix_source history"
+        if matrix_source == "history":
+            if not str(inputs.get("scoring_matrix", "")).strip():
+                return "scoring_matrix is required when scoring_matrix_source is history"
+        else:
+            matrix_options = cls.MATRIX_OPTIONS_BY_DATATYPE.get(datatype, [])
+            if cls._scoring_matrix(inputs) not in matrix_options:
+                return f"scoring_matrix must be one of for {datatype}: {', '.join(matrix_options)}"
+
+        for key, options in (
+            ("local_alignment", cls.LOCAL_ALIGNMENT_OPTIONS),
+            ("format", cls.FORMAT_OPTIONS),
+            ("reverse_complement", cls.REVERSE_COMPLEMENT_OPTIONS),
+        ):
+            choice = cls._choice_validation(str(inputs.get(key, options[0]) or options[0]), key, options)
+            if choice is not True:
+                return choice
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "fasta": ("FASTA", {"description": "Input FASTA file containing sequences to align"}),
+            },
+            "optional": {
+                "reference_source": ("STRING", {"default": "builtin", "options": cls.REFERENCE_SOURCE_OPTIONS}),
+                "reference_builtin": (
+                    "STRING",
+                    {"default": "HXB2_pol", "options": cls.REFERENCE_OPTIONS},
+                ),
+                "reference_history": (
+                    "FASTA",
+                    {"default": "", "description": "Custom reference sequence FASTA from history"},
+                ),
+                "datatype": ("STRING", {"default": "codon", "options": cls.DATATYPE_OPTIONS}),
+                "scoring_matrix_source": (
+                    "STRING",
+                    {"default": "builtin", "options": cls.SCORING_MATRIX_SOURCE_OPTIONS},
+                ),
+                "scoring_matrix": (
+                    "FILE",
+                    {
+                        "default": "BLOSUM62",
+                        "options": cls.BUILTIN_MATRIX_OPTIONS,
+                        "description": "Built-in scoring matrix name or custom matrix file",
+                    },
+                ),
+                "local_alignment": ("STRING", {"default": "trim", "options": cls.LOCAL_ALIGNMENT_OPTIONS}),
+                "format": ("STRING", {"default": "refmap", "options": cls.FORMAT_OPTIONS}),
+                "reverse_complement": (
+                    "STRING",
+                    {"default": "none", "options": cls.REVERSE_COMPLEMENT_OPTIONS},
+                ),
+                "affine_gap": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Disable affine gap scoring"},
+                ),
+                "write_reference": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Include the reference sequence in the output"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }

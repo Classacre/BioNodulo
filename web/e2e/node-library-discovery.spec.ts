@@ -996,6 +996,39 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/072868', 'https://doi.org/10.1186/s13059-019-1817-x', 'https://doi.org/10.1038/nmeth.3176', 'https://doi.org/10.1186/1471-2105-11-119'],
     citation_text: 'CAT and BAT classify contigs and metagenome-assembled genomes taxonomically; the Galaxy wrappers also cite DIAMOND protein alignment and Prodigal prokaryotic gene recognition.',
   },
+  cawlign: {
+    name: 'cawlign',
+    display_name: 'cawlign',
+    category: 'alignment',
+    description: 'Codon-aware pairwise alignment of FASTA sequences to a reference.',
+    search_aliases: ['Galaxy', 'cawlign', 'codon-aware alignment', 'pairwise alignment', 'reference alignment', 'bealign', 'HXB2_pol', 'CoV2-S', 'reverse complement'],
+    input: {
+      required: {
+        fasta: { type: 'FASTA' },
+      },
+      optional: {
+        reference_source: { type: 'STRING', default: 'builtin', options: ['builtin', 'history'] },
+        reference_builtin: { type: 'STRING', default: 'HXB2_pol', options: ['CoV2-E', 'CoV2-endornase', 'CoV2-exonuclease', 'CoV2-helicase', 'CoV2-leader', 'CoV2-M', 'CoV2-methyltransferase', 'CoV2-N', 'CoV2-nsp10', 'CoV2-nsp2', 'CoV2-nsp3', 'CoV2-nsp4', 'CoV2-nsp6', 'CoV2-nsp7', 'CoV2-nsp8', 'CoV2-nsp9', 'CoV2-ORF10', 'CoV2-ORF1a', 'CoV2-ORF1b', 'CoV2-ORF3a', 'CoV2-ORF5', 'CoV2-ORF6', 'CoV2-ORF7a', 'CoV2-ORF7b', 'CoV2-ORF8', 'CoV2-RdRp', 'CoV2-S', 'CoV2-threeC', 'HXB2_gag', 'HXB2_int', 'HXB2_nef', 'HXB2_pol', 'HXB2_pr', 'HXB2_prrt', 'HXB2_rev', 'HXB2_rt', 'HXB2_tat', 'HXB2_vif'] },
+        reference_history: { type: 'FASTA', default: '' },
+        datatype: { type: 'STRING', default: 'codon', options: ['codon', 'nucleotide', 'protein'] },
+        scoring_matrix_source: { type: 'STRING', default: 'builtin', options: ['builtin', 'history'] },
+        scoring_matrix: { type: 'FILE', default: 'BLOSUM62', options: ['BLOSUM62', 'HIV_BETWEEN_F', 'NUC4.4'] },
+        local_alignment: { type: 'STRING', default: 'trim', options: ['trim', 'global', 'local'] },
+        format: { type: 'STRING', default: 'refmap', options: ['refmap', 'refalign', 'pairwise'] },
+        reverse_complement: { type: 'STRING', default: 'none', options: ['none', 'silent', 'annotated'] },
+        affine_gap: { type: 'BOOLEAN', default: false },
+        write_reference: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['output'],
+    required_executables: ['cawlign'],
+    required_conda_packages: ['cawlign'],
+    documentation_url: 'https://github.com/veg/cawlign',
+    citation_dois: [],
+    citation_urls: ['https://github.com/veg/cawlign'],
+    citation_text: 'cawlign: a C++ port of bealign for codon-aware, nucleotide, and protein alignments.',
+  },
   aegean_canongff3: {
     name: 'aegean_canongff3',
     display_name: 'AEGeAn CanonGFF3',
@@ -16412,7 +16445,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('552 nodes available')).toBeVisible();
+  await expect(page.getByText('553 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16452,6 +16485,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bin2classification', name: 'CAT bins', category: 'taxonomy' },
     { query: 'official taxonomic ranks', name: 'CAT add_names', category: 'taxonomy' },
     { query: 'classification.summary.txt', name: 'CAT summarise', category: 'taxonomy' },
+    { query: 'codon-aware alignment', name: 'cawlign', category: 'alignment' },
     { query: 'PubMLST sequence typing', name: 'MLST', category: 'typing' },
     { query: 'PubMLST schemes', name: 'MLST List', category: 'typing' },
     { query: 'Salmonella serotype', name: 'SeqSero2', category: 'typing' },
