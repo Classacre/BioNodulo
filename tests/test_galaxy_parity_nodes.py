@@ -3809,6 +3809,100 @@ def test_happy_sompy_validates_program_reference_and_vcfs() -> None:
     ) is True
 
 
+def test_bwameth_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["bwameth"]
+
+    assert info["display_name"] == "bwameth"
+    assert info["category"] == "alignment"
+    assert info["description"] == "Align bisulfite-sequencing FASTQ reads to a genome with bwa-meth."
+    assert info["output"] == ["BAM"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["bwameth.py", "samtools"]
+    assert info["required_conda_packages"] == ["bwameth", "samtools"]
+    assert info["documentation_url"] == "https://github.com/brentp/bwa-meth"
+    assert info["citation_dois"] == ["10.48550/arXiv.1401.1129"]
+    assert info["citation_urls"] == ["https://doi.org/10.48550/arXiv.1401.1129", "http://arxiv.org/abs/1401.1129"]
+    assert "Fast and accurate alignment of long bisulfite-seq reads" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "BS-Seq alignment" in info["search_aliases"]
+    assert info["input"]["required"]["input_singles"][0] == "FASTQ"
+    assert info["input"]["optional"]["reference_source"][1]["options"] == ["history", "indexed"]
+    assert info["input"]["optional"]["single_or_paired_opts"][1]["options"] == ["single", "paired", "paired_collection"]
+    assert info["input"]["optional"]["input_mate1"][0] == "FASTQ"
+    assert info["input"]["optional"]["readGroup"][0] == "STRING"
+
+
+def test_bwameth_renders_history_paired_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bwameth")
+
+    assert node_class.render_command(
+        {
+            "reference_source": "history",
+            "reference": "ref.fa.gz",
+            "single_or_paired_opts": "paired",
+            "input_mate1": "t_R1.fastq.gz",
+            "input_mate2": "t_R2.fastq.gz",
+            "readGroup": "@RG\\tID:foo\\tSM:bar",
+            "output": "/work/bwameth",
+        }
+    ) == (
+        "mkdir -p /work/bwameth/index_dir && ln -sf ref.fa.gz /work/bwameth/index_dir/genome.fa && "
+        "bwameth.py index /work/bwameth/index_dir/genome.fa && "
+        "ln -sf t_R1.fastq.gz /work/bwameth/input_f.fastq.gz && "
+        "ln -sf t_R2.fastq.gz /work/bwameth/input_r.fastq.gz && "
+        "bwameth.py -t ${GALAXY_SLOTS:-4} --reference /work/bwameth/index_dir/genome.fa "
+        "--read-group '@RG\\tID:foo\\tSM:bar' /work/bwameth/input_f.fastq.gz /work/bwameth/input_r.fastq.gz | "
+        "samtools sort -l 0 -T ${TMPDIR:-.} -O bam | "
+        "samtools view -O bam -@ ${GALAXY_SLOTS:-1} -o /work/bwameth/output.bam"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwameth" / "output.bam"]
+
+
+def test_bwameth_renders_indexed_single_command_and_infers_extensions() -> None:
+    node_class = _node_class("bwameth")
+
+    assert node_class.render_command(
+        {
+            "reference_source": "indexed",
+            "reference_path": "/indexes/hg38.fa",
+            "single_or_paired_opts": "single",
+            "input_singles": "sample.fastq.bz2",
+            "output": "/work/bwameth",
+        }
+    ) == (
+        "ln -sf sample.fastq.bz2 /work/bwameth/input_f.fastq.bz2 && "
+        "bwameth.py -t ${GALAXY_SLOTS:-4} --reference /indexes/hg38.fa /work/bwameth/input_f.fastq.bz2 | "
+        "samtools sort -l 0 -T ${TMPDIR:-.} -O bam | "
+        "samtools view -O bam -@ ${GALAXY_SLOTS:-1} -o /work/bwameth/output.bam"
+    )
+
+
+def test_bwameth_validates_reference_and_fastq_modes() -> None:
+    node_class = _node_class("bwameth")
+
+    assert node_class.VALIDATE_INPUTS({}) == "reference is required for history reference_source"
+    assert node_class.VALIDATE_INPUTS({"reference_source": "indexed"}) == (
+        "reference_path is required for indexed reference_source"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference": "ref.fa", "single_or_paired_opts": "bad"}) == (
+        "single_or_paired_opts must be one of: single, paired, paired_collection"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference": "ref.fa", "single_or_paired_opts": "single"}) == (
+        "input_singles FASTQ is required for single-end mode"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"reference": "ref.fa", "single_or_paired_opts": "paired", "input_mate1": "r1.fq"}
+    ) == "input_mate2 FASTQ is required for paired mode"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "reference": "ref.fa",
+            "single_or_paired_opts": "paired",
+            "input_mate1": "r1.fq",
+            "input_mate2": "r2.fq",
+        }
+    ) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 

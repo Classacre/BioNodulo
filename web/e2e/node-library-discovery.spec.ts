@@ -239,6 +239,37 @@ const objectInfo = {
     citation_urls: ['https://github.com/Illumina/hap.py'],
     citation_text: 'Illumina hap.py: haplotype VCF comparison and som.py allele-matching tools.',
   },
+  bwameth: {
+    name: 'bwameth',
+    display_name: 'bwameth',
+    category: 'alignment',
+    description: 'Align bisulfite-sequencing FASTQ reads to a genome with bwa-meth.',
+    search_aliases: ['Galaxy', 'bwameth', 'bwa-meth', 'BWA methylation', 'BS-Seq alignment', 'bisulfite sequencing', 'WGBS', 'RRBS'],
+    input: {
+      required: {
+        input_singles: { type: 'FASTQ' },
+      },
+      optional: {
+        reference_source: { type: 'STRING', default: 'history', options: ['history', 'indexed'] },
+        reference: { type: 'FASTA', default: '' },
+        reference_path: { type: 'FASTA', default: '' },
+        single_or_paired_opts: { type: 'STRING', default: 'single', options: ['single', 'paired', 'paired_collection'] },
+        input_mate1: { type: 'FASTQ', default: '' },
+        input_mate2: { type: 'FASTQ', default: '' },
+        input_mate1_forward: { type: 'FASTQ', default: '' },
+        input_mate1_reverse: { type: 'FASTQ', default: '' },
+        readGroup: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['BAM'],
+    output_name: ['output'],
+    required_executables: ['bwameth.py', 'samtools'],
+    required_conda_packages: ['bwameth', 'samtools'],
+    documentation_url: 'https://github.com/brentp/bwa-meth',
+    citation_dois: ['10.48550/arXiv.1401.1129'],
+    citation_urls: ['https://doi.org/10.48550/arXiv.1401.1129', 'http://arxiv.org/abs/1401.1129'],
+    citation_text: 'Fast and accurate alignment of long bisulfite-seq reads.',
+  },
   Add_a_column1: {
     name: 'Add_a_column1',
     display_name: 'Compute on rows',
@@ -13589,7 +13620,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('468 nodes available')).toBeVisible();
+  await expect(page.getByText('469 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13602,6 +13633,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'reverse columns', name: 'Reverse', category: 'data_transform' },
     { query: 'FastQC emulation', name: 'Falco', category: 'qc' },
     { query: 'variant benchmarking', name: 'som.py and hap.py', category: 'variant' },
+    { query: 'BS-Seq alignment', name: 'bwameth', category: 'alignment' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },
