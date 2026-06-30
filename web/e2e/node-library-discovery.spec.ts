@@ -496,6 +496,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gkae410'],
     citation_text: 'The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update.',
   },
+  calculate_numeric_param: {
+    name: 'calculate_numeric_param',
+    display_name: 'Calculate numeric parameter value',
+    category: 'data_transform',
+    description: 'Calculate an integer or floating-point parameter from simple arithmetic components.',
+    search_aliases: ['Galaxy', 'calculate_numeric_param', 'Calculate numeric parameter value', 'numeric parameter', 'arithmetic parameter', 'integer parameter', 'float parameter', 'workflow expression'],
+    input: {
+      required: {
+        components: { type: 'JSON', is_list: true },
+      },
+      optional: {
+        component_value: { type: 'FLOAT', default: 1.0 },
+        arith: { type: 'STRING', default: '+', options: ['+', '-', '*', '/', '**', '%', ''] },
+        output_type: { type: 'STRING', default: 'integer', options: ['integer', 'float'] },
+      },
+    },
+    output: ['FLOAT', 'INT'],
+    output_name: ['float_param', 'integer_param'],
+    required_executables: [],
+    required_conda_packages: [],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_numeric_param',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_numeric_param'],
+    citation_text: 'Galaxy calculate_numeric_param expression tool for deriving integer or floating-point parameter values.',
+  },
   CoverageReport2: {
     name: 'CoverageReport2',
     display_name: 'Panel Coverage Report',
@@ -16247,7 +16272,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('547 nodes available')).toBeVisible();
+  await expect(page.getByText('548 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16269,6 +16294,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'liftover VCF', name: 'CrossMap VCF', category: 'variant' },
     { query: 'liftover Wiggle', name: 'CrossMap Wig', category: 'genomics' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
+    { query: 'arithmetic parameter', name: 'Calculate numeric parameter value', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },
     { query: 'index reads', name: 'Barcode Splitter', category: 'sequence' },

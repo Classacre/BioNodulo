@@ -6951,6 +6951,80 @@ def test_column_maker_validates_required_inputs_actions_and_options() -> None:
     ) is True
 
 
+def test_calculate_numeric_param_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["calculate_numeric_param"]
+
+    assert info["display_name"] == "Calculate numeric parameter value"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Calculate an integer or floating-point parameter from simple arithmetic components."
+    assert info["input"]["required"]["components"][0] == "JSON"
+    assert info["input"]["required"]["components"][1]["is_list"] is True
+    assert info["input"]["optional"]["component_value"][0] == "FLOAT"
+    assert info["input"]["optional"]["arith"][1]["options"] == ["+", "-", "*", "/", "**", "%", ""]
+    assert info["input"]["optional"]["output_type"][1]["default"] == "integer"
+    assert info["input"]["optional"]["output_type"][1]["options"] == ["integer", "float"]
+    assert info["output"] == ["FLOAT", "INT"]
+    assert info["output_name"] == ["float_param", "integer_param"]
+    assert info["required_executables"] == []
+    assert info["required_conda_packages"] == []
+    assert info["documentation_url"] == (
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_numeric_param"
+    )
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == [
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_numeric_param"
+    ]
+    assert "Galaxy calculate_numeric_param expression tool" in info["citation_text"]
+    assert "arithmetic parameter" in info["search_aliases"]
+
+
+def test_calculate_numeric_param_runs_components_and_output_modes() -> None:
+    node_class = _node_class("calculate_numeric_param")
+
+    integer_result = asyncio.run(
+        node_class().run(
+            components=[
+                {"param_type": {"select_param_type": "float", "component_value": 1.5}, "arith": "*"},
+                {"param_type": {"select_param_type": "float", "component_value": 1.5}, "arith": ""},
+            ],
+            output_type="integer",
+        )
+    )
+    assert integer_result == (2.0, 2)
+
+    float_result = asyncio.run(
+        node_class().run(
+            components=[
+                {"param_type": {"select_param_type": "integer", "component_value": 2}, "arith": "**"},
+                {"param_type": {"select_param_type": "integer", "component_value": 3}, "arith": "+"},
+                {"param_type": {"select_param_type": "float", "component_value": 0.5}, "arith": ""},
+            ],
+            output_type="float",
+        )
+    )
+    assert float_result == (8.5, 8)
+
+
+def test_calculate_numeric_param_validates_components_and_operators() -> None:
+    node_class = _node_class("calculate_numeric_param")
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least two components are required"
+    assert node_class.VALIDATE_INPUTS({"components": [{"component_value": 1}, {"component_value": 2}]}) is True
+    assert node_class.VALIDATE_INPUTS({"components": [{"component_value": 1}, {"component_value": 2}], "output_type": "bad"}) == (
+        "output_type must be one of: integer, float"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"components": [{"component_value": 1, "arith": "x"}, {"component_value": 2}]}
+    ) == "component arithmetic operator must be one of: +, -, *, /, **, %, "
+    assert node_class.VALIDATE_INPUTS({"components": [{"component_value": 1}, {"component_value": "two"}]}) == (
+        "component_value must be numeric"
+    )
+    assert node_class.VALIDATE_INPUTS({"components": [{"component_value": 1}, {"component_value": 0}], "arith": "/"}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"components": [{"component_value": 1, "arith": "/"}, {"component_value": 0, "arith": ""}]}
+    ) == "division by zero is not allowed"
+
+
 def test_coverage_report_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["CoverageReport2"]
 

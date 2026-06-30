@@ -1,6 +1,7 @@
 """Galaxy IUC parity nodes with DOI-backed citation metadata."""
 from __future__ import annotations
 
+import ast
 import json
 import shlex
 from pathlib import Path
@@ -8,6 +9,7 @@ from re import sub
 import re
 from typing import Any
 
+from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode, _shell_join
 
 
@@ -210,6 +212,12 @@ ROARY_CITATION_TEXT = "Roary: rapid large-scale prokaryote pan genome analysis."
 COLUMN_MAKER_CITATION_DOI = "10.1093/nar/gkae410"
 COLUMN_MAKER_CITATION_TEXT = (
     "The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update."
+)
+CALCULATE_NUMERIC_PARAM_CITATION_URL = (
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_numeric_param"
+)
+CALCULATE_NUMERIC_PARAM_CITATION_TEXT = (
+    "Galaxy calculate_numeric_param expression tool for deriving integer or floating-point parameter values."
 )
 COVERAGE_REPORT_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report"
 COVERAGE_REPORT_CITATION_TEXT = "Panel Coverage Report creates a coverage report for QC purposes."
@@ -6518,6 +6526,156 @@ class ColumnMakerNode(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class CalculateNumericParamNode(BaseNode):
+    """Calculate a Galaxy numeric workflow parameter from arithmetic components."""
+
+    NODE_ID = "calculate_numeric_param"
+    DISPLAY_NAME = "Calculate numeric parameter value"
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Calculate an integer or floating-point parameter from simple arithmetic components."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "calculate_numeric_param",
+        "Calculate numeric parameter value",
+        "numeric parameter",
+        "arithmetic parameter",
+        "integer parameter",
+        "float parameter",
+        "workflow expression",
+    ]
+    RETURN_TYPES = ("FLOAT", "INT")
+    RETURN_NAMES = ("float_param", "integer_param")
+    REQUIRES_EXTERNAL_TOOLS = False
+    REQUIRED_EXECUTABLES: list[str] = []
+    REQUIRED_CONDA_PACKAGES: list[str] = []
+    DOCUMENTATION_URL = CALCULATE_NUMERIC_PARAM_CITATION_URL
+    CITATION_URLS = [CALCULATE_NUMERIC_PARAM_CITATION_URL]
+    CITATION_TEXT = CALCULATE_NUMERIC_PARAM_CITATION_TEXT
+    VERSION = "0.1.0"
+
+    ARITHMETIC_OPERATORS = ["+", "-", "*", "/", "**", "%", ""]
+    OUTPUT_TYPES = ["integer", "float"]
+    _AST_OPERATORS = (
+        ast.Expression,
+        ast.BinOp,
+        ast.Constant,
+        ast.UnaryOp,
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.Pow,
+        ast.Mod,
+        ast.USub,
+        ast.UAdd,
+    )
+
+    @classmethod
+    def _component_items(cls, inputs: dict[str, Any]) -> list[dict[str, Any]]:
+        components = inputs.get("components")
+        if isinstance(components, (list, tuple)):
+            return [dict(item) for item in components if isinstance(item, dict)]
+        return []
+
+    @classmethod
+    def _component_value(cls, component: dict[str, Any]) -> Any:
+        param_type = component.get("param_type")
+        if isinstance(param_type, dict) and "component_value" in param_type:
+            return param_type["component_value"]
+        return component.get("component_value")
+
+    @classmethod
+    def _expression(cls, inputs: dict[str, Any]) -> str:
+        parts: list[str] = []
+        for component in cls._component_items(inputs):
+            parts.append(str(cls._component_value(component)))
+            operator = str(component.get("arith", "") or "")
+            parts.append(operator)
+            if operator == "":
+                break
+        return "".join(parts)
+
+    @classmethod
+    def _safe_eval(cls, expression: str) -> float:
+        try:
+            tree = ast.parse(expression, mode="eval")
+        except SyntaxError as exc:
+            raise ValueError("numeric expression is invalid") from exc
+        for node in ast.walk(tree):
+            if not isinstance(node, cls._AST_OPERATORS):
+                raise ValueError("numeric expression contains an unsupported operation")
+            if isinstance(node, ast.Constant) and not isinstance(node.value, (int, float)):
+                raise ValueError("numeric expression contains a non-numeric value")
+        return float(eval(compile(tree, "<calculate_numeric_param>", "eval"), {"__builtins__": {}}, {}))
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        components = cls._component_items(inputs)
+        if len(components) < 2:
+            return "at least two components are required"
+        output_type = str(inputs.get("output_type", "integer") or "integer")
+        if output_type not in cls.OUTPUT_TYPES:
+            return f"output_type must be one of: {', '.join(cls.OUTPUT_TYPES)}"
+        for component in components:
+            try:
+                float(cls._component_value(component))
+            except (TypeError, ValueError):
+                return "component_value must be numeric"
+            operator = str(component.get("arith", "") or "")
+            if operator not in cls.ARITHMETIC_OPERATORS:
+                return f"component arithmetic operator must be one of: {', '.join(cls.ARITHMETIC_OPERATORS)}"
+        try:
+            cls._safe_eval(cls._expression(inputs))
+        except ZeroDivisionError:
+            return "division by zero is not allowed"
+        except ValueError as exc:
+            return str(exc)
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "components": (
+                    "JSON",
+                    {
+                        "is_list": True,
+                        "description": "Galaxy repeat components with component_value and arithmetic operator",
+                    },
+                ),
+            },
+            "optional": {
+                "component_value": ("FLOAT", {"default": 1.0, "description": "Single numeric component value"}),
+                "arith": (
+                    "STRING",
+                    {
+                        "default": "+",
+                        "options": cls.ARITHMETIC_OPERATORS,
+                        "description": "Arithmetic operator for the single component fallback",
+                    },
+                ),
+                "output_type": (
+                    "STRING",
+                    {
+                        "default": "integer",
+                        "options": cls.OUTPUT_TYPES,
+                        "description": "Galaxy output type selector",
+                    },
+                ),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[float, int]:
+        validation = self.VALIDATE_INPUTS(kwargs)
+        if validation is not True:
+            raise ValueError(str(validation))
+        value = self._safe_eval(self._expression(kwargs))
+        if str(kwargs.get("output_type", "integer") or "integer") == "integer":
+            value = float(int(value))
+        return (value, int(value))
 
 
 class CoverageReportNode(CommandNode):
