@@ -3809,6 +3809,51 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giaa158'],
     citation_text: 'ChiRA: an integrated framework for chimeric read analysis from RNA-RNA interactome and structurome data.',
   },
+  chira_map: {
+    name: 'chira_map',
+    display_name: 'ChiRA map',
+    category: 'rna_seq',
+    description: 'Map collapsed ChiRA reads to single or split transcriptome references.',
+    search_aliases: ['Galaxy', 'ChiRA', 'ChiRA map', 'chira_map', 'chira_map.py', 'chimeric read mapping', 'RNA-RNA interactome', 'BWA-MEM', 'CLAN'],
+    input: {
+      required: {
+        query: { type: 'FASTA' },
+        ref_type: { type: 'STRING', default: 'split', options: ['split', 'single'] },
+        aligner: { type: 'STRING', default: 'bwa', options: ['bwa', 'clan'] },
+      },
+      optional: {
+        ref_fasta: { type: 'FASTA', default: '' },
+        ref_fasta1: { type: 'FASTA', default: '' },
+        ref_fasta2: { type: 'FASTA', default: '' },
+        stranded: { type: 'STRING', default: 'fw', options: ['fw', 'rc', 'both'] },
+        seed_length1: { type: 'INT', default: 12, min: 1 },
+        seed_length2: { type: 'INT', default: 16, min: 1 },
+        align_score1: { type: 'INT', default: 18, min: 1 },
+        align_score2: { type: 'INT', default: 16, min: 1 },
+        match1: { type: 'INT', default: 1 },
+        mismatch1: { type: 'INT', default: 4 },
+        match2: { type: 'INT', default: 1 },
+        mismatch2: { type: 'INT', default: 6 },
+        gapo1: { type: 'INT', default: 6 },
+        gape1: { type: 'INT', default: 1 },
+        gapo2: { type: 'INT', default: 100 },
+        gape2: { type: 'INT', default: 100 },
+        nhits1: { type: 'INT', default: 50 },
+        nhits2: { type: 'INT', default: 100 },
+        align_score: { type: 'INT', default: 10, min: 1 },
+        chimeric_overlap: { type: 'INT', default: 2 },
+        threads: { type: 'INT', default: 4, min: 1, max: 128, display: 'slider' },
+      },
+    },
+    output: ['BED', 'FASTA'],
+    output_name: ['mapped_bed', 'unmapped_fasta'],
+    required_executables: ['chira_map.py'],
+    required_conda_packages: ['chira'],
+    documentation_url: 'https://github.com/BackofenLab/ChiRA',
+    citation_dois: ['10.1093/gigascience/giaa158'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa158'],
+    citation_text: 'ChiRA: an integrated framework for chimeric read analysis from RNA-RNA interactome and structurome data.',
+  },
   chewbbaca_allelecall: {
     name: 'chewbbaca_allelecall',
     display_name: 'ChewBBACA AlleleCall',
@@ -16962,7 +17007,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('570 nodes available')).toBeVisible();
+  await expect(page.getByText('571 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17098,6 +17143,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'RNA-RNA interaction', name: 'Evaluation of RRIs using CheRRI', category: 'rna_seq' },
     { query: 'RRI model training', name: 'Train a CheRRI model using RRIs', category: 'rna_seq' },
     { query: 'deduplicate fastq reads', name: 'ChiRA collapse', category: 'rna_seq' },
+    { query: 'chimeric read mapping', name: 'ChiRA map', category: 'rna_seq' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },

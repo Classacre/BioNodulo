@@ -10998,6 +10998,101 @@ def test_chira_collapse_renders_deduplication_command_outputs_and_validation(tmp
     assert node_class.VALIDATE_INPUTS({"input_fastq": "reads.fastq", "umi_len": 0}) is True
 
 
+def test_chira_map_renders_alignment_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chira_map")
+    info = _registry().object_info()["chira_map"]
+
+    assert info["display_name"] == "ChiRA map"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Map collapsed ChiRA reads to single or split transcriptome references."
+    assert info["input"]["required"]["query"][0] == "FASTA"
+    assert info["input"]["required"]["ref_type"][1]["options"] == ["split", "single"]
+    assert info["input"]["required"]["aligner"][1]["options"] == ["bwa", "clan"]
+    assert info["input"]["optional"]["stranded"][1]["options"] == ["fw", "rc", "both"]
+    assert info["output"] == ["BED", "FASTA"]
+    assert info["output_name"] == ["mapped_bed", "unmapped_fasta"]
+    assert info["required_executables"] == ["chira_map.py"]
+    assert info["required_conda_packages"] == ["chira"]
+    assert info["documentation_url"] == "https://github.com/BackofenLab/ChiRA"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa158"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/gigascience/giaa158"]
+    assert "ChiRA map" in info["search_aliases"]
+    assert "chira_map.py" in info["search_aliases"]
+    assert info["version"] == "1.4.3+galaxy0"
+
+    assert node_class.render_command(
+        {
+            "query": "reads.fasta",
+            "ref_type": "split",
+            "ref_fasta1": "mirna ref.fa",
+            "ref_fasta2": "transcripts.fa",
+            "aligner": "bwa",
+            "stranded": "both",
+            "seed_length1": 12,
+            "seed_length2": 6,
+            "align_score1": 18,
+            "align_score2": 10,
+            "match1": 1,
+            "mismatch1": 4,
+            "match2": 1,
+            "mismatch2": 6,
+            "gapo1": 6,
+            "gape1": 1,
+            "gapo2": 100,
+            "gape2": 100,
+            "nhits1": 50,
+            "nhits2": 100,
+            "threads": 8,
+            "output": "/work/chira_map",
+        }
+    ) == (
+        "mkdir -p /work/chira_map && cd /work/chira_map && chira_map.py -b -a bwa -i reads.fasta -s both "
+        "-l1 12 -l2 6 -s1 18 -s2 10 -ma1 1 -mm1 4 -ma2 1 -mm2 6 -go1 6 -ge1 1 -go2 100 "
+        "-ge2 100 -h1 50 -h2 100 -f1 'mirna ref.fa' -f2 transcripts.fa -p ${GALAXY_SLOTS:-8} -o ./"
+    )
+    assert node_class.render_command(
+        {
+            "query": "reads.fasta",
+            "ref_type": "single",
+            "ref_fasta": "transcripts.fa",
+            "aligner": "clan",
+            "align_score": 10,
+            "chimeric_overlap": 2,
+            "output": "/work/chira_map",
+        }
+    ) == (
+        "mkdir -p /work/chira_map && cd /work/chira_map && "
+        "chira_map.py -b -a clan -i reads.fasta -s2 10 -co 2 -f1 transcripts.fa -p ${GALAXY_SLOTS:-4} -o ./"
+    )
+    assert node_class.PLAN_OUTPUTS({"aligner": "bwa"}, tmp_path) == [
+        tmp_path / "chira_map" / "sorted.bed",
+        tmp_path / "chira_map" / "unmapped.fasta",
+    ]
+    assert node_class.PLAN_OUTPUTS({"aligner": "clan"}, tmp_path) == [tmp_path / "chira_map" / "sorted.bed"]
+    assert node_class.VALIDATE_INPUTS({}) == "query is required"
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fa", "ref_type": "bad", "aligner": "bwa"}) == (
+        "ref_type must be one of: split, single"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fa", "ref_type": "single", "aligner": "bad"}) == (
+        "aligner must be one of: bwa, clan"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fa", "ref_type": "single", "aligner": "bwa"}) == (
+        "ref_fasta is required when ref_type is single"
+    )
+    assert node_class.VALIDATE_INPUTS({"query": "reads.fa", "ref_type": "split", "aligner": "bwa", "ref_fasta1": "a.fa"}) == (
+        "ref_fasta2 is required when ref_type is split"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"query": "reads.fa", "ref_type": "single", "ref_fasta": "ref.fa", "aligner": "bwa", "seed_length1": 0}
+    ) == "seed_length1 must be >= 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"query": "reads.fa", "ref_type": "single", "ref_fasta": "ref.fa", "aligner": "bwa", "stranded": "bad"}
+    ) == "stranded must be one of: fw, rc, both"
+    assert node_class.VALIDATE_INPUTS(
+        {"query": "reads.fa", "ref_type": "single", "ref_fasta": "ref.fa", "aligner": "bwa"}
+    ) is True
+
+
 def test_chewbbaca_allelecall_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["chewbbaca_allelecall"]
 

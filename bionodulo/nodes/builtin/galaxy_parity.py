@@ -21133,6 +21133,210 @@ class ChiraCollapseNode(CommandNode):
         return True
 
 
+class ChiraMapNode(CommandNode):
+    """Map ChiRA reads to transcriptome references."""
+
+    NODE_ID = "chira_map"
+    DISPLAY_NAME = "ChiRA map"
+    REQUIRED_CONDA_PACKAGES = ["chira"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Map collapsed ChiRA reads to single or split transcriptome references."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ChiRA",
+        "ChiRA map",
+        "chira_map",
+        "chira_map.py",
+        "chimeric read mapping",
+        "RNA-RNA interactome",
+        "BWA-MEM",
+        "CLAN",
+    ]
+    RETURN_TYPES = ("BED", "FASTA")
+    RETURN_NAMES = ("mapped_bed", "unmapped_fasta")
+    REQUIRED_EXECUTABLES = ["chira_map.py"]
+    DOCUMENTATION_URL = CHIRA_DOCUMENTATION_URL
+    CITATION_DOIS = [CHIRA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHIRA_CITATION_DOI}"]
+    CITATION_TEXT = CHIRA_CITATION_TEXT
+    VERSION = "1.4.3+galaxy0"
+    SHELL = True
+
+    REF_TYPES = ["split", "single"]
+    ALIGNERS = ["bwa", "clan"]
+    STRANDED_OPTIONS = ["fw", "rc", "both"]
+    BWA_INT_DEFAULTS = {
+        "seed_length1": 12,
+        "seed_length2": 16,
+        "align_score1": 18,
+        "align_score2": 16,
+        "match1": 1,
+        "mismatch1": 4,
+        "match2": 1,
+        "mismatch2": 6,
+        "gapo1": 6,
+        "gape1": 1,
+        "gapo2": 100,
+        "gape2": 100,
+        "nhits1": 50,
+        "nhits2": 100,
+    }
+
+    @classmethod
+    def _ref_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ref_type", "split") or "split")
+
+    @classmethod
+    def _aligner(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("aligner", "bwa") or "bwa")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        aligner = cls._aligner(inputs)
+        cmd = ["chira_map.py", "-b", "-a", aligner, "-i", str(inputs.get("query", ""))]
+        if aligner == "bwa":
+            cmd.extend(
+                [
+                    "-s",
+                    str(inputs.get("stranded", "fw") or "fw"),
+                    "-l1",
+                    str(inputs.get("seed_length1", 12)),
+                    "-l2",
+                    str(inputs.get("seed_length2", 16)),
+                    "-s1",
+                    str(inputs.get("align_score1", 18)),
+                    "-s2",
+                    str(inputs.get("align_score2", 16)),
+                    "-ma1",
+                    str(inputs.get("match1", 1)),
+                    "-mm1",
+                    str(inputs.get("mismatch1", 4)),
+                    "-ma2",
+                    str(inputs.get("match2", 1)),
+                    "-mm2",
+                    str(inputs.get("mismatch2", 6)),
+                    "-go1",
+                    str(inputs.get("gapo1", 6)),
+                    "-ge1",
+                    str(inputs.get("gape1", 1)),
+                    "-go2",
+                    str(inputs.get("gapo2", 100)),
+                    "-ge2",
+                    str(inputs.get("gape2", 100)),
+                    "-h1",
+                    str(inputs.get("nhits1", 50)),
+                    "-h2",
+                    str(inputs.get("nhits2", 100)),
+                ]
+            )
+        else:
+            cmd.extend(
+                [
+                    "-s2",
+                    str(inputs.get("align_score", 10)),
+                    "-co",
+                    str(inputs.get("chimeric_overlap", 2)),
+                ]
+            )
+        if cls._ref_type(inputs) == "single":
+            cmd.extend(["-f1", str(inputs.get("ref_fasta", ""))])
+        else:
+            cmd.extend(["-f1", str(inputs.get("ref_fasta1", "")), "-f2", str(inputs.get("ref_fasta2", ""))])
+        cmd.extend(["-p", f"${{GALAXY_SLOTS:-{inputs.get('threads', 4)}}}", "-o", "./"])
+        command = _shell_join(cmd).replace("'${GALAXY_SLOTS:-", "${GALAXY_SLOTS:-").replace("}'", "}")
+        return f"{_shell_join(['mkdir', '-p', out])} && cd {shlex.quote(out)} && {command}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "sorted.bed"]
+        if cls._aligner(inputs) == "bwa":
+            outputs.append(out / "unmapped.fasta")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "query": ("FASTA", {"description": "Collapsed ChiRA read FASTA"}),
+                "ref_type": ("STRING", {"default": "split", "options": cls.REF_TYPES, "description": "Single or split reference"}),
+                "aligner": ("STRING", {"default": "bwa", "options": cls.ALIGNERS, "description": "Alignment engine"}),
+            },
+            "optional": {
+                "ref_fasta": ("FASTA", {"default": "", "description": "Reference FASTA for single-reference mode"}),
+                "ref_fasta1": ("FASTA", {"default": "", "description": "First reference FASTA for split mode"}),
+                "ref_fasta2": ("FASTA", {"default": "", "description": "Second reference FASTA for split mode"}),
+                "stranded": ("STRING", {"default": "fw", "options": cls.STRANDED_OPTIONS, "description": "BWA strand mode"}),
+                "seed_length1": ("INT", {"default": 12, "min": 1}),
+                "seed_length2": ("INT", {"default": 16, "min": 1}),
+                "align_score1": ("INT", {"default": 18, "min": 1}),
+                "align_score2": ("INT", {"default": 16, "min": 1}),
+                "match1": ("INT", {"default": 1}),
+                "mismatch1": ("INT", {"default": 4}),
+                "match2": ("INT", {"default": 1}),
+                "mismatch2": ("INT", {"default": 6}),
+                "gapo1": ("INT", {"default": 6}),
+                "gape1": ("INT", {"default": 1}),
+                "gapo2": ("INT", {"default": 100}),
+                "gape2": ("INT", {"default": 100}),
+                "nhits1": ("INT", {"default": 50}),
+                "nhits2": ("INT", {"default": 100}),
+                "align_score": ("INT", {"default": 10, "min": 1, "description": "CLAN minimum fragment length"}),
+                "chimeric_overlap": ("INT", {"default": 2, "description": "Maximum overlap between chimeric read segments"}),
+                "threads": ("INT", {"default": 4, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def _validate_int_min(cls, inputs: dict[str, Any], name: str, default: int, minimum: int) -> bool | str:
+        try:
+            value = int(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if value < minimum:
+            return f"{name} must be >= {minimum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("query", "")).strip():
+            return "query is required"
+        ref_type = cls._ref_type(inputs)
+        if ref_type not in cls.REF_TYPES:
+            return f"ref_type must be one of: {', '.join(cls.REF_TYPES)}"
+        aligner = cls._aligner(inputs)
+        if aligner not in cls.ALIGNERS:
+            return f"aligner must be one of: {', '.join(cls.ALIGNERS)}"
+        if ref_type == "single":
+            if not str(inputs.get("ref_fasta", "")).strip():
+                return "ref_fasta is required when ref_type is single"
+        else:
+            if not str(inputs.get("ref_fasta1", "")).strip():
+                return "ref_fasta1 is required when ref_type is split"
+            if not str(inputs.get("ref_fasta2", "")).strip():
+                return "ref_fasta2 is required when ref_type is split"
+        if aligner == "bwa":
+            stranded = str(inputs.get("stranded", "fw") or "fw")
+            if stranded not in cls.STRANDED_OPTIONS:
+                return f"stranded must be one of: {', '.join(cls.STRANDED_OPTIONS)}"
+            for name, default in cls.BWA_INT_DEFAULTS.items():
+                result = cls._validate_int_min(inputs, name, default, 1)
+                if result is not True:
+                    return result
+        else:
+            for name in ["align_score", "chimeric_overlap"]:
+                result = cls._validate_int_min(inputs, name, 10 if name == "align_score" else 2, 1)
+                if result is not True:
+                    return result
+        result = cls._validate_int_min(inputs, "threads", 4, 1)
+        if result is not True:
+            return result
+        return True
+
+
 class ChewBBACAAlleleCallNode(CommandNode):
     """Determine allelic profiles for genome assemblies with chewBBACA."""
 
