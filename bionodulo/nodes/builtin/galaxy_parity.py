@@ -35950,6 +35950,48 @@ class Beacon2ImportNode(CommandNode):
         }
 
 
+class Beacon2IndividualsNode(_Beacon2SearchBaseNode):
+    """Query the individuals collection in a Beacon database."""
+
+    NODE_ID = "beacon2_individuals"
+    DISPLAY_NAME = "Beacon2 Individuals"
+    DESCRIPTION = "Query the individuals collection in a Beacon database for patients or healthy controls."
+    VERSION = "1.0.0"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_individuals",
+        "Beacon2 Individuals",
+        "beacon2-search individuals",
+        "individuals collection",
+        "patients",
+        "healthy controls",
+        "geographicOrigin",
+        "familyHistory",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_individuals_query",)
+    SEARCH_COLLECTION = "individuals"
+    OUTPUT_FILENAME = "individuals_query_findings.json"
+    QUERY_FLAGS = (
+        ("ageGroup", "--ageGroup", "Age group or age at onset, such as Adult 18-65 Years Old"),
+        ("diseaseCode", "--diseaseCode", "Disease code or label"),
+        ("familyHistory", "--familyHistory", "Family-history flag"),
+        ("severity", "--severity", "Clinical severity"),
+        ("stage", "--stage", "Disease stage"),
+        ("ethnicity", "--ethnicity", "Ethnicity term or label"),
+        ("geographicOrigin", "--geographicOrigin", "Geographic origin term or label"),
+        ("identification", "--identification", "Individual identifier or internal ID"),
+        ("assayCode", "--assayCode", "Assay code or label"),
+        ("sex", "--sex", "Sex filter"),
+    )
+    QUERY_FLAG_OPTIONS = {
+        "familyHistory": ["", "true", "false"],
+        "sex": ["", "male", "female"],
+    }
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 

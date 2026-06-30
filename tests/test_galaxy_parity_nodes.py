@@ -40349,6 +40349,90 @@ def test_beacon2_import_renders_import_command_outputs_and_validation(tmp_path: 
     ) is True
 
 
+def test_beacon2_individuals_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["beacon2_individuals"]
+
+    assert node_info["display_name"] == "Beacon2 Individuals"
+    assert node_info["category"] == "metadata"
+    assert node_info["description"] == (
+        "Query the individuals collection in a Beacon database for patients or healthy controls."
+    )
+    assert node_info["output"] == ["JSON"]
+    assert node_info["output_name"] == ["out_individuals_query"]
+    assert node_info["required_executables"] == ["beacon2-search"]
+    assert node_info["required_conda_packages"] == ["beacon2-import"]
+    assert node_info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import"
+    assert node_info["citation_dois"] == ["10.1002/humu.24369"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
+    assert "Beacon v2" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "beacon2-search individuals" in node_info["search_aliases"]
+    assert node_info["version"] == "1.0.0"
+    assert node_info["input"]["required"]["database"][0] == "STRING"
+    assert node_info["input"]["required"]["collection"][0] == "STRING"
+    assert node_info["input"]["optional"]["familyHistory"][1]["options"] == ["", "true", "false"]
+    assert node_info["input"]["optional"]["sex"][1]["options"] == ["", "male", "female"]
+    assert node_info["input"]["optional"]["geographicOrigin"][1]["default"] == ""
+    assert node_info["input"]["optional"]["diseaseCode"][1]["default"] == ""
+    assert node_info["input"]["optional"]["assayCode"][1]["default"] == ""
+
+
+def test_beacon2_individuals_renders_search_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("beacon2_individuals")
+
+    assert node_class.render_command(
+        {
+            "database": "beacon",
+            "collection": "test",
+            "db_host": "20.108.51.167",
+            "ageGroup": "Adult 18-65 Years Old",
+            "diseaseCode": "intolerance",
+            "familyHistory": "true",
+            "severity": "Profound",
+            "stage": "acute onset",
+            "ethnicity": "Han Chinese",
+            "geographicOrigin": "United States of America",
+            "identification": "refvar-668fd04e32491a13d36d3a46",
+            "assayCode": "Platelets [#/volume] in Blood",
+            "sex": "male",
+            "output": "/work/beacon2_individuals",
+        }
+    ) == (
+        "mkdir -p /work/beacon2_individuals && "
+        "cat > /work/beacon2_individuals/beacon2_db_auth.json <<'JSON'\n"
+        "{\n"
+        '  "db_auth_source": "admin",\n'
+        '  "db_user": "root",\n'
+        '  "db_password": "example"\n'
+        "}\n"
+        "JSON\n"
+        "beacon2-search individuals --db-host 20.108.51.167 --db-port 27017 --database beacon "
+        "--collection test --advance-connection --db-auth-config "
+        "/work/beacon2_individuals/beacon2_db_auth.json --ageGroup 'Adult 18-65 Years Old' "
+        "--diseaseCode intolerance --familyHistory true --severity Profound --stage 'acute onset' "
+        "--ethnicity 'Han Chinese' --geographicOrigin 'United States of America' "
+        "--identification refvar-668fd04e32491a13d36d3a46 --assayCode 'Platelets [#/volume] in Blood' "
+        "--sex male > /work/beacon2_individuals/individuals_query_findings.json"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "beacon2_individuals" / "individuals_query_findings.json",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "database is required"
+    assert node_class.VALIDATE_INPUTS({"database": "beacon"}) == "collection is required"
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test", "db_port": "bad"}) == (
+        "db_port must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test", "familyHistory": "unknown"}) == (
+        "familyHistory must be one of: , true, false"
+    )
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test", "sex": "unknown"}) == (
+        "sex must be one of: , male, female"
+    )
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test"}) is True
+
+
 def test_beacon2_nodes_expose_galaxy_metadata_inputs_outputs_and_citation() -> None:
     object_info = _registry().object_info()
 
