@@ -6109,6 +6109,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_wigtobigwig: {
+    name: 'ucsc_wigtobigwig',
+    display_name: 'wigtobigwig',
+    category: 'genomics',
+    description: 'Convert bedGraph or Wiggle data to an indexed bigWig track.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_wigtobigwig', 'wigtobigwig', 'wigToBigWig', 'bigWig', 'bedGraph', 'Wiggle', 'genome browser track'],
+    input: {
+      required: {
+        input1: { type: 'FILE' },
+      },
+      optional: {
+        genome_type_select: { type: 'STRING', default: 'indexed', options: ['indexed', 'history'] },
+        index_len_path: { type: 'STRING', default: '' },
+        chromfile: { type: 'FILE' },
+        settingsType: { type: 'STRING', default: 'preset', options: ['preset', 'full'] },
+        blockSize: { type: 'INT', default: 256, min: 1 },
+        itemsPerSlot: { type: 'INT', default: 1024, min: 1 },
+        clip: { type: 'BOOLEAN', default: true },
+        unc: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['BIGWIG'],
+    output_name: ['out_file1'],
+    required_executables: ['grep', 'wigToBigWig'],
+    required_conda_packages: ['ucsc-wigtobigwig', 'grep'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/bigWig.html',
+    citation_dois: ['10.1093/bioinformatics/btq351'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btq351'],
+    citation_text: 'BigWig and BigBed enable browsing of large distributed datasets in genome browsers.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -12922,12 +12952,12 @@ test.beforeEach(async ({ context, page }) => {
 });
 
 test('node library exposes advanced gap-analysis node families from object_info', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('447 nodes available')).toBeVisible();
+  await expect(page.getByText('448 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13144,6 +13174,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'netted chains', name: 'chainPreNet', category: 'genomics' },
     { query: 'net to AXT', name: 'netToAxt', category: 'genomics' },
     { query: '2bit to FASTA', name: 'twoBitToFa', category: 'genomics' },
+    { query: 'wigToBigWig', name: 'wigtobigwig', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },

@@ -34867,6 +34867,108 @@ def test_ucsc_twobittofa_validates_required_input_coordinates_and_region_sources
     assert node_class.VALIDATE_INPUTS({"twobit_input": "input.2bit", "seq": "chr1", "start": 0, "end": 10}) is True
 
 
+def test_ucsc_wigtobigwig_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_wigtobigwig"]
+
+    assert info["display_name"] == "wigtobigwig"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Convert bedGraph or Wiggle data to an indexed bigWig track."
+    assert info["output"] == ["BIGWIG"]
+    assert info["output_name"] == ["out_file1"]
+    assert info["required_executables"] == ["grep", "wigToBigWig"]
+    assert info["required_conda_packages"] == ["ucsc-wigtobigwig", "grep"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/bigWig.html"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btq351"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btq351"]
+    assert "BigWig and BigBed" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "wigToBigWig" in info["search_aliases"]
+    assert info["input"]["required"]["input1"][0] == "FILE"
+    assert info["input"]["optional"]["genome_type_select"][1]["options"] == ["indexed", "history"]
+    assert info["input"]["optional"]["chromfile"][0] == "FILE"
+    assert info["input"]["optional"]["index_len_path"][0] == "STRING"
+    assert info["input"]["optional"]["settingsType"][1]["options"] == ["preset", "full"]
+    assert info["input"]["optional"]["blockSize"][1]["min"] == 1
+    assert info["input"]["optional"]["itemsPerSlot"][1]["min"] == 1
+    assert info["input"]["optional"]["clip"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["unc"][0] == "BOOLEAN"
+
+
+def test_ucsc_wigtobigwig_renders_history_full_and_indexed_preset_commands(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_wigtobigwig")
+
+    assert node_class.render_command(
+        {
+            "input1": "signal track.wig",
+            "genome_type_select": "history",
+            "chromfile": "hg17 lengths.len",
+            "settingsType": "full",
+            "blockSize": 256,
+            "itemsPerSlot": 1024,
+            "clip": True,
+            "unc": False,
+            "output": "/work/ucsc_wigtobigwig",
+        }
+    ) == (
+        "mkdir -p /work/ucsc_wigtobigwig && "
+        "grep -v '^track' 'signal track.wig' > /work/ucsc_wigtobigwig/trackless && "
+        "wigToBigWig /work/ucsc_wigtobigwig/trackless 'hg17 lengths.len' "
+        "/work/ucsc_wigtobigwig/out_file1.bw -blockSize=256 -itemsPerSlot=1024 -clip"
+    )
+    assert node_class.render_command(
+        {
+            "input1": "signal.bedgraph",
+            "genome_type_select": "indexed",
+            "index_len_path": "/indexes/hg17.len",
+            "settingsType": "preset",
+            "output": "/work/ucsc_wigtobigwig",
+        }
+    ) == (
+        "mkdir -p /work/ucsc_wigtobigwig && "
+        "grep -v '^track' signal.bedgraph > /work/ucsc_wigtobigwig/trackless && "
+        "wigToBigWig /work/ucsc_wigtobigwig/trackless /indexes/hg17.len "
+        "/work/ucsc_wigtobigwig/out_file1.bw -clip"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_wigtobigwig" / "out_file1.bw",
+    ]
+
+
+def test_ucsc_wigtobigwig_validates_reference_settings_and_numeric_options() -> None:
+    node_class = _node_class("ucsc_wigtobigwig")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input1 is required"
+    assert node_class.VALIDATE_INPUTS({"input1": "signal.wig"}) == "index_len_path is required"
+    assert node_class.VALIDATE_INPUTS({"input1": "signal.wig", "genome_type_select": "bad"}) == (
+        "genome_type_select must be one of: indexed, history"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "signal.wig", "genome_type_select": "history"}) == (
+        "chromfile is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input1": "signal.wig", "index_len_path": "/indexes/hg17.len", "settingsType": "bad"}
+    ) == "settingsType must be one of: preset, full"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input1": "signal.wig",
+            "index_len_path": "/indexes/hg17.len",
+            "settingsType": "full",
+            "blockSize": 0,
+        }
+    ) == "blockSize must be greater than or equal to 1"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input1": "signal.wig",
+            "index_len_path": "/indexes/hg17.len",
+            "settingsType": "full",
+            "blockSize": 256,
+            "itemsPerSlot": 0,
+        }
+    ) == "itemsPerSlot must be greater than or equal to 1"
+    assert node_class.VALIDATE_INPUTS({"input1": "signal.wig", "index_len_path": "/indexes/hg17.len"}) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 

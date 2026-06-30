@@ -28218,6 +28218,159 @@ class UcscTwoBitToFaNode(CommandNode):
         }
 
 
+class UcscWigToBigWigNode(CommandNode):
+    """Convert Wiggle or bedGraph data to bigWig."""
+
+    NODE_ID = "ucsc_wigtobigwig"
+    DISPLAY_NAME = "wigtobigwig"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-wigtobigwig", "grep"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Convert bedGraph or Wiggle data to an indexed bigWig track."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_wigtobigwig",
+        "wigtobigwig",
+        "wigToBigWig",
+        "bigWig",
+        "bedGraph",
+        "Wiggle",
+        "genome browser track",
+    ]
+    RETURN_TYPES = ("BIGWIG",)
+    RETURN_NAMES = ("out_file1",)
+    REQUIRED_EXECUTABLES = ["grep", "wigToBigWig"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/bigWig.html"
+    CITATION_DOIS = [BBG_TO_BIGWIG_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BBG_TO_BIGWIG_CITATION_DOI}"]
+    CITATION_TEXT = BBG_TO_BIGWIG_CITATION_TEXT
+    VERSION = "482+galaxy0"
+
+    GENOME_SOURCE_OPTIONS = ["indexed", "history"]
+    SETTINGS_OPTIONS = ["preset", "full"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out_file1.bw"
+
+    @classmethod
+    def _trackless_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/trackless"
+
+    @classmethod
+    def _genome_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("genome_type_select", "indexed") or "indexed")
+
+    @classmethod
+    def _settings_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("settingsType", "preset") or "preset")
+
+    @classmethod
+    def _chrom_sizes(cls, inputs: dict[str, Any]) -> str:
+        if cls._genome_source(inputs) == "history":
+            return str(inputs.get("chromfile", ""))
+        return str(inputs.get("index_len_path", ""))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out_dir = _out(inputs)
+        trackless = cls._trackless_path(inputs)
+        setup = _shell_join(["mkdir", "-p", out_dir])
+        strip = f"grep -v '^track' {shlex.quote(str(inputs.get('input1', '')))} > {shlex.quote(trackless)}"
+        cmd = [
+            "wigToBigWig",
+            trackless,
+            cls._chrom_sizes(inputs),
+            cls._output_path(inputs),
+        ]
+        if cls._settings_type(inputs) == "full":
+            cmd.append(f"-blockSize={inputs.get('blockSize', 256)}")
+            cmd.append(f"-itemsPerSlot={inputs.get('itemsPerSlot', 1024)}")
+            if inputs.get("clip", True):
+                cmd.append("-clip")
+            if inputs.get("unc"):
+                cmd.append("-unc")
+        else:
+            cmd.append("-clip")
+        return f"{setup} && {strip} && {_shell_join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out_file1.bw"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input1", "")).strip():
+            return "input1 is required"
+        genome_source = cls._genome_source(inputs)
+        if genome_source not in cls.GENOME_SOURCE_OPTIONS:
+            return f"genome_type_select must be one of: {', '.join(cls.GENOME_SOURCE_OPTIONS)}"
+        if not cls._chrom_sizes(inputs).strip():
+            return "chromfile is required" if genome_source == "history" else "index_len_path is required"
+        settings_type = cls._settings_type(inputs)
+        if settings_type not in cls.SETTINGS_OPTIONS:
+            return f"settingsType must be one of: {', '.join(cls.SETTINGS_OPTIONS)}"
+        if settings_type == "full":
+            for name, default in (("blockSize", 256), ("itemsPerSlot", 1024)):
+                value = inputs.get(name, default)
+                if int(value) < 1:
+                    return f"{name} must be greater than or equal to 1"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input1": ("FILE", {"description": "Wiggle or bedGraph file to convert"}),
+            },
+            "optional": {
+                "genome_type_select": (
+                    "STRING",
+                    {
+                        "default": "indexed",
+                        "options": cls.GENOME_SOURCE_OPTIONS,
+                        "description": "Use built-in genome lengths or a chromosome length file from history",
+                    },
+                ),
+                "index_len_path": (
+                    "STRING",
+                    {"default": "", "description": "Path to cached chromosome length file for the selected genome build"},
+                ),
+                "chromfile": (
+                    "FILE",
+                    {"description": "Chromosome length file for a history reference genome"},
+                ),
+                "settingsType": (
+                    "STRING",
+                    {
+                        "default": "preset",
+                        "options": cls.SETTINGS_OPTIONS,
+                        "description": "Use default converter settings or expose the full parameter list",
+                    },
+                ),
+                "blockSize": (
+                    "INT",
+                    {"default": 256, "min": 1, "description": "Items to bundle in the R-tree"},
+                ),
+                "itemsPerSlot": (
+                    "INT",
+                    {"default": 1024, "min": 1, "description": "Data points bundled at the lowest level"},
+                ),
+                "clip": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Warn and clip items beyond chromosome ends instead of failing"},
+                ),
+                "unc": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write an uncompressed bigWig file"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MafToAxtNode(CommandNode):
     """Convert UCSC MAF alignments to AXT format."""
 
