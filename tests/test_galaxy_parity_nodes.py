@@ -10729,6 +10729,103 @@ def test_checkm2_renders_specific_model_command_with_safe_input_names() -> None:
     ]
 
 
+def test_cherri_eval_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["cherri_eval"]
+
+    assert info["display_name"] == "Evaluation of RRIs using CheRRI"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Evaluate RNA-RNA interaction sites with a trained CheRRI model."
+    assert info["output"] == ["CSV"]
+    assert info["output_name"] == ["eval_out"]
+    assert info["required_executables"] == ["cherri", "tar"]
+    assert info["required_conda_packages"] == ["cherri"]
+    assert info["documentation_url"] == "https://github.com/BackofenLab/CheRRI"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/cherri"]
+    assert "RNA-RNA interaction" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "cherri eval" in info["search_aliases"]
+    assert info["version"] == "0.7"
+    assert info["input"]["required"]["rris_table"][0] == "CSV"
+    assert info["input"]["required"]["genome_fasta"][0] == "FASTA"
+    assert info["input"]["required"]["chrom_len_file"][0] == "TSV"
+    assert info["input"]["required"]["model_tar"][0] == "FILE"
+    assert info["input"]["optional"]["context"][1] == {"default": 150, "min": 0}
+    assert info["input"]["optional"]["use_structure"][1]["default"] is True
+    assert info["input"]["optional"]["hand_feat"][1]["default"] is False
+
+
+def test_cherri_eval_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cherri_eval")
+
+    assert node_class.render_command(
+        {
+            "rris_table": "rris.csv",
+            "genome_fasta": "genome.fa",
+            "chrom_len_file": "genome.sizes",
+            "model_tar": "model.tgz",
+            "output": "/work/cherri_eval",
+        }
+    ) == (
+        "mkdir -p /work/cherri_eval && cd /work/cherri_eval && export PYTHONHASHSEED=31337 && "
+        "ln -s genome.fa genome.fa && mkdir model_dir && tar -C model_dir -xvf model.tgz > /dev/null && "
+        "cherri eval -i1 rris.csv -g genome.fa -l genome.sizes -o . -on cherri_eval -c 150 -st on "
+        "-hf off -m model_dir/final_full.model -mp model_dir/features.npz"
+    )
+    assert node_class.render_command(
+        {
+            "rris_table": "test interactions.csv",
+            "genome_fasta": "reference genome.fa",
+            "chrom_len_file": "genome lengths.tsv",
+            "model_tar": "trained model.tgz",
+            "context": 200,
+            "use_structure": False,
+            "hand_feat": True,
+            "occupied_regions": "occupied.pkl",
+            "intarna_param_file": "intarna params.txt",
+            "output": "/work/cherri_eval",
+        }
+    ) == (
+        "mkdir -p /work/cherri_eval && cd /work/cherri_eval && export PYTHONHASHSEED=31337 && "
+        "ln -s 'reference genome.fa' genome.fa && mkdir model_dir && tar -C model_dir -xvf 'trained model.tgz' "
+        "> /dev/null && cherri eval -i1 'test interactions.csv' -g genome.fa -l 'genome lengths.tsv' -o . "
+        "-on cherri_eval -c 200 -st off -hf on -m model_dir/final_full.model -mp model_dir/features.npz "
+        "-i2 occupied.pkl -p 'intarna params.txt'"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cherri_eval" / "cherri_eval" / "evaluation" / "evaluation_results_eval_rri.csv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "rris_table is required"
+    assert node_class.VALIDATE_INPUTS({"rris_table": "rris.csv"}) == "genome_fasta is required"
+    assert node_class.VALIDATE_INPUTS({"rris_table": "rris.csv", "genome_fasta": "genome.fa"}) == (
+        "chrom_len_file is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"rris_table": "rris.csv", "genome_fasta": "genome.fa", "chrom_len_file": "genome.sizes"}
+    ) == "model_tar is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "rris_table": "rris.csv",
+            "genome_fasta": "genome.fa",
+            "chrom_len_file": "genome.sizes",
+            "model_tar": "model.tgz",
+            "context": -1,
+        }
+    ) == "context must be greater than or equal to 0"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "rris_table": "rris.csv",
+                "genome_fasta": "genome.fa",
+                "chrom_len_file": "genome.sizes",
+                "model_tar": "model.tgz",
+            }
+        )
+        is True
+    )
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 

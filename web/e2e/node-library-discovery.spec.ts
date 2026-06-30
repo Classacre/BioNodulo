@@ -3685,6 +3685,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41592-023-01940-w'],
     citation_text: 'CheckM2: a rapid, scalable and accurate tool for assessing microbial genome quality using machine learning.',
   },
+  cherri_eval: {
+    name: 'cherri_eval',
+    display_name: 'Evaluation of RRIs using CheRRI',
+    category: 'rna_seq',
+    description: 'Evaluate RNA-RNA interaction sites with a trained CheRRI model.',
+    search_aliases: ['Galaxy', 'CheRRI', 'cherri_eval', 'cherri eval', 'RNA-RNA interaction', 'RRI evaluation', 'interaction site filtering', 'IntaRNA'],
+    input: {
+      required: {
+        rris_table: { type: 'CSV' },
+        genome_fasta: { type: 'FASTA' },
+        chrom_len_file: { type: 'TSV' },
+        model_tar: { type: 'FILE' },
+      },
+      optional: {
+        context: { type: 'INT', default: 150, min: 0 },
+        use_structure: { type: 'BOOLEAN', default: true },
+        hand_feat: { type: 'BOOLEAN', default: false },
+        occupied_regions: { type: 'FILE', default: '' },
+        intarna_param_file: { type: 'TXT', default: '' },
+      },
+    },
+    output: ['CSV'],
+    output_name: ['eval_out'],
+    required_executables: ['cherri', 'tar'],
+    required_conda_packages: ['cherri'],
+    documentation_url: 'https://github.com/BackofenLab/CheRRI',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/cherri'],
+    citation_text: 'CheRRI evaluates RNA-RNA interaction sites and filters predicted or experimentally detected interactions with a trained model.',
+  },
   checkm_lineage_wf: {
     name: 'checkm_lineage_wf',
     display_name: 'CheckM lineage_wf',
@@ -16561,7 +16591,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('556 nodes available')).toBeVisible();
+  await expect(page.getByText('557 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16693,6 +16723,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
     { query: 'Graphical Fragment Assembly', name: 'GFA to FASTA', category: 'assembly' },
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
+    { query: 'RNA-RNA interaction', name: 'Evaluation of RRIs using CheRRI', category: 'rna_seq' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },

@@ -128,6 +128,12 @@ CEMITOOL_CITATION_TEXT = (
 )
 CHARTS_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/charts"
 CHARTS_CITATION_TEXT = "Galaxy Chart Utilities generate tabular chart data with R chart modules."
+CHERRI_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/cherri"
+CHERRI_DOCUMENTATION_URL = "https://github.com/BackofenLab/CheRRI"
+CHERRI_CITATION_TEXT = (
+    "CheRRI evaluates RNA-RNA interaction sites and filters predicted or experimentally detected "
+    "interactions with a trained model."
+)
 ARGNORM_CITATION_DOI = "10.1093/bioinformatics/btaf173"
 ARGNORM_CITATION_TEXT = (
     "argNorm: a tool to normalize antibiotic resistance gene annotation across different databases."
@@ -20641,6 +20647,127 @@ class CheckM2Node(CommandNode):
             },
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class CheRRIEvalNode(CommandNode):
+    """Evaluate RNA-RNA interaction sites with CheRRI."""
+
+    NODE_ID = "cherri_eval"
+    DISPLAY_NAME = "Evaluation of RRIs using CheRRI"
+    REQUIRED_CONDA_PACKAGES = ["cherri"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Evaluate RNA-RNA interaction sites with a trained CheRRI model."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CheRRI",
+        "cherri_eval",
+        "cherri eval",
+        "RNA-RNA interaction",
+        "RRI evaluation",
+        "interaction site filtering",
+        "IntaRNA",
+    ]
+    RETURN_TYPES = ("CSV",)
+    RETURN_NAMES = ("eval_out",)
+    REQUIRED_EXECUTABLES = ["cherri", "tar"]
+    DOCUMENTATION_URL = CHERRI_DOCUMENTATION_URL
+    CITATION_URLS = [CHERRI_CITATION_URL]
+    CITATION_TEXT = CHERRI_CITATION_TEXT
+    VERSION = "0.7"
+    SHELL = True
+
+    @classmethod
+    def _on_off(cls, value: Any, default: bool) -> str:
+        if value is None:
+            return "on" if default else "off"
+        if isinstance(value, str):
+            return "off" if value.lower() in {"false", "0", "no", "off", ""} else "on"
+        return "on" if bool(value) else "off"
+
+    @classmethod
+    def _context(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("context", 150))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = [
+            "cherri",
+            "eval",
+            "-i1",
+            str(inputs.get("rris_table", "")),
+            "-g",
+            "genome.fa",
+            "-l",
+            str(inputs.get("chrom_len_file", "")),
+            "-o",
+            ".",
+            "-on",
+            cls.NODE_ID,
+            "-c",
+            cls._context(inputs),
+            "-st",
+            cls._on_off(inputs.get("use_structure"), True),
+            "-hf",
+            cls._on_off(inputs.get("hand_feat"), False),
+            "-m",
+            "model_dir/final_full.model",
+            "-mp",
+            "model_dir/features.npz",
+        ]
+        _add_if_value(cmd, "-i2", inputs.get("occupied_regions"))
+        _add_if_value(cmd, "-p", inputs.get("intarna_param_file"))
+        setup = [
+            _shell_join(["mkdir", "-p", out]),
+            f"cd {shlex.quote(out)}",
+            "export PYTHONHASHSEED=31337",
+            _shell_join(["ln", "-s", str(inputs.get("genome_fasta", "")), "genome.fa"]),
+            _shell_join(["mkdir", "model_dir"]),
+            f"{_shell_join(['tar', '-C', 'model_dir', '-xvf', str(inputs.get('model_tar', ''))])} > /dev/null",
+            _shell_join(cmd),
+        ]
+        return " && ".join(setup)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID / cls.NODE_ID / "evaluation"
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "evaluation_results_eval_rri.csv"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "rris_table": ("CSV", {"description": "CSV table of RNA-RNA interactions"}),
+                "genome_fasta": ("FASTA", {"description": "Reference genome FASTA"}),
+                "chrom_len_file": ("TSV", {"description": "Two-column chromosome length table"}),
+                "model_tar": ("FILE", {"description": "CheRRI model and feature files tarball"}),
+            },
+            "optional": {
+                "context": ("INT", {"default": 150, "min": 0}),
+                "use_structure": ("BOOLEAN", {"default": True}),
+                "hand_feat": ("BOOLEAN", {"default": False}),
+                "occupied_regions": (
+                    "FILE",
+                    {"default": "", "description": "Optional occupied-region Python object file"},
+                ),
+                "intarna_param_file": ("TXT", {"default": "", "description": "Optional IntaRNA parameter file"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for required in ("rris_table", "genome_fasta", "chrom_len_file", "model_tar"):
+            if not str(inputs.get(required, "")).strip():
+                return f"{required} is required"
+        try:
+            context = int(inputs.get("context", 150))
+        except (TypeError, ValueError):
+            return "context must be an integer"
+        if context < 0:
+            return "context must be greater than or equal to 0"
+        return True
 
 
 class DASToolNode(CommandNode):
