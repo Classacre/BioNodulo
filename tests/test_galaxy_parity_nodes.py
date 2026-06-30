@@ -268,6 +268,93 @@ def test_autobigs_cli_validates_operation_database_and_mode_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({"bigsdb": "pubmlst_bordetella_seqdef", "fasta": "sample.fasta"}) is True
 
 
+def test_bam_to_scidx_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["bam_to_scidx"]
+
+    assert node_info["display_name"] == "Convert BAM to ScIdx"
+    assert node_info["category"] == "chip_seq"
+    assert node_info["description"] == "Convert BAM alignments to Strand-specific coordinate count ScIdx format."
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["output"]
+    assert node_info["required_executables"] == ["java"]
+    assert node_info["required_conda_packages"] == ["openjdk"]
+    assert node_info["documentation_url"] == (
+        "http://www.huck.psu.edu/content/research/independent-centers-excellence/center-for-eukaryotic-gene-regulation"
+    )
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == [
+        "http://www.huck.psu.edu/content/research/independent-centers-excellence/center-for-eukaryotic-gene-regulation"
+    ]
+    assert "Strand-specific coordinate count" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "ScIdx" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input_bam"][0] == "BAM"
+    assert node_info["input"]["required"]["bam_index"][0] == "BAI"
+    assert node_info["input"]["optional"]["require_proper_mate_pairing"][1]["default"] == "1"
+    assert node_info["input"]["optional"]["require_proper_mate_pairing"][1]["options"] == ["1", "0"]
+    assert node_info["input"]["optional"]["read"][1]["options"] == ["0", "1", "2"]
+    assert node_info["input"]["optional"]["jar_path"][1]["default"] == "BAMtoscIDX.jar"
+
+
+def test_bam_to_scidx_renders_default_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bam_to_scidx")
+
+    assert node_class.render_command(
+        {
+            "input_bam": "aligned reads.bam",
+            "bam_index": "aligned reads.bam.bai",
+            "output": "/work/bam_to_scidx",
+        }
+    ) == (
+        "ln -s 'aligned reads.bam' localbam.bam && "
+        "ln -f -s 'aligned reads.bam.bai' localbam.bam.bai && "
+        "java -jar BAMtoscIDX.jar -b localbam.bam -i localbam.bam.bai -p 1 -r 0 "
+        "-o /work/bam_to_scidx/output.scidx 1>/dev/null"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bam_to_scidx" / "output.scidx"]
+
+
+def test_bam_to_scidx_renders_insert_size_filters_and_custom_jar() -> None:
+    node_class = _node_class("bam_to_scidx")
+
+    assert node_class.render_command(
+        {
+            "input_bam": "input.bam",
+            "bam_index": "input.bam.bai",
+            "require_proper_mate_pairing": "0",
+            "read": "2",
+            "min_insert_size": 50,
+            "max_insert_size": 500,
+            "jar_path": "/tools/BAMtoscIDX.jar",
+            "output": "/work/bam_to_scidx",
+        }
+    ) == (
+        "ln -s input.bam localbam.bam && ln -f -s input.bam.bai localbam.bam.bai && "
+        "java -jar /tools/BAMtoscIDX.jar -b localbam.bam -i localbam.bam.bai -p 0 -r 2 "
+        "-m 50 -M 500 -o /work/bam_to_scidx/output.scidx 1>/dev/null"
+    )
+
+
+def test_bam_to_scidx_validates_required_inputs_modes_and_insert_sizes() -> None:
+    node_class = _node_class("bam_to_scidx")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_bam is required"
+    assert node_class.VALIDATE_INPUTS({"input_bam": "input.bam"}) == "bam_index is required"
+    assert node_class.VALIDATE_INPUTS({"input_bam": "input.bam", "bam_index": "input.bam.bai", "read": "bad"}) == (
+        "read must be one of: 0, 1, 2"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_bam": "input.bam", "bam_index": "input.bam.bai", "require_proper_mate_pairing": "bad"}
+    ) == "require_proper_mate_pairing must be one of: 1, 0"
+    assert node_class.VALIDATE_INPUTS({"input_bam": "input.bam", "bam_index": "input.bam.bai", "min_insert_size": -1}) == (
+        "min_insert_size must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_bam": "input.bam", "bam_index": "input.bam.bai", "min_insert_size": 500, "max_insert_size": 50}
+    ) == "max_insert_size must be greater than or equal to min_insert_size"
+    assert node_class.VALIDATE_INPUTS({"input_bam": "input.bam", "bam_index": "input.bam.bai"}) is True
+
+
 def test_cd_hit_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
     node_info = _registry().object_info()["cd_hit"]
 

@@ -1237,6 +1237,34 @@ const objectInfo = {
     citation_urls: ['https://github.com/Syph-and-VPD-Lab/autoBIGS.cli'],
     citation_text: 'Syph-and-VPD-Lab/autoBIGS.cli: automated MLST typing against BIGSdb databases.',
   },
+  bam_to_scidx: {
+    name: 'bam_to_scidx',
+    display_name: 'Convert BAM to ScIdx',
+    category: 'chip_seq',
+    description: 'Convert BAM alignments to Strand-specific coordinate count ScIdx format.',
+    search_aliases: ['Galaxy', 'bam_to_scidx', 'BAM to ScIdx', 'ScIdx', 'strand-specific coordinate count', 'ChIP-exo', 'GeneTrack', 'MultiGPS', 'BAMtoscIDX'],
+    input: {
+      required: {
+        input_bam: { type: 'BAM' },
+        bam_index: { type: 'BAI' },
+      },
+      optional: {
+        require_proper_mate_pairing: { type: 'STRING', default: '1', options: ['1', '0'] },
+        read: { type: 'STRING', default: '0', options: ['0', '1', '2'] },
+        min_insert_size: { type: 'INT', default: '', min: 0 },
+        max_insert_size: { type: 'INT', default: '', min: 0 },
+        jar_path: { type: 'FILE', default: 'BAMtoscIDX.jar', advanced: true },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output'],
+    required_executables: ['java'],
+    required_conda_packages: ['openjdk'],
+    documentation_url: 'http://www.huck.psu.edu/content/research/independent-centers-excellence/center-for-eukaryotic-gene-regulation',
+    citation_dois: [],
+    citation_urls: ['http://www.huck.psu.edu/content/research/independent-centers-excellence/center-for-eukaryotic-gene-regulation'],
+    citation_text: 'Convert BAM data to ScIdx, the Strand-specific coordinate count format used by ChIP-exo tools.',
+  },
   cd_hit: {
     name: 'cd_hit',
     display_name: 'cd-hit',
@@ -11741,7 +11769,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('402 nodes available')).toBeVisible();
+  await expect(page.getByText('403 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11798,6 +11826,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
+    { query: 'ScIdx', name: 'Convert BAM to ScIdx', category: 'chip_seq' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
