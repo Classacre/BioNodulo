@@ -348,6 +348,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btt730'],
     citation_text: 'CrossMap: a versatile tool for coordinate conversion between genome assemblies.',
   },
+  crossmap_gff: {
+    name: 'crossmap_gff',
+    display_name: 'CrossMap GFF',
+    category: 'annotation',
+    description: 'Lift GFF/GTF feature annotations between genome assemblies with CrossMap.',
+    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_gff', 'liftover GFF', 'liftover GTF', 'coordinate conversion', 'GFF assembly conversion', 'GTF assembly conversion', 'chain file'],
+    input: {
+      required: {
+        input: { type: 'GFF_GTF' },
+        input_chain: { type: 'STRING' },
+      },
+      optional: {
+        index_source: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        include_fails: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['GFF_GTF'],
+    output_name: ['output'],
+    required_executables: ['CrossMap'],
+    required_conda_packages: ['crossmap'],
+    documentation_url: 'https://doi.org/10.1093/bioinformatics/btt730',
+    citation_dois: ['10.1093/bioinformatics/btt730'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btt730'],
+    citation_text: 'CrossMap: a versatile tool for coordinate conversion between genome assemblies.',
+  },
   Add_a_column1: {
     name: 'Add_a_column1',
     display_name: 'Compute on rows',
@@ -13698,7 +13723,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('472 nodes available')).toBeVisible();
+  await expect(page.getByText('473 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13715,6 +13740,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'liftover BED', name: 'CrossMap BED', category: 'annotation' },
     { query: 'liftover BAM', name: 'CrossMap BAM', category: 'alignment' },
     { query: 'liftover BigWig', name: 'CrossMap BigWig', category: 'genomics' },
+    { query: 'liftover GFF', name: 'CrossMap GFF', category: 'annotation' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

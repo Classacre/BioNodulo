@@ -3221,6 +3221,103 @@ class CrossMapBigWigNode(CommandNode):
         }
 
 
+class CrossMapGffNode(CommandNode):
+    """Lift GFF/GTF feature annotations between genome assemblies with CrossMap."""
+
+    NODE_ID = "crossmap_gff"
+    DISPLAY_NAME = "CrossMap GFF"
+    REQUIRED_CONDA_PACKAGES = ["crossmap"]
+    CATEGORY = "annotation"
+    DESCRIPTION = "Lift GFF/GTF feature annotations between genome assemblies with CrossMap."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CrossMap",
+        "crossmap_gff",
+        "liftover GFF",
+        "liftover GTF",
+        "coordinate conversion",
+        "GFF assembly conversion",
+        "GTF assembly conversion",
+        "chain file",
+    ]
+    RETURN_TYPES = ("GFF_GTF",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["CrossMap"]
+    DOCUMENTATION_URL = f"{DOI_URL}{CROSSMAP_CITATION_DOI}"
+    CITATION_DOIS = [CROSSMAP_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CROSSMAP_CITATION_DOI}"]
+    CITATION_TEXT = CROSSMAP_CITATION_TEXT
+    VERSION = "0.7.3+galaxy0"
+    SHELL = True
+
+    INDEX_SOURCE_OPTIONS = CrossMapBedNode.INDEX_SOURCE_OPTIONS
+
+    @staticmethod
+    def _include_fails(inputs: dict[str, Any]) -> bool:
+        value = inputs.get("include_fails", False)
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @classmethod
+    def _index_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("index_source", "history") or "history")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out_path = f"{_out(inputs)}/output"
+        cmd = ["CrossMap", "gff", str(inputs.get("input_chain", "")), str(inputs.get("input", ""))]
+        if cls._include_fails(inputs):
+            cmd.append(out_path)
+        else:
+            _add_shell_redirect(cmd, out_path)
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input GFF/GTF is required"
+        if not str(inputs.get("input_chain", "")).strip():
+            return "input_chain is required"
+        index_source = cls._index_source(inputs)
+        if index_source not in cls.INDEX_SOURCE_OPTIONS:
+            return f"index_source must be one of: {', '.join(cls.INDEX_SOURCE_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("GFF_GTF", {"description": "GFF3, GFF, or GTF feature annotation to lift over"}),
+                "input_chain": ("TXT", {"description": "LiftOver chain file"}),
+            },
+            "optional": {
+                "index_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.INDEX_SOURCE_OPTIONS,
+                        "description": "Galaxy source selector for cached or history chain files",
+                    },
+                ),
+                "include_fails": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Include failed liftovers in the output with CrossMap fail markers",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class ColumnMakerNode(CommandNode):
     """Compute expressions on tabular rows and add, insert, or replace columns."""
 
