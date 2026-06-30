@@ -223,6 +223,237 @@ def test_anndata_import_renders_custom_annotated_matrix_command_and_validates() 
     ) is True
 
 
+def test_celltypist_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["celltypist"]
+
+    assert node_info["display_name"] == "CellTypist"
+    assert node_info["category"] == "single_cell"
+    assert node_info["description"] == "Automated cell type annotation for scRNA-seq datasets."
+    assert node_info["output"] == ["H5AD", "IMAGE", "PDF_REPORT", "IMAGE"]
+    assert node_info["output_name"] == ["anndata_out", "out_png", "out_pdf", "out_svg"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["celltypist"]
+    assert node_info["documentation_url"] == "https://www.celltypist.org/"
+    assert node_info["citation_dois"] == ["10.1126/science.abl5197"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1126/science.abl5197"]
+    assert "automated cell type annotation" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "Immune_All_High_v1" in node_info["search_aliases"]
+    assert node_info["version"] == "1.7.1+galaxy1"
+    assert node_info["input"]["required"]["adata"][0] == "H5AD"
+    assert node_info["input"]["optional"]["model_source"][1]["default"] == "cached"
+    assert node_info["input"]["optional"]["model_source"][1]["options"] == ["cached", "history"]
+    assert node_info["input"]["optional"]["history_model_select"][1]["options"] == ["select_model", "train_model"]
+    assert node_info["input"]["optional"]["mode"][1]["options"] == ["best match", "prob match"]
+    assert node_info["input"]["optional"]["p_thres"][1] == {"default": 0.5, "min": 0, "max": 1}
+    assert node_info["input"]["optional"]["min_prop"][1] == {"default": 0, "min": 0, "max": 1}
+    assert node_info["input"]["optional"]["dotplot_generate"][1]["options"] == ["no", "yes"]
+    assert node_info["input"]["optional"]["dotplot_format"][1]["options"] == ["png", "pdf", "svg"]
+
+
+def test_celltypist_renders_cached_model_png_dotplot_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("celltypist")
+
+    command = node_class.render_command(
+        {
+            "adata": "demo 500 cells.h5ad",
+            "cached_model": "Immune_All_High_v1",
+            "majority_voting": True,
+            "transpose_input": True,
+            "mode": "best match",
+            "p_thres": 0.5,
+            "min_prop": 0.05,
+            "dotplot_generate": "yes",
+            "dotplot_reference": "cell_type",
+            "dotplot_prediction": "majority_voting",
+            "dotplot_format": "png",
+            "output": "/work/celltypist",
+        }
+    )
+    assert command == (
+        "mkdir -p /work/celltypist && cd /work/celltypist && cat > celltypist.py <<'PY'\n"
+        "import scanpy as sc\n"
+        "import celltypist\n"
+        "from celltypist import models\n"
+        "adata = sc.read_h5ad('demo 500 cells.h5ad')\n"
+        "model = models.Model.load(model='Immune_All_High_v1')\n"
+        "predictions = celltypist.annotate(adata,\n"
+        "                model=model,\n"
+        "                majority_voting=True,\n"
+        "                transpose_input=True,\n"
+        "                mode='best match',\n"
+        "                p_thres=0.5,\n"
+        "                min_prop=0.05)\n"
+        "adata = predictions.to_adata()\n"
+        "adata.write_h5ad('/work/celltypist/anndata.h5ad', compression='gzip')\n"
+        "celltypist.dotplot(predictions, use_as_reference='cell_type', use_as_prediction='majority_voting', "
+        "save='.png', show=None)\n"
+        "PY\n"
+        "python celltypist.py"
+    )
+    assert node_class.PLAN_OUTPUTS({"dotplot_generate": "yes", "dotplot_prediction": "majority_voting"}, tmp_path) == [
+        tmp_path / "celltypist" / "anndata.h5ad",
+        tmp_path / "celltypist" / "figures" / "majority_voting.png",
+    ]
+
+
+def test_celltypist_renders_history_model_without_dotplot_command(tmp_path: Path) -> None:
+    node_class = _node_class("celltypist")
+
+    assert node_class.render_command(
+        {
+            "adata": "demo.h5ad",
+            "model_source": "history",
+            "history_model_select": "select_model",
+            "history_model": "Immune_All_Low.pkl",
+            "mode": "prob match",
+            "p_thres": 0.7,
+            "min_prop": 0.01,
+            "output": "/work/celltypist",
+        }
+    ) == (
+        "mkdir -p /work/celltypist && cd /work/celltypist && cat > celltypist.py <<'PY'\n"
+        "import scanpy as sc\n"
+        "import celltypist\n"
+        "from celltypist import models\n"
+        "adata = sc.read_h5ad('demo.h5ad')\n"
+        "model = models.Model.load(model='Immune_All_Low.pkl')\n"
+        "predictions = celltypist.annotate(adata,\n"
+        "                model=model,\n"
+        "                mode='prob match',\n"
+        "                p_thres=0.7,\n"
+        "                min_prop=0.01)\n"
+        "adata = predictions.to_adata()\n"
+        "adata.write_h5ad('/work/celltypist/anndata.h5ad', compression='gzip')\n"
+        "PY\n"
+        "python celltypist.py"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "celltypist" / "anndata.h5ad"]
+
+
+def test_celltypist_renders_training_model_pdf_dotplot_command_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("celltypist")
+
+    assert node_class.render_command(
+        {
+            "adata": "query.h5ad",
+            "model_source": "history",
+            "history_model_select": "train_model",
+            "train_anndata": "training.h5ad",
+            "labels": "cell_type",
+            "batch_number": 12,
+            "batch_size": 250,
+            "epochs": 3,
+            "feature_selection": True,
+            "top_genes": 100,
+            "mode": "prob match",
+            "p_thres": 0.6,
+            "min_prop": 0.02,
+            "dotplot_generate": "yes",
+            "dotplot_reference": "cell_type",
+            "dotplot_prediction": "predicted_labels",
+            "dotplot_format": "pdf",
+            "output": "/work/celltypist",
+        }
+    ) == (
+        "mkdir -p /work/celltypist && cd /work/celltypist && cat > celltypist.py <<'PY'\n"
+        "import scanpy as sc\n"
+        "import celltypist\n"
+        "from celltypist import models\n"
+        "adata = sc.read_h5ad('query.h5ad')\n"
+        "train_adata = sc.read_h5ad('training.h5ad')\n"
+        "model = celltypist.train(X=train_adata,\n"
+        "                    labels='cell_type',\n"
+        "                    batch_number=12,\n"
+        "                    batch_size=250,\n"
+        "                    epochs=3,\n"
+        "                    feature_selection=True,\n"
+        "                    top_genes=100)\n"
+        "predictions = celltypist.annotate(adata,\n"
+        "                model=model,\n"
+        "                mode='prob match',\n"
+        "                p_thres=0.6,\n"
+        "                min_prop=0.02)\n"
+        "adata = predictions.to_adata()\n"
+        "adata.write_h5ad('/work/celltypist/anndata.h5ad', compression='gzip')\n"
+        "celltypist.dotplot(predictions, use_as_reference='cell_type', use_as_prediction='predicted_labels', "
+        "save='.pdf', show=None)\n"
+        "PY\n"
+        "python celltypist.py"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {"dotplot_generate": "yes", "dotplot_prediction": "predicted_labels", "dotplot_format": "pdf"},
+        tmp_path,
+    ) == [
+        tmp_path / "celltypist" / "anndata.h5ad",
+        tmp_path / "celltypist" / "figures" / "predicted_labels.pdf",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "adata is required"
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "model_source": "bad"}) == (
+        "model_source must be one of: cached, history"
+    )
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "model_source": "cached", "cached_model": ""}) == (
+        "cached_model is required when model_source is cached"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"adata": "query.h5ad", "model_source": "history", "history_model_select": "bad"}
+    ) == "history_model_select must be one of: select_model, train_model"
+    assert node_class.VALIDATE_INPUTS(
+        {"adata": "query.h5ad", "model_source": "history", "history_model_select": "select_model"}
+    ) == "history_model is required when history_model_select is select_model"
+    assert node_class.VALIDATE_INPUTS(
+        {"adata": "query.h5ad", "model_source": "history", "history_model_select": "train_model"}
+    ) == "train_anndata is required when history_model_select is train_model"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "adata": "query.h5ad",
+            "model_source": "history",
+            "history_model_select": "train_model",
+            "train_anndata": "training.h5ad",
+        }
+    ) == "labels is required when history_model_select is train_model"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "adata": "query.h5ad",
+            "model_source": "history",
+            "history_model_select": "train_model",
+            "train_anndata": "training.h5ad",
+            "labels": "cell-type",
+        }
+    ) == "labels must match [0-9a-zA-Z_]+"
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "mode": "bad"}) == (
+        "mode must be one of: best match, prob match"
+    )
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "p_thres": 1.5}) == "p_thres must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "min_prop": -0.1}) == "min_prop must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "dotplot_generate": "bad"}) == (
+        "dotplot_generate must be one of: no, yes"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"adata": "query.h5ad", "dotplot_generate": "yes", "dotplot_reference": "cell-type"}
+    ) == "dotplot_reference must match [0-9a-zA-Z_]+"
+    assert node_class.VALIDATE_INPUTS(
+        {"adata": "query.h5ad", "dotplot_generate": "yes", "dotplot_prediction": "bad"}
+    ) == "dotplot_prediction must be one of: majority_voting, predicted_labels"
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "dotplot_generate": "yes", "dotplot_format": "jpg"}) == (
+        "dotplot_format must be one of: png, pdf, svg"
+    )
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "batch_number": -1}) == (
+        "batch_number must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "batch_size": 0}) == (
+        "batch_size must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "epochs": 0}) == (
+        "epochs must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad", "top_genes": 0}) == (
+        "top_genes must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad"}) is True
+
+
 def test_anndata_inspect_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     node_info = _registry().object_info()["anndata_inspect"]
 

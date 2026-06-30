@@ -2588,6 +2588,48 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
     citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
   },
+  celltypist: {
+    name: 'celltypist',
+    display_name: 'CellTypist',
+    category: 'single_cell',
+    description: 'Automated cell type annotation for scRNA-seq datasets.',
+    search_aliases: ['Galaxy', 'CellTypist', 'celltypist', 'automated cell type annotation', 'scRNA-seq', 'single-cell annotation', 'immune populations', 'Immune_All_High_v1', 'prob match', 'majority voting', 'dotplot'],
+    input: {
+      required: {
+        adata: { type: 'H5AD' },
+      },
+      optional: {
+        model_source: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        cached_model: { type: 'STRING', default: 'Immune_All_High_v1' },
+        history_model_select: { type: 'STRING', default: 'select_model', options: ['select_model', 'train_model'] },
+        history_model: { type: 'FILE', default: '' },
+        train_anndata: { type: 'H5AD', default: '' },
+        labels: { type: 'STRING', default: '' },
+        batch_number: { type: 'INT', default: 100, min: 0 },
+        batch_size: { type: 'INT', default: 1000, min: 1 },
+        epochs: { type: 'INT', default: 10, min: 1 },
+        feature_selection: { type: 'BOOLEAN', default: false },
+        top_genes: { type: 'INT', default: 300, min: 1 },
+        majority_voting: { type: 'BOOLEAN', default: false },
+        transpose_input: { type: 'BOOLEAN', default: false },
+        mode: { type: 'STRING', default: 'best match', options: ['best match', 'prob match'] },
+        p_thres: { type: 'FLOAT', default: 0.5, min: 0, max: 1 },
+        min_prop: { type: 'FLOAT', default: 0, min: 0, max: 1 },
+        dotplot_generate: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        dotplot_reference: { type: 'STRING', default: 'cell_type' },
+        dotplot_prediction: { type: 'STRING', default: 'majority_voting', options: ['majority_voting', 'predicted_labels'] },
+        dotplot_format: { type: 'STRING', default: 'png', options: ['png', 'pdf', 'svg'] },
+      },
+    },
+    output: ['H5AD', 'IMAGE', 'PDF_REPORT', 'IMAGE'],
+    output_name: ['anndata_out', 'out_png', 'out_pdf', 'out_svg'],
+    required_executables: ['python'],
+    required_conda_packages: ['celltypist'],
+    documentation_url: 'https://www.celltypist.org/',
+    citation_dois: ['10.1126/science.abl5197'],
+    citation_urls: ['https://doi.org/10.1126/science.abl5197'],
+    citation_text: 'CellTypist provides automated cell type annotation for scRNA-seq datasets, with a focus on immune populations.',
+  },
   anndata_inspect: {
     name: 'anndata_inspect',
     display_name: 'Inspect AnnData',
@@ -16445,7 +16487,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('553 nodes available')).toBeVisible();
+  await expect(page.getByText('554 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16548,6 +16590,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
     { query: 'write_csvs', name: 'Export AnnData', category: 'single_cell' },
     { query: 'read_10x_mtx', name: 'Import Anndata', category: 'single_cell' },
+    { query: 'automated cell type annotation', name: 'CellTypist', category: 'single_cell' },
     { query: 'chunk_X', name: 'Inspect AnnData', category: 'single_cell' },
     { query: 'split_on_obs', name: 'Manipulate AnnData', category: 'single_cell' },
     { query: 'loompy_to_tsv', name: 'Loom operations', category: 'single_cell' },
