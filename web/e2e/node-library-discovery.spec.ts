@@ -2983,6 +2983,46 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s43588-021-00073-4'],
     citation_text: 'Time- and memory-efficient genome assembly with Raven.',
   },
+  shovill: {
+    name: 'shovill',
+    display_name: 'Shovill',
+    category: 'assembly',
+    description: 'Assemble bacterial isolate genomes from Illumina paired-end reads with Shovill.',
+    search_aliases: ['Galaxy', 'Shovill', 'shovill', 'SPAdes', 'Faster SPAdes assembly', 'Illumina paired-end', 'bacterial isolate assembly', 'skesa', 'megahit', 'velvet', 'contigs.fa'],
+    input: {
+      required: {
+        lib_type: { type: 'STRING', default: 'paired', options: ['paired', 'collection'] },
+        R1: { type: 'FASTQ' },
+        R2: { type: 'FASTQ' },
+      },
+      optional: {
+        input_collection: { type: 'FILE' },
+        R1_format: { type: 'STRING', default: 'fastqsanger', options: ['fastq', 'fastq.gz', 'fastqsanger', 'fastqsanger.gz', 'fastqsanger.bz2'] },
+        R2_format: { type: 'STRING', default: 'fastqsanger', options: ['fastq', 'fastq.gz', 'fastqsanger', 'fastqsanger.gz', 'fastqsanger.bz2'] },
+        trim: { type: 'BOOLEAN', default: false },
+        assembler: { type: 'STRING', default: 'spades', options: ['skesa', 'megahit', 'velvet', 'spades'] },
+        plasmid: { type: 'BOOLEAN', default: false },
+        namefmt: { type: 'STRING', default: 'contig%05d' },
+        depth: { type: 'INT', default: 100, min: 0 },
+        gsize: { type: 'STRING', default: '' },
+        kmers: { type: 'STRING', default: '' },
+        opts: { type: 'STRING', default: '' },
+        nocorr: { type: 'STRING', default: 'no_correction', options: ['no_correction', 'yes_correction'] },
+        keepfiles: { type: 'BOOLEAN', default: false },
+        minlen: { type: 'INT', default: 0, min: 0 },
+        mincov: { type: 'INT', default: 2, min: 0 },
+        log: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['TXT', 'FASTA', 'TXT', 'BAM', 'GFA'],
+    output_name: ['shovill_std_log', 'contigs', 'contigs_graph', 'bamfiles', 'skesa_gfa'],
+    required_executables: ['shovill'],
+    required_conda_packages: ['shovill'],
+    documentation_url: 'https://github.com/tseemann/shovill',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/shovill'],
+    citation_text: 'Shovill: Faster SPAdes assembly of Illumina reads.',
+  },
   genomescope: {
     name: 'genomescope',
     display_name: 'GenomeScope',
@@ -14130,7 +14170,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('487 nodes available')).toBeVisible();
+  await expect(page.getByText('488 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14248,6 +14288,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'assembly-stats', name: 'Assembly Stats', category: 'assembly' },
     { query: 'Bloom filter', name: 'Minia', category: 'assembly' },
     { query: 'Oxford Nanopore assembler', name: 'Raven', category: 'assembly' },
+    { query: 'Faster SPAdes assembly', name: 'Shovill', category: 'assembly' },
     { query: 'reference-free genome profiling', name: 'GenomeScope', category: 'assembly' },
     { query: 'Illumina read simulator', name: 'ART Illumina', category: 'simulation' },
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },

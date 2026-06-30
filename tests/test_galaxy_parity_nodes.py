@@ -10557,6 +10557,119 @@ def test_raven_renders_galaxy_default_and_optional_commands_outputs_and_validate
     assert node_class.VALIDATE_INPUTS({"input_reads": "reads.fastq"}) is True
 
 
+def test_shovill_exposes_galaxy_metadata_inputs_outputs_and_citation_url() -> None:
+    node_info = _registry().object_info()["shovill"]
+
+    assert node_info["display_name"] == "Shovill"
+    assert node_info["category"] == "assembly"
+    assert node_info["description"] == "Assemble bacterial isolate genomes from Illumina paired-end reads with Shovill."
+    assert node_info["output"] == ["TXT", "FASTA", "TXT", "BAM", "GFA"]
+    assert node_info["output_name"] == ["shovill_std_log", "contigs", "contigs_graph", "bamfiles", "skesa_gfa"]
+    assert node_info["required_executables"] == ["shovill"]
+    assert node_info["required_conda_packages"] == ["shovill"]
+    assert node_info["documentation_url"] == "https://github.com/tseemann/shovill"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/tseemann/shovill"]
+    assert "Faster SPAdes assembly of Illumina reads" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "Illumina paired-end" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["lib_type"][1]["default"] == "paired"
+    assert node_info["input"]["required"]["lib_type"][1]["options"] == ["paired", "collection"]
+    assert node_info["input"]["optional"]["trim"][1]["default"] is False
+    assert node_info["input"]["optional"]["assembler"][1]["default"] == "spades"
+    assert node_info["input"]["optional"]["assembler"][1]["options"] == ["skesa", "megahit", "velvet", "spades"]
+    assert node_info["input"]["optional"]["namefmt"][1]["default"] == "contig%05d"
+    assert node_info["input"]["optional"]["log"][1]["default"] is True
+
+
+def test_shovill_renders_default_and_collection_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("shovill")
+
+    assert node_class.render_command(
+        {
+            "lib_type": "paired",
+            "R1": "mutant_R1.fastq",
+            "R2": "mutant_R2.fastq",
+            "R1_format": "fastqsanger",
+            "R2_format": "fastqsanger",
+            "output": "/work/shovill",
+        }
+    ) == (
+        "ln -s mutant_R1.fastq fastq_r1.fastqsanger && "
+        "ln -s mutant_R2.fastq fastq_r2.fastqsanger && "
+        "GALAXY_MEMORY_GB=$((${GALAXY_MEMORY_MB:-8192}/1024)) && "
+        "SHOVILL_RAM=${SHOVILL_RAM:-${GALAXY_MEMORY_GB}} && "
+        "shovill --outdir /work/shovill/out --cpus ${GALAXY_SLOTS:-1} --ram ${SHOVILL_RAM:-8} "
+        "--R1 fastq_r1.fastqsanger --R2 fastq_r2.fastqsanger --namefmt 'contig%05d' --depth 100 "
+        "--minlen 0 --mincov 2 --assembler spades --nocorr"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "shovill" / "out" / "shovill.log",
+        tmp_path / "shovill" / "out" / "contigs.fa",
+        tmp_path / "shovill" / "out" / "spades.gfa",
+    ]
+
+    assert node_class.render_command(
+        {
+            "lib_type": "collection",
+            "input_collection": {"forward": "sample R1.fastq.gz", "reverse": "sample R2.fastq.gz"},
+            "R1_format": "fastqsanger.gz",
+            "R2_format": "fastqsanger.gz",
+            "trim": True,
+            "assembler": "spades",
+            "plasmid": True,
+            "namefmt": "contig%03d",
+            "depth": 0,
+            "gsize": "4.8M",
+            "kmers": "21,33,55",
+            "opts": "--careful --cov-cutoff auto",
+            "minlen": 500,
+            "mincov": 5,
+            "nocorr": "yes_correction",
+            "keepfiles": True,
+            "output": "/work/shovill",
+        }
+    ) == (
+        "cp 'sample R1.fastq.gz' fastq_r1.fastqsanger.gz && "
+        "cp 'sample R2.fastq.gz' fastq_r2.fastqsanger.gz && "
+        "GALAXY_MEMORY_GB=$((${GALAXY_MEMORY_MB:-8192}/1024)) && "
+        "SHOVILL_RAM=${SHOVILL_RAM:-${GALAXY_MEMORY_GB}} && "
+        "shovill --outdir /work/shovill/out --cpus ${GALAXY_SLOTS:-1} --ram ${SHOVILL_RAM:-8} "
+        "--R1 fastq_r1.fastqsanger.gz --R2 fastq_r2.fastqsanger.gz --trim --namefmt 'contig%03d' "
+        "--depth 0 --gsize 4.8M --kmers 21,33,55 --opts '--careful --cov-cutoff auto' "
+        "--minlen 500 --mincov 5 --assembler spades --plasmid --keepfiles"
+    )
+    assert node_class.PLAN_OUTPUTS({"nocorr": "yes_correction", "keepfiles": True}, tmp_path) == [
+        tmp_path / "shovill" / "out" / "shovill.log",
+        tmp_path / "shovill" / "out" / "contigs.fa",
+        tmp_path / "shovill" / "out" / "spades.gfa",
+        tmp_path / "shovill" / "out" / "shovill.bam",
+    ]
+    assert node_class.PLAN_OUTPUTS({"assembler": "skesa", "log": False}, tmp_path) == [
+        tmp_path / "shovill" / "out" / "contigs.fa",
+        tmp_path / "shovill" / "out" / "skesa.gfa",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "R1 is required for paired input"
+    assert node_class.VALIDATE_INPUTS({"R1": "R1.fq"}) == "R2 is required for paired input"
+    assert node_class.VALIDATE_INPUTS({"lib_type": "collection"}) == (
+        "input_collection with forward and reverse reads is required for collection input"
+    )
+    assert node_class.VALIDATE_INPUTS({"lib_type": "paired", "R1": "R1.fq", "R2": "R2.fq", "assembler": "bad"}) == (
+        "assembler must be one of: skesa, megahit, velvet, spades"
+    )
+    assert node_class.VALIDATE_INPUTS({"R1": "R1.fq", "R2": "R2.fq", "plasmid": True, "assembler": "skesa"}) == (
+        "plasmid mode is only available with the spades assembler"
+    )
+    assert node_class.VALIDATE_INPUTS({"R1": "R1.fq", "R2": "R2.fq", "depth": -1}) == (
+        "depth must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"R1": "R1.fq", "R2": "R2.fq", "nocorr": "bad"}) == (
+        "nocorr must be one of: no_correction, yes_correction"
+    )
+    assert node_class.VALIDATE_INPUTS({"R1": "R1.fq", "R2": "R2.fq"}) is True
+
+
 def test_minia_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["minia"]
 
