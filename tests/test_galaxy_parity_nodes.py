@@ -710,6 +710,82 @@ def test_bbgtobigwig_auto_detects_bed_input_and_validates_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input1": "reads.bam", "chromfile": "hg38.len"}) is True
 
 
+def test_berokka_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["berokka"]
+
+    assert node_info["display_name"] == "Berokka"
+    assert node_info["category"] == "assembly"
+    assert node_info["description"] == "Trim, circularise, orient and filter long read bacterial genome assemblies."
+    assert node_info["output"] == ["FASTA", "TSV"]
+    assert node_info["output_name"] == ["trimmed", "results"]
+    assert node_info["required_executables"] == ["berokka"]
+    assert node_info["required_conda_packages"] == ["berokka"]
+    assert node_info["documentation_url"] == "https://github.com/tseemann/berokka"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/tseemann/berokka"]
+    assert "Faster Trim, circularise and orient" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "Circlator" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input_file"][0] == "FASTA"
+    assert node_info["input"]["optional"]["filter_fasta"][0] == "FASTA"
+    assert node_info["input"]["optional"]["read_length"][1]["default"] == 60000
+    assert node_info["input"]["optional"]["read_length"][1]["min"] == 28
+    assert node_info["input"]["optional"]["fuzz"][1]["default"] == 5
+    assert node_info["input"]["optional"]["anno"][1]["default"] is True
+
+
+def test_berokka_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("berokka")
+
+    assert node_class.render_command(
+        {
+            "input_file": "assembly.fasta",
+            "output": "/work/berokka",
+        }
+    ) == (
+        "berokka --outdir /work/berokka/default assembly.fasta --readlen 60000 --fuzz 5 && "
+        "cp /work/berokka/default/02.trimmed.fa /work/berokka/trimmed.fasta && "
+        "cp /work/berokka/default/03.results.tab /work/berokka/results.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "berokka" / "trimmed.fasta",
+        tmp_path / "berokka" / "results.tsv",
+    ]
+
+
+def test_berokka_renders_filter_and_no_annotation_options() -> None:
+    node_class = _node_class("berokka")
+
+    assert node_class.render_command(
+        {
+            "input_file": "long read assembly.fasta",
+            "filter_fasta": "pacbio control.fasta",
+            "read_length": 100,
+            "fuzz": 50,
+            "anno": False,
+            "output": "/work/berokka",
+        }
+    ) == (
+        "berokka --outdir /work/berokka/default 'long read assembly.fasta' --filter 'pacbio control.fasta' "
+        "--readlen 100 --fuzz 50 --noanno && cp /work/berokka/default/02.trimmed.fa "
+        "/work/berokka/trimmed.fasta && cp /work/berokka/default/03.results.tab /work/berokka/results.tsv"
+    )
+
+
+def test_berokka_validates_required_input_and_numeric_bounds() -> None:
+    node_class = _node_class("berokka")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_file is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": "assembly.fasta", "read_length": 27}) == (
+        "read_length must be at least 28"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "assembly.fasta", "read_length": "bad"}) == (
+        "read_length must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_file": "assembly.fasta", "fuzz": "bad"}) == "fuzz must be an integer"
+    assert node_class.VALIDATE_INPUTS({"input_file": "assembly.fasta", "read_length": 28, "fuzz": 0}) is True
+
+
 def test_fasta_regex_finder_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["fasta_regex_finder"]
 

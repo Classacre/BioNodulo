@@ -1374,6 +1374,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq351'],
     citation_text: 'BigWig and BigBed enable browsing of large distributed datasets in genome browsers.',
   },
+  berokka: {
+    name: 'berokka',
+    display_name: 'Berokka',
+    category: 'assembly',
+    description: 'Trim, circularise, orient and filter long read bacterial genome assemblies.',
+    search_aliases: ['Galaxy', 'berokka', 'Berokka', 'trim circularise orient', 'long read bacterial genome assemblies', 'completed assemblies', 'CANU', 'HGAP', 'Circlator', 'PacBio control sequence'],
+    input: {
+      required: {
+        input_file: { type: 'FASTA' },
+      },
+      optional: {
+        filter_fasta: { type: 'FASTA', default: '' },
+        read_length: { type: 'INT', default: 60000, min: 28 },
+        fuzz: { type: 'INT', default: 5 },
+        anno: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['FASTA', 'TSV'],
+    output_name: ['trimmed', 'results'],
+    required_executables: ['berokka'],
+    required_conda_packages: ['berokka'],
+    documentation_url: 'https://github.com/tseemann/berokka',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/berokka'],
+    citation_text: 'Berokka: Faster Trim, circularise and orient long read bacterial genome assemblies.',
+  },
   cd_hit: {
     name: 'cd_hit',
     display_name: 'cd-hit',
@@ -11907,7 +11933,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('408 nodes available')).toBeVisible();
+  await expect(page.getByText('409 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11969,6 +11995,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BioPerl', name: 'Genbank to GFF3', category: 'annotation' },
     { query: 'large insertions', name: 'basil', category: 'variant' },
     { query: 'bedGraphToBigWig', name: 'BAM BED GFF coverage bigWigs', category: 'genomics' },
+    { query: 'Circlator', name: 'Berokka', category: 'assembly' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'G-quadruplex', name: 'Fasta regular expression finder', category: 'sequence' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
