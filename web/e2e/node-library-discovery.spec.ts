@@ -3503,6 +3503,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
     citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
   },
+  checkm_taxonomy_wf: {
+    name: 'checkm_taxonomy_wf',
+    display_name: 'CheckM taxonomy_wf',
+    category: 'metagenomics',
+    description: 'Analyze genome bins with a shared taxonomic-specific marker set.',
+    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm taxonomy_wf', 'taxonomy_wf', 'taxonomic marker set', 'genome bin quality', 'completeness contamination'],
+    input: {
+      required: {
+        rank: { type: 'STRING', default: 'life', options: ['life', 'domain', 'phylum', 'order', 'family', 'genus', 'species'] },
+        taxon: { type: 'STRING', default: 'Prokaryote' },
+        bins: { type: 'FASTA_LIST', multiple: true },
+      },
+      optional: {
+        input_mode: { type: 'STRING', default: 'individual', options: ['individual', 'collection'] },
+        ali: { type: 'BOOLEAN', default: false },
+        nt: { type: 'BOOLEAN', default: false },
+        genes: { type: 'BOOLEAN', default: false },
+        aai_strain: { type: 'FLOAT', default: 0.9 },
+        extra_outputs: { type: 'STRING_LIST', default: [], options: ['marker_file', 'hmmer_analyze', 'bin_stats_analyze', 'checkm_hmm_info', 'hmmer_analyze_ali', 'bin_stats_ext', 'marker_gene_stats'] },
+      },
+    },
+    output: ['TSV', 'TSV', 'DIRECTORY', 'TSV', 'FILE', 'DIRECTORY', 'TSV', 'TSV'],
+    output_name: ['results', 'marker_file', 'hmmer_analyze', 'bin_stats_analyze', 'checkm_hmm_info', 'hmmer_analyze_ali', 'bin_stats_ext', 'marker_gene_stats'],
+    required_executables: ['checkm'],
+    required_conda_packages: ['checkm-genome'],
+    documentation_url: 'https://github.com/Ecogenomics/CheckM',
+    citation_dois: ['10.1101/gr.186072.114'],
+    citation_urls: ['https://doi.org/10.1101/gr.186072.114'],
+    citation_text: 'CheckM assesses genome completeness and contamination using lineage-specific marker sets.',
+  },
   checkm_analyze: {
     name: 'checkm_analyze',
     display_name: 'CheckM analyze',
@@ -16163,7 +16193,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('544 nodes available')).toBeVisible();
+  await expect(page.getByText('545 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16291,6 +16321,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },
     { query: 'checkm lineage_set', name: 'CheckM lineage_set', category: 'metagenomics' },
     { query: 'checkm taxon_set', name: 'CheckM taxon_set', category: 'metagenomics' },
+    { query: 'checkm taxonomy_wf', name: 'CheckM taxonomy_wf', category: 'metagenomics' },
     { query: 'checkm analyze', name: 'CheckM analyze', category: 'metagenomics' },
     { query: 'checkm qa', name: 'CheckM qa', category: 'metagenomics' },
     { query: 'bin dereplication', name: 'DAS Tool', category: 'metagenomics' },

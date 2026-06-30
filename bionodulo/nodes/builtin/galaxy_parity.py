@@ -17485,6 +17485,286 @@ class CheckMTaxonSetNode(CommandNode):
         return True
 
 
+class CheckMTaxonomyWFNode(CommandNode):
+    """Analyze genome bins with a shared taxonomic-specific CheckM marker set."""
+
+    NODE_ID = "checkm_taxonomy_wf"
+    DISPLAY_NAME = "CheckM taxonomy_wf"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Analyze genome bins with a shared taxonomic-specific marker set."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "checkm taxonomy_wf",
+        "taxonomy_wf",
+        "taxonomic marker set",
+        "genome bin quality",
+        "completeness contamination",
+    ]
+    RETURN_TYPES = ("TSV", "TSV", "DIRECTORY", "TSV", "FILE", "DIRECTORY", "TSV", "TSV")
+    RETURN_NAMES = (
+        "results",
+        "marker_file",
+        "hmmer_analyze",
+        "bin_stats_analyze",
+        "checkm_hmm_info",
+        "hmmer_analyze_ali",
+        "bin_stats_ext",
+        "marker_gene_stats",
+    )
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    INPUT_MODES = CheckMLineageWFNode.INPUT_MODES
+    RANKS = CheckMTaxonSetNode.RANKS
+    DOMAIN_TAXA = CheckMTaxonSetNode.DOMAIN_TAXA
+    EXTRA_OUTPUT_OPTIONS = [
+        "marker_file",
+        "hmmer_analyze",
+        "bin_stats_analyze",
+        "checkm_hmm_info",
+        "hmmer_analyze_ali",
+        "bin_stats_ext",
+        "marker_gene_stats",
+    ]
+    OPTIONAL_OUTPUT_PATHS = {
+        "marker_file": ("marker_file", ("output", "taxon.ms")),
+        "hmmer_analyze": ("hmmer_analyze", ("output", "bins", "hmmer_analyze")),
+        "bin_stats_analyze": ("bin_stats_analyze", ("output", "storage", "bin_stats.analyze.tsv")),
+        "checkm_hmm_info": ("checkm_hmm_info", ("output", "storage", "checkm_hmm_info.pkl.gz")),
+        "hmmer_analyze_ali": ("hmmer_analyze_ali", ("output", "bins", "hmmer_analyze_ali")),
+        "bin_stats_ext": ("bin_stats_ext", ("output", "storage", "bin_stats_ext.tsv")),
+        "marker_gene_stats": ("marker_gene_stats", ("output", "storage", "marker_gene_stats.tsv")),
+    }
+    DIRECTORY_OUTPUTS = {"hmmer_analyze", "hmmer_analyze_ali"}
+
+    @classmethod
+    def _input_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return CheckMLineageWFNode._input_files(inputs)
+
+    @classmethod
+    def _extra_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        return CheckMLineageWFNode._extra_outputs(inputs)
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any], input_files: list[str]) -> list[str]:
+        return CheckMLineageWFNode._element_identifiers(inputs, input_files)
+
+    @classmethod
+    def _link_name(cls, input_mode: str, identifier: str) -> str:
+        return CheckMLineageWFNode._link_name(input_mode, identifier)
+
+    @classmethod
+    def _add_bool(cls, cmd: list[str], inputs: dict[str, Any], name: str, flag: str) -> None:
+        CheckMLineageWFNode._add_bool(cmd, inputs, name, flag)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        bins_dir = f"{out}/bins"
+        checkm_out = f"{out}/output"
+        input_files = cls._input_files(inputs)
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        identifiers = cls._element_identifiers(inputs, input_files)
+
+        cmd = ["mkdir", "-p", bins_dir, checkm_out]
+        for input_file, identifier in zip(input_files, identifiers, strict=True):
+            cmd.extend(["&&", "ln", "-sf", input_file, f"{bins_dir}/{cls._link_name(input_mode, identifier)}"])
+        cmd.extend(
+            [
+                "&&",
+                "checkm",
+                "taxonomy_wf",
+                str(inputs.get("rank", "")),
+                str(inputs.get("taxon", "")),
+                bins_dir,
+                checkm_out,
+            ]
+        )
+        for name, flag in [("ali", "--ali"), ("nt", "--nt"), ("genes", "--genes")]:
+            cls._add_bool(cmd, inputs, name, flag)
+        for name, flag in [
+            ("individual_markers", "--individual_markers"),
+            ("skip_adj_correction", "--skip_adj_correction"),
+            ("skip_pseudogene_correction", "--skip_pseudogene_correction"),
+        ]:
+            cls._add_bool(cmd, inputs, name, flag)
+        cmd.extend(["--aai_strain", str(inputs.get("aai_strain", 0.9))])
+        cls._add_bool(cmd, inputs, "ignore_thresholds", "--ignore_thresholds")
+        cmd.extend(
+            [
+                "--e_value",
+                str(inputs.get("e_value", "1e-10")),
+                "--length",
+                str(inputs.get("length", 0.7)),
+                "--file",
+                f"{out}/results.tsv",
+                "--tab_table",
+                "--extension",
+                "fasta",
+                "--threads",
+                str(inputs.get("threads", 1)),
+            ]
+        )
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "results.tsv"]
+        selected = cls._extra_outputs(inputs)
+        for option in cls.EXTRA_OUTPUT_OPTIONS:
+            if option not in selected:
+                continue
+            if option == "hmmer_analyze_ali" and not inputs.get("ali"):
+                continue
+            output_name, parts = cls.OPTIONAL_OUTPUT_PATHS[option]
+            path = out.joinpath(*parts)
+            if output_name in cls.DIRECTORY_OUTPUTS:
+                path.mkdir(parents=True, exist_ok=True)
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            outputs.append(path)
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "rank": (
+                    "STRING",
+                    {
+                        "default": "life",
+                        "options": cls.RANKS,
+                        "description": "Taxonomic rank for the CheckM marker set",
+                    },
+                ),
+                "taxon": (
+                    "STRING",
+                    {
+                        "default": "Prokaryote",
+                        "description": "Taxon value supported by CheckM for the selected rank",
+                    },
+                ),
+                "bins": (
+                    "FASTA_LIST",
+                    {
+                        "multiple": True,
+                        "min_items": 1,
+                        "description": "Genome-bin FASTA files to analyze",
+                    },
+                ),
+            },
+            "optional": {
+                "input_mode": (
+                    "STRING",
+                    {
+                        "default": "individual",
+                        "options": cls.INPUT_MODES,
+                        "description": "Galaxy bin input structure used for naming symlinks",
+                    },
+                ),
+                "element_identifiers": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Optional Galaxy collection element identifiers for bins",
+                    },
+                ),
+                "ali": ("BOOLEAN", {"default": False, "description": "Generate HMMER alignment files"}),
+                "nt": ("BOOLEAN", {"default": False, "description": "Generate nucleotide gene sequences"}),
+                "genes": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Input bins contain amino-acid genes instead of nucleotide contigs"},
+                ),
+                "individual_markers": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Treat marker genes as independent during QA"},
+                ),
+                "skip_adj_correction": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not exclude adjacent marker genes when estimating contamination"},
+                ),
+                "skip_pseudogene_correction": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Skip pseudogene identification and filtering"},
+                ),
+                "aai_strain": (
+                    "FLOAT",
+                    {"default": 0.9, "min": 0, "max": 1, "description": "AAI threshold for strain heterogeneity"},
+                ),
+                "ignore_thresholds": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Ignore model-specific score thresholds"},
+                ),
+                "e_value": ("FLOAT", {"default": 1e-10, "min": 0, "max": 1, "description": "E-value cutoff"}),
+                "length": (
+                    "FLOAT",
+                    {"default": 0.7, "min": 0, "max": 1, "description": "Minimum target-query overlap fraction"},
+                ),
+                "extra_outputs": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "options": cls.EXTRA_OUTPUT_OPTIONS,
+                        "multiple": True,
+                        "description": "Galaxy extra outputs to collect from the taxonomy workflow",
+                    },
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        rank = str(inputs.get("rank", "")).strip()
+        if not rank:
+            return "rank is required"
+        if rank not in cls.RANKS:
+            return f"rank must be one of: {', '.join(cls.RANKS)}"
+        taxon = str(inputs.get("taxon", "")).strip()
+        if not taxon:
+            return "taxon is required"
+        if rank == "life" and taxon != "Prokaryote":
+            return "taxon for rank life must be Prokaryote"
+        if rank == "domain" and taxon not in cls.DOMAIN_TAXA:
+            return f"taxon for rank domain must be one of: {', '.join(cls.DOMAIN_TAXA)}"
+        if not cls._input_files(inputs):
+            return "at least one bins value is required"
+        input_mode = str(inputs.get("input_mode", inputs.get("select", "individual")) or "individual")
+        if input_mode not in cls.INPUT_MODES:
+            return f"input_mode must be one of: {', '.join(cls.INPUT_MODES)}"
+        for name, default in {"aai_strain": 0.9, "e_value": 1e-10, "length": 0.7}.items():
+            try:
+                value = float(inputs.get(name, default))
+            except (TypeError, ValueError):
+                return f"{name} must be a number"
+            if value < 0 or value > 1:
+                return f"{name} must be between 0 and 1"
+        try:
+            threads = int(inputs.get("threads", 1))
+        except (TypeError, ValueError):
+            return "threads must be an integer"
+        if threads < 1:
+            return "threads must be >= 1"
+        unknown = [value for value in cls._extra_outputs(inputs) if value not in cls.EXTRA_OUTPUT_OPTIONS]
+        if unknown:
+            return f"extra_outputs values must be one of: {', '.join(cls.EXTRA_OUTPUT_OPTIONS)}"
+        return True
+
+
 class CheckMAnalyzeNode(CommandNode):
     """Identify marker genes in genome bins with CheckM analyze."""
 

@@ -2910,6 +2910,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_taxonomy_wf": {
+            "display_name": "CheckM taxonomy_wf",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "checkm_analyze": {
             "display_name": "CheckM analyze",
             "category": "metagenomics",
@@ -10357,6 +10364,179 @@ def test_checkm_taxon_set_renders_command_outputs_and_validates(tmp_path: Path) 
         "taxon for rank domain must be one of: Archaea, Bacteria"
     )
     assert node_class.VALIDATE_INPUTS({"rank": "genus", "taxon": "Streptococcus"}) is True
+
+
+def test_checkm_taxonomy_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_taxonomy_wf"]
+
+    assert info["display_name"] == "CheckM taxonomy_wf"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Analyze genome bins with a shared taxonomic-specific marker set."
+    assert info["output"] == ["TSV", "TSV", "DIRECTORY", "TSV", "FILE", "DIRECTORY", "TSV", "TSV"]
+    assert info["output_name"] == [
+        "results",
+        "marker_file",
+        "hmmer_analyze",
+        "bin_stats_analyze",
+        "checkm_hmm_info",
+        "hmmer_analyze_ali",
+        "bin_stats_ext",
+        "marker_gene_stats",
+    ]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm taxonomy_wf" in info["search_aliases"]
+    assert info["input"]["required"]["rank"][0] == "STRING"
+    assert info["input"]["required"]["rank"][1]["options"] == [
+        "life",
+        "domain",
+        "phylum",
+        "order",
+        "family",
+        "genus",
+        "species",
+    ]
+    assert info["input"]["required"]["taxon"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
+    assert info["input"]["optional"]["ali"][1]["default"] is False
+    assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
+    assert info["input"]["optional"]["extra_outputs"][1]["options"] == [
+        "marker_file",
+        "hmmer_analyze",
+        "bin_stats_analyze",
+        "checkm_hmm_info",
+        "hmmer_analyze_ali",
+        "bin_stats_ext",
+        "marker_gene_stats",
+    ]
+
+
+def test_checkm_taxonomy_wf_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_taxonomy_wf")
+
+    assert node_class.render_command(
+        {
+            "rank": "domain",
+            "taxon": "Bacteria",
+            "bins": ["sample A.fasta", "sample B.fasta"],
+            "input_mode": "collection",
+            "element_identifiers": ["bin/A", "bin B"],
+            "ali": True,
+            "nt": True,
+            "genes": False,
+            "individual_markers": True,
+            "skip_adj_correction": True,
+            "skip_pseudogene_correction": True,
+            "aai_strain": 0.95,
+            "ignore_thresholds": True,
+            "e_value": "1e-20",
+            "length": 0.65,
+            "threads": 6,
+            "output": "/work/checkm_taxonomy_wf",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_taxonomy_wf/bins",
+        "/work/checkm_taxonomy_wf/output",
+        "&&",
+        "ln",
+        "-sf",
+        "sample A.fasta",
+        "/work/checkm_taxonomy_wf/bins/bin_A.fasta",
+        "&&",
+        "ln",
+        "-sf",
+        "sample B.fasta",
+        "/work/checkm_taxonomy_wf/bins/bin_B.fasta",
+        "&&",
+        "checkm",
+        "taxonomy_wf",
+        "domain",
+        "Bacteria",
+        "/work/checkm_taxonomy_wf/bins",
+        "/work/checkm_taxonomy_wf/output",
+        "--ali",
+        "--nt",
+        "--individual_markers",
+        "--skip_adj_correction",
+        "--skip_pseudogene_correction",
+        "--aai_strain",
+        "0.95",
+        "--ignore_thresholds",
+        "--e_value",
+        "1e-20",
+        "--length",
+        "0.65",
+        "--file",
+        "/work/checkm_taxonomy_wf/results.tsv",
+        "--tab_table",
+        "--extension",
+        "fasta",
+        "--threads",
+        "6",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {
+            "ali": True,
+            "extra_outputs": [
+                "marker_file",
+                "hmmer_analyze",
+                "bin_stats_analyze",
+                "checkm_hmm_info",
+                "hmmer_analyze_ali",
+                "bin_stats_ext",
+                "marker_gene_stats",
+            ],
+        },
+        tmp_path,
+    ) == [
+        tmp_path / "checkm_taxonomy_wf" / "results.tsv",
+        tmp_path / "checkm_taxonomy_wf" / "output" / "taxon.ms",
+        tmp_path / "checkm_taxonomy_wf" / "output" / "bins" / "hmmer_analyze",
+        tmp_path / "checkm_taxonomy_wf" / "output" / "storage" / "bin_stats.analyze.tsv",
+        tmp_path / "checkm_taxonomy_wf" / "output" / "storage" / "checkm_hmm_info.pkl.gz",
+        tmp_path / "checkm_taxonomy_wf" / "output" / "bins" / "hmmer_analyze_ali",
+        tmp_path / "checkm_taxonomy_wf" / "output" / "storage" / "bin_stats_ext.tsv",
+        tmp_path / "checkm_taxonomy_wf" / "output" / "storage" / "marker_gene_stats.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"ali": False, "extra_outputs": ["hmmer_analyze_ali"]}, tmp_path) == [
+        tmp_path / "checkm_taxonomy_wf" / "results.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "rank is required"
+    assert node_class.VALIDATE_INPUTS({"rank": "bad", "taxon": "Prokaryote", "bins": ["bin.fna"]}) == (
+        "rank must be one of: life, domain, phylum, order, family, genus, species"
+    )
+    assert node_class.VALIDATE_INPUTS({"rank": "life", "bins": ["bin.fna"]}) == "taxon is required"
+    assert node_class.VALIDATE_INPUTS({"rank": "life", "taxon": "Bacteria", "bins": ["bin.fna"]}) == (
+        "taxon for rank life must be Prokaryote"
+    )
+    assert node_class.VALIDATE_INPUTS({"rank": "domain", "taxon": "Eukaryota", "bins": ["bin.fna"]}) == (
+        "taxon for rank domain must be one of: Archaea, Bacteria"
+    )
+    assert node_class.VALIDATE_INPUTS({"rank": "domain", "taxon": "Bacteria"}) == (
+        "at least one bins value is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"rank": "domain", "taxon": "Bacteria", "bins": ["bin.fna"], "threads": 0}) == (
+        "threads must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"rank": "domain", "taxon": "Bacteria", "bins": ["bin.fna"], "aai_strain": 1.2}
+    ) == "aai_strain must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"rank": "domain", "taxon": "Bacteria", "bins": ["bin.fna"], "extra_outputs": ["bad"]}
+    ) == (
+        "extra_outputs values must be one of: marker_file, hmmer_analyze, bin_stats_analyze, checkm_hmm_info, hmmer_analyze_ali, bin_stats_ext, marker_gene_stats"
+    )
+    assert node_class.VALIDATE_INPUTS({"rank": "domain", "taxon": "Bacteria", "bins": ["bin.fna"]}) is True
 
 
 def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
