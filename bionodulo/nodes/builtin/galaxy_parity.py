@@ -17013,6 +17013,256 @@ class CheckMAnalyzeNode(CommandNode):
         return True
 
 
+class CheckMQANode(CommandNode):
+    """Assess CheckM analyze results for genome-bin completeness and contamination."""
+
+    NODE_ID = "checkm_qa"
+    DISPLAY_NAME = "CheckM qa"
+    REQUIRED_CONDA_PACKAGES = ["checkm-genome"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Assess genome bins for completeness and contamination from CheckM analyze outputs."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "checkm",
+        "CheckM",
+        "checkm qa",
+        "genome completeness",
+        "genome contamination",
+        "bin quality",
+        "marker gene stats",
+    ]
+    RETURN_TYPES = ("TSV", "TSV", "TSV")
+    RETURN_NAMES = ("output", "bin_stats_ext", "marker_gene_stats")
+    REQUIRED_EXECUTABLES = ["checkm"]
+    DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM"
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"{DOI_URL}10.1101/gr.186072.114"]
+    CITATION_TEXT = (
+        "CheckM assesses genome completeness and contamination using lineage-specific marker sets."
+    )
+    VERSION = "1.2.5+galaxy0"
+    SHELL = True
+
+    OUT_FORMATS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    EXTRA_OUTPUT_OPTIONS = ["marker_gene_stats"]
+
+    @classmethod
+    def _as_csv_list(cls, inputs: dict[str, Any], name: str) -> list[str]:
+        raw = inputs.get(name, [])
+        if isinstance(raw, str):
+            if "," in raw:
+                return [part.strip() for part in raw.split(",") if part.strip()]
+            return [raw] if raw else []
+        if isinstance(raw, (list, tuple)):
+            return [str(value) for value in raw if str(value)]
+        return []
+
+    @classmethod
+    def _hmmer_analyze(cls, inputs: dict[str, Any]) -> list[str]:
+        return cls._as_csv_list(inputs, "hmmer_analyze")
+
+    @classmethod
+    def _extra_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        return cls._as_csv_list(inputs, "extra_outputs")
+
+    @classmethod
+    def _element_identifiers(cls, inputs: dict[str, Any], files: list[str], key: str = "element_identifiers") -> list[str]:
+        raw = inputs.get(key, inputs.get("identifiers", inputs.get("labels")))
+        if isinstance(raw, (list, tuple)):
+            identifiers = [str(identifier) if identifier is not None else "" for identifier in raw]
+        elif raw is None or raw == "":
+            identifiers = []
+        else:
+            identifiers = [str(raw)]
+        return [
+            _safe_identifier(identifiers[index]) if index < len(identifiers) and identifiers[index] else _safe_name(file)
+            for index, file in enumerate(files)
+        ]
+
+    @classmethod
+    def _stage_collection(cls, cmd: list[str], files: list[str], identifiers: list[str], out: str, filename: str) -> None:
+        for input_file, identifier in zip(files, identifiers, strict=True):
+            bin_dir = f"{out}/output/bins/{identifier}"
+            cmd.extend(["&&", "mkdir", "-p", bin_dir, "&&", "cp", input_file, f"{bin_dir}/{filename}"])
+
+    @classmethod
+    def _add_bool(cls, cmd: list[str], inputs: dict[str, Any], name: str, flag: str) -> None:
+        if inputs.get(name):
+            cmd.append(flag)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        checkm_out = f"{out}/output"
+        storage = f"{checkm_out}/storage"
+        hmmer_files = cls._hmmer_analyze(inputs)
+        hmmer_ids = cls._element_identifiers(inputs, hmmer_files)
+        cmd = [
+            "mkdir",
+            "-p",
+            storage,
+            "&&",
+            "cp",
+            str(inputs.get("checkm_hmm_info", "")),
+            f"{storage}/checkm_hmm_info.pkl.gz",
+            "&&",
+            "cp",
+            str(inputs.get("bin_stats_analyze", "")),
+            f"{storage}/bin_stats.analyze.tsv",
+        ]
+        cls._stage_collection(cmd, hmmer_files, hmmer_ids, out, "hmmer.analyze.txt")
+        if str(inputs.get("out_format", "1")) == "9":
+            genes_files = cls._as_csv_list(inputs, "genes_faa")
+            gene_ids = cls._element_identifiers(inputs, genes_files, "genes_element_identifiers")
+            cls._stage_collection(cmd, genes_files, gene_ids, out, "genes.faa")
+
+        cmd.extend(
+            [
+                "&&",
+                "checkm",
+                "qa",
+                str(inputs.get("marker_file", "")),
+                checkm_out,
+                "--out_format",
+                str(inputs.get("out_format", "1")),
+                "--tab_table",
+                "--file",
+                f"{out}/output.tsv",
+            ]
+        )
+        _add_if_value(cmd, "--exclude_markers", inputs.get("exclude_markers"))
+        for name, flag in [
+            ("individual_markers", "--individual_markers"),
+            ("skip_adj_correction", "--skip_adj_correction"),
+            ("skip_pseudogene_correction", "--skip_pseudogene_correction"),
+        ]:
+            cls._add_bool(cmd, inputs, name, flag)
+        cmd.extend(["--aai_strain", str(inputs.get("aai_strain", 0.9))])
+        cls._add_bool(cmd, inputs, "ignore_thresholds", "--ignore_thresholds")
+        cmd.extend(["--e_value", str(inputs.get("e_value", "1e-10")), "--length", str(inputs.get("length", 0.7))])
+        _add_if_value(cmd, "--coverage_file", inputs.get("coverage"))
+        cmd.extend(["--threads", str(inputs.get("threads", 1))])
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        storage = out / "output" / "storage"
+        storage.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "output.tsv", storage / "bin_stats_ext.tsv"]
+        if "marker_gene_stats" in cls._extra_outputs(inputs):
+            outputs.append(storage / "marker_gene_stats.tsv")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "marker_file": ("TSV", {"description": "Marker gene set used for CheckM QA"}),
+                "checkm_hmm_info": ("FILE", {"description": "Marker gene HMM info from CheckM analyze"}),
+                "bin_stats_analyze": ("TSV", {"description": "Marker gene bin stats from CheckM analyze"}),
+                "hmmer_analyze": (
+                    "TXT",
+                    {"multiple": True, "description": "Marker gene HMM hits collection from CheckM analyze"},
+                ),
+            },
+            "optional": {
+                "element_identifiers": (
+                    "STRING_LIST",
+                    {"default": [], "multiple": True, "description": "Optional identifiers for hmmer_analyze entries"},
+                ),
+                "out_format": (
+                    "STRING",
+                    {
+                        "default": "1",
+                        "options": cls.OUT_FORMATS,
+                        "description": "CheckM QA report format to emit",
+                    },
+                ),
+                "genes_faa": (
+                    "FASTA_LIST",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Protein gene sequences required when out_format is 9",
+                    },
+                ),
+                "genes_element_identifiers": (
+                    "STRING_LIST",
+                    {"default": [], "multiple": True, "description": "Optional identifiers for genes_faa entries"},
+                ),
+                "exclude_markers": ("FILE", {"default": "", "description": "Optional marker IDs to exclude"}),
+                "individual_markers": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Treat marker genes as independent during QA"},
+                ),
+                "skip_adj_correction": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not exclude adjacent marker genes when estimating contamination"},
+                ),
+                "skip_pseudogene_correction": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Skip pseudogene identification and filtering"},
+                ),
+                "aai_strain": (
+                    "FLOAT",
+                    {"default": 0.9, "min": 0, "max": 1, "description": "AAI threshold for strain heterogeneity"},
+                ),
+                "ignore_thresholds": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Ignore model-specific score thresholds"},
+                ),
+                "e_value": ("FLOAT", {"default": 1e-10, "min": 0, "max": 1, "description": "E-value cutoff"}),
+                "length": (
+                    "FLOAT",
+                    {"default": 0.7, "min": 0, "max": 1, "description": "Minimum target-query overlap fraction"},
+                ),
+                "coverage": ("FILE", {"default": "", "description": "Optional coverage file generated by CheckM coverage"}),
+                "extra_outputs": (
+                    "STRING_LIST",
+                    {
+                        "default": [],
+                        "options": cls.EXTRA_OUTPUT_OPTIONS,
+                        "multiple": True,
+                        "description": "Galaxy extra outputs to collect from CheckM qa",
+                    },
+                ),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for required in ("marker_file", "checkm_hmm_info", "bin_stats_analyze"):
+            if not str(inputs.get(required, "")).strip():
+                return f"{required} is required"
+        if not cls._hmmer_analyze(inputs):
+            return "at least one hmmer_analyze value is required"
+        out_format = str(inputs.get("out_format", "1"))
+        if out_format not in cls.OUT_FORMATS:
+            return f"out_format must be one of: {', '.join(cls.OUT_FORMATS)}"
+        if out_format == "9" and not cls._as_csv_list(inputs, "genes_faa"):
+            return "genes_faa is required when out_format is 9"
+        for name, default in {"aai_strain": 0.9, "e_value": 1e-10, "length": 0.7}.items():
+            try:
+                value = float(inputs.get(name, default))
+            except (TypeError, ValueError):
+                return f"{name} must be a number"
+            if value < 0 or value > 1:
+                return f"{name} must be between 0 and 1"
+        try:
+            threads = int(inputs.get("threads", 1))
+        except (TypeError, ValueError):
+            return "threads must be an integer"
+        if threads < 1:
+            return "threads must be >= 1"
+        unknown = [value for value in cls._extra_outputs(inputs) if value not in cls.EXTRA_OUTPUT_OPTIONS]
+        if unknown:
+            return f"extra_outputs values must be one of: {', '.join(cls.EXTRA_OUTPUT_OPTIONS)}"
+        return True
+
+
 class CheckM2Node(CommandNode):
     """Assess MAG, SAG, or isolate genome quality with CheckM2."""
 

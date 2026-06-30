@@ -2889,6 +2889,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_conda_packages": ["checkm-genome"],
             "doi": "10.1101/gr.186072.114",
         },
+        "checkm_qa": {
+            "display_name": "CheckM qa",
+            "category": "metagenomics",
+            "required_executables": ["checkm"],
+            "required_conda_packages": ["checkm-genome"],
+            "doi": "10.1101/gr.186072.114",
+        },
         "das_tool": {
             "display_name": "DAS Tool",
             "category": "metagenomics",
@@ -9871,6 +9878,247 @@ def test_checkm_analyze_renders_individual_gene_bins_and_validates(tmp_path: Pat
         {"marker_file": "markers.tsv", "bins": ["bin.fna"], "extra_outputs": ["bad"]}
     ) == "extra_outputs values must be one of: hmmer_analyze_ali"
     assert node_class.VALIDATE_INPUTS({"marker_file": "markers.tsv", "bins": ["bin.fna"]}) is True
+
+
+def test_checkm_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["checkm_qa"]
+
+    assert info["display_name"] == "CheckM qa"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Assess genome bins for completeness and contamination from CheckM analyze outputs."
+    assert info["output"] == ["TSV", "TSV", "TSV"]
+    assert info["output_name"] == ["output", "bin_stats_ext", "marker_gene_stats"]
+    assert info["required_executables"] == ["checkm"]
+    assert info["required_conda_packages"] == ["checkm-genome"]
+    assert info["documentation_url"] == "https://github.com/Ecogenomics/CheckM"
+    assert info["citation_dois"] == ["10.1101/gr.186072.114"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
+    assert "lineage-specific marker sets" in info["citation_text"]
+    assert info["version"] == "1.2.5+galaxy0"
+    assert "Galaxy" in info["search_aliases"]
+    assert "checkm qa" in info["search_aliases"]
+    assert info["input"]["required"]["marker_file"][0] == "TSV"
+    assert info["input"]["required"]["checkm_hmm_info"][0] == "FILE"
+    assert info["input"]["required"]["bin_stats_analyze"][0] == "TSV"
+    assert info["input"]["required"]["hmmer_analyze"][0] == "STRING"
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
+    assert info["input"]["optional"]["extra_outputs"][1]["options"] == ["marker_gene_stats"]
+
+
+def test_checkm_qa_renders_summary_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_qa")
+
+    assert node_class.render_command(
+        {
+            "marker_file": "lineage marker set.tsv",
+            "checkm_hmm_info": "checkm_hmm_info.pkl.gz",
+            "bin_stats_analyze": "bin_stats.analyze.tsv",
+            "hmmer_analyze": ["637000110 hmmer.txt", "bin#2 hmmer.txt"],
+            "element_identifiers": ["637000110", "bin#2"],
+            "out_format": "1",
+            "exclude_markers": "exclude markers.txt",
+            "individual_markers": True,
+            "skip_adj_correction": True,
+            "skip_pseudogene_correction": True,
+            "aai_strain": 0.95,
+            "ignore_thresholds": True,
+            "e_value": "1e-20",
+            "length": 0.65,
+            "coverage": "coverage.tsv",
+            "threads": 5,
+            "extra_outputs": ["marker_gene_stats"],
+            "output": "/work/checkm_qa",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_qa/output/storage",
+        "&&",
+        "cp",
+        "checkm_hmm_info.pkl.gz",
+        "/work/checkm_qa/output/storage/checkm_hmm_info.pkl.gz",
+        "&&",
+        "cp",
+        "bin_stats.analyze.tsv",
+        "/work/checkm_qa/output/storage/bin_stats.analyze.tsv",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_qa/output/bins/637000110",
+        "&&",
+        "cp",
+        "637000110 hmmer.txt",
+        "/work/checkm_qa/output/bins/637000110/hmmer.analyze.txt",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_qa/output/bins/bin_2",
+        "&&",
+        "cp",
+        "bin#2 hmmer.txt",
+        "/work/checkm_qa/output/bins/bin_2/hmmer.analyze.txt",
+        "&&",
+        "checkm",
+        "qa",
+        "lineage marker set.tsv",
+        "/work/checkm_qa/output",
+        "--out_format",
+        "1",
+        "--tab_table",
+        "--file",
+        "/work/checkm_qa/output.tsv",
+        "--exclude_markers",
+        "exclude markers.txt",
+        "--individual_markers",
+        "--skip_adj_correction",
+        "--skip_pseudogene_correction",
+        "--aai_strain",
+        "0.95",
+        "--ignore_thresholds",
+        "--e_value",
+        "1e-20",
+        "--length",
+        "0.65",
+        "--coverage_file",
+        "coverage.tsv",
+        "--threads",
+        "5",
+    ]
+    assert node_class.PLAN_OUTPUTS({"extra_outputs": ["marker_gene_stats"]}, tmp_path) == [
+        tmp_path / "checkm_qa" / "output.tsv",
+        tmp_path / "checkm_qa" / "output" / "storage" / "bin_stats_ext.tsv",
+        tmp_path / "checkm_qa" / "output" / "storage" / "marker_gene_stats.tsv",
+    ]
+
+
+def test_checkm_qa_renders_sequence_output_command_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("checkm_qa")
+
+    assert node_class.render_command(
+        {
+            "marker_file": "lineage_marker_set.tsv",
+            "checkm_hmm_info": "checkm_hmm_info.pkl.gz",
+            "bin_stats_analyze": "bin_stats.analyze.tsv",
+            "hmmer_analyze": ["hmmer.analyze.txt"],
+            "element_identifiers": ["bin/A"],
+            "out_format": "9",
+            "genes_faa": ["genes.faa"],
+            "genes_element_identifiers": ["bin/A"],
+            "individual_markers": False,
+            "skip_adj_correction": False,
+            "skip_pseudogene_correction": False,
+            "aai_strain": 0.9,
+            "ignore_thresholds": False,
+            "e_value": "1e-10",
+            "length": 0.7,
+            "threads": 2,
+            "output": "/work/checkm_qa",
+        }
+    ) == [
+        "mkdir",
+        "-p",
+        "/work/checkm_qa/output/storage",
+        "&&",
+        "cp",
+        "checkm_hmm_info.pkl.gz",
+        "/work/checkm_qa/output/storage/checkm_hmm_info.pkl.gz",
+        "&&",
+        "cp",
+        "bin_stats.analyze.tsv",
+        "/work/checkm_qa/output/storage/bin_stats.analyze.tsv",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_qa/output/bins/bin_A",
+        "&&",
+        "cp",
+        "hmmer.analyze.txt",
+        "/work/checkm_qa/output/bins/bin_A/hmmer.analyze.txt",
+        "&&",
+        "mkdir",
+        "-p",
+        "/work/checkm_qa/output/bins/bin_A",
+        "&&",
+        "cp",
+        "genes.faa",
+        "/work/checkm_qa/output/bins/bin_A/genes.faa",
+        "&&",
+        "checkm",
+        "qa",
+        "lineage_marker_set.tsv",
+        "/work/checkm_qa/output",
+        "--out_format",
+        "9",
+        "--tab_table",
+        "--file",
+        "/work/checkm_qa/output.tsv",
+        "--aai_strain",
+        "0.9",
+        "--e_value",
+        "1e-10",
+        "--length",
+        "0.7",
+        "--threads",
+        "2",
+    ]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "checkm_qa" / "output.tsv",
+        tmp_path / "checkm_qa" / "output" / "storage" / "bin_stats_ext.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "marker_file is required"
+    assert node_class.VALIDATE_INPUTS({"marker_file": "markers.tsv"}) == "checkm_hmm_info is required"
+    assert node_class.VALIDATE_INPUTS({"marker_file": "markers.tsv", "checkm_hmm_info": "hmm.zip"}) == (
+        "bin_stats_analyze is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"marker_file": "markers.tsv", "checkm_hmm_info": "hmm.zip", "bin_stats_analyze": "stats.tsv"}
+    ) == "at least one hmmer_analyze value is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "marker_file": "markers.tsv",
+            "checkm_hmm_info": "hmm.zip",
+            "bin_stats_analyze": "stats.tsv",
+            "hmmer_analyze": ["hmmer.txt"],
+            "out_format": "10",
+        }
+    ) == "out_format must be one of: 1, 2, 3, 4, 5, 6, 7, 8, 9"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "marker_file": "markers.tsv",
+            "checkm_hmm_info": "hmm.zip",
+            "bin_stats_analyze": "stats.tsv",
+            "hmmer_analyze": ["hmmer.txt"],
+            "out_format": "9",
+        }
+    ) == "genes_faa is required when out_format is 9"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "marker_file": "markers.tsv",
+            "checkm_hmm_info": "hmm.zip",
+            "bin_stats_analyze": "stats.tsv",
+            "hmmer_analyze": ["hmmer.txt"],
+            "aai_strain": 1.2,
+        }
+    ) == "aai_strain must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "marker_file": "markers.tsv",
+            "checkm_hmm_info": "hmm.zip",
+            "bin_stats_analyze": "stats.tsv",
+            "hmmer_analyze": ["hmmer.txt"],
+            "extra_outputs": ["bad"],
+        }
+    ) == "extra_outputs values must be one of: marker_gene_stats"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "marker_file": "markers.tsv",
+            "checkm_hmm_info": "hmm.zip",
+            "bin_stats_analyze": "stats.tsv",
+            "hmmer_analyze": ["hmmer.txt"],
+        }
+    ) is True
 
 
 def test_das_tool_exposes_galaxy_aligned_outputs() -> None:
