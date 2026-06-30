@@ -588,6 +588,7 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "GFA",
         "ODGI",
         "GBZ",
+        "PHYLOGENY_TREE",
         "IMAGE",
         "H5AD",
         "LOOM",

@@ -6789,6 +6789,41 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btm404'],
     citation_text: 'Clustal W and Clustal X version 2.0.',
   },
+  astral: {
+    name: 'astral',
+    display_name: 'ASTRAL-III',
+    category: 'phylogeny',
+    description: 'Estimate an unrooted species tree from unrooted gene trees with ASTRAL-III.',
+    search_aliases: [
+      'Galaxy',
+      'ASTRAL',
+      'ASTRAL-III',
+      'astral',
+      'species tree',
+      'gene tree',
+      'quartet support',
+      'coalescent',
+      'incomplete lineage sorting',
+      'phylogenomics',
+    ],
+    input: {
+      required: {
+        input: { type: 'PHYLOGENY_TREE' },
+      },
+      optional: {
+        branch_annotate: { type: 'STRING', default: '3', options: ['0', '1', '2', '3', '4', '8', '16', '32', '10'] },
+        lambda: { type: 'FLOAT', default: 0.5, min: 0, max: 10 },
+      },
+    },
+    output: ['PHYLOGENY_TREE', 'TXT', 'TSV'],
+    output_name: ['output', 'log_output', 'branch_annotations'],
+    required_executables: ['astral'],
+    required_conda_packages: ['astral-tree'],
+    documentation_url: 'https://github.com/smirarab/ASTRAL',
+    citation_dois: ['10.1186/s12859-018-2129-y'],
+    citation_urls: ['https://doi.org/10.1186/s12859-018-2129-y'],
+    citation_text: 'ASTRAL-III: polynomial time species tree reconstruction from partially resolved gene trees.',
+  },
   quicktree: {
     name: 'quicktree',
     display_name: 'Quicktree',
@@ -16836,7 +16871,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('566 nodes available')).toBeVisible();
+  await expect(page.getByText('567 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16978,6 +17013,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'common loci', name: 'chewBBACA JoinProfiles', category: 'typing' },
     { query: 'schema statistics', name: 'chewBBACA NSStats', category: 'typing' },
     { query: 'external schema', name: 'chewBBACA PrepExternalSchema', category: 'typing' },
+    { query: 'ASTRAL-III', name: 'ASTRAL-III', category: 'phylogeny' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },

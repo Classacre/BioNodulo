@@ -371,95 +371,99 @@ def test_astral_is_registered_for_frontend_discovery() -> None:
     info = registry.object_info()
 
     node_info = info["astral"]
-    assert node_info["display_name"] == "ASTRAL Species Tree"
+    assert node_info["display_name"] == "ASTRAL-III"
     assert node_info["category"] == "phylogeny"
-    assert node_info["description"].startswith("Species tree inference")
-    assert node_info["output"] == ["NEWICK", "FILE"]
-    assert node_info["output_name"] == ["species_tree", "astral_log"]
+    assert node_info["description"] == "Estimate an unrooted species tree from unrooted gene trees with ASTRAL-III."
+    assert node_info["output"] == ["PHYLOGENY_TREE", "TXT", "TSV"]
+    assert node_info["output_name"] == ["output", "log_output", "branch_annotations"]
     assert node_info["required_executables"] == ["astral"]
     assert node_info["required_conda_packages"] == ["astral-tree"]
+    assert node_info["documentation_url"] == "https://github.com/smirarab/ASTRAL"
+    assert node_info["citation_dois"] == ["10.1186/s12859-018-2129-y"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/s12859-018-2129-y"]
+    assert "ASTRAL-III" in node_info["citation_text"]
     assert "species tree" in node_info["search_aliases"]
     assert "gene tree" in node_info["search_aliases"]
     assert "coalescent" in node_info["search_aliases"]
+    assert node_info["version"] == "5.7.8+galaxy0"
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"gene_trees"}
-    assert set(inputs["optional"]) == {"multi_individuals", "boot_trees", "num_reps", "exact"}
-    assert inputs["optional"]["num_reps"][1]["min"] == 10
+    assert set(inputs["required"]) == {"input"}
+    assert set(inputs["optional"]) == {"branch_annotate", "lambda"}
+    assert inputs["required"]["input"][0] == "PHYLOGENY_TREE"
+    assert inputs["optional"]["branch_annotate"][1]["default"] == "3"
+    assert inputs["optional"]["branch_annotate"][1]["options"] == ["0", "1", "2", "3", "4", "8", "16", "32", "10"]
+    assert inputs["optional"]["lambda"][1]["default"] == 0.5
+    assert inputs["optional"]["lambda"][1]["min"] == 0
+    assert inputs["optional"]["lambda"][1]["max"] == 10
 
 
-def test_astral_renders_species_tree_command_with_optional_flags() -> None:
+def test_phylogeny_tree_input_type_is_preserved_for_frontend_sockets() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert registry.object_info("astral")["input"]["required"]["input"][0] == "PHYLOGENY_TREE"
+
+
+def test_astral_renders_galaxy_command_with_branch_annotations() -> None:
     node_class = _node_class("astral")
 
     cmd = node_class.render_command({
-        "gene_trees": "gene_trees.nwk",
-        "multi_individuals": "individuals.tsv",
-        "boot_trees": "bootstrap_gene_trees.nwk",
-        "num_reps": 250,
-        "exact": True,
+        "input": "song mammals.gene.tre",
+        "branch_annotate": "16",
+        "lambda": 2.0,
         "output": "/tmp/run/astral",
     })
 
     assert node_class.SHELL is True
-    assert cmd == [
-        "astral",
-        "-i",
-        "gene_trees.nwk",
-        "-o",
-        "/tmp/run/astral/species_tree.nwk",
-        "-a",
-        "individuals.tsv",
-        "-b",
-        "bootstrap_gene_trees.nwk",
-        "-r",
-        "250",
-        "-x",
-        ">",
-        "/tmp/run/astral/astral_log.log",
-        "2>&1",
-    ]
+    assert cmd == (
+        "mkdir -p /tmp/run/astral && cd /tmp/run/astral && astral --input 'song mammals.gene.tre' "
+        "--branch-annotate 16 --output ./output.tre --lambda 2.0 2>&1 | tee /tmp/run/astral/log_output.txt && "
+        "mv ./output.tre /tmp/run/astral/output.tre && mv freqQuad.csv /tmp/run/astral/branch_annotations.tsv"
+    )
 
 
-def test_astral_omits_empty_optional_flags_and_plans_outputs() -> None:
+def test_astral_omits_branch_annotations_unless_requested_and_plans_outputs() -> None:
     node_class = _node_class("astral")
 
     cmd = node_class.render_command({
-        "gene_trees": "gene_trees.nwk",
-        "multi_individuals": "",
-        "boot_trees": "",
-        "num_reps": 100,
-        "exact": False,
+        "input": "gene_trees.nwk",
+        "branch_annotate": "0",
+        "lambda": 0.5,
         "output": "/tmp/run/astral",
     })
-    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
+    outputs_without_annotations = node_class.PLAN_OUTPUTS({"branch_annotate": "0"}, "/tmp/run")
+    outputs_with_annotations = node_class.PLAN_OUTPUTS({"branch_annotate": "32"}, "/tmp/run")
 
-    assert "-a" not in cmd
-    assert "-b" not in cmd
-    assert "-r" not in cmd
-    assert "-x" not in cmd
-    assert cmd == [
-        "astral",
-        "-i",
-        "gene_trees.nwk",
-        "-o",
-        "/tmp/run/astral/species_tree.nwk",
-        ">",
-        "/tmp/run/astral/astral_log.log",
-        "2>&1",
+    assert "freqQuad.csv" not in cmd
+    assert cmd == (
+        "mkdir -p /tmp/run/astral && cd /tmp/run/astral && astral --input gene_trees.nwk "
+        "--branch-annotate 0 --output ./output.tre --lambda 0.5 2>&1 | tee /tmp/run/astral/log_output.txt && "
+        "mv ./output.tre /tmp/run/astral/output.tre"
+    )
+    assert [str(path) for path in outputs_without_annotations] == [
+        "/tmp/run/astral/output.tre",
+        "/tmp/run/astral/log_output.txt",
     ]
-    assert [str(path) for path in outputs] == [
-        "/tmp/run/astral/species_tree.nwk",
-        "/tmp/run/astral/astral_log.log",
+    assert [str(path) for path in outputs_with_annotations] == [
+        "/tmp/run/astral/output.tre",
+        "/tmp/run/astral/log_output.txt",
+        "/tmp/run/astral/branch_annotations.tsv",
     ]
 
 
-def test_astral_validates_required_gene_trees_and_bootstrap_replicates() -> None:
+def test_astral_validates_required_input_branch_annotation_and_lambda() -> None:
     node_class = _node_class("astral")
 
-    assert "gene_trees" in str(node_class.VALIDATE_INPUTS({"gene_trees": ""}))
-    assert "num_reps" in str(node_class.VALIDATE_INPUTS({"gene_trees": "gene_trees.nwk", "num_reps": 9}))
-    assert node_class.VALIDATE_INPUTS({"gene_trees": "gene_trees.nwk", "num_reps": 10}) is True
-    assert node_class.VALIDATE_INPUTS({"gene_trees": "gene_trees.nwk", "num_reps": 100}) is True
+    assert node_class.VALIDATE_INPUTS({}) == "input tree file is required"
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "branch_annotate": "99"}) == (
+        "branch_annotate must be one of: 0, 1, 2, 3, 4, 8, 16, 32, 10"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "lambda": "bad"}) == "lambda must be numeric"
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "lambda": -0.1}) == "lambda must be between 0 and 10"
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "lambda": 10.1}) == "lambda must be between 0 and 10"
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "lambda": 10}) is True
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre"}) is True
 
 
 def test_astral_environment_metadata_is_declared() -> None:

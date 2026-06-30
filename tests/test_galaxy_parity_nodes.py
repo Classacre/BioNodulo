@@ -11949,7 +11949,7 @@ def test_checkm_tree_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
     assert info["input"]["required"]["hmmer_tree"][0] == "STRING"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["1", "2", "3", "4", "5"]
-    assert info["input"]["optional"]["concatenated_tre"][0] == "STRING"
+    assert info["input"]["optional"]["concatenated_tre"][0] == "PHYLOGENY_TREE"
     assert info["input"]["optional"]["concatenated_fasta"][0] == "FASTA"
 
 
@@ -12130,7 +12130,7 @@ def test_checkm_lineage_set_exposes_galaxy_metadata_inputs_outputs_and_doi() -> 
     assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
     assert info["input"]["required"]["hmmer_tree"][0] == "STRING"
-    assert info["input"]["required"]["concatenated_tre"][0] == "STRING"
+    assert info["input"]["required"]["concatenated_tre"][0] == "PHYLOGENY_TREE"
     assert info["input"]["optional"]["unique"][1]["default"] == 10
     assert info["input"]["optional"]["multi"][1]["default"] == 10
     assert info["input"]["optional"]["force_domain"][1]["default"] is False
@@ -14611,6 +14611,66 @@ def test_rapidnj_renders_tree_and_matrix_commands_outputs_and_validation(tmp_pat
         "output_format must be one of: t, m"
     )
     assert node_class.VALIDATE_INPUTS({"alignments": "alignment.fa"}) is True
+
+
+def test_astral_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["astral"]
+
+    assert node_info["display_name"] == "ASTRAL-III"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"] == "Estimate an unrooted species tree from unrooted gene trees with ASTRAL-III."
+    assert node_info["output"] == ["PHYLOGENY_TREE", "TXT", "TSV"]
+    assert node_info["output_name"] == ["output", "log_output", "branch_annotations"]
+    assert node_info["required_executables"] == ["astral"]
+    assert node_info["required_conda_packages"] == ["astral-tree"]
+    assert node_info["documentation_url"] == "https://github.com/smirarab/ASTRAL"
+    assert node_info["citation_dois"] == ["10.1186/s12859-018-2129-y"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/s12859-018-2129-y"]
+    assert "ASTRAL-III" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "species tree" in node_info["search_aliases"]
+    assert node_info["version"] == "5.7.8+galaxy0"
+    assert node_info["input"]["required"]["input"][0] == "PHYLOGENY_TREE"
+    assert node_info["input"]["optional"]["branch_annotate"][1]["default"] == "3"
+    assert node_info["input"]["optional"]["branch_annotate"][1]["options"] == ["0", "1", "2", "3", "4", "8", "16", "32", "10"]
+    assert node_info["input"]["optional"]["lambda"][1]["default"] == 0.5
+    assert node_info["input"]["optional"]["lambda"][1]["min"] == 0
+    assert node_info["input"]["optional"]["lambda"][1]["max"] == 10
+
+
+def test_astral_renders_wrapper_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("astral")
+
+    assert node_class.render_command(
+        {
+            "input": "song mammals.gene.tre",
+            "branch_annotate": "16",
+            "lambda": 2.0,
+            "output": "/work/astral",
+        }
+    ) == (
+        "mkdir -p /work/astral && cd /work/astral && astral --input 'song mammals.gene.tre' "
+        "--branch-annotate 16 --output ./output.tre --lambda 2.0 2>&1 | tee /work/astral/log_output.txt && "
+        "mv ./output.tre /work/astral/output.tre && mv freqQuad.csv /work/astral/branch_annotations.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"branch_annotate": "16"}, tmp_path) == [
+        tmp_path / "astral" / "output.tre",
+        tmp_path / "astral" / "log_output.txt",
+        tmp_path / "astral" / "branch_annotations.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"branch_annotate": "0"}, tmp_path) == [
+        tmp_path / "astral" / "output.tre",
+        tmp_path / "astral" / "log_output.txt",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input tree file is required"
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "branch_annotate": "99"}) == (
+        "branch_annotate must be one of: 0, 1, 2, 3, 4, 8, 16, 32, 10"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "lambda": "bad"}) == "lambda must be numeric"
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "lambda": -0.1}) == "lambda must be between 0 and 10"
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre", "lambda": 10.1}) == "lambda must be between 0 and 10"
+    assert node_class.VALIDATE_INPUTS({"input": "trees.tre"}) is True
 
 
 def test_phyml_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
@@ -27635,7 +27695,7 @@ def test_hyphy_annotate_exposes_galaxy_aligned_inputs_outputs_and_citation() -> 
     assert info["citation_text"] == "HyPhy 2.5: a customizable platform for evolutionary hypothesis testing using phylogenies."
     assert info["version"] == "2.5.96"
 
-    assert info["input"]["required"]["input_tree"][0] == "STRING"
+    assert info["input"]["required"]["input_tree"][0] == "PHYLOGENY_TREE"
     assert info["input"]["required"]["selection_method"][1]["default"] == "regexp"
     assert info["input"]["required"]["selection_method"][1]["options"] == ["regexp", "list"]
     assert info["input"]["optional"]["regexp"][0] == "STRING"
@@ -29777,7 +29837,7 @@ def test_hyphy_sm19_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
     )
     assert info["version"] == "2.5.96"
 
-    assert info["input"]["required"]["input_file"][0] == "STRING"
+    assert info["input"]["required"]["input_file"][0] == "PHYLOGENY_TREE"
     assert info["input"]["required"]["input_file"][1]["description"] == (
         "Newick, NHX, or NEXUS tree whose leaf names can be partitioned by regular expression"
     )
@@ -34971,7 +35031,7 @@ def test_graphlan_annotate_renders_annotation_command_outputs_and_validation(tmp
 
     assert info["output"] == ["PHYLOXML"]
     assert info["output_name"] == ["output_tree"]
-    assert info["input"]["required"]["input_tree"][0] == "STRING"
+    assert info["input"]["required"]["input_tree"][0] == "PHYLOGENY_TREE"
     assert "10.7717/peerj.1029" in info["citation_dois"]
     assert node_class.render_command(
         {
@@ -35004,7 +35064,7 @@ def test_graphlan_renders_tree_image_command_outputs_and_validation(tmp_path: Pa
 
     assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["image"]
-    assert info["input"]["required"]["input_tree"][0] == "STRING"
+    assert info["input"]["required"]["input_tree"][0] == "PHYLOGENY_TREE"
     assert info["input"]["optional"]["image_format"][1]["options"] == ["png", "pdf", "ps", "eps", "svg"]
     assert "10.7717/peerj.1029" in info["citation_dois"]
     assert node_class.render_command(
