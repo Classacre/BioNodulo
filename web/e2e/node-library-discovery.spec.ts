@@ -1213,6 +1213,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.257246.119'],
     citation_text: 'Arriba detects gene fusions and other aberrant transcripts from STAR-aligned RNA-Seq data.',
   },
+  arriba_get_filters: {
+    name: 'arriba_get_filters',
+    display_name: 'Arriba Get Filters',
+    category: 'databases',
+    description: 'Copy bundled Arriba blacklist, known-fusion, protein-domain, and cytoband reference files.',
+    search_aliases: ['Galaxy', 'Arriba Get Filters', 'arriba_get_filters', 'blacklist', 'known fusions', 'protein domains', 'cytobands', 'download_references.sh'],
+    input: {
+      required: {
+        arriba_reference_name: { type: 'STRING', default: 'GRCh38', options: ['GRCh38', 'GRCh37', 'hg38', 'hg19', 'GRCm39', 'GRCm38', 'mm39', 'mm10'] },
+      },
+    },
+    output: ['FILE', 'FILE', 'GFF', 'TSV'],
+    output_name: ['blacklist', 'known_fusions', 'protein_domains', 'cytobands'],
+    required_executables: ['arriba', 'find', 'grep', 'cp'],
+    required_conda_packages: ['arriba'],
+    documentation_url: 'https://github.com/suhrig/arriba/wiki/04-Input-files',
+    citation_dois: ['10.1101/gr.257246.119'],
+    citation_urls: ['https://doi.org/10.1101/gr.257246.119'],
+    citation_text: 'Arriba detects gene fusions and other aberrant transcripts from STAR-aligned RNA-Seq data.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -14489,7 +14509,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('495 nodes available')).toBeVisible();
+  await expect(page.getByText('496 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14535,6 +14555,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'gene predictor training', name: 'Train Augustus', category: 'annotation' },
     { query: 'RNA-Seq fusion detection', name: 'Arriba', category: 'rna_seq' },
     { query: 'fusion visualization', name: 'Arriba Draw Fusions', category: 'visualization' },
+    { query: 'cytobands', name: 'Arriba Get Filters', category: 'databases' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },

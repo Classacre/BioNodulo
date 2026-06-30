@@ -7163,6 +7163,83 @@ def test_arriba_draw_fusions_renders_commands_outputs_and_validates(tmp_path: Pa
     )
 
 
+def test_arriba_get_filters_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["arriba_get_filters"]
+
+    assert info["display_name"] == "Arriba Get Filters"
+    assert info["category"] == "databases"
+    assert info["description"] == "Copy bundled Arriba blacklist, known-fusion, protein-domain, and cytoband reference files."
+    assert info["input"]["required"]["arriba_reference_name"][0] == "STRING"
+    assert info["input"]["required"]["arriba_reference_name"][1]["default"] == "GRCh38"
+    assert info["input"]["required"]["arriba_reference_name"][1]["options"] == [
+        "GRCh38",
+        "GRCh37",
+        "hg38",
+        "hg19",
+        "GRCm39",
+        "GRCm38",
+        "mm39",
+        "mm10",
+    ]
+    assert info["output"] == ["FILE", "FILE", "GFF", "TSV"]
+    assert info["output_name"] == ["blacklist", "known_fusions", "protein_domains", "cytobands"]
+    assert info["required_executables"] == ["arriba", "find", "grep", "cp"]
+    assert info["required_conda_packages"] == ["arriba"]
+    assert info["documentation_url"] == "https://github.com/suhrig/arriba/wiki/04-Input-files"
+    assert info["citation_dois"] == ["10.1101/gr.257246.119"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.257246.119"]
+    assert "Arriba" in info["citation_text"]
+    assert "cytobands" in info["search_aliases"]
+
+
+def test_arriba_get_filters_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("arriba_get_filters")
+
+    assert node_class.render_command(
+        {
+            "arriba_reference_name": "GRCh38",
+            "output": "/work/arriba_get_filters",
+        }
+    ) == (
+        "BASE_DIR=$(dirname $(dirname $(which arriba))) && "
+        "REF_SCRIPT=$(find $BASE_DIR -name download_references.sh) && "
+        "REF_DIR=$(dirname $REF_SCRIPT) && "
+        "REF_NAME=GRCh38 && "
+        "echo $REF_NAME && "
+        "cp $(find $REF_DIR -name 'blacklist_*' | grep -i $REF_NAME) /work/arriba_get_filters/blacklist.tsv.gz && "
+        "cp $(find $REF_DIR -name 'known_fusions_*' | grep -i $REF_NAME) /work/arriba_get_filters/known_fusions.tsv.gz && "
+        "cp $(find $REF_DIR -name 'protein_domains_*' | grep -i $REF_NAME) /work/arriba_get_filters/protein_domains.gff3 && "
+        "cp $(find $REF_DIR -name 'cytobands_*' | grep -i $REF_NAME) /work/arriba_get_filters/cytobands.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "arriba_reference_name": "viralGRCh38",
+            "output": "/work/arriba_get_filters",
+        }
+    ) == (
+        "BASE_DIR=$(dirname $(dirname $(which arriba))) && "
+        "REF_SCRIPT=$(find $BASE_DIR -name download_references.sh) && "
+        "REF_DIR=$(dirname $REF_SCRIPT) && "
+        "REF_NAME=GRCh38 && "
+        "echo $REF_NAME && "
+        "cp $(find $REF_DIR -name 'blacklist_*' | grep -i $REF_NAME) /work/arriba_get_filters/blacklist.tsv.gz && "
+        "cp $(find $REF_DIR -name 'known_fusions_*' | grep -i $REF_NAME) /work/arriba_get_filters/known_fusions.tsv.gz && "
+        "cp $(find $REF_DIR -name 'protein_domains_*' | grep -i $REF_NAME) /work/arriba_get_filters/protein_domains.gff3 && "
+        "cp $(find $REF_DIR -name 'cytobands_*' | grep -i $REF_NAME) /work/arriba_get_filters/cytobands.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "arriba_get_filters" / "blacklist.tsv.gz",
+        tmp_path / "arriba_get_filters" / "known_fusions.tsv.gz",
+        tmp_path / "arriba_get_filters" / "protein_domains.gff3",
+        tmp_path / "arriba_get_filters" / "cytobands.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) is True
+    assert node_class.VALIDATE_INPUTS({"arriba_reference_name": "bad"}) == (
+        "arriba_reference_name must be one of: GRCh38, GRCh37, hg38, hg19, GRCm39, GRCm38, mm39, mm10"
+    )
+    assert node_class.VALIDATE_INPUTS({"arriba_reference_name": "GRCh38"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 
