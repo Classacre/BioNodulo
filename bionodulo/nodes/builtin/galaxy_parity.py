@@ -35325,6 +35325,10 @@ BEACON2_DOI = "10.1093/bioinformatics/btac568"
 BEACON2_CITATION_TEXT = (
     "Beacon v2 Reference Implementation: a toolkit to enable federated sharing of genomic and phenotypic data."
 )
+BEACON2_IMPORT_DOI = "10.1002/humu.24369"
+BEACON2_IMPORT_CITATION_TEXT = (
+    "Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services."
+)
 BIOM_FORMAT_DOI = "10.1186/2047-217X-1-7"
 BIOM_FORMAT_CITATION_TEXT = "The Biological Observation Matrix (BIOM) format."
 QQMAN_CITATION_DOIS = ["10.1101/005165", "10.21105/joss.00731"]
@@ -35354,6 +35358,163 @@ METAPHLAN_DOI = "10.1038/s41587-023-01688-w"
 METAPHLAN_CITATION_TEXT = (
     "Extending and improving metagenomic taxonomic profiling with uncharacterized species using MetaPhlAn 4."
 )
+
+
+class _Beacon2SearchBaseNode(CommandNode):
+    """Shared command rendering for Beacon2 import wrappers that query MongoDB collections."""
+
+    REQUIRED_CONDA_PACKAGES = ["beacon2-import"]
+    CATEGORY = "metadata"
+    REQUIRED_EXECUTABLES = ["beacon2-search"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import"
+    CITATION_DOIS = [BEACON2_IMPORT_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEACON2_IMPORT_DOI}"]
+    CITATION_TEXT = BEACON2_IMPORT_CITATION_TEXT
+    VERSION = "2.2.4+galaxy0"
+    SHELL = True
+
+    SEARCH_COLLECTION = ""
+    OUTPUT_FILENAME = ""
+    QUERY_FLAGS: tuple[tuple[str, str, str], ...] = ()
+
+    @classmethod
+    def _db_host(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("db_host", "127.0.0.1") or "127.0.0.1")
+
+    @classmethod
+    def _db_port(cls, inputs: dict[str, Any]) -> int:
+        return int(inputs.get("db_port", 27017) or 27017)
+
+    @classmethod
+    def _credentials_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/beacon2_db_auth.json"
+
+    @classmethod
+    def _credentials_json(cls, inputs: dict[str, Any]) -> str:
+        credentials = {
+            "db_auth_source": str(inputs.get("db_auth_source", "admin") or "admin"),
+            "db_user": str(inputs.get("db_user", "root") or "root"),
+            "db_password": str(inputs.get("db_password", "example") or "example"),
+        }
+        return json.dumps(credentials, indent=2)
+
+    @classmethod
+    def _query_cmd(cls, inputs: dict[str, Any], credentials_path: str) -> list[str]:
+        cmd = [
+            "beacon2-search",
+            cls.SEARCH_COLLECTION,
+            "--db-host",
+            cls._db_host(inputs),
+            "--db-port",
+            str(cls._db_port(inputs)),
+            "--database",
+            str(inputs.get("database", "")),
+            "--collection",
+            str(inputs.get("collection", "")),
+            "--advance-connection",
+            "--db-auth-config",
+            credentials_path,
+        ]
+        for key, flag, _description in cls.QUERY_FLAGS:
+            value = inputs.get(key)
+            if value is not None and str(value) != "":
+                cmd.extend([flag, str(value)])
+        cmd.extend([">", f"{_out(inputs)}/{cls.OUTPUT_FILENAME}"])
+        return cmd
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        credentials_path = cls._credentials_path(inputs)
+        config = f"cat > {shlex.quote(credentials_path)} <<'JSON'\n{cls._credentials_json(inputs)}\nJSON\n"
+        return " && ".join(
+            [
+                f"mkdir -p {shlex.quote(out)}",
+                f"{config}{_shell_join(cls._query_cmd(inputs, credentials_path))}",
+            ]
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls.OUTPUT_FILENAME]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("database", "")).strip():
+            return "database is required"
+        if not str(inputs.get("collection", "")).strip():
+            return "collection is required"
+        try:
+            cls._db_port(inputs)
+        except (TypeError, ValueError):
+            return "db_port must be an integer"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        optional: dict[str, Any] = {
+            "db_host": ("STRING", {"default": "127.0.0.1", "description": "Hostname or IP address of the Beacon MongoDB database"}),
+            "db_port": ("INT", {"default": 27017, "description": "Port of the Beacon MongoDB database"}),
+            "db_auth_source": (
+                "STRING",
+                {"default": "admin", "advanced": True, "description": "MongoDB authentication source for Beacon2 queries"},
+            ),
+            "db_user": (
+                "STRING",
+                {"default": "root", "advanced": True, "description": "MongoDB username for Beacon2 queries"},
+            ),
+            "db_password": (
+                "STRING",
+                {"default": "example", "advanced": True, "description": "MongoDB password for Beacon2 queries"},
+            ),
+        }
+        for key, _flag, description in cls.QUERY_FLAGS:
+            optional[key] = ("STRING", {"default": "", "description": description})
+        return {
+            "required": {
+                "database": ("STRING", {"description": "Targeted Beacon database"}),
+                "collection": ("STRING", {"description": "Targeted Beacon collection in the selected database"}),
+            },
+            "optional": optional,
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class Beacon2AnalysesNode(_Beacon2SearchBaseNode):
+    """Query the analyses collection in a Beacon database."""
+
+    NODE_ID = "beacon2_analyses"
+    DISPLAY_NAME = "Beacon2 Analyses"
+    DESCRIPTION = "Query the analyses collection in a Beacon database for bioinformatic procedures that identify variants."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_analyses",
+        "Beacon2 Analyses",
+        "beacon2-search analyses",
+        "analyses collection",
+        "bioinformatic procedures",
+        "variant caller",
+        "pipelineName",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_analyses_query",)
+    SEARCH_COLLECTION = "analyses"
+    OUTPUT_FILENAME = "analyses_query_findings.json"
+    QUERY_FLAGS = (
+        ("aligner", "--aligner", "Reference to mapping or alignment software, such as bwa-0.7.8"),
+        ("analysisDate", "--analysisDate", "Date at which analysis was performed"),
+        ("biosampleId", "--biosampleId", "ID of the biosample this analysis reports on"),
+        ("identification", "--identification", "Analysis reference ID, external accession, or internal ID"),
+        ("individualId", "--individualId", "ID of the individual this analysis reports on"),
+        ("pipelineName", "--pipelineName", "Analysis pipeline and version"),
+        ("pipelineRef", "--pipelineRef", "Link to the analysis pipeline resource"),
+        ("runId", "--runId", "Run identifier, external accession, or internal ID"),
+        ("variantCaller", "--variantCaller", "Variant calling software or pipeline"),
+    )
 
 
 class _Beacon2MultiInputBaseNode(CommandNode):
