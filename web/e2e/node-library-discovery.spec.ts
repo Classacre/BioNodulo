@@ -3153,6 +3153,49 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1007/978-1-4939-9877-7_20'],
     citation_text: 'PlasmidFinder and In Silico pMLST: Identification and Typing of Plasmid Replicons in Whole-Genome Sequencing (WGS).',
   },
+  staramr_search: {
+    name: 'staramr_search',
+    display_name: 'staramr',
+    category: 'annotation',
+    description: 'Scan bacterial genome assemblies against ResFinder, PointFinder, and PlasmidFinder databases with starAMR.',
+    search_aliases: ['Galaxy', 'staramr', 'starAMR', 'ResFinder', 'PointFinder', 'PlasmidFinder', 'antimicrobial resistance', 'AMR genes', 'bacterial WGS'],
+    input: {
+      required: {
+        genomes: { type: 'STRING', multiple: true },
+        database: { type: 'DIRECTORY' },
+      },
+      optional: {
+        pointfinder_organism: { type: 'STRING', default: 'disabled', options: ['disabled', 'campylobacter', 'enterococcus_faecalis', 'enterococcus_faecium', 'escherichia_coli', 'helicobacter_pylori', 'salmonella', 'klebsiella', 'mycobacterium_tuberculosis', 'neisseria_gonorrhoeae', 'plasmodium_falciparum', 'staphylococcus_aureus'] },
+        pid_threshold: { type: 'FLOAT', default: 98.0, min: 0, max: 100 },
+        percent_length_overlap_resfinder: { type: 'FLOAT', default: 60.0, min: 0, max: 100 },
+        percent_length_overlap_plasmidfinder: { type: 'FLOAT', default: 60.0, min: 0, max: 100 },
+        percent_length_overlap_pointfinder: { type: 'FLOAT', default: 95.0, min: 0, max: 100 },
+        genome_size_lower_bound: { type: 'INT', default: 4000000, min: 0 },
+        genome_size_upper_bound: { type: 'INT', default: 6000000, min: 0 },
+        minimum_N50_value: { type: 'INT', default: 10000, min: 0 },
+        minimum_contig_length: { type: 'INT', default: 300, min: 0 },
+        unacceptable_number_contigs: { type: 'INT', default: 1000, min: 0 },
+        mlst_scheme: { type: 'STRING', default: 'auto' },
+        report_all_blast: { type: 'BOOLEAN', default: false },
+        exclude_negatives: { type: 'BOOLEAN', default: false },
+        exclude_resistance_phenotypes: { type: 'BOOLEAN', default: false },
+        exclude_genes_condition: { type: 'STRING', default: 'default', options: ['default', 'custom', 'none'] },
+        exclude_genes_file: { type: 'FILE', default: '' },
+        complex_mutations_file: { type: 'FILE', default: '' },
+        plasmidfinder_type: { type: 'STRING', default: 'include_all', options: ['include_all', 'gram_positive', 'enterobacteriaceae'] },
+        output_selection: { type: 'STRING', default: ['mlst_table', 'summary_table', 'detailed_summary_table', 'resfinder_table', 'plasmidfinder_table', 'pointfinder_table', 'settings_output', 'excel_output'], options: ['mlst_table', 'summary_table', 'detailed_summary_table', 'resfinder_table', 'plasmidfinder_table', 'pointfinder_table', 'settings_output', 'excel_output'], multiple: true },
+        genome_labels: { type: 'STRING', default: [], multiple: true },
+      },
+    },
+    output: ['TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TXT', 'XLSX', 'DIRECTORY'],
+    output_name: ['mlst', 'summary', 'detailed_summary', 'resfinder', 'plasmidfinder', 'pointfinder', 'settings', 'excel', 'blast_hits'],
+    required_executables: ['staramr'],
+    required_conda_packages: ['staramr', 'mlst'],
+    documentation_url: 'https://github.com/phac-nml/staramr',
+    citation_dois: ['10.3390/microorganisms10020292'],
+    citation_urls: ['https://doi.org/10.3390/microorganisms10020292'],
+    citation_text: 'Correlation between Phenotypic and In Silico Detection of Antimicrobial Resistance in Salmonella enterica in Canada Using Staramr.',
+  },
   amplican: {
     name: 'amplican',
     display_name: 'AmpliCan',
@@ -13960,7 +14003,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('482 nodes available')).toBeVisible();
+  await expect(page.getByText('483 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14084,6 +14127,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'ABRicate databases', name: 'ABRicate List', category: 'annotation' },
     { query: 'presence absence matrix', name: 'ABRicate Summary', category: 'annotation' },
     { query: 'plasmid replicon', name: 'PlasmidFinder', category: 'annotation' },
+    { query: 'staramr ResFinder', name: 'staramr', category: 'annotation' },
     { query: 'CRISPR editing analysis', name: 'AmpliCan', category: 'crispr' },
     { query: 'ampvis2 alpha diversity', name: 'ampvis2 alpha diversity', category: 'metagenomics' },
     { query: 'ampvis2 boxplot', name: 'ampvis2 boxplot', category: 'metagenomics' },

@@ -3973,6 +3973,195 @@ def test_plasmidfinder_renders_commands_outputs_and_validates(tmp_path: Path) ->
     assert node_class.VALIDATE_INPUTS({"input_file": "assembly.fa", "database": "/db/plasmidfinder"}) is True
 
 
+def test_staramr_search_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["staramr_search"]
+
+    assert info["display_name"] == "staramr"
+    assert info["category"] == "annotation"
+    assert info["description"] == (
+        "Scan bacterial genome assemblies against ResFinder, PointFinder, and PlasmidFinder databases with starAMR."
+    )
+    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][1]["multiple"] is True
+    assert info["input"]["required"]["database"][0] == "DIRECTORY"
+    assert info["input"]["optional"]["pointfinder_organism"][1]["default"] == "disabled"
+    assert info["input"]["optional"]["pointfinder_organism"][1]["options"] == [
+        "disabled",
+        "campylobacter",
+        "enterococcus_faecalis",
+        "enterococcus_faecium",
+        "escherichia_coli",
+        "helicobacter_pylori",
+        "salmonella",
+        "klebsiella",
+        "mycobacterium_tuberculosis",
+        "neisseria_gonorrhoeae",
+        "plasmodium_falciparum",
+        "staphylococcus_aureus",
+    ]
+    assert info["input"]["optional"]["pid_threshold"][1]["default"] == 98.0
+    assert info["input"]["optional"]["pid_threshold"][1]["min"] == 0
+    assert info["input"]["optional"]["pid_threshold"][1]["max"] == 100
+    assert info["input"]["optional"]["plasmidfinder_type"][1]["options"] == [
+        "include_all",
+        "gram_positive",
+        "enterobacteriaceae",
+    ]
+    assert info["input"]["optional"]["output_selection"][1]["default"] == [
+        "mlst_table",
+        "summary_table",
+        "detailed_summary_table",
+        "resfinder_table",
+        "plasmidfinder_table",
+        "pointfinder_table",
+        "settings_output",
+        "excel_output",
+    ]
+    assert info["output"] == ["TSV", "TSV", "TSV", "TSV", "TSV", "TSV", "TXT", "XLSX", "DIRECTORY"]
+    assert info["output_name"] == [
+        "mlst",
+        "summary",
+        "detailed_summary",
+        "resfinder",
+        "plasmidfinder",
+        "pointfinder",
+        "settings",
+        "excel",
+        "blast_hits",
+    ]
+    assert info["required_executables"] == ["staramr"]
+    assert info["required_conda_packages"] == ["staramr", "mlst"]
+    assert info["documentation_url"] == "https://github.com/phac-nml/staramr"
+    assert info["citation_dois"] == ["10.3390/microorganisms10020292"]
+    assert info["citation_urls"] == ["https://doi.org/10.3390/microorganisms10020292"]
+    assert "Correlation between Phenotypic and In Silico Detection" in info["citation_text"]
+    assert "ResFinder" in info["search_aliases"]
+
+
+def test_staramr_search_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("staramr_search")
+
+    assert node_class.render_command(
+        {
+            "genomes": ["SRR1952908.fasta", "sample 2.fasta"],
+            "genome_labels": ["SRR1952908", "sample 2"],
+            "database": "/db/staramr/default",
+            "output": "/work/staramr_search",
+        }
+    ) == (
+        "mkdir -p /work/staramr_search && "
+        "ln -sf SRR1952908.fasta SRR1952908.fasta && "
+        "ln -sf 'sample 2.fasta' sample_2.fasta && "
+        "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*' && "
+        "staramr search -d /db/staramr/default --nprocs ${GALAXY_SLOTS:-1} "
+        "--genome-size-lower-bound 4000000 --genome-size-upper-bound 6000000 --minimum-N50-value 10000 "
+        "--minimum-contig-length 300 --unacceptable-number-contigs 1000 --pid-threshold 98 "
+        "--percent-length-overlap-resfinder 60 --percent-length-overlap-plasmidfinder 60 "
+        "--percent-length-overlap-pointfinder 95 --output-summary /work/staramr_search/summary.tsv "
+        "--output-detailed-summary /work/staramr_search/detailed_summary.tsv "
+        "--output-resfinder /work/staramr_search/resfinder.tsv "
+        "--output-plasmidfinder /work/staramr_search/plasmidfinder.tsv "
+        "--output-settings /work/staramr_search/settings.txt --output-excel /work/staramr_search/results.xlsx "
+        "--output-mlst /work/staramr_search/mlst.tsv --output-hits-dir /work/staramr_search/staramr_hits "
+        "SRR1952908.fasta sample_2.fasta"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "staramr_search" / "mlst.tsv",
+        tmp_path / "staramr_search" / "summary.tsv",
+        tmp_path / "staramr_search" / "detailed_summary.tsv",
+        tmp_path / "staramr_search" / "resfinder.tsv",
+        tmp_path / "staramr_search" / "plasmidfinder.tsv",
+        tmp_path / "staramr_search" / "settings.txt",
+        tmp_path / "staramr_search" / "results.xlsx",
+        tmp_path / "staramr_search" / "staramr_hits",
+    ]
+
+
+def test_staramr_search_renders_pointfinder_options_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("staramr_search")
+
+    assert node_class.render_command(
+        {
+            "genomes": ["assembly.fa"],
+            "database": "/db/staramr/custom",
+            "pointfinder_organism": "salmonella",
+            "pid_threshold": 99.5,
+            "percent_length_overlap_resfinder": 80,
+            "percent_length_overlap_plasmidfinder": 70,
+            "percent_length_overlap_pointfinder": 96.5,
+            "genome_size_lower_bound": 3000000,
+            "genome_size_upper_bound": 7000000,
+            "minimum_N50_value": 20000,
+            "minimum_contig_length": 500,
+            "unacceptable_number_contigs": 800,
+            "mlst_scheme": "senterica_achtman_2",
+            "report_all_blast": True,
+            "exclude_negatives": True,
+            "exclude_resistance_phenotypes": True,
+            "exclude_genes_condition": "custom",
+            "exclude_genes_file": "excluded genes.tsv",
+            "complex_mutations_file": "complex.tsv",
+            "plasmidfinder_type": "gram_positive",
+            "output": "/work/staramr_search",
+        }
+    ) == (
+        "mkdir -p /work/staramr_search && "
+        "ln -sf assembly.fa assembly.fasta && "
+        "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*' && "
+        "staramr search -d /db/staramr/custom --nprocs ${GALAXY_SLOTS:-1} "
+        "--genome-size-lower-bound 3000000 --genome-size-upper-bound 7000000 --minimum-N50-value 20000 "
+        "--minimum-contig-length 500 --unacceptable-number-contigs 800 --pid-threshold 99.5 "
+        "--percent-length-overlap-resfinder 80 --percent-length-overlap-plasmidfinder 70 "
+        "--percent-length-overlap-pointfinder 96.5 --mlst-scheme senterica_achtman_2 --report-all-blast "
+        "--exclude-negatives --exclude-resistance-phenotypes --exclude-genes-file 'excluded genes.tsv' "
+        "--complex-mutations-file complex.tsv --plasmidfinder-database-type gram_positive "
+        "--output-summary /work/staramr_search/summary.tsv "
+        "--output-detailed-summary /work/staramr_search/detailed_summary.tsv "
+        "--output-resfinder /work/staramr_search/resfinder.tsv "
+        "--output-plasmidfinder /work/staramr_search/plasmidfinder.tsv "
+        "--output-settings /work/staramr_search/settings.txt --output-excel /work/staramr_search/results.xlsx "
+        "--output-mlst /work/staramr_search/mlst.tsv --output-hits-dir /work/staramr_search/staramr_hits "
+        "--output-pointfinder /work/staramr_search/pointfinder.tsv --pointfinder-organism salmonella assembly.fasta"
+    )
+
+    assert node_class.PLAN_OUTPUTS(
+        {"pointfinder_organism": "salmonella", "output_selection": ["summary_table", "pointfinder_table"]},
+        tmp_path,
+    ) == [
+        tmp_path / "staramr_search" / "summary.tsv",
+        tmp_path / "staramr_search" / "pointfinder.tsv",
+        tmp_path / "staramr_search" / "staramr_hits",
+    ]
+    assert node_class.VALIDATE_INPUTS({"genomes": [], "database": "/db/staramr"}) == (
+        "at least one genome FASTA is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"genomes": ["assembly.fa"], "database": ""}) == "database is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"genomes": ["assembly.fa"], "database": "/db/staramr", "pointfinder_organism": "bad"}
+    ) == (
+        "pointfinder_organism must be one of: disabled, campylobacter, enterococcus_faecalis, "
+        "enterococcus_faecium, escherichia_coli, helicobacter_pylori, salmonella, klebsiella, "
+        "mycobacterium_tuberculosis, neisseria_gonorrhoeae, plasmodium_falciparum, staphylococcus_aureus"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"genomes": ["assembly.fa"], "database": "/db/staramr", "pid_threshold": 101}
+    ) == "pid_threshold must be between 0 and 100"
+    assert node_class.VALIDATE_INPUTS(
+        {"genomes": ["assembly.fa"], "database": "/db/staramr", "minimum_contig_length": -1}
+    ) == "minimum_contig_length must be at least 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"genomes": ["assembly.fa"], "database": "/db/staramr", "exclude_genes_condition": "custom"}
+    ) == "exclude_genes_file is required when exclude_genes_condition is custom"
+    assert node_class.VALIDATE_INPUTS(
+        {"genomes": ["assembly.fa"], "database": "/db/staramr", "output_selection": ["summary_table", "bad"]}
+    ) == (
+        "output_selection values must be one of: mlst_table, summary_table, detailed_summary_table, "
+        "resfinder_table, plasmidfinder_table, pointfinder_table, settings_output, excel_output"
+    )
+    assert node_class.VALIDATE_INPUTS({"genomes": ["assembly.fa"], "database": "/db/staramr"}) is True
+
+
 def test_add_input_name_as_column_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["add_input_name_as_column"]
 
