@@ -5996,6 +5996,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_netfilter: {
+    name: 'ucsc_netfilter',
+    display_name: 'netFilter',
+    category: 'genomics',
+    description: 'Filter out parts of a UCSC net alignment file.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_netfilter', 'netFilter', 'UCSC net', 'net file', 'synteny filter', 'minimum gap'],
+    input: {
+      required: {
+        in_net: { type: 'FILE' },
+      },
+      optional: {
+        syn_filter: { type: 'STRING', default: 'skipsyn', options: ['skipsyn', 'filtersyn'] },
+        syntype: { type: 'STRING', default: '-syn', options: ['-syn', '-chimpSyn', '-nonsyn'] },
+        minSynScore: { type: 'INT', default: '' },
+        minSynSize: { type: 'INT', default: '', min: 0 },
+        minSynAli: { type: 'INT', default: '', min: 0 },
+        minGap: { type: 'INT', default: '', min: 0 },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['netFilter'],
+    required_conda_packages: ['ucsc-netfilter'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/net.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -12814,7 +12842,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('443 nodes available')).toBeVisible();
+  await expect(page.getByText('444 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13027,6 +13055,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'sort chains', name: 'chainSort', category: 'genomics' },
     { query: 'synteny info', name: 'netSyntenic', category: 'genomics' },
     { query: 'liftOver', name: 'netChainSubset', category: 'genomics' },
+    { query: 'synteny filter', name: 'netFilter', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },

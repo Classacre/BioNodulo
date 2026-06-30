@@ -34548,6 +34548,88 @@ def test_ucsc_netchainsubset_validates_required_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({"in_net": "target.net", "in_chain": "source.chain"}) is True
 
 
+def test_ucsc_netfilter_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_netfilter"]
+
+    assert info["display_name"] == "netFilter"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Filter out parts of a UCSC net alignment file."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["netFilter"]
+    assert info["required_conda_packages"] == ["ucsc-netfilter"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/net.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "synteny filter" in info["search_aliases"]
+    assert info["input"]["required"]["in_net"][0] == "FILE"
+    assert info["input"]["optional"]["syn_filter"][1]["default"] == "skipsyn"
+    assert info["input"]["optional"]["syn_filter"][1]["options"] == ["skipsyn", "filtersyn"]
+    assert info["input"]["optional"]["syntype"][1]["options"] == ["-syn", "-chimpSyn", "-nonsyn"]
+    assert info["input"]["optional"]["minSynScore"][0] == "INT"
+    assert info["input"]["optional"]["minSynSize"][1]["min"] == 0
+    assert info["input"]["optional"]["minSynAli"][1]["min"] == 0
+    assert info["input"]["optional"]["minGap"][1]["min"] == 0
+
+
+def test_ucsc_netfilter_renders_synteny_filters_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_netfilter")
+
+    assert node_class.render_command(
+        {
+            "in_net": "target query.ucsc.net",
+            "syn_filter": "filtersyn",
+            "syntype": "-chimpSyn",
+            "minSynScore": 200000,
+            "minSynSize": 20000,
+            "minSynAli": 10000,
+            "minGap": 300,
+            "output": "/work/ucsc_netfilter",
+        }
+    ) == (
+        "netFilter 'target query.ucsc.net' -chimpSyn -minSynScore=200000 -minSynSize=20000 "
+        "-minSynAli=10000 -minGap=300 > /work/ucsc_netfilter/out.ucsc.net"
+    )
+    assert node_class.render_command(
+        {
+            "in_net": "target query.ucsc.net",
+            "syn_filter": "skipsyn",
+            "syntype": "-nonsyn",
+            "minSynScore": 200000,
+            "minGap": 300,
+            "output": "/work/ucsc_netfilter",
+        }
+    ) == "netFilter 'target query.ucsc.net' -minGap=300 > /work/ucsc_netfilter/out.ucsc.net"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_netfilter" / "out.ucsc.net",
+    ]
+
+
+def test_ucsc_netfilter_validates_required_input_modes_and_thresholds() -> None:
+    node_class = _node_class("ucsc_netfilter")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_net is required"
+    assert node_class.VALIDATE_INPUTS({"in_net": "input.net", "syn_filter": "bad"}) == (
+        "syn_filter must be one of: skipsyn, filtersyn"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_net": "input.net", "syn_filter": "filtersyn", "syntype": "-bad"}) == (
+        "syntype must be one of: -syn, -chimpSyn, -nonsyn"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_net": "input.net", "minSynSize": -1}) == (
+        "minSynSize must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_net": "input.net", "minSynAli": -1}) == (
+        "minSynAli must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_net": "input.net", "minGap": -1}) == (
+        "minGap must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_net": "input.net", "syn_filter": "filtersyn", "syntype": "-syn"}) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 

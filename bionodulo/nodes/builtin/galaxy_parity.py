@@ -27759,6 +27759,127 @@ class UcscNetChainSubsetNode(CommandNode):
         }
 
 
+class UcscNetFilterNode(CommandNode):
+    """Filter a UCSC net file."""
+
+    NODE_ID = "ucsc_netfilter"
+    DISPLAY_NAME = "netFilter"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-netfilter"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Filter out parts of a UCSC net alignment file."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_netfilter",
+        "netFilter",
+        "UCSC net",
+        "net file",
+        "synteny filter",
+        "minimum gap",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("out",)
+    REQUIRED_EXECUTABLES = ["netFilter"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/net.html"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+
+    SYN_FILTERS = ["skipsyn", "filtersyn"]
+    SYN_TYPES = ["-syn", "-chimpSyn", "-nonsyn"]
+    NONNEGATIVE_THRESHOLDS = ("minSynSize", "minSynAli", "minGap")
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.ucsc.net"
+
+    @classmethod
+    def _syn_filter(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("syn_filter", "skipsyn") or "skipsyn")
+
+    @classmethod
+    def _syn_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("syntype", "-syn") or "-syn")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["netFilter", str(inputs.get("in_net", ""))]
+        if cls._syn_filter(inputs) == "filtersyn":
+            cmd.append(cls._syn_type(inputs))
+            for name in ("minSynScore", "minSynSize", "minSynAli"):
+                if str(inputs.get(name, "")) != "":
+                    cmd.append(f"-{name}={inputs.get(name)}")
+        if str(inputs.get("minGap", "")) != "":
+            cmd.append(f"-minGap={inputs.get('minGap')}")
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out.ucsc.net"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("in_net", "")).strip():
+            return "in_net is required"
+        syn_filter = cls._syn_filter(inputs)
+        if syn_filter not in cls.SYN_FILTERS:
+            return f"syn_filter must be one of: {', '.join(cls.SYN_FILTERS)}"
+        syntype = cls._syn_type(inputs)
+        if syntype not in cls.SYN_TYPES:
+            return f"syntype must be one of: {', '.join(cls.SYN_TYPES)}"
+        for name in cls.NONNEGATIVE_THRESHOLDS:
+            value = inputs.get(name, "")
+            if str(value) != "" and int(value) < 0:
+                return f"{name} must be greater than or equal to 0"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_net": ("FILE", {"description": "UCSC net alignment file to filter"}),
+            },
+            "optional": {
+                "syn_filter": (
+                    "STRING",
+                    {
+                        "default": "skipsyn",
+                        "options": cls.SYN_FILTERS,
+                        "description": "Enable synteny-based filtering",
+                    },
+                ),
+                "syntype": (
+                    "STRING",
+                    {
+                        "default": "-syn",
+                        "options": cls.SYN_TYPES,
+                        "description": "Synteny filter mode used when synteny filtering is enabled",
+                    },
+                ),
+                "minSynScore": (
+                    "INT",
+                    {"default": "", "description": "Minimum syntenic block score"},
+                ),
+                "minSynSize": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Minimum syntenic block size"},
+                ),
+                "minSynAli": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Minimum syntenic alignment size"},
+                ),
+                "minGap": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Minimum gap size to keep"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MafToAxtNode(CommandNode):
     """Convert UCSC MAF alignments to AXT format."""
 
