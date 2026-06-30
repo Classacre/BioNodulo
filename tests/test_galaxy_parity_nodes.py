@@ -6857,6 +6857,200 @@ def test_augustus_training_renders_command_output_and_validates(tmp_path: Path) 
     assert node_class.VALIDATE_INPUTS({"genome": "genome.fa", "maker_gff": "maker.gff3"}) is True
 
 
+def test_arriba_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["arriba"]
+
+    assert info["display_name"] == "Arriba"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Detect gene fusions from STAR aligned RNA-Seq data with Arriba."
+    assert info["input"]["required"]["input"][0] == "BAM"
+    assert info["input"]["required"]["genome_assembly"][0] == "FASTA"
+    assert info["input"]["required"]["annotation"][0] == "GTF"
+    assert info["input"]["optional"]["chimeric"][0] == "BAM"
+    assert info["input"]["optional"]["filters"][1]["multiple"] is True
+    assert info["input"]["optional"]["filters"][1]["options"] == [
+        "top_expressed_viral_contigs",
+        "viral_contigs",
+        "low_coverage_viral_contigs",
+        "uninteresting_contigs",
+        "no_genomic_support",
+        "short_anchor",
+        "select_best",
+        "many_spliced",
+        "long_gap",
+        "merge_adjacent",
+        "hairpin",
+        "small_insert_size",
+        "same_gene",
+        "genomic_support",
+        "read_through",
+        "no_coverage",
+        "mismatches",
+        "homopolymer",
+        "low_entropy",
+        "multimappers",
+        "inconsistently_clipped",
+        "duplicates",
+        "homologs",
+        "blacklist",
+        "mismappers",
+        "spliced",
+        "relative_support",
+        "min_support",
+        "known_fusions",
+        "end_to_end",
+        "non_coding_neighbors",
+        "isoforms",
+        "intronic",
+        "in_vitro",
+        "intragenic_exonic",
+        "internal_tandem_duplication",
+    ]
+    assert info["input"]["optional"]["strandedness"][1]["options"] == ["auto", "yes", "no", "reverse"]
+    assert info["input"]["optional"]["output_fusions_discarded"][1]["default"] is True
+    assert info["input"]["optional"]["output_fusions_vcf"][1]["default"] is True
+    assert info["output"] == ["TSV", "TSV", "VCF", "DIRECTORY", "PDF"]
+    assert info["output_name"] == [
+        "fusions_tsv",
+        "discarded_fusions_tsv",
+        "fusions_vcf",
+        "fusion_bams",
+        "fusions_pdf",
+    ]
+    assert info["required_executables"] == [
+        "arriba",
+        "samtools",
+        "convert_fusions_to_vcf.sh",
+        "extract_fusion-supporting_alignments.sh",
+        "draw_fusions.R",
+    ]
+    assert info["required_conda_packages"] == ["arriba"]
+    assert info["documentation_url"] == "https://github.com/suhrig/arriba/wiki"
+    assert info["citation_dois"] == ["10.1101/gr.257246.119"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.257246.119"]
+    assert "Arriba" in info["citation_text"]
+    assert "gene fusions" in info["search_aliases"]
+
+
+def test_arriba_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("arriba")
+
+    assert node_class.render_command(
+        {
+            "input": "Aligned.out.bam",
+            "genome_assembly": "GRCh38.fa",
+            "annotation": "gencode.gtf",
+            "output": "/work/arriba",
+        }
+    ) == (
+        "ln -sf GRCh38.fa genome.fa && "
+        "ln -sf gencode.gtf genome.gtf && "
+        "arriba -x Aligned.out.bam -a genome.fa -g genome.gtf -f blacklist "
+        "-o /work/arriba/fusions.tsv -O /work/arriba/fusions.discarded.tsv && "
+        "convert_fusions_to_vcf.sh genome.fa /work/arriba/fusions.tsv /work/arriba/fusions.vcf"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "arriba" / "fusions.tsv",
+        tmp_path / "arriba" / "fusions.discarded.tsv",
+        tmp_path / "arriba" / "fusions.vcf",
+    ]
+
+    assert node_class.render_command(
+        {
+            "input": "Aligned sorted.out.bam",
+            "chimeric": "Chimeric.out.sam",
+            "genome_assembly": "GRCh38 primary.fa",
+            "annotation": "gencode v38.gtf",
+            "blacklist": "blacklist hg38.tsv.gz",
+            "protein_domains": "protein domains.gff3",
+            "known_fusions": "known fusions.tsv.gz",
+            "tags": "known tags.tsv",
+            "use_wgs": "yes",
+            "wgs": "sv calls.vcf",
+            "max_genomic_breakpoint_distance": 50000,
+            "filters": ["same_gene", "read_through"],
+            "strandedness": "reverse",
+            "gtf_features": "gene_name=gene_name gene_id=gene_id",
+            "genome_contigs": "1,2,X,Y",
+            "viral_contigs": "AC_*,NC_*",
+            "max_evalue": 0.2,
+            "min_supporting_reads": 3,
+            "duplicate_marking": True,
+            "fill_discarded_columns": True,
+            "fill_the_gaps": True,
+            "output_fusion_bams": True,
+            "do_viz": "yes",
+            "cytobands": "cytobands.tsv",
+            "sample_name": "Tumor 01",
+            "transcript_selection": "coverage",
+            "squish_introns": "FALSE",
+            "show_intergenic_vicinity": "closestGene",
+            "min_confidence_for_circos_plot": "high",
+            "pdf_width": 12.5,
+            "plot_panels": True,
+            "output": "/work/arriba",
+        }
+    ) == (
+        "ln -sf 'GRCh38 primary.fa' genome.fa && "
+        "ln -sf 'gencode v38.gtf' genome.gtf && "
+        "ln -sf 'blacklist hg38.tsv.gz' blacklist.tsv.gz && "
+        "ln -sf 'known fusions.tsv.gz' known_fusions.tsv.gz && "
+        "arriba -x 'Aligned sorted.out.bam' -c Chimeric.out.sam -a genome.fa -g genome.gtf "
+        "-b blacklist.tsv.gz -f same_gene,read_through -p 'protein domains.gff3' "
+        "-k known_fusions.tsv.gz -t 'known tags.tsv' -d 'sv calls.vcf' -D 50000 "
+        "-o /work/arriba/fusions.tsv -O /work/arriba/fusions.discarded.tsv "
+        "-G 'gene_name=gene_name gene_id=gene_id' -s reverse -i 1,2,X,Y -v 'AC_*,NC_*' "
+        "-E 0.2 -S 3 -u -X -I && "
+        "samtools sort -@ ${GALAXY_SLOTS:-1} -m 4G -T tmp -O bam 'Aligned sorted.out.bam' "
+        "> /work/arriba/Aligned.sortedByCoord.out.bam && "
+        "samtools index /work/arriba/Aligned.sortedByCoord.out.bam && "
+        "convert_fusions_to_vcf.sh genome.fa /work/arriba/fusions.tsv /work/arriba/fusions.vcf && "
+        "mkdir -p /work/arriba/fusion_bams && "
+        "extract_fusion-supporting_alignments.sh /work/arriba/fusions.tsv "
+        "/work/arriba/Aligned.sortedByCoord.out.bam /work/arriba/fusion_bams/fusion && "
+        "draw_fusions.R --fusions=/work/arriba/fusions.tsv "
+        "--alignments=/work/arriba/Aligned.sortedByCoord.out.bam --annotation=genome.gtf "
+        "--output=/work/arriba/fusions.pdf --cytobands=cytobands.tsv "
+        "--proteinDomains='protein domains.gff3' --transcriptSelection=coverage "
+        "--minConfidenceForCircosPlot=high --squishIntrons=FALSE --showIntergenicVicinity=closestGene "
+        "--sampleName='Tumor 01' --pdfWidth=12.5 --plotPanels=TRUE"
+    )
+    assert node_class.PLAN_OUTPUTS({"output_fusion_bams": True, "do_viz": "yes"}, tmp_path) == [
+        tmp_path / "arriba" / "fusions.tsv",
+        tmp_path / "arriba" / "fusions.discarded.tsv",
+        tmp_path / "arriba" / "fusions.vcf",
+        tmp_path / "arriba" / "fusion_bams",
+        tmp_path / "arriba" / "fusions.pdf",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "Aligned.out.bam"}) == "genome_assembly is required"
+    assert node_class.VALIDATE_INPUTS({"input": "Aligned.out.bam", "genome_assembly": "genome.fa"}) == (
+        "annotation is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "Aligned.out.bam", "genome_assembly": "genome.fa", "annotation": "genes.gtf", "filters": ["bad"]}
+    ) == "filters values must be one of the supported Arriba filter names"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "Aligned.out.bam", "genome_assembly": "genome.fa", "annotation": "genes.gtf", "strandedness": "bad"}
+    ) == "strandedness must be one of: auto, yes, no, reverse"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "Aligned.out.bam",
+            "genome_assembly": "genome.fa",
+            "annotation": "genes.gtf",
+            "use_wgs": "yes",
+        }
+    ) == "wgs is required when use_wgs is yes"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "Aligned.out.bam", "genome_assembly": "genome.fa", "annotation": "genes.gtf", "do_viz": "bad"}
+    ) == "do_viz must be one of: yes, no"
+    assert (
+        node_class.VALIDATE_INPUTS({"input": "Aligned.out.bam", "genome_assembly": "genome.fa", "annotation": "genes.gtf"})
+        is True
+    )
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 
