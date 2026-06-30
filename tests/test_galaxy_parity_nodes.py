@@ -34493,3 +34493,56 @@ def test_ucsc_netsyntenic_validates_required_input() -> None:
 
     assert node_class.VALIDATE_INPUTS({}) == "in_net is required"
     assert node_class.VALIDATE_INPUTS({"in_net": "example.ucsc.net"}) is True
+
+
+def test_ucsc_netchainsubset_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_netchainsubset"]
+
+    assert info["display_name"] == "netChainSubset"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Create a UCSC chain file containing only chains that appear in a net file."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["netChainSubset"]
+    assert info["required_conda_packages"] == ["ucsc-netchainsubset"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/net.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "liftOver" in info["search_aliases"]
+    assert info["input"]["required"]["in_net"][0] == "FILE"
+    assert info["input"]["required"]["in_chain"][0] == "FILE"
+    assert info["input"]["optional"]["splitOnInsert"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["wholeChains"][1]["default"] is False
+    assert info["input"]["optional"]["skipMissing"][1]["default"] is False
+
+
+def test_ucsc_netchainsubset_renders_flags_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_netchainsubset")
+
+    assert node_class.render_command(
+        {
+            "in_net": "target net.ucsc.net",
+            "in_chain": "source chain.chain",
+            "splitOnInsert": True,
+            "wholeChains": False,
+            "skipMissing": True,
+            "output": "/work/ucsc_netchainsubset",
+        }
+    ) == (
+        "netChainSubset 'target net.ucsc.net' 'source chain.chain' "
+        "/work/ucsc_netchainsubset/out.chain -splitOnInsert -skipMissing"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_netchainsubset" / "out.chain",
+    ]
+
+
+def test_ucsc_netchainsubset_validates_required_inputs() -> None:
+    node_class = _node_class("ucsc_netchainsubset")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_net is required"
+    assert node_class.VALIDATE_INPUTS({"in_net": "target.net"}) == "in_chain is required"
+    assert node_class.VALIDATE_INPUTS({"in_net": "target.net", "in_chain": "source.chain"}) is True

@@ -27670,6 +27670,95 @@ class UcscNetSyntenicNode(_UcscSingleFileUtilityNode):
     INPUT_DESCRIPTION = "UCSC net alignment file to annotate with synteny information"
 
 
+class UcscNetChainSubsetNode(CommandNode):
+    """Extract the subset of chains referenced by a UCSC net file."""
+
+    NODE_ID = "ucsc_netchainsubset"
+    DISPLAY_NAME = "netChainSubset"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-netchainsubset"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Create a UCSC chain file containing only chains that appear in a net file."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_netchainsubset",
+        "netChainSubset",
+        "UCSC net",
+        "UCSC chain",
+        "liftOver",
+        "chain subset",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("out",)
+    REQUIRED_EXECUTABLES = ["netChainSubset"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/net.html"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+
+    FLAG_INPUTS = (
+        ("splitOnInsert", "-splitOnInsert"),
+        ("wholeChains", "-wholeChains"),
+        ("skipMissing", "-skipMissing"),
+    )
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.chain"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "netChainSubset",
+            str(inputs.get("in_net", "")),
+            str(inputs.get("in_chain", "")),
+            cls._output_path(inputs),
+        ]
+        for name, flag in cls.FLAG_INPUTS:
+            if inputs.get(name):
+                cmd.append(flag)
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out.chain"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("in_net", "")).strip():
+            return "in_net is required"
+        if not str(inputs.get("in_chain", "")).strip():
+            return "in_chain is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_net": ("FILE", {"description": "UCSC net file identifying chains to keep"}),
+                "in_chain": ("FILE", {"description": "UCSC chain file to subset"}),
+            },
+            "optional": {
+                "splitOnInsert": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Split chains when an insertion of another chain is encountered"},
+                ),
+                "wholeChains": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write entire referenced chains instead of splitting high-level nets"},
+                ),
+                "skipMissing": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Skip chains that are not found instead of failing"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BrackenEstAbundanceNode(CommandNode):
     """Re-estimate taxonomic abundance from a Kraken report with Bracken."""
 
