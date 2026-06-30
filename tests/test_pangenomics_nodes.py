@@ -2144,3 +2144,190 @@ def test_minigraph_cactus_rejects_missing_output_flags_and_non_positive_threads(
 def test_minigraph_cactus_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["cactus-pangenome"] == "cactus"
     assert PACKAGE_MIN_VERSIONS["cactus"] == ">=2.9.0"
+
+
+def test_galaxy_cactus_is_registered_for_frontend_discovery() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    info = registry.object_info()
+
+    node_info = info["cactus_cactus"]
+    assert node_info["display_name"] == "Cactus"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"] == "Whole-genome multiple sequence alignment with Progressive Cactus or Minigraph-Cactus."
+    assert node_info["output"] == ["FILE", "GFA"]
+    assert node_info["output_name"] == ["out_hal", "out_gfa"]
+    assert node_info["required_executables"] == ["cactus", "cactus-pangenome"]
+    assert node_info["required_conda_packages"] == ["cactus"]
+    assert node_info["documentation_url"] == "https://github.com/ComparativeGenomicsToolkit/cactus"
+    assert node_info["citation_dois"] == ["10.1038/s41586-020-2871-y"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1038/s41586-020-2871-y"]
+    assert "Progressive Cactus is a multiple-genome aligner" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "whole-genome multiple alignment" in node_info["search_aliases"]
+    assert node_info["version"] == "2.7.1+galaxy0"
+
+    inputs = node_info["input"]
+    assert inputs["required"]["in_seqs"][0] == "STRING"
+    assert inputs["required"]["in_seqs"][1]["multiple"] is True
+    assert inputs["required"]["labels"][0] == "STRING"
+    assert inputs["optional"]["aln_mode_select"][1]["default"] == "interspecies"
+    assert inputs["optional"]["aln_mode_select"][1]["options"] == ["interspecies", "intraspecies"]
+    assert inputs["optional"]["in_tree"][0] == "FILE"
+    assert inputs["optional"]["ref_level"][0] == "STRING"
+    assert inputs["optional"]["max_cores"][1]["default"] == 4
+    assert inputs["optional"]["max_memory_mb"][1]["default"] == 16384
+    assert _node_class("cactus_cactus").INPUT_TYPES()["required"]["in_seqs"][0] == "FASTA_LIST"
+    assert _node_class("cactus_cactus").INPUT_TYPES()["required"]["labels"][0] == "STRING_LIST"
+
+
+def test_galaxy_cactus_renders_interspecies_command_and_outputs() -> None:
+    node_class = _node_class("cactus_cactus")
+
+    cmd = node_class.render_command({
+        "aln_mode_select": "interspecies",
+        "in_tree": "guide tree.nhx",
+        "in_seqs": ["cow.fa", "dog genome.fa"],
+        "labels": ["simCow_chr6", "simDog_chr6"],
+        "max_cores": 8,
+        "max_memory_mb": 32768,
+        "output": "/tmp/run/cactus_cactus",
+    })
+
+    assert cmd == [
+        "mkdir",
+        "-p",
+        "/tmp/run/cactus_cactus",
+        "&&",
+        "cat",
+        "guide tree.nhx",
+        ">",
+        "/tmp/run/cactus_cactus/seqfile.txt",
+        "&&",
+        "ln",
+        "-s",
+        "cow.fa",
+        "/tmp/run/cactus_cactus/simCow_chr6.fa",
+        "&&",
+        "printf",
+        "%s %s\n",
+        "simCow_chr6",
+        "simCow_chr6.fa",
+        ">>",
+        "/tmp/run/cactus_cactus/seqfile.txt",
+        "&&",
+        "ln",
+        "-s",
+        "dog genome.fa",
+        "/tmp/run/cactus_cactus/simDog_chr6.fa",
+        "&&",
+        "printf",
+        "%s %s\n",
+        "simDog_chr6",
+        "simDog_chr6.fa",
+        ">>",
+        "/tmp/run/cactus_cactus/seqfile.txt",
+        "&&",
+        "cd",
+        "/tmp/run/cactus_cactus",
+        "&&",
+        "cactus",
+        "--binariesMode",
+        "local",
+        "--maxCores",
+        "8",
+        "--maxMemory",
+        "32768M",
+        "--workDir",
+        "./",
+        "jobStore",
+        "seqfile.txt",
+        "alignment.full.hal",
+    ]
+
+    assert [str(path) for path in node_class.PLAN_OUTPUTS({"aln_mode_select": "interspecies"}, "/tmp/run")] == [
+        "/tmp/run/cactus_cactus/alignment.full.hal",
+    ]
+
+
+def test_galaxy_cactus_renders_intraspecies_command_outputs_and_validation() -> None:
+    node_class = _node_class("cactus_cactus")
+
+    cmd = node_class.render_command({
+        "aln_mode_select": "intraspecies",
+        "ref_level": "simCow_chr6",
+        "in_seqs": ["cow.fa", "dog.fa"],
+        "labels": ["simCow_chr6", "simDog_chr6"],
+        "max_cores": 16,
+        "max_memory_mb": 64000,
+        "output": "/tmp/run/cactus_cactus",
+    })
+
+    assert cmd[-15:] == [
+        "cactus-pangenome",
+        "--reference",
+        "simCow_chr6",
+        "--binariesMode",
+        "local",
+        "--maxCores",
+        "16",
+        "--maxMemory",
+        "64000M",
+        "--outDir",
+        "./",
+        "--outName",
+        "alignment",
+        "jobStore",
+        "seqfile.txt",
+    ]
+    assert [str(path) for path in node_class.PLAN_OUTPUTS({"aln_mode_select": "intraspecies"}, "/tmp/run")] == [
+        "/tmp/run/cactus_cactus/alignment.full.hal",
+        "/tmp/run/cactus_cactus/alignment.gfa.gz",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input genome FASTA is required"
+    assert node_class.VALIDATE_INPUTS({"in_seqs": ["cow.fa"], "labels": []}) == "labels must match in_seqs length"
+    assert node_class.VALIDATE_INPUTS({"in_seqs": ["cow.fa"], "labels": ["bad label"]}) == (
+        "labels may contain only letters, digits, and underscores"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_seqs": ["cow.fa"], "labels": ["cow"], "aln_mode_select": "bad"}) == (
+        "aln_mode_select must be one of: interspecies, intraspecies"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_seqs": ["cow.fa"], "labels": ["cow"], "aln_mode_select": "interspecies"}) == (
+        "in_tree is required for interspecies mode"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_seqs": ["cow.fa"], "labels": ["cow"], "aln_mode_select": "intraspecies"}) == (
+        "ref_level is required for intraspecies mode"
+    )
+    assert node_class.VALIDATE_INPUTS({
+        "in_seqs": ["cow.fa"],
+        "labels": ["cow"],
+        "aln_mode_select": "intraspecies",
+        "ref_level": "dog",
+    }) == "ref_level must match one of the labels"
+    assert node_class.VALIDATE_INPUTS({
+        "in_seqs": ["cow.fa"],
+        "labels": ["cow"],
+        "aln_mode_select": "intraspecies",
+        "ref_level": "cow",
+        "max_cores": 0,
+    }) == "max_cores must be greater than zero"
+    assert node_class.VALIDATE_INPUTS({
+        "in_seqs": ["cow.fa"],
+        "labels": ["cow"],
+        "aln_mode_select": "intraspecies",
+        "ref_level": "cow",
+        "max_memory_mb": 0,
+    }) == "max_memory_mb must be greater than zero"
+    assert node_class.VALIDATE_INPUTS({
+        "in_seqs": ["cow.fa"],
+        "labels": ["cow"],
+        "aln_mode_select": "intraspecies",
+        "ref_level": "cow",
+    }) is True
+
+
+def test_galaxy_cactus_environment_metadata_is_declared() -> None:
+    assert EXECUTABLE_TO_CONDA_PACKAGE["cactus"] == "cactus"
+    assert EXECUTABLE_TO_CONDA_PACKAGE["cactus-pangenome"] == "cactus"
+    assert PACKAGE_MIN_VERSIONS["cactus"] == ">=2.9.0"

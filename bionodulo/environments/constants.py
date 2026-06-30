@@ -157,6 +157,7 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "cas-offinder": "cas-offinder",
     "odgi": "odgi",
     "pggb": "pggb",
+    "cactus": "cactus",
     "cactus-pangenome": "cactus",
     "panacus": "panacus",
     "panaroo": "panaroo",

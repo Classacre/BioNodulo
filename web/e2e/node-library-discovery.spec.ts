@@ -1398,6 +1398,34 @@ const objectInfo = {
     output: ['GBZ', 'VCF_GZ', 'GFA', 'ODGI'],
     output_name: ['graph_gbz', 'variants_vcf', 'graph_gfa', 'graph_odgi'],
   },
+  cactus_cactus: {
+    name: 'cactus_cactus',
+    display_name: 'Cactus',
+    category: 'pangenomics',
+    description: 'Whole-genome multiple sequence alignment with Progressive Cactus or Minigraph-Cactus.',
+    search_aliases: ['Galaxy', 'Cactus', 'cactus_cactus', 'Progressive Cactus', 'Minigraph-Cactus', 'whole-genome multiple alignment', 'HAL alignment', 'pangenome graph'],
+    input: {
+      required: {
+        in_seqs: { type: 'STRING', multiple: true },
+        labels: { type: 'STRING', multiple: true },
+      },
+      optional: {
+        aln_mode_select: { type: 'STRING', default: 'interspecies', options: ['interspecies', 'intraspecies'] },
+        in_tree: { type: 'FILE', default: '' },
+        ref_level: { type: 'STRING', default: '' },
+        max_cores: { type: 'INT', default: 4, min: 1, max: 512 },
+        max_memory_mb: { type: 'INT', default: 16384, min: 1 },
+      },
+    },
+    output: ['FILE', 'GFA'],
+    output_name: ['out_hal', 'out_gfa'],
+    required_executables: ['cactus', 'cactus-pangenome'],
+    required_conda_packages: ['cactus'],
+    documentation_url: 'https://github.com/ComparativeGenomicsToolkit/cactus',
+    citation_dois: ['10.1038/s41586-020-2871-y'],
+    citation_urls: ['https://doi.org/10.1038/s41586-020-2871-y'],
+    citation_text: 'Progressive Cactus is a multiple-genome aligner for the thousand-genome era.',
+  },
   roary: {
     name: 'roary',
     display_name: 'Roary',
@@ -15921,7 +15949,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('535 nodes available')).toBeVisible();
+  await expect(page.getByText('536 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15976,6 +16004,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'single sequence', name: 'ESMFold Predict', category: 'ai' },
     { query: 'inverse folding', name: 'ProteinMPNN Design', category: 'ai' },
     { query: 'HPRC', name: 'Minigraph-Cactus', category: 'pangenomics' },
+    { query: 'whole-genome multiple alignment', name: 'Cactus', category: 'pangenomics' },
     { query: 'nanopore', name: 'Clair3', category: 'variant' },
     { query: 'sage-proteomics', name: 'Sage Search', category: 'proteomics' },
     { query: 'proteomics workflow', name: 'FragPipe Workflow', category: 'proteomics' },
