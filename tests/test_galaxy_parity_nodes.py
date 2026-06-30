@@ -2198,6 +2198,188 @@ def test_featurecounts_validates_required_conditional_and_range_inputs() -> None
     assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "builtin"}) is True
 
 
+def test_roary_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["roary"]
+
+    assert node_info["display_name"] == "Roary"
+    assert node_info["category"] == "pangenomics"
+    assert node_info["description"] == (
+        "Quickly generate prokaryotic pan-genome gene clusters and core gene alignments from GFF3 annotations."
+    )
+    assert node_info["output"] == [
+        "TSV",
+        "FASTA",
+        "CSV",
+        "FASTA",
+        "FILE",
+        "FILE",
+        "FILE",
+        "TSV",
+        "TXT",
+        "TXT",
+        "FILE",
+        "FILE",
+        "TSV",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "FASTA",
+    ]
+    assert node_info["output_name"] == [
+        "summary_statistics",
+        "core_gene_alignment",
+        "gene_presence_absence",
+        "accessory_binary_genes",
+        "accessory_binary_genes_newick",
+        "accessory_graph",
+        "accessory_header_embl",
+        "accessory_table",
+        "blast_identity_frequency",
+        "clustered_proteins",
+        "core_accessory_graph",
+        "core_accessory_embl",
+        "core_accessory_table",
+        "gene_presence_absence_rtab",
+        "number_of_conserved_genes",
+        "number_of_genes_in_pan_genome",
+        "number_of_new_genes",
+        "number_of_unique_genes",
+        "pan_genome_reference",
+    ]
+    assert node_info["required_executables"] == ["roary"]
+    assert node_info["required_conda_packages"] == ["roary"]
+    assert node_info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btv421"
+    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btv421"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btv421"]
+    assert "prokaryote pan genome analysis" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "pan genome" in node_info["search_aliases"]
+    assert "core gene alignment" in node_info["search_aliases"]
+    assert "Prokka GFF3" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["gffs"][0] == "GFF"
+    assert node_info["input"]["required"]["gffs"][1]["multiple"] is True
+    assert node_info["input"]["required"]["gffs"][1]["min_items"] == 2
+    assert node_info["input"]["optional"]["gff_input_selector"][1]["default"] == "individual"
+    assert node_info["input"]["optional"]["gff_input_selector"][1]["options"] == ["individual", "collection"]
+    assert node_info["input"]["optional"]["percent_ident"][1]["default"] == 95
+    assert node_info["input"]["optional"]["percent_ident"][1]["min"] == 1
+    assert node_info["input"]["optional"]["percent_ident"][1]["max"] == 100
+    assert node_info["input"]["optional"]["core_diff"][1]["default"] == 99.0
+    assert node_info["input"]["optional"]["outputs"][1]["default"] == []
+    assert node_info["input"]["optional"]["outputs"][1]["multiple"] is True
+    assert node_info["input"]["optional"]["outputs"][1]["options"] == [
+        "abg_nw",
+        "abg_fa",
+        "accgraph",
+        "acchead_embl",
+        "acctab",
+        "blastfreq",
+        "clust",
+        "coreaccgraph",
+        "coreaccembl",
+        "coreacctab",
+        "genepa_rtab",
+        "numcons_rtab",
+        "numpangene_rtab",
+        "numnew_rtab",
+        "numuniq_rtab",
+        "pangenomeref",
+    ]
+    assert node_info["input"]["optional"]["trans_tab"][1]["default"] == 11
+    assert node_info["input"]["optional"]["trans_tab"][1]["options"] == [1, 4, 11]
+
+
+def test_roary_renders_default_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("roary")
+
+    cmd = node_class.render_command(
+        {
+            "gffs": ["sample one.gff3", "sample-two.gff"],
+            "percent_ident": 95,
+            "core_diff": 99.0,
+            "maxclust": 50000,
+            "trans_tab": 11,
+            "mcl": 1.5,
+            "output": "/work/roary",
+        }
+    )
+
+    assert cmd == (
+        "cp 'sample one.gff3' sample_one.gff && cp sample-two.gff sample-two.gff && "
+        "roary -f /work/roary/out -p ${GALAXY_SLOTS:-1} -e -z -n -i 95 -cd 99.0 "
+        "-g 50000 -t 11 -iv 1.5 sample_one.gff sample-two.gff"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "roary" / "summary_statistics.txt",
+        tmp_path / "roary" / "core_gene_alignment.aln",
+        tmp_path / "roary" / "gene_presence_absence.csv",
+    ]
+
+
+def test_roary_renders_split_paralogs_and_optional_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("roary")
+
+    cmd = node_class.render_command(
+        {
+            "gffs": ["isolate 1.gff3", "isolate.2.gff3"],
+            "percent_ident": 90,
+            "core_diff": 95.5,
+            "maxclust": 1000,
+            "split_para": True,
+            "trans_tab": 4,
+            "mcl": 2.0,
+            "output": "/work/roary",
+        }
+    )
+
+    assert cmd == (
+        "cp 'isolate 1.gff3' isolate_1.gff && cp isolate.2.gff3 isolate_2.gff && "
+        "roary -f /work/roary/out -p ${GALAXY_SLOTS:-1} -e -z -n -i 90 -cd 95.5 "
+        "-g 1000 -s -t 4 -iv 2.0 isolate_1.gff isolate_2.gff"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {"outputs": ["abg_fa", "abg_nw", "accgraph", "pangenomeref"]},
+        tmp_path,
+    ) == [
+        tmp_path / "roary" / "summary_statistics.txt",
+        tmp_path / "roary" / "core_gene_alignment.aln",
+        tmp_path / "roary" / "gene_presence_absence.csv",
+        tmp_path / "roary" / "accessory_binary_genes.fa",
+        tmp_path / "roary" / "accessory_binary_genes.fa.newick",
+        tmp_path / "roary" / "accessory_graph.dot",
+        tmp_path / "roary" / "pan_genome_reference.fa",
+    ]
+
+
+def test_roary_validates_required_options_and_ranges() -> None:
+    node_class = _node_class("roary")
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least two gffs are required"
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3"]}) == "at least two gffs are required"
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3", "two.gff3"], "gff_input_selector": "bad"}) == (
+        "gff_input_selector must be one of: individual, collection"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3", "two.gff3"], "outputs": ["bad"]}) == (
+        "outputs contains unsupported values: bad"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3", "two.gff3"], "percent_ident": 0}) == (
+        "percent_ident must be between 1 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3", "two.gff3"], "core_diff": 101}) == (
+        "core_diff must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3", "two.gff3"], "maxclust": 0}) == (
+        "maxclust must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3", "two.gff3"], "trans_tab": 2}) == (
+        "trans_tab must be one of: 1, 4, 11"
+    )
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3", "two.gff3"], "mcl": 0}) == "mcl must be > 0"
+    assert node_class.VALIDATE_INPUTS({"gffs": ["one.gff3", "two.gff3"]}) is True
+
+
 def test_seqkit_stats_renders_statistics_command() -> None:
     node_class = _node_class("seqkit_stats")
 

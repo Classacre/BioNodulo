@@ -1069,6 +1069,33 @@ const objectInfo = {
     output: ['GBZ', 'VCF_GZ', 'GFA', 'ODGI'],
     output_name: ['graph_gbz', 'variants_vcf', 'graph_gfa', 'graph_odgi'],
   },
+  roary: {
+    name: 'roary',
+    display_name: 'Roary',
+    category: 'pangenomics',
+    description: 'Quickly generate prokaryotic pan-genome gene clusters and core gene alignments from GFF3 annotations.',
+    search_aliases: ['Galaxy', 'Roary', 'roary', 'pan genome', 'pangenome', 'core gene alignment', 'gene presence absence', 'Prokka GFF3'],
+    input: {
+      required: {
+        gffs: { type: 'GFF', multiple: true, min_items: 2 },
+      },
+      optional: {
+        gff_input_selector: { type: 'STRING', default: 'individual', options: ['individual', 'collection'] },
+        percent_ident: { type: 'INT', default: 95 },
+        core_diff: { type: 'FLOAT', default: 99.0 },
+        outputs: { type: 'STRING', default: [], multiple: true, options: ['abg_nw', 'abg_fa', 'accgraph', 'acchead_embl', 'acctab', 'blastfreq', 'clust', 'coreaccgraph', 'coreaccembl', 'coreacctab', 'genepa_rtab', 'numcons_rtab', 'numpangene_rtab', 'numnew_rtab', 'numuniq_rtab', 'pangenomeref'] },
+        trans_tab: { type: 'INT', default: 11, options: [1, 4, 11] },
+      },
+    },
+    output: ['TSV', 'FASTA', 'CSV', 'FASTA', 'FILE', 'FILE', 'FILE', 'TSV', 'TXT', 'TXT', 'FILE', 'FILE', 'TSV', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'FASTA'],
+    output_name: ['summary_statistics', 'core_gene_alignment', 'gene_presence_absence', 'accessory_binary_genes', 'accessory_binary_genes_newick', 'accessory_graph', 'accessory_header_embl', 'accessory_table', 'blast_identity_frequency', 'clustered_proteins', 'core_accessory_graph', 'core_accessory_embl', 'core_accessory_table', 'gene_presence_absence_rtab', 'number_of_conserved_genes', 'number_of_genes_in_pan_genome', 'number_of_new_genes', 'number_of_unique_genes', 'pan_genome_reference'],
+    required_executables: ['roary'],
+    required_conda_packages: ['roary'],
+    documentation_url: 'https://doi.org/10.1093/bioinformatics/btv421',
+    citation_dois: ['10.1093/bioinformatics/btv421'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btv421'],
+    citation_text: 'Roary: rapid large-scale prokaryote pan genome analysis.',
+  },
   clair3: {
     name: 'clair3',
     display_name: 'Clair3',
@@ -13830,7 +13857,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('477 nodes available')).toBeVisible();
+  await expect(page.getByText('478 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13881,6 +13908,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'language model', name: 'LLM Prompt', category: 'ai' },
     { query: 'schedule', name: 'Workflow Trigger', category: 'workflow' },
     { query: 'busco completeness', name: 'BUSCO', category: 'assembly' },
+    { query: 'roary pan genome', name: 'Roary', category: 'pangenomics' },
     { query: 'diamond blastx', name: 'DIAMOND Align', category: 'alignment' },
     { query: 'bg_diamond_makedb', name: 'Diamond makedb', category: 'databases' },
     { query: 'bg_diamond', name: 'Diamond', category: 'alignment' },
