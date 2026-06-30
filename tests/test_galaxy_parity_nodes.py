@@ -16578,6 +16578,64 @@ def test_biom_subset_table_renders_command_outputs_and_validates(tmp_path: Path)
     assert node_class.VALIDATE_INPUTS({"input_json_fp": "table.biom", "ids": "ids.txt"}) is True
 
 
+def test_biom_from_uc_exposes_galaxy_metadata_and_doi() -> None:
+    info = _registry().object_info()["biom_from_uc"]
+
+    assert info["display_name"] == "BIOM from UC"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Create a BIOM table from a vsearch, uclust, or usearch UC file."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "BIOM",
+        "biom-format",
+        "biom_from_uc",
+        "biom from-uc",
+        "UC file",
+        "vsearch",
+        "uclust",
+        "usearch",
+    ]
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output_fp"]
+    assert info["required_executables"] == ["biom"]
+    assert info["required_conda_packages"] == ["biom-format"]
+    assert info["documentation_url"] == "https://biom-format.org/documentation/biom_commands.html#from-uc"
+    assert info["citation_dois"] == ["10.1186/2047-217X-1-7"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/2047-217X-1-7"]
+    assert info["citation_text"] == "The Biological Observation Matrix (BIOM) format."
+    assert info["version"] == "2.1.17+galaxy0"
+    assert info["input"]["required"]["input_fp"][0] == "FILE"
+    assert info["input"]["optional"]["rep_set_fp"][0] == "FASTA"
+    assert info["input"]["optional"]["rep_set_fp"][1]["default"] == ""
+
+
+def test_biom_from_uc_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("biom_from_uc")
+
+    assert node_class.render_command(
+        {
+            "input_fp": "uc table.uc",
+            "output": "/work/biom_from_uc",
+        }
+    ) == "biom from-uc --input-fp 'uc table.uc' --output-fp /work/biom_from_uc/output.biom"
+    assert node_class.render_command(
+        {
+            "input_fp": "uc_table.uc",
+            "rep_set_fp": "representative sequences.fasta",
+            "output": "/work/biom_from_uc",
+        }
+    ) == (
+        "biom from-uc --input-fp uc_table.uc --output-fp /work/biom_from_uc/output.biom "
+        "--rep-set-fp 'representative sequences.fasta'"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "biom_from_uc" / "output.biom",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_fp is required"
+    assert node_class.VALIDATE_INPUTS({"input_fp": "uc_table.uc"}) is True
+
+
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
     node_class = _node_class("krakentools_combine_kreports")
     info = _registry().object_info()["krakentools_combine_kreports"]

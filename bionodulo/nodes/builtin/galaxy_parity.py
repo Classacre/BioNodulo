@@ -27369,6 +27369,83 @@ class BiomSubsetTableNode(CommandNode):
         }
 
 
+class BiomFromUcNode(CommandNode):
+    """Create a BIOM table from a vsearch, uclust, or usearch UC file."""
+
+    NODE_ID = "biom_from_uc"
+    DISPLAY_NAME = "BIOM from UC"
+    REQUIRED_CONDA_PACKAGES = ["biom-format"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Create a BIOM table from a vsearch, uclust, or usearch UC file."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BIOM",
+        "biom-format",
+        "biom_from_uc",
+        "biom from-uc",
+        "UC file",
+        "vsearch",
+        "uclust",
+        "usearch",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_fp",)
+    REQUIRED_EXECUTABLES = ["biom"]
+    DOCUMENTATION_URL = "https://biom-format.org/documentation/biom_commands.html#from-uc"
+    CITATION_DOIS = [BIOM_FORMAT_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BIOM_FORMAT_DOI}"]
+    CITATION_TEXT = BIOM_FORMAT_CITATION_TEXT
+    VERSION = "2.1.17+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.biom"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "biom",
+            "from-uc",
+            "--input-fp",
+            str(inputs.get("input_fp", "")),
+            "--output-fp",
+            cls._output_path(inputs),
+        ]
+        _add_if_value(cmd, "--rep-set-fp", inputs.get("rep_set_fp"))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.biom"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_fp", "")).strip():
+            return "input_fp is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_fp": ("FILE", {"description": "Input vsearch, uclust, or usearch UC file"}),
+            },
+            "optional": {
+                "rep_set_fp": (
+                    "FASTA",
+                    {
+                        "default": "",
+                        "description": "Optional representative sequences FASTA labeled with OTU identifiers",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class KrakentoolsCombineKreportsNode(CommandNode):
     """Combine multiple Kraken-style reports with KrakenTools."""
 

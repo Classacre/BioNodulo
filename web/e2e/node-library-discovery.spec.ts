@@ -5674,6 +5674,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/2047-217X-1-7'],
     citation_text: 'The Biological Observation Matrix (BIOM) format.',
   },
+  biom_from_uc: {
+    name: 'biom_from_uc',
+    display_name: 'BIOM from UC',
+    category: 'metagenomics',
+    description: 'Create a BIOM table from a vsearch, uclust, or usearch UC file.',
+    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_from_uc', 'biom from-uc', 'UC file', 'vsearch', 'uclust', 'usearch'],
+    input: {
+      required: {
+        input_fp: { type: 'FILE' },
+      },
+      optional: {
+        rep_set_fp: { type: 'FASTA', default: '' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output_fp'],
+    required_executables: ['biom'],
+    required_conda_packages: ['biom-format'],
+    documentation_url: 'https://biom-format.org/documentation/biom_commands.html#from-uc',
+    citation_dois: ['10.1186/2047-217X-1-7'],
+    citation_urls: ['https://doi.org/10.1186/2047-217X-1-7'],
+    citation_text: 'The Biological Observation Matrix (BIOM) format.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12440,7 +12463,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('428 nodes available')).toBeVisible();
+  await expect(page.getByText('429 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12640,6 +12663,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'biom summarize-table', name: 'BIOM summarize table', category: 'metagenomics' },
     { query: 'biom normalize-table', name: 'BIOM normalize table', category: 'metagenomics' },
     { query: 'biom subset-table', name: 'BIOM subset table', category: 'metagenomics' },
+    { query: 'biom from-uc', name: 'BIOM from UC', category: 'metagenomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
