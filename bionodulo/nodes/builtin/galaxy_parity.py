@@ -3563,6 +3563,85 @@ class CrossMapVcfNode(CommandNode):
         }
 
 
+class CrossMapWigNode(CommandNode):
+    """Lift Wiggle signal tracks between genome assemblies with CrossMap."""
+
+    NODE_ID = "crossmap_wig"
+    DISPLAY_NAME = "CrossMap Wig"
+    REQUIRED_CONDA_PACKAGES = ["crossmap"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Lift Wiggle signal tracks between genome assemblies with CrossMap."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CrossMap",
+        "crossmap_wig",
+        "liftover Wiggle",
+        "liftover WIG",
+        "coordinate conversion",
+        "Wiggle assembly conversion",
+        "bedGraph output",
+        "chain file",
+    ]
+    RETURN_TYPES = ("BIGWIG", "BEDGRAPH")
+    RETURN_NAMES = ("output", "output_bedgraph")
+    REQUIRED_EXECUTABLES = ["CrossMap"]
+    DOCUMENTATION_URL = f"{DOI_URL}{CROSSMAP_CITATION_DOI}"
+    CITATION_DOIS = [CROSSMAP_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CROSSMAP_CITATION_DOI}"]
+    CITATION_TEXT = CROSSMAP_CITATION_TEXT
+    VERSION = "0.7.3+galaxy0"
+    SHELL = True
+
+    INDEX_SOURCE_OPTIONS = CrossMapBedNode.INDEX_SOURCE_OPTIONS
+
+    @classmethod
+    def _index_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("index_source", "history") or "history")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = ["CrossMap", "wig", str(inputs.get("input_chain", "")), str(inputs.get("input", "")), f"{out}/output"]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.bw", out / "output.sorted.bgr"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input Wiggle is required"
+        if not str(inputs.get("input_chain", "")).strip():
+            return "input_chain is required"
+        index_source = cls._index_source(inputs)
+        if index_source not in cls.INDEX_SOURCE_OPTIONS:
+            return f"index_source must be one of: {', '.join(cls.INDEX_SOURCE_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "Wiggle signal track to lift over"}),
+                "input_chain": ("TXT", {"description": "LiftOver chain file"}),
+            },
+            "optional": {
+                "index_source": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.INDEX_SOURCE_OPTIONS,
+                        "description": "Galaxy source selector for cached or history chain files",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class ColumnMakerNode(CommandNode):
     """Compute expressions on tabular rows and add, insert, or replace columns."""
 
