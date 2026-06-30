@@ -29358,6 +29358,89 @@ class UcscMafFilterNode(CommandNode):
         }
 
 
+class UcscMafFetchNode(CommandNode):
+    """Fetch UCSC MAF records overlapping BED intervals."""
+
+    NODE_ID = "ucsc_maffetch"
+    DISPLAY_NAME = "mafFetch"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-maffetch"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Fetch UCSC MAF records overlapping BED regions from an indexed UCSC table."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_mafFetch",
+        "ucsc_maffetch",
+        "mafFetch",
+        "MAF indexed lookup",
+        "multiple alignment format",
+        "BED overlap",
+        "UCSC MAF table",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["mafFetch"]
+    DOCUMENTATION_URL = "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/mafFetch/mafFetch.c"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.maf"
+
+    @classmethod
+    def _ucsc_db_connection(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ucsc_db_connection", "ucsc_db_connection.conf") or "ucsc_db_connection.conf")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        setup = (
+            f"cp {shlex.quote(cls._ucsc_db_connection(inputs))} ${{HOME}}/.hg.conf && "
+            "chmod 600 ${HOME}/.hg.conf"
+        )
+        cmd = [
+            "mafFetch",
+            str(inputs.get("genome", "")),
+            str(inputs.get("track", "")),
+            str(inputs.get("bed_file", "")),
+            cls._output_path(inputs),
+        ]
+        return f"{setup} && {_shell_join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out.maf"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for name in ("bed_file", "genome", "track"):
+            if not str(inputs.get(name, "")).strip():
+                return f"{name} is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bed_file": ("BED", {"description": "BED6 or BED12 intervals used to fetch overlapping MAF records"}),
+                "genome": ("STRING", {"description": "UCSC genome database name"}),
+                "track": ("STRING", {"description": "UCSC MAF table name, such as multiz46way"}),
+            },
+            "optional": {
+                "ucsc_db_connection": (
+                    "FILE",
+                    {"description": "UCSC database connection configuration copied to ~/.hg.conf"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class UcscMafCoverageNode(CommandNode):
     """Measure genome coverage from UCSC MAF alignments."""
 

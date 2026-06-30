@@ -6337,6 +6337,31 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_maffetch: {
+    name: 'ucsc_maffetch',
+    display_name: 'mafFetch',
+    category: 'genomics',
+    description: 'Fetch UCSC MAF records overlapping BED regions from an indexed UCSC table.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafFetch', 'ucsc_maffetch', 'mafFetch', 'MAF indexed lookup', 'multiple alignment format', 'BED overlap', 'UCSC MAF table'],
+    input: {
+      required: {
+        bed_file: { type: 'BED' },
+        genome: { type: 'STRING' },
+        track: { type: 'STRING' },
+      },
+      optional: {
+        ucsc_db_connection: { type: 'FILE' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output'],
+    required_executables: ['mafFetch'],
+    required_conda_packages: ['ucsc-maffetch'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/mafFetch/mafFetch.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   ucsc_mafcoverage: {
     name: 'ucsc_mafcoverage',
     display_name: 'mafCoverage',
@@ -13182,7 +13207,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('455 nodes available')).toBeVisible();
+  await expect(page.getByText('456 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13406,6 +13431,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'split FASTA', name: 'faSplit', category: 'genomics' },
     { query: 'FASTA alignment to VCF', name: 'faToVcf', category: 'variant' },
     { query: 'MAF block filter', name: 'mafFilter', category: 'genomics' },
+    { query: 'MAF indexed lookup', name: 'mafFetch', category: 'genomics' },
     { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },

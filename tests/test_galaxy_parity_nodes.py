@@ -35612,6 +35612,69 @@ def test_ucsc_maffilter_validates_required_input_thresholds_and_score_modes() ->
     assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "factor_enabled": "yes", "minFactor": 5}) is True
 
 
+def test_ucsc_maffetch_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_maffetch"]
+
+    assert info["display_name"] == "mafFetch"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Fetch UCSC MAF records overlapping BED regions from an indexed UCSC table."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["mafFetch"]
+    assert info["required_conda_packages"] == ["ucsc-maffetch"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/mouseStuff/mafFetch/mafFetch.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "MAF indexed lookup" in info["search_aliases"]
+    assert info["input"]["required"]["bed_file"][0] == "BED"
+    assert info["input"]["required"]["genome"][0] == "STRING"
+    assert info["input"]["required"]["track"][0] == "STRING"
+    assert info["input"]["optional"]["ucsc_db_connection"][0] == "FILE"
+
+
+def test_ucsc_maffetch_renders_galaxy_config_lookup_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_maffetch")
+
+    assert node_class.render_command(
+        {
+            "bed_file": "mafFetch.bed",
+            "genome": "hg19",
+            "track": "multiz46way",
+            "output": "/work/ucsc_maffetch",
+        }
+    ) == (
+        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafFetch hg19 multiz46way mafFetch.bed /work/ucsc_maffetch/out.maf"
+    )
+    assert node_class.render_command(
+        {
+            "bed_file": "coding regions.bed",
+            "genome": "hg38",
+            "track": "multiz100way",
+            "ucsc_db_connection": "custom hg.conf",
+            "output": "/work/ucsc_maffetch",
+        }
+    ) == (
+        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafFetch hg38 multiz100way 'coding regions.bed' /work/ucsc_maffetch/out.maf"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_maffetch" / "out.maf",
+    ]
+
+
+def test_ucsc_maffetch_validates_required_inputs() -> None:
+    node_class = _node_class("ucsc_maffetch")
+
+    assert node_class.VALIDATE_INPUTS({}) == "bed_file is required"
+    assert node_class.VALIDATE_INPUTS({"bed_file": "regions.bed"}) == "genome is required"
+    assert node_class.VALIDATE_INPUTS({"bed_file": "regions.bed", "genome": "hg19"}) == "track is required"
+    assert node_class.VALIDATE_INPUTS({"bed_file": "regions.bed", "genome": "hg19", "track": "multiz46way"}) is True
+
+
 def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_mafcoverage"]
 
