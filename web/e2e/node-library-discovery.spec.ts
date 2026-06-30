@@ -6362,6 +6362,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_mafaddirows: {
+    name: 'ucsc_mafaddirows',
+    display_name: 'mafAddIRows',
+    category: 'genomics',
+    description: 'Add UCSC MAF i rows or N/dash sequence rows using a twoBit reference.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafAddIRows', 'ucsc_mafaddirows', 'mafAddIRows', 'MAF i rows', 'multiple alignment format', 'twoBit reference', 'N BED files'],
+    input: {
+      required: {
+        input_maf: { type: 'FILE' },
+        twoBitFile: { type: 'FILE' },
+      },
+      optional: {
+        nBeds: { type: 'BED', default: [], multiple: true },
+        addN: { type: 'BOOLEAN', default: false },
+        addDash: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output_maf'],
+    required_executables: ['mafAddIRows'],
+    required_conda_packages: ['ucsc-mafaddirows'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafAddIRows/mafAddIRows.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   ucsc_mafcoverage: {
     name: 'ucsc_mafcoverage',
     display_name: 'mafCoverage',
@@ -13207,7 +13233,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('456 nodes available')).toBeVisible();
+  await expect(page.getByText('457 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13432,6 +13458,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'FASTA alignment to VCF', name: 'faToVcf', category: 'variant' },
     { query: 'MAF block filter', name: 'mafFilter', category: 'genomics' },
     { query: 'MAF indexed lookup', name: 'mafFetch', category: 'genomics' },
+    { query: 'MAF i rows', name: 'mafAddIRows', category: 'genomics' },
     { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },

@@ -35675,6 +35675,74 @@ def test_ucsc_maffetch_validates_required_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({"bed_file": "regions.bed", "genome": "hg19", "track": "multiz46way"}) is True
 
 
+def test_ucsc_mafaddirows_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_mafaddirows"]
+
+    assert info["display_name"] == "mafAddIRows"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Add UCSC MAF i rows or N/dash sequence rows using a twoBit reference."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output_maf"]
+    assert info["required_executables"] == ["mafAddIRows"]
+    assert info["required_conda_packages"] == ["ucsc-mafaddirows"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafAddIRows/mafAddIRows.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "MAF i rows" in info["search_aliases"]
+    assert info["input"]["required"]["input_maf"][0] == "FILE"
+    assert info["input"]["required"]["twoBitFile"][0] == "FILE"
+    assert info["input"]["optional"]["nBeds"][1]["multiple"] is True
+    assert info["input"]["optional"]["addN"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["addDash"][0] == "BOOLEAN"
+
+
+def test_ucsc_mafaddirows_renders_flags_nbed_links_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_mafaddirows")
+
+    assert node_class.render_command(
+        {
+            "input_maf": "mafIn.maf",
+            "twoBitFile": "ref.2bit",
+            "addN": True,
+            "output": "/work/ucsc_mafaddirows",
+        }
+    ) == "mafAddIRows mafIn.maf ref.2bit /work/ucsc_mafaddirows/output.maf -addN"
+    assert node_class.render_command(
+        {
+            "input_maf": "input align.maf",
+            "twoBitFile": "reference genome.2bit",
+            "nBeds": ["gorGor3.bed", "hg38 regions.bed", "panTro4.bed"],
+            "addDash": True,
+            "output": "/work/ucsc_mafaddirows",
+        }
+    ) == (
+        "ln -s gorGor3.bed gorGor3.bed && echo gorGor3.bed >> bed.txt && "
+        "ln -s 'hg38 regions.bed' hg38_regions.bed && echo hg38_regions.bed >> bed.txt && "
+        "ln -s panTro4.bed panTro4.bed && echo panTro4.bed >> bed.txt && "
+        "mafAddIRows 'input align.maf' 'reference genome.2bit' /work/ucsc_mafaddirows/output.maf -nBeds=bed.txt -addDash"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_mafaddirows" / "output.maf",
+    ]
+
+
+def test_ucsc_mafaddirows_validates_required_inputs_and_modes() -> None:
+    node_class = _node_class("ucsc_mafaddirows")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_maf is required"
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf"}) == "twoBitFile is required"
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "twoBitFile": "ref.2bit", "addN": True, "addDash": True}) == (
+        "addN and addDash cannot both be enabled"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "twoBitFile": "ref.2bit"}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"input_maf": "input.maf", "twoBitFile": "ref.2bit", "nBeds": ["species.bed"], "addN": True}
+    ) is True
+
+
 def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_mafcoverage"]
 

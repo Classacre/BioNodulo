@@ -29441,6 +29441,100 @@ class UcscMafFetchNode(CommandNode):
         }
 
 
+class UcscMafAddIRowsNode(CommandNode):
+    """Add i rows to UCSC MAF alignments."""
+
+    NODE_ID = "ucsc_mafaddirows"
+    DISPLAY_NAME = "mafAddIRows"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-mafaddirows"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Add UCSC MAF i rows or N/dash sequence rows using a twoBit reference."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_mafAddIRows",
+        "ucsc_mafaddirows",
+        "mafAddIRows",
+        "MAF i rows",
+        "multiple alignment format",
+        "twoBit reference",
+        "N BED files",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_maf",)
+    REQUIRED_EXECUTABLES = ["mafAddIRows"]
+    DOCUMENTATION_URL = "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafAddIRows/mafAddIRows.c"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.maf"
+
+    @classmethod
+    def _nbed_links(cls, inputs: dict[str, Any]) -> list[str]:
+        commands = []
+        for bed in _as_list(inputs.get("nBeds")):
+            identifier = _safe_label(Path(bed).name)
+            commands.append(_shell_join(["ln", "-s", bed, identifier]))
+            commands.append(f"echo {shlex.quote(identifier)} >> bed.txt")
+        return commands
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "mafAddIRows",
+            str(inputs.get("input_maf", "")),
+            str(inputs.get("twoBitFile", "")),
+            cls._output_path(inputs),
+        ]
+        if _as_list(inputs.get("nBeds")):
+            cmd.append("-nBeds=bed.txt")
+        if inputs.get("addN"):
+            cmd.append("-addN")
+        if inputs.get("addDash"):
+            cmd.append("-addDash")
+        parts = cls._nbed_links(inputs) + [_shell_join(cmd)]
+        return " && ".join(parts)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.maf"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_maf", "")).strip():
+            return "input_maf is required"
+        if not str(inputs.get("twoBitFile", "")).strip():
+            return "twoBitFile is required"
+        if inputs.get("addN") and inputs.get("addDash"):
+            return "addN and addDash cannot both be enabled"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_maf": ("FILE", {"description": "MAF file with a single target sequence"}),
+                "twoBitFile": ("FILE", {"description": "twoBit reference genome file"}),
+            },
+            "optional": {
+                "nBeds": (
+                    "BED",
+                    {"multiple": True, "default": [], "description": "BED files, one per species, containing N locations"},
+                ),
+                "addN": ("BOOLEAN", {"default": False, "description": "Add rows of Ns into MAF blocks"}),
+                "addDash": ("BOOLEAN", {"default": False, "description": "Add rows of dashes into MAF blocks"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class UcscMafCoverageNode(CommandNode):
     """Measure genome coverage from UCSC MAF alignments."""
 
