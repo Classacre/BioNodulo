@@ -175,6 +175,38 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report'],
     citation_text: 'Panel Coverage Report creates a coverage report for QC purposes.',
   },
+  'Extract genomic DNA 1': {
+    name: 'Extract genomic DNA 1',
+    display_name: 'Extract Genomic DNA',
+    category: 'sequence',
+    description: 'Fetch genomic DNA in FASTA or interval format from coordinate datasets.',
+    search_aliases: ['Galaxy', 'Extract genomic DNA 1', 'Extract Genomic DNA', 'extract_genomic_dna', 'genomic coordinates', 'interval', 'GFF', 'FASTA', 'twoBit', 'faToTwoBit', 'reference genome'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+        genome: { type: 'STRING' },
+        reference_genome: { type: 'FILE' },
+      },
+      optional: {
+        input_format: { type: 'STRING', default: 'interval', options: ['interval', 'gff'] },
+        columns: { type: 'STRING', default: '1,2,3,6,4' },
+        interpret_features: { type: 'STRING', default: 'yes', options: ['yes', 'no'] },
+        reference_genome_source: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        output_format: { type: 'STRING', default: 'fasta', options: ['fasta', 'interval'] },
+        fasta_header_type: { type: 'STRING', default: 'bedtools_getfasta_default', options: ['bedtools_getfasta_default', 'char_delimited'] },
+        fasta_header_delimiter: { type: 'STRING', default: 'underscore', options: ['underscore', 'semicolon', 'comma', 'tilde', 'vertical_bar'] },
+        script_path: { type: 'FILE', default: 'extract_genomic_dna.py' },
+      },
+    },
+    output: ['FASTA', 'FILE'],
+    output_name: ['output_fasta', 'output_interval'],
+    required_executables: ['python', 'faToTwoBit'],
+    required_conda_packages: ['bx-python', 'six', 'ucsc-fatotwobit'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/extract_genomic_dna',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/extract_genomic_dna'],
+    citation_text: 'Extract Genomic DNA fetches genomic DNA in FASTA or interval format from assembled or unassembled genomes.',
+  },
   aegean_canongff3: {
     name: 'aegean_canongff3',
     display_name: 'AEGeAn CanonGFF3',
@@ -12034,7 +12066,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('412 nodes available')).toBeVisible();
+  await expect(page.getByText('413 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12044,6 +12076,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'addName', name: 'Add input name as column (Galaxy)', category: 'data_transform' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
+    { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },

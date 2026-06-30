@@ -173,6 +173,12 @@ COLUMN_MAKER_CITATION_TEXT = (
 )
 COVERAGE_REPORT_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report"
 COVERAGE_REPORT_CITATION_TEXT = "Panel Coverage Report creates a coverage report for QC purposes."
+EXTRACT_GENOMIC_DNA_CITATION_URL = (
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/extract_genomic_dna"
+)
+EXTRACT_GENOMIC_DNA_CITATION_TEXT = (
+    "Extract Genomic DNA fetches genomic DNA in FASTA or interval format from assembled or unassembled genomes."
+)
 AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
 AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
 LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
@@ -2452,6 +2458,261 @@ class CoverageReportNode(CommandNode):
                         "default": "CoverageReport.pl",
                         "advanced": True,
                         "description": "Path to the Galaxy CoverageReport.pl helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class ExtractGenomicDnaNode(CommandNode):
+    """Fetch genomic DNA from interval or GFF coordinates."""
+
+    NODE_ID = "Extract genomic DNA 1"
+    DISPLAY_NAME = "Extract Genomic DNA"
+    REQUIRED_CONDA_PACKAGES = ["bx-python", "six", "ucsc-fatotwobit"]
+    CATEGORY = "sequence"
+    DESCRIPTION = "Fetch genomic DNA in FASTA or interval format from coordinate datasets."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Extract genomic DNA 1",
+        "Extract Genomic DNA",
+        "extract_genomic_dna",
+        "genomic coordinates",
+        "interval",
+        "GFF",
+        "FASTA",
+        "twoBit",
+        "faToTwoBit",
+        "reference genome",
+    ]
+    RETURN_TYPES = ("FASTA", "FILE")
+    RETURN_NAMES = ("output_fasta", "output_interval")
+    REQUIRED_EXECUTABLES = ["python", "faToTwoBit"]
+    DOCUMENTATION_URL = EXTRACT_GENOMIC_DNA_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [EXTRACT_GENOMIC_DNA_CITATION_URL]
+    CITATION_TEXT = EXTRACT_GENOMIC_DNA_CITATION_TEXT
+    VERSION = "3.0.3+galaxy3"
+    SHELL = True
+
+    INPUT_FORMATS = ["interval", "gff"]
+    INTERPRET_FEATURE_OPTIONS = ["yes", "no"]
+    REFERENCE_GENOME_SOURCES = ["cached", "history"]
+    OUTPUT_FORMATS = ["fasta", "interval"]
+    FASTA_HEADER_TYPES = ["bedtools_getfasta_default", "char_delimited"]
+    FASTA_HEADER_DELIMITERS = ["underscore", "semicolon", "comma", "tilde", "vertical_bar"]
+
+    @classmethod
+    def _input_format(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_format", "interval") or "interval")
+
+    @classmethod
+    def _columns(cls, inputs: dict[str, Any]) -> str:
+        columns = str(inputs.get("columns", "") or "")
+        if columns:
+            return columns
+        return "1,4,5,7" if cls._input_format(inputs) == "gff" else "1,2,3,6,4"
+
+    @classmethod
+    def _output_format(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("output_format", "fasta") or "fasta")
+
+    @classmethod
+    def _output_name(cls, inputs: dict[str, Any]) -> str:
+        return "output.interval" if cls._output_format(inputs) == "interval" else "output.fasta"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._output_name(inputs)}"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        input_format = cls._input_format(inputs)
+        output_format = cls._output_format(inputs)
+        cmd = [
+            "mkdir",
+            "-p",
+            f"{_out(inputs)}/output_dir",
+            "&&",
+            "python",
+            str(inputs.get("script_path", "extract_genomic_dna.py") or "extract_genomic_dna.py"),
+            "--input",
+            str(inputs.get("input", "")),
+            "--genome",
+            str(inputs.get("genome", "")),
+            "--input_format",
+            input_format,
+            "--columns",
+            cls._columns(inputs),
+        ]
+        if input_format == "gff":
+            cmd.extend(["--interpret_features", str(inputs.get("interpret_features", "yes") or "yes")])
+        cmd.extend(
+            [
+                "--reference_genome_source",
+                str(inputs.get("reference_genome_source", "cached") or "cached"),
+                "--reference_genome",
+                str(inputs.get("reference_genome", "")),
+                "--output_format",
+                output_format,
+            ]
+        )
+        if output_format == "fasta":
+            fasta_header_type = str(
+                inputs.get("fasta_header_type", "bedtools_getfasta_default") or "bedtools_getfasta_default"
+            )
+            cmd.extend(["--fasta_header_type", fasta_header_type])
+            if fasta_header_type == "char_delimited":
+                cmd.extend(
+                    [
+                        "--fasta_header_delimiter",
+                        str(inputs.get("fasta_header_delimiter", "underscore") or "underscore"),
+                    ]
+                )
+        cmd.extend(["--output", cls._output_path(inputs)])
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls._output_name(inputs)]
+
+    @classmethod
+    def _validate_columns(cls, columns: str, expected_count: int, message: str) -> bool | str:
+        parts = columns.split(",")
+        if len(parts) != expected_count:
+            return message
+        try:
+            values = [int(part) for part in parts]
+        except ValueError:
+            return message
+        if any(value < 1 for value in values):
+            return message
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        if not str(inputs.get("genome", "")).strip():
+            return "genome is required"
+        if not str(inputs.get("reference_genome", "")).strip():
+            return "reference_genome is required"
+        input_format = cls._input_format(inputs)
+        if input_format not in cls.INPUT_FORMATS:
+            return f"input_format must be one of: {', '.join(cls.INPUT_FORMATS)}"
+        columns = cls._columns(inputs)
+        if input_format == "gff":
+            column_result = cls._validate_columns(
+                columns,
+                4,
+                "columns must contain 4 comma-separated 1-based columns for gff input",
+            )
+        else:
+            column_result = cls._validate_columns(
+                columns,
+                5,
+                "columns must contain 5 comma-separated 1-based columns for interval input",
+            )
+        if column_result is not True:
+            return column_result
+        interpret_features = str(inputs.get("interpret_features", "yes") or "yes")
+        if interpret_features not in cls.INTERPRET_FEATURE_OPTIONS:
+            return f"interpret_features must be one of: {', '.join(cls.INTERPRET_FEATURE_OPTIONS)}"
+        reference_genome_source = str(inputs.get("reference_genome_source", "cached") or "cached")
+        if reference_genome_source not in cls.REFERENCE_GENOME_SOURCES:
+            return f"reference_genome_source must be one of: {', '.join(cls.REFERENCE_GENOME_SOURCES)}"
+        output_format = cls._output_format(inputs)
+        if output_format not in cls.OUTPUT_FORMATS:
+            return f"output_format must be one of: {', '.join(cls.OUTPUT_FORMATS)}"
+        fasta_header_type = str(
+            inputs.get("fasta_header_type", "bedtools_getfasta_default") or "bedtools_getfasta_default"
+        )
+        if fasta_header_type not in cls.FASTA_HEADER_TYPES:
+            return f"fasta_header_type must be one of: {', '.join(cls.FASTA_HEADER_TYPES)}"
+        fasta_header_delimiter = str(inputs.get("fasta_header_delimiter", "underscore") or "underscore")
+        if fasta_header_delimiter not in cls.FASTA_HEADER_DELIMITERS:
+            return f"fasta_header_delimiter must be one of: {', '.join(cls.FASTA_HEADER_DELIMITERS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "GFF or interval coordinate dataset"}),
+                "genome": (
+                    "STRING",
+                    {"description": "Genome build key normally supplied by Galaxy dataset metadata"},
+                ),
+                "reference_genome": (
+                    "FILE",
+                    {"description": "Cached 2bit reference path or history FASTA reference"},
+                ),
+            },
+            "optional": {
+                "input_format": (
+                    "STRING",
+                    {
+                        "default": "interval",
+                        "options": cls.INPUT_FORMATS,
+                        "description": "Input coordinate format; Galaxy infers this from dataset datatype",
+                    },
+                ),
+                "columns": (
+                    "STRING",
+                    {
+                        "default": "1,2,3,6,4",
+                        "description": "1-based chrom,start,end,strand,name columns for interval or chrom,start,end,strand for GFF",
+                    },
+                ),
+                "interpret_features": (
+                    "STRING",
+                    {
+                        "default": "yes",
+                        "options": cls.INTERPRET_FEATURE_OPTIONS,
+                        "description": "Group GFF entries into features before extracting sequences",
+                    },
+                ),
+                "reference_genome_source": (
+                    "STRING",
+                    {
+                        "default": "cached",
+                        "options": cls.REFERENCE_GENOME_SOURCES,
+                        "description": "Use a cached 2bit reference or convert a history FASTA with faToTwoBit",
+                    },
+                ),
+                "output_format": (
+                    "STRING",
+                    {
+                        "default": "fasta",
+                        "options": cls.OUTPUT_FORMATS,
+                        "description": "Write extracted sequences as FASTA or append sequence to interval rows",
+                    },
+                ),
+                "fasta_header_type": (
+                    "STRING",
+                    {
+                        "default": "bedtools_getfasta_default",
+                        "options": cls.FASTA_HEADER_TYPES,
+                        "description": "Header style for FASTA output",
+                    },
+                ),
+                "fasta_header_delimiter": (
+                    "STRING",
+                    {
+                        "default": "underscore",
+                        "options": cls.FASTA_HEADER_DELIMITERS,
+                        "description": "Delimiter used when FASTA headers are character-delimited",
+                    },
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "extract_genomic_dna.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy extract_genomic_dna.py helper script",
                     },
                 ),
             },

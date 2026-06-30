@@ -3698,6 +3698,181 @@ def test_coverage_report_validates_required_inputs_and_options() -> None:
     assert node_class.VALIDATE_INPUTS({"input1": "sample.bam", "input2": "targets.bed"}) is True
 
 
+def test_extract_genomic_dna_exposes_galaxy_metadata_without_citation_doi() -> None:
+    info = _registry().object_info()["Extract genomic DNA 1"]
+
+    assert info["display_name"] == "Extract Genomic DNA"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Fetch genomic DNA in FASTA or interval format from coordinate datasets."
+    assert info["input"]["required"]["input"][0] == "FILE"
+    assert info["input"]["required"]["genome"][0] == "STRING"
+    assert info["input"]["required"]["reference_genome"][0] == "FILE"
+    assert info["input"]["optional"]["input_format"][1]["options"] == ["interval", "gff"]
+    assert info["input"]["optional"]["columns"][1]["default"] == "1,2,3,6,4"
+    assert info["input"]["optional"]["interpret_features"][1]["options"] == ["yes", "no"]
+    assert info["input"]["optional"]["reference_genome_source"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["output_format"][1]["options"] == ["fasta", "interval"]
+    assert info["input"]["optional"]["fasta_header_type"][1]["options"] == [
+        "bedtools_getfasta_default",
+        "char_delimited",
+    ]
+    assert info["input"]["optional"]["fasta_header_delimiter"][1]["options"] == [
+        "underscore",
+        "semicolon",
+        "comma",
+        "tilde",
+        "vertical_bar",
+    ]
+    assert info["input"]["optional"]["script_path"][1]["default"] == "extract_genomic_dna.py"
+    assert info["output"] == ["FASTA", "FILE"]
+    assert info["output_name"] == ["output_fasta", "output_interval"]
+    assert info["required_executables"] == ["python", "faToTwoBit"]
+    assert info["required_conda_packages"] == ["bx-python", "six", "ucsc-fatotwobit"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/extract_genomic_dna"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/extract_genomic_dna"]
+    assert "Extract Genomic DNA" in info["citation_text"]
+    assert "twoBit" in info["search_aliases"]
+
+
+def test_extract_genomic_dna_renders_default_interval_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("Extract genomic DNA 1")
+
+    assert node_class.render_command(
+        {
+            "input": "targets.interval",
+            "genome": "mm9",
+            "reference_genome": "/indexes/mm9.2bit",
+            "output": "/work/Extract genomic DNA 1",
+        }
+    ) == (
+        "mkdir -p '/work/Extract genomic DNA 1/output_dir' && python extract_genomic_dna.py "
+        "--input targets.interval --genome mm9 --input_format interval --columns 1,2,3,6,4 "
+        "--reference_genome_source cached --reference_genome /indexes/mm9.2bit --output_format fasta "
+        "--fasta_header_type bedtools_getfasta_default --output '/work/Extract genomic DNA 1/output.fasta'"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "Extract genomic DNA 1" / "output.fasta",
+    ]
+
+
+def test_extract_genomic_dna_renders_gff_history_reference_and_interval_output(tmp_path: Path) -> None:
+    node_class = _node_class("Extract genomic DNA 1")
+
+    assert node_class.render_command(
+        {
+            "input": "mm9 input.gff",
+            "genome": "mm9",
+            "input_format": "gff",
+            "interpret_features": "yes",
+            "reference_genome_source": "history",
+            "reference_genome": "mm9 genome.fasta",
+            "output_format": "interval",
+            "script_path": "/tools/extract genomic dna/extract_genomic_dna.py",
+            "output": "/work/Extract genomic DNA 1",
+        }
+    ) == (
+        "mkdir -p '/work/Extract genomic DNA 1/output_dir' && "
+        "python '/tools/extract genomic dna/extract_genomic_dna.py' --input 'mm9 input.gff' --genome mm9 "
+        "--input_format gff --columns 1,4,5,7 --interpret_features yes --reference_genome_source history "
+        "--reference_genome 'mm9 genome.fasta' --output_format interval "
+        "--output '/work/Extract genomic DNA 1/output.interval'"
+    )
+    assert node_class.PLAN_OUTPUTS({"output_format": "interval"}, tmp_path) == [
+        tmp_path / "Extract genomic DNA 1" / "output.interval",
+    ]
+
+
+def test_extract_genomic_dna_renders_char_delimited_fasta_header() -> None:
+    node_class = _node_class("Extract genomic DNA 1")
+
+    assert node_class.render_command(
+        {
+            "input": "mm9_input1.gff",
+            "genome": "mm9",
+            "input_format": "gff",
+            "interpret_features": "no",
+            "reference_genome_source": "history",
+            "reference_genome": "mm9.fasta",
+            "output_format": "fasta",
+            "fasta_header_type": "char_delimited",
+            "fasta_header_delimiter": "tilde",
+            "output": "/work/Extract genomic DNA 1",
+        }
+    ) == (
+        "mkdir -p '/work/Extract genomic DNA 1/output_dir' && python extract_genomic_dna.py "
+        "--input mm9_input1.gff --genome mm9 --input_format gff --columns 1,4,5,7 "
+        "--interpret_features no --reference_genome_source history --reference_genome mm9.fasta "
+        "--output_format fasta --fasta_header_type char_delimited --fasta_header_delimiter tilde "
+        "--output '/work/Extract genomic DNA 1/output.fasta'"
+    )
+
+
+def test_extract_genomic_dna_validates_required_inputs_and_options() -> None:
+    node_class = _node_class("Extract genomic DNA 1")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "targets.interval"}) == "genome is required"
+    assert node_class.VALIDATE_INPUTS({"input": "targets.interval", "genome": "mm9"}) == "reference_genome is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "targets.interval", "genome": "mm9", "reference_genome": "mm9.2bit", "input_format": "bed"}
+    ) == "input_format must be one of: interval, gff"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "targets.interval",
+            "genome": "mm9",
+            "reference_genome": "mm9.2bit",
+            "input_format": "interval",
+            "columns": "1,2,3",
+        }
+    ) == "columns must contain 5 comma-separated 1-based columns for interval input"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "targets.gff",
+            "genome": "mm9",
+            "reference_genome": "mm9.2bit",
+            "input_format": "gff",
+            "interpret_features": "maybe",
+        }
+    ) == "interpret_features must be one of: yes, no"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "targets.interval",
+            "genome": "mm9",
+            "reference_genome": "mm9.2bit",
+            "reference_genome_source": "remote",
+        }
+    ) == "reference_genome_source must be one of: cached, history"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "targets.interval",
+            "genome": "mm9",
+            "reference_genome": "mm9.2bit",
+            "output_format": "bed",
+        }
+    ) == "output_format must be one of: fasta, interval"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "targets.interval",
+            "genome": "mm9",
+            "reference_genome": "mm9.2bit",
+            "fasta_header_type": "name",
+        }
+    ) == "fasta_header_type must be one of: bedtools_getfasta_default, char_delimited"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input": "targets.interval",
+            "genome": "mm9",
+            "reference_genome": "mm9.2bit",
+            "fasta_header_type": "char_delimited",
+            "fasta_header_delimiter": "space",
+        }
+    ) == "fasta_header_delimiter must be one of: underscore, semicolon, comma, tilde, vertical_bar"
+    assert node_class.VALIDATE_INPUTS(
+        {"input": "targets.interval", "genome": "mm9", "reference_genome": "mm9.2bit"}
+    ) is True
+
+
 def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["aegean_canongff3"]
 
