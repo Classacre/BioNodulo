@@ -21562,6 +21562,126 @@ class ChewBBACACreateSchemaNode(CommandNode):
         return True
 
 
+class ChewBBACADownloadSchemaNode(CommandNode):
+    """Download chewBBACA schemas from Chewie-NS."""
+
+    NODE_ID = "chewbbaca_downloadschema"
+    DISPLAY_NAME = "chewBBACA DownloadSchema"
+    REQUIRED_CONDA_PACKAGES = ["chewbbaca", "blast", "zip", "fasttree"]
+    CATEGORY = "typing"
+    DESCRIPTION = "Download a schema from Chewie-NS."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "chewBBACA",
+        "chewbbaca_downloadschema",
+        "chewBBACA DownloadSchema",
+        "DownloadSchema",
+        "Chewie-NS",
+        "schema_seed",
+        "cgMLST",
+        "wgMLST",
+        "bacterial typing",
+    ]
+    RETURN_TYPES = ("ZIP",)
+    RETURN_NAMES = ("schema",)
+    REQUIRED_EXECUTABLES = ["chewBBACA.py", "mv", "zip"]
+    DOCUMENTATION_URL = "https://chewbbaca.readthedocs.io/"
+    CITATION_DOIS = [CHEWBBACA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHEWBBACA_CITATION_DOI}"]
+    CITATION_TEXT = CHEWBBACA_CITATION_TEXT
+    VERSION = "3.3.10+galaxy1"
+    SHELL = True
+
+    SPECIES_OPTIONS = {
+        "1": "Streptococcus pyogenes",
+        "2": "Acinetobacter baumannii",
+        "3": "Arcobacter butzleri",
+        "4": "Campylobacter jejuni",
+        "5": "Escherichia coli",
+        "6": "Listeria monocytogenes",
+        "7": "Yersinia enterocolitica",
+        "8": "Salmonella enterica",
+        "9": "Streptococcus agalactiae",
+        "10": "Brucella melitensis",
+        "11": "Brucella",
+        "12": "Clostridium perfringens",
+        "13": "Clostridium chauvoei",
+        "14": "Bacillus anthracis",
+        "15": "Klebsiella oxytoca",
+        "16": "Clostridium neonatale",
+    }
+
+    @classmethod
+    def _species_id(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("species_id", "") or "")
+
+    @classmethod
+    def _schema_id(cls, inputs: dict[str, Any]) -> Any:
+        return inputs.get("schema_id", 1)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        commands = [
+            _shell_join(["mkdir", "-p", out]),
+            f"cd {shlex.quote(out)}",
+            _shell_join(
+                [
+                    "chewBBACA.py",
+                    "DownloadSchema",
+                    "-sp",
+                    cls._species_id(inputs),
+                    "-sc",
+                    str(cls._schema_id(inputs)),
+                    "-o",
+                    "output",
+                ]
+            ),
+            "mv output/* schema_seed",
+            "zip -r schema_seed.zip schema_seed",
+        ]
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "schema_seed.zip"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "species_id": (
+                    "STRING",
+                    {
+                        "options": list(cls.SPECIES_OPTIONS),
+                        "option_labels": cls.SPECIES_OPTIONS,
+                        "description": "Chewie-NS species ID",
+                    },
+                ),
+            },
+            "optional": {
+                "schema_id": ("INT", {"default": 1, "min": 1}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._species_id(inputs).strip():
+            return "species_id is required"
+        if cls._species_id(inputs) not in cls.SPECIES_OPTIONS:
+            return f"species_id must be one of: {', '.join(cls.SPECIES_OPTIONS)}"
+        try:
+            schema_id = int(cls._schema_id(inputs))
+        except (TypeError, ValueError):
+            return "schema_id must be an integer"
+        if schema_id < 1:
+            return "schema_id must be greater than or equal to 1"
+        return True
+
+
 class DASToolNode(CommandNode):
     """Integrate metagenomic binning predictions with DAS Tool."""
 

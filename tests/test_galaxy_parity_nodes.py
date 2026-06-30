@@ -11224,6 +11224,53 @@ def test_chewbbaca_createschema_renders_command_outputs_and_validation(tmp_path:
     assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"]}) is True
 
 
+def test_chewbbaca_downloadschema_exposes_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["chewbbaca_downloadschema"]
+
+    assert info["display_name"] == "chewBBACA DownloadSchema"
+    assert info["category"] == "typing"
+    assert info["description"] == "Download a schema from Chewie-NS."
+    assert info["output"] == ["ZIP"]
+    assert info["output_name"] == ["schema"]
+    assert info["required_executables"] == ["chewBBACA.py", "mv", "zip"]
+    assert info["required_conda_packages"] == ["chewbbaca", "blast", "zip", "fasttree"]
+    assert info["documentation_url"] == "https://chewbbaca.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
+    assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
+    assert "chewBBACA" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "Chewie-NS" in info["search_aliases"]
+    assert info["version"] == "3.3.10+galaxy1"
+    assert info["input"]["required"]["species_id"][0] == "STRING"
+    assert info["input"]["required"]["species_id"][1]["options"][0] == "1"
+    assert info["input"]["required"]["species_id"][1]["option_labels"]["13"] == "Clostridium chauvoei"
+    assert info["input"]["optional"]["schema_id"][1]["default"] == 1
+    assert info["input"]["optional"]["schema_id"][1]["min"] == 1
+
+
+def test_chewbbaca_downloadschema_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chewbbaca_downloadschema")
+
+    assert node_class.render_command({"species_id": "13", "schema_id": 1, "output": "/work/chewbbaca_downloadschema"}) == (
+        "mkdir -p /work/chewbbaca_downloadschema && cd /work/chewbbaca_downloadschema && "
+        "chewBBACA.py DownloadSchema -sp 13 -sc 1 -o output && mv output/* schema_seed && "
+        "zip -r schema_seed.zip schema_seed"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "chewbbaca_downloadschema" / "schema_seed.zip"
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "species_id is required"
+    assert node_class.VALIDATE_INPUTS({"species_id": "99"}) == (
+        "species_id must be one of: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"
+    )
+    assert node_class.VALIDATE_INPUTS({"species_id": "13", "schema_id": 0}) == (
+        "schema_id must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"species_id": "13", "schema_id": "bad"}) == "schema_id must be an integer"
+    assert node_class.VALIDATE_INPUTS({"species_id": "13"}) is True
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 

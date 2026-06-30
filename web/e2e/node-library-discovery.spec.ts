@@ -3836,6 +3836,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
     citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
   },
+  chewbbaca_downloadschema: {
+    name: 'chewbbaca_downloadschema',
+    display_name: 'chewBBACA DownloadSchema',
+    category: 'typing',
+    description: 'Download a schema from Chewie-NS.',
+    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_downloadschema', 'chewBBACA DownloadSchema', 'DownloadSchema', 'Chewie-NS', 'schema_seed', 'cgMLST', 'wgMLST', 'bacterial typing'],
+    input: {
+      required: {
+        species_id: { type: 'STRING', options: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'], option_labels: { '1': 'Streptococcus pyogenes', '2': 'Acinetobacter baumannii', '3': 'Arcobacter butzleri', '4': 'Campylobacter jejuni', '5': 'Escherichia coli', '6': 'Listeria monocytogenes', '7': 'Yersinia enterocolitica', '8': 'Salmonella enterica', '9': 'Streptococcus agalactiae', '10': 'Brucella melitensis', '11': 'Brucella', '12': 'Clostridium perfringens', '13': 'Clostridium chauvoei', '14': 'Bacillus anthracis', '15': 'Klebsiella oxytoca', '16': 'Clostridium neonatale' } },
+      },
+      optional: {
+        schema_id: { type: 'INT', default: 1, min: 1 },
+      },
+    },
+    output: ['ZIP'],
+    output_name: ['schema'],
+    required_executables: ['chewBBACA.py', 'mv', 'zip'],
+    required_conda_packages: ['chewbbaca', 'blast', 'zip', 'fasttree'],
+    documentation_url: 'https://chewbbaca.readthedocs.io/',
+    citation_dois: ['10.1099/mgen.0.000166'],
+    citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
+    citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
+  },
   checkm_lineage_wf: {
     name: 'checkm_lineage_wf',
     display_name: 'CheckM lineage_wf',
@@ -16712,7 +16735,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('561 nodes available')).toBeVisible();
+  await expect(page.getByText('562 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16849,6 +16872,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },
+    { query: 'Chewie-NS', name: 'chewBBACA DownloadSchema', category: 'typing' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },
