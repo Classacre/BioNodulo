@@ -1295,6 +1295,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btae543', 'https://doi.org/10.1038/ncomms3741', 'https://doi.org/10.1101/2020.05.25.115253', 'https://doi.org/10.1038/s41598-017-08366-3', 'https://doi.org/10.1093/bioinformatics/btz912'],
     citation_text: 'Bio2Byte Tools: a suite of protein sequence-based predictors; DynaMine backbone dynamics prediction; AgMata beta-aggregation prediction; EFoldMine early folding prediction; DisoMine protein disorder prediction.',
   },
+  bp_genbank2gff3: {
+    name: 'bp_genbank2gff3',
+    display_name: 'Genbank to GFF3',
+    category: 'annotation',
+    description: 'Convert GenBank flat files to GFF3 with BioPerl.',
+    search_aliases: ['Galaxy', 'bp_genbank2gff3', 'Genbank to GFF3', 'GenBank', 'GFF3', 'BioPerl', 'Unflattener', 'Sequence Ontology', 'Bio::Tools::GFF'],
+    input: {
+      required: {
+        genbank: { type: 'FILE' },
+      },
+      optional: {
+        infer_subfeatures: { type: 'BOOLEAN', default: true },
+        sofile: { type: 'STRING', default: '__none__', options: ['__none__', 'live', 'url'] },
+        so_url: { type: 'STRING', default: '' },
+        ethresh: { type: 'STRING', default: '1', options: ['0', '1', '2', '3'] },
+        model: { type: 'STRING', default: '--CDS', options: ['--CDS', '--noCDS'] },
+        typesource: { type: 'STRING', default: 'contig' },
+      },
+    },
+    output: ['GFF3'],
+    output_name: ['gff3'],
+    required_executables: ['bp_genbank2gff3.pl'],
+    required_conda_packages: ['perl-bioperl'],
+    documentation_url: 'https://bioperl.org/',
+    citation_dois: ['10.1101/gr.361602'],
+    citation_urls: ['https://doi.org/10.1101/gr.361602'],
+    citation_text: 'BioPerl GenBank-to-GFF3 converter using Bio::SeqFeature::Tools::Unflattener and Bio::Tools::GFF.',
+  },
   cd_hit: {
     name: 'cd_hit',
     display_name: 'cd-hit',
@@ -11828,7 +11856,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('405 nodes available')).toBeVisible();
+  await expect(page.getByText('406 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -11887,6 +11915,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
     { query: 'ScIdx', name: 'Convert BAM to ScIdx', category: 'chip_seq' },
     { query: 'DisoMine', name: 'b2bTools: Biophysical predictors for single sequences', category: 'proteomics' },
+    { query: 'BioPerl', name: 'Genbank to GFF3', category: 'annotation' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
     { query: 'G-quadruplex', name: 'Fasta regular expression finder', category: 'sequence' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },

@@ -454,6 +454,95 @@ def test_b2btools_single_sequence_validates_required_input_and_predictors() -> N
     assert node_class.VALIDATE_INPUTS({"input": "input.fasta", "dynamine": True}) is True
 
 
+def test_bp_genbank2gff3_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["bp_genbank2gff3"]
+
+    assert node_info["display_name"] == "Genbank to GFF3"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"] == "Convert GenBank flat files to GFF3 with BioPerl."
+    assert node_info["output"] == ["GFF3"]
+    assert node_info["output_name"] == ["gff3"]
+    assert node_info["required_executables"] == ["bp_genbank2gff3.pl"]
+    assert node_info["required_conda_packages"] == ["perl-bioperl"]
+    assert node_info["documentation_url"] == "https://bioperl.org/"
+    assert node_info["citation_dois"] == ["10.1101/gr.361602"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1101/gr.361602"]
+    assert "BioPerl GenBank-to-GFF3 converter" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioPerl" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["genbank"][0] == "FILE"
+    assert node_info["input"]["optional"]["infer_subfeatures"][1]["default"] is True
+    assert node_info["input"]["optional"]["sofile"][1]["default"] == "__none__"
+    assert node_info["input"]["optional"]["sofile"][1]["options"] == ["__none__", "live", "url"]
+    assert node_info["input"]["optional"]["so_url"][1]["default"] == ""
+    assert node_info["input"]["optional"]["ethresh"][1]["default"] == "1"
+    assert node_info["input"]["optional"]["ethresh"][1]["options"] == ["0", "1", "2", "3"]
+    assert node_info["input"]["optional"]["model"][1]["default"] == "--CDS"
+    assert node_info["input"]["optional"]["model"][1]["options"] == ["--CDS", "--noCDS"]
+    assert node_info["input"]["optional"]["typesource"][1]["default"] == "contig"
+
+
+def test_bp_genbank2gff3_renders_default_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("bp_genbank2gff3")
+
+    assert node_class.render_command(
+        {
+            "genbank": "seq.gb",
+            "output": "/work/bp_genbank2gff3",
+        }
+    ) == "bp_genbank2gff3.pl --outdir - --ethresh 1 --CDS --typesource contig seq.gb > /work/bp_genbank2gff3/gff3.gff3"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bp_genbank2gff3" / "gff3.gff3"]
+
+
+def test_bp_genbank2gff3_renders_sequence_ontology_and_alternate_model_options() -> None:
+    node_class = _node_class("bp_genbank2gff3")
+
+    assert node_class.render_command(
+        {
+            "genbank": "sequence record.gb",
+            "infer_subfeatures": False,
+            "sofile": "url",
+            "so_url": "http://example.org/so.obo",
+            "ethresh": "3",
+            "model": "--noCDS",
+            "typesource": "chromosome",
+            "output": "/work/bp_genbank2gff3",
+        }
+    ) == (
+        "bp_genbank2gff3.pl --noinfer --sofile http://example.org/so.obo "
+        "--outdir - --ethresh 3 --noCDS --typesource chromosome 'sequence record.gb' "
+        "> /work/bp_genbank2gff3/gff3.gff3"
+    )
+    assert node_class.render_command(
+        {
+            "genbank": "seq.gb",
+            "sofile": "live",
+            "output": "/work/bp_genbank2gff3",
+        }
+    ) == (
+        "bp_genbank2gff3.pl --sofile live --outdir - --ethresh 1 --CDS "
+        "--typesource contig seq.gb > /work/bp_genbank2gff3/gff3.gff3"
+    )
+
+
+def test_bp_genbank2gff3_validates_required_inputs_and_select_options() -> None:
+    node_class = _node_class("bp_genbank2gff3")
+
+    assert node_class.VALIDATE_INPUTS({}) == "genbank is required"
+    assert node_class.VALIDATE_INPUTS({"genbank": "seq.gb", "sofile": "bad"}) == (
+        "sofile must be one of: __none__, live, url"
+    )
+    assert node_class.VALIDATE_INPUTS({"genbank": "seq.gb", "sofile": "url"}) == (
+        "so_url is required when sofile is url"
+    )
+    assert node_class.VALIDATE_INPUTS({"genbank": "seq.gb", "ethresh": "bad"}) == (
+        "ethresh must be one of: 0, 1, 2, 3"
+    )
+    assert node_class.VALIDATE_INPUTS({"genbank": "seq.gb", "model": "bad"}) == "model must be one of: --CDS, --noCDS"
+    assert node_class.VALIDATE_INPUTS({"genbank": "seq.gb", "typesource": ""}) == "typesource is required"
+    assert node_class.VALIDATE_INPUTS({"genbank": "seq.gb"}) is True
+
+
 def test_fasta_regex_finder_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["fasta_regex_finder"]
 
