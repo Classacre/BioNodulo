@@ -7073,6 +7073,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s12859-019-2996-x'],
     citation_text: 'Magic-BLAST, an accurate RNA-seq aligner for long and short reads.',
   },
+  bmtagger: {
+    name: 'bmtagger',
+    display_name: 'bmtagger',
+    category: 'metagenomics',
+    description: 'Filter contaminant sequences from input FASTA or FASTQ reads.',
+    search_aliases: ['Galaxy', 'BMTagger', 'bmtagger', 'contaminant reads', 'host read removal', 'human read filtering', 'metagenomics contamination', 'Best Match Tagger'],
+    input: {
+      required: {
+        reads: { type: 'FASTQ' },
+      },
+      optional: {
+        sequence_type: { type: 'STRING', default: 'single', options: ['single', 'paired'] },
+        reads_reverse: { type: 'FASTQ', default: '' },
+        reads_ext: { type: 'STRING', default: '', options: ['', 'fasta', 'fasta.gz', 'fastqsanger', 'fastqsanger.gz', 'fastqillumina', 'fastqillumina.gz'], advanced: true },
+        host_source: { type: 'STRING', default: 'cached', options: ['cached', 'history'] },
+        reference: { type: 'FILE', default: '' },
+        host_sequence: { type: 'FASTA', default: '' },
+        host_sequence_ext: { type: 'STRING', default: '', options: ['', 'fasta', 'fasta.gz'], advanced: true },
+        test: { type: 'BOOLEAN', default: false, advanced: true },
+      },
+    },
+    output: ['FASTQ', 'FASTQ'],
+    output_name: ['out_single', 'out_pair'],
+    required_executables: ['bmtagger.sh', 'extract_fullseq', 'bmtool', 'srprism', 'makeblastdb', 'gunzip'],
+    required_conda_packages: ['bmtagger'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/bmtagger',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/bmtagger'],
+    citation_text: 'BMTagger: Best Match Tagger for removing human reads from metagenomics datasets.',
+  },
   biom_summarize_table: {
     name: 'biom_summarize_table',
     display_name: 'BIOM summarize table',
@@ -15031,7 +15061,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('507 nodes available')).toBeVisible();
+  await expect(page.getByText('508 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15234,6 +15264,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'variant caller', name: 'BBTools CallVariants', category: 'variant' },
     { query: 'short-read aligner', name: 'BBTools BBMap', category: 'alignment' },
     { query: 'RNA-seq aligner', name: 'Magic-BLAST', category: 'alignment' },
+    { query: 'host read removal', name: 'bmtagger', category: 'metagenomics' },
     { query: 'plasmid sequence classification', name: 'PlasClass', category: 'metagenomics' },
     { query: 'genome signatures', name: 'PlasFlow', category: 'metagenomics' },
     { query: 'metagenomic preprocessing', name: 'PRINSEQ', category: 'trimming' },

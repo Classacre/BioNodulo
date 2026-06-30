@@ -20650,6 +20650,117 @@ def test_magicblast_renders_paired_fastq_bam_and_unaligned_bam_command(tmp_path:
     ]
 
 
+def test_bmtagger_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["bmtagger"]
+
+    assert info["display_name"] == "bmtagger"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Filter contaminant sequences from input FASTA or FASTQ reads."
+    assert "Galaxy" in info["search_aliases"]
+    assert "BMTagger" in info["search_aliases"]
+    assert "contaminant reads" in info["search_aliases"]
+    assert info["output"] == ["FASTQ", "FASTQ"]
+    assert info["output_name"] == ["out_single", "out_pair"]
+    assert info["required_executables"] == ["bmtagger.sh", "extract_fullseq", "bmtool", "srprism", "makeblastdb", "gunzip"]
+    assert info["required_conda_packages"] == ["bmtagger"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/bmtagger"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/bmtagger"]
+    assert "Best Match Tagger for removing human reads from metagenomics datasets" in info["citation_text"]
+    assert info["version"] == "3.101+galaxy0"
+    assert info["input"]["required"]["reads"][0] == "FASTQ"
+    assert info["input"]["optional"]["sequence_type"][1]["default"] == "single"
+    assert info["input"]["optional"]["sequence_type"][1]["options"] == ["single", "paired"]
+    assert info["input"]["optional"]["host_source"][1]["default"] == "cached"
+    assert info["input"]["optional"]["host_source"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["reads_ext"][1]["options"] == [
+        "",
+        "fasta",
+        "fasta.gz",
+        "fastqsanger",
+        "fastqsanger.gz",
+        "fastqillumina",
+        "fastqillumina.gz",
+    ]
+
+
+def test_bmtagger_renders_single_history_reference_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("bmtagger")
+
+    assert node_class.render_command(
+        {
+            "sequence_type": "single",
+            "reads": "sample reads.fq.gz",
+            "reads_ext": "fastqsanger.gz",
+            "host_source": "history",
+            "host_sequence": "host genome.fa.gz",
+            "host_sequence_ext": "fasta.gz",
+            "test": True,
+            "output": "/work/bmtagger",
+        }
+    ) == (
+        "set -eo pipefail; gunzip -c 'sample reads.fq.gz' > forward && gunzip -c 'host genome.fa.gz' > "
+        "reference.fa && bmtool -d reference.fa -o reference.bitmask -w 10 && srprism mkindex -i reference.fa -o "
+        "reference.srprism && makeblastdb -in reference.fa -dbtype nucl && bmtagger.sh -q 1 -1 forward "
+        "-b reference.bitmask -x reference.srprism -d reference -o host_ids && extract_fullseq host_ids -keep "
+        "-fastq -single forward | gzip -c > /work/bmtagger/out_single.fastq.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({"sequence_type": "single", "reads_ext": "fastqsanger.gz"}, tmp_path) == [
+        tmp_path / "bmtagger" / "out_single.fastq.gz",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "reads is required"
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fq", "sequence_type": "bad"}) == (
+        "sequence_type must be one of: single, paired"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fq", "host_source": "history"}) == (
+        "host_sequence is required when host_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fq", "host_source": "cached"}) == (
+        "reference is required when host_source is cached"
+    )
+
+
+def test_bmtagger_renders_paired_cached_reference_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("bmtagger")
+
+    assert node_class.render_command(
+        {
+            "sequence_type": "paired",
+            "reads": "reads_R1.fq",
+            "reads_reverse": "reads R2.fq",
+            "reads_ext": "fastqsanger",
+            "host_source": "cached",
+            "reference": "/indexes/human/hg38",
+            "test": True,
+            "output": "/work/bmtagger",
+        }
+    ) == (
+        "set -eo pipefail; ln -s reads_R1.fq forward && ln -s 'reads R2.fq' reverse && srprism mkindex -i "
+        "/indexes/human/hg38.fa -o reference.srprism && bmtagger.sh -q 1 -1 forward -2 reverse -b "
+        "/indexes/human/hg38.bitmask -x reference.srprism -d /indexes/human/hg38 -o host_ids && extract_fullseq "
+        "host_ids -keep -fastq -mate1 forward > /work/bmtagger/forward.fastq && extract_fullseq host_ids -keep "
+        "-fastq -mate2 reverse > /work/bmtagger/reverse.fastq"
+    )
+    assert node_class.PLAN_OUTPUTS({"sequence_type": "paired", "reads_ext": "fastqsanger"}, tmp_path) == [
+        tmp_path / "bmtagger" / "forward.fastq",
+        tmp_path / "bmtagger" / "reverse.fastq",
+    ]
+
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "sequence_type": "paired",
+            "reads": "reads_R1.fq",
+            "reads_reverse": "reads_R2.fq",
+            "host_source": "cached",
+            "reference": "/indexes/human/hg38",
+        }
+    ) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"sequence_type": "paired", "reads": "reads_R1.fq", "host_source": "cached", "reference": "host"}
+    ) == "reads_reverse is required for paired sequence_type"
+
+
 def test_biom_add_metadata_exposes_galaxy_metadata_and_doi() -> None:
     info = _registry().object_info()["biom_add_metadata"]
 
