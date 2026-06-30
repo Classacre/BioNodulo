@@ -100,6 +100,87 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column'],
     citation_text: 'Add input name as column on an existing tabular file.',
   },
+  datamash_ops: {
+    name: 'datamash_ops',
+    display_name: 'Datamash',
+    category: 'data_transform',
+    description: 'Perform statistical and text operations on tabular data, optionally grouped by fields.',
+    search_aliases: ['Galaxy', 'Datamash', 'GNU Datamash', 'datamash_ops', 'group by fields', 'tabular statistics', 'column operations', 'sum mean median'],
+    input: {
+      required: {
+        in_file: { type: 'TSV' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'tabular', options: ['tabular', 'tsv', 'csv'] },
+        grouping: { type: 'STRING', default: '' },
+        need_sort: { type: 'BOOLEAN', default: false },
+        header_in: { type: 'BOOLEAN', default: false },
+        header_out: { type: 'BOOLEAN', default: false },
+        print_full_line: { type: 'BOOLEAN', default: false },
+        ignore_case: { type: 'BOOLEAN', default: false },
+        narm: { type: 'BOOLEAN', default: false },
+        operations: { type: 'JSON', default: [{ op_name: 'count', op_column: 1 }], is_list: true },
+        op_name: { type: 'STRING', default: 'count', options: ['count', 'sum', 'min', 'max', 'absmin', 'absmax', 'mean', 'pstdev', 'sstdev', 'median', 'q1', 'q3', 'iqr', 'mad', 'pvar', 'svar', 'sskew', 'pskew', 'skurt', 'pkurt', 'jarque', 'dpo', 'mode', 'antimode', 'rand', 'unique', 'collapse', 'countunique'] },
+        op_column: { type: 'INT', default: 1, min: 1 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['out_file'],
+    required_executables: ['datamash'],
+    required_conda_packages: ['datamash'],
+    documentation_url: 'https://www.gnu.org/software/datamash/manual/',
+    citation_dois: [],
+    citation_urls: ['https://www.gnu.org/software/datamash/'],
+    citation_text: 'GNU Datamash: command-line calculations on tabular data.',
+  },
+  datamash_transpose: {
+    name: 'datamash_transpose',
+    display_name: 'Transpose',
+    category: 'data_transform',
+    description: 'Transpose rows and columns in a tabular or CSV file with GNU Datamash.',
+    search_aliases: ['Galaxy', 'Datamash', 'GNU Datamash', 'datamash_transpose', 'transpose rows columns', 'matrix transpose'],
+    input: {
+      required: {
+        in_file: { type: 'TSV' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'tabular', options: ['tabular', 'tsv', 'csv'] },
+        large_file_mode: { type: 'BOOLEAN', default: false },
+        chunk_count: { type: 'INT', default: 2, min: 1 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['out_file'],
+    required_executables: ['datamash', 'split', 'paste'],
+    required_conda_packages: ['datamash', 'coreutils'],
+    documentation_url: 'https://www.gnu.org/software/datamash/manual/',
+    citation_dois: [],
+    citation_urls: ['https://www.gnu.org/software/datamash/'],
+    citation_text: 'GNU Datamash: command-line calculations on tabular data.',
+  },
+  datamash_reverse: {
+    name: 'datamash_reverse',
+    display_name: 'Reverse',
+    category: 'data_transform',
+    description: 'Reverse column order in a tabular or CSV file with GNU Datamash.',
+    search_aliases: ['Galaxy', 'Datamash', 'GNU Datamash', 'datamash_reverse', 'reverse columns', 'column order'],
+    input: {
+      required: {
+        in_file: { type: 'TSV' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'tabular', options: ['tabular', 'tsv', 'csv'] },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['out_file'],
+    required_executables: ['datamash'],
+    required_conda_packages: ['datamash'],
+    documentation_url: 'https://www.gnu.org/software/datamash/manual/',
+    citation_dois: [],
+    citation_urls: ['https://www.gnu.org/software/datamash/'],
+    citation_text: 'GNU Datamash: command-line calculations on tabular data.',
+  },
   Add_a_column1: {
     name: 'Add_a_column1',
     display_name: 'Compute on rows',
@@ -13450,7 +13531,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('463 nodes available')).toBeVisible();
+  await expect(page.getByText('466 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13458,6 +13539,9 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'data transform', name: 'Filter Rows', category: 'data_transform' },
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
     { query: 'addName', name: 'Add input name as column (Galaxy)', category: 'data_transform' },
+    { query: 'group by fields', name: 'Datamash', category: 'data_transform' },
+    { query: 'matrix transpose', name: 'Transpose', category: 'data_transform' },
+    { query: 'reverse columns', name: 'Reverse', category: 'data_transform' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

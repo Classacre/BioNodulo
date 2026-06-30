@@ -3490,6 +3490,133 @@ def test_add_input_name_as_column_galaxy_id_inherits_validation() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": "sample"}) is True
 
 
+def test_datamash_nodes_expose_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()
+
+    ops = info["datamash_ops"]
+    assert ops["display_name"] == "Datamash"
+    assert ops["category"] == "data_transform"
+    assert ops["description"] == "Perform statistical and text operations on tabular data, optionally grouped by fields."
+    assert ops["output"] == ["TSV"]
+    assert ops["output_name"] == ["out_file"]
+    assert ops["required_executables"] == ["datamash"]
+    assert ops["required_conda_packages"] == ["datamash"]
+    assert ops["documentation_url"] == "https://www.gnu.org/software/datamash/manual/"
+    assert ops["citation_dois"] == []
+    assert ops["citation_urls"] == ["https://www.gnu.org/software/datamash/"]
+    assert "GNU Datamash" in ops["citation_text"]
+    assert "Galaxy" in ops["search_aliases"]
+    assert "group by fields" in ops["search_aliases"]
+    assert ops["input"]["required"]["in_file"][0] == "TSV"
+    assert ops["input"]["optional"]["operations"][0] == "JSON"
+    assert ops["input"]["optional"]["operations"][1]["is_list"] is True
+    assert ops["input"]["optional"]["op_name"][1]["options"][:4] == ["count", "sum", "min", "max"]
+    assert ops["input"]["optional"]["grouping"][1]["default"] == ""
+    assert ops["input"]["optional"]["need_sort"][0] == "BOOLEAN"
+    assert ops["input"]["optional"]["narm"][0] == "BOOLEAN"
+    assert ops["input"]["optional"]["input_ext"][1]["options"] == ["tabular", "tsv", "csv"]
+
+    transpose = info["datamash_transpose"]
+    assert transpose["display_name"] == "Transpose"
+    assert transpose["category"] == "data_transform"
+    assert transpose["description"] == "Transpose rows and columns in a tabular or CSV file with GNU Datamash."
+    assert transpose["required_conda_packages"] == ["datamash", "coreutils"]
+    assert transpose["required_executables"] == ["datamash", "split", "paste"]
+    assert transpose["citation_urls"] == ["https://www.gnu.org/software/datamash/"]
+    assert transpose["input"]["optional"]["input_ext"][1]["options"] == ["tabular", "tsv", "csv"]
+    assert transpose["input"]["optional"]["large_file_mode"][0] == "BOOLEAN"
+
+    reverse = info["datamash_reverse"]
+    assert reverse["display_name"] == "Reverse"
+    assert reverse["category"] == "data_transform"
+    assert reverse["description"] == "Reverse column order in a tabular or CSV file with GNU Datamash."
+    assert reverse["required_conda_packages"] == ["datamash"]
+    assert reverse["required_executables"] == ["datamash"]
+    assert reverse["citation_urls"] == ["https://www.gnu.org/software/datamash/"]
+    assert reverse["input"]["required"]["in_file"][0] == "TSV"
+
+
+def test_datamash_ops_renders_grouped_operations_csv_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("datamash_ops")
+
+    assert node_class.render_command(
+        {
+            "in_file": "scores.csv",
+            "input_ext": "csv",
+            "grouping": "2",
+            "header_in": True,
+            "header_out": True,
+            "need_sort": True,
+            "print_full_line": True,
+            "ignore_case": True,
+            "narm": True,
+            "operations": [{"op_name": "sum", "op_column": 3}, {"op_name": "mean", "op_column": 3}],
+            "output": "/work/datamash_ops",
+        }
+    ) == (
+        "datamash --header-in --header-out --sort --full --ignore-case --narm -t , "
+        "--group 2 sum 3 mean 3 < scores.csv > /work/datamash_ops/out_file.tsv"
+    )
+    assert node_class.render_command(
+        {"in_file": "table.tsv", "operations": [{"op_name": "count", "op_column": 1}], "output": "/work/datamash_ops"}
+    ) == "datamash count 1 < table.tsv > /work/datamash_ops/out_file.tsv"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "datamash_ops" / "out_file.tsv"]
+
+
+def test_datamash_transpose_and_reverse_render_commands_and_outputs(tmp_path: Path) -> None:
+    transpose = _node_class("datamash_transpose")
+    reverse = _node_class("datamash_reverse")
+
+    assert transpose.render_command({"in_file": "matrix.csv", "input_ext": "csv", "output": "/work/datamash_transpose"}) == (
+        "datamash transpose -t , < matrix.csv > /work/datamash_transpose/out_file.tsv"
+    )
+    assert transpose.render_command(
+        {"in_file": "large matrix.tsv", "large_file_mode": True, "chunk_count": 4, "output": "/work/datamash_transpose"}
+    ) == (
+        "split -n l/4 'large matrix.tsv' split_input_ && "
+        "for chunk in $(ls split_input*); do datamash transpose < $chunk > ${chunk}_transposed; done && "
+        "paste split_input_*_transposed > /work/datamash_transpose/out_file.tsv"
+    )
+    assert reverse.render_command({"in_file": "matrix.tsv", "input_ext": "tsv", "output": "/work/datamash_reverse"}) == (
+        "datamash reverse < matrix.tsv > /work/datamash_reverse/out_file.tsv"
+    )
+    assert reverse.render_command({"in_file": "matrix.csv", "input_ext": "csv", "output": "/work/datamash_reverse"}) == (
+        "datamash reverse -t , < matrix.csv > /work/datamash_reverse/out_file.tsv"
+    )
+    assert transpose.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "datamash_transpose" / "out_file.tsv"]
+    assert reverse.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "datamash_reverse" / "out_file.tsv"]
+
+
+def test_datamash_nodes_validate_inputs_operations_and_ranges() -> None:
+    ops = _node_class("datamash_ops")
+    transpose = _node_class("datamash_transpose")
+    reverse = _node_class("datamash_reverse")
+
+    assert ops.VALIDATE_INPUTS({}) == "in_file is required"
+    assert ops.VALIDATE_INPUTS({"in_file": "scores.tsv", "operations": []}) == "at least one operation is required"
+    assert ops.VALIDATE_INPUTS({"in_file": "scores.tsv", "grouping": "1,a"}) == (
+        "grouping must be a comma-separated list of integer fields"
+    )
+    assert ops.VALIDATE_INPUTS({"in_file": "scores.tsv", "operations": [{"op_name": "bad", "op_column": 3}]}) == (
+        "op_name must be one of: count, sum, min, max, absmin, absmax, mean, pstdev, sstdev, median, q1, q3, iqr, mad, pvar, svar, sskew, pskew, skurt, pkurt, jarque, dpo, mode, antimode, rand, unique, collapse, countunique"
+    )
+    assert ops.VALIDATE_INPUTS({"in_file": "scores.tsv", "operations": [{"op_name": "sum", "op_column": 0}]}) == (
+        "op_column must be greater than or equal to 1"
+    )
+    assert ops.VALIDATE_INPUTS({"in_file": "scores.tsv", "input_ext": "xlsx"}) == (
+        "input_ext must be one of: tabular, tsv, csv"
+    )
+    assert ops.VALIDATE_INPUTS({"in_file": "scores.tsv", "operations": [{"op_name": "sum", "op_column": 3}]}) is True
+
+    assert transpose.VALIDATE_INPUTS({}) == "in_file is required"
+    assert transpose.VALIDATE_INPUTS({"in_file": "matrix.tsv", "chunk_count": 0}) == (
+        "chunk_count must be greater than or equal to 1"
+    )
+    assert transpose.VALIDATE_INPUTS({"in_file": "matrix.tsv"}) is True
+    assert reverse.VALIDATE_INPUTS({}) == "in_file is required"
+    assert reverse.VALIDATE_INPUTS({"in_file": "matrix.tsv"}) is True
+
+
 def test_column_maker_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["Add_a_column1"]
 
