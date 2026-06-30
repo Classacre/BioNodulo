@@ -6388,6 +6388,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_maffrag: {
+    name: 'ucsc_maffrag',
+    display_name: 'mafFrag',
+    category: 'genomics',
+    description: 'Extract UCSC MAF sequences for one genomic region from a database track.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafFrag', 'ucsc_maffrag', 'mafFrag', 'MAF region extract', 'multiple alignment format', 'UCSC MAF track', 'single region'],
+    input: {
+      required: {
+        genome: { type: 'STRING' },
+        track: { type: 'STRING' },
+        chrom: { type: 'STRING' },
+        start: { type: 'INT', min: 0 },
+        end: { type: 'INT', min: 1 },
+        strand: { type: 'STRING', default: '.', options: ['.', '+', '-'] },
+      },
+      optional: {
+        ucsc_db_connection: { type: 'FILE' },
+        outName: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output'],
+    required_executables: ['mafFrag'],
+    required_conda_packages: ['ucsc-maffrag'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFrag/mafFrag.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   ucsc_mafcoverage: {
     name: 'ucsc_mafcoverage',
     display_name: 'mafCoverage',
@@ -13233,7 +13262,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('457 nodes available')).toBeVisible();
+  await expect(page.getByText('458 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13459,6 +13488,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MAF block filter', name: 'mafFilter', category: 'genomics' },
     { query: 'MAF indexed lookup', name: 'mafFetch', category: 'genomics' },
     { query: 'MAF i rows', name: 'mafAddIRows', category: 'genomics' },
+    { query: 'MAF region extract', name: 'mafFrag', category: 'genomics' },
     { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },

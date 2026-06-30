@@ -29535,6 +29535,133 @@ class UcscMafAddIRowsNode(CommandNode):
         }
 
 
+class UcscMafFragNode(CommandNode):
+    """Extract one UCSC MAF alignment region from a database track."""
+
+    NODE_ID = "ucsc_maffrag"
+    DISPLAY_NAME = "mafFrag"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-maffrag"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Extract UCSC MAF sequences for one genomic region from a database track."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_mafFrag",
+        "ucsc_maffrag",
+        "mafFrag",
+        "MAF region extract",
+        "multiple alignment format",
+        "UCSC MAF track",
+        "single region",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["mafFrag"]
+    DOCUMENTATION_URL = "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFrag/mafFrag.c"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+    SHELL = True
+
+    STRAND_OPTIONS = [".", "+", "-"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.maf"
+
+    @classmethod
+    def _strand(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("strand", ".") or ".")
+
+    @classmethod
+    def _ucsc_db_connection(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ucsc_db_connection", "ucsc_db_connection.conf") or "ucsc_db_connection.conf")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        setup = (
+            f"cp {shlex.quote(cls._ucsc_db_connection(inputs))} ${{HOME}}/.hg.conf && "
+            "chmod 600 ${HOME}/.hg.conf"
+        )
+        cmd = [
+            "mafFrag",
+            str(inputs.get("genome", "")),
+            str(inputs.get("track", "")),
+            str(inputs.get("chrom", "")),
+            str(inputs.get("start", "")),
+            str(inputs.get("end", "")),
+            cls._strand(inputs),
+            cls._output_path(inputs),
+        ]
+        if str(inputs.get("outName", "")) != "":
+            cmd.append(f"-outName={inputs.get('outName')}")
+        return f"{setup} && {_shell_join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out.maf"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for name in ("genome", "track", "chrom"):
+            if not str(inputs.get(name, "")).strip():
+                return f"{name} is required"
+        if str(inputs.get("start", "")) == "":
+            return "start is required"
+        if str(inputs.get("end", "")) == "":
+            return "end is required"
+        strand = cls._strand(inputs)
+        if strand not in cls.STRAND_OPTIONS:
+            return f"strand must be one of: {', '.join(cls.STRAND_OPTIONS)}"
+        try:
+            start = int(inputs.get("start"))
+        except (TypeError, ValueError):
+            return "start must be an integer"
+        try:
+            end = int(inputs.get("end"))
+        except (TypeError, ValueError):
+            return "end must be an integer"
+        if start < 0:
+            return "start must be greater than or equal to 0"
+        if end <= start:
+            return "end must be greater than start"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "genome": ("STRING", {"description": "UCSC genome database name, such as hg19 or hg38"}),
+                "track": ("STRING", {"description": "UCSC MAF table name, such as multiz46way"}),
+                "chrom": ("STRING", {"description": "Chromosome or sequence name to extract"}),
+                "start": ("INT", {"min": 0, "description": "0-based start coordinate"}),
+                "end": ("INT", {"min": 1, "description": "0-based end coordinate"}),
+                "strand": (
+                    "STRING",
+                    {
+                        "default": ".",
+                        "options": cls.STRAND_OPTIONS,
+                        "description": "Region strand: no strand, forward, or reverse",
+                    },
+                ),
+            },
+            "optional": {
+                "ucsc_db_connection": (
+                    "FILE",
+                    {"description": "UCSC database connection configuration copied to ~/.hg.conf"},
+                ),
+                "outName": (
+                    "STRING",
+                    {"default": "", "description": "Override the database.chrom sequence name in the output MAF"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class UcscMafCoverageNode(CommandNode):
     """Measure genome coverage from UCSC MAF alignments."""
 

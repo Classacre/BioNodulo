@@ -35743,6 +35743,103 @@ def test_ucsc_mafaddirows_validates_required_inputs_and_modes() -> None:
     ) is True
 
 
+def test_ucsc_maffrag_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_maffrag"]
+
+    assert info["display_name"] == "mafFrag"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Extract UCSC MAF sequences for one genomic region from a database track."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["mafFrag"]
+    assert info["required_conda_packages"] == ["ucsc-maffrag"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFrag/mafFrag.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "MAF region extract" in info["search_aliases"]
+    assert info["input"]["required"]["genome"][0] == "STRING"
+    assert info["input"]["required"]["track"][0] == "STRING"
+    assert info["input"]["required"]["chrom"][0] == "STRING"
+    assert info["input"]["required"]["start"][1]["min"] == 0
+    assert info["input"]["required"]["end"][1]["min"] == 1
+    assert info["input"]["required"]["strand"][1]["options"] == [".", "+", "-"]
+    assert info["input"]["optional"]["ucsc_db_connection"][0] == "FILE"
+    assert info["input"]["optional"]["outName"][0] == "STRING"
+
+
+def test_ucsc_maffrag_renders_region_lookup_outname_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_maffrag")
+
+    assert node_class.render_command(
+        {
+            "genome": "hg19",
+            "track": "multiz46way",
+            "chrom": "chr17",
+            "start": 7578370,
+            "end": 7578400,
+            "strand": "+",
+            "output": "/work/ucsc_maffrag",
+        }
+    ) == (
+        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafFrag hg19 multiz46way chr17 7578370 7578400 + /work/ucsc_maffrag/out.maf"
+    )
+    assert node_class.render_command(
+        {
+            "genome": "hg38",
+            "track": "multiz100way",
+            "chrom": "chr1",
+            "start": 100,
+            "end": 200,
+            "strand": ".",
+            "outName": "custom region",
+            "ucsc_db_connection": "custom hg.conf",
+            "output": "/work/ucsc_maffrag",
+        }
+    ) == (
+        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafFrag hg38 multiz100way chr1 100 200 . /work/ucsc_maffrag/out.maf '-outName=custom region'"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_maffrag" / "out.maf",
+    ]
+
+
+def test_ucsc_maffrag_validates_required_inputs_coordinates_and_strand() -> None:
+    node_class = _node_class("ucsc_maffrag")
+
+    assert node_class.VALIDATE_INPUTS({}) == "genome is required"
+    assert node_class.VALIDATE_INPUTS({"genome": "hg19"}) == "track is required"
+    assert node_class.VALIDATE_INPUTS({"genome": "hg19", "track": "multiz46way"}) == "chrom is required"
+    assert node_class.VALIDATE_INPUTS({"genome": "hg19", "track": "multiz46way", "chrom": "chr17"}) == (
+        "start is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "hg19", "track": "multiz46way", "chrom": "chr17", "start": 10}
+    ) == "end is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "hg19", "track": "multiz46way", "chrom": "chr17", "start": 10, "end": 20, "strand": "x"}
+    ) == "strand must be one of: ., +, -"
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "hg19", "track": "multiz46way", "chrom": "chr17", "start": -1, "end": 20}
+    ) == "start must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "hg19", "track": "multiz46way", "chrom": "chr17", "start": 20, "end": 20}
+    ) == "end must be greater than start"
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "hg19", "track": "multiz46way", "chrom": "chr17", "start": "left", "end": 20}
+    ) == "start must be an integer"
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "hg19", "track": "multiz46way", "chrom": "chr17", "start": 10, "end": "right"}
+    ) == "end must be an integer"
+    assert node_class.VALIDATE_INPUTS(
+        {"genome": "hg19", "track": "multiz46way", "chrom": "chr17", "start": 10, "end": 20}
+    ) is True
+
+
 def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_mafcoverage"]
 
