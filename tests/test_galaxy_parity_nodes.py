@@ -16511,6 +16511,73 @@ def test_biom_normalize_table_renders_command_outputs_and_validates(tmp_path: Pa
     assert node_class.VALIDATE_INPUTS({"input_fp": "table.biom", "axis": "sample"}) is True
 
 
+def test_biom_subset_table_exposes_galaxy_metadata_and_doi() -> None:
+    info = _registry().object_info()["biom_subset_table"]
+
+    assert info["display_name"] == "BIOM subset table"
+    assert info["category"] == "metagenomics"
+    assert info["description"] == "Subset a BIOM table by sample or observation IDs."
+    assert info["search_aliases"] == [
+        "Galaxy",
+        "BIOM",
+        "biom-format",
+        "biom_subset_table",
+        "biom subset-table",
+        "sample IDs",
+        "observation IDs",
+        "subset microbiome table",
+    ]
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output_fp"]
+    assert info["required_executables"] == ["biom"]
+    assert info["required_conda_packages"] == ["biom-format"]
+    assert info["documentation_url"] == "https://biom-format.org/documentation/biom_commands.html#subset-table"
+    assert info["citation_dois"] == ["10.1186/2047-217X-1-7"]
+    assert info["citation_urls"] == ["https://doi.org/10.1186/2047-217X-1-7"]
+    assert info["citation_text"] == "The Biological Observation Matrix (BIOM) format."
+    assert info["version"] == "2.1.17+galaxy0"
+    assert info["input"]["required"]["input_json_fp"][0] == "FILE"
+    assert info["input"]["required"]["ids"][0] == "FILE"
+    assert info["input"]["optional"]["axis"][1]["default"] == "sample"
+    assert info["input"]["optional"]["axis"][1]["options"] == ["sample", "observation"]
+
+
+def test_biom_subset_table_renders_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("biom_subset_table")
+
+    assert node_class.render_command(
+        {
+            "input_json_fp": "input abundance.biom",
+            "ids": "sample ids.txt",
+            "output": "/work/biom_subset_table",
+        }
+    ) == (
+        "biom subset-table --input-json-fp 'input abundance.biom' "
+        "--output-fp /work/biom_subset_table/output.biom --axis sample --ids 'sample ids.txt'"
+    )
+    assert node_class.render_command(
+        {
+            "input_json_fp": "input_abundance_1.biom1",
+            "axis": "observation",
+            "ids": "observation_subsetting",
+            "output": "/work/biom_subset_table",
+        }
+    ) == (
+        "biom subset-table --input-json-fp input_abundance_1.biom1 "
+        "--output-fp /work/biom_subset_table/output.biom --axis observation --ids observation_subsetting"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "biom_subset_table" / "output.biom",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_json_fp is required"
+    assert node_class.VALIDATE_INPUTS({"input_json_fp": "table.biom"}) == "ids is required"
+    assert node_class.VALIDATE_INPUTS({"input_json_fp": "table.biom", "ids": "ids.txt", "axis": "bad"}) == (
+        "axis must be one of: sample, observation"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_json_fp": "table.biom", "ids": "ids.txt"}) is True
+
+
 def test_krakentools_combine_kreports_renders_report_merge_command_and_outputs(tmp_path: Path) -> None:
     node_class = _node_class("krakentools_combine_kreports")
     info = _registry().object_info()["krakentools_combine_kreports"]

@@ -27278,6 +27278,97 @@ class BiomNormalizeTableNode(CommandNode):
         }
 
 
+class BiomSubsetTableNode(CommandNode):
+    """Subset a BIOM table by sample or observation IDs."""
+
+    NODE_ID = "biom_subset_table"
+    DISPLAY_NAME = "BIOM subset table"
+    REQUIRED_CONDA_PACKAGES = ["biom-format"]
+    CATEGORY = "metagenomics"
+    DESCRIPTION = "Subset a BIOM table by sample or observation IDs."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "BIOM",
+        "biom-format",
+        "biom_subset_table",
+        "biom subset-table",
+        "sample IDs",
+        "observation IDs",
+        "subset microbiome table",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_fp",)
+    REQUIRED_EXECUTABLES = ["biom"]
+    DOCUMENTATION_URL = "https://biom-format.org/documentation/biom_commands.html#subset-table"
+    CITATION_DOIS = [BIOM_FORMAT_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BIOM_FORMAT_DOI}"]
+    CITATION_TEXT = BIOM_FORMAT_CITATION_TEXT
+    VERSION = "2.1.17+galaxy0"
+    SHELL = True
+    AXES = ["sample", "observation"]
+
+    @classmethod
+    def _axis(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("axis", "sample") or "sample")
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.biom"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "biom",
+            "subset-table",
+            "--input-json-fp",
+            str(inputs.get("input_json_fp", "")),
+            "--output-fp",
+            cls._output_path(inputs),
+            "--axis",
+            cls._axis(inputs),
+            "--ids",
+            str(inputs.get("ids", "")),
+        ]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.biom"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_json_fp", "")).strip():
+            return "input_json_fp is required"
+        if not str(inputs.get("ids", "")).strip():
+            return "ids is required"
+        axis = cls._axis(inputs)
+        if axis not in cls.AXES:
+            return f"axis must be one of: {', '.join(cls.AXES)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_json_fp": ("FILE", {"description": "Input BIOM table to subset"}),
+                "ids": ("FILE", {"description": "Single-column text or tabular file of IDs to retain"}),
+            },
+            "optional": {
+                "axis": (
+                    "STRING",
+                    {
+                        "default": "sample",
+                        "options": cls.AXES,
+                        "description": "Subset sample IDs or observation IDs",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class KrakentoolsCombineKreportsNode(CommandNode):
     """Combine multiple Kraken-style reports with KrakenTools."""
 
