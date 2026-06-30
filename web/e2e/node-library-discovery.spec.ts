@@ -2411,6 +2411,40 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
     citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
   },
+  modify_loom: {
+    name: 'modify_loom',
+    display_name: 'Loom operations',
+    category: 'single_cell',
+    description: 'Manipulate, export, and import Loom single-cell data files.',
+    search_aliases: ['Galaxy', 'Loom', 'modify_loom', 'Loom operations', 'loompy', 'loompy_to_tsv', 'tsv_to_loompy', 'H5AD to Loom', 'Loom layers', 'row attributes', 'column attributes', 'single-cell loom'],
+    input: {
+      optional: {
+        operation: { type: 'STRING', default: 'manipulate', options: ['manipulate', 'export', 'import'] },
+        loom: { type: 'LOOM', default: '' },
+        add_type: { type: 'STRING', default: 'cols', options: ['cols', 'rows', 'layers'] },
+        cols: { type: 'TSV', default: '' },
+        rows: { type: 'TSV', default: '' },
+        layers: { type: 'TSV', default: '', multiple: true },
+        file_type: { type: 'STRING', default: 'ad', options: ['ad', 'tab'] },
+        anndata: { type: 'H5AD', default: '' },
+        mainmatrix: { type: 'TSV', default: '' },
+        other_files: { type: 'TSV', default: '', multiple: true },
+        coldata: { type: 'TSV', default: '' },
+        rowdata: { type: 'TSV', default: '' },
+        modify_loom_script: { type: 'FILE', default: 'modify_loom.py' },
+        loompy_to_tsv_script: { type: 'FILE', default: 'loompy_to_tsv.py' },
+        tsv_to_loompy_script: { type: 'FILE', default: 'tsv_to_loompy.py' },
+      },
+    },
+    output: ['LOOM', 'DIRECTORY', 'DIRECTORY'],
+    output_name: ['loomout', 'layer_tsvs', 'attribute_tsvs'],
+    required_executables: ['python'],
+    required_conda_packages: ['anndata', 'scanpy', 'loompy', 'pandas'],
+    documentation_url: 'https://linnarssonlab.org/loompy/',
+    citation_dois: [],
+    citation_urls: ['https://github.com/linnarsson-lab/loompy'],
+    citation_text: 'Loompy provides Loom file creation, manipulation, layers, and row/column attributes for single-cell data.',
+  },
   anndata2ri: {
     name: 'anndata2ri',
     display_name: 'anndata2ri',
@@ -15194,7 +15228,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('512 nodes available')).toBeVisible();
+  await expect(page.getByText('513 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15291,6 +15325,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'read_10x_mtx', name: 'Import Anndata', category: 'single_cell' },
     { query: 'chunk_X', name: 'Inspect AnnData', category: 'single_cell' },
     { query: 'split_on_obs', name: 'Manipulate AnnData', category: 'single_cell' },
+    { query: 'loompy_to_tsv', name: 'Loom operations', category: 'single_cell' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },

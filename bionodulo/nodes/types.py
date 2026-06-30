@@ -96,6 +96,7 @@ class BioType(str, Enum):
     SAMPLE_SHEET = "SAMPLE_SHEET"
     CELL_RANGER_OUT = "CELL_RANGER_OUT"
     H5AD = "H5AD"
+    LOOM = "LOOM"
     SEURAT_OBJ = "SEURAT_OBJ"
 
     # Phenomics / Other
@@ -161,6 +162,7 @@ _COMPATIBILITY: dict[BioType, set[BioType]] = {
     BioType.SAMPLE_SHEET: {BioType.FILE, BioType.STRING, BioType.CSV},
     BioType.CELL_RANGER_OUT: {BioType.DIRECTORY, BioType.STRING},
     BioType.H5AD: {BioType.FILE, BioType.STRING},
+    BioType.LOOM: {BioType.FILE, BioType.STRING},
     BioType.SEURAT_OBJ: {BioType.FILE, BioType.STRING},
     BioType.STRING: set(),
     BioType.INT: set(),
@@ -278,6 +280,7 @@ def file_extension_for(biotype: str | BioType) -> str:
         BioType.BROAD_PEAK: ".broadPeak",
         BioType.SAMPLE_SHEET: ".csv",
         BioType.H5AD: ".h5ad",
+        BioType.LOOM: ".loom",
         BioType.SEURAT_OBJ: ".rds",
         BioType.JSON: ".json",
         BioType.YAML: ".yaml",

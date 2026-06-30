@@ -664,6 +664,144 @@ def test_anndata_manipulate_renders_rename_flag_copy_and_split_commands(tmp_path
     assert node_class.VALIDATE_INPUTS({"input": "cells.h5ad", "function": "split_on_obs", "key": "cell_type"}) is True
 
 
+def test_modify_loom_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    assert is_compatible("LOOM", "FILE")
+    assert is_compatible("LOOM", "STRING")
+    assert file_extension_for("LOOM") == ".loom"
+
+    node_info = _registry().object_info()["modify_loom"]
+
+    assert node_info["display_name"] == "Loom operations"
+    assert node_info["category"] == "single_cell"
+    assert node_info["description"] == "Manipulate, export, and import Loom single-cell data files."
+    assert node_info["output"] == ["LOOM", "DIRECTORY", "DIRECTORY"]
+    assert node_info["output_name"] == ["loomout", "layer_tsvs", "attribute_tsvs"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["anndata", "scanpy", "loompy", "pandas"]
+    assert node_info["documentation_url"] == "https://linnarssonlab.org/loompy/"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/linnarsson-lab/loompy"]
+    assert "Loompy" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "loompy_to_tsv" in node_info["search_aliases"]
+    assert node_info["version"] == "0.11.4+galaxy3"
+    assert node_info["input"]["optional"]["operation"][1]["default"] == "manipulate"
+    assert node_info["input"]["optional"]["operation"][1]["options"] == ["manipulate", "export", "import"]
+    assert node_info["input"]["optional"]["loom"][0] == "LOOM"
+    assert node_info["input"]["optional"]["anndata"][0] == "H5AD"
+    assert node_info["input"]["optional"]["layers"][1]["multiple"] is True
+    assert node_info["input"]["optional"]["other_files"][1]["multiple"] is True
+
+
+def test_modify_loom_renders_manipulate_and_export_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("modify_loom")
+
+    assert node_class.render_command(
+        {
+            "operation": "manipulate",
+            "loom": "add test.loom",
+            "add_type": "cols",
+            "cols": "cols.tsv",
+            "modify_loom_script": "/tools/anndata/modify_loom.py",
+            "output": "/work/modify_loom",
+        }
+    ) == (
+        "mkdir -p /work/modify_loom && cd /work/modify_loom && cp 'add test.loom' converted.loom && "
+        "python /tools/anndata/modify_loom.py -f converted.loom -a cols -c cols.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"operation": "manipulate"}, tmp_path) == [
+        tmp_path / "modify_loom" / "converted.loom",
+    ]
+
+    assert node_class.render_command(
+        {
+            "operation": "manipulate",
+            "loom": "addtest.loom",
+            "add_type": "layers",
+            "layers": ["addlayer1.tsv", "add layer 2.tsv"],
+            "output": "/work/modify_loom",
+        }
+    ) == (
+        "mkdir -p /work/modify_loom && cd /work/modify_loom && cp addtest.loom converted.loom && "
+        "python modify_loom.py -f converted.loom -a layers -l addlayer1.tsv 'add layer 2.tsv'"
+    )
+
+    assert node_class.render_command(
+        {
+            "operation": "export",
+            "loom": "loomtest.loom",
+            "loompy_to_tsv_script": "/tools/anndata/loompy_to_tsv.py",
+            "output": "/work/modify_loom",
+        }
+    ) == (
+        "mkdir -p /work/modify_loom && cd /work/modify_loom && mkdir -p output attributes && "
+        "python /tools/anndata/loompy_to_tsv.py -f loomtest.loom"
+    )
+    assert node_class.PLAN_OUTPUTS({"operation": "export"}, tmp_path) == [
+        tmp_path / "modify_loom" / "output",
+        tmp_path / "modify_loom" / "attributes",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "loom is required when operation is manipulate"
+    assert node_class.VALIDATE_INPUTS({"operation": "bad"}) == "operation must be one of: manipulate, export, import"
+    assert node_class.VALIDATE_INPUTS({"operation": "manipulate", "loom": "cells.loom", "add_type": "rows"}) == (
+        "rows is required when add_type is rows"
+    )
+
+
+def test_modify_loom_renders_import_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("modify_loom")
+
+    assert node_class.render_command(
+        {
+            "operation": "import",
+            "file_type": "ad",
+            "anndata": "krumsiek11.h5ad",
+            "output": "/work/modify_loom",
+        }
+    ) == (
+        "mkdir -p /work/modify_loom && cd /work/modify_loom && cat > modify_loom_import.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_h5ad('krumsiek11.h5ad')\n"
+        "adata.write_loom('converted.loom')\n"
+        "PY\n"
+        "python modify_loom_import.py"
+    )
+
+    assert node_class.render_command(
+        {
+            "operation": "import",
+            "file_type": "tab",
+            "mainmatrix": "firstlayer.tsv",
+            "other_files": ["secondlayer.tsv", "third layer.tsv"],
+            "coldata": "cols.tsv",
+            "rowdata": "rows.tsv",
+            "tsv_to_loompy_script": "/tools/anndata/tsv_to_loompy.py",
+            "output": "/work/modify_loom",
+        }
+    ) == (
+        "mkdir -p /work/modify_loom && cd /work/modify_loom && "
+        "python /tools/anndata/tsv_to_loompy.py -c cols.tsv -r rows.tsv -f firstlayer.tsv secondlayer.tsv 'third layer.tsv'"
+    )
+    assert node_class.PLAN_OUTPUTS({"operation": "import"}, tmp_path) == [
+        tmp_path / "modify_loom" / "converted.loom",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"operation": "import"}) == "anndata is required when file_type is ad"
+    assert node_class.VALIDATE_INPUTS({"operation": "import", "file_type": "tab", "mainmatrix": "matrix.tsv"}) == (
+        "coldata is required when file_type is tab"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "operation": "import",
+            "file_type": "tab",
+            "mainmatrix": "matrix.tsv",
+            "coldata": "cols.tsv",
+            "rowdata": "rows.tsv",
+        }
+    ) is True
+
+
 def test_anndata2ri_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["anndata2ri"]
 
