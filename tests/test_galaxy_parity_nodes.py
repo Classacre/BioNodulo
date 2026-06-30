@@ -3605,6 +3605,99 @@ def test_column_maker_validates_required_inputs_actions_and_options() -> None:
     ) is True
 
 
+def test_coverage_report_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["CoverageReport2"]
+
+    assert info["display_name"] == "Panel Coverage Report"
+    assert info["category"] == "qc"
+    assert info["description"] == "Create a PDF panel coverage report with mapping and target-region statistics."
+    assert info["input"]["required"]["input1"][0] == "BAM"
+    assert info["input"]["required"]["input2"][0] == "BED"
+    assert info["input"]["optional"]["threshold"][1]["default"] == 40
+    assert info["input"]["optional"]["frac"][1]["default"] == 0.2
+    assert info["input"]["optional"]["perGene"][1]["default"] is True
+    assert info["input"]["optional"]["PositionLevel"][1]["options"] == ["", "-s", "-S", "-A", "-L"]
+    assert info["input"]["optional"]["sample_name"][1]["default"] == ""
+    assert info["input"]["optional"]["script_path"][1]["default"] == "CoverageReport.pl"
+    assert info["output"] == ["PDF"]
+    assert info["output_name"] == ["output1"]
+    assert info["required_executables"] == ["perl", "coverageBed", "samtools", "Rscript", "tectonic"]
+    assert info["required_conda_packages"] == [
+        "perl-number-format",
+        "r-base",
+        "bedtools",
+        "samtools",
+        "tectonic",
+        "libcurl",
+        "openssl",
+    ]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report"]
+    assert "coverage report for QC purposes" in info["citation_text"]
+    assert "mapping statistics" in info["search_aliases"]
+
+
+def test_coverage_report_renders_default_command_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("CoverageReport2")
+
+    assert node_class.render_command(
+        {
+            "input1": "sample.bam",
+            "input2": "targets.bed",
+            "output": "/work/CoverageReport2",
+        }
+    ) == (
+        "perl CoverageReport.pl -b sample.bam -t targets.bed -o /work/CoverageReport2/output1.pdf "
+        "-r -m 40 -f 0.2 -n sample"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "CoverageReport2" / "output1.pdf"]
+
+
+def test_coverage_report_renders_position_level_and_sample_name_options() -> None:
+    node_class = _node_class("CoverageReport2")
+
+    assert node_class.render_command(
+        {
+            "input1": "mapped reads.bam",
+            "input2": "clinical targets.bed",
+            "threshold": 75,
+            "frac": 0.35,
+            "perGene": False,
+            "PositionLevel": "-L",
+            "sample_name": "Patient_A.v1.bam",
+            "script_path": "/tools/coverage report/CoverageReport.pl",
+            "output": "/work/CoverageReport2",
+        }
+    ) == (
+        "perl '/tools/coverage report/CoverageReport.pl' -b 'mapped reads.bam' -t 'clinical targets.bed' "
+        "-o /work/CoverageReport2/output1.pdf -L -m 75 -f 0.35 -n Patient_A.v1.bam"
+    )
+
+
+def test_coverage_report_validates_required_inputs_and_options() -> None:
+    node_class = _node_class("CoverageReport2")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input1 is required"
+    assert node_class.VALIDATE_INPUTS({"input1": "sample.bam"}) == "input2 is required"
+    assert node_class.VALIDATE_INPUTS({"input1": "sample.bam", "input2": "targets.bed", "threshold": "bad"}) == (
+        "threshold must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "sample.bam", "input2": "targets.bed", "threshold": -1}) == (
+        "threshold must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "sample.bam", "input2": "targets.bed", "frac": "bad"}) == (
+        "frac must be a number"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "sample.bam", "input2": "targets.bed", "frac": -0.1}) == (
+        "frac must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "sample.bam", "input2": "targets.bed", "PositionLevel": "bad"}) == (
+        "PositionLevel must be one of: , -s, -S, -A, -L"
+    )
+    assert node_class.VALIDATE_INPUTS({"input1": "sample.bam", "input2": "targets.bed"}) is True
+
+
 def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None:
     info = _registry().object_info()["aegean_canongff3"]
 

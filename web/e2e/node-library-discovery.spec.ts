@@ -146,6 +146,35 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/nar/gkae410'],
     citation_text: 'The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update.',
   },
+  CoverageReport2: {
+    name: 'CoverageReport2',
+    display_name: 'Panel Coverage Report',
+    category: 'qc',
+    description: 'Create a PDF panel coverage report with mapping and target-region statistics.',
+    search_aliases: ['Galaxy', 'CoverageReport2', 'Panel Coverage Report', 'coverage report', 'mapping statistics', 'target region coverage', 'samtools flagstat', 'coverageBed', 'panel resequencing'],
+    input: {
+      required: {
+        input1: { type: 'BAM' },
+        input2: { type: 'BED' },
+      },
+      optional: {
+        threshold: { type: 'INT', default: 40, min: 0 },
+        frac: { type: 'FLOAT', default: 0.2, min: 0 },
+        perGene: { type: 'BOOLEAN', default: true },
+        PositionLevel: { type: 'STRING', default: '', options: ['', '-s', '-S', '-A', '-L'] },
+        sample_name: { type: 'STRING', default: '' },
+        script_path: { type: 'FILE', default: 'CoverageReport.pl' },
+      },
+    },
+    output: ['PDF'],
+    output_name: ['output1'],
+    required_executables: ['perl', 'coverageBed', 'samtools', 'Rscript', 'tectonic'],
+    required_conda_packages: ['perl-number-format', 'r-base', 'bedtools', 'samtools', 'tectonic', 'libcurl', 'openssl'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report'],
+    citation_text: 'Panel Coverage Report creates a coverage report for QC purposes.',
+  },
   aegean_canongff3: {
     name: 'aegean_canongff3',
     display_name: 'AEGeAn CanonGFF3',
@@ -12005,7 +12034,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('411 nodes available')).toBeVisible();
+  await expect(page.getByText('412 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12014,6 +12043,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
     { query: 'addName', name: 'Add input name as column (Galaxy)', category: 'data_transform' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
+    { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },

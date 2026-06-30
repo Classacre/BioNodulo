@@ -171,6 +171,8 @@ COLUMN_MAKER_CITATION_DOI = "10.1093/nar/gkae410"
 COLUMN_MAKER_CITATION_TEXT = (
     "The Galaxy platform for accessible, reproducible, and collaborative data analyses: 2024 update."
 )
+COVERAGE_REPORT_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/coverage_report"
+COVERAGE_REPORT_CITATION_TEXT = "Panel Coverage Report creates a coverage report for QC purposes."
 AEGEAN_CITATION_URL = "https://github.com/BrendelGroup/AEGeAn"
 AEGEAN_CITATION_TEXT = "AEGeAn genome annotation toolkit."
 LOCUSPOCUS_CITATION_DOI = "10.1093/nargab/lqac013"
@@ -2294,6 +2296,162 @@ class ColumnMakerNode(CommandNode):
                         "default": "column_maker.py",
                         "advanced": True,
                         "description": "Path to the Galaxy column_maker.py helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class CoverageReportNode(CommandNode):
+    """Create panel coverage reports from BAM alignments and target BED regions."""
+
+    NODE_ID = "CoverageReport2"
+    DISPLAY_NAME = "Panel Coverage Report"
+    REQUIRED_CONDA_PACKAGES = [
+        "perl-number-format",
+        "r-base",
+        "bedtools",
+        "samtools",
+        "tectonic",
+        "libcurl",
+        "openssl",
+    ]
+    CATEGORY = "qc"
+    DESCRIPTION = "Create a PDF panel coverage report with mapping and target-region statistics."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CoverageReport2",
+        "Panel Coverage Report",
+        "coverage report",
+        "mapping statistics",
+        "target region coverage",
+        "samtools flagstat",
+        "coverageBed",
+        "panel resequencing",
+    ]
+    RETURN_TYPES = ("PDF",)
+    RETURN_NAMES = ("output1",)
+    REQUIRED_EXECUTABLES = ["perl", "coverageBed", "samtools", "Rscript", "tectonic"]
+    DOCUMENTATION_URL = COVERAGE_REPORT_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [COVERAGE_REPORT_CITATION_URL]
+    CITATION_TEXT = COVERAGE_REPORT_CITATION_TEXT
+    VERSION = "0.0.5+galaxy0"
+    SHELL = True
+
+    POSITION_LEVEL_OPTIONS = ["", "-s", "-S", "-A", "-L"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output1.pdf"
+
+    @classmethod
+    def _position_level(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("PositionLevel", "") or "")
+
+    @classmethod
+    def _sample_name(cls, inputs: dict[str, Any]) -> str:
+        sample_name = str(inputs.get("sample_name", "") or "")
+        if sample_name:
+            return sample_name
+        return Path(str(inputs.get("input1", "sample"))).name.rsplit(".", 1)[0]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "perl",
+            str(inputs.get("script_path", "CoverageReport.pl") or "CoverageReport.pl"),
+            "-b",
+            str(inputs.get("input1", "")),
+            "-t",
+            str(inputs.get("input2", "")),
+            "-o",
+            cls._output_path(inputs),
+        ]
+        if inputs.get("perGene", True):
+            cmd.append("-r")
+        position_level = cls._position_level(inputs)
+        if position_level:
+            cmd.append(position_level)
+        cmd.extend(
+            [
+                "-m",
+                str(inputs.get("threshold", 40)),
+                "-f",
+                str(inputs.get("frac", 0.2)),
+                "-n",
+                cls._sample_name(inputs),
+            ]
+        )
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output1.pdf"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input1", "")).strip():
+            return "input1 is required"
+        if not str(inputs.get("input2", "")).strip():
+            return "input2 is required"
+        try:
+            threshold = int(inputs.get("threshold", 40))
+        except (TypeError, ValueError):
+            return "threshold must be an integer"
+        if threshold < 0:
+            return "threshold must be >= 0"
+        try:
+            frac = float(inputs.get("frac", 0.2))
+        except (TypeError, ValueError):
+            return "frac must be a number"
+        if frac < 0:
+            return "frac must be >= 0"
+        if cls._position_level(inputs) not in cls.POSITION_LEVEL_OPTIONS:
+            return f"PositionLevel must be one of: {', '.join(cls.POSITION_LEVEL_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input1": ("BAM", {"description": "Mapped reads BAM file"}),
+                "input2": ("BED", {"description": "Target regions BED file"}),
+            },
+            "optional": {
+                "threshold": (
+                    "INT",
+                    {"default": 40, "min": 0, "description": "Minimal coverage threshold"},
+                ),
+                "frac": (
+                    "FLOAT",
+                    {"default": 0.2, "min": 0, "description": "Fraction of average coverage used in the plot"},
+                ),
+                "perGene": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Plot exon coverages grouped by gene in the target BED"},
+                ),
+                "PositionLevel": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": cls.POSITION_LEVEL_OPTIONS,
+                        "description": "Per-exon analysis mode for failed or all exons",
+                    },
+                ),
+                "sample_name": (
+                    "STRING",
+                    {"default": "", "description": "Sample name printed in the report; defaults to the BAM basename"},
+                ),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "CoverageReport.pl",
+                        "advanced": True,
+                        "description": "Path to the Galaxy CoverageReport.pl helper script",
                     },
                 ),
             },
