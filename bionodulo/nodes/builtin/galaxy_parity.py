@@ -8193,6 +8193,99 @@ class _CatBaseNode(CommandNode):
         )
 
 
+class CatPrepareNode(_CatBaseNode):
+    """Prepare CAT reference data for CAT/BAT classification workflows."""
+
+    NODE_ID = "cat_prepare"
+    DISPLAY_NAME = "CAT prepare"
+    DESCRIPTION = "Prepare CAT reference data for classifying metagenomic contigs or genome assemblies."
+    SEARCH_ALIASES = [
+        *_CatBaseNode.SEARCH_ALIASES,
+        "cat_prepare",
+        "CAT prepare",
+        "CAT database",
+        "CAT reference data",
+        "CAT prepare database",
+        "NCBI taxonomy",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("cat_db",)
+    REQUIRED_EXECUTABLES = ["CAT"]
+
+    @classmethod
+    def _database_folder_name(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs["database_folder"]) if "database_folder" in inputs else "CAT_database"
+
+    @classmethod
+    def _taxonomy_folder_name(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs["taxonomy_folder"]) if "taxonomy_folder" in inputs else "taxonomy"
+
+    @classmethod
+    def _database_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._database_folder_name(inputs)}"
+
+    @classmethod
+    def _taxonomy_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/{cls._taxonomy_folder_name(inputs)}"
+
+    @classmethod
+    def _cat_db_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/cat_db.txt"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        database_name = cls._database_folder_name(inputs)
+        taxonomy_name = cls._taxonomy_folder_name(inputs)
+        database_path = cls._database_path(inputs)
+        taxonomy_path = cls._taxonomy_path(inputs)
+        setup = _shell_join(["mkdir", "-p", database_path, taxonomy_path])
+        marker = (
+            "echo CAT_DB $(date '+%Y-%m-%d') "
+            f"{shlex.quote(database_name)} {shlex.quote(taxonomy_name)} > {shlex.quote(cls._cat_db_path(inputs))}"
+        )
+        cmd = [
+            "CAT",
+            "prepare",
+            "--fresh",
+            "--database_folder",
+            database_path,
+            "--taxonomy_folder",
+            taxonomy_path,
+        ]
+        return f"{setup} && {marker} && {_shell_join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "cat_db.txt"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._database_folder_name(inputs).strip():
+            return "database_folder is required"
+        if not cls._taxonomy_folder_name(inputs).strip():
+            return "taxonomy_folder is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {},
+            "optional": {
+                "database_folder": (
+                    "STRING",
+                    {"default": "CAT_database", "description": "Prepared CAT database folder name"},
+                ),
+                "taxonomy_folder": (
+                    "STRING",
+                    {"default": "taxonomy", "description": "Prepared CAT taxonomy folder name"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class CatAddNamesNode(_CatBaseNode):
     """Add taxonomic names to CAT or BAT classification outputs."""
 

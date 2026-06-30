@@ -7835,8 +7835,34 @@ def test_bctools_remaining_wrappers_validate_required_inputs_and_options() -> No
     assert remove_spurious.VALIDATE_INPUTS({"events": "events.bed", "threshold": 0.1}) is True
 
 
-def test_cat_add_names_and_summarise_expose_galaxy_metadata_and_dois() -> None:
+def test_cat_prepare_add_names_and_summarise_expose_galaxy_metadata_and_dois() -> None:
     object_info = _registry().object_info()
+
+    prepare = object_info["cat_prepare"]
+    assert prepare["display_name"] == "CAT prepare"
+    assert prepare["category"] == "taxonomy"
+    assert prepare["description"] == "Prepare CAT reference data for classifying metagenomic contigs or genome assemblies."
+    assert prepare["input"]["required"] == {}
+    assert prepare["input"]["optional"]["database_folder"][1]["default"] == "CAT_database"
+    assert prepare["input"]["optional"]["taxonomy_folder"][1]["default"] == "taxonomy"
+    assert prepare["output"] == ["TXT"]
+    assert prepare["output_name"] == ["cat_db"]
+    assert prepare["required_executables"] == ["CAT"]
+    assert prepare["required_conda_packages"] == ["cat"]
+    assert prepare["documentation_url"] == "https://github.com/dutilh/CAT"
+    assert prepare["citation_dois"] == [
+        "10.1101/072868",
+        "10.1186/s13059-019-1817-x",
+        "10.1038/nmeth.3176",
+        "10.1186/1471-2105-11-119",
+    ]
+    assert prepare["citation_urls"] == [
+        "https://doi.org/10.1101/072868",
+        "https://doi.org/10.1186/s13059-019-1817-x",
+        "https://doi.org/10.1038/nmeth.3176",
+        "https://doi.org/10.1186/1471-2105-11-119",
+    ]
+    assert "CAT prepare" in prepare["search_aliases"]
 
     add_names = object_info["cat_add_names"]
     assert add_names["display_name"] == "CAT add_names"
@@ -7883,6 +7909,42 @@ def test_cat_add_names_and_summarise_expose_galaxy_metadata_and_dois() -> None:
     assert summarise["citation_dois"] == add_names["citation_dois"]
     assert summarise["citation_urls"] == add_names["citation_urls"]
     assert "number of assignments" in summarise["search_aliases"]
+
+
+def test_cat_prepare_renders_database_command_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("cat_prepare")
+
+    assert node_class.render_command(
+        {
+            "database_folder": "CAT_database",
+            "taxonomy_folder": "taxonomy",
+            "output": "/work/cat_prepare",
+        }
+    ) == (
+        "mkdir -p /work/cat_prepare/CAT_database /work/cat_prepare/taxonomy && "
+        "echo CAT_DB $(date '+%Y-%m-%d') CAT_database taxonomy > /work/cat_prepare/cat_db.txt && "
+        "CAT prepare --fresh --database_folder /work/cat_prepare/CAT_database "
+        "--taxonomy_folder /work/cat_prepare/taxonomy"
+    )
+    assert node_class.render_command(
+        {
+            "database_folder": "CAT db",
+            "taxonomy_folder": "ncbi taxonomy",
+            "output": "/work/cat_prepare",
+        }
+    ) == (
+        "mkdir -p '/work/cat_prepare/CAT db' '/work/cat_prepare/ncbi taxonomy' && "
+        "echo CAT_DB $(date '+%Y-%m-%d') 'CAT db' 'ncbi taxonomy' > /work/cat_prepare/cat_db.txt && "
+        "CAT prepare --fresh --database_folder '/work/cat_prepare/CAT db' "
+        "--taxonomy_folder '/work/cat_prepare/ncbi taxonomy'"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cat_prepare" / "cat_db.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) is True
+    assert node_class.VALIDATE_INPUTS({"database_folder": ""}) == "database_folder is required"
+    assert node_class.VALIDATE_INPUTS({"taxonomy_folder": ""}) == "taxonomy_folder is required"
 
 
 def test_cat_add_names_renders_command_outputs_and_validates(tmp_path: Path) -> None:
