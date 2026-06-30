@@ -397,6 +397,140 @@ def test_mlst_list_exposes_metadata_renders_command_and_outputs(tmp_path: Path) 
     assert node_class.VALIDATE_INPUTS({"list_type": True}) is True
 
 
+def test_seqsero2_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["seqsero2"]
+
+    assert node_info["display_name"] == "SeqSero2"
+    assert node_info["category"] == "typing"
+    assert node_info["description"] == "Predict Salmonella serotypes from raw sequencing reads or genome assemblies."
+    assert node_info["output"] == ["TSV", "TXT"]
+    assert node_info["output_name"] == ["results", "log"]
+    assert node_info["required_executables"] == ["SeqSero2_package.py"]
+    assert node_info["required_conda_packages"] == ["seqsero2"]
+    assert node_info["documentation_url"] == "https://github.com/denglab/SeqSero2"
+    assert node_info["citation_dois"] == ["10.1128/AEM.01746-19"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1128/AEM.01746-19"]
+    assert "Salmonella serotype determination" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "Salmonella serotype" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input_type"][1]["options"] == [
+        "paired",
+        "collection",
+        "assembly",
+        "single",
+        "nanopore",
+    ]
+    assert node_info["input"]["required"]["read1"][0] == "FILE"
+    assert node_info["input"]["required"]["read2"][0] == "FASTQ"
+    assert node_info["input"]["optional"]["workflow"][1]["default"] == "a"
+    assert node_info["input"]["optional"]["workflow"][1]["options"] == ["a", "k"]
+    assert node_info["input"]["optional"]["logfile"][1]["default"] is False
+
+
+def test_seqsero2_renders_paired_collection_and_single_commands(tmp_path: Path) -> None:
+    node_class = _node_class("seqsero2")
+
+    assert node_class.render_command(
+        {
+            "input_type": "paired",
+            "read1": "reads/R1.fastq.gz",
+            "read2": "reads/R2.fastq.gz",
+            "read1_label": "sample 1",
+            "read2_label": "sample 1",
+            "workflow": "a",
+            "output": "/work/seqsero2",
+        }
+    ) == (
+        "mkdir -p /work/seqsero2 && "
+        "ln -s reads/R1.fastq.gz sample_1_forward.fastq.gz && "
+        "ln -s reads/R2.fastq.gz sample_1_reverse.fastq.gz && "
+        "SeqSero2_package.py -m a -t 2 -i sample_1_forward.fastq.gz sample_1_reverse.fastq.gz "
+        "-p ${GALAXY_SLOTS:-4} -d /work/seqsero2/output"
+    )
+
+    assert node_class.render_command(
+        {
+            "input_type": "collection",
+            "input_collection": {"forward": "R1.fq", "reverse": "R2.fq", "name": "paired reads"},
+            "workflow": "k",
+            "output": "/work/seqsero2",
+        }
+    ) == (
+        "mkdir -p /work/seqsero2 && "
+        "ln -s R1.fq paired_reads_forward.fastq && "
+        "ln -s R2.fq paired_reads_reverse.fastq && "
+        "SeqSero2_package.py -m k -t 2 -i paired_reads_forward.fastq paired_reads_reverse.fastq "
+        "-p ${GALAXY_SLOTS:-4} -d /work/seqsero2/output"
+    )
+
+    assert node_class.render_command(
+        {
+            "input_type": "single",
+            "read1": "interleaved reads.fastq",
+            "read1_label": "sample",
+            "workflow": "a",
+            "output": "/work/seqsero2",
+        }
+    ) == (
+        "mkdir -p /work/seqsero2 && "
+        "ln -s 'interleaved reads.fastq' sample.fastq && "
+        "SeqSero2_package.py -m a -t 3 -i sample.fastq -p ${GALAXY_SLOTS:-4} -d /work/seqsero2/output"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "seqsero2" / "SeqSero_result.tsv"]
+
+
+def test_seqsero2_renders_assembly_and_nanopore_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("seqsero2")
+
+    assert node_class.render_command(
+        {
+            "input_type": "assembly",
+            "read1": "contigs.fa",
+            "read1_label": "CP009102.1",
+            "workflow": "a",
+            "output": "/work/seqsero2",
+        }
+    ) == (
+        "mkdir -p /work/seqsero2 && "
+        "ln -s contigs.fa CP009102.1.fasta && "
+        "SeqSero2_package.py -m k -t 4 -i CP009102.1.fasta -p ${GALAXY_SLOTS:-4} -d /work/seqsero2/output"
+    )
+
+    assert node_class.render_command(
+        {
+            "input_type": "nanopore",
+            "read1": "nanopore reads.fa.gz",
+            "read1_label": "ont sample",
+            "output": "/work/seqsero2",
+        }
+    ) == (
+        "mkdir -p /work/seqsero2 && "
+        "ln -s 'nanopore reads.fa.gz' ont_sample.fasta.gz && "
+        "SeqSero2_package.py -m k -t 5 -i ont_sample.fasta.gz -p ${GALAXY_SLOTS:-4} -d /work/seqsero2/output"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"logfile": True}, tmp_path) == [
+        tmp_path / "seqsero2" / "SeqSero_result.tsv",
+        tmp_path / "seqsero2" / "SeqSero_log.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input_type must be one of: paired, collection, assembly, single, nanopore"
+    assert node_class.VALIDATE_INPUTS({"input_type": "bad"}) == (
+        "input_type must be one of: paired, collection, assembly, single, nanopore"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "paired", "read1": "R1.fq"}) == (
+        "read2 is required for paired input"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "paired", "read1": "R1.fq", "read2": "R2.fq", "workflow": "bad"}) == (
+        "workflow must be one of: a, k"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "collection"}) == (
+        "input_collection with forward and reverse reads is required for collection input"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_type": "assembly"}) == "read1 is required for assembly input"
+    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "workflow": "k"}) is True
+
+
 def test_bam_to_scidx_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["bam_to_scidx"]
 
@@ -1370,6 +1504,13 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
             "required_executables": ["genomescope2"],
             "required_conda_packages": ["genomescope2"],
             "doi": "10.1038/s41467-020-14998-3",
+        },
+        "seqsero2": {
+            "display_name": "SeqSero2",
+            "category": "typing",
+            "required_executables": ["SeqSero2_package.py"],
+            "required_conda_packages": ["seqsero2"],
+            "doi": "10.1128/AEM.01746-19",
         },
         "art_illumina": {
             "display_name": "ART Illumina",

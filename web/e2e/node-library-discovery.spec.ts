@@ -2074,6 +2074,35 @@ const objectInfo = {
     citation_urls: ['https://github.com/tseemann/mlst'],
     citation_text: 'MLST: Scan contig files against PubMLST typing schemes.',
   },
+  seqsero2: {
+    name: 'seqsero2',
+    display_name: 'SeqSero2',
+    category: 'typing',
+    description: 'Predict Salmonella serotypes from raw sequencing reads or genome assemblies.',
+    search_aliases: ['Galaxy', 'SeqSero2', 'seqsero2', 'Salmonella serotype', 'Salmonella typing', 'serotype prediction', 'allele micro-assembly', 'k-mer serotyping'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'paired', options: ['paired', 'collection', 'assembly', 'single', 'nanopore'] },
+        read1: { type: 'FILE' },
+        read2: { type: 'FASTQ' },
+      },
+      optional: {
+        input_collection: { type: 'JSON', default: {} },
+        workflow: { type: 'STRING', default: 'a', options: ['a', 'k'] },
+        logfile: { type: 'BOOLEAN', default: false },
+        read1_label: { type: 'STRING', default: '' },
+        read2_label: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['TSV', 'TXT'],
+    output_name: ['results', 'log'],
+    required_executables: ['SeqSero2_package.py'],
+    required_conda_packages: ['seqsero2'],
+    documentation_url: 'https://github.com/denglab/SeqSero2',
+    citation_dois: ['10.1128/AEM.01746-19'],
+    citation_urls: ['https://doi.org/10.1128/AEM.01746-19'],
+    citation_text: 'SeqSero2: rapid and improved Salmonella serotype determination using whole-genome sequencing data.',
+  },
   bam_to_scidx: {
     name: 'bam_to_scidx',
     display_name: 'Convert BAM to ScIdx',
@@ -14036,7 +14065,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('484 nodes available')).toBeVisible();
+  await expect(page.getByText('485 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14073,6 +14102,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'classification.summary.txt', name: 'CAT summarise', category: 'taxonomy' },
     { query: 'PubMLST sequence typing', name: 'MLST', category: 'typing' },
     { query: 'PubMLST schemes', name: 'MLST List', category: 'typing' },
+    { query: 'Salmonella serotype', name: 'SeqSero2', category: 'typing' },
     { query: 'canonical protein-coding genes', name: 'AEGeAn CanonGFF3', category: 'annotation' },
     { query: 'gene model integrity', name: 'AEGeAn GAEVAL', category: 'annotation' },
     { query: 'interval loci', name: 'AEGeAn LocusPocus', category: 'annotation' },
