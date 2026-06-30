@@ -3023,6 +3023,45 @@ const objectInfo = {
     citation_urls: ['https://github.com/tseemann/shovill'],
     citation_text: 'Shovill: Faster SPAdes assembly of Illumina reads.',
   },
+  snippy: {
+    name: 'snippy',
+    display_name: 'Snippy',
+    category: 'variant',
+    description: 'Call SNPs and indels between a haploid reference genome and reads or contigs with Snippy.',
+    search_aliases: ['Galaxy', 'Snippy', 'snippy', 'haploid variant calling', 'fast bacterial variant calling', 'NGS reads', 'core genome alignment', 'snippy-core', 'SNPs', 'indels'],
+    input: {
+      required: {
+        reference_source_selector: { type: 'STRING', default: 'history', options: ['history', 'cached'] },
+        ref_file: { type: 'FILE' },
+        fastq_input_selector: { type: 'STRING', default: 'paired', options: ['paired', 'single', 'paired_collection', 'paired_iv', 'contigs'] },
+      },
+      optional: {
+        ref_type: { type: 'STRING', default: 'fasta', options: ['fasta', 'genbank'] },
+        fastq_input1: { type: 'FASTQ' },
+        fastq_input2: { type: 'FASTQ' },
+        fastq_input_single: { type: 'FASTQ' },
+        fastq_input: { type: 'FILE' },
+        fastq_input_interleaved: { type: 'FASTQ' },
+        fasta_input: { type: 'FASTA' },
+        outputs: { type: 'STRING_LIST', default: ['outvcf', 'outtab', 'outzip'] },
+        mapqual: { type: 'INT', default: 60, min: 0 },
+        mincov: { type: 'INT', default: 10, min: 0 },
+        minfrac: { type: 'FLOAT', default: 0.9, min: 0, max: 1 },
+        minqual: { type: 'FLOAT', default: 100.0, min: 0 },
+        rgid: { type: 'STRING', default: '' },
+        bwaopt: { type: 'STRING', default: '' },
+        rename_cons: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['VCF', 'GFF', 'TSV', 'TSV', 'TXT', 'FASTA', 'FASTA', 'BAM', 'ZIP'],
+    output_name: ['snpvcf', 'snpgff', 'snptab', 'snpsum', 'snplog', 'snpalign', 'snpconsensus', 'snpsbam', 'outdir'],
+    required_executables: ['snippy', 'tar'],
+    required_conda_packages: ['snippy', 'tar'],
+    documentation_url: 'https://github.com/tseemann/snippy',
+    citation_dois: [],
+    citation_urls: ['https://github.com/tseemann/snippy'],
+    citation_text: 'snippy: fast bacterial variant calling from NGS reads.',
+  },
   genomescope: {
     name: 'genomescope',
     display_name: 'GenomeScope',
@@ -14170,7 +14209,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('488 nodes available')).toBeVisible();
+  await expect(page.getByText('489 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14289,6 +14328,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Bloom filter', name: 'Minia', category: 'assembly' },
     { query: 'Oxford Nanopore assembler', name: 'Raven', category: 'assembly' },
     { query: 'Faster SPAdes assembly', name: 'Shovill', category: 'assembly' },
+    { query: 'haploid variant calling', name: 'Snippy', category: 'variant' },
     { query: 'reference-free genome profiling', name: 'GenomeScope', category: 'assembly' },
     { query: 'Illumina read simulator', name: 'ART Illumina', category: 'simulation' },
     { query: '454 pyrosequencing simulator', name: 'ART 454', category: 'simulation' },

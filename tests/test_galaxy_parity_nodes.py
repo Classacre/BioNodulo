@@ -10670,6 +10670,132 @@ def test_shovill_renders_default_and_collection_commands_outputs_and_validates(t
     assert node_class.VALIDATE_INPUTS({"R1": "R1.fq", "R2": "R2.fq"}) is True
 
 
+def test_snippy_exposes_galaxy_metadata_inputs_outputs_and_citation_url() -> None:
+    node_info = _registry().object_info()["snippy"]
+
+    assert node_info["display_name"] == "Snippy"
+    assert node_info["category"] == "variant"
+    assert node_info["description"] == (
+        "Call SNPs and indels between a haploid reference genome and reads or contigs with Snippy."
+    )
+    assert node_info["output"] == ["VCF", "GFF", "TSV", "TSV", "TXT", "FASTA", "FASTA", "BAM", "ZIP"]
+    assert node_info["output_name"] == [
+        "snpvcf",
+        "snpgff",
+        "snptab",
+        "snpsum",
+        "snplog",
+        "snpalign",
+        "snpconsensus",
+        "snpsbam",
+        "outdir",
+    ]
+    assert node_info["required_executables"] == ["snippy", "tar"]
+    assert node_info["required_conda_packages"] == ["snippy", "tar"]
+    assert node_info["documentation_url"] == "https://github.com/tseemann/snippy"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/tseemann/snippy"]
+    assert "fast bacterial variant calling from NGS reads" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "haploid variant calling" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["reference_source_selector"][1]["default"] == "history"
+    assert node_info["input"]["required"]["reference_source_selector"][1]["options"] == ["history", "cached"]
+    assert node_info["input"]["required"]["fastq_input_selector"][1]["default"] == "paired"
+    assert node_info["input"]["required"]["fastq_input_selector"][1]["options"] == [
+        "paired",
+        "single",
+        "paired_collection",
+        "paired_iv",
+        "contigs",
+    ]
+    assert node_info["input"]["optional"]["outputs"][1]["default"] == ["outvcf", "outtab", "outzip"]
+    assert node_info["input"]["optional"]["minfrac"][1]["default"] == 0.9
+    assert node_info["input"]["optional"]["rename_cons"][1]["default"] is False
+
+
+def test_snippy_renders_paired_and_contigs_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("snippy")
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "history",
+            "ref_file": "reference genome.fasta",
+            "ref_type": "fasta",
+            "fastq_input_selector": "paired",
+            "fastq_input1": "reads R1.fastq.gz",
+            "fastq_input2": "reads R2.fastq.gz",
+            "fastq_input1_label": "Sample A R1.fastq.gz",
+            "output": "/work/snippy",
+        }
+    ) == (
+        "ln -sf 'reference genome.fasta' ref.fna && "
+        "snippy --outdir Sample_A_R1.fastq.gz --cpus ${GALAXY_SLOTS:-1} "
+        "--ram $((${GALAXY_MEMORY_MB:-4096}/1024)) --ref ref.fna --mapqual 60 --mincov 10 "
+        "--minfrac 0.9 --minqual 100.0 --R1 'reads R1.fastq.gz' --R2 'reads R2.fastq.gz' && "
+        "cp -r Sample_A_R1.fastq.gz /work/snippy/out && tar -czf /work/snippy/out.tgz Sample_A_R1.fastq.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "snippy" / "out" / "snps.vcf",
+        tmp_path / "snippy" / "out" / "snps.tab",
+        tmp_path / "snippy" / "out.tgz",
+    ]
+
+    assert node_class.render_command(
+        {
+            "reference_source_selector": "history",
+            "ref_file": "NC_000962.gbk",
+            "ref_type": "genbank",
+            "fastq_input_selector": "contigs",
+            "fasta_input": "assembly contigs.fasta",
+            "fasta_input_label": "assembly contigs",
+            "mapqual": 30,
+            "mincov": 2,
+            "minfrac": 0.75,
+            "minqual": 60,
+            "rgid": "MTB-01",
+            "bwaopt": "-x pacbio",
+            "rename_cons": True,
+            "outputs": ["outgff", "outsum", "outcon", "outbam", "outlog"],
+            "output": "/work/snippy",
+        }
+    ) == (
+        "ln -sf NC_000962.gbk ref.gbk && "
+        "snippy --outdir assembly_contigs --cpus ${GALAXY_SLOTS:-1} "
+        "--ram $((${GALAXY_MEMORY_MB:-4096}/1024)) --ref ref.gbk --mapqual 30 --mincov 2 "
+        "--minfrac 0.75 --minqual 60 --rgid MTB-01 --bwaopt '-x pacbio' --ctgs 'assembly contigs.fasta' && "
+        "sed -i 's/>.*/>assembly_contigs/' assembly_contigs/snps.consensus.fa && "
+        "cp -r assembly_contigs /work/snippy/out && tar -czf /work/snippy/out.tgz assembly_contigs"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {"outputs": ["outgff", "outsum", "outcon", "outbam", "outlog"]},
+        tmp_path,
+    ) == [
+        tmp_path / "snippy" / "out" / "snps.gff",
+        tmp_path / "snippy" / "out" / "snps.txt",
+        tmp_path / "snippy" / "out" / "snps.log",
+        tmp_path / "snippy" / "out" / "snps.consensus.fa",
+        tmp_path / "snippy" / "out" / "snps.bam",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input_selector": "paired", "fastq_input1": "R1.fq"}) == (
+        "fastq_input2 is required for paired input"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input_selector": "paired_collection"}) == (
+        "fastq_input collection with forward and reverse reads is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input_selector": "contigs"}) == (
+        "fasta_input is required for contigs input"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input_selector": "single", "fastq_input_single": "reads.fq", "minfrac": 1.2}) == (
+        "minfrac must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input_selector": "single", "fastq_input_single": "reads.fq", "outputs": ["bad"]}) == (
+        "outputs values must be one of: outvcf, outgff, outtab, outsum, outlog, outaln, outcon, outbam, outzip"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input_selector": "single", "fastq_input_single": "reads.fq"}) is True
+
+
 def test_minia_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["minia"]
 
