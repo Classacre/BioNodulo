@@ -3745,6 +3745,40 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/cherri'],
     citation_text: 'CheRRI evaluates RNA-RNA interaction sites and filters predicted or experimentally detected interactions with a trained model.',
   },
+  chewbbaca_allelecall: {
+    name: 'chewbbaca_allelecall',
+    display_name: 'ChewBBACA AlleleCall',
+    category: 'typing',
+    description: 'Determine allelic profiles for genome assemblies with a chewBBACA schema.',
+    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_allelecall', 'ChewBBACA AlleleCall', 'AlleleCall', 'cgMLST', 'wgMLST', 'allelic profiles', 'schema_seed', 'bacterial typing'],
+    input: {
+      required: {
+        input_file: { type: 'FASTA', is_list: true, multiple: true },
+        input_schema: { type: 'FILE' },
+      },
+      optional: {
+        genes_list: { type: 'TXT', default: '' },
+        training_file: { type: 'FILE', default: '' },
+        cds_input: { type: 'BOOLEAN', default: false },
+        blast_score_ratio: { type: 'FLOAT', default: '', min: 0, max: 1 },
+        minimum_length: { type: 'INT', default: '', min: 0 },
+        translation_table: { type: 'INT', default: '', min: 0 },
+        size_threshold: { type: 'FLOAT', default: '', min: 0 },
+        no_inferred: { type: 'BOOLEAN', default: false },
+        prodigal_mode: { type: 'STRING', default: 'single', options: ['single', 'meta'] },
+        mode: { type: 'STRING', default: '4', options: ['1', '2', '3', '4'] },
+        output_selector: { type: 'STRING_LIST', default: [], options: ['output_unclassified', 'output_missing', 'output_novel', 'hash_profile'], multiple: true, display: 'checkboxes' },
+      },
+    },
+    output: ['TSV_LIST', 'TXT_LIST', 'FASTA', 'FASTA', 'FASTA'],
+    output_name: ['allelecall_results', 'allelecall_log', 'unclassified_fasta', 'missing_fasta', 'novel_fasta'],
+    required_executables: ['chewBBACA.py', 'unzip'],
+    required_conda_packages: ['chewbbaca', 'blast', 'zip', 'fasttree'],
+    documentation_url: 'https://chewbbaca.readthedocs.io/',
+    citation_dois: ['10.1099/mgen.0.000166'],
+    citation_urls: ['https://doi.org/10.1099/mgen.0.000166'],
+    citation_text: 'chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing.',
+  },
   checkm_lineage_wf: {
     name: 'checkm_lineage_wf',
     display_name: 'CheckM lineage_wf',
@@ -16621,7 +16655,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('558 nodes available')).toBeVisible();
+  await expect(page.getByText('559 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16755,6 +16789,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'genome quality', name: 'CheckM2', category: 'qc' },
     { query: 'RNA-RNA interaction', name: 'Evaluation of RRIs using CheRRI', category: 'rna_seq' },
     { query: 'RRI model training', name: 'Train a CheRRI model using RRIs', category: 'rna_seq' },
+    { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'lineage-specific marker sets', name: 'CheckM lineage_wf', category: 'metagenomics' },
     { query: 'checkm tree', name: 'CheckM tree', category: 'metagenomics' },
     { query: 'checkm tree_qa', name: 'CheckM tree_qa', category: 'metagenomics' },

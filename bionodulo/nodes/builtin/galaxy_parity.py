@@ -134,6 +134,10 @@ CHERRI_CITATION_TEXT = (
     "CheRRI evaluates RNA-RNA interaction sites and filters predicted or experimentally detected "
     "interactions with a trained model."
 )
+CHEWBBACA_CITATION_DOI = "10.1099/mgen.0.000166"
+CHEWBBACA_CITATION_TEXT = (
+    "chewBBACA enables gene-by-gene allele calling and cgMLST/wgMLST schema-based bacterial typing."
+)
 ARGNORM_CITATION_DOI = "10.1093/bioinformatics/btaf173"
 ARGNORM_CITATION_TEXT = (
     "argNorm: a tool to normalize antibiotic resistance gene annotation across different databases."
@@ -21041,6 +21045,197 @@ class CheRRITrainNode(CommandNode):
                 return f"{name} must be an integer"
             if value < 0:
                 return f"{name} must be greater than or equal to 0"
+        return True
+
+
+class ChewBBACAAlleleCallNode(CommandNode):
+    """Determine allelic profiles for genome assemblies with chewBBACA."""
+
+    NODE_ID = "chewbbaca_allelecall"
+    DISPLAY_NAME = "ChewBBACA AlleleCall"
+    REQUIRED_CONDA_PACKAGES = ["chewbbaca", "blast", "zip", "fasttree"]
+    CATEGORY = "typing"
+    DESCRIPTION = "Determine allelic profiles for genome assemblies with a chewBBACA schema."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "chewBBACA",
+        "chewbbaca_allelecall",
+        "ChewBBACA AlleleCall",
+        "AlleleCall",
+        "cgMLST",
+        "wgMLST",
+        "allelic profiles",
+        "schema_seed",
+        "bacterial typing",
+    ]
+    RETURN_TYPES = ("TSV_LIST", "TXT_LIST", "FASTA", "FASTA", "FASTA")
+    RETURN_NAMES = ("allelecall_results", "allelecall_log", "unclassified_fasta", "missing_fasta", "novel_fasta")
+    REQUIRED_EXECUTABLES = ["chewBBACA.py", "unzip"]
+    DOCUMENTATION_URL = "https://chewbbaca.readthedocs.io/"
+    CITATION_DOIS = [CHEWBBACA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHEWBBACA_CITATION_DOI}"]
+    CITATION_TEXT = CHEWBBACA_CITATION_TEXT
+    VERSION = "3.3.10+galaxy1"
+    SHELL = True
+
+    OUTPUT_OPTIONS = ["output_unclassified", "output_missing", "output_novel", "hash_profile"]
+    PRODIGAL_MODES = ["single", "meta"]
+    MODES = ["1", "2", "3", "4"]
+
+    @classmethod
+    def _input_files(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("input_file", inputs.get("input_files")))
+
+    @classmethod
+    def _output_selector(cls, inputs: dict[str, Any]) -> list[str]:
+        return _as_list(inputs.get("output_selector"))
+
+    @classmethod
+    def _safe_input_name(cls, path: str) -> str:
+        name = Path(path).name
+        if "." in name:
+            stem, ext = name.rsplit(".", 1)
+            return f"{_safe_element_identifier(stem)}.{_safe_element_identifier(ext)}"
+        return _safe_element_identifier(name)
+
+    @classmethod
+    def _prodigal_mode(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("prodigal_mode", "single") or "single")
+
+    @classmethod
+    def _mode(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("mode", "4") or "4")
+
+    @classmethod
+    def _bool_flag(cls, inputs: dict[str, Any], key: str) -> bool:
+        value = inputs.get(key, False)
+        if isinstance(value, str):
+            return value.lower() not in {"", "false", "0", "no"}
+        return bool(value)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        commands = [_shell_join(["mkdir", "-p", out]), f"cd {shlex.quote(out)}", "mkdir input", "mkdir schema"]
+        for input_file in cls._input_files(inputs):
+            commands.append(_shell_join(["ln", "-sf", input_file, f"input/{cls._safe_input_name(input_file)}"]))
+        commands.append(_shell_join(["unzip", str(inputs.get("input_schema", "")), "-d", "schema"]))
+        cmd = ["chewBBACA.py", "AlleleCall"]
+        _add_if_value(cmd, "--ptf", inputs.get("training_file"))
+        if cls._bool_flag(inputs, "cds_input"):
+            cmd.append("--cds-input")
+        _add_if_value(cmd, "--gl", inputs.get("genes_list"))
+        _add_if_value(cmd, "--bsr", inputs.get("blast_score_ratio"))
+        _add_if_value(cmd, "--l", inputs.get("minimum_length"))
+        _add_if_value(cmd, "--t", inputs.get("translation_table"))
+        _add_if_value(cmd, "--st", inputs.get("size_threshold"))
+        if cls._bool_flag(inputs, "no_inferred"):
+            cmd.append("--no-inferred")
+        cmd.extend(["--pm", cls._prodigal_mode(inputs), "--mode", cls._mode(inputs), "--force-continue"])
+        selected = set(cls._output_selector(inputs))
+        if "output_unclassified" in selected:
+            cmd.append("--output-unclassified")
+        if "output_missing" in selected:
+            cmd.append("--output-missing")
+        if "output_novel" in selected:
+            cmd.append("--output-novel")
+        if "hash_profile" in selected:
+            cmd.extend(["--hash-profile", "md5"])
+        cmd.extend(["-i", "input", "-g", "schema/schema_seed/", "-o", "output"])
+        commands.append(_shell_join(cmd))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID / "output"
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out, out]
+        selected = set(cls._output_selector(inputs))
+        if "output_unclassified" in selected:
+            outputs.append(out / "unclassified_sequences.fasta")
+        if "output_missing" in selected:
+            outputs.append(out / "missing_classes.fasta")
+        if "output_novel" in selected:
+            outputs.append(out / "novel_alleles.fasta")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("FASTA", {"is_list": True, "multiple": True, "description": "Genome assemblies"}),
+                "input_schema": ("FILE", {"description": "chewBBACA schema ZIP archive"}),
+            },
+            "optional": {
+                "genes_list": ("TXT", {"default": ""}),
+                "training_file": ("FILE", {"default": ""}),
+                "cds_input": ("BOOLEAN", {"default": False}),
+                "blast_score_ratio": ("FLOAT", {"default": "", "min": 0, "max": 1}),
+                "minimum_length": ("INT", {"default": "", "min": 0}),
+                "translation_table": ("INT", {"default": "", "min": 0}),
+                "size_threshold": ("FLOAT", {"default": "", "min": 0}),
+                "no_inferred": ("BOOLEAN", {"default": False}),
+                "prodigal_mode": ("STRING", {"default": "single", "options": cls.PRODIGAL_MODES}),
+                "mode": ("STRING", {"default": "4", "options": cls.MODES}),
+                "output_selector": (
+                    "STRING_LIST",
+                    {"default": [], "options": cls.OUTPUT_OPTIONS, "multiple": True, "display": "checkboxes"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def _validate_optional_int(cls, inputs: dict[str, Any], name: str) -> bool | str:
+        raw = inputs.get(name, "")
+        if raw == "":
+            return True
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if value < 0:
+            return f"{name} must be greater than or equal to 0"
+        return True
+
+    @classmethod
+    def _validate_optional_float(cls, inputs: dict[str, Any], name: str, upper: float | None = None) -> bool | str:
+        raw = inputs.get(name, "")
+        if raw == "":
+            return True
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return f"{name} must be numeric"
+        if value < 0:
+            return f"{name} must be greater than or equal to 0"
+        if upper is not None and value > upper:
+            return f"{name} must be between 0 and {int(upper)}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not cls._input_files(inputs):
+            return "at least one input_file value is required"
+        if not str(inputs.get("input_schema", "")).strip():
+            return "input_schema is required"
+        if cls._mode(inputs) not in cls.MODES:
+            return f"mode must be one of: {', '.join(cls.MODES)}"
+        if cls._prodigal_mode(inputs) not in cls.PRODIGAL_MODES:
+            return f"prodigal_mode must be one of: {', '.join(cls.PRODIGAL_MODES)}"
+        result = cls._validate_optional_float(inputs, "blast_score_ratio", 1)
+        if result is not True:
+            return result
+        for name in ("minimum_length", "translation_table"):
+            result = cls._validate_optional_int(inputs, name)
+            if result is not True:
+                return result
+        result = cls._validate_optional_float(inputs, "size_threshold")
+        if result is not True:
+            return result
+        unsupported = [value for value in cls._output_selector(inputs) if value not in cls.OUTPUT_OPTIONS]
+        if unsupported:
+            return f"output_selector values must be one or more of: {', '.join(cls.OUTPUT_OPTIONS)}"
         return True
 
 

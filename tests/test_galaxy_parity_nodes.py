@@ -10949,6 +10949,100 @@ def test_cherri_train_renders_mixed_model_command_with_options() -> None:
     )
 
 
+def test_chewbbaca_allelecall_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["chewbbaca_allelecall"]
+
+    assert info["display_name"] == "ChewBBACA AlleleCall"
+    assert info["category"] == "typing"
+    assert info["description"] == "Determine allelic profiles for genome assemblies with a chewBBACA schema."
+    assert info["output"] == ["TSV_LIST", "TXT_LIST", "FASTA", "FASTA", "FASTA"]
+    assert info["output_name"] == [
+        "allelecall_results",
+        "allelecall_log",
+        "unclassified_fasta",
+        "missing_fasta",
+        "novel_fasta",
+    ]
+    assert info["required_executables"] == ["chewBBACA.py", "unzip"]
+    assert info["required_conda_packages"] == ["chewbbaca", "blast", "zip", "fasttree"]
+    assert info["documentation_url"] == "https://chewbbaca.readthedocs.io/"
+    assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
+    assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
+    assert "chewBBACA" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "cgMLST" in info["search_aliases"]
+    assert info["version"] == "3.3.10+galaxy1"
+    assert info["input"]["required"]["input_file"][0] == "FASTA"
+    assert info["input"]["required"]["input_file"][1]["is_list"] is True
+    assert info["input"]["required"]["input_schema"][0] == "FILE"
+    assert info["input"]["optional"]["output_selector"][1]["options"] == [
+        "output_unclassified",
+        "output_missing",
+        "output_novel",
+        "hash_profile",
+    ]
+    assert info["input"]["optional"]["prodigal_mode"][1]["options"] == ["single", "meta"]
+    assert info["input"]["optional"]["mode"][1]["default"] == "4"
+
+
+def test_chewbbaca_allelecall_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chewbbaca_allelecall")
+
+    assert node_class.render_command(
+        {
+            "input_file": ["GCA_000007265.fna", "Genome B.fa"],
+            "input_schema": "schema files.zip",
+            "training_file": "training.ptf",
+            "genes_list": "genes.txt",
+            "cds_input": True,
+            "blast_score_ratio": 0.7,
+            "minimum_length": 201,
+            "translation_table": 11,
+            "size_threshold": 0.2,
+            "no_inferred": True,
+            "prodigal_mode": "meta",
+            "mode": "3",
+            "output_selector": ["output_unclassified", "output_missing", "output_novel", "hash_profile"],
+            "output": "/work/chewbbaca_allelecall",
+        }
+    ) == (
+        "mkdir -p /work/chewbbaca_allelecall && cd /work/chewbbaca_allelecall && mkdir input && mkdir schema && "
+        "ln -sf GCA_000007265.fna input/GCA_000007265.fna && ln -sf 'Genome B.fa' input/Genome_B.fa && "
+        "unzip 'schema files.zip' -d schema && chewBBACA.py AlleleCall --ptf training.ptf --cds-input --gl genes.txt "
+        "--bsr 0.7 --l 201 --t 11 --st 0.2 --no-inferred --pm meta --mode 3 --force-continue "
+        "--output-unclassified --output-missing --output-novel --hash-profile md5 -i input -g schema/schema_seed/ -o output"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {"output_selector": ["output_unclassified", "output_missing", "output_novel"]},
+        tmp_path,
+    ) == [
+        tmp_path / "chewbbaca_allelecall" / "output",
+        tmp_path / "chewbbaca_allelecall" / "output",
+        tmp_path / "chewbbaca_allelecall" / "output" / "unclassified_sequences.fasta",
+        tmp_path / "chewbbaca_allelecall" / "output" / "missing_classes.fasta",
+        tmp_path / "chewbbaca_allelecall" / "output" / "novel_alleles.fasta",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input_file value is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"]}) == "input_schema is required"
+    assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"], "input_schema": "schema.zip", "mode": "bad"}) == (
+        "mode must be one of: 1, 2, 3, 4"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": ["genome.fna"], "input_schema": "schema.zip", "prodigal_mode": "bad"}
+    ) == "prodigal_mode must be one of: single, meta"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": ["genome.fna"], "input_schema": "schema.zip", "blast_score_ratio": 1.1}
+    ) == "blast_score_ratio must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": ["genome.fna"], "input_schema": "schema.zip", "minimum_length": -1}
+    ) == "minimum_length must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_file": ["genome.fna"], "input_schema": "schema.zip", "output_selector": ["bad"]}
+    ) == "output_selector values must be one or more of: output_unclassified, output_missing, output_novel, hash_profile"
+    assert node_class.VALIDATE_INPUTS({"input_file": ["genome.fna"], "input_schema": "schema.zip"}) is True
+
+
 def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["checkm_lineage_wf"]
 
