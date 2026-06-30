@@ -585,6 +585,7 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "ODGI",
         "GBZ",
         "IMAGE",
+        "H5AD",
         "JSON",
         "CSV",
         "TSV",

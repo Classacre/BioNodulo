@@ -110,6 +110,10 @@ FASTA_STATS_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main
 FASTA_STATS_CITATION_TEXT = "Fasta Statistics: Display summary statistics for a fasta file."
 ANNDATA2RI_CITATION_URL = "https://github.com/theislab/anndata2ri"
 ANNDATA2RI_CITATION_TEXT = "Convert between AnnData and SingleCellExperiment objects."
+ANNDATA_SCANPY_CITATION_DOI = "10.1186/s13059-017-1382-0"
+ANNDATA_SCANPY_CITATION_TEXT = (
+    "Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data."
+)
 ARGNORM_CITATION_DOI = "10.1093/bioinformatics/btaf173"
 ARGNORM_CITATION_TEXT = (
     "argNorm: a tool to normalize antibiotic resistance gene annotation across different databases."
@@ -278,6 +282,86 @@ def _bedtools_common_output(node_id: str, filename: str, output_dir: str | Path)
     out = Path(output_dir) / node_id
     out.mkdir(parents=True, exist_ok=True)
     return out / filename
+
+
+class AnnDataExportNode(CommandNode):
+    """Export AnnData H5AD matrices and annotations to tabular files."""
+
+    NODE_ID = "anndata_export"
+    DISPLAY_NAME = "Export AnnData"
+    REQUIRED_CONDA_PACKAGES = ["anndata", "scanpy", "loompy", "pandas"]
+    CATEGORY = "single_cell"
+    DESCRIPTION = "Export an AnnData H5AD matrix and annotations to tabular files."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "AnnData",
+        "anndata_export",
+        "Export AnnData",
+        "H5AD",
+        "write_csvs",
+        "obs annotations",
+        "var annotations",
+        "single-cell matrix export",
+    ]
+    RETURN_TYPES = ("TSV", "TSV", "TSV", "TSV", "TSV")
+    RETURN_NAMES = ("tabular_x", "tabular_obs", "tabular_obsm", "tabular_var", "tabular_varm")
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.write_csvs.html"
+    CITATION_DOIS = [ANNDATA_SCANPY_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{ANNDATA_SCANPY_CITATION_DOI}"]
+    CITATION_TEXT = ANNDATA_SCANPY_CITATION_TEXT
+    VERSION = "0.11.4+galaxy3"
+    SHELL = True
+
+    OUTPUT_FILES = ["X.csv", "obs.csv", "obsm.csv", "var.csv", "varm.csv"]
+
+    @classmethod
+    def _script_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/anndata_export.py"
+
+    @classmethod
+    def _script_body(cls, inputs: dict[str, Any]) -> str:
+        input_path = str(inputs.get("input", ""))
+        return "\n".join(
+            [
+                "import anndata as ad",
+                f"adata = ad.read_h5ad({input_path!r}, backed='r')",
+                'adata.write_csvs(\'.\', sep="\\t", skip_data=False)',
+            ]
+        )
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        script_path = cls._script_path(inputs)
+        return (
+            f"mkdir -p {shlex.quote(out)} && "
+            f"cat > {shlex.quote(script_path)} <<'PY'\n"
+            f"{cls._script_body(inputs)}\n"
+            f"PY\n"
+            f"cd {shlex.quote(out)} && python {shlex.quote(Path(script_path).name)}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / filename for filename in cls.OUTPUT_FILES]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("H5AD", {"description": "Annotated data matrix to export"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
 
 
 class Anndata2RiNode(CommandNode):

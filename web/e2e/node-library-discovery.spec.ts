@@ -2278,6 +2278,26 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/fasta_stats'],
     citation_text: 'Fasta Statistics: Display summary statistics for a fasta file.',
   },
+  anndata_export: {
+    name: 'anndata_export',
+    display_name: 'Export AnnData',
+    category: 'single_cell',
+    description: 'Export an AnnData H5AD matrix and annotations to tabular files.',
+    search_aliases: ['Galaxy', 'AnnData', 'anndata_export', 'Export AnnData', 'H5AD', 'write_csvs', 'obs annotations', 'var annotations', 'single-cell matrix export'],
+    input: {
+      required: {
+        input: { type: 'H5AD' },
+      },
+    },
+    output: ['TSV', 'TSV', 'TSV', 'TSV', 'TSV'],
+    output_name: ['tabular_x', 'tabular_obs', 'tabular_obsm', 'tabular_var', 'tabular_varm'],
+    required_executables: ['python'],
+    required_conda_packages: ['anndata', 'scanpy', 'loompy', 'pandas'],
+    documentation_url: 'https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.write_csvs.html',
+    citation_dois: ['10.1186/s13059-017-1382-0'],
+    citation_urls: ['https://doi.org/10.1186/s13059-017-1382-0'],
+    citation_text: 'Scanpy and AnnData provide scalable analysis and annotated data matrices for single-cell gene expression data.',
+  },
   anndata2ri: {
     name: 'anndata2ri',
     display_name: 'anndata2ri',
@@ -15061,7 +15081,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('508 nodes available')).toBeVisible();
+  await expect(page.getByText('509 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15154,6 +15174,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'amrfinder antimicrobial resistance', name: 'AMRFinderPlus', category: 'annotation' },
     { query: 'rRNA prediction', name: 'barrnap', category: 'annotation' },
     { query: 'NG50', name: 'Fasta Statistics', category: 'qc' },
+    { query: 'write_csvs', name: 'Export AnnData', category: 'single_cell' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },

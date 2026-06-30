@@ -22,6 +22,55 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def test_anndata_export_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["anndata_export"]
+
+    assert node_info["display_name"] == "Export AnnData"
+    assert node_info["category"] == "single_cell"
+    assert node_info["description"] == "Export an AnnData H5AD matrix and annotations to tabular files."
+    assert node_info["output"] == ["TSV", "TSV", "TSV", "TSV", "TSV"]
+    assert node_info["output_name"] == ["tabular_x", "tabular_obs", "tabular_obsm", "tabular_var", "tabular_varm"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["anndata", "scanpy", "loompy", "pandas"]
+    assert node_info["documentation_url"] == "https://anndata.readthedocs.io/en/latest/generated/anndata.AnnData.write_csvs.html"
+    assert node_info["citation_dois"] == ["10.1186/s13059-017-1382-0"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1186/s13059-017-1382-0"]
+    assert "AnnData" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "write_csvs" in node_info["search_aliases"]
+    assert node_info["version"] == "0.11.4+galaxy3"
+    assert node_info["input"]["required"]["input"][0] == "H5AD"
+
+
+def test_anndata_export_renders_generated_script_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("anndata_export")
+
+    command = node_class.render_command(
+        {
+            "input": "single cell matrix.h5ad",
+            "output": "/work/anndata_export",
+        }
+    )
+    assert command == (
+        "mkdir -p /work/anndata_export && cat > /work/anndata_export/anndata_export.py <<'PY'\n"
+        "import anndata as ad\n"
+        "adata = ad.read_h5ad('single cell matrix.h5ad', backed='r')\n"
+        "adata.write_csvs('.', sep=\"\\t\", skip_data=False)\n"
+        "PY\n"
+        "cd /work/anndata_export && python anndata_export.py"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "anndata_export" / "X.csv",
+        tmp_path / "anndata_export" / "obs.csv",
+        tmp_path / "anndata_export" / "obsm.csv",
+        tmp_path / "anndata_export" / "var.csv",
+        tmp_path / "anndata_export" / "varm.csv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "krumsiek11.h5ad"}) is True
+
+
 def test_anndata2ri_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["anndata2ri"]
 
