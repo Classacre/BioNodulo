@@ -35163,6 +35163,124 @@ def test_ucsc_chainnet_validates_required_inputs_reference_sources_and_options()
     ) is True
 
 
+def test_fasplit_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["fasplit"]
+
+    assert info["display_name"] == "faSplit"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Split a FASTA file into multiple FASTA files."
+    assert info["output"] == ["DIRECTORY"]
+    assert info["output_name"] == ["output_list"]
+    assert info["required_executables"] == ["faSplit"]
+    assert info["required_conda_packages"] == ["ucsc-fasplit"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/utils/faSplit/faSplit.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "split FASTA" in info["search_aliases"]
+    assert info["input"]["required"]["input"][0] == "FASTA"
+    assert info["input"]["optional"]["split_type"][1]["default"] == "sequence"
+    assert info["input"]["optional"]["split_type"][1]["options"] == [
+        "sequence",
+        "base",
+        "size",
+        "byname",
+        "about",
+        "gap",
+    ]
+    assert info["input"]["optional"]["count"][1]["default"] == 10
+    assert info["input"]["optional"]["maxN"][1]["min"] == 0
+    assert info["input"]["optional"]["oneFile"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["extra"][1]["min"] == 0
+    assert info["input"]["optional"]["lift"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["minGapSize"][1]["min"] == 1
+    assert info["input"]["optional"]["noGapDrops"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["outDirDepth"][1]["min"] == 0
+    assert info["input"]["optional"]["prefixLength"][1]["min"] == 1
+
+
+def test_fasplit_renders_galaxy_modes_advanced_options_and_output_directory(tmp_path: Path) -> None:
+    node_class = _node_class("fasplit")
+
+    assert node_class.render_command(
+        {
+            "input": "CDS input.fa",
+            "split_type": "sequence",
+            "count": 5,
+            "output": "/work/fasplit",
+        }
+    ) == "mkdir -p /work/fasplit/output_list && faSplit sequence 'CDS input.fa' 5 /work/fasplit/output_list/"
+    assert node_class.render_command(
+        {
+            "input": "scaffolds.fa",
+            "split_type": "byname",
+            "prefixLength": 8,
+            "outDirDepth": 2,
+            "output": "/work/fasplit",
+        }
+    ) == "mkdir -p /work/fasplit/output_list && faSplit -outDirDepth=2 -prefixLength=8 byname scaffolds.fa /work/fasplit/output_list/"
+    assert node_class.render_command(
+        {
+            "input": "chr1.fa",
+            "split_type": "gap",
+            "count": 20000,
+            "maxN": 900,
+            "oneFile": True,
+            "lift": True,
+            "minGapSize": 1000,
+            "noGapDrops": True,
+            "output": "/work/fasplit",
+        }
+    ) == (
+        "mkdir -p /work/fasplit/output_list && faSplit -maxN=900 -oneFile "
+        "-lift=/work/fasplit/fasplit.lft -minGapSize=1000 -noGapDrops gap chr1.fa 20000 "
+        "/work/fasplit/output_list/"
+    )
+    assert node_class.render_command(
+        {
+            "input": "chr1.fa",
+            "split_type": "size",
+            "count": 100,
+            "extra": 10,
+            "output": "/work/fasplit",
+        }
+    ) == "mkdir -p /work/fasplit/output_list && faSplit -extra=10 size chr1.fa 100 /work/fasplit/output_list/"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "fasplit" / "output_list",
+    ]
+
+
+def test_fasplit_validates_required_inputs_modes_counts_and_options() -> None:
+    node_class = _node_class("fasplit")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "bad"}) == (
+        "split_type must be one of: sequence, base, size, byname, about, gap"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "sequence", "count": 0}) == (
+        "count must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "size", "maxN": -1}) == (
+        "maxN must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "size", "extra": -1}) == (
+        "extra must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "gap", "minGapSize": 0}) == (
+        "minGapSize must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "byname", "outDirDepth": -1}) == (
+        "outDirDepth must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "byname", "prefixLength": 0}) == (
+        "prefixLength must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "byname"}) is True
+    assert node_class.VALIDATE_INPUTS({"input": "seqs.fa", "split_type": "sequence", "count": 10}) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 

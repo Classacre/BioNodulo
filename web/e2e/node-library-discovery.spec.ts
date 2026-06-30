@@ -6204,6 +6204,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  fasplit: {
+    name: 'fasplit',
+    display_name: 'faSplit',
+    category: 'genomics',
+    description: 'Split a FASTA file into multiple FASTA files.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'fasplit', 'faSplit', 'split FASTA', 'FASTA chunks', 'by sequence name', 'gap boundaries'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+      },
+      optional: {
+        split_type: { type: 'STRING', default: 'sequence', options: ['sequence', 'base', 'size', 'byname', 'about', 'gap'] },
+        count: { type: 'INT', default: 10, min: 1 },
+        maxN: { type: 'INT', default: '', min: 0 },
+        oneFile: { type: 'BOOLEAN', default: false },
+        extra: { type: 'INT', default: '', min: 0 },
+        lift: { type: 'BOOLEAN', default: false },
+        minGapSize: { type: 'INT', default: '', min: 1 },
+        noGapDrops: { type: 'BOOLEAN', default: false },
+        outDirDepth: { type: 'INT', default: '', min: 0 },
+        prefixLength: { type: 'INT', default: '', min: 1 },
+      },
+    },
+    output: ['DIRECTORY'],
+    output_name: ['output_list'],
+    required_executables: ['faSplit'],
+    required_conda_packages: ['ucsc-fasplit'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/utils/faSplit/faSplit.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -13022,7 +13054,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('450 nodes available')).toBeVisible();
+  await expect(page.getByText('451 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13242,6 +13274,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'wigToBigWig', name: 'wigtobigwig', category: 'genomics' },
     { query: 'AXT to MAF', name: 'axtToMaf', category: 'genomics' },
     { query: 'alignment nets', name: 'chainNet', category: 'genomics' },
+    { query: 'split FASTA', name: 'faSplit', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
