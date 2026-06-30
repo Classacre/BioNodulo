@@ -6417,6 +6417,37 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_maffrags: {
+    name: 'ucsc_maffrags',
+    display_name: 'mafFrags',
+    category: 'genomics',
+    description: 'Extract UCSC MAF alignments for multiple BED regions from a database track.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafFrags', 'ucsc_maffrags', 'mafFrags', 'BED region MAF extraction', 'multiple alignment format', 'BED12 exons', 'UCSC MAF track'],
+    input: {
+      required: {
+        bed_file: { type: 'BED' },
+        genome: { type: 'STRING' },
+        track: { type: 'STRING' },
+      },
+      optional: {
+        bed12: { type: 'BOOLEAN', default: false },
+        thickOnly: { type: 'BOOLEAN', default: false },
+        meFirst: { type: 'BOOLEAN', default: false },
+        txStarts: { type: 'BOOLEAN', default: false },
+        refCoords: { type: 'BOOLEAN', default: false },
+        orgs: { type: 'STRING' },
+        ucsc_db_connection: { type: 'FILE' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output'],
+    required_executables: ['mafFrags'],
+    required_conda_packages: ['ucsc-maffrags'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFrags/mafFrags.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   ucsc_mafcoverage: {
     name: 'ucsc_mafcoverage',
     display_name: 'mafCoverage',
@@ -13262,7 +13293,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('458 nodes available')).toBeVisible();
+  await expect(page.getByText('459 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13489,6 +13520,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'MAF indexed lookup', name: 'mafFetch', category: 'genomics' },
     { query: 'MAF i rows', name: 'mafAddIRows', category: 'genomics' },
     { query: 'MAF region extract', name: 'mafFrag', category: 'genomics' },
+    { query: 'BED region MAF extraction', name: 'mafFrags', category: 'genomics' },
     { query: 'MAF coverage', name: 'mafCoverage', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },

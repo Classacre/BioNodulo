@@ -35840,6 +35840,102 @@ def test_ucsc_maffrag_validates_required_inputs_coordinates_and_strand() -> None
     ) is True
 
 
+def test_ucsc_maffrags_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_maffrags"]
+
+    assert info["display_name"] == "mafFrags"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Extract UCSC MAF alignments for multiple BED regions from a database track."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["mafFrags"]
+    assert info["required_conda_packages"] == ["ucsc-maffrags"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFrags/mafFrags.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "BED region MAF extraction" in info["search_aliases"]
+    assert info["input"]["required"]["bed_file"][0] == "BED"
+    assert info["input"]["required"]["genome"][0] == "STRING"
+    assert info["input"]["required"]["track"][0] == "STRING"
+    assert info["input"]["optional"]["bed12"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["thickOnly"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["meFirst"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["txStarts"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["refCoords"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["orgs"][0] == "STRING"
+    assert info["input"]["optional"]["ucsc_db_connection"][0] == "FILE"
+
+
+def test_ucsc_maffrags_renders_default_flags_orgs_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_maffrags")
+
+    assert node_class.render_command(
+        {
+            "bed_file": "mafFrag_in.bed",
+            "genome": "hg19",
+            "track": "multiz46way",
+            "output": "/work/ucsc_maffrags",
+        }
+    ) == (
+        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafFrags hg19 multiz46way mafFrag_in.bed /work/ucsc_maffrags/out.maf"
+    )
+    assert node_class.render_command(
+        {
+            "bed_file": "regions bed12.bed",
+            "genome": "hg38",
+            "track": "multiz100way",
+            "bed12": True,
+            "thickOnly": True,
+            "meFirst": True,
+            "orgs": "species order.txt",
+            "ucsc_db_connection": "custom hg.conf",
+            "output": "/work/ucsc_maffrags",
+        }
+    ) == (
+        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafFrags hg38 multiz100way 'regions bed12.bed' -bed12 -thickOnly -meFirst "
+        "'-orgs=species order.txt' /work/ucsc_maffrags/out.maf"
+    )
+    assert node_class.render_command(
+        {
+            "bed_file": "regions.bed",
+            "genome": "hg38",
+            "track": "multiz100way",
+            "txStarts": True,
+            "refCoords": True,
+            "output": "/work/ucsc_maffrags",
+        }
+    ) == (
+        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+        "mafFrags hg38 multiz100way regions.bed -txStarts -refCoords /work/ucsc_maffrags/out.maf"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_maffrags" / "out.maf",
+    ]
+
+
+def test_ucsc_maffrags_validates_required_inputs_and_bed12_incompatible_options() -> None:
+    node_class = _node_class("ucsc_maffrags")
+
+    assert node_class.VALIDATE_INPUTS({}) == "bed_file is required"
+    assert node_class.VALIDATE_INPUTS({"bed_file": "regions.bed"}) == "genome is required"
+    assert node_class.VALIDATE_INPUTS({"bed_file": "regions.bed", "genome": "hg19"}) == "track is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"bed_file": "regions.bed", "genome": "hg19", "track": "multiz46way", "bed12": True, "refCoords": True}
+    ) == "bed12 cannot be combined with txStarts or refCoords"
+    assert node_class.VALIDATE_INPUTS(
+        {"bed_file": "regions.bed", "genome": "hg19", "track": "multiz46way", "bed12": True, "txStarts": True}
+    ) == "bed12 cannot be combined with txStarts or refCoords"
+    assert node_class.VALIDATE_INPUTS(
+        {"bed_file": "regions.bed", "genome": "hg19", "track": "multiz46way", "txStarts": True, "refCoords": True}
+    ) is True
+    assert node_class.VALIDATE_INPUTS({"bed_file": "regions.bed", "genome": "hg19", "track": "multiz46way"}) is True
+
+
 def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_mafcoverage"]
 

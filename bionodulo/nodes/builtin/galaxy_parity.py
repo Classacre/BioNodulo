@@ -29662,6 +29662,117 @@ class UcscMafFragNode(CommandNode):
         }
 
 
+class UcscMafFragsNode(CommandNode):
+    """Extract UCSC MAF alignments for BED regions from a database track."""
+
+    NODE_ID = "ucsc_maffrags"
+    DISPLAY_NAME = "mafFrags"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-maffrags"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Extract UCSC MAF alignments for multiple BED regions from a database track."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_mafFrags",
+        "ucsc_maffrags",
+        "mafFrags",
+        "BED region MAF extraction",
+        "multiple alignment format",
+        "BED12 exons",
+        "UCSC MAF track",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["mafFrags"]
+    DOCUMENTATION_URL = "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFrags/mafFrags.c"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.maf"
+
+    @classmethod
+    def _ucsc_db_connection(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ucsc_db_connection", "ucsc_db_connection.conf") or "ucsc_db_connection.conf")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        setup = (
+            f"cp {shlex.quote(cls._ucsc_db_connection(inputs))} ${{HOME}}/.hg.conf && "
+            "chmod 600 ${HOME}/.hg.conf"
+        )
+        cmd = [
+            "mafFrags",
+            str(inputs.get("genome", "")),
+            str(inputs.get("track", "")),
+            str(inputs.get("bed_file", "")),
+        ]
+        for flag in ("bed12", "thickOnly", "meFirst", "txStarts", "refCoords"):
+            if inputs.get(flag):
+                cmd.append(f"-{flag}")
+        if str(inputs.get("orgs", "")) != "":
+            cmd.append(f"-orgs={inputs.get('orgs')}")
+        cmd.append(cls._output_path(inputs))
+        return f"{setup} && {_shell_join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out.maf"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        for name in ("bed_file", "genome", "track"):
+            if not str(inputs.get(name, "")).strip():
+                return f"{name} is required"
+        if inputs.get("bed12") and (inputs.get("txStarts") or inputs.get("refCoords")):
+            return "bed12 cannot be combined with txStarts or refCoords"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "bed_file": ("BED", {"description": "BED6 or BED12 regions to extract from the UCSC MAF track"}),
+                "genome": ("STRING", {"description": "UCSC genome database name, such as hg19 or hg38"}),
+                "track": ("STRING", {"description": "UCSC MAF table name, such as multiz46way"}),
+            },
+            "optional": {
+                "bed12": ("BOOLEAN", {"default": False, "description": "Treat the input BED as BED12 exon blocks"}),
+                "thickOnly": (
+                    "BOOLEAN",
+                    {"default": False, "description": "When using BED12, extract only thickStart to thickEnd regions"},
+                ),
+                "meFirst": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Place the reference genome sequence first in each MAF block"},
+                ),
+                "txStarts": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Add txstart r-lines using BED names and reference coordinates"},
+                ),
+                "refCoords": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use actual reference genome coordinates in the output MAF"},
+                ),
+                "orgs": (
+                    "TXT",
+                    {"description": "Optional organism order file used with the UCSC -orgs option"},
+                ),
+                "ucsc_db_connection": (
+                    "FILE",
+                    {"description": "UCSC database connection configuration copied to ~/.hg.conf"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class UcscMafCoverageNode(CommandNode):
     """Measure genome coverage from UCSC MAF alignments."""
 
