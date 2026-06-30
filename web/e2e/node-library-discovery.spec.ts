@@ -6082,6 +6082,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  'ucsc-twobittofa': {
+    name: 'ucsc-twobittofa',
+    display_name: 'twoBitToFa',
+    category: 'genomics',
+    description: 'Convert all or part of a TwoBit sequence file to FASTA.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc-twobittofa', 'twoBitToFa', 'TwoBit', '2bit to FASTA', 'sequence range', 'seqList'],
+    input: {
+      required: {
+        twobit_input: { type: 'FILE' },
+      },
+      optional: {
+        seq: { type: 'STRING', default: '' },
+        start: { type: 'INT', default: '', min: 0 },
+        end: { type: 'INT', default: '', min: 0 },
+        seqList: { type: 'FILE' },
+        noMask: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FASTA'],
+    output_name: ['fasta_output'],
+    required_executables: ['twoBitToFa'],
+    required_conda_packages: ['ucsc-twobittofa'],
+    documentation_url: 'https://genome.ucsc.edu/goldenpath/help/twoBit.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -12900,7 +12927,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('446 nodes available')).toBeVisible();
+  await expect(page.getByText('447 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13116,6 +13143,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'synteny filter', name: 'netFilter', category: 'genomics' },
     { query: 'netted chains', name: 'chainPreNet', category: 'genomics' },
     { query: 'net to AXT', name: 'netToAxt', category: 'genomics' },
+    { query: '2bit to FASTA', name: 'twoBitToFa', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },

@@ -28115,6 +28115,109 @@ class UcscNetToAxtNode(CommandNode):
         }
 
 
+class UcscTwoBitToFaNode(CommandNode):
+    """Convert UCSC TwoBit sequence files to FASTA."""
+
+    NODE_ID = "ucsc-twobittofa"
+    DISPLAY_NAME = "twoBitToFa"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-twobittofa"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Convert all or part of a TwoBit sequence file to FASTA."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc-twobittofa",
+        "twoBitToFa",
+        "TwoBit",
+        "2bit to FASTA",
+        "sequence range",
+        "seqList",
+    ]
+    RETURN_TYPES = ("FASTA",)
+    RETURN_NAMES = ("fasta_output",)
+    REQUIRED_EXECUTABLES = ["twoBitToFa"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenpath/help/twoBit.html"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/fasta_output.fa"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "twoBitToFa",
+            str(inputs.get("twobit_input", "")),
+            cls._output_path(inputs),
+        ]
+        if str(inputs.get("seq", "")) != "":
+            cmd.append(f"-seq={inputs.get('seq')}")
+        if str(inputs.get("start", "")) != "":
+            cmd.append(f"-start={inputs.get('start')}")
+        if str(inputs.get("end", "")) != "":
+            cmd.append(f"-end={inputs.get('end')}")
+        if str(inputs.get("seqList", "")) != "":
+            cmd.append(f"-seqList={inputs.get('seqList')}")
+        if inputs.get("noMask"):
+            cmd.append("-noMask")
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "fasta_output.fa"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("twobit_input", "")).strip():
+            return "twobit_input is required"
+        for name in ("start", "end"):
+            value = inputs.get(name, "")
+            if str(value) != "" and int(value) < 0:
+                return f"{name} must be greater than or equal to 0"
+        if str(inputs.get("start", "")) != "" and str(inputs.get("end", "")) != "":
+            if int(inputs.get("end")) < int(inputs.get("start")):
+                return "end must be greater than or equal to start"
+        if str(inputs.get("seq", "")) != "" and str(inputs.get("seqList", "")) != "":
+            return "seq and seqList cannot both be set"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "twobit_input": ("FILE", {"description": "Input UCSC TwoBit sequence file"}),
+            },
+            "optional": {
+                "seq": (
+                    "STRING",
+                    {"default": "", "description": "Restrict conversion to one sequence name"},
+                ),
+                "start": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Zero-based start position within the selected sequence"},
+                ),
+                "end": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Non-inclusive end position within the selected sequence"},
+                ),
+                "seqList": (
+                    "FILE",
+                    {"description": "Text file with sequence names or seqSpec:start-end ranges to extract"},
+                ),
+                "noMask": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Convert masked sequence to uppercase"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MafToAxtNode(CommandNode):
     """Convert UCSC MAF alignments to AXT format."""
 

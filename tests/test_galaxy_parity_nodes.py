@@ -34801,6 +34801,72 @@ def test_ucsc_nettoaxt_validates_required_inputs_and_max_gap() -> None:
     ) is True
 
 
+def test_ucsc_twobittofa_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc-twobittofa"]
+
+    assert info["display_name"] == "twoBitToFa"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Convert all or part of a TwoBit sequence file to FASTA."
+    assert info["output"] == ["FASTA"]
+    assert info["output_name"] == ["fasta_output"]
+    assert info["required_executables"] == ["twoBitToFa"]
+    assert info["required_conda_packages"] == ["ucsc-twobittofa"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenpath/help/twoBit.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "2bit to FASTA" in info["search_aliases"]
+    assert info["input"]["required"]["twobit_input"][0] == "FILE"
+    assert info["input"]["optional"]["seq"][0] == "STRING"
+    assert info["input"]["optional"]["start"][1]["min"] == 0
+    assert info["input"]["optional"]["end"][1]["min"] == 0
+    assert info["input"]["optional"]["seqList"][0] == "FILE"
+    assert info["input"]["optional"]["noMask"][0] == "BOOLEAN"
+
+
+def test_ucsc_twobittofa_renders_region_list_flags_and_output(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc-twobittofa")
+
+    assert node_class.render_command(
+        {
+            "twobit_input": "genome input.2bit",
+            "seq": "chr1",
+            "start": 100,
+            "end": 250,
+            "seqList": "regions list.txt",
+            "noMask": True,
+            "output": "/work/ucsc-twobittofa",
+        }
+    ) == (
+        "twoBitToFa 'genome input.2bit' /work/ucsc-twobittofa/fasta_output.fa "
+        "-seq=chr1 -start=100 -end=250 '-seqList=regions list.txt' -noMask"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc-twobittofa" / "fasta_output.fa",
+    ]
+
+
+def test_ucsc_twobittofa_validates_required_input_coordinates_and_region_sources() -> None:
+    node_class = _node_class("ucsc-twobittofa")
+
+    assert node_class.VALIDATE_INPUTS({}) == "twobit_input is required"
+    assert node_class.VALIDATE_INPUTS({"twobit_input": "input.2bit", "start": -1}) == (
+        "start must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"twobit_input": "input.2bit", "end": -1}) == (
+        "end must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"twobit_input": "input.2bit", "start": 250, "end": 100}) == (
+        "end must be greater than or equal to start"
+    )
+    assert node_class.VALIDATE_INPUTS({"twobit_input": "input.2bit", "seq": "chr1", "seqList": "regions.txt"}) == (
+        "seq and seqList cannot both be set"
+    )
+    assert node_class.VALIDATE_INPUTS({"twobit_input": "input.2bit", "seq": "chr1", "start": 0, "end": 10}) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 
