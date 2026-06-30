@@ -2630,6 +2630,53 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1126/science.abl5197'],
     citation_text: 'CellTypist provides automated cell type annotation for scRNA-seq datasets, with a focus on immune populations.',
   },
+  cemitool: {
+    name: 'cemitool',
+    display_name: 'CEMiTool',
+    category: 'rna_seq',
+    description: 'Run gene co-expression network analyses with CEMiTool.',
+    search_aliases: ['Galaxy', 'CEMiTool', 'cemitool', 'gene co-expression network analyses', 'co-expression modules', 'coexpression', 'WGCNA', 'over representation analysis', 'Gene Set Enrichment Analysis', 'GSEA', 'module eigengene'],
+    input: {
+      required: {
+        expression_matrix: { type: 'TSV' },
+      },
+      optional: {
+        annotation: { type: 'TSV', default: '' },
+        pathways: { type: 'FILE', default: '' },
+        interactions: { type: 'TSV', default: '' },
+        beta: { type: 'INT', default: '', min: 0 },
+        outputs: { type: 'STRING_LIST', default: ['report'], options: ['report', 'tables', 'plots'], multiple: true },
+        cemitool_script: { type: 'FILE', default: 'CEMiTool.R' },
+        filter: { type: 'BOOLEAN', default: true },
+        filter_pval: { type: 'FLOAT', default: 0.1, min: 0, max: 1 },
+        apply_vst: { type: 'BOOLEAN', default: false },
+        n_genes: { type: 'INT', default: 1000, min: 0 },
+        eps: { type: 'FLOAT', default: 0.1, min: 0, max: 1 },
+        cor_method: { type: 'STRING', default: 'pearson', options: ['pearson', 'spearman'] },
+        cor_function: { type: 'STRING', default: 'cor', options: ['cor', 'bicor'] },
+        network_type: { type: 'STRING', default: 'unsigned', options: ['signed', 'unsigned'] },
+        tom_type: { type: 'STRING', default: 'unsigned', options: ['signed', 'unsigned'] },
+        merge_similar: { type: 'BOOLEAN', default: false },
+        rank_method: { type: 'STRING', default: 'mean', options: ['mean', 'median'] },
+        min_ngen: { type: 'INT', default: 30, min: 0 },
+        diss_thresh: { type: 'FLOAT', default: 0.8, min: 0, max: 1 },
+        center_func: { type: 'STRING', default: 'mean', options: ['mean', 'median'] },
+        ora_pval: { type: 'FLOAT', default: 0.05, min: 0, max: 1 },
+        gsea_scale: { type: 'BOOLEAN', default: true },
+        gsea_min_size: { type: 'INT', default: 15, min: 0 },
+        gsea_max_size: { type: 'INT', default: 1000, min: 0 },
+        sample_column_name: { type: 'STRING', default: 'SampleName' },
+      },
+    },
+    output: ['DIRECTORY', 'TSV', 'TSV', 'TSV', 'TXT', 'TSV', 'TSV', 'TSV', 'TSV', 'HTML_REPORT'],
+    output_name: ['plots', 'module', 'modules_genes', 'parameters', 'selected_genes', 'summary_eigengene', 'summary_mean', 'summary_median', 'interactions_output', 'output_html'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['bioconductor-cemitool', 'r-ggplot2', 'r-getopt'],
+    documentation_url: 'https://bioconductor.org/packages/CEMiTool',
+    citation_dois: ['10.1186/s12859-018-2053-1', '10.18129/B9.bioc.CEMiTool'],
+    citation_urls: ['https://doi.org/10.1186/s12859-018-2053-1', 'https://doi.org/10.18129/B9.bioc.CEMiTool'],
+    citation_text: 'CEMiTool identifies and analyzes co-expression modules from expression data and provides publication-ready reports for downstream enrichment analyses.',
+  },
   anndata_inspect: {
     name: 'anndata_inspect',
     display_name: 'Inspect AnnData',
@@ -16487,7 +16534,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('554 nodes available')).toBeVisible();
+  await expect(page.getByText('555 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16563,6 +16610,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bg_diamond_view', name: 'Diamond view', category: 'alignment' },
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'featureCounts gene counts', name: 'featureCounts', category: 'rna_seq' },
+    { query: 'gene co-expression network analyses', name: 'CEMiTool', category: 'rna_seq' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
     { query: 'seqtk composition', name: 'SeqTK Composition', category: 'sequence' },
     { query: 'seqtk split at N', name: 'SeqTK CutN', category: 'sequence' },

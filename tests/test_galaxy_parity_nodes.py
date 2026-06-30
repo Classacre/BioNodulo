@@ -454,6 +454,178 @@ def test_celltypist_renders_training_model_pdf_dotplot_command_and_validates(tmp
     assert node_class.VALIDATE_INPUTS({"adata": "query.h5ad"}) is True
 
 
+def test_cemitool_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    node_info = _registry().object_info()["cemitool"]
+
+    assert node_info["display_name"] == "CEMiTool"
+    assert node_info["category"] == "rna_seq"
+    assert node_info["description"] == "Run gene co-expression network analyses with CEMiTool."
+    assert node_info["output"] == [
+        "DIRECTORY",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TXT",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "HTML_REPORT",
+    ]
+    assert node_info["output_name"] == [
+        "plots",
+        "module",
+        "modules_genes",
+        "parameters",
+        "selected_genes",
+        "summary_eigengene",
+        "summary_mean",
+        "summary_median",
+        "interactions_output",
+        "output_html",
+    ]
+    assert node_info["required_executables"] == ["Rscript"]
+    assert node_info["required_conda_packages"] == [
+        "bioconductor-cemitool",
+        "r-ggplot2",
+        "r-getopt",
+    ]
+    assert node_info["documentation_url"] == "https://bioconductor.org/packages/CEMiTool"
+    assert node_info["citation_dois"] == ["10.1186/s12859-018-2053-1", "10.18129/B9.bioc.CEMiTool"]
+    assert node_info["citation_urls"] == [
+        "https://doi.org/10.1186/s12859-018-2053-1",
+        "https://doi.org/10.18129/B9.bioc.CEMiTool",
+    ]
+    assert "co-expression modules" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "Gene Set Enrichment Analysis" in node_info["search_aliases"]
+    assert node_info["version"] == "1.34.0+galaxy0"
+    assert node_info["input"]["required"]["expression_matrix"][0] == "TSV"
+    assert node_info["input"]["optional"]["outputs"][1]["default"] == ["report"]
+    assert node_info["input"]["optional"]["outputs"][1]["options"] == ["report", "tables", "plots"]
+    assert node_info["input"]["optional"]["filter"][1]["default"] is True
+    assert node_info["input"]["optional"]["filter_pval"][1] == {"default": 0.1, "min": 0, "max": 1}
+    assert node_info["input"]["optional"]["cor_method"][1]["options"] == ["pearson", "spearman"]
+    assert node_info["input"]["optional"]["cor_function"][1]["options"] == ["cor", "bicor"]
+    assert node_info["input"]["optional"]["network_type"][1]["options"] == ["signed", "unsigned"]
+    assert node_info["input"]["optional"]["tom_type"][1]["options"] == ["signed", "unsigned"]
+
+
+def test_cemitool_renders_minimal_report_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("cemitool")
+
+    assert node_class.render_command(
+        {
+            "expression_matrix": "expression matrix.tab",
+            "outputs": ["report"],
+            "network_type": "signed",
+            "tom_type": "signed",
+            "output": "/work/cemitool",
+        }
+    ) == (
+        "mkdir -p /work/cemitool && cd /work/cemitool && "
+        "Rscript CEMiTool.R -M 'expression matrix.tab' -f TRUE -i 0.1 -a FALSE -n 1000 -e 0.1 "
+        "-c pearson -y cor -x signed -t signed -m FALSE -r mean -g 30 -d 0.8 -h mean -o 0.05 "
+        "-l TRUE -w 15 -z 1000 -v SampleName"
+    )
+    assert node_class.PLAN_OUTPUTS({"outputs": ["report"]}, tmp_path) == [
+        tmp_path / "cemitool" / "Reports" / "Report" / "report.html",
+    ]
+
+
+def test_cemitool_renders_full_inputs_tables_plots_command_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("cemitool")
+
+    assert node_class.render_command(
+        {
+            "expression_matrix": "expression_matrix.tab",
+            "annotation": "sample_annotation.tab",
+            "pathways": "pathways.gmt",
+            "interactions": "interactions.tab",
+            "beta": 6,
+            "outputs": ["report", "tables", "plots"],
+            "cemitool_script": "/tools/cemitool/CEMiTool.R",
+            "filter": False,
+            "filter_pval": 0.2,
+            "apply_vst": True,
+            "n_genes": 2000,
+            "eps": 0.1,
+            "cor_method": "spearman",
+            "cor_function": "bicor",
+            "network_type": "unsigned",
+            "tom_type": "unsigned",
+            "merge_similar": True,
+            "rank_method": "median",
+            "min_ngen": 35,
+            "diss_thresh": 0.7,
+            "center_func": "median",
+            "ora_pval": 0.07,
+            "gsea_scale": False,
+            "gsea_min_size": 10,
+            "gsea_max_size": 1100,
+            "sample_column_name": "Sample-Name:1",
+            "output": "/work/cemitool",
+        }
+    ) == (
+        "mkdir -p /work/cemitool && cd /work/cemitool && "
+        "Rscript /tools/cemitool/CEMiTool.R -M expression_matrix.tab -A sample_annotation.tab "
+        "-P pathways.gmt -I interactions.tab -B 6 -f FALSE -i 0.2 -a TRUE -n 2000 -e 0.1 "
+        "-c spearman -y bicor -x unsigned -t unsigned -m TRUE -r median -g 35 -d 0.7 "
+        "-h median -o 0.07 -l FALSE -w 10 -z 1100 -v Sample-Name:1"
+    )
+    assert node_class.PLAN_OUTPUTS(
+        {"outputs": ["report", "tables", "plots"], "interactions": "interactions.tab"},
+        tmp_path,
+    ) == [
+        tmp_path / "cemitool" / "Plots",
+        tmp_path / "cemitool" / "Tables" / "module.tsv",
+        tmp_path / "cemitool" / "Tables" / "modules_genes.gmt",
+        tmp_path / "cemitool" / "Tables" / "parameters.tsv",
+        tmp_path / "cemitool" / "Tables" / "selected_genes.txt",
+        tmp_path / "cemitool" / "Tables" / "summary_eigengene.tsv",
+        tmp_path / "cemitool" / "Tables" / "summary_mean.tsv",
+        tmp_path / "cemitool" / "Tables" / "summary_median.tsv",
+        tmp_path / "cemitool" / "Tables" / "interactions.tsv",
+        tmp_path / "cemitool" / "Reports" / "Report" / "report.html",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "expression_matrix is required"
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "outputs": ["bad"]}) == (
+        "outputs values must be one or more of: report, tables, plots"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "beta": -1}) == (
+        "beta must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "filter_pval": 1.5}) == (
+        "filter_pval must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "cor_method": "kendall"}) == (
+        "cor_method must be one of: pearson, spearman"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "cor_function": "bad"}) == (
+        "cor_function must be one of: cor, bicor"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "network_type": "bad"}) == (
+        "network_type must be one of: signed, unsigned"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "tom_type": "bad"}) == (
+        "tom_type must be one of: signed, unsigned"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "rank_method": "bad"}) == (
+        "rank_method must be one of: mean, median"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "center_func": "bad"}) == (
+        "center_func must be one of: mean, median"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "n_genes": -1}) == (
+        "n_genes must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab", "sample_column_name": "Sample Name"}) == (
+        "sample_column_name must match [0-9a-zA-Z:-_]+"
+    )
+    assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab"}) is True
+
+
 def test_anndata_inspect_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     node_info = _registry().object_info()["anndata_inspect"]
 
