@@ -7240,6 +7240,99 @@ def test_arriba_get_filters_renders_command_outputs_and_validates(tmp_path: Path
     assert node_class.VALIDATE_INPUTS({"arriba_reference_name": "GRCh38"}) is True
 
 
+def test_artic_guppyplex_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["artic_guppyplex"]
+
+    assert info["display_name"] == "ARTIC guppyplex"
+    assert info["category"] == "sequence"
+    assert info["description"] == "Filter Nanopore reads by read length and optionally quality with ARTIC guppyplex."
+    assert info["input"]["required"]["reads"][0] == "FASTQ"
+    assert info["input"]["optional"]["structure"][1]["default"] == "one_to_one"
+    assert info["input"]["optional"]["structure"][1]["options"] == ["one_to_one", "one_to_many"]
+    assert info["input"]["optional"]["input_ext"][1]["options"] == [
+        "fastq",
+        "fastq.gz",
+        "fastqsanger",
+        "fastqsanger.gz",
+    ]
+    assert info["input"]["optional"]["max_length"][1]["default"] == 700
+    assert info["input"]["optional"]["min_length"][1]["default"] == 400
+    assert info["input"]["optional"]["min_quality"][1]["default"] == 7
+    assert info["output"] == ["FASTQ"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["artic", "bash", "gzip"]
+    assert info["required_conda_packages"] == ["artic"]
+    assert info["documentation_url"] == "https://artic.readthedocs.io/en/latest/"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/artic-network/fieldbioinformatics"]
+    assert "ARTIC toolkit" in info["citation_text"]
+    assert "guppyplex" in info["search_aliases"]
+
+
+def test_artic_guppyplex_renders_commands_outputs_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("artic_guppyplex")
+
+    assert node_class.render_command(
+        {
+            "reads": "sample reads.fastq.gz",
+            "input_ext": "fastq.gz",
+            "max_length": 800,
+            "min_length": 300,
+            "min_quality": 0,
+            "output": "/work/artic_guppyplex",
+        }
+    ) == (
+        "mkdir -p /work/artic_guppyplex/inputs && "
+        "ln -s 'sample reads.fastq.gz' /work/artic_guppyplex/inputs/1.fastq.gz && "
+        "artic guppyplex --min-length 300 --max-length 800 --skip-quality-check "
+        "--directory /work/artic_guppyplex/inputs/ --output /work/artic_guppyplex/guppyplex_out.fastq && "
+        "gzip /work/artic_guppyplex/guppyplex_out.fastq"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
+        tmp_path / "artic_guppyplex" / "guppyplex_out.fastq.gz",
+    ]
+
+    assert node_class.render_command(
+        {
+            "structure": "one_to_many",
+            "reads": ["part A.fastq", "part B.fastq"],
+            "input_ext": "fastq",
+            "min_quality": 10,
+            "output": "/work/artic_guppyplex",
+        }
+    ) == (
+        "mkdir -p /work/artic_guppyplex/inputs && "
+        "ln -s 'part A.fastq' /work/artic_guppyplex/inputs/0.fastq && "
+        "ln -s 'part B.fastq' /work/artic_guppyplex/inputs/1.fastq && "
+        "artic guppyplex --min-length 400 --max-length 700 --quality 10 "
+        "--directory /work/artic_guppyplex/inputs/ --output /work/artic_guppyplex/guppyplex_out.fastq"
+    )
+    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq"}, tmp_path) == [
+        tmp_path / "artic_guppyplex" / "guppyplex_out.fastq",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "reads is required"
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq", "structure": "bad"}) == (
+        "structure must be one of: one_to_one, one_to_many"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq", "input_ext": "bad"}) == (
+        "input_ext must be one of: fastq, fastq.gz, fastqsanger, fastqsanger.gz"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq", "min_length": 0}) == (
+        "min_length must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq", "max_length": 0}) == (
+        "max_length must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq", "min_quality": -1}) == (
+        "min_quality must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq", "min_length": 800, "max_length": 700}) == (
+        "max_length must be greater than or equal to min_length"
+    )
+    assert node_class.VALIDATE_INPUTS({"reads": "reads.fastq"}) is True
+
+
 def test_seqkit_fx2tab_exposes_galaxy_aligned_output_and_citation() -> None:
     info = _registry().object_info()["seqkit_fx2tab"]
 

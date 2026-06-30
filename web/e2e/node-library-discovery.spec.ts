@@ -1233,6 +1233,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.257246.119'],
     citation_text: 'Arriba detects gene fusions and other aberrant transcripts from STAR-aligned RNA-Seq data.',
   },
+  artic_guppyplex: {
+    name: 'artic_guppyplex',
+    display_name: 'ARTIC guppyplex',
+    category: 'sequence',
+    description: 'Filter Nanopore reads by read length and optionally quality with ARTIC guppyplex.',
+    search_aliases: ['Galaxy', 'ARTIC guppyplex', 'artic_guppyplex', 'guppyplex', 'Nanopore read length filter', 'amplicon sequencing', 'ARTIC amplicon scheme'],
+    input: {
+      required: {
+        reads: { type: 'FASTQ' },
+      },
+      optional: {
+        structure: { type: 'STRING', default: 'one_to_one', options: ['one_to_one', 'one_to_many'] },
+        input_ext: { type: 'STRING', default: 'fastq', options: ['fastq', 'fastq.gz', 'fastqsanger', 'fastqsanger.gz'] },
+        max_length: { type: 'INT', default: 700, min: 1 },
+        min_length: { type: 'INT', default: 400, min: 1 },
+        min_quality: { type: 'INT', default: 7, min: 0 },
+      },
+    },
+    output: ['FASTQ'],
+    output_name: ['output'],
+    required_executables: ['artic', 'bash', 'gzip'],
+    required_conda_packages: ['artic'],
+    documentation_url: 'https://artic.readthedocs.io/en/latest/',
+    citation_dois: [],
+    citation_urls: ['https://github.com/artic-network/fieldbioinformatics'],
+    citation_text: 'ARTIC toolkit by the ARTIC network for field bioinformatics workflows.',
+  },
   http_request: {
     name: 'http_request',
     display_name: 'HTTP Request',
@@ -14509,7 +14536,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('496 nodes available')).toBeVisible();
+  await expect(page.getByText('497 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14556,6 +14583,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'RNA-Seq fusion detection', name: 'Arriba', category: 'rna_seq' },
     { query: 'fusion visualization', name: 'Arriba Draw Fusions', category: 'visualization' },
     { query: 'cytobands', name: 'Arriba Get Filters', category: 'databases' },
+    { query: 'guppyplex', name: 'ARTIC guppyplex', category: 'sequence' },
     { query: 'REST API', name: 'HTTP Request', category: 'api' },
     { query: 'database', name: 'AlphaFold DB', category: 'databases' },
     { query: 'mmseqs2', name: 'ColabFold Batch', category: 'ai' },
