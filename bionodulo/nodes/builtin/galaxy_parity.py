@@ -35375,6 +35375,7 @@ class _Beacon2SearchBaseNode(CommandNode):
 
     SEARCH_COLLECTION = ""
     OUTPUT_FILENAME = ""
+    REQUIRED_QUERY_FLAGS: tuple[tuple[str, str, str, str], ...] = ()
     QUERY_FLAGS: tuple[tuple[str, str, str], ...] = ()
 
     @classmethod
@@ -35415,6 +35416,8 @@ class _Beacon2SearchBaseNode(CommandNode):
             "--db-auth-config",
             credentials_path,
         ]
+        for key, flag, _type_name, _description in cls.REQUIRED_QUERY_FLAGS:
+            cmd.extend([flag, str(inputs.get(key, ""))])
         for key, flag, _description in cls.QUERY_FLAGS:
             value = inputs.get(key)
             if value is not None and str(value) != "":
@@ -35450,6 +35453,15 @@ class _Beacon2SearchBaseNode(CommandNode):
             cls._db_port(inputs)
         except (TypeError, ValueError):
             return "db_port must be an integer"
+        for key, _flag, type_name, _description in cls.REQUIRED_QUERY_FLAGS:
+            value = inputs.get(key)
+            if value is None or str(value) == "":
+                return f"{key} is required"
+            if type_name == "INT":
+                try:
+                    int(value)
+                except (TypeError, ValueError):
+                    return f"{key} must be an integer"
         return True
 
     @classmethod
@@ -35472,11 +35484,14 @@ class _Beacon2SearchBaseNode(CommandNode):
         }
         for key, _flag, description in cls.QUERY_FLAGS:
             optional[key] = ("STRING", {"default": "", "description": description})
+        required: dict[str, Any] = {
+            "database": ("STRING", {"description": "Targeted Beacon database"}),
+            "collection": ("STRING", {"description": "Targeted Beacon collection in the selected database"}),
+        }
+        for key, _flag, type_name, description in cls.REQUIRED_QUERY_FLAGS:
+            required[key] = (type_name, {"description": description})
         return {
-            "required": {
-                "database": ("STRING", {"description": "Targeted Beacon database"}),
-                "collection": ("STRING", {"description": "Targeted Beacon collection in the selected database"}),
-            },
+            "required": required,
             "optional": optional,
             "hidden": {"output": ("STRING", {})},
         }
@@ -35559,6 +35574,40 @@ class Beacon2BiosamplesNode(_Beacon2SearchBaseNode):
         ("sampleStorage", "--sampleStorage", "Specimen storage status"),
         ("tumorGrade", "--tumorGrade", "Tumor grade term"),
         ("tumorProgression", "--tumorProgression", "Tumor progression category"),
+    )
+
+
+class Beacon2BracketNode(_Beacon2SearchBaseNode):
+    """Query Beacon genomic variations by bracketed start and end ranges."""
+
+    NODE_ID = "beacon2_bracket"
+    DISPLAY_NAME = "Beacon2 Bracket"
+    DESCRIPTION = "Query Beacon genomic variations by sequence ranges for both start and end positions."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_bracket",
+        "Beacon2 Bracket",
+        "beacon2-search bracket",
+        "bracket query",
+        "genomic variation range",
+        "copy number variation",
+        "structural variant range",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_bracket_query",)
+    SEARCH_COLLECTION = "bracket"
+    OUTPUT_FILENAME = "bracket_query_findings.json"
+    REQUIRED_QUERY_FLAGS = (
+        ("start_minimum", "--start-minimum", "INT", "Minimum start position of the genomic variation"),
+        ("start_maximum", "--start-maximum", "INT", "Maximum start position of the genomic variation"),
+        ("end_minimum", "--end-minimum", "INT", "Minimum end position of the genomic variation"),
+        ("end_maximum", "--end-maximum", "INT", "Maximum end position of the genomic variation"),
+    )
+    QUERY_FLAGS = (
+        ("variantType", "--variantType", "Targeted variant type to search for"),
+        ("referenceName", "--referenceName", "Reference name such as chr1/1, chr2/2, chr3/3"),
     )
 
 

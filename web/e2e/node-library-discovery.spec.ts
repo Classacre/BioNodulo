@@ -7564,6 +7564,40 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1002/humu.24369'],
     citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
   },
+  beacon2_bracket: {
+    name: 'beacon2_bracket',
+    display_name: 'Beacon2 Bracket',
+    category: 'metadata',
+    description: 'Query Beacon genomic variations by sequence ranges for both start and end positions.',
+    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_bracket', 'Beacon2 Bracket', 'beacon2-search bracket', 'bracket query', 'genomic variation range', 'copy number variation', 'structural variant range'],
+    input: {
+      required: {
+        database: { type: 'STRING' },
+        collection: { type: 'STRING' },
+        start_minimum: { type: 'INT' },
+        start_maximum: { type: 'INT' },
+        end_minimum: { type: 'INT' },
+        end_maximum: { type: 'INT' },
+      },
+      optional: {
+        db_host: { type: 'STRING', default: '127.0.0.1' },
+        db_port: { type: 'INT', default: 27017 },
+        db_auth_source: { type: 'STRING', default: 'admin' },
+        db_user: { type: 'STRING', default: 'root' },
+        db_password: { type: 'STRING', default: 'example' },
+        variantType: { type: 'STRING', default: '' },
+        referenceName: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['JSON'],
+    output_name: ['out_bracket_query'],
+    required_executables: ['beacon2-search'],
+    required_conda_packages: ['beacon2-import'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import',
+    citation_dois: ['10.1002/humu.24369'],
+    citation_urls: ['https://doi.org/10.1002/humu.24369'],
+    citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
+  },
   beacon2_pxf2bff: {
     name: 'beacon2_pxf2bff',
     display_name: 'Beacon2 PXF2BFF',
@@ -15338,7 +15372,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('516 nodes available')).toBeVisible();
+  await expect(page.getByText('517 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15593,6 +15627,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Beacon v2 Models', name: 'Beacon2 CSV2XLSX', category: 'metadata' },
     { query: 'beacon2-search analyses', name: 'Beacon2 Analyses', category: 'metadata' },
     { query: 'beacon2-search biosamples', name: 'Beacon2 Biosamples', category: 'metadata' },
+    { query: 'beacon2-search bracket', name: 'Beacon2 Bracket', category: 'metadata' },
     { query: 'Phenopacket JSON', name: 'Beacon2 PXF2BFF', category: 'metadata' },
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },

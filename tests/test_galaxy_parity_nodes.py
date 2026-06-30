@@ -39877,6 +39877,94 @@ def test_beacon2_biosamples_renders_search_command_outputs_and_validation(tmp_pa
     assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test"}) is True
 
 
+def test_beacon2_bracket_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["beacon2_bracket"]
+
+    assert node_info["display_name"] == "Beacon2 Bracket"
+    assert node_info["category"] == "metadata"
+    assert node_info["description"] == (
+        "Query Beacon genomic variations by sequence ranges for both start and end positions."
+    )
+    assert node_info["output"] == ["JSON"]
+    assert node_info["output_name"] == ["out_bracket_query"]
+    assert node_info["required_executables"] == ["beacon2-search"]
+    assert node_info["required_conda_packages"] == ["beacon2-import"]
+    assert node_info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import"
+    assert node_info["citation_dois"] == ["10.1002/humu.24369"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
+    assert "Beacon v2" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "beacon2-search bracket" in node_info["search_aliases"]
+    assert node_info["version"] == "2.2.4+galaxy0"
+    assert node_info["input"]["required"]["start_minimum"][0] == "INT"
+    assert node_info["input"]["required"]["start_maximum"][0] == "INT"
+    assert node_info["input"]["required"]["end_minimum"][0] == "INT"
+    assert node_info["input"]["required"]["end_maximum"][0] == "INT"
+    assert node_info["input"]["optional"]["referenceName"][1]["default"] == ""
+    assert node_info["input"]["optional"]["variantType"][1]["default"] == ""
+
+
+def test_beacon2_bracket_renders_search_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("beacon2_bracket")
+
+    assert node_class.render_command(
+        {
+            "database": "beacon",
+            "collection": "test",
+            "db_host": "20.108.51.167",
+            "start_minimum": 12345,
+            "start_maximum": 67890,
+            "end_minimum": 12350,
+            "end_maximum": 67900,
+            "variantType": "SNV",
+            "referenceName": "chr4",
+            "output": "/work/beacon2_bracket",
+        }
+    ) == (
+        "mkdir -p /work/beacon2_bracket && "
+        "cat > /work/beacon2_bracket/beacon2_db_auth.json <<'JSON'\n"
+        "{\n"
+        '  "db_auth_source": "admin",\n'
+        '  "db_user": "root",\n'
+        '  "db_password": "example"\n'
+        "}\n"
+        "JSON\n"
+        "beacon2-search bracket --db-host 20.108.51.167 --db-port 27017 --database beacon "
+        "--collection test --advance-connection --db-auth-config "
+        "/work/beacon2_bracket/beacon2_db_auth.json --start-minimum 12345 --start-maximum 67890 "
+        "--end-minimum 12350 --end-maximum 67900 --variantType SNV --referenceName chr4 "
+        "> /work/beacon2_bracket/bracket_query_findings.json"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "beacon2_bracket" / "bracket_query_findings.json",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "database is required"
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test"}) == "start_minimum is required"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "database": "beacon",
+            "collection": "test",
+            "start_minimum": 12345,
+            "start_maximum": 67890,
+            "end_minimum": 12350,
+            "end_maximum": 67900,
+            "db_port": "bad",
+        }
+    ) == "db_port must be an integer"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "database": "beacon",
+            "collection": "test",
+            "start_minimum": 12345,
+            "start_maximum": 67890,
+            "end_minimum": 12350,
+            "end_maximum": 67900,
+        }
+    ) is True
+
+
 def test_beacon2_nodes_expose_galaxy_metadata_inputs_outputs_and_citation() -> None:
     object_info = _registry().object_info()
 
