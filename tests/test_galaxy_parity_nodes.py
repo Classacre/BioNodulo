@@ -17510,6 +17510,54 @@ def test_miniasm_renders_galaxy_wrapper_command_and_output(tmp_path: Path) -> No
     assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": "overlaps.paf"}) is True
 
 
+def test_megahit_contig2fastg_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["megahit_contig2fastg"]
+
+    assert info["display_name"] == "megahit contig2fastg"
+    assert info["category"] == "assembly"
+    assert info["description"] == "Convert MEGAHIT contigs into FASTG assembly graph format."
+    assert info["output"] == ["GFA"]
+    assert info["output_name"] == ["fastg"]
+    assert info["required_executables"] == ["megahit_toolkit"]
+    assert info["required_conda_packages"] == ["megahit"]
+    assert info["documentation_url"] == "https://github.com/voutcn/megahit"
+    assert info["citation_dois"] == ["10.1093/bioinformatics/btv033"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btv033"]
+    assert "ultra-fast single-node solution" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "contig2fastg" in info["search_aliases"]
+    assert info["version"] == "1.1.3+galaxy1"
+    assert info["input"]["required"]["contigs"][0] == "FASTA"
+    assert info["input"]["optional"]["kmer"][1]["default"] == 99
+
+
+def test_megahit_contig2fastg_renders_conversion_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("megahit_contig2fastg")
+
+    assert node_class.render_command(
+        {
+            "contigs": "k21 contigs.fa",
+            "kmer": 21,
+            "output": "/work/megahit_contig2fastg",
+        }
+    ) == "megahit_toolkit contig2fastg 21 'k21 contigs.fa' > /work/megahit_contig2fastg/contigs.fastg"
+    assert node_class.render_command(
+        {
+            "contigs": "k99.contigs.fa",
+            "output": "/work/megahit_contig2fastg",
+        }
+    ) == "megahit_toolkit contig2fastg 99 k99.contigs.fa > /work/megahit_contig2fastg/contigs.fastg"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "megahit_contig2fastg" / "contigs.fastg",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "contigs is required"
+    assert node_class.VALIDATE_INPUTS({"contigs": "k99.contigs.fa", "kmer": 0}) == "kmer must be greater than 0"
+    assert node_class.VALIDATE_INPUTS({"contigs": "k99.contigs.fa", "kmer": "bad"}) == "kmer must be an integer"
+    assert node_class.VALIDATE_INPUTS({"contigs": "k99.contigs.fa"}) is True
+
+
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 

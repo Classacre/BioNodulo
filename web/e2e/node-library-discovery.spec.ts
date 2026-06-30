@@ -3620,6 +3620,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btv383'],
     citation_text: 'Bandage: interactive visualization of de novo genome assemblies.',
   },
+  megahit_contig2fastg: {
+    name: 'megahit_contig2fastg',
+    display_name: 'megahit contig2fastg',
+    category: 'assembly',
+    description: 'Convert MEGAHIT contigs into FASTG assembly graph format.',
+    search_aliases: ['Galaxy', 'MEGAHIT', 'megahit_contig2fastg', 'megahit_toolkit', 'contig2fastg', 'FASTG', 'assembly graph', 'metagenomics assembly'],
+    input: {
+      required: {
+        contigs: { type: 'FASTA' },
+      },
+      optional: {
+        kmer: { type: 'INT', default: 99 },
+      },
+    },
+    output: ['GFA'],
+    output_name: ['fastg'],
+    required_executables: ['megahit_toolkit'],
+    required_conda_packages: ['megahit'],
+    documentation_url: 'https://github.com/voutcn/megahit',
+    citation_dois: ['10.1093/bioinformatics/btv033'],
+    citation_urls: ['https://doi.org/10.1093/bioinformatics/btv033'],
+    citation_text: 'MEGAHIT: an ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph.',
+  },
   adapter_removal: {
     name: 'adapter_removal',
     display_name: 'AdapterRemoval',
@@ -15768,7 +15791,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('529 nodes available')).toBeVisible();
+  await expect(page.getByText('530 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15899,6 +15922,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'uchimeout', name: 'VSEARCH Chimera Detection', category: 'metagenomics' },
     { query: 'GFA statistics', name: 'Bandage Info', category: 'assembly' },
     { query: 'assembly graph image', name: 'Bandage Image', category: 'visualization' },
+    { query: 'contig2fastg', name: 'megahit contig2fastg', category: 'assembly' },
     { query: 'adapterremoval', name: 'AdapterRemoval', category: 'trimming' },
     { query: 'trim_Ns_DNAnexus.py', name: 'TrimN', category: 'trimming' },
     { query: 'trimns', name: 'TrimN (Galaxy)', category: 'trimming' },
