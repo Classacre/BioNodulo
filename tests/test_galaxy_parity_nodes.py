@@ -35061,6 +35061,108 @@ def test_ucsc_axtomaf_validates_required_inputs_reference_sources_and_prefixes()
     ) is True
 
 
+def test_ucsc_chainnet_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_chainnet"]
+
+    assert info["display_name"] == "chainNet"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Create target and query UCSC net alignment files from chain alignments."
+    assert info["output"] == ["FILE", "FILE"]
+    assert info["output_name"] == ["targetNet", "queryNet"]
+    assert info["required_executables"] == ["chainNet"]
+    assert info["required_conda_packages"] == ["ucsc-chainnet"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/net.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "alignment nets" in info["search_aliases"]
+    assert info["input"]["required"]["in_chain"][0] == "FILE"
+    assert info["input"]["optional"]["target_reference_index_source_selector"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["in_tar_ref_index"][0] == "FILE"
+    assert info["input"]["optional"]["tar_ref_index_path"][0] == "STRING"
+    assert info["input"]["optional"]["query_reference_index_source_selector"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["in_que_ref_index"][0] == "FILE"
+    assert info["input"]["optional"]["que_ref_index_path"][0] == "STRING"
+    assert info["input"]["optional"]["minSpace"][1]["min"] == 0
+    assert info["input"]["optional"]["minFill"][1]["min"] == 0
+    assert info["input"]["optional"]["minScore"][0] == "INT"
+    assert info["input"]["optional"]["inclHap"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["verbose"][0] == "INT"
+
+
+def test_ucsc_chainnet_renders_history_cached_options_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_chainnet")
+
+    assert node_class.render_command(
+        {
+            "in_chain": "input chain.chain",
+            "target_reference_index_source_selector": "history",
+            "in_tar_ref_index": "hg38 chr20.fai",
+            "query_reference_index_source_selector": "history",
+            "in_que_ref_index": "mm39 chr2.fai",
+            "minSpace": 25,
+            "minFill": 12,
+            "minScore": 1200,
+            "inclHap": True,
+            "verbose": 2,
+            "output": "/work/ucsc_chainnet",
+        }
+    ) == (
+        "chainNet 'input chain.chain' 'hg38 chr20.fai' 'mm39 chr2.fai' "
+        "/work/ucsc_chainnet/target.net /work/ucsc_chainnet/query.net "
+        "-minSpace=25 -minFill=12 -minScore=1200 -inclHap -verbose=2"
+    )
+    assert node_class.render_command(
+        {
+            "in_chain": "input.chain",
+            "target_reference_index_source_selector": "cached",
+            "tar_ref_index_path": "/indexes/hg38.fai",
+            "query_reference_index_source_selector": "cached",
+            "que_ref_index_path": "/indexes/mm39.fai",
+            "output": "/work/ucsc_chainnet",
+        }
+    ) == "chainNet input.chain /indexes/hg38.fai /indexes/mm39.fai /work/ucsc_chainnet/target.net /work/ucsc_chainnet/query.net"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_chainnet" / "target.net",
+        tmp_path / "ucsc_chainnet" / "query.net",
+    ]
+
+
+def test_ucsc_chainnet_validates_required_inputs_reference_sources_and_options() -> None:
+    node_class = _node_class("ucsc_chainnet")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_chain is required"
+    assert node_class.VALIDATE_INPUTS({"in_chain": "input.chain"}) == "in_tar_ref_index is required"
+    assert node_class.VALIDATE_INPUTS({"in_chain": "input.chain", "in_tar_ref_index": "target.fai"}) == (
+        "in_que_ref_index is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_chain": "input.chain", "target_reference_index_source_selector": "bad"}) == (
+        "target_reference_index_source_selector must be one of: cached, history"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "in_chain": "input.chain",
+            "target_reference_index_source_selector": "cached",
+            "tar_ref_index_path": "/indexes/target.fai",
+            "query_reference_index_source_selector": "cached",
+        }
+    ) == "que_ref_index_path is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_chain": "input.chain", "in_tar_ref_index": "target.fai", "in_que_ref_index": "query.fai", "minSpace": -1}
+    ) == "minSpace must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_chain": "input.chain", "in_tar_ref_index": "target.fai", "in_que_ref_index": "query.fai", "minFill": -1}
+    ) == "minFill must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_chain": "input.chain", "in_tar_ref_index": "target.fai", "in_que_ref_index": "query.fai", "verbose": -1}
+    ) == "verbose must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_chain": "input.chain", "in_tar_ref_index": "target.fai", "in_que_ref_index": "query.fai"}
+    ) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 

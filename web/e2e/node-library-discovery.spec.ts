@@ -6171,6 +6171,39 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_chainnet: {
+    name: 'ucsc_chainnet',
+    display_name: 'chainNet',
+    category: 'genomics',
+    description: 'Create target and query UCSC net alignment files from chain alignments.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainnet', 'chainNet', 'UCSC chain', 'UCSC net', 'alignment nets', 'target net', 'query net'],
+    input: {
+      required: {
+        in_chain: { type: 'FILE' },
+      },
+      optional: {
+        target_reference_index_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        in_tar_ref_index: { type: 'FILE' },
+        tar_ref_index_path: { type: 'STRING', default: '' },
+        query_reference_index_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        in_que_ref_index: { type: 'FILE' },
+        que_ref_index_path: { type: 'STRING', default: '' },
+        minSpace: { type: 'INT', default: '', min: 0 },
+        minFill: { type: 'INT', default: '', min: 0 },
+        minScore: { type: 'INT', default: '' },
+        inclHap: { type: 'BOOLEAN', default: false },
+        verbose: { type: 'INT', default: '', min: 0 },
+      },
+    },
+    output: ['FILE', 'FILE'],
+    output_name: ['targetNet', 'queryNet'],
+    required_executables: ['chainNet'],
+    required_conda_packages: ['ucsc-chainnet'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/net.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -12989,7 +13022,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('449 nodes available')).toBeVisible();
+  await expect(page.getByText('450 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13208,6 +13241,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: '2bit to FASTA', name: 'twoBitToFa', category: 'genomics' },
     { query: 'wigToBigWig', name: 'wigtobigwig', category: 'genomics' },
     { query: 'AXT to MAF', name: 'axtToMaf', category: 'genomics' },
+    { query: 'alignment nets', name: 'chainNet', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
