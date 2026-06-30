@@ -41366,6 +41366,86 @@ def test_heinz_bum_validates_required_input() -> None:
     assert node_class.VALIDATE_INPUTS({"p_values": "BUM_input.txt"}) is True
 
 
+def test_brew3r_r_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["brew3r_r"]
+
+    assert info["display_name"] == "BREW3R.r"
+    assert info["category"] == "annotation"
+    assert info["description"] == "Extend GTF annotations at 3' ends with another GTF while preventing new gene overlaps."
+    assert info["output"] == ["GTF", "TSV"]
+    assert info["output_name"] == ["output", "output_table"]
+    assert info["required_executables"] == ["Rscript"]
+    assert info["required_conda_packages"] == ["bioconductor-brew3r.r", "bioconductor-rtracklayer", "r-getopt"]
+    assert info["documentation_url"] == "https://github.com/lldelisle/BREW3R.r"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/lldelisle/BREW3R.r"]
+    assert "BREW3R.r" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "extend GTF" in info["search_aliases"]
+    assert info["version"] == "1.0.2+galaxy1"
+    assert info["input"]["required"]["gtf_to_extend"][0] == "GTF"
+    assert info["input"]["required"]["gtf_to_overlap"][0] == "GTF"
+    assert info["input"]["optional"]["sup_output"][1]["default"] is False
+    assert info["input"]["optional"]["no_add"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["exclude_pattern"][1]["default"] == ""
+    assert info["input"]["optional"]["filter_unstranded"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["script_path"][1]["default"] == "brew3r.r_script.R"
+
+
+def test_brew3r_r_renders_default_and_optional_commands_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("brew3r_r")
+
+    assert node_class.render_command(
+        {
+            "gtf_to_extend": "public annotation.gtf",
+            "gtf_to_overlap": "stringtie assembly.gtf",
+            "script_path": "/tools/brew3r_r/brew3r.r_script.R",
+            "output": "/work/brew3r_r",
+        }
+    ) == (
+        "Rscript /tools/brew3r_r/brew3r.r_script.R --gtf_to_extend 'public annotation.gtf' "
+        "--gtf_to_overlap 'stringtie assembly.gtf' -o /work/brew3r_r/output.gtf"
+    )
+
+    assert node_class.render_command(
+        {
+            "gtf_to_extend": "input.gtf",
+            "gtf_to_overlap": "second input.gtf",
+            "sup_output": True,
+            "no_add": True,
+            "exclude_pattern": "^Gm$",
+            "filter_unstranded": True,
+            "output": "/work/brew3r_r",
+        }
+    ) == (
+        "Rscript brew3r.r_script.R --gtf_to_extend input.gtf --gtf_to_overlap 'second input.gtf' "
+        "--sup_output /work/brew3r_r/output_table.tsv --no_add --exclude_pattern '^Gm$' "
+        "--filter_unstranded -o /work/brew3r_r/output.gtf"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "brew3r_r" / "output.gtf",
+    ]
+    assert node_class.PLAN_OUTPUTS({"sup_output": True}, tmp_path) == [
+        tmp_path / "brew3r_r" / "output.gtf",
+        tmp_path / "brew3r_r" / "output_table.tsv",
+    ]
+
+
+def test_brew3r_r_validates_required_inputs_and_flags() -> None:
+    node_class = _node_class("brew3r_r")
+
+    assert node_class.VALIDATE_INPUTS({}) == "gtf_to_extend is required"
+    assert node_class.VALIDATE_INPUTS({"gtf_to_extend": "input.gtf"}) == "gtf_to_overlap is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"gtf_to_extend": "input.gtf", "gtf_to_overlap": "overlap.gtf", "exclude_pattern": "bad'pattern"}
+    ) == "exclude_pattern must not contain quotes"
+    assert node_class.VALIDATE_INPUTS(
+        {"gtf_to_extend": "input.gtf", "gtf_to_overlap": "overlap.gtf", "sup_output": "yes"}
+    ) == "sup_output must be a boolean"
+    assert node_class.VALIDATE_INPUTS({"gtf_to_extend": "input.gtf", "gtf_to_overlap": "overlap.gtf"}) is True
+
+
 def test_ucsc_chainswap_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["ucsc_chainswap"]
 

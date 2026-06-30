@@ -8141,6 +8141,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq089', 'https://doi.org/10.1093/bioinformatics/btn161'],
     citation_text: 'BioNet provides Beta-Uniform Mixture modeling for p-value distributions; Heinz identifies optimal scoring subnetworks.',
   },
+  brew3r_r: {
+    name: 'brew3r_r',
+    display_name: 'BREW3R.r',
+    category: 'annotation',
+    description: "Extend GTF annotations at 3' ends with another GTF while preventing new gene overlaps.",
+    search_aliases: ['Galaxy', 'BREW3R.r', 'brew3r_r', 'extend GTF', 'GTF extension', '3-prime exon extension', 'StringTie annotation extension'],
+    input: {
+      required: {
+        gtf_to_extend: { type: 'GTF' },
+        gtf_to_overlap: { type: 'GTF' },
+      },
+      optional: {
+        sup_output: { type: 'BOOLEAN', default: false },
+        no_add: { type: 'BOOLEAN', default: false },
+        exclude_pattern: { type: 'STRING', default: '' },
+        filter_unstranded: { type: 'BOOLEAN', default: false },
+        script_path: { type: 'FILE', default: 'brew3r.r_script.R', advanced: true },
+      },
+    },
+    output: ['GTF', 'TSV'],
+    output_name: ['output', 'output_table'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['bioconductor-brew3r.r', 'bioconductor-rtracklayer', 'r-getopt'],
+    documentation_url: 'https://github.com/lldelisle/BREW3R.r',
+    citation_dois: [],
+    citation_urls: ['https://github.com/lldelisle/BREW3R.r'],
+    citation_text: "BREW3R.r extends GTF annotations at 3' ends while preventing new gene overlaps.",
+  },
   ucsc_chainswap: {
     name: 'ucsc_chainswap',
     display_name: 'chainSwap',
@@ -15893,7 +15921,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('534 nodes available')).toBeVisible();
+  await expect(page.getByText('535 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16167,6 +16195,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'protein-protein interaction networks', name: 'Identify optimal scoring subnetwork', category: 'statistics' },
     { query: 'Heinz score', name: 'Calculate a Heinz score', category: 'statistics' },
     { query: 'Beta-Uniform Mixture', name: 'Fit a BUM model', category: 'statistics' },
+    { query: 'extend GTF', name: 'BREW3R.r', category: 'annotation' },
     { query: 'swap target query', name: 'chainSwap', category: 'genomics' },
     { query: 'sort chains', name: 'chainSort', category: 'genomics' },
     { query: 'synteny info', name: 'netSyntenic', category: 'genomics' },
