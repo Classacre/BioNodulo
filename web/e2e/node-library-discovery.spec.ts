@@ -9009,6 +9009,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/1471-2105-12-385', 'https://doi.org/10.1093/bioinformatics/btu135'],
     citation_text: 'Interactive metagenomic visualization in a Web browser; Orione, a web-based framework for NGS analysis in microbiology.',
   },
+  mothur_taxonomy_to_krona: {
+    name: 'mothur_taxonomy_to_krona',
+    display_name: 'Taxonomy-to-Krona',
+    category: 'taxonomy',
+    description: 'Convert a mothur consensus taxonomy file to Krona text input format.',
+    search_aliases: ['Galaxy', 'mothur', 'mothur_taxonomy_to_krona', 'Taxonomy-to-Krona', 'mothur consensus taxonomy', 'Krona text input', 'strip confidence values', 'cons.taxonomy'],
+    input: {
+      required: {
+        inputfile: { type: 'TSV' },
+      },
+      optional: {
+        stripconfidences: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['outputfile'],
+    required_executables: ['cat', 'tail', 'cut', 'sed'],
+    required_conda_packages: [],
+    documentation_url: 'https://marbl.github.io/Krona/Documentation/',
+    citation_dois: ['10.1128/AEM.01541-09', '10.1186/1471-2105-12-385'],
+    citation_urls: ['https://doi.org/10.1128/AEM.01541-09', 'https://doi.org/10.1186/1471-2105-12-385'],
+    citation_text: 'Introducing mothur: open-source, platform-independent, community-supported software for describing and comparing microbial communities. Interactive metagenomic visualization in a Web browser.',
+  },
   krakentools_kreport2mpa: {
     name: 'krakentools_kreport2mpa',
     display_name: 'Krakentools Kreport2MPA',
@@ -15745,7 +15768,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('528 nodes available')).toBeVisible();
+  await expect(page.getByText('529 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16048,6 +16071,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'Bray-Curtis', name: 'Krakentools Beta Diversity', category: 'taxonomy' },
     { query: 'Krona-compatible', name: 'Krakentools Kreport2Krona', category: 'taxonomy' },
     { query: 'ktImportText', name: 'Krona pie chart', category: 'taxonomy' },
+    { query: 'strip confidence values', name: 'Taxonomy-to-Krona', category: 'taxonomy' },
     { query: 'MetaPhlAn-style', name: 'Krakentools Kreport2MPA', category: 'taxonomy' },
     { query: 'include children', name: 'Krakentools Extract Kraken Reads By ID', category: 'taxonomy' },
     { query: 'taxonomic profile standardisation', name: 'Taxpasta', category: 'taxonomy' },

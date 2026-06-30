@@ -22242,6 +22242,64 @@ def test_taxonomy_krona_chart_renders_taxonomy_and_text_commands_outputs_and_val
     assert node_class.VALIDATE_INPUTS({"input": ["taxonomy_data.tax"]}) is True
 
 
+def test_mothur_taxonomy_to_krona_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["mothur_taxonomy_to_krona"]
+
+    assert info["display_name"] == "Taxonomy-to-Krona"
+    assert info["category"] == "taxonomy"
+    assert info["description"] == "Convert a mothur consensus taxonomy file to Krona text input format."
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["outputfile"]
+    assert info["required_executables"] == ["cat", "tail", "cut", "sed"]
+    assert info["required_conda_packages"] == []
+    assert info["documentation_url"] == "https://marbl.github.io/Krona/Documentation/"
+    assert info["citation_dois"] == ["10.1128/AEM.01541-09", "10.1186/1471-2105-12-385"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1128/AEM.01541-09",
+        "https://doi.org/10.1186/1471-2105-12-385",
+    ]
+    assert "Introducing mothur" in info["citation_text"]
+    assert "Interactive metagenomic visualization" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "strip confidence values" in info["search_aliases"]
+    assert info["version"] == "1.0"
+    assert info["input"]["required"]["inputfile"][0] == "TSV"
+    assert info["input"]["optional"]["stripconfidences"][1]["default"] is False
+
+
+def test_mothur_taxonomy_to_krona_renders_shell_pipeline_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("mothur_taxonomy_to_krona")
+
+    assert node_class.render_command(
+        {
+            "inputfile": "example cons.taxonomy",
+            "stripconfidences": False,
+            "output": "/work/mothur_taxonomy_to_krona",
+        }
+    ) == (
+        "cat 'example cons.taxonomy' | tail -n +2 | cut -f2,3 | sed 's/;/\\t/g' | sed 's/\"//g' | "
+        "sed 's/[ \\t]*$//' > /work/mothur_taxonomy_to_krona/krona_taxonomy.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "inputfile": "example.constaxonomy",
+            "stripconfidences": True,
+            "output": "/work/mothur_taxonomy_to_krona",
+        }
+    ) == (
+        "cat example.constaxonomy | tail -n +2 | cut -f2,3 | sed 's/;/\\t/g' | sed 's/\"//g' | "
+        "sed 's/[ \\t]*$//' | sed -r 's/[(][0-9]+[)]//g' > "
+        "/work/mothur_taxonomy_to_krona/krona_taxonomy.tsv"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "mothur_taxonomy_to_krona" / "krona_taxonomy.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "inputfile is required"
+    assert node_class.VALIDATE_INPUTS({"inputfile": "example.constaxonomy"}) is True
+
+
 def test_krakentools_kreport2mpa_renders_metaphlan_conversion_command_and_outputs(tmp_path: Path) -> None:
     node_class = _node_class("krakentools_kreport2mpa")
     info = _registry().object_info()["krakentools_kreport2mpa"]
