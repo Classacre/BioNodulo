@@ -35501,6 +35501,117 @@ def test_fatovcf_validates_required_inputs_modes_and_numeric_options() -> None:
     assert node_class.VALIDATE_INPUTS({"in_fasta": "alignment.fa", "refSeq": "customRef", "ref": "sample3"}) is True
 
 
+def test_ucsc_maffilter_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_maffilter"]
+
+    assert info["display_name"] == "mafFilter"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Filter UCSC MAF alignment blocks by size, score, species, and component criteria."
+    assert info["output"] == ["FILE", "FILE"]
+    assert info["output_name"] == ["output_maf", "rejected_maf"]
+    assert info["required_executables"] == ["mafFilter"]
+    assert info["required_conda_packages"] == ["ucsc-maffilter"]
+    assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFilter/mafFilter.c"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "MAF block filter" in info["search_aliases"]
+    assert info["input"]["required"]["input_maf"][0] == "FILE"
+    assert info["input"]["optional"]["tolerate"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["minCol"][1]["default"] == 1
+    assert info["input"]["optional"]["minRow"][1]["default"] == 2
+    assert info["input"]["optional"]["maxRow"][1]["default"] == 100
+    assert info["input"]["optional"]["factor_enabled"][1]["options"] == ["no", "yes"]
+    assert info["input"]["optional"]["minFactor"][1]["default"] == 5
+    assert info["input"]["optional"]["minScore"][0] == "FLOAT"
+    assert info["input"]["optional"]["reject"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["needComp"][0] == "STRING"
+    assert info["input"]["optional"]["overlap"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["componentFilter"][0] == "FILE"
+    assert info["input"]["optional"]["speciesFilter"][0] == "FILE"
+
+
+def test_ucsc_maffilter_renders_threshold_filters_reject_output_and_plans_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_maffilter")
+
+    assert node_class.render_command(
+        {
+            "input_maf": "alignment input.maf",
+            "output": "/work/ucsc_maffilter",
+        }
+    ) == (
+        "mafFilter -minCol=1 -minRow=2 -maxRow=100 'alignment input.maf' "
+        "> /work/ucsc_maffilter/output.maf"
+    )
+    assert node_class.render_command(
+        {
+            "input_maf": "filter_in.maf",
+            "tolerate": True,
+            "minCol": 10,
+            "minRow": 3,
+            "maxRow": 8,
+            "factor_enabled": "yes",
+            "minFactor": 6,
+            "reject": True,
+            "needComp": "human.chr1",
+            "overlap": True,
+            "componentFilter": "component filter.txt",
+            "speciesFilter": "species filter.txt",
+            "output": "/work/ucsc_maffilter",
+        }
+    ) == (
+        "mafFilter -tolerate -minCol=10 -minRow=3 -maxRow=8 -factor -minFactor=6 "
+        "-reject=/work/ucsc_maffilter/rejected.maf -needComp=human.chr1 -overlap "
+        "'-componentFilter=component filter.txt' '-speciesFilter=species filter.txt' filter_in.maf "
+        "> /work/ucsc_maffilter/output.maf"
+    )
+    assert node_class.render_command(
+        {
+            "input_maf": "filter_in.maf",
+            "minScore": 500.5,
+            "output": "/work/ucsc_maffilter",
+        }
+    ) == "mafFilter -minCol=1 -minRow=2 -maxRow=100 -minScore=500.5 filter_in.maf > /work/ucsc_maffilter/output.maf"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_maffilter" / "output.maf",
+    ]
+    assert node_class.PLAN_OUTPUTS({"reject": True}, tmp_path) == [
+        tmp_path / "ucsc_maffilter" / "output.maf",
+        tmp_path / "ucsc_maffilter" / "rejected.maf",
+    ]
+
+
+def test_ucsc_maffilter_validates_required_input_thresholds_and_score_modes() -> None:
+    node_class = _node_class("ucsc_maffilter")
+
+    assert node_class.VALIDATE_INPUTS({}) == "input_maf is required"
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "minCol": 0}) == (
+        "minCol must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "minRow": 0}) == (
+        "minRow must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "maxRow": 0}) == (
+        "maxRow must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "factor_enabled": "bad"}) == (
+        "factor_enabled must be one of: no, yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "factor_enabled": "yes", "minFactor": -1}) == (
+        "minFactor must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "factor_enabled": "yes", "minScore": 500}) == (
+        "minScore cannot be used when factor_enabled is yes"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "minScore": -1}) == (
+        "minScore must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf"}) is True
+    assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "factor_enabled": "yes", "minFactor": 5}) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 

@@ -29197,6 +29197,167 @@ class FaToVcfNode(CommandNode):
         }
 
 
+class UcscMafFilterNode(CommandNode):
+    """Filter UCSC MAF alignment blocks."""
+
+    NODE_ID = "ucsc_maffilter"
+    DISPLAY_NAME = "mafFilter"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-maffilter"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Filter UCSC MAF alignment blocks by size, score, species, and component criteria."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_mafFilter",
+        "ucsc_maffilter",
+        "mafFilter",
+        "MAF block filter",
+        "multiple alignment format",
+        "species filter",
+        "component filter",
+        "rejected MAF blocks",
+    ]
+    RETURN_TYPES = ("FILE", "FILE")
+    RETURN_NAMES = ("output_maf", "rejected_maf")
+    REQUIRED_EXECUTABLES = ["mafFilter"]
+    DOCUMENTATION_URL = "https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFilter/mafFilter.c"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy0"
+
+    FACTOR_OPTIONS = ["no", "yes"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output.maf"
+
+    @classmethod
+    def _reject_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/rejected.maf"
+
+    @classmethod
+    def _factor_enabled(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("factor_enabled", "no") or "no")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["mafFilter"]
+        if inputs.get("tolerate"):
+            cmd.append("-tolerate")
+        for name, default in (("minCol", 1), ("minRow", 2), ("maxRow", 100)):
+            cmd.append(f"-{name}={inputs.get(name, default)}")
+        if cls._factor_enabled(inputs) == "yes":
+            cmd.append("-factor")
+            cmd.append(f"-minFactor={inputs.get('minFactor', 5)}")
+        elif str(inputs.get("minScore", "")) != "":
+            cmd.append(f"-minScore={inputs.get('minScore')}")
+        if inputs.get("reject"):
+            cmd.append(f"-reject={cls._reject_path(inputs)}")
+        if str(inputs.get("needComp", "")) != "":
+            cmd.append(f"-needComp={inputs.get('needComp')}")
+        if inputs.get("overlap"):
+            cmd.append("-overlap")
+        if str(inputs.get("componentFilter", "")) != "":
+            cmd.append(f"-componentFilter={inputs.get('componentFilter')}")
+        if str(inputs.get("speciesFilter", "")) != "":
+            cmd.append(f"-speciesFilter={inputs.get('speciesFilter')}")
+        cmd.append(str(inputs.get("input_maf", "")))
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "output.maf"]
+        if inputs.get("reject", False):
+            outputs.append(out / "rejected.maf")
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_maf", "")).strip():
+            return "input_maf is required"
+        for name, minimum in (("minCol", 1), ("minRow", 1), ("maxRow", 1)):
+            value = inputs.get(name, "")
+            if str(value) != "" and int(value) < minimum:
+                return f"{name} must be greater than or equal to {minimum}"
+        factor_enabled = cls._factor_enabled(inputs)
+        if factor_enabled not in cls.FACTOR_OPTIONS:
+            return f"factor_enabled must be one of: {', '.join(cls.FACTOR_OPTIONS)}"
+        if factor_enabled == "yes":
+            if str(inputs.get("minFactor", "")) != "" and int(inputs.get("minFactor")) < 0:
+                return "minFactor must be greater than or equal to 0"
+            if str(inputs.get("minScore", "")) != "":
+                return "minScore cannot be used when factor_enabled is yes"
+        if str(inputs.get("minScore", "")) != "" and float(inputs.get("minScore")) < 0:
+            return "minScore must be greater than or equal to 0"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_maf": ("FILE", {"description": "UCSC MAF multiple-alignment file to filter"}),
+            },
+            "optional": {
+                "tolerate": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Ignore bad input instead of aborting"},
+                ),
+                "minCol": (
+                    "INT",
+                    {"default": 1, "min": 1, "description": "Filter out blocks with fewer columns"},
+                ),
+                "minRow": (
+                    "INT",
+                    {"default": 2, "min": 1, "description": "Filter out blocks with fewer rows"},
+                ),
+                "maxRow": (
+                    "INT",
+                    {"default": 100, "min": 1, "description": "Filter out blocks with at least this many rows"},
+                ),
+                "factor_enabled": (
+                    "STRING",
+                    {
+                        "default": "no",
+                        "options": cls.FACTOR_OPTIONS,
+                        "description": "Enable factor-based score filtering instead of minimum score filtering",
+                    },
+                ),
+                "minFactor": (
+                    "INT",
+                    {"default": 5, "min": 0, "description": "Factor used with factor-based score filtering"},
+                ),
+                "minScore": (
+                    "FLOAT",
+                    {"default": "", "min": 0, "description": "Minimum allowed MAF block score"},
+                ),
+                "reject": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Write rejected MAF blocks to a second output"},
+                ),
+                "needComp": (
+                    "STRING",
+                    {"default": "", "description": "Require this species component in every alignment block"},
+                ),
+                "overlap": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Reject overlapping reference blocks in ordered input"},
+                ),
+                "componentFilter": (
+                    "FILE",
+                    {"description": "File listing components required for a block to pass"},
+                ),
+                "speciesFilter": (
+                    "FILE",
+                    {"description": "File listing species required for a block to pass"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MafToAxtNode(CommandNode):
     """Convert UCSC MAF alignments to AXT format."""
 

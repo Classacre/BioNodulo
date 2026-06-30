@@ -6303,6 +6303,40 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  ucsc_maffilter: {
+    name: 'ucsc_maffilter',
+    display_name: 'mafFilter',
+    category: 'genomics',
+    description: 'Filter UCSC MAF alignment blocks by size, score, species, and component criteria.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafFilter', 'ucsc_maffilter', 'mafFilter', 'MAF block filter', 'multiple alignment format', 'species filter', 'component filter', 'rejected MAF blocks'],
+    input: {
+      required: {
+        input_maf: { type: 'FILE' },
+      },
+      optional: {
+        tolerate: { type: 'BOOLEAN', default: false },
+        minCol: { type: 'INT', default: 1, min: 1 },
+        minRow: { type: 'INT', default: 2, min: 1 },
+        maxRow: { type: 'INT', default: 100, min: 1 },
+        factor_enabled: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
+        minFactor: { type: 'INT', default: 5, min: 0 },
+        minScore: { type: 'FLOAT', default: '', min: 0 },
+        reject: { type: 'BOOLEAN', default: false },
+        needComp: { type: 'STRING', default: '' },
+        overlap: { type: 'BOOLEAN', default: false },
+        componentFilter: { type: 'FILE' },
+        speciesFilter: { type: 'FILE' },
+      },
+    },
+    output: ['FILE', 'FILE'],
+    output_name: ['output_maf', 'rejected_maf'],
+    required_executables: ['mafFilter'],
+    required_conda_packages: ['ucsc-maffilter'],
+    documentation_url: 'https://github.com/ucscGenomeBrowser/kent/blob/master/src/hg/ratStuff/mafFilter/mafFilter.c',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -13121,7 +13155,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('453 nodes available')).toBeVisible();
+  await expect(page.getByText('454 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13344,6 +13378,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'alignment nets', name: 'chainNet', category: 'genomics' },
     { query: 'split FASTA', name: 'faSplit', category: 'genomics' },
     { query: 'FASTA alignment to VCF', name: 'faToVcf', category: 'variant' },
+    { query: 'MAF block filter', name: 'mafFilter', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
