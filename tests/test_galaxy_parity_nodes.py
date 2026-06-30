@@ -34546,3 +34546,66 @@ def test_ucsc_netchainsubset_validates_required_inputs() -> None:
     assert node_class.VALIDATE_INPUTS({}) == "in_net is required"
     assert node_class.VALIDATE_INPUTS({"in_net": "target.net"}) == "in_chain is required"
     assert node_class.VALIDATE_INPUTS({"in_net": "target.net", "in_chain": "source.chain"}) is True
+
+
+def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["maftoaxt"]
+
+    assert info["display_name"] == "mafToAxt"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Convert a UCSC MAF multiple-alignment file to AXT pairwise alignment format."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["mafToAxt"]
+    assert info["required_conda_packages"] == ["ucsc-maftoaxt"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/goldenPath/help/axt.html"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "MAF to AXT" in info["search_aliases"]
+    assert info["input"]["required"]["in_maf"][0] == "FILE"
+    assert info["input"]["required"]["querySeq"][0] == "STRING"
+    assert info["input"]["optional"]["tarSeq"][1]["default"] == ""
+    assert info["input"]["optional"]["tarSeq"][1]["options"] == ["", "customTar"]
+    assert info["input"]["optional"]["stripDb"][0] == "BOOLEAN"
+
+
+def test_maftoaxt_renders_default_and_custom_target_commands(tmp_path: Path) -> None:
+    node_class = _node_class("maftoaxt")
+
+    assert node_class.render_command(
+        {
+            "in_maf": "alignment input.maf",
+            "querySeq": "panTro1",
+            "output": "/work/maftoaxt",
+        }
+    ) == "mafToAxt 'alignment input.maf' first panTro1 /work/maftoaxt/out.axt"
+    assert node_class.render_command(
+        {
+            "in_maf": "alignment input.maf",
+            "tarSeq": "customTar",
+            "targetSeq": "hg38",
+            "querySeq": "panTro1",
+            "stripDb": True,
+            "output": "/work/maftoaxt",
+        }
+    ) == "mafToAxt 'alignment input.maf' hg38 panTro1 /work/maftoaxt/out.axt -stripDb"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "maftoaxt" / "out.axt",
+    ]
+
+
+def test_maftoaxt_validates_required_inputs_and_target_mode() -> None:
+    node_class = _node_class("maftoaxt")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_maf is required"
+    assert node_class.VALIDATE_INPUTS({"in_maf": "input.maf"}) == "querySeq is required"
+    assert node_class.VALIDATE_INPUTS({"in_maf": "input.maf", "querySeq": "panTro1", "tarSeq": "bad"}) == (
+        "tarSeq must be one of: , customTar"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_maf": "input.maf", "querySeq": "panTro1", "tarSeq": "customTar"}) == (
+        "targetSeq is required when tarSeq is customTar"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_maf": "input.maf", "querySeq": "panTro1"}) is True

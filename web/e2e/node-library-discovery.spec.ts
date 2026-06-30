@@ -5996,6 +5996,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
     citation_text: 'The UCSC genome browser and associated tools.',
   },
+  maftoaxt: {
+    name: 'maftoaxt',
+    display_name: 'mafToAxt',
+    category: 'genomics',
+    description: 'Convert a UCSC MAF multiple-alignment file to AXT pairwise alignment format.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'maftoaxt', 'mafToAxt', 'MAF to AXT', 'multiple alignment format', 'pairwise alignment'],
+    input: {
+      required: {
+        in_maf: { type: 'FILE' },
+        querySeq: { type: 'STRING' },
+      },
+      optional: {
+        tarSeq: { type: 'STRING', default: '', options: ['', 'customTar'] },
+        targetSeq: { type: 'STRING', default: '' },
+        stripDb: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['mafToAxt'],
+    required_conda_packages: ['ucsc-maftoaxt'],
+    documentation_url: 'https://genome.ucsc.edu/goldenPath/help/axt.html',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   recentrifuge: {
     name: 'recentrifuge',
     display_name: 'Recentrifuge',
@@ -12762,7 +12788,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('441 nodes available')).toBeVisible();
+  await expect(page.getByText('442 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -12975,6 +13001,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'sort chains', name: 'chainSort', category: 'genomics' },
     { query: 'synteny info', name: 'netSyntenic', category: 'genomics' },
     { query: 'liftOver', name: 'netChainSubset', category: 'genomics' },
+    { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
     { query: 'combined report', name: 'Krakentools Combine Kraken Reports', category: 'taxonomy' },
     { query: 'Shannon diversity', name: 'Krakentools Alpha Diversity', category: 'taxonomy' },
