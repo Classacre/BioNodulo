@@ -34969,6 +34969,98 @@ def test_ucsc_wigtobigwig_validates_reference_settings_and_numeric_options() -> 
     assert node_class.VALIDATE_INPUTS({"input1": "signal.wig", "index_len_path": "/indexes/hg17.len"}) is True
 
 
+def test_ucsc_axtomaf_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
+    info = _registry().object_info()["ucsc_axtomaf"]
+
+    assert info["display_name"] == "axtToMaf"
+    assert info["category"] == "genomics"
+    assert info["description"] == "Convert UCSC AXT pairwise alignments to MAF format."
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["out"]
+    assert info["required_executables"] == ["axtToMaf"]
+    assert info["required_conda_packages"] == ["ucsc-axttomaf"]
+    assert info["documentation_url"] == "https://genome.ucsc.edu/FAQ/FAQformat.html#format5"
+    assert info["citation_dois"] == ["10.1093/bib/bbs038"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
+    assert "UCSC genome browser" in info["citation_text"]
+    assert "Galaxy" in info["search_aliases"]
+    assert "AXT to MAF" in info["search_aliases"]
+    assert info["input"]["required"]["in_axt"][0] == "FILE"
+    assert info["input"]["optional"]["target_reference_index_source_selector"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["in_tar_ref_index"][0] == "FILE"
+    assert info["input"]["optional"]["tar_ref_index_path"][0] == "STRING"
+    assert info["input"]["optional"]["query_reference_index_source_selector"][1]["options"] == ["cached", "history"]
+    assert info["input"]["optional"]["in_que_ref_index"][0] == "FILE"
+    assert info["input"]["optional"]["que_ref_index_path"][0] == "STRING"
+    assert info["input"]["optional"]["t_prefix"][0] == "STRING"
+    assert info["input"]["optional"]["q_prefix"][0] == "STRING"
+    assert info["input"]["optional"]["score"][0] == "BOOLEAN"
+    assert info["input"]["optional"]["scoreZero"][0] == "BOOLEAN"
+
+
+def test_ucsc_axtomaf_renders_history_cached_prefix_and_score_commands(tmp_path: Path) -> None:
+    node_class = _node_class("ucsc_axtomaf")
+
+    assert node_class.render_command(
+        {
+            "in_axt": "pairwise input.axt",
+            "target_reference_index_source_selector": "history",
+            "in_tar_ref_index": "hg38.fasta.fai",
+            "query_reference_index_source_selector": "history",
+            "in_que_ref_index": "mm39.fasta.fai",
+            "t_prefix": "hg38.",
+            "q_prefix": "mm39.",
+            "score": True,
+            "scoreZero": True,
+            "output": "/work/ucsc_axtomaf",
+        }
+    ) == (
+        "axtToMaf 'pairwise input.axt' hg38.fasta.fai mm39.fasta.fai -tPrefix=hg38. -qPrefix=mm39. "
+        "-score -scoreZero /work/ucsc_axtomaf/out.maf"
+    )
+    assert node_class.render_command(
+        {
+            "in_axt": "input.axt",
+            "target_reference_index_source_selector": "cached",
+            "tar_ref_index_path": "/indexes/hg38.fai",
+            "query_reference_index_source_selector": "cached",
+            "que_ref_index_path": "/indexes/mm39.fai",
+            "output": "/work/ucsc_axtomaf",
+        }
+    ) == "axtToMaf input.axt /indexes/hg38.fai /indexes/mm39.fai /work/ucsc_axtomaf/out.maf"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ucsc_axtomaf" / "out.maf",
+    ]
+
+
+def test_ucsc_axtomaf_validates_required_inputs_reference_sources_and_prefixes() -> None:
+    node_class = _node_class("ucsc_axtomaf")
+
+    assert node_class.VALIDATE_INPUTS({}) == "in_axt is required"
+    assert node_class.VALIDATE_INPUTS({"in_axt": "input.axt"}) == "in_tar_ref_index is required"
+    assert node_class.VALIDATE_INPUTS({"in_axt": "input.axt", "in_tar_ref_index": "target.fai"}) == (
+        "in_que_ref_index is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"in_axt": "input.axt", "target_reference_index_source_selector": "bad"}) == (
+        "target_reference_index_source_selector must be one of: cached, history"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "in_axt": "input.axt",
+            "target_reference_index_source_selector": "cached",
+            "tar_ref_index_path": "/indexes/target.fai",
+            "query_reference_index_source_selector": "cached",
+        }
+    ) == "que_ref_index_path is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_axt": "input.axt", "in_tar_ref_index": "target.fai", "in_que_ref_index": "query.fai", "t_prefix": "bad prefix"}
+    ) == "t_prefix cannot contain spaces"
+    assert node_class.VALIDATE_INPUTS(
+        {"in_axt": "input.axt", "in_tar_ref_index": "target.fai", "in_que_ref_index": "query.fai"}
+    ) is True
+
+
 def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()["maftoaxt"]
 

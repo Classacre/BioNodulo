@@ -28371,6 +28371,162 @@ class UcscWigToBigWigNode(CommandNode):
         }
 
 
+class UcscAxtToMafNode(CommandNode):
+    """Convert UCSC AXT alignments to MAF."""
+
+    NODE_ID = "ucsc_axtomaf"
+    DISPLAY_NAME = "axtToMaf"
+    REQUIRED_CONDA_PACKAGES = ["ucsc-axttomaf"]
+    CATEGORY = "genomics"
+    DESCRIPTION = "Convert UCSC AXT pairwise alignments to MAF format."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "UCSC Genome Browser Utilities",
+        "ucsc_axtomaf",
+        "axtToMaf",
+        "AXT to MAF",
+        "multiple alignment format",
+        "pairwise alignment",
+        "chrom sizes",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("out",)
+    REQUIRED_EXECUTABLES = ["axtToMaf"]
+    DOCUMENTATION_URL = "https://genome.ucsc.edu/FAQ/FAQformat.html#format5"
+    CITATION_DOIS = [UCSC_UTILS_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{UCSC_UTILS_CITATION_DOI}"]
+    CITATION_TEXT = UCSC_UTILS_CITATION_TEXT
+    VERSION = "482+galaxy1"
+
+    REFERENCE_SOURCE_OPTIONS = ["cached", "history"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/out.maf"
+
+    @classmethod
+    def _source(cls, inputs: dict[str, Any], prefix: str) -> str:
+        return str(inputs.get(f"{prefix}_reference_index_source_selector", "history") or "history")
+
+    @classmethod
+    def _index_path(cls, inputs: dict[str, Any], prefix: str) -> str:
+        source = cls._source(inputs, prefix)
+        if prefix == "target":
+            return str(inputs.get("tar_ref_index_path" if source == "cached" else "in_tar_ref_index", ""))
+        return str(inputs.get("que_ref_index_path" if source == "cached" else "in_que_ref_index", ""))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "axtToMaf",
+            str(inputs.get("in_axt", "")),
+            cls._index_path(inputs, "target"),
+            cls._index_path(inputs, "query"),
+        ]
+        if str(inputs.get("t_prefix", "")) != "":
+            cmd.append(f"-tPrefix={inputs.get('t_prefix')}")
+        if str(inputs.get("q_prefix", "")) != "":
+            cmd.append(f"-qPrefix={inputs.get('q_prefix')}")
+        if inputs.get("score"):
+            cmd.append("-score")
+        if inputs.get("scoreZero"):
+            cmd.append("-scoreZero")
+        cmd.append(cls._output_path(inputs))
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "out.maf"]
+
+    @classmethod
+    def _validate_index(cls, inputs: dict[str, Any], prefix: str) -> bool | str:
+        selector_name = f"{prefix}_reference_index_source_selector"
+        source = cls._source(inputs, prefix)
+        if source not in cls.REFERENCE_SOURCE_OPTIONS:
+            return f"{selector_name} must be one of: {', '.join(cls.REFERENCE_SOURCE_OPTIONS)}"
+        if prefix == "target":
+            required_name = "tar_ref_index_path" if source == "cached" else "in_tar_ref_index"
+        else:
+            required_name = "que_ref_index_path" if source == "cached" else "in_que_ref_index"
+        if not cls._index_path(inputs, prefix).strip():
+            return f"{required_name} is required"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("in_axt", "")).strip():
+            return "in_axt is required"
+        for prefix in ("target", "query"):
+            index_validation = cls._validate_index(inputs, prefix)
+            if index_validation is not True:
+                return index_validation
+        for name in ("t_prefix", "q_prefix"):
+            if " " in str(inputs.get(name, "")):
+                return f"{name} cannot contain spaces"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "in_axt": ("FILE", {"description": "UCSC AXT pairwise alignment file"}),
+            },
+            "optional": {
+                "target_reference_index_source_selector": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.REFERENCE_SOURCE_OPTIONS,
+                        "description": "Use a cached or history target genome index",
+                    },
+                ),
+                "in_tar_ref_index": (
+                    "FILE",
+                    {"description": "History target chrom sizes or FASTA index file"},
+                ),
+                "tar_ref_index_path": (
+                    "STRING",
+                    {"default": "", "description": "Path to cached target chrom sizes or FASTA index file"},
+                ),
+                "query_reference_index_source_selector": (
+                    "STRING",
+                    {
+                        "default": "history",
+                        "options": cls.REFERENCE_SOURCE_OPTIONS,
+                        "description": "Use a cached or history query genome index",
+                    },
+                ),
+                "in_que_ref_index": (
+                    "FILE",
+                    {"description": "History query chrom sizes or FASTA index file"},
+                ),
+                "que_ref_index_path": (
+                    "STRING",
+                    {"default": "", "description": "Path to cached query chrom sizes or FASTA index file"},
+                ),
+                "t_prefix": (
+                    "STRING",
+                    {"default": "", "description": "Prefix added to target sequence names in the MAF output"},
+                ),
+                "q_prefix": (
+                    "STRING",
+                    {"default": "", "description": "Prefix added to query sequence names in the MAF output"},
+                ),
+                "score": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Recalculate alignment scores"},
+                ),
+                "scoreZero": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Recalculate scores only when the AXT score is zero"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class MafToAxtNode(CommandNode):
     """Convert UCSC MAF alignments to AXT format."""
 

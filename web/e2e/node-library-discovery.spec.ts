@@ -6139,6 +6139,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btq351'],
     citation_text: 'BigWig and BigBed enable browsing of large distributed datasets in genome browsers.',
   },
+  ucsc_axtomaf: {
+    name: 'ucsc_axtomaf',
+    display_name: 'axtToMaf',
+    category: 'genomics',
+    description: 'Convert UCSC AXT pairwise alignments to MAF format.',
+    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_axtomaf', 'axtToMaf', 'AXT to MAF', 'multiple alignment format', 'pairwise alignment', 'chrom sizes'],
+    input: {
+      required: {
+        in_axt: { type: 'FILE' },
+      },
+      optional: {
+        target_reference_index_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        in_tar_ref_index: { type: 'FILE' },
+        tar_ref_index_path: { type: 'STRING', default: '' },
+        query_reference_index_source_selector: { type: 'STRING', default: 'history', options: ['cached', 'history'] },
+        in_que_ref_index: { type: 'FILE' },
+        que_ref_index_path: { type: 'STRING', default: '' },
+        t_prefix: { type: 'STRING', default: '' },
+        q_prefix: { type: 'STRING', default: '' },
+        score: { type: 'BOOLEAN', default: false },
+        scoreZero: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['out'],
+    required_executables: ['axtToMaf'],
+    required_conda_packages: ['ucsc-axttomaf'],
+    documentation_url: 'https://genome.ucsc.edu/FAQ/FAQformat.html#format5',
+    citation_dois: ['10.1093/bib/bbs038'],
+    citation_urls: ['https://doi.org/10.1093/bib/bbs038'],
+    citation_text: 'The UCSC genome browser and associated tools.',
+  },
   maftoaxt: {
     name: 'maftoaxt',
     display_name: 'mafToAxt',
@@ -12957,7 +12989,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('448 nodes available')).toBeVisible();
+  await expect(page.getByText('449 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -13175,6 +13207,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'net to AXT', name: 'netToAxt', category: 'genomics' },
     { query: '2bit to FASTA', name: 'twoBitToFa', category: 'genomics' },
     { query: 'wigToBigWig', name: 'wigtobigwig', category: 'genomics' },
+    { query: 'AXT to MAF', name: 'axtToMaf', category: 'genomics' },
     { query: 'MAF to AXT', name: 'mafToAxt', category: 'genomics' },
     { query: 'degenerate DNA', name: 'chainAntiRepeat', category: 'genomics' },
     { query: 'robust contamination removal', name: 'Recentrifuge', category: 'metagenomics' },
