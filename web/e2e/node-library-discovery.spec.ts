@@ -2677,6 +2677,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1186/s12859-018-2053-1', 'https://doi.org/10.18129/B9.bioc.CEMiTool'],
     citation_text: 'CEMiTool identifies and analyzes co-expression modules from expression data and provides publication-ready reports for downstream enrichment analyses.',
   },
+  charts: {
+    name: 'charts',
+    display_name: 'Charts',
+    category: 'visualization',
+    description: 'Generate tabular chart data from tabular inputs with Galaxy Charts R modules.',
+    search_aliases: ['Galaxy', 'Charts', 'charts', 'Chart Utilities', 'boxplot', 'heatmap', 'histogram', 'histogramdiscrete', 'R chart modules', 'tabular visualization'],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+      },
+      optional: {
+        module: { type: 'STRING', default: 'boxplot', options: ['boxplot', 'heatmap', 'histogram', 'histogramdiscrete'] },
+        columns: { type: 'STRING', default: '' },
+        settings: { type: 'STRING', default: '' },
+        charts_script: { type: 'FILE', default: 'charts.r' },
+        charts_workdir: { type: 'STRING', default: './' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['r-getopt', 'r-matrix'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/charts',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/charts'],
+    citation_text: 'Galaxy Chart Utilities generate tabular chart data with R chart modules.',
+  },
   anndata_inspect: {
     name: 'anndata_inspect',
     display_name: 'Inspect AnnData',
@@ -16534,7 +16561,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('555 nodes available')).toBeVisible();
+  await expect(page.getByText('556 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -16611,6 +16638,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'htseq gene counts', name: 'HTSeq-count', category: 'rna_seq' },
     { query: 'featureCounts gene counts', name: 'featureCounts', category: 'rna_seq' },
     { query: 'gene co-expression network analyses', name: 'CEMiTool', category: 'rna_seq' },
+    { query: 'histogramdiscrete', name: 'Charts', category: 'visualization' },
     { query: 'seqkit grep motif', name: 'SeqKit Grep', category: 'sequence' },
     { query: 'seqtk composition', name: 'SeqTK Composition', category: 'sequence' },
     { query: 'seqtk split at N', name: 'SeqTK CutN', category: 'sequence' },

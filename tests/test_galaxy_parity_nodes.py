@@ -626,6 +626,75 @@ def test_cemitool_renders_full_inputs_tables_plots_command_and_validates(tmp_pat
     assert node_class.VALIDATE_INPUTS({"expression_matrix": "expression.tab"}) is True
 
 
+def test_charts_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["charts"]
+
+    assert node_info["display_name"] == "Charts"
+    assert node_info["category"] == "visualization"
+    assert node_info["description"] == "Generate tabular chart data from tabular inputs with Galaxy Charts R modules."
+    assert node_info["output"] == ["TSV"]
+    assert node_info["output_name"] == ["output"]
+    assert node_info["required_executables"] == ["Rscript"]
+    assert node_info["required_conda_packages"] == ["r-getopt", "r-matrix"]
+    assert node_info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/charts"
+    assert node_info["citation_dois"] == []
+    assert node_info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/charts"]
+    assert "Chart Utilities" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "histogramdiscrete" in node_info["search_aliases"]
+    assert node_info["version"] == "1.0.1"
+    assert node_info["input"]["required"]["input"][0] == "TSV"
+    assert node_info["input"]["optional"]["module"][1]["default"] == "boxplot"
+    assert node_info["input"]["optional"]["module"][1]["options"] == [
+        "boxplot",
+        "heatmap",
+        "histogram",
+        "histogramdiscrete",
+    ]
+    assert node_info["input"]["optional"]["columns"][1]["default"] == ""
+    assert node_info["input"]["optional"]["settings"][1]["default"] == ""
+
+
+def test_charts_renders_rscript_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("charts")
+
+    assert node_class.render_command(
+        {
+            "input": "tabular data.tsv",
+            "module": "histogram",
+            "columns": "key1: 2, key2: 3",
+            "settings": "bins: 10",
+            "output": "/work/charts",
+        }
+    ) == (
+        "mkdir -p /work/charts && cd /work/charts && "
+        "Rscript charts.r -w ./ -m histogram -i 'tabular data.tsv' -c 'key1: 2, key2: 3' "
+        "-s 'bins: 10' -o /work/charts/output.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "input": "matrix.tsv",
+            "module": "heatmap",
+            "columns": "key1: 1, key2: 2, key3: 3",
+            "settings": "",
+            "charts_script": "/tools/charts/charts.r",
+            "charts_workdir": "/tools/charts/",
+            "output": "/work/charts",
+        }
+    ) == (
+        "mkdir -p /work/charts && cd /work/charts && "
+        "Rscript /tools/charts/charts.r -w /tools/charts/ -m heatmap -i matrix.tsv "
+        "-c 'key1: 1, key2: 2, key3: 3' -s '' -o /work/charts/output.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "charts" / "output.tsv"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "table.tsv", "module": "density"}) == (
+        "module must be one of: boxplot, heatmap, histogram, histogramdiscrete"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "table.tsv", "module": "boxplot"}) is True
+
+
 def test_anndata_inspect_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     node_info = _registry().object_info()["anndata_inspect"]
 
