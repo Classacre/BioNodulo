@@ -35517,6 +35517,51 @@ class Beacon2AnalysesNode(_Beacon2SearchBaseNode):
     )
 
 
+class Beacon2BiosamplesNode(_Beacon2SearchBaseNode):
+    """Query the biosamples collection in a Beacon database."""
+
+    NODE_ID = "beacon2_biosamples"
+    DISPLAY_NAME = "Beacon2 Biosamples"
+    DESCRIPTION = "Query the biosamples collection in a Beacon database for samples taken from individuals."
+    VERSION = "1.0.0"
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_biosamples",
+        "Beacon2 Biosamples",
+        "beacon2-search biosamples",
+        "biosamples collection",
+        "samples taken from individuals",
+        "biosampleStatus",
+        "sampleOriginDetail",
+        "tumorProgression",
+    ]
+    RETURN_TYPES = ("JSON",)
+    RETURN_NAMES = ("out_biosamples_query",)
+    SEARCH_COLLECTION = "biosamples"
+    OUTPUT_FILENAME = "biosamples_query_findings.json"
+    QUERY_FLAGS = (
+        ("biosampleStatus", "--biosampleStatus", "Ontology value classifying the sample status"),
+        ("collectionDate", "--collectionDate", "Date of biosample collection in ISO8601 format"),
+        ("collectionMoment", "--collectionMoment", "Age or duration at sample collection in ISO8601 duration format"),
+        ("identification", "--identification", "Biosample identifier, external accession, or internal ID"),
+        ("diagnosticMarkers", "--diagnosticMarkers", "Clinically relevant biomarkers"),
+        ("histologicalDiagnosis", "--histologicalDiagnosis", "Diagnosis inferred from histological examination"),
+        ("obtentionProcedure", "--obtentionProcedure", "Ontology value describing the sample obtention procedure"),
+        ("pathologicalStage", "--pathologicalStage", "Pathological stage, if applicable"),
+        ("pathologicalTnmFinding", "--pathologicalTnmFinding", "Pathological TNM finding"),
+        ("featureType", "--featureType", "Ontology term describing a phenotype feature"),
+        ("severity", "--severity", "Ontology class describing condition severity"),
+        ("sampleOriginDetail", "--sampleOriginDetail", "Tissue or sample-origin detail"),
+        ("sampleOriginType", "--sampleOriginType", "Category of sample origin"),
+        ("sampleProcessing", "--sampleProcessing", "Specimen processing status"),
+        ("sampleStorage", "--sampleStorage", "Specimen storage status"),
+        ("tumorGrade", "--tumorGrade", "Tumor grade term"),
+        ("tumorProgression", "--tumorProgression", "Tumor progression category"),
+    )
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 

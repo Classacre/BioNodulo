@@ -39807,6 +39807,76 @@ def test_beacon2_analyses_renders_search_command_outputs_and_validation(tmp_path
     assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test"}) is True
 
 
+def test_beacon2_biosamples_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["beacon2_biosamples"]
+
+    assert node_info["display_name"] == "Beacon2 Biosamples"
+    assert node_info["category"] == "metadata"
+    assert node_info["description"] == "Query the biosamples collection in a Beacon database for samples taken from individuals."
+    assert node_info["output"] == ["JSON"]
+    assert node_info["output_name"] == ["out_biosamples_query"]
+    assert node_info["required_executables"] == ["beacon2-search"]
+    assert node_info["required_conda_packages"] == ["beacon2-import"]
+    assert node_info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import"
+    assert node_info["citation_dois"] == ["10.1002/humu.24369"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
+    assert "Beacon v2" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "beacon2-search biosamples" in node_info["search_aliases"]
+    assert node_info["version"] == "1.0.0"
+    assert node_info["input"]["required"]["database"][0] == "STRING"
+    assert node_info["input"]["required"]["collection"][0] == "STRING"
+    assert node_info["input"]["optional"]["db_host"][1]["default"] == "127.0.0.1"
+    assert node_info["input"]["optional"]["db_port"][1]["default"] == 27017
+    assert node_info["input"]["optional"]["biosampleStatus"][1]["default"] == ""
+    assert node_info["input"]["optional"]["sampleOriginDetail"][1]["default"] == ""
+    assert node_info["input"]["optional"]["tumorProgression"][1]["default"] == ""
+
+
+def test_beacon2_biosamples_renders_search_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("beacon2_biosamples")
+
+    assert node_class.render_command(
+        {
+            "database": "beacon",
+            "collection": "test",
+            "db_host": "20.108.51.167",
+            "biosampleStatus": "abnormal sample",
+            "collectionDate": "2021-04-23",
+            "sampleOriginDetail": "wall of urinary bladde",
+            "tumorGrade": "Grade 2 Lesion",
+            "tumorProgression": "Primary Malignant Neoplasm",
+            "output": "/work/beacon2_biosamples",
+        }
+    ) == (
+        "mkdir -p /work/beacon2_biosamples && "
+        "cat > /work/beacon2_biosamples/beacon2_db_auth.json <<'JSON'\n"
+        "{\n"
+        '  "db_auth_source": "admin",\n'
+        '  "db_user": "root",\n'
+        '  "db_password": "example"\n'
+        "}\n"
+        "JSON\n"
+        "beacon2-search biosamples --db-host 20.108.51.167 --db-port 27017 --database beacon "
+        "--collection test --advance-connection --db-auth-config "
+        "/work/beacon2_biosamples/beacon2_db_auth.json --biosampleStatus 'abnormal sample' "
+        "--collectionDate 2021-04-23 --sampleOriginDetail 'wall of urinary bladde' "
+        "--tumorGrade 'Grade 2 Lesion' --tumorProgression 'Primary Malignant Neoplasm' "
+        "> /work/beacon2_biosamples/biosamples_query_findings.json"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "beacon2_biosamples" / "biosamples_query_findings.json",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "database is required"
+    assert node_class.VALIDATE_INPUTS({"database": "beacon"}) == "collection is required"
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test", "db_port": "bad"}) == (
+        "db_port must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"database": "beacon", "collection": "test"}) is True
+
+
 def test_beacon2_nodes_expose_galaxy_metadata_inputs_outputs_and_citation() -> None:
     object_info = _registry().object_info()
 

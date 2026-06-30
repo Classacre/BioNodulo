@@ -7519,6 +7519,51 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1002/humu.24369'],
     citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
   },
+  beacon2_biosamples: {
+    name: 'beacon2_biosamples',
+    display_name: 'Beacon2 Biosamples',
+    category: 'metadata',
+    description: 'Query the biosamples collection in a Beacon database for samples taken from individuals.',
+    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_biosamples', 'Beacon2 Biosamples', 'beacon2-search biosamples', 'biosamples collection', 'samples taken from individuals', 'biosampleStatus', 'sampleOriginDetail', 'tumorProgression'],
+    input: {
+      required: {
+        database: { type: 'STRING' },
+        collection: { type: 'STRING' },
+      },
+      optional: {
+        db_host: { type: 'STRING', default: '127.0.0.1' },
+        db_port: { type: 'INT', default: 27017 },
+        db_auth_source: { type: 'STRING', default: 'admin' },
+        db_user: { type: 'STRING', default: 'root' },
+        db_password: { type: 'STRING', default: 'example' },
+        biosampleStatus: { type: 'STRING', default: '' },
+        collectionDate: { type: 'STRING', default: '' },
+        collectionMoment: { type: 'STRING', default: '' },
+        identification: { type: 'STRING', default: '' },
+        diagnosticMarkers: { type: 'STRING', default: '' },
+        histologicalDiagnosis: { type: 'STRING', default: '' },
+        obtentionProcedure: { type: 'STRING', default: '' },
+        pathologicalStage: { type: 'STRING', default: '' },
+        pathologicalTnmFinding: { type: 'STRING', default: '' },
+        featureType: { type: 'STRING', default: '' },
+        severity: { type: 'STRING', default: '' },
+        sampleOriginDetail: { type: 'STRING', default: '' },
+        sampleOriginType: { type: 'STRING', default: '' },
+        sampleProcessing: { type: 'STRING', default: '' },
+        sampleStorage: { type: 'STRING', default: '' },
+        tumorGrade: { type: 'STRING', default: '' },
+        tumorProgression: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['JSON'],
+    output_name: ['out_biosamples_query'],
+    required_executables: ['beacon2-search'],
+    required_conda_packages: ['beacon2-import'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import',
+    citation_dois: ['10.1002/humu.24369'],
+    citation_urls: ['https://doi.org/10.1002/humu.24369'],
+    citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
+  },
   beacon2_pxf2bff: {
     name: 'beacon2_pxf2bff',
     display_name: 'Beacon2 PXF2BFF',
@@ -15293,7 +15338,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('515 nodes available')).toBeVisible();
+  await expect(page.getByText('516 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15547,6 +15592,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'biom convert', name: 'BIOM convert', category: 'metagenomics' },
     { query: 'Beacon v2 Models', name: 'Beacon2 CSV2XLSX', category: 'metadata' },
     { query: 'beacon2-search analyses', name: 'Beacon2 Analyses', category: 'metadata' },
+    { query: 'beacon2-search biosamples', name: 'Beacon2 Biosamples', category: 'metadata' },
     { query: 'Phenopacket JSON', name: 'Beacon2 PXF2BFF', category: 'metadata' },
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
