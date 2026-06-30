@@ -4707,6 +4707,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/oxfordjournals.molbev.a040454'],
     citation_text: 'The neighbor-joining method: a new method for reconstructing phylogenetic trees.',
   },
+  phyml: {
+    name: 'phyml',
+    display_name: 'PhyML',
+    category: 'phylogeny',
+    description: 'Infer maximum-likelihood phylogenies from PHYLIP alignments with PhyML.',
+    search_aliases: ['Galaxy', 'PhyML', 'phyml', 'maximum likelihood', 'phylogeny', 'PHYLIP', 'bootstrap', 'aLRT', 'SH-like branch support'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+      },
+      optional: {
+        phylip_format: { type: 'STRING', default: '', options: ['', '--sequential'] },
+        type_of_seq: { type: 'STRING', default: 'nt', options: ['nt', 'aa'] },
+        nt_model: { type: 'STRING', default: 'HKY85', options: ['HKY85', 'JC69', 'K80', 'F81', 'F84', 'TN93', 'GTR'] },
+        aa_model: { type: 'STRING', default: 'LG', options: ['LG', 'WAG', 'JTT', 'MtREV', 'Dayhoff', 'DCMut', 'RtREV', 'CpREV', 'VT', 'Blosum62', 'MtMam', 'MtArt', 'HIVw', 'HIVb'] },
+        branchSupport: { type: 'STRING', default: '-4', options: ['0', '1', '-1', '-2', '-4', '-5'] },
+      },
+    },
+    output: ['PHYLOGENY_TREE', 'TXT', 'TXT'],
+    output_name: ['output_tree', 'output_stats', 'output_stdout'],
+    required_executables: ['phyml'],
+    required_conda_packages: ['phyml'],
+    documentation_url: 'https://doi.org/10.1093/sysbio/syq010',
+    citation_dois: ['10.1093/sysbio/syq010'],
+    citation_urls: ['https://doi.org/10.1093/sysbio/syq010'],
+    citation_text: 'New Algorithms and Methods to Estimate Maximum-Likelihood Phylogenies: Assessing the Performance of PhyML 3.0.',
+  },
   flash: {
     name: 'flash',
     display_name: 'FLASH',
@@ -13857,7 +13884,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('478 nodes available')).toBeVisible();
+  await expect(page.getByText('479 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -14017,6 +14044,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'phylogenetic jackknife', name: 'AMAS Replicate', category: 'phylogeny' },
     { query: 'clustalw2', name: 'ClustalW', category: 'phylogeny' },
     { query: 'distance matrix', name: 'Quicktree', category: 'phylogeny' },
+    { query: 'PhyML maximum likelihood', name: 'PhyML', category: 'phylogeny' },
     { query: 'paired-end merge', name: 'FLASH', category: 'trimming' },
     { query: 'PEAR paired-end read merger', name: 'Pear', category: 'trimming' },
     { query: 'fragmented genes', name: 'FragGeneScan', category: 'annotation' },

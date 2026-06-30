@@ -8043,6 +8043,146 @@ def test_quicktree_renders_alignment_and_distance_commands(tmp_path: Path) -> No
     assert node_class.VALIDATE_INPUTS({"format": "dist", "input_file": "distances.phy", "output_type": "dist_out"}) is True
 
 
+def test_phyml_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["phyml"]
+
+    assert node_info["display_name"] == "PhyML"
+    assert node_info["category"] == "phylogeny"
+    assert node_info["description"] == "Infer maximum-likelihood phylogenies from PHYLIP alignments with PhyML."
+    assert node_info["output"] == ["PHYLOGENY_TREE", "TXT", "TXT"]
+    assert node_info["output_name"] == ["output_tree", "output_stats", "output_stdout"]
+    assert node_info["required_executables"] == ["phyml"]
+    assert node_info["required_conda_packages"] == ["phyml"]
+    assert node_info["documentation_url"] == "https://doi.org/10.1093/sysbio/syq010"
+    assert node_info["citation_dois"] == ["10.1093/sysbio/syq010"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1093/sysbio/syq010"]
+    assert "Maximum-Likelihood Phylogenies" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "maximum likelihood" in node_info["search_aliases"]
+    assert "PHYLIP" in node_info["search_aliases"]
+    assert node_info["input"]["required"]["input"][0] == "FILE"
+    assert node_info["input"]["optional"]["phylip_format"][1]["options"] == ["", "--sequential"]
+    assert node_info["input"]["optional"]["type_of_seq"][1]["options"] == ["nt", "aa"]
+    assert node_info["input"]["optional"]["nt_model"][1]["options"] == [
+        "HKY85",
+        "JC69",
+        "K80",
+        "F81",
+        "F84",
+        "TN93",
+        "GTR",
+    ]
+    assert node_info["input"]["optional"]["aa_model"][1]["options"] == [
+        "LG",
+        "WAG",
+        "JTT",
+        "MtREV",
+        "Dayhoff",
+        "DCMut",
+        "RtREV",
+        "CpREV",
+        "VT",
+        "Blosum62",
+        "MtMam",
+        "MtArt",
+        "HIVw",
+        "HIVb",
+    ]
+    assert node_info["input"]["optional"]["branchSupport"][1]["default"] == "-4"
+    assert node_info["input"]["optional"]["branchSupport"][1]["options"] == ["0", "1", "-1", "-2", "-4", "-5"]
+
+
+def test_phyml_renders_default_nucleotide_command_and_outputs(tmp_path: Path) -> None:
+    node_class = _node_class("phyml")
+
+    assert node_class.render_command(
+        {
+            "input": "primate alignment.phy",
+            "type_of_seq": "nt",
+            "nt_model": "HKY85",
+            "tstv": "e",
+            "prop_invar": "0",
+            "equi_freq": "m",
+            "nbSubstCat": 4,
+            "gamma": "e",
+            "move": "NNI",
+            "optimisationTopology": "tlr",
+            "branchSupport": "-4",
+            "numStartSeed": 1458308600,
+            "output": "/work/phyml",
+        }
+    ) == (
+        "ln -sf 'primate alignment.phy' 'primate alignment_phy' && "
+        "phyml --input 'primate alignment_phy' --datatype nt --multiple 1 --bootstrap -4 "
+        "--model HKY85 -t e -f m --pinv 0 --nclasses 4 --alpha e --search NNI -o tlr "
+        "--r_seed 1458308600 --no_memory_check | tee /work/phyml/output_stdout.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "phyml" / "output_tree.nwk",
+        tmp_path / "phyml" / "output_stats.txt",
+        tmp_path / "phyml" / "output_stdout.txt",
+    ]
+
+
+def test_phyml_renders_protein_bootstrap_tree_command_and_validates(tmp_path: Path) -> None:
+    node_class = _node_class("phyml")
+
+    assert node_class.render_command(
+        {
+            "input": "protein.phy",
+            "phylip_format": "--sequential",
+            "type_of_seq": "aa",
+            "aa_model": "LG",
+            "nb_data_set": 2,
+            "branchSupport": "1",
+            "replicate": 100,
+            "prop_invar": "e",
+            "equi_freq": "e",
+            "nbSubstCat": 1,
+            "move": "BEST",
+            "optimisationTopology": "tl",
+            "userInputTree": "starting tree.nhx",
+            "output": "/work/phyml",
+        }
+    ) == (
+        "ln -sf protein.phy protein_phy && ln -sf 'starting tree.nhx' 'starting tree_nhx' && "
+        "phyml --input protein_phy --sequential --datatype aa --multiple 2 --bootstrap 100 "
+        "--model LG -f e --pinv e --nclasses 1 --search BEST -o tl "
+        "--inputtree 'starting tree_nhx' --no_memory_check | tee /work/phyml/output_stdout.txt"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "phyml" / "output_tree.nwk",
+        tmp_path / "phyml" / "output_stats.txt",
+        tmp_path / "phyml" / "output_stdout.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input alignment is required"
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "phylip_format": "bad"}) == (
+        "phylip_format must be one of: , --sequential"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "type_of_seq": "bad"}) == (
+        "type_of_seq must be one of: nt, aa"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "type_of_seq": "nt", "nt_model": "LG"}) == (
+        "nt_model must be one of: HKY85, JC69, K80, F81, F84, TN93, GTR"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "type_of_seq": "aa", "aa_model": "GTR"}) == (
+        "aa_model must be one of: LG, WAG, JTT, MtREV, Dayhoff, DCMut, RtREV, CpREV, VT, Blosum62, MtMam, MtArt, HIVw, HIVb"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "nb_data_set": 0}) == "nb_data_set must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "nbSubstCat": 0}) == "nbSubstCat must be >= 1"
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "branchSupport": "bad"}) == (
+        "branchSupport must be one of: 0, 1, -1, -2, -4, -5"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "branchSupport": "1", "replicate": 0}) == (
+        "replicate must be >= 1 when branchSupport is 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "move": "bad"}) == "move must be one of: NNI, SPR, BEST"
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy", "optimisationTopology": "bad"}) == (
+        "optimisationTopology must be one of: tlr, tl, l, r, n"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "alignment.phy"}) is True
+
+
 def test_flash_exposes_galaxy_metadata_and_citation() -> None:
     node_info = _registry().object_info()["flash"]
 
