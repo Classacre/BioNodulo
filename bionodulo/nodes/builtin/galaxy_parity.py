@@ -35801,6 +35801,155 @@ class Beacon2GeneNode(_Beacon2SearchBaseNode):
     )
 
 
+class Beacon2ImportNode(CommandNode):
+    """Import Beacon JSON documents into a Beacon MongoDB collection."""
+
+    NODE_ID = "beacon2_import"
+    DISPLAY_NAME = "Beacon2 Import"
+    CATEGORY = "metadata"
+    DESCRIPTION = "Import a Beacon JSON document into a Beacon MongoDB collection."
+    REQUIRED_CONDA_PACKAGES = ["beacon2-import"]
+    REQUIRED_EXECUTABLES = ["beacon2-import"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import"
+    CITATION_DOIS = [BEACON2_IMPORT_DOI]
+    CITATION_URLS = [f"{DOI_URL}{BEACON2_IMPORT_DOI}"]
+    CITATION_TEXT = BEACON2_IMPORT_CITATION_TEXT
+    VERSION = "2.2.4+galaxy0"
+    SHELL = True
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Beacon2",
+        "Beacon v2",
+        "beacon2_import",
+        "Beacon2 Import",
+        "beacon2-import",
+        "Beacon JSON",
+        "MongoDB import",
+        "clearAll",
+        "clearColl",
+    ]
+    RETURN_TYPES = ("TEXT",)
+    RETURN_NAMES = ("out_logs",)
+
+    @classmethod
+    def _db_host(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("db_host", "127.0.0.1") or "127.0.0.1")
+
+    @classmethod
+    def _db_port(cls, inputs: dict[str, Any]) -> int:
+        return int(inputs.get("db_port", 27017) or 27017)
+
+    @classmethod
+    def _credentials_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/beacon2_db_auth.json"
+
+    @classmethod
+    def _credentials_json(cls, inputs: dict[str, Any]) -> str:
+        credentials = {
+            "db_auth_source": str(inputs.get("db_auth_source", "admin") or "admin"),
+            "db_user": str(inputs.get("db_user", "root") or "root"),
+            "db_password": str(inputs.get("db_password", "example") or "example"),
+        }
+        return json.dumps(credentials, indent=2)
+
+    @classmethod
+    def _import_cmd(cls, inputs: dict[str, Any], credentials_path: str) -> list[str]:
+        out = _out(inputs)
+        cmd = [
+            "beacon2-import",
+            "--input_json_file",
+            f"{out}/input.json",
+            "--db-host",
+            cls._db_host(inputs),
+            "--db-port",
+            str(cls._db_port(inputs)),
+            "--database",
+            str(inputs.get("database", "")),
+            "--collection",
+            str(inputs.get("collection", "")),
+            "--advance-connection",
+            "--db-auth-config",
+            credentials_path,
+        ]
+        if inputs.get("clearAll"):
+            cmd.append("--clearAll")
+        if inputs.get("clearColl"):
+            cmd.append("--clearColl")
+            cmd.extend(["--removeCollection", str(inputs.get("removeCollection", ""))])
+        cmd.extend([">", f"{out}/logs.txt"])
+        return cmd
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        input_json = str(inputs.get("input_json_file", ""))
+        staged_input = f"{out}/input.json"
+        credentials_path = cls._credentials_path(inputs)
+        config = f"cat > {shlex.quote(credentials_path)} <<'JSON'\n{cls._credentials_json(inputs)}\nJSON\n"
+        return " && ".join(
+            [
+                f"mkdir -p {shlex.quote(out)}",
+                _shell_join(["ln", "-s", input_json, staged_input]),
+                f"{config}{_shell_join(cls._import_cmd(inputs, credentials_path))}",
+            ]
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "logs.txt"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_json_file", "")).strip():
+            return "input_json_file is required"
+        if not str(inputs.get("database", "")).strip():
+            return "database is required"
+        if not str(inputs.get("collection", "")).strip():
+            return "collection is required"
+        try:
+            cls._db_port(inputs)
+        except (TypeError, ValueError):
+            return "db_port must be an integer"
+        if inputs.get("clearColl") and not str(inputs.get("removeCollection", "")).strip():
+            return "removeCollection is required when clearColl is enabled"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_json_file": ("JSON", {"description": "Beacon JSON document to import"}),
+                "database": ("STRING", {"description": "Targeted Beacon database"}),
+                "collection": ("STRING", {"description": "Targeted Beacon collection in the selected database"}),
+            },
+            "optional": {
+                "db_host": (
+                    "STRING",
+                    {"default": "127.0.0.1", "description": "Hostname or IP address of the Beacon MongoDB database"},
+                ),
+                "db_port": ("INT", {"default": 27017, "description": "Port of the Beacon MongoDB database"}),
+                "db_auth_source": (
+                    "STRING",
+                    {"default": "admin", "advanced": True, "description": "MongoDB authentication source for Beacon2 import"},
+                ),
+                "db_user": (
+                    "STRING",
+                    {"default": "root", "advanced": True, "description": "MongoDB username for Beacon2 import"},
+                ),
+                "db_password": (
+                    "STRING",
+                    {"default": "example", "advanced": True, "description": "MongoDB password for Beacon2 import"},
+                ),
+                "clearAll": ("BOOLEAN", {"default": False, "description": "Delete all collections before import"}),
+                "clearColl": ("BOOLEAN", {"default": False, "description": "Delete a specific collection before import"}),
+                "removeCollection": ("STRING", {"default": "", "description": "Collection name to delete when clearColl is enabled"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class _Beacon2MultiInputBaseNode(CommandNode):
     """Shared command rendering for Beacon2 converters that symlink multi-input collections."""
 

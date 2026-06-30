@@ -7739,6 +7739,38 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1002/humu.24369'],
     citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
   },
+  beacon2_import: {
+    name: 'beacon2_import',
+    display_name: 'Beacon2 Import',
+    category: 'metadata',
+    description: 'Import a Beacon JSON document into a Beacon MongoDB collection.',
+    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_import', 'Beacon2 Import', 'beacon2-import', 'Beacon JSON', 'MongoDB import', 'clearAll', 'clearColl'],
+    input: {
+      required: {
+        input_json_file: { type: 'JSON' },
+        database: { type: 'STRING' },
+        collection: { type: 'STRING' },
+      },
+      optional: {
+        db_host: { type: 'STRING', default: '127.0.0.1' },
+        db_port: { type: 'INT', default: 27017 },
+        db_auth_source: { type: 'STRING', default: 'admin' },
+        db_user: { type: 'STRING', default: 'root' },
+        db_password: { type: 'STRING', default: 'example' },
+        clearAll: { type: 'BOOLEAN', default: false },
+        clearColl: { type: 'BOOLEAN', default: false },
+        removeCollection: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['TEXT'],
+    output_name: ['out_logs'],
+    required_executables: ['beacon2-import'],
+    required_conda_packages: ['beacon2-import'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/beacon2-import',
+    citation_dois: ['10.1002/humu.24369'],
+    citation_urls: ['https://doi.org/10.1002/humu.24369'],
+    citation_text: 'Beacon v2 provides a standardized framework for querying genomic and phenotypic data discovery services.',
+  },
   beacon2_pxf2bff: {
     name: 'beacon2_pxf2bff',
     display_name: 'Beacon2 PXF2BFF',
@@ -15513,7 +15545,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('521 nodes available')).toBeVisible();
+  await expect(page.getByText('522 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15773,6 +15805,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'beacon2-search cohorts', name: 'Beacon2 Cohorts', category: 'metadata' },
     { query: 'beacon2-search datasets', name: 'Beacon2 Datasets', category: 'metadata' },
     { query: 'beacon2-search gene', name: 'Beacon2 Gene', category: 'metadata' },
+    { query: 'beacon2-import', name: 'Beacon2 Import', category: 'metadata' },
     { query: 'Phenopacket JSON', name: 'Beacon2 PXF2BFF', category: 'metadata' },
     { query: 'genomicVariationsVcf', name: 'Beacon2 VCF2BFF', category: 'variant' },
     { query: 'GWAS Manhattan plot', name: 'Manhattan Plots', category: 'visualization' },
