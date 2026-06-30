@@ -2469,6 +2469,34 @@ const objectInfo = {
     citation_urls: ['https://github.com/theislab/anndata2ri'],
     citation_text: 'Convert between AnnData and SingleCellExperiment objects.',
   },
+  annotatemyids: {
+    name: 'annotatemyids',
+    display_name: 'annotateMyIDs',
+    category: 'annotation',
+    description: 'Annotate a generic set of gene identifiers using Bioconductor organism annotation databases.',
+    search_aliases: ['Galaxy', 'annotateMyIDs', 'annotatemyids', 'AnnotationDbi', 'Bioconductor', 'org.Hs.eg.db', 'gene identifier annotation', 'Ensembl to Entrez', 'gene symbols', 'GO annotation', 'KEGG annotation'],
+    input: {
+      required: {
+        id_file: { type: 'TSV' },
+      },
+      optional: {
+        file_has_header: { type: 'BOOLEAN', default: false },
+        organism: { type: 'STRING', default: 'Hs', options: ['Hs', 'Mm', 'Rn', 'Dm', 'Dr', 'At', 'Gg', 'Bt'] },
+        id_type: { type: 'STRING', default: 'ENSEMBL', options: ['ENSEMBL', 'ENSEMBLPROT', 'ENSEMBLTRANS', 'ENTREZID', 'FLYBASE', 'GO', 'PATH', 'MGI', 'REFSEQ', 'SYMBOL', 'ZFIN'] },
+        output_cols: { type: 'STRING', default: ['ENSEMBL', 'ENTREZID', 'SYMBOL', 'GENENAME'], options: ['ALIAS', 'ENSEMBL', 'ENTREZID', 'EVIDENCE', 'SYMBOL', 'GENENAME', 'REFSEQ', 'GO', 'ONTOLOGY', 'PATH'], multiple: true, display: 'checkboxes' },
+        remove_dups: { type: 'BOOLEAN', default: false },
+        rscriptOpt: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV', 'TXT'],
+    output_name: ['out_tab', 'out_rscript'],
+    required_executables: ['Rscript'],
+    required_conda_packages: ['bioconductor-org.hs.eg.db', 'bioconductor-org.mm.eg.db', 'bioconductor-org.dm.eg.db', 'bioconductor-org.dr.eg.db', 'bioconductor-org.rn.eg.db', 'bioconductor-org.at.tair.db', 'bioconductor-org.gg.eg.db', 'bioconductor-org.bt.eg.db'],
+    documentation_url: 'https://github.com/markdunning/galaxy-annotateMyIDs',
+    citation_dois: ['10.18129/B9.bioc.AnnotationDbi'],
+    citation_urls: ['https://doi.org/10.18129/B9.bioc.AnnotationDbi', 'https://github.com/markdunning/galaxy-annotateMyIDs'],
+    citation_text: 'AnnotationDbi provides the Bioconductor interface used to query organism annotation packages; annotateMyIDs is a Galaxy wrapper by Mark Dunning for generic identifier annotation.',
+  },
   argnorm: {
     name: 'argnorm',
     display_name: 'argNorm',
@@ -15228,7 +15256,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('513 nodes available')).toBeVisible();
+  await expect(page.getByText('514 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -15327,6 +15355,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'split_on_obs', name: 'Manipulate AnnData', category: 'single_cell' },
     { query: 'loompy_to_tsv', name: 'Loom operations', category: 'single_cell' },
     { query: 'SingleCellExperiment', name: 'anndata2ri', category: 'single_cell' },
+    { query: 'AnnotationDbi', name: 'annotateMyIDs', category: 'annotation' },
     { query: 'Antibiotic Resistance Ontology', name: 'argNorm', category: 'annotation' },
     { query: 'BIGSdb', name: 'autoBIGS.cli', category: 'typing' },
     { query: 'ScIdx', name: 'Convert BAM to ScIdx', category: 'chip_seq' },

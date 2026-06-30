@@ -802,6 +802,174 @@ def test_modify_loom_renders_import_commands_outputs_and_validation(tmp_path: Pa
     ) is True
 
 
+def test_annotatemyids_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    node_info = _registry().object_info()["annotatemyids"]
+
+    assert node_info["display_name"] == "annotateMyIDs"
+    assert node_info["category"] == "annotation"
+    assert node_info["description"] == "Annotate a generic set of gene identifiers using Bioconductor organism annotation databases."
+    assert node_info["output"] == ["TSV", "TXT"]
+    assert node_info["output_name"] == ["out_tab", "out_rscript"]
+    assert node_info["required_executables"] == ["Rscript"]
+    assert node_info["required_conda_packages"] == [
+        "bioconductor-org.hs.eg.db",
+        "bioconductor-org.mm.eg.db",
+        "bioconductor-org.dm.eg.db",
+        "bioconductor-org.dr.eg.db",
+        "bioconductor-org.rn.eg.db",
+        "bioconductor-org.at.tair.db",
+        "bioconductor-org.gg.eg.db",
+        "bioconductor-org.bt.eg.db",
+    ]
+    assert node_info["documentation_url"] == "https://github.com/markdunning/galaxy-annotateMyIDs"
+    assert node_info["citation_dois"] == ["10.18129/B9.bioc.AnnotationDbi"]
+    assert node_info["citation_urls"] == [
+        "https://doi.org/10.18129/B9.bioc.AnnotationDbi",
+        "https://github.com/markdunning/galaxy-annotateMyIDs",
+    ]
+    assert "AnnotationDbi" in node_info["citation_text"]
+    assert "Galaxy" in node_info["search_aliases"]
+    assert "AnnotationDbi" in node_info["search_aliases"]
+    assert node_info["version"] == "3.18.0+galaxy0"
+    assert node_info["input"]["required"]["id_file"][0] == "TSV"
+    assert node_info["input"]["optional"]["organism"][1]["options"] == ["Hs", "Mm", "Rn", "Dm", "Dr", "At", "Gg", "Bt"]
+    assert node_info["input"]["optional"]["id_type"][1]["options"] == [
+        "ENSEMBL",
+        "ENSEMBLPROT",
+        "ENSEMBLTRANS",
+        "ENTREZID",
+        "FLYBASE",
+        "GO",
+        "PATH",
+        "MGI",
+        "REFSEQ",
+        "SYMBOL",
+        "ZFIN",
+    ]
+    assert node_info["input"]["optional"]["output_cols"][1]["multiple"] is True
+    assert node_info["input"]["optional"]["output_cols"][1]["default"] == [
+        "ENSEMBL",
+        "ENTREZID",
+        "SYMBOL",
+        "GENENAME",
+    ]
+
+
+def test_annotatemyids_renders_default_rscript_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("annotatemyids")
+
+    command = node_class.render_command(
+        {
+            "id_file": "genelist.txt",
+            "id_type": "SYMBOL",
+            "organism": "Hs",
+            "output": "/work/annotatemyids",
+        }
+    )
+    assert command == (
+        "mkdir -p /work/annotatemyids && cat > /work/annotatemyids/annotatemyids.R <<'RSCRIPT'\n"
+        "options( show.error.messages=F, error = function () { cat( geterrmessage(), file=stderr() ); q( \"no\", 1, F ) } )\n"
+        "\n"
+        "loc <- Sys.setlocale(\"LC_MESSAGES\", \"en_US.UTF-8\")\n"
+        "\n"
+        "id_type <- \"SYMBOL\"\n"
+        "organism <- \"Hs\"\n"
+        "output_cols <- \"ENSEMBL,ENTREZID,SYMBOL,GENENAME\"\n"
+        "file_has_header <- FALSE\n"
+        "remove_dups <- FALSE\n"
+        "\n"
+        "input <- read.table('genelist.txt', header=file_has_header, sep=\"\\t\", quote=\"\")\n"
+        "ids <- as.character(input[, 1])\n"
+        "\n"
+        "if(organism == \"Hs\"){\n"
+        "    suppressPackageStartupMessages(library(org.Hs.eg.db))\n"
+        "    db <- org.Hs.eg.db\n"
+        "} else if (organism == \"Mm\"){\n"
+        "    suppressPackageStartupMessages(library(org.Mm.eg.db))\n"
+        "    db <- org.Mm.eg.db\n"
+        "} else if (organism == \"Dm\"){\n"
+        "    suppressPackageStartupMessages(library(org.Dm.eg.db))\n"
+        "    db <- org.Dm.eg.db\n"
+        "} else if (organism == \"Dr\"){\n"
+        "    suppressPackageStartupMessages(library(org.Dr.eg.db))\n"
+        "    db <- org.Dr.eg.db\n"
+        "} else if (organism == \"Rn\"){\n"
+        "    suppressPackageStartupMessages(library(org.Rn.eg.db))\n"
+        "    db <- org.Rn.eg.db\n"
+        "} else if (organism == \"At\"){\n"
+        "    suppressPackageStartupMessages(library(org.At.tair.db))\n"
+        "    db <- org.At.tair.db\n"
+        "} else if (organism == \"Gg\"){\n"
+        "    suppressPackageStartupMessages(library(org.Gg.eg.db))\n"
+        "    db <- org.Gg.eg.db\n"
+        "} else if (organism == \"Bt\"){\n"
+        "    suppressPackageStartupMessages(library(org.Bt.eg.db))\n"
+        "    db <- org.Bt.eg.db\n"
+        "} else {\n"
+        "    cat(paste(\"Organism type not supported\", organism))\n"
+        "}\n"
+        "\n"
+        "cols <- unlist(strsplit(output_cols, \",\"))\n"
+        "result <- select(db, keys=ids, keytype=id_type, columns=cols)\n"
+        "\n"
+        "if(remove_dups) {\n"
+        "    result <- result[!duplicated(result$SYMBOL),]\n"
+        "}\n"
+        "\n"
+        "write.table(result, file='/work/annotatemyids/out_tab.tsv', sep=\"\\t\", row.names=FALSE, quote=FALSE)\n"
+        "RSCRIPT\n"
+        "Rscript /work/annotatemyids/annotatemyids.R"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "annotatemyids" / "out_tab.tsv"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "id_file is required"
+    assert node_class.VALIDATE_INPUTS({"id_file": "ids.tsv", "organism": "bad"}) == (
+        "organism must be one of: Hs, Mm, Rn, Dm, Dr, At, Gg, Bt"
+    )
+    assert node_class.VALIDATE_INPUTS({"id_file": "ids.tsv", "id_type": "BAD"}) == (
+        "id_type must be one of: ENSEMBL, ENSEMBLPROT, ENSEMBLTRANS, ENTREZID, FLYBASE, GO, PATH, MGI, REFSEQ, SYMBOL, ZFIN"
+    )
+
+
+def test_annotatemyids_renders_custom_columns_duplicate_filter_and_rscript_output(tmp_path: Path) -> None:
+    node_class = _node_class("annotatemyids")
+
+    command = node_class.render_command(
+        {
+            "id_file": "ensembl ids.tab",
+            "id_type": "ENSEMBL",
+            "organism": "Gg",
+            "output_cols": ["ENSEMBL", "GO", "ONTOLOGY", "EVIDENCE"],
+            "file_has_header": True,
+            "remove_dups": True,
+            "rscriptOpt": True,
+            "output": "/work/annotatemyids",
+        }
+    )
+    assert "organism <- \"Gg\"" in command
+    assert "output_cols <- \"ENSEMBL,GO,ONTOLOGY,EVIDENCE\"" in command
+    assert "file_has_header <- TRUE" in command
+    assert "remove_dups <- TRUE" in command
+    assert "input <- read.table('ensembl ids.tab', header=file_has_header, sep=\"\\t\", quote=\"\")" in command
+    assert "suppressPackageStartupMessages(library(org.Gg.eg.db))" in command
+    assert "result <- result[!duplicated(result$ENSEMBL),]" in command
+    assert command.endswith(
+        "RSCRIPT\n"
+        "cp /work/annotatemyids/annotatemyids.R /work/annotatemyids/out_rscript.txt && "
+        "Rscript /work/annotatemyids/annotatemyids.R"
+    )
+    assert node_class.PLAN_OUTPUTS({"rscriptOpt": True}, tmp_path) == [
+        tmp_path / "annotatemyids" / "out_tab.tsv",
+        tmp_path / "annotatemyids" / "out_rscript.txt",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"id_file": "ids.tsv", "output_cols": []}) == "output_cols is required"
+    assert node_class.VALIDATE_INPUTS(
+        {"id_file": "ids.tsv", "output_cols": ["ENSEMBL", "BAD"]}
+    ) == "output_cols entries must be one of: ALIAS, ENSEMBL, ENTREZID, EVIDENCE, SYMBOL, GENENAME, REFSEQ, GO, ONTOLOGY, PATH"
+    assert node_class.VALIDATE_INPUTS({"id_file": "ids.tsv", "organism": "At", "id_type": "SYMBOL"}) is True
+
+
 def test_anndata2ri_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     node_info = _registry().object_info()["anndata2ri"]
 
