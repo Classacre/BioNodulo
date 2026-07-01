@@ -21631,6 +21631,247 @@ class ChiraQuantifyNode(CommandNode):
         return True
 
 
+class ChiraExtractNode(CommandNode):
+    """Extract ChiRA chimeric alignments and interaction summaries."""
+
+    NODE_ID = "chira_extract"
+    DISPLAY_NAME = "ChiRA extract"
+    REQUIRED_CONDA_PACKAGES = ["chira"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Extract best ChiRA chimeric alignments and optionally summarize interactions."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ChiRA",
+        "ChiRA extract",
+        "chira_extract",
+        "chira_extract.py",
+        "chimeric reads",
+        "chimeric alignments",
+        "RNA-RNA interactions",
+        "CRL",
+        "IntaRNA",
+    ]
+    RETURN_TYPES = ("TSV", "TSV")
+    RETURN_NAMES = ("chimeras", "interactions")
+    REQUIRED_EXECUTABLES = ["chira_extract.py"]
+    DOCUMENTATION_URL = CHIRA_DOCUMENTATION_URL
+    CITATION_DOIS = [CHIRA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHIRA_CITATION_DOI}"]
+    CITATION_TEXT = CHIRA_CITATION_TEXT
+    VERSION = "1.4.3+galaxy1"
+    SHELL = True
+
+    ANNOTATION_CHOICES = ["yes", "no"]
+    FASTA_SOURCE_OPTIONS = ["history", "preloaded"]
+    REF_TYPES = ["split", "single"]
+    INTARNA_MODES = ["H", "M", "S"]
+
+    @classmethod
+    def _annotation_choice(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("annot_choice", inputs.get("annotation_choice", "no")) or "no")
+
+    @classmethod
+    def _fasta_source_selector(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("fasta_source_selector", "history") or "history")
+
+    @classmethod
+    def _ref_type(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ref_type", "split") or "split")
+
+    @staticmethod
+    def _bool_flag(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.lower() not in {"", "false", "0", "no", "off"}
+        return bool(value)
+
+    @classmethod
+    def _genomic_fasta(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("genomic_fasta", inputs.get("fasta", inputs.get("fasta_id", ""))) or "")
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        commands = [_shell_join(["mkdir", "-p", out]), f"cd {shlex.quote(out)}"]
+        annot_choice = cls._annotation_choice(inputs)
+        hybridize = cls._bool_flag(inputs.get("hybridize", False))
+        genomic_ref = ""
+        if annot_choice == "yes":
+            if cls._fasta_source_selector(inputs) == "history":
+                genomic_fasta = cls._genomic_fasta(inputs)
+                if genomic_fasta:
+                    commands.append(_shell_join(["ln", "-s", genomic_fasta, "genome.fa"]))
+                    genomic_ref = "genome.fa"
+            else:
+                genomic_ref = cls._genomic_fasta(inputs)
+        cmd = [
+            "chira_extract.py",
+            "--loci",
+            str(inputs.get("loci", "")),
+        ]
+        if annot_choice == "yes":
+            cmd.extend(["--gtf", str(inputs.get("gtf", ""))])
+            if hybridize:
+                cmd.extend(["--ref", genomic_ref])
+        cmd.extend(
+            [
+                "--tpm_cutoff",
+                str(inputs.get("tpm_cutoff", 0)),
+                "--score_cutoff",
+                str(inputs.get("score_cutoff", 0)),
+                "--chimeric_overlap",
+                str(inputs.get("chimeric_overlap", 2)),
+            ]
+        )
+        if cls._ref_type(inputs) == "single":
+            cmd.extend(["-f1", str(inputs.get("ref_fasta", ""))])
+        else:
+            cmd.extend(["-f1", str(inputs.get("ref_fasta1", "")), "-f2", str(inputs.get("ref_fasta2", ""))])
+        if hybridize:
+            cmd.append("-r")
+        if not cls._bool_flag(inputs.get("seed_interaction", True)):
+            cmd.append("--no_seed")
+        cmd.extend(
+            [
+                "--seed_bp",
+                str(inputs.get("seed_bp", 5)),
+                "--seed_min_pu",
+                str(inputs.get("seed_min_pu", 0)),
+                "--accessibility",
+                "C" if cls._bool_flag(inputs.get("accessibility", False)) else "N",
+                "--acc_width",
+                str(inputs.get("acc_width", 150)),
+                "--intarna_mode",
+                str(inputs.get("intarna_mode", "H") or "H"),
+                "--temperature",
+                str(inputs.get("temperature", 37)),
+            ]
+        )
+        if cls._bool_flag(inputs.get("summarize", False)):
+            cmd.append("-s")
+        cmd.extend(["--processes", f"${{GALAXY_SLOTS:-{inputs.get('threads', 2)}}}", "--out", "./"])
+        command = _shell_join(cmd).replace("'${GALAXY_SLOTS:-", "${GALAXY_SLOTS:-").replace("}'", "}")
+        commands.append(command)
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "chimeras"]
+        if cls._bool_flag(inputs.get("summarize", False)):
+            outputs.append(out / "interactions")
+        return outputs
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "loci": ("TSV", {"description": "Tabular file containing ChiRA CRL information"}),
+                "annot_choice": ("STRING", {"default": "no", "options": cls.ANNOTATION_CHOICES}),
+                "ref_type": ("STRING", {"default": "split", "options": cls.REF_TYPES}),
+            },
+            "optional": {
+                "gtf": ("GTF", {"default": "", "description": "GTF/GFF annotation for genomic loci"}),
+                "fasta_source_selector": ("STRING", {"default": "history", "options": cls.FASTA_SOURCE_OPTIONS}),
+                "genomic_fasta": ("FASTA", {"default": "", "description": "Genomic FASTA for annotated hybridization"}),
+                "tpm_cutoff": ("FLOAT", {"default": 0, "min": 0, "max": 1}),
+                "score_cutoff": ("FLOAT", {"default": 0, "min": 0, "max": 2}),
+                "chimeric_overlap": ("INT", {"default": 2, "min": 0}),
+                "ref_fasta1": ("FASTA", {"default": "", "description": "First split-reference FASTA"}),
+                "ref_fasta2": ("FASTA", {"default": "", "description": "Second split-reference FASTA"}),
+                "ref_fasta": ("FASTA", {"default": "", "description": "Single-reference FASTA"}),
+                "hybridize": ("BOOLEAN", {"default": False}),
+                "intarna_mode": ("STRING", {"default": "H", "options": cls.INTARNA_MODES}),
+                "seed_interaction": ("BOOLEAN", {"default": True}),
+                "seed_bp": ("INT", {"default": 5, "min": 2, "max": 20}),
+                "seed_min_pu": ("FLOAT", {"default": 0, "min": 0, "max": 1}),
+                "accessibility": ("BOOLEAN", {"default": False}),
+                "acc_width": ("INT", {"default": 150, "min": 0, "max": 99999}),
+                "temperature": ("FLOAT", {"default": 37, "min": 0, "max": 100}),
+                "summarize": ("BOOLEAN", {"default": False}),
+                "threads": ("INT", {"default": 2, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def _validate_float_range(
+        cls, inputs: dict[str, Any], name: str, default: float, minimum: float, maximum: float
+    ) -> bool | str:
+        try:
+            value = float(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be numeric"
+        if not minimum <= value <= maximum:
+            return f"{name} must be between {minimum:g} and {maximum:g}"
+        return True
+
+    @classmethod
+    def _validate_int_range(
+        cls, inputs: dict[str, Any], name: str, default: int, minimum: int, maximum: int
+    ) -> bool | str:
+        try:
+            value = int(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be an integer"
+        if not minimum <= value <= maximum:
+            return f"{name} must be between {minimum} and {maximum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("loci", "")).strip():
+            return "loci is required"
+        annot_choice = cls._annotation_choice(inputs)
+        if annot_choice not in cls.ANNOTATION_CHOICES:
+            return f"annot_choice must be one of: {', '.join(cls.ANNOTATION_CHOICES)}"
+        fasta_source = cls._fasta_source_selector(inputs)
+        if fasta_source not in cls.FASTA_SOURCE_OPTIONS:
+            return f"fasta_source_selector must be one of: {', '.join(cls.FASTA_SOURCE_OPTIONS)}"
+        hybridize = cls._bool_flag(inputs.get("hybridize", False))
+        if annot_choice == "yes":
+            if not str(inputs.get("gtf", "")).strip():
+                return "gtf is required when annot_choice is yes"
+            if hybridize and not cls._genomic_fasta(inputs).strip():
+                return (
+                    "genomic_fasta is required when annot_choice is yes, hybridize is true, "
+                    f"and fasta_source_selector is {fasta_source}"
+                )
+        for name, default, minimum, maximum in [
+            ("tpm_cutoff", 0, 0, 1),
+            ("score_cutoff", 0, 0, 2),
+            ("seed_min_pu", 0, 0, 1),
+            ("temperature", 37, 0, 100),
+        ]:
+            result = cls._validate_float_range(inputs, name, default, minimum, maximum)
+            if result is not True:
+                return result
+        for name, default, minimum, maximum in [
+            ("chimeric_overlap", 2, 0, 99999),
+            ("seed_bp", 5, 2, 20),
+            ("acc_width", 150, 0, 99999),
+            ("threads", 2, 1, 128),
+        ]:
+            result = cls._validate_int_range(inputs, name, default, minimum, maximum)
+            if result is not True:
+                return result
+        ref_type = cls._ref_type(inputs)
+        if ref_type not in cls.REF_TYPES:
+            return f"ref_type must be one of: {', '.join(cls.REF_TYPES)}"
+        if ref_type == "single":
+            if not str(inputs.get("ref_fasta", "")).strip():
+                return "ref_fasta is required when ref_type is single"
+        else:
+            if not str(inputs.get("ref_fasta1", "")).strip():
+                return "ref_fasta1 is required when ref_type is split"
+            if not str(inputs.get("ref_fasta2", "")).strip():
+                return "ref_fasta2 is required when ref_type is split"
+        intarna_mode = str(inputs.get("intarna_mode", "H") or "H")
+        if intarna_mode not in cls.INTARNA_MODES:
+            return f"intarna_mode must be one of: {', '.join(cls.INTARNA_MODES)}"
+        return True
+
+
 class ChewBBACAAlleleCallNode(CommandNode):
     """Determine allelic profiles for genome assemblies with chewBBACA."""
 

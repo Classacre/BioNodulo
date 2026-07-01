@@ -11253,6 +11253,122 @@ def test_chira_quantify_renders_locus_quantification_command_outputs_and_validat
     assert node_class.VALIDATE_INPUTS({"segments": "segments.bed", "merged": "merged.bed"}) is True
 
 
+def test_chira_extract_renders_chimera_extraction_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chira_extract")
+    info = _registry().object_info()["chira_extract"]
+
+    assert info["display_name"] == "ChiRA extract"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Extract best ChiRA chimeric alignments and optionally summarize interactions."
+    assert info["input"]["required"]["loci"][0] == "TSV"
+    assert info["input"]["required"]["annot_choice"][1]["options"] == ["yes", "no"]
+    assert info["input"]["required"]["ref_type"][1]["options"] == ["split", "single"]
+    assert info["input"]["optional"]["fasta_source_selector"][1]["options"] == ["history", "preloaded"]
+    assert info["input"]["optional"]["tpm_cutoff"][1]["default"] == 0
+    assert info["input"]["optional"]["tpm_cutoff"][1]["min"] == 0
+    assert info["input"]["optional"]["tpm_cutoff"][1]["max"] == 1
+    assert info["input"]["optional"]["score_cutoff"][1]["max"] == 2
+    assert info["input"]["optional"]["hybridize"][1]["default"] is False
+    assert info["input"]["optional"]["intarna_mode"][1]["options"] == ["H", "M", "S"]
+    assert info["input"]["optional"]["seed_interaction"][1]["default"] is True
+    assert info["input"]["optional"]["seed_bp"][1]["min"] == 2
+    assert info["input"]["optional"]["seed_bp"][1]["max"] == 20
+    assert info["input"]["optional"]["accessibility"][1]["default"] is False
+    assert info["input"]["optional"]["threads"][1]["default"] == 2
+    assert info["output"] == ["TSV", "TSV"]
+    assert info["output_name"] == ["chimeras", "interactions"]
+    assert info["required_executables"] == ["chira_extract.py"]
+    assert info["required_conda_packages"] == ["chira"]
+    assert info["documentation_url"] == "https://github.com/BackofenLab/ChiRA"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa158"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/gigascience/giaa158"]
+    assert "ChiRA extract" in info["search_aliases"]
+    assert "chira_extract.py" in info["search_aliases"]
+    assert "IntaRNA" in info["search_aliases"]
+    assert info["version"] == "1.4.3+galaxy1"
+
+    assert node_class.render_command(
+        {
+            "loci": "loci.counts",
+            "annot_choice": "no",
+            "tpm_cutoff": 0.1,
+            "score_cutoff": 1.5,
+            "chimeric_overlap": 3,
+            "ref_type": "split",
+            "ref_fasta1": "ref1.fa",
+            "ref_fasta2": "ref 2.fa",
+            "hybridize": True,
+            "intarna_mode": "M",
+            "seed_interaction": True,
+            "seed_bp": 6,
+            "seed_min_pu": 0.2,
+            "accessibility": True,
+            "acc_width": 120,
+            "temperature": 25,
+            "summarize": True,
+            "threads": 6,
+            "output": "/work/chira_extract",
+        }
+    ) == (
+        "mkdir -p /work/chira_extract && cd /work/chira_extract && "
+        "chira_extract.py --loci loci.counts --tpm_cutoff 0.1 --score_cutoff 1.5 --chimeric_overlap 3 "
+        "-f1 ref1.fa -f2 'ref 2.fa' -r --seed_bp 6 --seed_min_pu 0.2 --accessibility C --acc_width 120 "
+        "--intarna_mode M --temperature 25 -s --processes ${GALAXY_SLOTS:-6} --out ./"
+    )
+    assert node_class.render_command(
+        {
+            "loci": "loci file.counts",
+            "annot_choice": "yes",
+            "gtf": "annotation.gtf",
+            "fasta_source_selector": "history",
+            "genomic_fasta": "genome file.fa",
+            "ref_type": "single",
+            "ref_fasta": "transcripts.fa",
+            "hybridize": True,
+            "seed_interaction": False,
+            "output": "/work/chira_extract",
+        }
+    ) == (
+        "mkdir -p /work/chira_extract && cd /work/chira_extract && ln -s 'genome file.fa' genome.fa && "
+        "chira_extract.py --loci 'loci file.counts' --gtf annotation.gtf --ref genome.fa --tpm_cutoff 0 "
+        "--score_cutoff 0 --chimeric_overlap 2 -f1 transcripts.fa -r --no_seed --seed_bp 5 --seed_min_pu 0 "
+        "--accessibility N --acc_width 150 --intarna_mode H --temperature 37 --processes ${GALAXY_SLOTS:-2} --out ./"
+    )
+    assert node_class.PLAN_OUTPUTS({"summarize": False}, tmp_path) == [tmp_path / "chira_extract" / "chimeras"]
+    assert node_class.PLAN_OUTPUTS({"summarize": True}, tmp_path) == [
+        tmp_path / "chira_extract" / "chimeras",
+        tmp_path / "chira_extract" / "interactions",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "loci is required"
+    assert node_class.VALIDATE_INPUTS({"loci": "loci.counts", "annot_choice": "bad"}) == (
+        "annot_choice must be one of: yes, no"
+    )
+    assert node_class.VALIDATE_INPUTS({"loci": "loci.counts", "annot_choice": "yes"}) == (
+        "gtf is required when annot_choice is yes"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"loci": "loci.counts", "annot_choice": "yes", "gtf": "annotation.gtf", "hybridize": True}
+    ) == "genomic_fasta is required when annot_choice is yes, hybridize is true, and fasta_source_selector is history"
+    assert node_class.VALIDATE_INPUTS({"loci": "loci.counts", "ref_type": "single"}) == (
+        "ref_fasta is required when ref_type is single"
+    )
+    assert node_class.VALIDATE_INPUTS({"loci": "loci.counts", "ref_type": "split", "ref_fasta1": "r1.fa"}) == (
+        "ref_fasta2 is required when ref_type is split"
+    )
+    assert node_class.VALIDATE_INPUTS({"loci": "loci.counts", "ref_type": "split", "tpm_cutoff": 1.2}) == (
+        "tpm_cutoff must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"loci": "loci.counts", "ref_type": "split", "score_cutoff": 2.2}) == (
+        "score_cutoff must be between 0 and 2"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"loci": "loci.counts", "ref_type": "split", "ref_fasta1": "r1.fa", "ref_fasta2": "r2.fa", "seed_bp": 1}
+    ) == "seed_bp must be between 2 and 20"
+    assert node_class.VALIDATE_INPUTS(
+        {"loci": "loci.counts", "ref_type": "split", "ref_fasta1": "r1.fa", "ref_fasta2": "r2.fa"}
+    ) is True
+
+
 def test_chewbbaca_allelecall_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["chewbbaca_allelecall"]
 
