@@ -130,8 +130,7 @@ describe('WorkflowCanvas controls i18n', () => {
   it('draws array parameter summaries from the active locale', async () => {
     const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
     const { setLanguage } = await import('../i18n');
-    const fillText = vi.fn();
-    stubCanvasContext(fillText);
+    stubCanvasContext(vi.fn());
 
     await setLanguage('es');
 
@@ -170,17 +169,16 @@ describe('WorkflowCanvas controls i18n', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(fillText).toHaveBeenCalledWith('samples: 3 elementos', expect.any(Number), expect.any(Number));
-    });
-    expect(fillText).not.toHaveBeenCalledWith('samples: 3 items', expect.any(Number), expect.any(Number));
+    // React Flow renders the node body as DOM: the non-widget array param
+    // appears as a localized summary row on the node face.
+    expect(await screen.findByText('samples: 3 elementos')).toBeInTheDocument();
+    expect(screen.queryByText('samples: 3 items')).not.toBeInTheDocument();
   });
 
   it('renders hover-card node categories from the active locale', async () => {
     const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
     const { setLanguage } = await import('../i18n');
-    const fillText = vi.fn();
-    stubCanvasContext(fillText);
+    stubCanvasContext(vi.fn());
 
     await setLanguage('es');
 
@@ -217,24 +215,24 @@ describe('WorkflowCanvas controls i18n', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(fillText).toHaveBeenCalledWith('Hover Node', expect.any(Number), expect.any(Number));
-    });
+    // React Flow renders each node as a DOM element; the title is on the node
+    // face. Hovering the node reveals the hover card with the localized
+    // category label.
+    expect(await screen.findByText('Hover Node')).toBeInTheDocument();
 
-    const canvas = container.querySelector('canvas');
-    expect(canvas).toBeTruthy();
+    const nodeEl = container.querySelector('.react-flow__node');
+    expect(nodeEl).toBeTruthy();
     act(() => {
-      fireEvent.mouseMove(canvas!, { clientX: 120, clientY: 120 });
+      fireEvent.mouseEnter(nodeEl!);
     });
 
     expect(await screen.findByText('Utilidad')).toBeInTheDocument();
     expect(screen.queryByText('Utility')).not.toBeInTheDocument();
   });
 
-  it('draws dynamic switch outputs from the branch count parameter', async () => {
+  it('renders dynamic switch outputs from the branch count parameter', async () => {
     const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
-    const fillText = vi.fn();
-    stubCanvasContext(fillText);
+    stubCanvasContext(vi.fn());
     const objectInfo = {
       switch: {
         id: 'switch',
@@ -291,18 +289,17 @@ describe('WorkflowCanvas controls i18n', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(fillText).toHaveBeenCalledWith('output_5', expect.any(Number), expect.any(Number));
-      expect(fillText).toHaveBeenCalledWith('output_6', expect.any(Number), expect.any(Number));
-      expect(fillText).toHaveBeenCalledWith('default', expect.any(Number), expect.any(Number));
-    });
+    // Output port labels are React Flow handle rows resolved from the dynamic
+    // branch-count parameter (num_branches: 6 => output_1..output_6 + default).
+    expect(await screen.findByText('output_5')).toBeInTheDocument();
+    expect(await screen.findByText('output_6')).toBeInTheDocument();
+    expect(await screen.findByText('default')).toBeInTheDocument();
   });
 
-  it('draws missing node titles from the active locale', async () => {
+  it('renders missing node titles from the active locale', async () => {
     const { default: WorkflowCanvas } = await import('../components/canvas/WorkflowCanvas');
     const { setLanguage } = await import('../i18n');
-    const fillText = vi.fn();
-    stubCanvasContext(fillText);
+    stubCanvasContext(vi.fn());
 
     await setLanguage('es');
 
@@ -332,10 +329,9 @@ describe('WorkflowCanvas controls i18n', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(fillText).toHaveBeenCalledWith('Nodo', expect.any(Number), expect.any(Number));
-    });
-    expect(fillText).not.toHaveBeenCalledWith('Node', expect.any(Number), expect.any(Number));
+    // The node with an unknown type falls back to the localized node title.
+    expect(await screen.findByText('Nodo')).toBeInTheDocument();
+    expect(screen.queryByText('Node')).not.toBeInTheDocument();
   });
 
   it('hides conditional canvas widgets until their controlling parameter matches', async () => {

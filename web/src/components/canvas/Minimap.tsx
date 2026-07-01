@@ -80,12 +80,6 @@ export default function Minimap({ graphNodes, groups, edges, offset, scale, canv
     };
   }, [canvasSize, offset, scale, bounds, mmScale, centerOffset]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    isDragging.current = true;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    handlePointerMove(e);
-  }, []);
-
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging.current || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -96,6 +90,12 @@ export default function Minimap({ graphNodes, groups, edges, offset, scale, canv
     const { w, h } = canvasSize;
     onOffsetChange({ x: w / 2 - worldX * scale, y: h / 2 - worldY * scale });
   }, [centerOffset, mmScale, bounds, canvasSize, scale, onOffsetChange]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    isDragging.current = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    handlePointerMove(e);
+  }, [handlePointerMove]);
 
   const handlePointerUp = useCallback(() => {
     isDragging.current = false;
