@@ -77530,6 +77530,109 @@ class CNVkitAccessNode(CommandNode):
         }
 
 
+class CNVkitAntitargetNode(CommandNode):
+    """Derive CNVkit antitarget BED intervals from capture targets."""
+
+    NODE_ID = "cnvkit_antitarget"
+    DISPLAY_NAME = "CNVkit Antitarget"
+    REQUIRED_CONDA_PACKAGES = ["cnvkit", "samtools"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Derive CNVkit antitarget BED intervals from targeted resequencing regions."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CNVkit",
+        "CNVkit Antitarget",
+        "cnvkit.py antitarget",
+        "antitarget regions",
+        "off-target bins",
+        "targeted resequencing",
+        "copy number variation",
+    ]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("out_capture_antitarget",)
+    REQUIRED_EXECUTABLES = ["cnvkit.py"]
+    DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/en/stable/pipeline.html#antitarget"
+    CITATION_DOIS = [CNVKIT_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CNVKIT_CITATION_DOI}"]
+    CITATION_TEXT = CNVKIT_CITATION_TEXT
+    VERSION = "0.9.12+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/capture.antitarget.bed"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        commands = [f"ln -s {shlex.quote(str(inputs.get('targets_file', '')))} ./capture.bed"]
+        access = inputs.get("access")
+        if access:
+            commands.append(f"ln -s {shlex.quote(str(access))} ./access.bed")
+
+        cmd = ["cnvkit.py", "antitarget", "./capture.bed"]
+        if access:
+            cmd.extend(["--access", "./access.bed"])
+        avg_size = inputs.get("avg_size", 150000)
+        if avg_size is not None and str(avg_size) != "":
+            cmd.extend(["--avg-size", str(avg_size)])
+        min_size = inputs.get("min_size", 25000)
+        if min_size is not None and str(min_size) != "":
+            cmd.extend(["--min-size", str(min_size)])
+        cmd.extend(["--output", cls._output_path(inputs)])
+        commands.append(_shell_join(cmd))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "capture.antitarget.bed"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("targets_file", "")).strip():
+            return "targets_file is required"
+        for field in ("avg_size", "min_size"):
+            value = inputs.get(field)
+            if value is None or str(value) == "":
+                continue
+            try:
+                integer_value = int(value)
+            except (TypeError, ValueError):
+                return f"{field} must be an integer"
+            if integer_value < 1:
+                return f"{field} must be at least 1"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "targets_file": ("BED", {"description": "Input BED or interval file with target regions"}),
+            },
+            "optional": {
+                "access": ("BED", {"description": "Regions of accessible sequence on chromosomes"}),
+                "avg_size": (
+                    "INT",
+                    {
+                        "default": 150000,
+                        "min": 1,
+                        "description": "Average size of antitarget bins",
+                    },
+                ),
+                "min_size": (
+                    "INT",
+                    {
+                        "default": 25000,
+                        "min": 1,
+                        "description": "Minimum size of antitarget bins",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BCFtoolsCSQNode(CommandNode):
     """Annotate haplotype-aware variant consequences with bcftools csq."""
 

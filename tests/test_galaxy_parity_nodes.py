@@ -45537,6 +45537,59 @@ def test_cnvkit_access_renders_command_outputs_and_validation(tmp_path: Path) ->
     assert node_class.VALIDATE_INPUTS({"fa_fname": "genome.fa", "exclude": ["excludes.bed"]}) is True
 
 
+def test_cnvkit_antitarget_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["cnvkit_antitarget"]
+
+    assert info["display_name"] == "CNVkit Antitarget"
+    assert info["category"] == "variant"
+    assert info["description"] == "Derive CNVkit antitarget BED intervals from targeted resequencing regions."
+    assert info["input"]["required"]["targets_file"][0] == "BED"
+    assert info["input"]["optional"]["access"][0] == "BED"
+    assert info["input"]["optional"]["avg_size"][1]["default"] == 150000
+    assert info["input"]["optional"]["avg_size"][1]["min"] == 1
+    assert info["input"]["optional"]["min_size"][1]["default"] == 25000
+    assert info["input"]["optional"]["min_size"][1]["min"] == 1
+    assert info["output"] == ["BED"]
+    assert info["output_name"] == ["out_capture_antitarget"]
+    assert info["required_executables"] == ["cnvkit.py"]
+    assert info["required_conda_packages"] == ["cnvkit", "samtools"]
+    assert info["documentation_url"] == "https://cnvkit.readthedocs.io/en/stable/pipeline.html#antitarget"
+    assert info["citation_dois"] == ["10.1371/journal.pcbi.1004873"]
+    assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1004873"]
+    assert "Genome-Wide Copy Number Detection and Visualization" in info["citation_text"]
+    assert "antitarget regions" in info["search_aliases"]
+    assert info["version"] == "0.9.12+galaxy0"
+
+
+def test_cnvkit_antitarget_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cnvkit_antitarget")
+
+    command = node_class.render_command(
+        {
+            "targets_file": "capture targets.bed",
+            "access": "access excludes.bed",
+            "avg_size": 120000,
+            "min_size": 20000,
+            "output": "/work/cnvkit_antitarget",
+        }
+    )
+    assert command == (
+        "ln -s 'capture targets.bed' ./capture.bed && "
+        "ln -s 'access excludes.bed' ./access.bed && "
+        "cnvkit.py antitarget ./capture.bed --access ./access.bed "
+        "--avg-size 120000 --min-size 20000 --output /work/cnvkit_antitarget/capture.antitarget.bed"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cnvkit_antitarget" / "capture.antitarget.bed"]
+    assert node_class.VALIDATE_INPUTS({}) == "targets_file is required"
+    assert node_class.VALIDATE_INPUTS({"targets_file": "capture.bed", "avg_size": 0}) == (
+        "avg_size must be at least 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"targets_file": "capture.bed", "min_size": 0}) == (
+        "min_size must be at least 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"targets_file": "capture.bed"}) is True
+
+
 def test_bcftools_csq_renders_haplotype_consequence_command_and_output(tmp_path: Path) -> None:
     node_class = _node_class("bcftools_csq")
 
