@@ -17964,6 +17964,125 @@ class CircosBinlinksNode(CommandNode):
         }
 
 
+class CircosBundlelinksNode(CommandNode):
+    """Bundle adjacent Circos links into reduced link rows."""
+
+    NODE_ID = "circos_bundlelinks"
+    DISPLAY_NAME = "Circos: Bundle Links"
+    REQUIRED_CONDA_PACKAGES = ["circos", "circos-tools"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Bundle adjacent Circos links before plotting."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "circos_bundlelinks",
+        "bundlelinks",
+        "bundle links",
+        "ribbon",
+        "link reduction",
+        "comparative genomics",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("outfile",)
+    REQUIRED_EXECUTABLES = ["bundlelinks", "sed"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    OPTIONAL_INT_MINIMUMS = {
+        "max_gap": 1,
+        "min_bundle_extent": 0,
+        "min_bundle_size": 0,
+    }
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/bundled_links.tabular"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["bundlelinks"]
+        _add_if_value(cmd, "-max_gap", inputs.get("max_gap"))
+        cmd.extend(["-min_bundle_membership", str(inputs.get("min_bundle_membership", 0))])
+        _add_if_value(cmd, "-min_bundle_extent", inputs.get("min_bundle_extent"))
+        _add_if_value(cmd, "-min_bundle_size", inputs.get("min_bundle_size"))
+        _add_if_value(cmd, "-min_bundle_identity", inputs.get("min_bundle_identity"))
+        return (
+            f"{_shell_join(cmd)} < {shlex.quote(str(inputs.get('linksfile', '')))} "
+            f"| sed 's/ /\\t/g' > {shlex.quote(cls._output_path(inputs))}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "bundled_links.tabular"]
+
+    @classmethod
+    def _validate_optional_int_min(cls, inputs: dict[str, Any], key: str, minimum: int) -> bool | str:
+        value = inputs.get(key)
+        if value is None or str(value) == "":
+            return True
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return f"{key} must be an integer"
+        if parsed < minimum:
+            return f"{key} must be greater than or equal to {minimum}"
+        return True
+
+    @classmethod
+    def _validate_float_range(cls, inputs: dict[str, Any], key: str, minimum: float, maximum: float) -> bool | str:
+        value = inputs.get(key)
+        if value is None or str(value) == "":
+            return True
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return f"{key} must be a number"
+        if parsed < minimum or parsed > maximum:
+            return f"{key} must be between {minimum:g} and {maximum:g}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("linksfile", "")).strip():
+            return "linksfile is required"
+        validation = cls._validate_optional_int_min(inputs, "min_bundle_membership", 0)
+        if validation is not True:
+            return validation
+        for key, minimum in cls.OPTIONAL_INT_MINIMUMS.items():
+            validation = cls._validate_optional_int_min(inputs, key, minimum)
+            if validation is not True:
+                return validation
+        return cls._validate_float_range(inputs, "min_bundle_identity", 0, 1)
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "linksfile": ("TSV", {"description": "Six-column Circos links table"}),
+            },
+            "optional": {
+                "max_gap": ("INT", {"default": "", "min": 1, "description": "Maximum gap between adjacent links"}),
+                "min_bundle_membership": (
+                    "INT",
+                    {"default": 0, "min": 0, "description": "Minimum number of links in a bundle"},
+                ),
+                "min_bundle_extent": ("INT", {"default": "", "min": 0, "description": "Minimum bundle extent"}),
+                "min_bundle_size": ("INT", {"default": "", "min": 0, "description": "Minimum bundle size"}),
+                "min_bundle_identity": (
+                    "FLOAT",
+                    {"default": "", "min": 0, "max": 1, "description": "Minimum bundle identity"},
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class FiltlongNode(CommandNode):
     """Filter long reads by quality, length, and optional references with Filtlong."""
 

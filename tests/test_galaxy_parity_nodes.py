@@ -15319,6 +15319,82 @@ def test_circos_binlinks_renders_link_density_command_outputs_and_validation(tmp
     assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv"}) is True
 
 
+def test_circos_bundlelinks_renders_link_bundling_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_bundlelinks")
+    info = _registry().object_info()["circos_bundlelinks"]
+
+    assert info["display_name"] == "Circos: Bundle Links"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Bundle adjacent Circos links before plotting."
+    assert info["input"]["required"]["linksfile"][0] == "TSV"
+    assert info["input"]["optional"]["max_gap"][1]["default"] == ""
+    assert info["input"]["optional"]["max_gap"][1]["min"] == 1
+    assert info["input"]["optional"]["min_bundle_membership"][1]["default"] == 0
+    assert info["input"]["optional"]["min_bundle_membership"][1]["min"] == 0
+    assert info["input"]["optional"]["min_bundle_extent"][1]["min"] == 0
+    assert info["input"]["optional"]["min_bundle_size"][1]["min"] == 0
+    assert info["input"]["optional"]["min_bundle_identity"][1]["min"] == 0
+    assert info["input"]["optional"]["min_bundle_identity"][1]["max"] == 1
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["outfile"]
+    assert info["required_executables"] == ["bundlelinks", "sed"]
+    assert info["required_conda_packages"] == ["circos", "circos-tools"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Galactic Circos" in info["citation_text"]
+    assert "bundle links" in info["search_aliases"]
+    assert "ribbon" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "linksfile": "links track.tsv",
+            "max_gap": 1000000,
+            "min_bundle_membership": 2,
+            "min_bundle_extent": 10,
+            "min_bundle_size": 5,
+            "min_bundle_identity": 0.75,
+            "output": "/work/circos_bundlelinks",
+        }
+    ) == (
+        "bundlelinks -max_gap 1000000 -min_bundle_membership 2 -min_bundle_extent 10 "
+        "-min_bundle_size 5 -min_bundle_identity 0.75 < 'links track.tsv' "
+        "| sed 's/ /\\t/g' > /work/circos_bundlelinks/bundled_links.tabular"
+    )
+    assert node_class.render_command(
+        {
+            "linksfile": "links.tsv",
+            "output": "/work/circos_bundlelinks",
+        }
+    ) == (
+        "bundlelinks -min_bundle_membership 0 < links.tsv "
+        "| sed 's/ /\\t/g' > /work/circos_bundlelinks/bundled_links.tabular"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "circos_bundlelinks" / "bundled_links.tabular"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "linksfile is required"
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "max_gap": 0}) == (
+        "max_gap must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "min_bundle_membership": -1}) == (
+        "min_bundle_membership must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "min_bundle_extent": "bad"}) == (
+        "min_bundle_extent must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "min_bundle_size": -1}) == (
+        "min_bundle_size must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "min_bundle_identity": 1.1}) == (
+        "min_bundle_identity must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 

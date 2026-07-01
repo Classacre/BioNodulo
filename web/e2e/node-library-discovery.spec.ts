@@ -3897,6 +3897,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
     citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
   },
+  circos_bundlelinks: {
+    name: 'circos_bundlelinks',
+    display_name: 'Circos: Bundle Links',
+    category: 'visualization',
+    description: 'Bundle adjacent Circos links before plotting.',
+    search_aliases: ['Galaxy', 'Circos', 'circos_bundlelinks', 'bundlelinks', 'bundle links', 'ribbon', 'link reduction', 'comparative genomics'],
+    input: {
+      required: {
+        linksfile: { type: 'TSV' },
+      },
+      optional: {
+        max_gap: { type: 'INT', default: '', min: 1 },
+        min_bundle_membership: { type: 'INT', default: 0, min: 0 },
+        min_bundle_extent: { type: 'INT', default: '', min: 0 },
+        min_bundle_size: { type: 'INT', default: '', min: 0 },
+        min_bundle_identity: { type: 'FLOAT', default: '', min: 0, max: 1 },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['outfile'],
+    required_executables: ['bundlelinks', 'sed'],
+    required_conda_packages: ['circos', 'circos-tools'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos',
+    citation_dois: ['10.1093/gigascience/giaa065', '10.1101/gr.092759.109'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
+    citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
+  },
   circos_gc_skew: {
     name: 'circos_gc_skew',
     display_name: 'GC Skew',
@@ -17459,7 +17486,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('585 nodes available')).toBeVisible();
+  await expect(page.getByText('586 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17606,6 +17633,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'downsample', name: 'Circos: Resample 1/2D data', category: 'visualization' },
     { query: 'alignment links', name: 'Circos: Alignments to links', category: 'visualization' },
     { query: 'link density', name: 'Circos: Link Density Track', category: 'visualization' },
+    { query: 'bundle links', name: 'Circos: Bundle Links', category: 'visualization' },
     { query: 'GC skew', name: 'GC Skew', category: 'visualization' },
     { query: 'bigWig', name: 'Circos: bigWig to Scatter', category: 'visualization' },
     { query: 'text labels', name: 'Circos: Interval to Circos Text Labels', category: 'visualization' },
