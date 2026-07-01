@@ -100,6 +100,33 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column'],
     citation_text: 'Add input name as column on an existing tabular file.',
   },
+  column_remove_by_header: {
+    name: 'column_remove_by_header',
+    display_name: 'Remove columns',
+    category: 'data_transform',
+    description: 'Remove or keep columns from a tabular file by matching header names.',
+    search_aliases: ['Galaxy', 'column_remove_by_header', 'Remove columns', 'remove columns by heading', 'keep named columns', 'header names', 'tabular column filter', 'unicode escaped columns'],
+    input: {
+      required: {
+        input_tabular: { type: 'TSV' },
+        headers: { type: 'STRING', is_list: true },
+      },
+      optional: {
+        keep_columns: { type: 'BOOLEAN', default: false },
+        strip_characters: { type: 'STRING', default: '#' },
+        delimiter: { type: 'STRING', default: '\\t' },
+        script_path: { type: 'FILE', default: 'column_remove_by_header.py', advanced: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output_tabular'],
+    required_executables: ['python'],
+    required_conda_packages: ['python'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_remove_by_header',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_remove_by_header'],
+    citation_text: 'Removes or keeps columns based upon user provided values.',
+  },
   datamash_ops: {
     name: 'datamash_ops',
     display_name: 'Datamash',
@@ -17663,7 +17690,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('591 nodes available')).toBeVisible();
+  await expect(page.getByText('592 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17671,6 +17698,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'data transform', name: 'Filter Rows', category: 'data_transform' },
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
     { query: 'addName', name: 'Add input name as column (Galaxy)', category: 'data_transform' },
+    { query: 'header names', name: 'Remove columns', category: 'data_transform' },
     { query: 'group by fields', name: 'Datamash', category: 'data_transform' },
     { query: 'matrix transpose', name: 'Transpose', category: 'data_transform' },
     { query: 'reverse columns', name: 'Reverse', category: 'data_transform' },

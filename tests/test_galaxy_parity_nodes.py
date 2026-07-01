@@ -6527,6 +6527,82 @@ def test_add_input_name_as_column_galaxy_id_inherits_validation() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "signature.tab", "label": "sample"}) is True
 
 
+def test_column_remove_by_header_exposes_galaxy_metadata_without_citations() -> None:
+    info = _registry().object_info()["column_remove_by_header"]
+
+    assert info["display_name"] == "Remove columns"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Remove or keep columns from a tabular file by matching header names."
+    assert info["input"]["required"]["input_tabular"][0] == "TSV"
+    assert info["input"]["required"]["headers"][0] == "STRING"
+    assert info["input"]["required"]["headers"][1]["is_list"] is True
+    assert info["input"]["optional"]["keep_columns"][1]["default"] is False
+    assert info["input"]["optional"]["strip_characters"][1]["default"] == "#"
+    assert info["input"]["optional"]["delimiter"][1]["default"] == "\\t"
+    assert info["input"]["optional"]["script_path"][1]["default"] == "column_remove_by_header.py"
+    assert info["input"]["optional"]["script_path"][1]["advanced"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output_tabular"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["python"]
+    assert info["documentation_url"] == (
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_remove_by_header"
+    )
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == [
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_remove_by_header"
+    ]
+    assert "Removes or keeps columns based upon user provided values" in info["citation_text"]
+    assert "header names" in info["search_aliases"]
+    assert info["version"] == "1.0"
+
+
+def test_column_remove_by_header_renders_remove_keep_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("column_remove_by_header")
+
+    assert node_class.render_command(
+        {
+            "input_tabular": "input table.tsv",
+            "headers": ["a", "\\xf6"],
+            "output": "/work/column_remove_by_header",
+        }
+    ) == (
+        "python column_remove_by_header.py -i 'input table.tsv' "
+        "-o /work/column_remove_by_header/output_tabular.tsv -d '\\t' -s '#' --unicode-escaped-cols "
+        "--columns a '\\xf6'"
+    )
+
+    assert node_class.render_command(
+        {
+            "input_tabular": "input.tsv",
+            "headers": "a,KEY",
+            "keep_columns": True,
+            "strip_characters": "",
+            "delimiter": ",",
+            "script_path": "/tools/column_remove_by_header.py",
+            "output": "/work/column_remove_by_header",
+        }
+    ) == (
+        "python /tools/column_remove_by_header.py -i input.tsv "
+        "-o /work/column_remove_by_header/output_tabular.tsv -d , --keep -s '' "
+        "--unicode-escaped-cols --columns a KEY"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "column_remove_by_header" / "output_tabular.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input_tabular is required"
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv"}) == "at least one header is required"
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "headers": []}) == "at least one header is required"
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "headers": ["a"], "delimiter": ""}) == (
+        "delimiter is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "headers": ["a"], "delimiter": "\xf6"}) == (
+        "delimiter must contain only ASCII characters"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "headers": ["a"]}) is True
+
+
 def test_datamash_nodes_expose_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()
 

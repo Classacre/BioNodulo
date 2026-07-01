@@ -243,6 +243,10 @@ ADD_INPUT_NAME_AS_COLUMN_CITATION_URL = (
     "https://github.com/galaxyproject/tools-iuc/tree/main/tools/add_input_name_as_column"
 )
 ADD_INPUT_NAME_AS_COLUMN_CITATION_TEXT = "Add input name as column on an existing tabular file."
+COLUMN_REMOVE_BY_HEADER_CITATION_URL = (
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_remove_by_header"
+)
+COLUMN_REMOVE_BY_HEADER_CITATION_TEXT = "Removes or keeps columns based upon user provided values."
 DATAMASH_CITATION_URL = "https://www.gnu.org/software/datamash/"
 DATAMASH_DOCUMENTATION_URL = "https://www.gnu.org/software/datamash/manual/"
 DATAMASH_CITATION_TEXT = "GNU Datamash: command-line calculations on tabular data."
@@ -5653,6 +5657,132 @@ class AddInputNameAsColumnGalaxyNode(AddInputNameAsColumnNode):
         "sample label column",
         "tabular label column",
     ]
+
+
+class ColumnRemoveByHeaderNode(CommandNode):
+    """Remove or keep tabular columns by matching header names."""
+
+    NODE_ID = "column_remove_by_header"
+    DISPLAY_NAME = "Remove columns"
+    REQUIRED_CONDA_PACKAGES = ["python"]
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Remove or keep columns from a tabular file by matching header names."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "column_remove_by_header",
+        "Remove columns",
+        "remove columns by heading",
+        "keep named columns",
+        "header names",
+        "tabular column filter",
+        "unicode escaped columns",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output_tabular",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = COLUMN_REMOVE_BY_HEADER_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [COLUMN_REMOVE_BY_HEADER_CITATION_URL]
+    CITATION_TEXT = COLUMN_REMOVE_BY_HEADER_CITATION_TEXT
+    VERSION = "1.0"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output_tabular.tsv"
+
+    @classmethod
+    def _headers(cls, inputs: dict[str, Any]) -> list[str]:
+        raw = inputs.get("headers")
+        if isinstance(raw, str):
+            return [header.strip() for header in raw.split(",") if header.strip()]
+        return _as_list(raw)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "column_remove_by_header.py") or "column_remove_by_header.py"),
+            "-i",
+            str(inputs.get("input_tabular", "")),
+            "-o",
+            cls._output_path(inputs),
+            "-d",
+            str(inputs.get("delimiter", "\\t") or "\\t"),
+        ]
+        if inputs.get("keep_columns"):
+            cmd.append("--keep")
+        cmd.extend(
+            [
+                "-s",
+                str(inputs.get("strip_characters", "#")),
+                "--unicode-escaped-cols",
+                "--columns",
+                *cls._headers(inputs),
+            ]
+        )
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output_tabular.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_tabular", "")).strip():
+            return "input_tabular is required"
+        if not cls._headers(inputs):
+            return "at least one header is required"
+        delimiter = str(inputs.get("delimiter", "\\t"))
+        if delimiter == "":
+            return "delimiter is required"
+        try:
+            delimiter.encode("ascii")
+        except UnicodeEncodeError:
+            return "delimiter must contain only ASCII characters"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_tabular": ("TSV", {"description": "Tabular file with a header row"}),
+                "headers": (
+                    "STRING",
+                    {
+                        "is_list": True,
+                        "description": "Header names to remove, or to keep when keep_columns is enabled",
+                    },
+                ),
+            },
+            "optional": {
+                "keep_columns": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Keep named columns and drop all other columns",
+                    },
+                ),
+                "strip_characters": (
+                    "STRING",
+                    {
+                        "default": "#",
+                        "description": "Leading characters to strip from the first header before comparison",
+                    },
+                ),
+                "delimiter": ("STRING", {"default": "\\t", "description": "ASCII field delimiter"}),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "column_remove_by_header.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy column_remove_by_header.py helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
 
 
 class _DatamashBaseNode(CommandNode):
