@@ -15150,6 +15150,59 @@ def test_circos_interval_to_text_renders_bed_gff3_commands_outputs_and_validatio
     assert node_class.VALIDATE_INPUTS({"ref_source": "gff3", "input": "annotations.gff3", "attr": "Name"}) is True
 
 
+def test_circos_interval_to_tile_renders_bed_gff3_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_interval_to_tile")
+    info = _registry().object_info()["circos_interval_to_tile"]
+
+    assert info["display_name"] == "Circos: Interval to Tiles"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Convert BED3+ or GFF3 intervals into Circos tile tracks."
+    assert info["input"]["required"]["ref_source"][1]["options"] == ["bed", "gff3"]
+    assert info["input"]["optional"]["input"][0] == "FILE"
+    assert info["input"]["optional"]["attr"][1]["default"] == ""
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["circos", "bcbiogff", "biopython"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Circos: an information aesthetic" in info["citation_text"]
+    assert "tile tracks" in info["search_aliases"]
+    assert "BED3" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "ref_source": "bed",
+            "input": "features.bed",
+            "output": "/work/circos_interval_to_tile",
+        }
+    ) == "python tiles-from-bed.py features.bed > /work/circos_interval_to_tile/tiles.tabular"
+    assert node_class.render_command(
+        {
+            "ref_source": "gff3",
+            "input": "annotations file.gff3",
+            "attr": "Name",
+            "output": "/work/circos_interval_to_tile",
+        }
+    ) == "python tiles-from-gff3.py 'annotations file.gff3' Name > /work/circos_interval_to_tile/tiles.tabular"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "circos_interval_to_tile" / "tiles.tabular"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"ref_source": "bad", "input": "features.bed"}) == (
+        "ref_source must be one of: bed, gff3"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_source": "gff3", "input": "annotations.gff3"}) == (
+        "attr is required when ref_source is gff3"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref_source": "bed", "input": "features.bed"}) is True
+    assert node_class.VALIDATE_INPUTS({"ref_source": "gff3", "input": "annotations.gff3", "attr": "Name"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 

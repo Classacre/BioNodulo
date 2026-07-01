@@ -17722,6 +17722,83 @@ class CircosIntervalToTextNode(CommandNode):
         }
 
 
+class CircosIntervalToTileNode(CommandNode):
+    """Convert BED3+ or GFF3 intervals into Circos tile track rows."""
+
+    NODE_ID = "circos_interval_to_tile"
+    DISPLAY_NAME = "Circos: Interval to Tiles"
+    REQUIRED_CONDA_PACKAGES = ["circos", "bcbiogff", "biopython"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Convert BED3+ or GFF3 intervals into Circos tile tracks."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "tile tracks",
+        "interval tiles",
+        "BED3",
+        "BED6",
+        "GFF3",
+        "annotation tiles",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    REF_SOURCES = ["bed", "gff3"]
+
+    @classmethod
+    def _ref_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("ref_source", "bed") or "bed")
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/tiles.tabular"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        if cls._ref_source(inputs) == "gff3":
+            cmd = ["python", "tiles-from-gff3.py", str(inputs.get("input", "")), str(inputs.get("attr", ""))]
+        else:
+            cmd = ["python", "tiles-from-bed.py", str(inputs.get("input", ""))]
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "tiles.tabular"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        ref_source = cls._ref_source(inputs)
+        if ref_source not in cls.REF_SOURCES:
+            return f"ref_source must be one of: {', '.join(cls.REF_SOURCES)}"
+        if ref_source == "gff3" and not str(inputs.get("attr", "")).strip():
+            return "attr is required when ref_source is gff3"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "ref_source": ("STRING", {"default": "bed", "options": cls.REF_SOURCES}),
+            },
+            "optional": {
+                "input": ("FILE", {"default": "", "description": "BED3+ or GFF3 interval file"}),
+                "attr": ("STRING", {"default": "", "description": "GFF3 attribute to use as tile name"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class FiltlongNode(CommandNode):
     """Filter long reads by quality, length, and optional references with Filtlong."""
 
