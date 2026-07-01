@@ -597,6 +597,26 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/compose_text_param'],
     citation_text: 'This tool concatenates each parameter value to a string.',
   },
+  compress_file: {
+    name: 'compress_file',
+    display_name: 'Compress file(s)',
+    category: 'data_transform',
+    description: 'Compress a dataset with gzip, preserving the original content in a .gz file.',
+    search_aliases: ['Galaxy', 'compress_file', 'Compress file(s)', 'gzip compression', 'gzip -cf', 'gzipped output', 'compress dataset'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+      },
+    },
+    output: ['FILE'],
+    output_name: ['output_file'],
+    required_executables: ['gzip'],
+    required_conda_packages: ['gzip'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/compress_file',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/compress_file'],
+    citation_text: 'Compress files with gzip. If compressing a collection, all elements within that collection will be compressed.',
+  },
   calculate_contrast_threshold: {
     name: 'calculate_contrast_threshold',
     display_name: 'Calculate Contrast threshold',
@@ -17739,7 +17759,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('594 nodes available')).toBeVisible();
+  await expect(page.getByText('595 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17765,6 +17785,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'arithmetic parameter', name: 'Calculate numeric parameter value', category: 'data_transform' },
     { query: 'workflow text parameter', name: 'Compose text parameter value', category: 'data_transform' },
+    { query: 'gzip compression', name: 'Compress file(s)', category: 'data_transform' },
     { query: 'tag pileup CDT', name: 'Calculate Contrast threshold', category: 'visualization' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

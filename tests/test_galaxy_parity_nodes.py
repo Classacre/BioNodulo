@@ -7838,6 +7838,38 @@ def test_compose_text_param_validates_components_and_parameter_types() -> None:
     assert node_class.VALIDATE_INPUTS({"components": [{"select_param_type": "text", "component_value": "ok"}]}) is True
 
 
+def test_compress_file_exposes_galaxy_metadata_without_citations() -> None:
+    info = _registry().object_info()["compress_file"]
+
+    assert info["display_name"] == "Compress file(s)"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Compress a dataset with gzip, preserving the original content in a .gz file."
+    assert info["input"]["required"]["input"][0] == "FILE"
+    assert info["output"] == ["FILE"]
+    assert info["output_name"] == ["output_file"]
+    assert info["required_executables"] == ["gzip"]
+    assert info["required_conda_packages"] == ["gzip"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/compress_file"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/compress_file"]
+    assert "Compress files with gzip" in info["citation_text"]
+    assert "gzip compression" in info["search_aliases"]
+    assert info["version"] == "0.1.0"
+
+
+def test_compress_file_renders_gzip_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("compress_file")
+
+    assert node_class.render_command({"input": "table 1.csv", "output": "/work/compress_file"}) == (
+        "gzip -cf 'table 1.csv' > /work/compress_file/output_file.gz"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "compress_file" / "output_file.gz",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "table.csv"}) is True
+
+
 def test_calculate_contrast_threshold_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["calculate_contrast_threshold"]
 

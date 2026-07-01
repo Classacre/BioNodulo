@@ -279,6 +279,10 @@ CALCULATE_NUMERIC_PARAM_CITATION_TEXT = (
 )
 COMPOSE_TEXT_PARAM_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/compose_text_param"
 COMPOSE_TEXT_PARAM_CITATION_TEXT = "This tool concatenates each parameter value to a string."
+COMPRESS_FILE_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/compress_file"
+COMPRESS_FILE_CITATION_TEXT = (
+    "Compress files with gzip. If compressing a collection, all elements within that collection will be compressed."
+)
 CALCULATE_CONTRAST_THRESHOLD_DOCUMENTATION_URL = (
     "https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold"
 )
@@ -7884,6 +7888,65 @@ class ComposeTextParamNode(BaseNode):
         if validation is not True:
             raise ValueError(str(validation))
         return (self._composed_text(kwargs),)
+
+
+class CompressFileNode(CommandNode):
+    """Compress a dataset with gzip."""
+
+    NODE_ID = "compress_file"
+    DISPLAY_NAME = "Compress file(s)"
+    REQUIRED_CONDA_PACKAGES = ["gzip"]
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Compress a dataset with gzip, preserving the original content in a .gz file."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "compress_file",
+        "Compress file(s)",
+        "gzip compression",
+        "gzip -cf",
+        "gzipped output",
+        "compress dataset",
+    ]
+    RETURN_TYPES = ("FILE",)
+    RETURN_NAMES = ("output_file",)
+    REQUIRED_EXECUTABLES = ["gzip"]
+    DOCUMENTATION_URL = COMPRESS_FILE_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [COMPRESS_FILE_CITATION_URL]
+    CITATION_TEXT = COMPRESS_FILE_CITATION_TEXT
+    VERSION = "0.1.0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output_file.gz"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["gzip", "-cf", str(inputs.get("input", "")), ">", cls._output_path(inputs)]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output_file.gz"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "Dataset to compress with gzip"}),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
 
 
 class CalculateContrastThresholdNode(CommandNode):
