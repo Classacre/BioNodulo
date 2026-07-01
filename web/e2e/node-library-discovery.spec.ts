@@ -127,6 +127,31 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_remove_by_header'],
     citation_text: 'Removes or keeps columns based upon user provided values.',
   },
+  column_order_header_sort: {
+    name: 'column_order_header_sort',
+    display_name: 'Sort Column Order',
+    category: 'data_transform',
+    description: 'Reorder tabular columns by sorted header values, with an optional identifier column first.',
+    search_aliases: ['Galaxy', 'column_order_header_sort', 'Sort Column Order', 'sort column order', 'sorted header fields', 'identifier column', 'tabular column sort', 'column order by heading'],
+    input: {
+      required: {
+        input_tabular: { type: 'TSV' },
+      },
+      optional: {
+        key_column: { type: 'INT', default: 0, min: 0 },
+        delimiter: { type: 'STRING', default: '\\t' },
+        script_path: { type: 'FILE', default: 'column_order_header_sort.py', advanced: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output_tabular'],
+    required_executables: ['python', 'gawk'],
+    required_conda_packages: ['python', 'gawk'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_order_header_sort',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_order_header_sort'],
+    citation_text: "Reorders a file's columns by sorted value of header fields.",
+  },
   datamash_ops: {
     name: 'datamash_ops',
     display_name: 'Datamash',
@@ -17690,7 +17715,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('592 nodes available')).toBeVisible();
+  await expect(page.getByText('593 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17699,6 +17724,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
     { query: 'addName', name: 'Add input name as column (Galaxy)', category: 'data_transform' },
     { query: 'header names', name: 'Remove columns', category: 'data_transform' },
+    { query: 'sorted header fields', name: 'Sort Column Order', category: 'data_transform' },
     { query: 'group by fields', name: 'Datamash', category: 'data_transform' },
     { query: 'matrix transpose', name: 'Transpose', category: 'data_transform' },
     { query: 'reverse columns', name: 'Reverse', category: 'data_transform' },

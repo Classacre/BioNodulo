@@ -247,6 +247,10 @@ COLUMN_REMOVE_BY_HEADER_CITATION_URL = (
     "https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_remove_by_header"
 )
 COLUMN_REMOVE_BY_HEADER_CITATION_TEXT = "Removes or keeps columns based upon user provided values."
+COLUMN_ORDER_HEADER_SORT_CITATION_URL = (
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_order_header_sort"
+)
+COLUMN_ORDER_HEADER_SORT_CITATION_TEXT = "Reorders a file's columns by sorted value of header fields."
 DATAMASH_CITATION_URL = "https://www.gnu.org/software/datamash/"
 DATAMASH_DOCUMENTATION_URL = "https://www.gnu.org/software/datamash/manual/"
 DATAMASH_CITATION_TEXT = "GNU Datamash: command-line calculations on tabular data."
@@ -5778,6 +5782,103 @@ class ColumnRemoveByHeaderNode(CommandNode):
                         "default": "column_remove_by_header.py",
                         "advanced": True,
                         "description": "Path to the Galaxy column_remove_by_header.py helper script",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class ColumnOrderHeaderSortNode(CommandNode):
+    """Sort tabular columns by header while optionally preserving an identifier column."""
+
+    NODE_ID = "column_order_header_sort"
+    DISPLAY_NAME = "Sort Column Order"
+    REQUIRED_CONDA_PACKAGES = ["python", "gawk"]
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Reorder tabular columns by sorted header values, with an optional identifier column first."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "column_order_header_sort",
+        "Sort Column Order",
+        "sort column order",
+        "sorted header fields",
+        "identifier column",
+        "tabular column sort",
+        "column order by heading",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output_tabular",)
+    REQUIRED_EXECUTABLES = ["python", "gawk"]
+    DOCUMENTATION_URL = COLUMN_ORDER_HEADER_SORT_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [COLUMN_ORDER_HEADER_SORT_CITATION_URL]
+    CITATION_TEXT = COLUMN_ORDER_HEADER_SORT_CITATION_TEXT
+    VERSION = "0.0.1"
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/output_tabular.tsv"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "python",
+            str(inputs.get("script_path", "column_order_header_sort.py") or "column_order_header_sort.py"),
+            str(inputs.get("input_tabular", "")),
+            cls._output_path(inputs),
+            str(inputs.get("delimiter", "\\t") or "\\t"),
+            str(inputs.get("key_column", 0)),
+        ]
+        return _shell_join(cmd)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output_tabular.tsv"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_tabular", "")).strip():
+            return "input_tabular is required"
+        try:
+            key_column = int(inputs.get("key_column", 0))
+        except (TypeError, ValueError):
+            return "key_column must be an integer"
+        if key_column < 0:
+            return "key_column must be greater than or equal to 0"
+        delimiter = str(inputs.get("delimiter", "\\t"))
+        if delimiter == "":
+            return "delimiter is required"
+        try:
+            delimiter.encode("ascii")
+        except UnicodeEncodeError:
+            return "delimiter must contain only ASCII characters"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_tabular": ("TSV", {"description": "Tabular file with unique header values"}),
+            },
+            "optional": {
+                "key_column": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "description": "Optional 1-based identifier column to keep leftmost; 0 disables it",
+                    },
+                ),
+                "delimiter": ("STRING", {"default": "\\t", "description": "ASCII field delimiter"}),
+                "script_path": (
+                    "FILE",
+                    {
+                        "default": "column_order_header_sort.py",
+                        "advanced": True,
+                        "description": "Path to the Galaxy column_order_header_sort.py helper script",
                     },
                 ),
             },

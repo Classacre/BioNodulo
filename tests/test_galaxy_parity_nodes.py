@@ -6603,6 +6603,75 @@ def test_column_remove_by_header_renders_remove_keep_commands_outputs_and_valida
     assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "headers": ["a"]}) is True
 
 
+def test_column_order_header_sort_exposes_galaxy_metadata_without_citations() -> None:
+    info = _registry().object_info()["column_order_header_sort"]
+
+    assert info["display_name"] == "Sort Column Order"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Reorder tabular columns by sorted header values, with an optional identifier column first."
+    assert info["input"]["required"]["input_tabular"][0] == "TSV"
+    assert info["input"]["optional"]["key_column"][1]["default"] == 0
+    assert info["input"]["optional"]["key_column"][1]["min"] == 0
+    assert info["input"]["optional"]["delimiter"][1]["default"] == "\\t"
+    assert info["input"]["optional"]["script_path"][1]["default"] == "column_order_header_sort.py"
+    assert info["input"]["optional"]["script_path"][1]["advanced"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output_tabular"]
+    assert info["required_executables"] == ["python", "gawk"]
+    assert info["required_conda_packages"] == ["python", "gawk"]
+    assert info["documentation_url"] == (
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_order_header_sort"
+    )
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == [
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/column_order_header_sort"
+    ]
+    assert "Reorders a file's columns by sorted value of header fields" in info["citation_text"]
+    assert "sorted header fields" in info["search_aliases"]
+    assert info["version"] == "0.0.1"
+
+
+def test_column_order_header_sort_renders_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("column_order_header_sort")
+
+    assert node_class.render_command(
+        {
+            "input_tabular": "input table.tsv",
+            "key_column": 1,
+            "output": "/work/column_order_header_sort",
+        }
+    ) == (
+        "python column_order_header_sort.py 'input table.tsv' "
+        "/work/column_order_header_sort/output_tabular.tsv '\\t' 1"
+    )
+
+    assert node_class.render_command(
+        {
+            "input_tabular": "input.csv",
+            "key_column": 0,
+            "delimiter": ",",
+            "script_path": "/tools/column_order_header_sort.py",
+            "output": "/work/column_order_header_sort",
+        }
+    ) == "python /tools/column_order_header_sort.py input.csv /work/column_order_header_sort/output_tabular.tsv , 0"
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "column_order_header_sort" / "output_tabular.tsv",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input_tabular is required"
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "key_column": "x"}) == (
+        "key_column must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "key_column": -1}) == (
+        "key_column must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "delimiter": ""}) == "delimiter is required"
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv", "delimiter": "\xf6"}) == (
+        "delimiter must contain only ASCII characters"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tabular": "input.tsv"}) is True
+
+
 def test_datamash_nodes_expose_galaxy_metadata_inputs_outputs_and_citations() -> None:
     info = _registry().object_info()
 
