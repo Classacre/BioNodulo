@@ -3891,6 +3891,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
     citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
   },
+  circos_interval_to_text: {
+    name: 'circos_interval_to_text',
+    display_name: 'Circos: Interval to Circos Text Labels',
+    category: 'visualization',
+    description: 'Convert BED6+ or GFF3 intervals into Circos text-label tracks.',
+    search_aliases: ['Galaxy', 'Circos', 'text labels', 'interval labels', 'BED6', 'GFF3', 'annotation labels'],
+    input: {
+      required: {
+        ref_source: { type: 'STRING', default: 'bed', options: ['bed', 'gff3'] },
+      },
+      optional: {
+        input: { type: 'FILE', default: '' },
+        attr: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['python'],
+    required_conda_packages: ['circos', 'bcbiogff', 'biopython'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos',
+    citation_dois: ['10.1093/gigascience/giaa065', '10.1101/gr.092759.109'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
+    citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
+  },
   filtlong: {
     name: 'filtlong',
     display_name: 'filtlong',
@@ -17360,7 +17384,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('581 nodes available')).toBeVisible();
+  await expect(page.getByText('582 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17507,6 +17531,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'downsample', name: 'Circos: Resample 1/2D data', category: 'visualization' },
     { query: 'GC skew', name: 'GC Skew', category: 'visualization' },
     { query: 'bigWig', name: 'Circos: bigWig to Scatter', category: 'visualization' },
+    { query: 'text labels', name: 'Circos: Interval to Circos Text Labels', category: 'visualization' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },
