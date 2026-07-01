@@ -3846,6 +3846,29 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
     citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
   },
+  circos_aln_to_links: {
+    name: 'circos_aln_to_links',
+    display_name: 'Circos: Alignments to links',
+    category: 'visualization',
+    description: 'Convert MAF, XMFA, or Stockholm alignments into Circos link tracks.',
+    search_aliases: ['Galaxy', 'Circos', 'circos_aln_to_links', 'alignments to links', 'alignment links', 'MAF', 'XMFA', 'Stockholm', 'comparative genomics'],
+    input: {
+      required: {
+        input: { type: 'FILE' },
+      },
+      optional: {
+        input_ext: { type: 'STRING', default: 'maf', options: ['maf', 'xmfa', 'stockholm'] },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['python'],
+    required_conda_packages: ['circos', 'biopython'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos',
+    citation_dois: ['10.1093/gigascience/giaa065', '10.1101/gr.092759.109'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
+    citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
+  },
   circos_gc_skew: {
     name: 'circos_gc_skew',
     display_name: 'GC Skew',
@@ -17408,7 +17431,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('583 nodes available')).toBeVisible();
+  await expect(page.getByText('584 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17553,6 +17576,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'chromatin profiles', name: 'chromap', category: 'alignment' },
     { query: 'circular RNA', name: 'CIRCexplorer2', category: 'rna_seq' },
     { query: 'downsample', name: 'Circos: Resample 1/2D data', category: 'visualization' },
+    { query: 'alignment links', name: 'Circos: Alignments to links', category: 'visualization' },
     { query: 'GC skew', name: 'GC Skew', category: 'visualization' },
     { query: 'bigWig', name: 'Circos: bigWig to Scatter', category: 'visualization' },
     { query: 'text labels', name: 'Circos: Interval to Circos Text Labels', category: 'visualization' },

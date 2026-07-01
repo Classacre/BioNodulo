@@ -15203,6 +15203,55 @@ def test_circos_interval_to_tile_renders_bed_gff3_commands_outputs_and_validatio
     assert node_class.VALIDATE_INPUTS({"ref_source": "gff3", "input": "annotations.gff3", "attr": "Name"}) is True
 
 
+def test_circos_aln_to_links_renders_alignment_conversion_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_aln_to_links")
+    info = _registry().object_info()["circos_aln_to_links"]
+
+    assert info["display_name"] == "Circos: Alignments to links"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Convert MAF, XMFA, or Stockholm alignments into Circos link tracks."
+    assert info["input"]["required"]["input"][0] == "FILE"
+    assert info["input"]["optional"]["input_ext"][1]["default"] == "maf"
+    assert info["input"]["optional"]["input_ext"][1]["options"] == ["maf", "xmfa", "stockholm"]
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["circos", "biopython"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Galactic Circos" in info["citation_text"]
+    assert "alignment links" in info["search_aliases"]
+    assert "Stockholm" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "input": "pairwise alignments.maf",
+            "input_ext": "maf",
+            "output": "/work/circos_aln_to_links",
+        }
+    ) == "python alignments-to-links.py 'pairwise alignments.maf' maf > /work/circos_aln_to_links/links.tabular"
+    assert node_class.render_command(
+        {
+            "input": "blocks.xmfa",
+            "input_ext": "xmfa",
+            "output": "/work/circos_aln_to_links",
+        }
+    ) == "python alignments-to-links.py blocks.xmfa xmfa > /work/circos_aln_to_links/links.tabular"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "circos_aln_to_links" / "links.tabular"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "blocks.nex", "input_ext": "nexus"}) == (
+        "input_ext must be one of: maf, xmfa, stockholm"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "blocks.xmfa", "input_ext": "xmfa"}) is True
+    assert node_class.VALIDATE_INPUTS({"input": "blocks.maf"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 

@@ -17799,6 +17799,78 @@ class CircosIntervalToTileNode(CommandNode):
         }
 
 
+class CircosAlignmentsToLinksNode(CommandNode):
+    """Convert multiple-alignment blocks into Circos link track rows."""
+
+    NODE_ID = "circos_aln_to_links"
+    DISPLAY_NAME = "Circos: Alignments to links"
+    REQUIRED_CONDA_PACKAGES = ["circos", "biopython"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Convert MAF, XMFA, or Stockholm alignments into Circos link tracks."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "circos_aln_to_links",
+        "alignments to links",
+        "alignment links",
+        "MAF",
+        "XMFA",
+        "Stockholm",
+        "comparative genomics",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    INPUT_EXTENSIONS = ["maf", "xmfa", "stockholm"]
+
+    @classmethod
+    def _input_ext(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("input_ext", "maf") or "maf")
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/links.tabular"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["python", "alignments-to-links.py", str(inputs.get("input", "")), cls._input_ext(inputs)]
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "links.tabular"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        input_ext = cls._input_ext(inputs)
+        if input_ext not in cls.INPUT_EXTENSIONS:
+            return f"input_ext must be one of: {', '.join(cls.INPUT_EXTENSIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("FILE", {"description": "Alignment file in MAF, XMFA, or Stockholm format"}),
+            },
+            "optional": {
+                "input_ext": ("STRING", {"default": "maf", "options": cls.INPUT_EXTENSIONS}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class FiltlongNode(CommandNode):
     """Filter long reads by quality, length, and optional references with Filtlong."""
 
