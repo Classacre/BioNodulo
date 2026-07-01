@@ -3230,6 +3230,135 @@ def test_cd_hit_validates_modes_ranges_and_required_second_input() -> None:
     assert node_class.VALIDATE_INPUTS({"fasta_in": "seqs.fa", "identity_style": "local", "align_coverage_short": 0.8}) is True
 
 
+def test_clustering_from_distmat_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["clustering_from_distmat"]
+
+    assert node_info["display_name"] == "Distance matrix-based hierarchical clustering"
+    assert node_info["category"] == "clustering"
+    assert node_info["description"] == "Cluster samples from a symmetric distance matrix with SciPy hierarchical clustering."
+    assert node_info["input"]["required"]["distmat"][0] == "TSV"
+    assert node_info["input"]["optional"]["method"][1]["default"] == "average"
+    assert node_info["input"]["optional"]["method"][1]["options"] == [
+        "single",
+        "complete",
+        "average",
+        "weighted",
+        "centroid",
+        "median",
+        "ward",
+    ]
+    assert node_info["input"]["optional"]["missing_names"][1]["default"] == ""
+    assert node_info["input"]["optional"]["missing_names"][1]["options"] == ["", "--nr", "--nc"]
+    assert node_info["input"]["optional"]["cluster_assignment"][1]["default"] == "dendrogram-only"
+    assert node_info["input"]["optional"]["cluster_assignment"][1]["options"] == [
+        "dendrogram-only",
+        "n-cluster",
+        "height",
+    ]
+    assert node_info["input"]["optional"]["n_cluster"][1]["default"] == 5
+    assert node_info["input"]["optional"]["n_cluster"][1]["min"] == 1
+    assert node_info["input"]["optional"]["height"][1]["default"] == 5.0
+    assert node_info["input"]["optional"]["min_cluster_size"][1]["default"] == 2
+    assert node_info["input"]["optional"]["generate_dendrogram"][1]["default"] is False
+    assert node_info["input"]["optional"]["script_path"][1]["default"] == "clustering_from_distmat.py"
+    assert node_info["output"] == ["PHYLOGENY_TREE", "TSV"]
+    assert node_info["output_name"] == ["clustering_dendrogram", "clustering_assignment"]
+    assert node_info["required_executables"] == ["python"]
+    assert node_info["required_conda_packages"] == ["python", "scipy"]
+    assert node_info["documentation_url"] == "https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html"
+    assert node_info["citation_dois"] == ["10.1038/s41592-019-0686-2"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.1038/s41592-019-0686-2"]
+    assert "SciPy" in node_info["citation_text"]
+    assert "distance matrix" in node_info["search_aliases"]
+    assert "cut_tree" in node_info["search_aliases"]
+    assert node_info["version"] == "1.1.1"
+
+
+def test_clustering_from_distmat_renders_default_dendrogram_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("clustering_from_distmat")
+
+    assert node_class.render_command(
+        {
+            "distmat": "sample distances.tsv",
+            "output": "/work/clustering_from_distmat",
+        }
+    ) == (
+        "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
+        "python clustering_from_distmat.py 'sample distances.tsv' result --method average && "
+        "mv result.tree.newick clustering_dendrogram.newick"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "clustering_from_distmat" / "clustering_dendrogram.newick",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "distmat is required"
+    assert node_class.VALIDATE_INPUTS({"distmat": "dist.tsv", "method": "bad"}) == (
+        "method must be one of: single, complete, average, weighted, centroid, median, ward"
+    )
+    assert node_class.VALIDATE_INPUTS({"distmat": "dist.tsv", "missing_names": "--bad"}) == (
+        "missing_names must be one of: , --nr, --nc"
+    )
+    assert node_class.VALIDATE_INPUTS({"distmat": "dist.tsv", "cluster_assignment": "bad"}) == (
+        "cluster_assignment must be one of: dendrogram-only, n-cluster, height"
+    )
+    assert node_class.VALIDATE_INPUTS({"distmat": "dist.tsv", "cluster_assignment": "n-cluster", "n_cluster": 0}) == (
+        "n_cluster must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"distmat": "dist.tsv", "cluster_assignment": "height", "height": "bad"}) == (
+        "height must be numeric"
+    )
+    assert node_class.VALIDATE_INPUTS({"distmat": "dist.tsv", "cluster_assignment": "height", "min_cluster_size": 0}) == (
+        "min_cluster_size must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"distmat": "dist.tsv"}) is True
+
+
+def test_clustering_from_distmat_renders_assignment_modes_and_optional_dendrogram(tmp_path: Path) -> None:
+    node_class = _node_class("clustering_from_distmat")
+
+    assert node_class.render_command(
+        {
+            "distmat": "matrix_nr.tsv",
+            "method": "complete",
+            "missing_names": "--nr",
+            "cluster_assignment": "n-cluster",
+            "n_cluster": 4,
+            "min_cluster_size": 1,
+            "generate_dendrogram": True,
+            "script_path": "/tools/clustering_from_distmat.py",
+            "output": "/work/clustering_from_distmat",
+        }
+    ) == (
+        "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
+        "python /tools/clustering_from_distmat.py matrix_nr.tsv result --method complete --nr "
+        "--n-clusters 4 --min-cluster-size 1 && mv result.tree.newick clustering_dendrogram.newick && "
+        "mv result.cluster_assignments.tsv clustering_assignment.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "distmat": "matrix_nc.tsv",
+            "missing_names": "--nc",
+            "cluster_assignment": "height",
+            "height": 18,
+            "output": "/work/clustering_from_distmat",
+        }
+    ) == (
+        "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
+        "python clustering_from_distmat.py matrix_nc.tsv result --method average --nc --height 18 && "
+        "mv result.cluster_assignments.tsv clustering_assignment.tsv"
+    )
+    assert node_class.PLAN_OUTPUTS({"cluster_assignment": "n-cluster"}, tmp_path) == [
+        tmp_path / "clustering_from_distmat" / "clustering_assignment.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS(
+        {"cluster_assignment": "n-cluster", "generate_dendrogram": True},
+        tmp_path,
+    ) == [
+        tmp_path / "clustering_from_distmat" / "clustering_dendrogram.newick",
+        tmp_path / "clustering_from_distmat" / "clustering_assignment.tsv",
+    ]
+
+
 class _RecordingCommandContext:
     def __init__(self, node_dir: Path) -> None:
         self.node_dir = node_dir

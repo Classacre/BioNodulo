@@ -3581,6 +3581,36 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btl158', 'https://doi.org/10.1093/bioinformatics/bts565'],
     citation_text: 'CD-HIT: a fast program for clustering and comparing large sets of protein or nucleotide sequences; CD-HIT Suite: a web server for clustering and comparing biological sequences.',
   },
+  clustering_from_distmat: {
+    name: 'clustering_from_distmat',
+    display_name: 'Distance matrix-based hierarchical clustering',
+    category: 'clustering',
+    description: 'Cluster samples from a symmetric distance matrix with SciPy hierarchical clustering.',
+    search_aliases: ['Galaxy', 'clustering_from_distmat', 'Distance matrix-based hierarchical clustering', 'distance matrix', 'hierarchical clustering', 'SciPy linkage', 'UPGMA', 'WPGMA', 'dendrogram', 'newick', 'cut_tree', 'cluster assignments'],
+    input: {
+      required: {
+        distmat: { type: 'TSV' },
+      },
+      optional: {
+        method: { type: 'STRING', default: 'average', options: ['single', 'complete', 'average', 'weighted', 'centroid', 'median', 'ward'] },
+        missing_names: { type: 'STRING', default: '', options: ['', '--nr', '--nc'] },
+        cluster_assignment: { type: 'STRING', default: 'dendrogram-only', options: ['dendrogram-only', 'n-cluster', 'height'] },
+        n_cluster: { type: 'INT', default: 5, min: 1 },
+        height: { type: 'FLOAT', default: 5.0 },
+        min_cluster_size: { type: 'INT', default: 2, min: 1 },
+        generate_dendrogram: { type: 'BOOLEAN', default: false },
+        script_path: { type: 'FILE', default: 'clustering_from_distmat.py', advanced: true },
+      },
+    },
+    output: ['PHYLOGENY_TREE', 'TSV'],
+    output_name: ['clustering_dendrogram', 'clustering_assignment'],
+    required_executables: ['python'],
+    required_conda_packages: ['python', 'scipy'],
+    documentation_url: 'https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html',
+    citation_dois: ['10.1038/s41592-019-0686-2'],
+    citation_urls: ['https://doi.org/10.1038/s41592-019-0686-2'],
+    citation_text: 'SciPy 1.0: fundamental algorithms for scientific computing in Python.',
+  },
   fasta_regex_finder: {
     name: 'fasta_regex_finder',
     display_name: 'Fasta regular expression finder',
@@ -17633,7 +17663,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('590 nodes available')).toBeVisible();
+  await expect(page.getByText('591 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17761,6 +17791,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'pulse features', name: 'bax2bam', category: 'conversion' },
     { query: 'Circlator', name: 'Berokka', category: 'assembly' },
     { query: 'cd-hit-est-2d', name: 'cd-hit', category: 'clustering' },
+    { query: 'SciPy linkage', name: 'Distance matrix-based hierarchical clustering', category: 'clustering' },
     { query: 'G-quadruplex', name: 'Fasta regular expression finder', category: 'sequence' },
     { query: 'NanoFilt', name: 'Chopper', category: 'trimming' },
     { query: 'target bases', name: 'filtlong', category: 'trimming' },
