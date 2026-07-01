@@ -1180,7 +1180,7 @@ class CactusGalaxyNode(CommandNode):
     CATEGORY = "pangenomics"
     DESCRIPTION = "Whole-genome multiple sequence alignment with Progressive Cactus or Minigraph-Cactus."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "Cactus",
         "cactus_cactus",
         "Progressive Cactus",
@@ -1399,7 +1399,7 @@ class CactusExportNode(CommandNode):
     CATEGORY = "pangenomics"
     DESCRIPTION = "Convert Cactus HAL whole-genome alignments to MAF, VG, or UCSC Assembly Hub archives."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "Cactus Export",
         "cactus_export",
         "HAL export",

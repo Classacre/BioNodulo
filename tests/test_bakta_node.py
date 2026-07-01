@@ -21,7 +21,7 @@ def _registry() -> NodeRegistry:
     return registry
 
 
-def test_bakta_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+def test_bakta_exposes_bionodulo_builtin_metadata_inputs_outputs_and_doi() -> None:
     node_info = _registry().object_info()["bakta"]
 
     assert node_info["display_name"] == "Bakta"
@@ -66,7 +66,7 @@ def test_bakta_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000685"]
     assert "Bakta" in node_info["citation_text"]
     assert node_info["version"] == "1.9.4+galaxy1"
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "MAGs" in node_info["search_aliases"]
 
     inputs = node_info["input"]

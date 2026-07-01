@@ -1,4 +1,4 @@
-"""Galaxy parity Rasusa node."""
+"""BioNodulo built-in Rasusa node."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -83,7 +83,7 @@ class RasusaNode(CommandNode):
     CATEGORY = "qc"
     DESCRIPTION = "Randomly subsample FASTA/FASTQ reads to coverage, bases, read count, or fraction; optionally downsample BAM alignments."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "rasusa",
         "subsample reads",
         "downsample reads",

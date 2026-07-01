@@ -1,4 +1,4 @@
-"""Galaxy parity MUMmer4 nodes."""
+"""BioNodulo built-in MUMmer4 nodes."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -94,7 +94,7 @@ class Mummer4NucmerNode(_Mummer4BaseNode):
     NODE_ID = "mummer4_nucmer"
     DISPLAY_NAME = "MUMmer4 Nucmer"
     DESCRIPTION = "Align two nucleotide FASTA files with nucmer and optionally generate delta, BAM/CRAM, and dotplot outputs."
-    SEARCH_ALIASES = ["Galaxy", "MUMmer4", "nucmer", "genome alignment", "delta alignment", "dotplot"]
+    SEARCH_ALIASES = ["BioNodulo builtin", "MUMmer4", "nucmer", "genome alignment", "delta alignment", "dotplot"]
     RETURN_TYPES = ("FILE", "BAM", "CRAM", "IMAGE")
     RETURN_NAMES = ("delta", "bam_alignment", "cram_alignment", "plot")
     REQUIRED_EXECUTABLES = ["nucmer", "mummerplot", "gnuplot", "samtools"]
@@ -230,7 +230,7 @@ class Mummer4DnadiffNode(_Mummer4BaseNode):
     NODE_ID = "mummer4_dnadiff"
     DISPLAY_NAME = "MUMmer4 DNAdiff"
     DESCRIPTION = "Compare two FASTA sequences with dnadiff and return the report plus optional delta, coordinates, SNP, and difference tables."
-    SEARCH_ALIASES = ["Galaxy", "MUMmer4", "dnadiff", "genome difference", "assembly comparison"]
+    SEARCH_ALIASES = ["BioNodulo builtin", "MUMmer4", "dnadiff", "genome difference", "assembly comparison"]
     RETURN_TYPES = ("STATS_FILE", "DIRECTORY")
     RETURN_NAMES = ("report", "all_outputs")
     REQUIRED_EXECUTABLES = ["dnadiff"]
@@ -281,7 +281,7 @@ class Mummer4DeltaFilterNode(_Mummer4BaseNode):
     NODE_ID = "mummer4_delta_filter"
     DISPLAY_NAME = "MUMmer4 Delta Filter"
     DESCRIPTION = "Filter nucmer delta alignments by alignment strategy, identity, length, uniqueness, and overlap."
-    SEARCH_ALIASES = ["Galaxy", "MUMmer4", "delta-filter", "filter delta", "alignment filter"]
+    SEARCH_ALIASES = ["BioNodulo builtin", "MUMmer4", "delta-filter", "filter delta", "alignment filter"]
     RETURN_TYPES = ("FILE",)
     RETURN_NAMES = ("filtered_delta",)
     REQUIRED_EXECUTABLES = ["delta-filter"]
@@ -337,7 +337,7 @@ class Mummer4ShowCoordsNode(_Mummer4BaseNode):
     NODE_ID = "mummer4_show_coords"
     DISPLAY_NAME = "MUMmer4 Show Coordinates"
     DESCRIPTION = "Parse nucmer delta alignments with show-coords into tabular alignment coordinate summaries."
-    SEARCH_ALIASES = ["Galaxy", "MUMmer4", "show-coords", "alignment coordinates", "delta coordinates"]
+    SEARCH_ALIASES = ["BioNodulo builtin", "MUMmer4", "show-coords", "alignment coordinates", "delta coordinates"]
     RETURN_TYPES = ("TSV",)
     RETURN_NAMES = ("coordinates",)
     REQUIRED_EXECUTABLES = ["show-coords"]
@@ -393,7 +393,7 @@ class Mummer4MummerNode(_Mummer4BaseNode):
     NODE_ID = "mummer4_mummer"
     DISPLAY_NAME = "MUMmer4 Mummer"
     DESCRIPTION = "Find maximal matches between FASTA sequences with mummer and optionally generate a 2-D dotplot."
-    SEARCH_ALIASES = ["Galaxy", "MUMmer4", "mummer", "maximal matches", "suffix tree", "dotplot"]
+    SEARCH_ALIASES = ["BioNodulo builtin", "MUMmer4", "mummer", "maximal matches", "suffix tree", "dotplot"]
     RETURN_TYPES = ("TSV", "IMAGE")
     RETURN_NAMES = ("alignment", "plot")
     REQUIRED_EXECUTABLES = ["mummer", "mummerplot", "gnuplot"]
@@ -478,7 +478,7 @@ class Mummer4MummerplotNode(_Mummer4BaseNode):
     NODE_ID = "mummer4_mummerplot"
     DISPLAY_NAME = "MUMmer4 Mummerplot"
     DESCRIPTION = "Generate a 2-D dotplot or coverage plot from MUMmer or nucmer alignment output."
-    SEARCH_ALIASES = ["Galaxy", "MUMmer4", "mummerplot", "mummerplot dotplot", "dotplot", "coverage plot", "gnuplot"]
+    SEARCH_ALIASES = ["BioNodulo builtin", "MUMmer4", "mummerplot", "mummerplot dotplot", "dotplot", "coverage plot", "gnuplot"]
     RETURN_TYPES = ("IMAGE", "FILE", "FILE", "FILE", "FILE")
     RETURN_NAMES = ("plot", "gnuplot", "forward_plot", "reverse_plot", "highlight_plot")
     REQUIRED_EXECUTABLES = ["mummerplot", "gnuplot"]

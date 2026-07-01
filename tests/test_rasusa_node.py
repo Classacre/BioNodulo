@@ -13,7 +13,7 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
-def test_rasusa_exposes_galaxy_metadata() -> None:
+def test_rasusa_exposes_bionodulo_builtin_metadata() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     info = registry.object_info()
@@ -31,7 +31,7 @@ def test_rasusa_exposes_galaxy_metadata() -> None:
     assert "https://doi.org/10.46471/gigabyte.180" in node_info["citation_urls"]
     assert "Randomly subsample sequencing reads" in node_info["citation_text"]
     assert "Efficient downsampling of genome alignments" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "subsample reads" in node_info["search_aliases"]
 
 

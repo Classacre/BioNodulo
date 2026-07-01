@@ -13,7 +13,7 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
-def test_mosdepth_exposes_galaxy_metadata() -> None:
+def test_mosdepth_exposes_bionodulo_builtin_metadata() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     info = registry.object_info()
@@ -37,7 +37,7 @@ def test_mosdepth_exposes_galaxy_metadata() -> None:
     assert "10.1093/bioinformatics/btx699" in node_info["citation_dois"]
     assert "https://doi.org/10.1093/bioinformatics/btx699" in node_info["citation_urls"]
     assert "quick coverage calculation" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "BAM CRAM depth" in node_info["search_aliases"]
 
 

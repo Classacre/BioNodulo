@@ -193,13 +193,16 @@ class NodeRegistry:
         pkg_path = Path(builtin_pkg.__file__).parent
         count = 0
 
-        for _, modname, ispkg in pkgutil.iter_modules([str(pkg_path)]):
+        for module_info in pkgutil.walk_packages([str(pkg_path)], prefix="bionodulo.nodes.builtin."):
+            _, full_name, ispkg = module_info
+            modname = full_name.rsplit(".", 1)[-1]
             if ispkg or modname.startswith("_"):
                 continue
-            full_name = f"bionodulo.nodes.builtin.{modname}"
+            if full_name in self._loaded:
+                continue
             try:
                 module = importlib.import_module(full_name)
-                count += self.register_from_module(module)
+                count += self.register_from_module(module, own_module_only=True)
                 self._loaded.add(full_name)
             except Exception as exc:
                 logger.warning("Failed to load builtin module %s: %s", full_name, exc)
@@ -370,6 +373,7 @@ class NodeRegistry:
         module: Any,
         custom_node_package: dict[str, Any] | None = None,
         custom_node_source: str | None = None,
+        own_module_only: bool = False,
     ) -> int:
         """Find and register all BaseNode subclasses in a module.
 
@@ -388,6 +392,7 @@ class NodeRegistry:
                 and obj is not BaseNode
                 and obj is not CommandNode
                 and obj.NODE_ID
+                and (not own_module_only or obj.__module__ == module.__name__)
             ):
                 self.register(
                     obj,

@@ -1,4 +1,4 @@
-"""Galaxy parity mosdepth node."""
+"""BioNodulo built-in mosdepth node."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -86,7 +86,7 @@ class MosdepthNode(CommandNode):
     CATEGORY = "qc"
     DESCRIPTION = "Calculate BAM or CRAM depth coverage summaries, per-base depth, region means, thresholds, and quantized coverage."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "mosdepth",
         "BAM CRAM depth",
         "coverage depth",

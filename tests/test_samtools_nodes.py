@@ -219,7 +219,7 @@ def test_samtools_markdup_rejects_invalid_numeric_options() -> None:
     )
 
 
-def test_samtools_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_samtools_bionodulo_builtin_batch_nodes_expose_citation_and_dependency_metadata() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     info = registry.object_info()
@@ -229,25 +229,25 @@ def test_samtools_galaxy_parity_batch_nodes_expose_citation_and_dependency_metad
             "display_name": "Samtools Idxstats",
             "output": ["TSV"],
             "output_name": ["idxstats"],
-            "aliases": ["Galaxy", "idxstats", "MultiQC"],
+            "aliases": ["BioNodulo builtin", "idxstats", "MultiQC"],
         },
         "samtools_depth": {
             "display_name": "Samtools Depth",
             "output": ["TSV"],
             "output_name": ["depth"],
-            "aliases": ["Galaxy", "depth", "coverage depth"],
+            "aliases": ["BioNodulo builtin", "depth", "coverage depth"],
         },
         "samtools_faidx": {
             "display_name": "Samtools Faidx",
             "output": ["TSV"],
             "output_name": ["fai_index"],
-            "aliases": ["Galaxy", "faidx", "FASTA index"],
+            "aliases": ["BioNodulo builtin", "faidx", "FASTA index"],
         },
         "samtools_coverage": {
             "display_name": "Samtools Coverage",
             "output": ["TSV"],
             "output_name": ["coverage"],
-            "aliases": ["Galaxy", "coverage", "histogram"],
+            "aliases": ["BioNodulo builtin", "coverage", "histogram"],
         },
     }
 
@@ -462,7 +462,7 @@ def test_samtools_coverage_renders_table_and_histogram_commands(tmp_path: Path) 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_coverage" / "coverage.tsv"]
 
 
-def test_samtools_galaxy_parity_followup_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_samtools_bionodulo_builtin_followup_nodes_expose_citation_and_dependency_metadata() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     info = registry.object_info()
@@ -472,25 +472,25 @@ def test_samtools_galaxy_parity_followup_nodes_expose_citation_and_dependency_me
             "display_name": "Samtools Bedcov",
             "output": ["TSV"],
             "output_name": ["interval_coverage"],
-            "aliases": ["Galaxy", "bedcov", "interval coverage"],
+            "aliases": ["BioNodulo builtin", "bedcov", "interval coverage"],
         },
         "samtools_calmd": {
             "display_name": "Samtools Calmd",
             "output": ["BAM"],
             "output_name": ["calmd_bam"],
-            "aliases": ["Galaxy", "calmd", "MD tags", "BAQ"],
+            "aliases": ["BioNodulo builtin", "calmd", "MD tags", "BAQ"],
         },
         "samtools_ampliconclip": {
             "display_name": "Samtools Ampliconclip",
             "output": ["BAM", "BEDGRAPH"],
             "output_name": ["clipped_bam", "primer_counts"],
-            "aliases": ["Galaxy", "ampliconclip", "primer trimming"],
+            "aliases": ["BioNodulo builtin", "ampliconclip", "primer trimming"],
         },
         "samtools_fastx": {
             "display_name": "Samtools Fastx",
             "output": ["FILE", "FILE", "FILE", "FILE", "FILE", "FILE", "FILE"],
             "output_name": ["reads", "read1", "read2", "singletons", "nonspecific", "index1", "index2"],
-            "aliases": ["Galaxy", "fastx", "bam2fq", "FASTQ extraction"],
+            "aliases": ["BioNodulo builtin", "fastx", "bam2fq", "FASTQ extraction"],
         },
     }
 
@@ -739,7 +739,7 @@ def test_samtools_fastx_renders_split_fastq_extraction_command_and_outputs(tmp_p
     ]
 
 
-def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_samtools_bionodulo_builtin_remaining_nodes_expose_citation_and_dependency_metadata() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     info = registry.object_info()
@@ -749,73 +749,73 @@ def test_samtools_galaxy_parity_remaining_nodes_expose_citation_and_dependency_m
             "display_name": "Samtools Mpileup",
             "output": ["FILE"],
             "output_name": ["pileup"],
-            "aliases": ["Galaxy", "mpileup", "pileup", "BAQ"],
+            "aliases": ["BioNodulo builtin", "mpileup", "pileup", "BAQ"],
         },
         "samtools_reheader": {
             "display_name": "Samtools Reheader",
             "output": ["BAM"],
             "output_name": ["reheadered_bam"],
-            "aliases": ["Galaxy", "reheader", "SAM header"],
+            "aliases": ["BioNodulo builtin", "reheader", "SAM header"],
         },
         "samtools_split": {
             "display_name": "Samtools Split",
             "output": ["DIRECTORY"],
             "output_name": ["readgroup_bams"],
-            "aliases": ["Galaxy", "split", "read groups"],
+            "aliases": ["BioNodulo builtin", "split", "read groups"],
         },
         "samtools_slice_bam": {
             "display_name": "Samtools Slice BAM",
             "output": ["BAM"],
             "output_name": ["sliced_bam"],
-            "aliases": ["Galaxy", "slice", "regions"],
+            "aliases": ["BioNodulo builtin", "slice", "regions"],
         },
         "samtools_phase": {
             "display_name": "Samtools Phase",
             "output": ["STATS_FILE", "BAM", "BAM", "BAM"],
             "output_name": ["phase_sets", "phase0", "phase1", "chimera"],
-            "aliases": ["Galaxy", "phase", "heterozygous SNPs"],
+            "aliases": ["BioNodulo builtin", "phase", "heterozygous SNPs"],
         },
         "samtools_consensus": {
             "display_name": "Samtools Consensus",
             "output": ["FASTA"],
             "output_name": ["consensus"],
-            "aliases": ["Galaxy", "consensus", "Bayesian", "Gap5"],
+            "aliases": ["BioNodulo builtin", "consensus", "Bayesian", "Gap5"],
         },
         "samtools_bam_to_cram": {
             "display_name": "Samtools BAM to CRAM",
             "output": ["CRAM"],
             "output_name": ["cram"],
-            "aliases": ["Galaxy", "BAM to CRAM", "CRAM compression", "reference based compression"],
+            "aliases": ["BioNodulo builtin", "BAM to CRAM", "CRAM compression", "reference based compression"],
         },
         "samtools_cram_to_bam": {
             "display_name": "Samtools CRAM to BAM",
             "output": ["BAM"],
             "output_name": ["bam"],
-            "aliases": ["Galaxy", "CRAM to BAM", "CRAM decompression", "reference"],
+            "aliases": ["BioNodulo builtin", "CRAM to BAM", "CRAM decompression", "reference"],
         },
         "samtools_bam_to_sam": {
             "display_name": "Samtools BAM to SAM",
             "output": ["SAM"],
             "output_name": ["sam"],
-            "aliases": ["Galaxy", "BAM to SAM", "SAM output", "header only"],
+            "aliases": ["BioNodulo builtin", "BAM to SAM", "SAM output", "header only"],
         },
         "bam_to_sam": {
             "display_name": "BAM-to-SAM",
             "output": ["SAM"],
             "output_name": ["output1"],
-            "aliases": ["Galaxy", "bam_to_sam", "BAM-to-SAM", "converted SAM"],
+            "aliases": ["BioNodulo builtin", "bam_to_sam", "BAM-to-SAM", "converted SAM"],
         },
         "samtools_sam_to_bam": {
             "display_name": "Samtools SAM to BAM",
             "output": ["BAM"],
             "output_name": ["bam"],
-            "aliases": ["Galaxy", "SAM to BAM", "sorted BAM", "reference index"],
+            "aliases": ["BioNodulo builtin", "SAM to BAM", "sorted BAM", "reference index"],
         },
         "sam_to_bam": {
             "display_name": "SAM-to-BAM",
             "output": ["BAM"],
             "output_name": ["output1"],
-            "aliases": ["Galaxy", "sam_to_bam", "SAM-to-BAM", "converted BAM"],
+            "aliases": ["BioNodulo builtin", "sam_to_bam", "SAM-to-BAM", "converted BAM"],
         },
     }
 

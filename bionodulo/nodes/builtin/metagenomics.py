@@ -56,7 +56,7 @@ class Kraken2Node(CommandNode):
     CATEGORY = "metagenomics"
     DESCRIPTION = "Assign taxonomic labels to sequencing reads with Kraken2."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "Kraken2",
         "taxonomic classification",
         "classified reads",
@@ -351,7 +351,7 @@ class BrackenNode(CommandNode):
     CATEGORY = "metagenomics"
     DESCRIPTION = "Re-estimate taxonomic abundance from a Kraken report with Bracken."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "Bracken",
         "est_abundance.py",
         "Kraken report",
@@ -483,7 +483,7 @@ class MetaPhlAnNode(CommandNode):
     CATEGORY = "metagenomics"
     DESCRIPTION = "Profile microbial community composition with MetaPhlAn 4 marker genes."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "MetaPhlAn",
         "metagenomic profiling",
         "relative abundance",
@@ -957,7 +957,7 @@ class HUMAnNNode(CommandNode):
     CATEGORY = "metagenomics"
     DESCRIPTION = "Profile microbial pathway and gene-family abundance with HUMAnN 3."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "functional profiling",
         "pathway abundance",

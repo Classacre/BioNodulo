@@ -10,7 +10,7 @@ def _object_info(node_id: str) -> dict:
     return registry.object_info()[node_id]
 
 
-def test_kraken2_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:
+def test_kraken2_exposes_bionodulo_builtin_aligned_metadata_inputs_and_outputs() -> None:
     info = _object_info("kraken2")
 
     assert info["display_name"] == "Kraken2"
@@ -30,7 +30,7 @@ def test_kraken2_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:
     assert info["documentation_url"] == "https://ccb.jhu.edu/software/kraken2/"
     assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
     assert info["citation_urls"] == ["https://doi.org/10.1186/gb-2014-15-3-r46"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "classified reads" in info["search_aliases"]
 
     assert info["input"]["required"]["db"][0] == "DIRECTORY"
@@ -120,7 +120,7 @@ def test_kraken2_renders_paired_split_reads_and_validates_inputs(tmp_path: Path)
     assert Kraken2Node.VALIDATE_INPUTS({"reads": "reads.fa"}) == "db is required"
 
 
-def test_bracken_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:
+def test_bracken_exposes_bionodulo_builtin_aligned_metadata_inputs_and_outputs() -> None:
     info = _object_info("bracken")
 
     assert info["display_name"] == "Bracken"
@@ -133,7 +133,7 @@ def test_bracken_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:
     assert info["documentation_url"] == "https://github.com/jenniferlu717/Bracken/releases"
     assert info["citation_dois"] == ["10.7717/peerj-cs.104"]
     assert info["citation_urls"] == ["https://doi.org/10.7717/peerj-cs.104"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "Kraken-style Bracken report" in info["search_aliases"]
 
     assert info["input"]["required"]["report"][0] == "TSV"
@@ -223,7 +223,7 @@ def test_humann_plans_single_read_stem_outputs() -> None:
     ]
 
 
-def test_humann_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:
+def test_humann_exposes_bionodulo_builtin_aligned_metadata_inputs_and_outputs() -> None:
     info = _object_info("humann")
 
     assert info["display_name"] == "HUMAnN"
@@ -272,7 +272,7 @@ def test_humann_exposes_galaxy_aligned_metadata_inputs_and_outputs() -> None:
         "https://doi.org/10.7554/eLife.65088",
         "https://doi.org/10.1371/journal.pcbi.1002358",
     ]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "intermediate output files" in info["search_aliases"]
 
     assert info["input"]["required"]["reads"][0] == "FILE"
@@ -493,7 +493,7 @@ def test_humann_validates_required_workflow_databases() -> None:
     ) == "protein_database is required when protein_db_selector is history"
 
 
-def test_metaphlan_exposes_galaxy_aligned_metadata_and_inputs() -> None:
+def test_metaphlan_exposes_bionodulo_builtin_aligned_metadata_and_inputs() -> None:
     info = _object_info("metaphlan")
 
     assert info["display_name"] == "MetaPhlAn"
@@ -514,7 +514,7 @@ def test_metaphlan_exposes_galaxy_aligned_metadata_and_inputs() -> None:
     assert info["required_conda_packages"] == ["metaphlan"]
     assert info["citation_dois"] == ["10.1038/s41587-023-01688-w"]
     assert info["citation_urls"] == ["https://doi.org/10.1038/s41587-023-01688-w"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
 
     assert info["input"]["required"]["reads"][0] == "FASTQ_LIST"
     assert info["input"]["required"]["bt2_db"][0] == "DIRECTORY"

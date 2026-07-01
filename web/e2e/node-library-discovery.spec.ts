@@ -35,7 +35,7 @@ const objectInfo = {
     category: 'data_transform',
     description: 'Add the input dataset name as an appended or prepended tabular column.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'Add input name as column',
       'add_input_name_as_column',
       'dataset collection labels',
@@ -70,7 +70,7 @@ const objectInfo = {
     category: 'data_transform',
     description: 'Add the input dataset name as an appended or prepended tabular column.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'addName',
       'Add input name as column',
       'add_input_name_as_column',
@@ -105,7 +105,7 @@ const objectInfo = {
     display_name: 'Remove columns',
     category: 'data_transform',
     description: 'Remove or keep columns from a tabular file by matching header names.',
-    search_aliases: ['Galaxy', 'column_remove_by_header', 'Remove columns', 'remove columns by heading', 'keep named columns', 'header names', 'tabular column filter', 'unicode escaped columns'],
+    search_aliases: ['BioNodulo builtin', 'column_remove_by_header', 'Remove columns', 'remove columns by heading', 'keep named columns', 'header names', 'tabular column filter', 'unicode escaped columns'],
     input: {
       required: {
         input_tabular: { type: 'TSV' },
@@ -132,7 +132,7 @@ const objectInfo = {
     display_name: 'Sort Column Order',
     category: 'data_transform',
     description: 'Reorder tabular columns by sorted header values, with an optional identifier column first.',
-    search_aliases: ['Galaxy', 'column_order_header_sort', 'Sort Column Order', 'sort column order', 'sorted header fields', 'identifier column', 'tabular column sort', 'column order by heading'],
+    search_aliases: ['BioNodulo builtin', 'column_order_header_sort', 'Sort Column Order', 'sort column order', 'sorted header fields', 'identifier column', 'tabular column sort', 'column order by heading'],
     input: {
       required: {
         input_tabular: { type: 'TSV' },
@@ -157,7 +157,7 @@ const objectInfo = {
     display_name: 'Datamash',
     category: 'data_transform',
     description: 'Perform statistical and text operations on tabular data, optionally grouped by fields.',
-    search_aliases: ['Galaxy', 'Datamash', 'GNU Datamash', 'datamash_ops', 'group by fields', 'tabular statistics', 'column operations', 'sum mean median'],
+    search_aliases: ['BioNodulo builtin', 'Datamash', 'GNU Datamash', 'datamash_ops', 'group by fields', 'tabular statistics', 'column operations', 'sum mean median'],
     input: {
       required: {
         in_file: { type: 'TSV' },
@@ -190,7 +190,7 @@ const objectInfo = {
     display_name: 'Transpose',
     category: 'data_transform',
     description: 'Transpose rows and columns in a tabular or CSV file with GNU Datamash.',
-    search_aliases: ['Galaxy', 'Datamash', 'GNU Datamash', 'datamash_transpose', 'transpose rows columns', 'matrix transpose'],
+    search_aliases: ['BioNodulo builtin', 'Datamash', 'GNU Datamash', 'datamash_transpose', 'transpose rows columns', 'matrix transpose'],
     input: {
       required: {
         in_file: { type: 'TSV' },
@@ -215,7 +215,7 @@ const objectInfo = {
     display_name: 'Reverse',
     category: 'data_transform',
     description: 'Reverse column order in a tabular or CSV file with GNU Datamash.',
-    search_aliases: ['Galaxy', 'Datamash', 'GNU Datamash', 'datamash_reverse', 'reverse columns', 'column order'],
+    search_aliases: ['BioNodulo builtin', 'Datamash', 'GNU Datamash', 'datamash_reverse', 'reverse columns', 'column order'],
     input: {
       required: {
         in_file: { type: 'TSV' },
@@ -238,7 +238,7 @@ const objectInfo = {
     display_name: 'Falco',
     category: 'qc',
     description: 'Run high-speed FastQC-compatible quality control on FASTQ, SAM, or BAM sequencing reads.',
-    search_aliases: ['Galaxy', 'Falco', 'falco', 'FastQC emulation', 'FASTQ QC', 'read quality control', 'sequencing quality report'],
+    search_aliases: ['BioNodulo builtin', 'Falco', 'falco', 'FastQC emulation', 'FASTQ QC', 'read quality control', 'sequencing quality report'],
     input: {
       required: {
         input_file: { type: 'FASTQ' },
@@ -269,7 +269,7 @@ const objectInfo = {
     display_name: 'som.py and hap.py',
     category: 'variant',
     description: 'Compare truth and query VCF callsets with hap.py haplotype benchmarking or som.py allele matching.',
-    search_aliases: ['Galaxy', 'hap.py', 'som.py', 'happy', 'Haplotype Comparison Tools', 'variant benchmarking', 'VCF comparison', 'truth query comparison'],
+    search_aliases: ['BioNodulo builtin', 'hap.py', 'som.py', 'happy', 'Haplotype Comparison Tools', 'variant benchmarking', 'VCF comparison', 'truth query comparison'],
     input: {
       required: {
         truth: { type: 'VCF' },
@@ -296,7 +296,7 @@ const objectInfo = {
     display_name: 'bwameth',
     category: 'alignment',
     description: 'Align bisulfite-sequencing FASTQ reads to a genome with bwa-meth.',
-    search_aliases: ['Galaxy', 'bwameth', 'bwa-meth', 'BWA methylation', 'BS-Seq alignment', 'bisulfite sequencing', 'WGBS', 'RRBS'],
+    search_aliases: ['BioNodulo builtin', 'bwameth', 'bwa-meth', 'BWA methylation', 'BS-Seq alignment', 'bisulfite sequencing', 'WGBS', 'RRBS'],
     input: {
       required: {
         input_singles: { type: 'FASTQ' },
@@ -327,7 +327,7 @@ const objectInfo = {
     display_name: 'CrossMap BED',
     category: 'annotation',
     description: 'Lift BED genome coordinates between assemblies with CrossMap.',
-    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_bed', 'liftover BED', 'coordinate conversion', 'genome assembly conversion', 'chain file'],
+    search_aliases: ['BioNodulo builtin', 'CrossMap', 'crossmap_bed', 'liftover BED', 'coordinate conversion', 'genome assembly conversion', 'chain file'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -353,7 +353,7 @@ const objectInfo = {
     display_name: 'CrossMap BAM',
     category: 'alignment',
     description: 'Lift BAM alignments between genome assemblies with CrossMap.',
-    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_bam', 'liftover BAM', 'coordinate conversion', 'BAM assembly conversion', 'chain file', 'optional BAM tags'],
+    search_aliases: ['BioNodulo builtin', 'CrossMap', 'crossmap_bam', 'liftover BAM', 'coordinate conversion', 'BAM assembly conversion', 'chain file', 'optional BAM tags'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -381,7 +381,7 @@ const objectInfo = {
     display_name: 'CrossMap BigWig',
     category: 'genomics',
     description: 'Lift BigWig signal tracks between genome assemblies with CrossMap.',
-    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_bw', 'liftover BigWig', 'coordinate conversion', 'BigWig assembly conversion', 'chain file'],
+    search_aliases: ['BioNodulo builtin', 'CrossMap', 'crossmap_bw', 'liftover BigWig', 'coordinate conversion', 'BigWig assembly conversion', 'chain file'],
     input: {
       required: {
         input: { type: 'BIGWIG' },
@@ -405,7 +405,7 @@ const objectInfo = {
     display_name: 'CrossMap GFF',
     category: 'annotation',
     description: 'Lift GFF/GTF feature annotations between genome assemblies with CrossMap.',
-    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_gff', 'liftover GFF', 'liftover GTF', 'coordinate conversion', 'GFF assembly conversion', 'GTF assembly conversion', 'chain file'],
+    search_aliases: ['BioNodulo builtin', 'CrossMap', 'crossmap_gff', 'liftover GFF', 'liftover GTF', 'coordinate conversion', 'GFF assembly conversion', 'GTF assembly conversion', 'chain file'],
     input: {
       required: {
         input: { type: 'GFF_GTF' },
@@ -430,7 +430,7 @@ const objectInfo = {
     display_name: 'CrossMap region',
     category: 'annotation',
     description: 'Lift whole BED regions between genome assemblies with CrossMap.',
-    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_region', 'liftover BED regions', 'whole region liftover', 'coordinate conversion', 'BED assembly conversion', 'chain file'],
+    search_aliases: ['BioNodulo builtin', 'CrossMap', 'crossmap_region', 'liftover BED regions', 'whole region liftover', 'coordinate conversion', 'BED assembly conversion', 'chain file'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -456,7 +456,7 @@ const objectInfo = {
     display_name: 'CrossMap VCF',
     category: 'variant',
     description: 'Lift VCF variants between genome assemblies with CrossMap.',
-    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_vcf', 'liftover VCF', 'variant coordinate conversion', 'reference allele liftover', 'VCF assembly conversion', 'chain file'],
+    search_aliases: ['BioNodulo builtin', 'CrossMap', 'crossmap_vcf', 'liftover VCF', 'variant coordinate conversion', 'reference allele liftover', 'VCF assembly conversion', 'chain file'],
     input: {
       required: {
         input: { type: 'VCF' },
@@ -483,7 +483,7 @@ const objectInfo = {
     display_name: 'CrossMap Wig',
     category: 'genomics',
     description: 'Lift Wiggle signal tracks between genome assemblies with CrossMap.',
-    search_aliases: ['Galaxy', 'CrossMap', 'crossmap_wig', 'liftover Wiggle', 'liftover WIG', 'coordinate conversion', 'Wiggle assembly conversion', 'bedGraph output', 'chain file'],
+    search_aliases: ['BioNodulo builtin', 'CrossMap', 'crossmap_wig', 'liftover Wiggle', 'liftover WIG', 'coordinate conversion', 'Wiggle assembly conversion', 'bedGraph output', 'chain file'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -508,7 +508,7 @@ const objectInfo = {
     category: 'data_transform',
     description: 'Compute one or more expressions on each tabular row and add, insert, or replace columns.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'column_maker',
       'Add_a_column1',
       'Compute on rows',
@@ -553,7 +553,7 @@ const objectInfo = {
     display_name: 'Calculate numeric parameter value',
     category: 'data_transform',
     description: 'Calculate an integer or floating-point parameter from simple arithmetic components.',
-    search_aliases: ['Galaxy', 'calculate_numeric_param', 'Calculate numeric parameter value', 'numeric parameter', 'arithmetic parameter', 'integer parameter', 'float parameter', 'workflow expression'],
+    search_aliases: ['BioNodulo builtin', 'calculate_numeric_param', 'Calculate numeric parameter value', 'numeric parameter', 'arithmetic parameter', 'integer parameter', 'float parameter', 'workflow expression'],
     input: {
       required: {
         components: { type: 'JSON', is_list: true },
@@ -578,7 +578,7 @@ const objectInfo = {
     display_name: 'Compose text parameter value',
     category: 'data_transform',
     description: 'Concatenate text, integer, and float parameters into a workflow text value.',
-    search_aliases: ['Galaxy', 'compose_text_param', 'Compose text parameter value', 'workflow text parameter', 'text parameter', 'integer parameter', 'float parameter', 'concatenate parameter values'],
+    search_aliases: ['BioNodulo builtin', 'compose_text_param', 'Compose text parameter value', 'workflow text parameter', 'text parameter', 'integer parameter', 'float parameter', 'concatenate parameter values'],
     input: {
       required: {
         components: { type: 'JSON', is_list: true },
@@ -602,7 +602,7 @@ const objectInfo = {
     display_name: 'Compress file(s)',
     category: 'data_transform',
     description: 'Compress a dataset with gzip, preserving the original content in a .gz file.',
-    search_aliases: ['Galaxy', 'compress_file', 'Compress file(s)', 'gzip compression', 'gzip -cf', 'gzipped output', 'compress dataset'],
+    search_aliases: ['BioNodulo builtin', 'compress_file', 'Compress file(s)', 'gzip compression', 'gzip -cf', 'gzipped output', 'compress dataset'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -622,7 +622,7 @@ const objectInfo = {
     display_name: 'Column join',
     category: 'data_transform',
     description: 'Join multiple tabular datasets together on an identifier field.',
-    search_aliases: ['Galaxy', 'Column join', 'collection_column_join', 'join tabular datasets', 'identifier column', 'list collection', 'coreutils join'],
+    search_aliases: ['BioNodulo builtin', 'Column join', 'collection_column_join', 'join tabular datasets', 'identifier column', 'list collection', 'coreutils join'],
     input: {
       required: {
         input_tabular: { type: 'JSON', is_list: true },
@@ -649,7 +649,7 @@ const objectInfo = {
     display_name: 'Extract element identifiers',
     category: 'data_transform',
     description: 'Extract top-level element identifiers from a list or list:paired collection.',
-    search_aliases: ['Galaxy', 'collection_element_identifiers', 'Extract element identifiers', 'dataset collection names', 'element identifiers', 'list collection', 'list:paired collection', 'sample names'],
+    search_aliases: ['BioNodulo builtin', 'collection_element_identifiers', 'Extract element identifiers', 'dataset collection names', 'element identifiers', 'list collection', 'list:paired collection', 'sample names'],
     input: {
       required: {
         input_collection: { type: 'JSON', is_list: true },
@@ -669,7 +669,7 @@ const objectInfo = {
     display_name: 'Calculate Contrast threshold',
     category: 'visualization',
     description: 'Calculate heatmap contrast thresholds from tag pileup CDT matrices.',
-    search_aliases: ['Galaxy', 'calculate_contrast_threshold', 'Calculate Contrast threshold', 'tag pileup CDT', 'heatmap contrast', 'contrast threshold', 'calcThreshold.txt', 'ChIP-QC'],
+    search_aliases: ['BioNodulo builtin', 'calculate_contrast_threshold', 'Calculate Contrast threshold', 'tag pileup CDT', 'heatmap contrast', 'contrast threshold', 'calcThreshold.txt', 'ChIP-QC'],
     input: {
       required: {
         input_file: { type: 'STRING' },
@@ -700,7 +700,7 @@ const objectInfo = {
     display_name: 'Panel Coverage Report',
     category: 'qc',
     description: 'Create a PDF panel coverage report with mapping and target-region statistics.',
-    search_aliases: ['Galaxy', 'CoverageReport2', 'Panel Coverage Report', 'coverage report', 'mapping statistics', 'target region coverage', 'samtools flagstat', 'coverageBed', 'panel resequencing'],
+    search_aliases: ['BioNodulo builtin', 'CoverageReport2', 'Panel Coverage Report', 'coverage report', 'mapping statistics', 'target region coverage', 'samtools flagstat', 'coverageBed', 'panel resequencing'],
     input: {
       required: {
         input1: { type: 'BAM' },
@@ -729,7 +729,7 @@ const objectInfo = {
     display_name: 'Extract Genomic DNA',
     category: 'sequence',
     description: 'Fetch genomic DNA in FASTA or interval format from coordinate datasets.',
-    search_aliases: ['Galaxy', 'Extract genomic DNA 1', 'Extract Genomic DNA', 'extract_genomic_dna', 'genomic coordinates', 'interval', 'GFF', 'FASTA', 'twoBit', 'faToTwoBit', 'reference genome'],
+    search_aliases: ['BioNodulo builtin', 'Extract genomic DNA 1', 'Extract Genomic DNA', 'extract_genomic_dna', 'genomic coordinates', 'interval', 'GFF', 'FASTA', 'twoBit', 'faToTwoBit', 'reference genome'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -761,7 +761,7 @@ const objectInfo = {
     display_name: 'Barcode Splitter',
     category: 'sequence',
     description: 'Split FASTQ reads into barcode-specific files using one or more index reads.',
-    search_aliases: ['Galaxy', 'Barcode Splitter', 'barcode_splitter', 'barcode demultiplexing', 'index reads', 'FASTQ splitting', 'barcodes', 'dual index', 'split_all'],
+    search_aliases: ['BioNodulo builtin', 'Barcode Splitter', 'barcode_splitter', 'barcode demultiplexing', 'index reads', 'FASTQ splitting', 'barcodes', 'dual index', 'split_all'],
     input: {
       required: {
         bcfile: { type: 'TSV' },
@@ -794,7 +794,7 @@ const objectInfo = {
     display_name: 'Create binary barcodes',
     category: 'sequence',
     description: 'Convert FASTQ barcode reads from nucleotide bases into binary R/Y barcode codes.',
-    search_aliases: ['Galaxy', 'bctools', 'Create binary barcodes', 'bctools_convert_to_binary_barcode', 'convert_bc_to_binary_RY.py', 'binary barcodes', 'RY-space barcodes', 'UMI', 'uvCLAP', 'FLASH'],
+    search_aliases: ['BioNodulo builtin', 'bctools', 'Create binary barcodes', 'bctools_convert_to_binary_barcode', 'convert_bc_to_binary_RY.py', 'binary barcodes', 'RY-space barcodes', 'UMI', 'uvCLAP', 'FLASH'],
     input: {
       required: {
         barcodes: { type: 'FASTQ' },
@@ -817,7 +817,7 @@ const objectInfo = {
     display_name: 'Get crosslinked nucleotides',
     category: 'sequence',
     description: 'Calculate crosslinked nucleotide BED coordinates from aligned-read BED intervals.',
-    search_aliases: ['Galaxy', 'bctools', 'Get crosslinked nucleotides', 'bctools_extract_crosslinked_nucleotides', 'coords2clnt.py', 'crosslinking coordinates', 'threeprime', 'UMI', 'barcodes'],
+    search_aliases: ['BioNodulo builtin', 'bctools', 'Get crosslinked nucleotides', 'bctools_extract_crosslinked_nucleotides', 'coords2clnt.py', 'crosslinking coordinates', 'threeprime', 'UMI', 'barcodes'],
     input: {
       required: {
         alignment_coordinates: { type: 'BED' },
@@ -841,7 +841,7 @@ const objectInfo = {
     display_name: 'Extract alignment ends',
     category: 'sequence',
     description: 'Extract outer alignment-end coordinates from paired SAM or BAM alignments into BED.',
-    search_aliases: ['Galaxy', 'bctools', 'Extract alignment ends', 'bctools_extract_alignment_ends', 'extract_aln_ends.py', 'SAM', 'BAM', 'outer coordinates', 'UMI', 'barcodes'],
+    search_aliases: ['BioNodulo builtin', 'bctools', 'Extract alignment ends', 'bctools_extract_alignment_ends', 'extract_aln_ends.py', 'SAM', 'BAM', 'outer coordinates', 'UMI', 'barcodes'],
     input: {
       required: {
         alignments: { type: 'FILE' },
@@ -864,7 +864,7 @@ const objectInfo = {
     display_name: 'Extract barcodes',
     category: 'sequence',
     description: 'Extract barcode nucleotides from FASTQ reads according to an X/N pattern.',
-    search_aliases: ['Galaxy', 'bctools', 'Extract barcodes', 'bctools_extract_barcodes', 'extract_bcs.py', 'barcode pattern', 'cleaned reads', 'UMI', 'barcodes'],
+    search_aliases: ['BioNodulo builtin', 'bctools', 'Extract barcodes', 'bctools_extract_barcodes', 'extract_bcs.py', 'barcode pattern', 'cleaned reads', 'UMI', 'barcodes'],
     input: {
       required: {
         reads: { type: 'FASTQ' },
@@ -888,7 +888,7 @@ const objectInfo = {
     display_name: 'Merge PCR duplicates',
     category: 'sequence',
     description: 'Merge PCR duplicates from BED alignments according to FASTQ unique molecular identifiers.',
-    search_aliases: ['Galaxy', 'bctools', 'Merge PCR duplicates', 'bctools_merge_pcr_duplicates', 'merge_pcr_duplicates.py', 'PCR duplicates', 'unique molecular identifiers', 'UMI', 'barcodes'],
+    search_aliases: ['BioNodulo builtin', 'bctools', 'Merge PCR duplicates', 'bctools_merge_pcr_duplicates', 'merge_pcr_duplicates.py', 'PCR duplicates', 'unique molecular identifiers', 'UMI', 'barcodes'],
     input: {
       required: {
         alignments_bed: { type: 'BED' },
@@ -912,7 +912,7 @@ const objectInfo = {
     display_name: "Remove 3'-end nts",
     category: 'sequence',
     description: 'Remove a fixed number of nucleotides from the 3-prime tails of FASTQ reads.',
-    search_aliases: ['Galaxy', 'bctools', "Remove 3'-end nts", 'bctools_remove_tail', 'remove_tail.py', '3-prime tail', 'FASTQ trimming', 'UMI', 'barcodes'],
+    search_aliases: ['BioNodulo builtin', 'bctools', "Remove 3'-end nts", 'bctools_remove_tail', 'remove_tail.py', '3-prime tail', 'FASTQ trimming', 'UMI', 'barcodes'],
     input: {
       required: {
         reads_fastq: { type: 'FASTQ' },
@@ -936,7 +936,7 @@ const objectInfo = {
     display_name: 'Remove spurious',
     category: 'sequence',
     description: 'Remove spurious crosslinking events caused by UMI errors from BED intervals.',
-    search_aliases: ['Galaxy', 'bctools', 'Remove spurious', 'bctools_remove_spurious_events', 'rm_spurious_events.py', 'spurious events', 'crosslinking events', 'threshold', 'UMI', 'barcodes'],
+    search_aliases: ['BioNodulo builtin', 'bctools', 'Remove spurious', 'bctools_remove_spurious_events', 'rm_spurious_events.py', 'spurious events', 'crosslinking events', 'threshold', 'UMI', 'barcodes'],
     input: {
       required: {
         events: { type: 'BED' },
@@ -960,7 +960,7 @@ const objectInfo = {
     display_name: 'BlastXML to gapped GFF3',
     category: 'annotation',
     description: 'Convert BLAST XML alignments into GFF3 features with Gap attributes.',
-    search_aliases: ['Galaxy', 'blastxml_to_gapped_gff3', 'BlastXML', 'gapped GFF3', 'BLAST XML', 'match_part', 'Gap', 'GFF3'],
+    search_aliases: ['BioNodulo builtin', 'blastxml_to_gapped_gff3', 'BlastXML', 'gapped GFF3', 'BLAST XML', 'match_part', 'Gap', 'GFF3'],
     input: {
       required: {
         blastxml: { type: 'FILE' },
@@ -985,7 +985,7 @@ const objectInfo = {
     display_name: 'CAT prepare',
     category: 'taxonomy',
     description: 'Prepare CAT reference data for classifying metagenomic contigs or genome assemblies.',
-    search_aliases: ['Galaxy', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_prepare', 'CAT prepare', 'CAT database', 'CAT reference data', 'CAT prepare database', 'NCBI taxonomy'],
+    search_aliases: ['BioNodulo builtin', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_prepare', 'CAT prepare', 'CAT database', 'CAT reference data', 'CAT prepare database', 'NCBI taxonomy'],
     input: {
       required: {},
       optional: {
@@ -1007,7 +1007,7 @@ const objectInfo = {
     display_name: 'CAT contigs',
     category: 'taxonomy',
     description: 'Classify metagenomic contigs with CAT taxonomic assignments.',
-    search_aliases: ['Galaxy', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_contigs', 'CAT contigs', 'contig classification', 'contig2classification', 'ORF2LCA', 'predicted_proteins', 'classification.summary.txt'],
+    search_aliases: ['BioNodulo builtin', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_contigs', 'CAT contigs', 'contig classification', 'contig2classification', 'ORF2LCA', 'predicted_proteins', 'classification.summary.txt'],
     input: {
       required: {
         contigs_fasta: { type: 'FASTA' },
@@ -1050,7 +1050,7 @@ const objectInfo = {
     display_name: 'CAT bins',
     category: 'taxonomy',
     description: 'Classify metagenome-assembled genome bins with BAT taxonomic assignments.',
-    search_aliases: ['Galaxy', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_bins', 'CAT bins', 'CAT bin', 'BAT', 'Bin Annotation Tool', 'bin classification', 'bin2classification', 'metagenome assembled genomes', 'MAGs'],
+    search_aliases: ['BioNodulo builtin', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_bins', 'CAT bins', 'CAT bin', 'BAT', 'Bin Annotation Tool', 'bin classification', 'bin2classification', 'metagenome assembled genomes', 'MAGs'],
     input: {
       required: {
         mags: { type: 'FASTA', multiple: true, min_items: 1 },
@@ -1094,7 +1094,7 @@ const objectInfo = {
     display_name: 'CAT add_names',
     category: 'taxonomy',
     description: 'Annotate CAT or BAT classification tables with taxonomic names.',
-    search_aliases: ['Galaxy', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_add_names', 'CAT add_names', 'taxonomic names', 'official taxonomic ranks', 'ORF2LCA', 'contig2classification', 'bin2classification'],
+    search_aliases: ['BioNodulo builtin', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_add_names', 'CAT add_names', 'taxonomic names', 'official taxonomic ranks', 'ORF2LCA', 'contig2classification', 'bin2classification'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -1120,7 +1120,7 @@ const objectInfo = {
     display_name: 'CAT summarise',
     category: 'taxonomy',
     description: 'Summarise CAT or BAT assignments by official taxonomic name.',
-    search_aliases: ['Galaxy', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_summarise', 'CAT summarise', 'classification.summary.txt', 'number of assignments', 'taxonomic summary', 'official taxonomic names'],
+    search_aliases: ['BioNodulo builtin', 'CAT', 'BAT', 'Contig Annotation Tool', 'Bin Annotation Tool', 'taxonomic classification', 'metagenomics', 'cat_summarise', 'CAT summarise', 'classification.summary.txt', 'number of assignments', 'taxonomic summary', 'official taxonomic names'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -1144,7 +1144,7 @@ const objectInfo = {
     display_name: 'cawlign',
     category: 'alignment',
     description: 'Codon-aware pairwise alignment of FASTA sequences to a reference.',
-    search_aliases: ['Galaxy', 'cawlign', 'codon-aware alignment', 'pairwise alignment', 'reference alignment', 'bealign', 'HXB2_pol', 'CoV2-S', 'reverse complement'],
+    search_aliases: ['BioNodulo builtin', 'cawlign', 'codon-aware alignment', 'pairwise alignment', 'reference alignment', 'bealign', 'HXB2_pol', 'CoV2-S', 'reverse complement'],
     input: {
       required: {
         fasta: { type: 'FASTA' },
@@ -1178,7 +1178,7 @@ const objectInfo = {
     category: 'annotation',
     description: 'Clean GFF3 annotations so they contain canonical protein-coding gene features.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'AEGeAn',
       'CanonGFF3',
       'canon-gff3',
@@ -1211,7 +1211,7 @@ const objectInfo = {
     category: 'annotation',
     description: 'Compute gene model coverage and integrity scores from transcript alignments.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'AEGeAn',
       'GAEVAL',
       'gaeval',
@@ -1250,7 +1250,7 @@ const objectInfo = {
     category: 'annotation',
     description: 'Calculate interval locus coordinates from GFF3 gene annotations.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'AEGeAn',
       'LocusPocus',
       'locuspocus',
@@ -1293,7 +1293,7 @@ const objectInfo = {
     category: 'annotation',
     description: 'Compare two GFF3 gene annotation sets for the same sequence.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'AEGeAn',
       'ParsEval',
       'parseval',
@@ -1329,7 +1329,7 @@ const objectInfo = {
     display_name: 'Augustus',
     category: 'annotation',
     description: 'Predict genes in prokaryotic and eukaryotic genomes with AUGUSTUS.',
-    search_aliases: ['Galaxy', 'Augustus', 'AUGUSTUS', 'augustus', 'ab initio gene prediction', 'gene prediction', 'eukaryotic genome annotation', 'extrinsic hints'],
+    search_aliases: ['BioNodulo builtin', 'Augustus', 'AUGUSTUS', 'augustus', 'ab initio gene prediction', 'gene prediction', 'eukaryotic genome annotation', 'extrinsic hints'],
     input: {
       required: {
         input_genome: { type: 'FASTA' },
@@ -1367,7 +1367,7 @@ const objectInfo = {
     display_name: 'Train Augustus',
     category: 'annotation',
     description: 'Train an AUGUSTUS species model from genome sequence and MAKER gene annotations.',
-    search_aliases: ['Galaxy', 'Train Augustus', 'AUGUSTUS training', 'augustus_training', 'MAKER', 'maker2zff', 'autoAugTrain.pl', 'gene predictor training'],
+    search_aliases: ['BioNodulo builtin', 'Train Augustus', 'AUGUSTUS training', 'augustus_training', 'MAKER', 'maker2zff', 'autoAugTrain.pl', 'gene predictor training'],
     input: {
       required: {
         genome: { type: 'FASTA' },
@@ -1388,7 +1388,7 @@ const objectInfo = {
     display_name: 'Arriba',
     category: 'rna_seq',
     description: 'Detect gene fusions from STAR aligned RNA-Seq data with Arriba.',
-    search_aliases: ['Galaxy', 'Arriba', 'arriba', 'gene fusions', 'fusion transcript', 'STAR Chimeric.out.sam', 'RNA-Seq fusion detection', 'aberrant transcripts'],
+    search_aliases: ['BioNodulo builtin', 'Arriba', 'arriba', 'gene fusions', 'fusion transcript', 'STAR Chimeric.out.sam', 'RNA-Seq fusion detection', 'aberrant transcripts'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -1512,7 +1512,7 @@ const objectInfo = {
     display_name: 'Arriba Draw Fusions',
     category: 'visualization',
     description: 'Render Arriba fusion predictions as transcript visualization PDFs.',
-    search_aliases: ['Galaxy', 'Arriba Draw Fusions', 'arriba_draw_fusions', 'draw_fusions.R', 'fusion visualization', 'RNA-Seq fusion plot', 'fusions.pdf'],
+    search_aliases: ['BioNodulo builtin', 'Arriba Draw Fusions', 'arriba_draw_fusions', 'draw_fusions.R', 'fusion visualization', 'RNA-Seq fusion plot', 'fusions.pdf'],
     input: {
       required: {
         fusions: { type: 'TSV' },
@@ -1559,7 +1559,7 @@ const objectInfo = {
     display_name: 'Arriba Get Filters',
     category: 'databases',
     description: 'Copy bundled Arriba blacklist, known-fusion, protein-domain, and cytoband reference files.',
-    search_aliases: ['Galaxy', 'Arriba Get Filters', 'arriba_get_filters', 'blacklist', 'known fusions', 'protein domains', 'cytobands', 'download_references.sh'],
+    search_aliases: ['BioNodulo builtin', 'Arriba Get Filters', 'arriba_get_filters', 'blacklist', 'known fusions', 'protein domains', 'cytobands', 'download_references.sh'],
     input: {
       required: {
         arriba_reference_name: { type: 'STRING', default: 'GRCh38', options: ['GRCh38', 'GRCh37', 'hg38', 'hg19', 'GRCm39', 'GRCm38', 'mm39', 'mm10'] },
@@ -1579,7 +1579,7 @@ const objectInfo = {
     display_name: 'ARTIC guppyplex',
     category: 'sequence',
     description: 'Filter Nanopore reads by read length and optionally quality with ARTIC guppyplex.',
-    search_aliases: ['Galaxy', 'ARTIC guppyplex', 'artic_guppyplex', 'guppyplex', 'Nanopore read length filter', 'amplicon sequencing', 'ARTIC amplicon scheme'],
+    search_aliases: ['BioNodulo builtin', 'ARTIC guppyplex', 'artic_guppyplex', 'guppyplex', 'Nanopore read length filter', 'amplicon sequencing', 'ARTIC amplicon scheme'],
     input: {
       required: {
         reads: { type: 'FASTQ' },
@@ -1606,7 +1606,7 @@ const objectInfo = {
     display_name: 'ARTIC minion',
     category: 'variant',
     description: 'Build consensus sequences and call variants from amplicon-based Nanopore reads with ARTIC minion.',
-    search_aliases: ['Galaxy', 'ARTIC minion', 'artic_minion', 'amplicon consensus', 'Nanopore variants', 'Clair3', 'primertrimmed BAM'],
+    search_aliases: ['BioNodulo builtin', 'ARTIC minion', 'artic_minion', 'amplicon consensus', 'Nanopore variants', 'Clair3', 'primertrimmed BAM'],
     input: {
       required: {
         read_file: { type: 'FASTQ' },
@@ -1744,7 +1744,7 @@ const objectInfo = {
     display_name: 'Cactus',
     category: 'pangenomics',
     description: 'Whole-genome multiple sequence alignment with Progressive Cactus or Minigraph-Cactus.',
-    search_aliases: ['Galaxy', 'Cactus', 'cactus_cactus', 'Progressive Cactus', 'Minigraph-Cactus', 'whole-genome multiple alignment', 'HAL alignment', 'pangenome graph'],
+    search_aliases: ['BioNodulo builtin', 'Cactus', 'cactus_cactus', 'Progressive Cactus', 'Minigraph-Cactus', 'whole-genome multiple alignment', 'HAL alignment', 'pangenome graph'],
     input: {
       required: {
         in_seqs: { type: 'STRING', multiple: true },
@@ -1772,7 +1772,7 @@ const objectInfo = {
     display_name: 'Cactus Export',
     category: 'pangenomics',
     description: 'Convert Cactus HAL whole-genome alignments to MAF, VG, or UCSC Assembly Hub archives.',
-    search_aliases: ['Galaxy', 'Cactus Export', 'cactus_export', 'HAL export', 'hal2maf', 'hal2vg', 'hal2assemblyHub', 'MAF alignment', 'UCSC Assembly Hub'],
+    search_aliases: ['BioNodulo builtin', 'Cactus Export', 'cactus_export', 'HAL export', 'hal2maf', 'hal2vg', 'hal2assemblyHub', 'MAF alignment', 'UCSC Assembly Hub'],
     input: {
       required: {
         hal_file: { type: 'HAL' },
@@ -1798,7 +1798,7 @@ const objectInfo = {
     display_name: 'Roary',
     category: 'pangenomics',
     description: 'Quickly generate prokaryotic pan-genome gene clusters and core gene alignments from GFF3 annotations.',
-    search_aliases: ['Galaxy', 'Roary', 'roary', 'pan genome', 'pangenome', 'core gene alignment', 'gene presence absence', 'Prokka GFF3'],
+    search_aliases: ['BioNodulo builtin', 'Roary', 'roary', 'pan genome', 'pangenome', 'core gene alignment', 'gene presence absence', 'Prokka GFF3'],
     input: {
       required: {
         gffs: { type: 'GFF', multiple: true, min_items: 2 },
@@ -1895,7 +1895,7 @@ const objectInfo = {
     display_name: 'BUSCO',
     category: 'assembly',
     description: 'Assess assembly or annotation completeness using BUSCO lineage orthologs.',
-    search_aliases: ['Galaxy', 'busco', 'completeness', 'orthologs'],
+    search_aliases: ['BioNodulo builtin', 'busco', 'completeness', 'orthologs'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -1917,7 +1917,7 @@ const objectInfo = {
     display_name: 'DIAMOND Align',
     category: 'alignment',
     description: 'Run DIAMOND blastp or blastx searches against a protein database.',
-    search_aliases: ['Galaxy', 'diamond', 'blastp', 'blastx', 'protein alignment'],
+    search_aliases: ['BioNodulo builtin', 'diamond', 'blastp', 'blastx', 'protein alignment'],
     input: {
       required: {
         query: { type: 'FASTA' },
@@ -1940,7 +1940,7 @@ const objectInfo = {
     display_name: 'Diamond makedb',
     category: 'databases',
     description: 'Build a DIAMOND protein database from a FASTA file, optionally including taxonomy data.',
-    search_aliases: ['Galaxy', 'bg_diamond_makedb', 'diamond', 'Diamond makedb', 'makedb', 'protein database', 'dmnd'],
+    search_aliases: ['BioNodulo builtin', 'bg_diamond_makedb', 'diamond', 'Diamond makedb', 'makedb', 'protein database', 'dmnd'],
     input: {
       required: {
         infile: { type: 'FASTA' },
@@ -1964,7 +1964,7 @@ const objectInfo = {
     display_name: 'Diamond',
     category: 'alignment',
     description: 'Align protein or translated nucleotide sequences against a protein database with DIAMOND.',
-    search_aliases: ['Galaxy', 'bg_diamond', 'diamond', 'Diamond', 'blastp', 'blastx', 'protein alignment', 'translated search', 'DAA'],
+    search_aliases: ['BioNodulo builtin', 'bg_diamond', 'diamond', 'Diamond', 'blastp', 'blastx', 'protein alignment', 'translated search', 'DAA'],
     input: {
       required: {
         query: { type: 'FASTA' },
@@ -2001,7 +2001,7 @@ const objectInfo = {
     display_name: 'Diamond view',
     category: 'alignment',
     description: 'Generate formatted DIAMOND output from DAA alignment files.',
-    search_aliases: ['Galaxy', 'bg_diamond_view', 'diamond', 'Diamond view', 'DAA', 'diamond view', 'BLAST XML', 'SAM'],
+    search_aliases: ['BioNodulo builtin', 'bg_diamond_view', 'diamond', 'Diamond view', 'DAA', 'diamond view', 'BLAST XML', 'SAM'],
     input: {
       required: {
         daa: { type: 'FILE' },
@@ -2025,7 +2025,7 @@ const objectInfo = {
     display_name: 'HTSeq-count',
     category: 'rna_seq',
     description: 'Count aligned reads that overlap GFF/GTF features.',
-    search_aliases: ['Galaxy', 'htseq-count', 'gene counts'],
+    search_aliases: ['BioNodulo builtin', 'htseq-count', 'gene counts'],
     input: {
       required: {
         samfile: { type: 'BAM' },
@@ -2042,7 +2042,7 @@ const objectInfo = {
     display_name: 'featureCounts',
     category: 'rna_seq',
     description: 'Measure gene expression by counting SAM/BAM reads assigned to genomic features with featureCounts.',
-    search_aliases: ['Galaxy', 'featureCounts', 'featurecounts', 'featureCounts gene counts', 'subread', 'gene counts', 'RNA-seq read counting', 'GTF annotation'],
+    search_aliases: ['BioNodulo builtin', 'featureCounts', 'featurecounts', 'featureCounts gene counts', 'subread', 'gene counts', 'RNA-seq read counting', 'GTF annotation'],
     input: {
       required: {
         alignment: { type: 'BAM' },
@@ -2072,7 +2072,7 @@ const objectInfo = {
     display_name: 'SeqKit Grep',
     category: 'sequence',
     description: 'Filter FASTA or FASTQ records by ID, full name, sequence motif, or a file of patterns using SeqKit grep.',
-    search_aliases: ['Galaxy', 'seqkit', 'grep', 'seqkit grep', 'FASTA grep', 'FASTQ grep', 'motif search', 'sequence filter'],
+    search_aliases: ['BioNodulo builtin', 'seqkit', 'grep', 'seqkit grep', 'FASTA grep', 'FASTQ grep', 'motif search', 'sequence filter'],
     input: {
       required: {
         input: { type: 'FASTQ_LIST' },
@@ -2093,7 +2093,7 @@ const objectInfo = {
     display_name: 'SeqTK Composition',
     category: 'sequence',
     description: 'Report per-record nucleotide composition for FASTA or FASTQ data with seqtk comp.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk comp', 'SeqTK comp', 'nucleotide composition', 'FASTA composition', 'FASTQ composition', 'base composition'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk comp', 'SeqTK comp', 'nucleotide composition', 'FASTA composition', 'FASTQ composition', 'base composition'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2116,7 +2116,7 @@ const objectInfo = {
     display_name: 'SeqTK CutN',
     category: 'sequence',
     description: 'Split FASTA or FASTQ records at long N tracts with seqtk cutN.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk cutN', 'SeqTK cutN', 'seqtk split at N', 'split at N', 'long N tracts', 'assembly gaps', 'gaps BED'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk cutN', 'SeqTK cutN', 'seqtk split at N', 'split at N', 'long N tracts', 'assembly gaps', 'gaps BED'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2142,7 +2142,7 @@ const objectInfo = {
     display_name: 'SeqTK DropSE',
     category: 'sequence',
     description: 'Remove unpaired records from interleaved paired-end FASTA or FASTQ data with seqtk dropse.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk dropse', 'SeqTK dropse', 'drop single-end', 'remove unpaired reads', 'interleaved paired-end', 'paired reads only'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk dropse', 'SeqTK dropse', 'drop single-end', 'remove unpaired reads', 'interleaved paired-end', 'paired reads only'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2165,7 +2165,7 @@ const objectInfo = {
     display_name: 'SeqTK FASTQ Check',
     category: 'qc',
     description: 'Report base-by-base FASTQ composition and quality summaries with seqtk fqchk.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk fqchk', 'SeqTK fqchk', 'FASTQ QC', 'base quality summary', 'quality distribution', 'base composition'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk fqchk', 'SeqTK fqchk', 'FASTQ QC', 'base quality summary', 'quality distribution', 'base composition'],
     input: {
       required: {
         in_file: { type: 'FASTQ' },
@@ -2188,7 +2188,7 @@ const objectInfo = {
     display_name: 'SeqTK Heterozygosity',
     category: 'sequence',
     description: 'Report regional heterozygosity across FASTA or FASTQ data with seqtk hety.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk hety', 'SeqTK hety', 'regional heterozygosity', 'heterozygous regions', 'masked lowercase', 'FASTA heterozygosity'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk hety', 'SeqTK hety', 'regional heterozygosity', 'heterozygous regions', 'masked lowercase', 'FASTA heterozygosity'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2213,7 +2213,7 @@ const objectInfo = {
     display_name: 'SeqTK List Heterozygous Bases',
     category: 'sequence',
     description: 'List positions of heterozygous IUPAC ambiguity bases in FASTA or FASTQ data.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk listhet', 'SeqTK listhet', 'heterozygous bases', 'heterozygous positions', 'IUPAC ambiguity bases', 'ambiguous bases'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk listhet', 'SeqTK listhet', 'heterozygous bases', 'heterozygous positions', 'IUPAC ambiguity bases', 'ambiguous bases'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2233,7 +2233,7 @@ const objectInfo = {
     display_name: 'SeqTK Merge FASTA',
     category: 'sequence',
     description: 'Merge two FASTA or FASTQ files into FASTA using IUPAC ambiguity codes.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk mergefa', 'SeqTK mergefa', 'merge FASTA', 'merge FASTQ', 'IUPAC ambiguity codes', 'random allele', 'suppress hets'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk mergefa', 'SeqTK mergefa', 'merge FASTA', 'merge FASTQ', 'IUPAC ambiguity codes', 'random allele', 'suppress hets'],
     input: {
       required: {
         in_fa1: { type: 'FASTQ_LIST' },
@@ -2262,7 +2262,7 @@ const objectInfo = {
     display_name: 'SeqTK Merge Paired-End',
     category: 'sequence',
     description: 'Interleave two unpaired FASTA or FASTQ files into a paired-end FASTA/Q file.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk mergepe', 'SeqTK mergepe', 'interleaved paired-end', 'paired-end interleave', 'merge paired reads', 'paired FASTQ'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk mergepe', 'SeqTK mergepe', 'interleaved paired-end', 'paired-end interleave', 'merge paired reads', 'paired FASTQ'],
     input: {
       required: {
         in_fq1: { type: 'FASTQ_LIST' },
@@ -2286,7 +2286,7 @@ const objectInfo = {
     display_name: 'SeqTK Mutate FASTA',
     category: 'sequence',
     description: 'Apply point mutations from a tabular SNP file to FASTA or FASTQ sequences.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk mutfa', 'SeqTK mutfa', 'point mutations', 'SNP mutations', 'mutate FASTA', 'mutate FASTQ'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk mutfa', 'SeqTK mutfa', 'point mutations', 'SNP mutations', 'mutate FASTA', 'mutate FASTQ'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2310,7 +2310,7 @@ const objectInfo = {
     display_name: 'SeqTK Random Base',
     category: 'sequence',
     description: 'Randomly resolve ambiguous IUPAC bases in FASTA or FASTQ sequences.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk randbase', 'SeqTK randbase', 'ambiguous bases', 'IUPAC ambiguity', 'random base', 'resolve heterozygous bases'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk randbase', 'SeqTK randbase', 'ambiguous bases', 'IUPAC ambiguity', 'random base', 'resolve heterozygous bases'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2333,7 +2333,7 @@ const objectInfo = {
     display_name: 'SeqTK Sample',
     category: 'sequence',
     description: 'Randomly subsample FASTA or FASTQ sequences with a reproducible seed.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk sample', 'SeqTK sample', 'subsample reads', 'random subsample', 'FASTQ subsampling', 'RNG seed'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk sample', 'SeqTK sample', 'subsample reads', 'random subsample', 'FASTQ subsampling', 'RNG seed'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2359,7 +2359,7 @@ const objectInfo = {
     display_name: 'SeqTK Seq',
     category: 'sequence',
     description: 'Transform FASTA or FASTQ sequences with seqtk seq.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk seq', 'SeqTK seq', 'reverse complement', 'force FASTA', 'quality masking', 'mask regions', 'drop ambiguous bases', 'sample fraction'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk seq', 'SeqTK seq', 'reverse complement', 'force FASTA', 'quality masking', 'mask regions', 'drop ambiguous bases', 'sample fraction'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2399,7 +2399,7 @@ const objectInfo = {
     display_name: 'SeqTK Subsequence',
     category: 'sequence',
     description: 'Extract selected FASTA or FASTQ records by BED regions or sequence IDs.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk subseq', 'SeqTK subseq', 'extract subsequences', 'BED regions', 'sequence ID list', 'FASTA IDs', 'selected sequences'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk subseq', 'SeqTK subseq', 'extract subsequences', 'BED regions', 'sequence ID list', 'FASTA IDs', 'selected sequences'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2427,7 +2427,7 @@ const objectInfo = {
     display_name: 'SeqTK Telomere',
     category: 'sequence',
     description: 'Find telomeric repeat regions in FASTA or FASTQ sequences.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk telo', 'SeqTK telo', 'telomere', 'telomere repeat', 'vertebrate repeat', 'CCCTAA', 'telomeric regions'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk telo', 'SeqTK telo', 'telomere', 'telomere repeat', 'vertebrate repeat', 'CCCTAA', 'telomeric regions'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2454,7 +2454,7 @@ const objectInfo = {
     display_name: 'SeqTK Trim FASTQ',
     category: 'trimming',
     description: 'Trim FASTQ reads by Phred quality or fixed end positions.',
-    search_aliases: ['Galaxy', 'seqtk', 'seqtk trimfq', 'SeqTK trimfq', 'FASTQ trimming', 'Phred trimming', 'quality trimming', 'trim reads', 'fixed position trim'],
+    search_aliases: ['BioNodulo builtin', 'seqtk', 'seqtk trimfq', 'SeqTK trimfq', 'FASTQ trimming', 'Phred trimming', 'quality trimming', 'trim reads', 'fixed position trim'],
     input: {
       required: {
         in_file: { type: 'FASTQ_LIST' },
@@ -2482,7 +2482,7 @@ const objectInfo = {
     display_name: 'SeqKit Head',
     category: 'sequence',
     description: 'Return the first N FASTA or FASTQ records with SeqKit head.',
-    search_aliases: ['Galaxy', 'seqkit', 'head', 'seqkit head', 'first records', 'FASTA head', 'FASTQ head'],
+    search_aliases: ['BioNodulo builtin', 'seqkit', 'head', 'seqkit head', 'first records', 'FASTA head', 'FASTQ head'],
     input: {
       required: {
         input: { type: 'FASTQ_LIST' },
@@ -2503,7 +2503,7 @@ const objectInfo = {
     display_name: 'SeqKit fx2tab',
     category: 'sequence',
     description: 'Convert FASTA or FASTQ records to tabular columns with SeqKit fx2tab.',
-    search_aliases: ['Galaxy', 'seqkit', 'fx2tab', 'FASTA to tabular', 'FASTQ to TSV', 'sequence table', 'GC content'],
+    search_aliases: ['BioNodulo builtin', 'seqkit', 'fx2tab', 'FASTA to tabular', 'FASTQ to TSV', 'sequence table', 'GC content'],
     input: {
       required: {
         input: { type: 'FASTQ_LIST' },
@@ -2523,7 +2523,7 @@ const objectInfo = {
     display_name: 'SeqKit Sort',
     category: 'sequence',
     description: 'Sort FASTA or FASTQ records by sequence ID, name, sequence, non-gap bases, or length with SeqKit.',
-    search_aliases: ['Galaxy', 'seqkit', 'sort', 'SeqKit sort', 'sort FASTA', 'sort FASTQ', 'sort by length', 'sort by sequence'],
+    search_aliases: ['BioNodulo builtin', 'seqkit', 'sort', 'SeqKit sort', 'sort FASTA', 'sort FASTQ', 'sort by length', 'sort by sequence'],
     input: {
       required: {
         input: { type: 'FASTQ_LIST' },
@@ -2543,7 +2543,7 @@ const objectInfo = {
     display_name: 'SeqKit Locate',
     category: 'sequence',
     description: 'Locate FASTA subsequences or motifs with optional mismatches and BED, GTF, or tabular output using SeqKit.',
-    search_aliases: ['Galaxy', 'seqkit', 'locate', 'SeqKit locate', 'motif search', 'subsequence search', 'mismatch', 'BED motifs', 'GTF motifs'],
+    search_aliases: ['BioNodulo builtin', 'seqkit', 'locate', 'SeqKit locate', 'motif search', 'subsequence search', 'mismatch', 'BED motifs', 'GTF motifs'],
     input: {
       required: {
         input: { type: 'FASTQ_LIST' },
@@ -2564,7 +2564,7 @@ const objectInfo = {
     display_name: 'SeqKit Translate',
     category: 'sequence',
     description: 'Translate DNA or RNA FASTA/FASTQ records to protein sequences with frame, codon table, and unknown-codon handling.',
-    search_aliases: ['Galaxy', 'seqkit', 'translate', 'SeqKit translate', 'DNA to protein', 'RNA to protein', 'codon table', 'six frame translation'],
+    search_aliases: ['BioNodulo builtin', 'seqkit', 'translate', 'SeqKit translate', 'DNA to protein', 'RNA to protein', 'codon table', 'six frame translation'],
     input: {
       required: {
         input: { type: 'FASTQ_LIST' },
@@ -2584,7 +2584,7 @@ const objectInfo = {
     display_name: 'SeqKit Split2',
     category: 'sequence',
     description: 'Split single-end or paired-end FASTA/FASTQ records into multiple files by part count, sequence count, or sequence length.',
-    search_aliases: ['Galaxy', 'seqkit', 'split2', 'SeqKit split2', 'split FASTQ', 'split FASTA', 'paired split', 'split by length', 'split by parts'],
+    search_aliases: ['BioNodulo builtin', 'seqkit', 'split2', 'SeqKit split2', 'split FASTQ', 'split FASTA', 'paired split', 'split by length', 'split by parts'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'single', options: ['single', 'paired_collection'] },
@@ -2604,7 +2604,7 @@ const objectInfo = {
     display_name: 'AMRFinderPlus',
     category: 'annotation',
     description: 'Find acquired antimicrobial resistance genes, point mutations, stress response, biocide, and virulence genes in nucleotide and/or protein sequences.',
-    search_aliases: ['Galaxy', 'amrfinder', 'amrfinderplus', 'NCBI AMRFinderPlus', 'antimicrobial resistance', 'AMR genes', 'point mutations', 'virulence genes'],
+    search_aliases: ['BioNodulo builtin', 'amrfinder', 'amrfinderplus', 'NCBI AMRFinderPlus', 'antimicrobial resistance', 'AMR genes', 'point mutations', 'virulence genes'],
     input: {
       required: {
         database: { type: 'DIRECTORY' },
@@ -2625,7 +2625,7 @@ const objectInfo = {
     display_name: 'Bakta',
     category: 'annotation',
     description: 'Rapid and standardized annotation of bacterial genomes, MAGs and plasmids.',
-    search_aliases: ['Galaxy', 'Bakta', 'bakta', 'bacterial genome annotation', 'MAGs', 'plasmids', 'AMRFinderPlus', 'GFF3'],
+    search_aliases: ['BioNodulo builtin', 'Bakta', 'bakta', 'bacterial genome annotation', 'MAGs', 'plasmids', 'AMRFinderPlus', 'GFF3'],
     input: {
       required: {
         input_file: { type: 'FASTA' },
@@ -2666,7 +2666,7 @@ const objectInfo = {
     display_name: 'barrnap',
     category: 'annotation',
     description: 'Locate 5S, 16S, and 23S ribosomal RNA genes in FASTA sequences and emit GFF3 annotations.',
-    search_aliases: ['Galaxy', 'barrnap', 'BActerial Ribosomal RNA Predictor', 'rRNA prediction', 'ribosomal RNA', '5S 16S 23S', 'GFF3 rRNA', 'NHMMER'],
+    search_aliases: ['BioNodulo builtin', 'barrnap', 'BActerial Ribosomal RNA Predictor', 'rRNA prediction', 'ribosomal RNA', '5S 16S 23S', 'GFF3 rRNA', 'NHMMER'],
     input: {
       required: {
         fasta_file: { type: 'FASTA' },
@@ -2694,7 +2694,7 @@ const objectInfo = {
     display_name: 'Fasta Statistics',
     category: 'qc',
     description: 'Display summary statistics for a FASTA or Multi-FASTA file.',
-    search_aliases: ['Galaxy', 'fasta-stats', 'Fasta Statistics', 'FASTA statistics', 'Multi-FASTA', 'N50', 'NG50', 'GC content', 'gap stats', 'BED gaps'],
+    search_aliases: ['BioNodulo builtin', 'fasta-stats', 'Fasta Statistics', 'FASTA statistics', 'Multi-FASTA', 'N50', 'NG50', 'GC content', 'gap stats', 'BED gaps'],
     input: {
       required: {
         fasta: { type: 'FASTA' },
@@ -2719,7 +2719,7 @@ const objectInfo = {
     display_name: 'Export AnnData',
     category: 'single_cell',
     description: 'Export an AnnData H5AD matrix and annotations to tabular files.',
-    search_aliases: ['Galaxy', 'AnnData', 'anndata_export', 'Export AnnData', 'H5AD', 'write_csvs', 'obs annotations', 'var annotations', 'single-cell matrix export'],
+    search_aliases: ['BioNodulo builtin', 'AnnData', 'anndata_export', 'Export AnnData', 'H5AD', 'write_csvs', 'obs annotations', 'var annotations', 'single-cell matrix export'],
     input: {
       required: {
         input: { type: 'H5AD' },
@@ -2739,7 +2739,7 @@ const objectInfo = {
     display_name: 'Import Anndata',
     category: 'single_cell',
     description: 'Create an AnnData H5AD object from loom, tabular, 10x, MTX, UMI-tools, or annotated matrix inputs.',
-    search_aliases: ['Galaxy', 'AnnData', 'anndata_import', 'Import Anndata', 'H5AD', 'read_loom', 'read_csv', 'read_10x_h5', 'read_10x_mtx', 'read_mtx', 'read_umi_tools', 'Matrix Market', 'UMI-tools'],
+    search_aliases: ['BioNodulo builtin', 'AnnData', 'anndata_import', 'Import Anndata', 'H5AD', 'read_loom', 'read_csv', 'read_10x_h5', 'read_10x_mtx', 'read_mtx', 'read_umi_tools', 'Matrix Market', 'UMI-tools'],
     input: {
       optional: {
         adata_format: { type: 'STRING', default: 'loom', options: ['loom', 'tabular', '10x_h5', 'mtx', 'umi_tools', 'custom'] },
@@ -2777,7 +2777,7 @@ const objectInfo = {
     display_name: 'CellTypist',
     category: 'single_cell',
     description: 'Automated cell type annotation for scRNA-seq datasets.',
-    search_aliases: ['Galaxy', 'CellTypist', 'celltypist', 'automated cell type annotation', 'scRNA-seq', 'single-cell annotation', 'immune populations', 'Immune_All_High_v1', 'prob match', 'majority voting', 'dotplot'],
+    search_aliases: ['BioNodulo builtin', 'CellTypist', 'celltypist', 'automated cell type annotation', 'scRNA-seq', 'single-cell annotation', 'immune populations', 'Immune_All_High_v1', 'prob match', 'majority voting', 'dotplot'],
     input: {
       required: {
         adata: { type: 'H5AD' },
@@ -2819,7 +2819,7 @@ const objectInfo = {
     display_name: 'CEMiTool',
     category: 'rna_seq',
     description: 'Run gene co-expression network analyses with CEMiTool.',
-    search_aliases: ['Galaxy', 'CEMiTool', 'cemitool', 'gene co-expression network analyses', 'co-expression modules', 'coexpression', 'WGCNA', 'over representation analysis', 'Gene Set Enrichment Analysis', 'GSEA', 'module eigengene'],
+    search_aliases: ['BioNodulo builtin', 'CEMiTool', 'cemitool', 'gene co-expression network analyses', 'co-expression modules', 'coexpression', 'WGCNA', 'over representation analysis', 'Gene Set Enrichment Analysis', 'GSEA', 'module eigengene'],
     input: {
       required: {
         expression_matrix: { type: 'TSV' },
@@ -2866,7 +2866,7 @@ const objectInfo = {
     display_name: 'Charts',
     category: 'visualization',
     description: 'Generate tabular chart data from tabular inputs with Galaxy Charts R modules.',
-    search_aliases: ['Galaxy', 'Charts', 'charts', 'Chart Utilities', 'boxplot', 'heatmap', 'histogram', 'histogramdiscrete', 'R chart modules', 'tabular visualization'],
+    search_aliases: ['BioNodulo builtin', 'Charts', 'charts', 'Chart Utilities', 'boxplot', 'heatmap', 'histogram', 'histogramdiscrete', 'R chart modules', 'tabular visualization'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -2893,7 +2893,7 @@ const objectInfo = {
     display_name: 'Inspect AnnData',
     category: 'single_cell',
     description: 'Inspect AnnData H5AD matrices, annotations, embeddings, and unstructured analysis results.',
-    search_aliases: ['Galaxy', 'AnnData', 'anndata_inspect', 'Inspect AnnData', 'H5AD', 'chunk_X', 'obs', 'var', 'uns', 'obsm', 'varm', 'rank_genes_groups', 'X_draw_graph'],
+    search_aliases: ['BioNodulo builtin', 'AnnData', 'anndata_inspect', 'Inspect AnnData', 'H5AD', 'chunk_X', 'obs', 'var', 'uns', 'obsm', 'varm', 'rank_genes_groups', 'X_draw_graph'],
     input: {
       required: {
         input: { type: 'H5AD' },
@@ -2923,7 +2923,7 @@ const objectInfo = {
     display_name: 'Manipulate AnnData',
     category: 'single_cell',
     description: 'Manipulate AnnData H5AD objects by concatenating, renaming, annotating, copying, splitting, or transposing.',
-    search_aliases: ['Galaxy', 'AnnData', 'anndata_manipulate', 'Manipulate AnnData', 'H5AD', 'concatenate', 'obs_names_make_unique', 'var_names_make_unique', 'rename_categories', 'remove_keys', 'flag_genes', 'rename_obs', 'rename_var', 'strings_to_categoricals', 'transpose', 'add_annotation', 'split_on_obs', 'copy_obs', 'copy_uns', 'copy_embed', 'copy_layers', 'copy_X', 'save_raw'],
+    search_aliases: ['BioNodulo builtin', 'AnnData', 'anndata_manipulate', 'Manipulate AnnData', 'H5AD', 'concatenate', 'obs_names_make_unique', 'var_names_make_unique', 'rename_categories', 'remove_keys', 'flag_genes', 'rename_obs', 'rename_var', 'strings_to_categoricals', 'transpose', 'add_annotation', 'split_on_obs', 'copy_obs', 'copy_uns', 'copy_embed', 'copy_layers', 'copy_X', 'save_raw'],
     input: {
       required: {
         input: { type: 'H5AD' },
@@ -2968,7 +2968,7 @@ const objectInfo = {
     display_name: 'Loom operations',
     category: 'single_cell',
     description: 'Manipulate, export, and import Loom single-cell data files.',
-    search_aliases: ['Galaxy', 'Loom', 'modify_loom', 'Loom operations', 'loompy', 'loompy_to_tsv', 'tsv_to_loompy', 'H5AD to Loom', 'Loom layers', 'row attributes', 'column attributes', 'single-cell loom'],
+    search_aliases: ['BioNodulo builtin', 'Loom', 'modify_loom', 'Loom operations', 'loompy', 'loompy_to_tsv', 'tsv_to_loompy', 'H5AD to Loom', 'Loom layers', 'row attributes', 'column attributes', 'single-cell loom'],
     input: {
       optional: {
         operation: { type: 'STRING', default: 'manipulate', options: ['manipulate', 'export', 'import'] },
@@ -3002,7 +3002,7 @@ const objectInfo = {
     display_name: 'anndata2ri',
     category: 'single_cell',
     description: 'Convert between AnnData and SingleCellExperiment objects.',
-    search_aliases: ['Galaxy', 'anndata2ri', 'AnnData', 'SingleCellExperiment', 'SingleCellexperiment', 'sce2anndata', 'anndata2sce', 'single-cell conversion', 'H5AD', 'RDS'],
+    search_aliases: ['BioNodulo builtin', 'anndata2ri', 'AnnData', 'SingleCellExperiment', 'SingleCellexperiment', 'sce2anndata', 'anndata2sce', 'single-cell conversion', 'H5AD', 'RDS'],
     input: {
       required: {
         input_object: { type: 'FILE' },
@@ -3026,7 +3026,7 @@ const objectInfo = {
     display_name: 'annotateMyIDs',
     category: 'annotation',
     description: 'Annotate a generic set of gene identifiers using Bioconductor organism annotation databases.',
-    search_aliases: ['Galaxy', 'annotateMyIDs', 'annotatemyids', 'AnnotationDbi', 'Bioconductor', 'org.Hs.eg.db', 'gene identifier annotation', 'Ensembl to Entrez', 'gene symbols', 'GO annotation', 'KEGG annotation'],
+    search_aliases: ['BioNodulo builtin', 'annotateMyIDs', 'annotatemyids', 'AnnotationDbi', 'Bioconductor', 'org.Hs.eg.db', 'gene identifier annotation', 'Ensembl to Entrez', 'gene symbols', 'GO annotation', 'KEGG annotation'],
     input: {
       required: {
         id_file: { type: 'TSV' },
@@ -3054,7 +3054,7 @@ const objectInfo = {
     display_name: 'argNorm',
     category: 'annotation',
     description: 'Normalize antibiotic resistance gene annotations by mapping them to the Antibiotic Resistance Ontology.',
-    search_aliases: ['Galaxy', 'argnorm', 'argNorm', 'antibiotic resistance genes', 'ARG normalization', 'Antibiotic Resistance Ontology', 'ARO', 'CARD', 'hAMRonization'],
+    search_aliases: ['BioNodulo builtin', 'argnorm', 'argNorm', 'antibiotic resistance genes', 'ARG normalization', 'Antibiotic Resistance Ontology', 'ARO', 'CARD', 'hAMRonization'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -3080,7 +3080,7 @@ const objectInfo = {
     display_name: 'autoBIGS.cli',
     category: 'typing',
     description: 'Automated MLST typing with BIGSdb sequence definition databases.',
-    search_aliases: ['Galaxy', 'autobigs', 'autobigs-cli', 'autoBIGS', 'autoBIGS.cli', 'MLST', 'BIGSdb', 'PubMLST', 'Institut Pasteur', 'sequence typing', 'scheme'],
+    search_aliases: ['BioNodulo builtin', 'autobigs', 'autobigs-cli', 'autoBIGS', 'autoBIGS.cli', 'MLST', 'BIGSdb', 'PubMLST', 'Institut Pasteur', 'sequence typing', 'scheme'],
     input: {
       required: {
         bigsdb: { type: 'STRING' },
@@ -3106,7 +3106,7 @@ const objectInfo = {
     display_name: 'MLST',
     category: 'typing',
     description: "Scan genome assemblies against PubMLST schemes with Torsten Seemann's MLST.",
-    search_aliases: ['Galaxy', 'MLST', 'mlst', 'PubMLST', 'sequence typing', 'scheme typing', 'allele profile', 'novel alleles'],
+    search_aliases: ['BioNodulo builtin', 'MLST', 'mlst', 'PubMLST', 'sequence typing', 'scheme typing', 'allele profile', 'novel alleles'],
     input: {
       required: {
         input_files: { type: 'FASTA', multiple: true },
@@ -3135,7 +3135,7 @@ const objectInfo = {
     display_name: 'MLST List',
     category: 'typing',
     description: 'List available PubMLST schemes and optional allele details from the MLST database.',
-    search_aliases: ['Galaxy', 'MLST List', 'mlst --list', 'mlst --longlist', 'PubMLST schemes', 'allele list'],
+    search_aliases: ['BioNodulo builtin', 'MLST List', 'mlst --list', 'mlst --longlist', 'PubMLST schemes', 'allele list'],
     input: {
       optional: {
         list_type: { type: 'BOOLEAN', default: false },
@@ -3155,7 +3155,7 @@ const objectInfo = {
     display_name: 'SeqSero2',
     category: 'typing',
     description: 'Predict Salmonella serotypes from raw sequencing reads or genome assemblies.',
-    search_aliases: ['Galaxy', 'SeqSero2', 'seqsero2', 'Salmonella serotype', 'Salmonella typing', 'serotype prediction', 'allele micro-assembly', 'k-mer serotyping'],
+    search_aliases: ['BioNodulo builtin', 'SeqSero2', 'seqsero2', 'Salmonella serotype', 'Salmonella typing', 'serotype prediction', 'allele micro-assembly', 'k-mer serotyping'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'paired', options: ['paired', 'collection', 'assembly', 'single', 'nanopore'] },
@@ -3184,7 +3184,7 @@ const objectInfo = {
     display_name: 'Convert BAM to ScIdx',
     category: 'chip_seq',
     description: 'Convert BAM alignments to Strand-specific coordinate count ScIdx format.',
-    search_aliases: ['Galaxy', 'bam_to_scidx', 'BAM to ScIdx', 'ScIdx', 'strand-specific coordinate count', 'ChIP-exo', 'GeneTrack', 'MultiGPS', 'BAMtoscIDX'],
+    search_aliases: ['BioNodulo builtin', 'bam_to_scidx', 'BAM to ScIdx', 'ScIdx', 'strand-specific coordinate count', 'ChIP-exo', 'GeneTrack', 'MultiGPS', 'BAMtoscIDX'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -3212,7 +3212,7 @@ const objectInfo = {
     display_name: 'b2bTools: Biophysical predictors for single sequences',
     category: 'proteomics',
     description: 'Predict protein biophysical properties from amino-acid FASTA sequences.',
-    search_aliases: ['Galaxy', 'b2btools', 'Bio2Byte', 'DynaMine', 'DisoMine', 'EFoldMine', 'AgMata', 'protein disorder', 'backbone dynamics', 'early folding', 'beta aggregation', 'biophysical predictors'],
+    search_aliases: ['BioNodulo builtin', 'b2btools', 'Bio2Byte', 'DynaMine', 'DisoMine', 'EFoldMine', 'AgMata', 'protein disorder', 'backbone dynamics', 'early folding', 'beta aggregation', 'biophysical predictors'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -3242,7 +3242,7 @@ const objectInfo = {
     display_name: 'Genbank to GFF3',
     category: 'annotation',
     description: 'Convert GenBank flat files to GFF3 with BioPerl.',
-    search_aliases: ['Galaxy', 'bp_genbank2gff3', 'Genbank to GFF3', 'GenBank', 'GFF3', 'BioPerl', 'Unflattener', 'Sequence Ontology', 'Bio::Tools::GFF'],
+    search_aliases: ['BioNodulo builtin', 'bp_genbank2gff3', 'Genbank to GFF3', 'GenBank', 'GFF3', 'BioPerl', 'Unflattener', 'Sequence Ontology', 'Bio::Tools::GFF'],
     input: {
       required: {
         genbank: { type: 'FILE' },
@@ -3270,7 +3270,7 @@ const objectInfo = {
     display_name: 'Convert BAM',
     category: 'alignment',
     description: 'Convert indexed BAM or SAM alignments to a FASTA multiple sequence alignment with BioExt bam2msa.',
-    search_aliases: ['Galaxy', 'BioExt', 'bioext_bam2msa', 'bam2msa', 'Convert BAM', 'BAM to FASTA MSA', 'multiple sequence alignment', 'alignment extraction', 'HyPhy'],
+    search_aliases: ['BioNodulo builtin', 'BioExt', 'bioext_bam2msa', 'bam2msa', 'Convert BAM', 'BAM to FASTA MSA', 'multiple sequence alignment', 'alignment extraction', 'HyPhy'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -3295,7 +3295,7 @@ const objectInfo = {
     display_name: 'Align sequences',
     category: 'alignment',
     description: "Align FASTA sequences to a preset or history reference using BioExt bealign's codon-aware algorithm.",
-    search_aliases: ['Galaxy', 'BioExt', 'bioext_bealign', 'bealign', 'Align sequences', 'codon alignment', 'reference alignment', 'BAM alignment', 'TN-93', 'HyPhy'],
+    search_aliases: ['BioNodulo builtin', 'BioExt', 'bioext_bealign', 'bealign', 'Align sequences', 'codon alignment', 'reference alignment', 'BAM alignment', 'TN-93', 'HyPhy'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -3330,7 +3330,7 @@ const objectInfo = {
     display_name: 'basil',
     category: 'variant',
     description: 'Detect structural-variant breakpoints, including large insertions, from BAM reads.',
-    search_aliases: ['Galaxy', 'basil', 'BASIL', 'anise_basil', 'breakpoint detection', 'structural variants', 'large insertions', 'insertion breakpoints', 'one-end-anchor reads', 'OEA'],
+    search_aliases: ['BioNodulo builtin', 'basil', 'BASIL', 'anise_basil', 'breakpoint detection', 'structural variants', 'large insertions', 'insertion breakpoints', 'one-end-anchor reads', 'OEA'],
     input: {
       required: {
         ref: { type: 'FASTA' },
@@ -3355,7 +3355,7 @@ const objectInfo = {
     display_name: 'BAM BED GFF coverage bigWigs',
     category: 'genomics',
     description: 'Convert BAM, BED, or GFF coverage over a reference genome into a bigWig track.',
-    search_aliases: ['Galaxy', 'bbgtobigwig', 'BAM BED GFF coverage bigWigs', 'bigWig', 'bedGraphToBigWig', 'bedtools genomecov', 'coverage tracks', 'JBrowse2', 'UCSC Genome Browser Utilities'],
+    search_aliases: ['BioNodulo builtin', 'bbgtobigwig', 'BAM BED GFF coverage bigWigs', 'bigWig', 'bedGraphToBigWig', 'bedtools genomecov', 'coverage tracks', 'JBrowse2', 'UCSC Genome Browser Utilities'],
     input: {
       required: {
         input1: { type: 'FILE' },
@@ -3381,7 +3381,7 @@ const objectInfo = {
     display_name: 'baredSC 1d',
     category: 'single_cell',
     description: 'Compute a one-dimensional baredSC expression distribution for a single gene.',
-    search_aliases: ['Galaxy', 'baredSC', 'baredsc_1d', 'baredSC 1d', 'single gene', 'single-cell expression distribution', 'Bayesian Approach', 'probability density function', 'MCMC'],
+    search_aliases: ['BioNodulo builtin', 'baredSC', 'baredsc_1d', 'baredSC 1d', 'single gene', 'single-cell expression distribution', 'Bayesian Approach', 'probability density function', 'MCMC'],
     input: {
       required: {
         geneColName: { type: 'STRING' },
@@ -3436,7 +3436,7 @@ const objectInfo = {
     display_name: 'baredSC 2d',
     category: 'single_cell',
     description: 'Compute a two-dimensional baredSC expression distribution for a pair of genes.',
-    search_aliases: ['Galaxy', 'baredSC', 'baredsc_2d', 'baredSC 2d', 'pair of genes', 'two-gene expression distribution', 'single-cell expression distribution', 'Bayesian Approach', 'correlation', 'splity', 'MCMC'],
+    search_aliases: ['BioNodulo builtin', 'baredSC', 'baredsc_2d', 'baredSC 2d', 'pair of genes', 'two-gene expression distribution', 'single-cell expression distribution', 'Bayesian Approach', 'correlation', 'splity', 'MCMC'],
     input: {
       required: {
         geneXColName: { type: 'STRING' },
@@ -3502,7 +3502,7 @@ const objectInfo = {
     display_name: 'Combine multiple 1D Models',
     category: 'single_cell',
     description: 'Combine multiple one-dimensional baredSC model archives for a single gene.',
-    search_aliases: ['Galaxy', 'baredSC', 'baredsc_combine_1d', 'Combine multiple 1D Models', 'combine 1D', 'model averaging', 'single gene', 'Bayesian Approach', 'MCMC'],
+    search_aliases: ['BioNodulo builtin', 'baredSC', 'baredsc_combine_1d', 'Combine multiple 1D Models', 'combine 1D', 'model averaging', 'single gene', 'Bayesian Approach', 'MCMC'],
     input: {
       required: {
         outputs: { type: 'FILE', is_list: true },
@@ -3558,7 +3558,7 @@ const objectInfo = {
     display_name: 'Combine multiple 2D Models',
     category: 'single_cell',
     description: 'Combine multiple two-dimensional baredSC model archives for a pair of genes.',
-    search_aliases: ['Galaxy', 'baredSC', 'baredsc_combine_2d', 'Combine multiple 2D Models', 'combine 2D', 'model averaging', 'pair of genes', 'Bayesian Approach', 'correlation', 'MCMC'],
+    search_aliases: ['BioNodulo builtin', 'baredSC', 'baredsc_combine_2d', 'Combine multiple 2D Models', 'combine 2D', 'model averaging', 'pair of genes', 'Bayesian Approach', 'correlation', 'MCMC'],
     input: {
       required: {
         outputs: { type: 'FILE', is_list: true },
@@ -3626,7 +3626,7 @@ const objectInfo = {
     display_name: 'bax2bam',
     category: 'conversion',
     description: 'Convert PacBio basecall format bax.h5 files into BAM.',
-    search_aliases: ['Galaxy', 'bax2bam', 'PacBio', 'bax.h5', 'basecall format', 'BAM basecall', 'subreads', 'hqregion', 'polymerase read', 'scraps BAM', 'pulse features', 'Pacific Biosciences'],
+    search_aliases: ['BioNodulo builtin', 'bax2bam', 'PacBio', 'bax.h5', 'basecall format', 'BAM basecall', 'subreads', 'hqregion', 'polymerase read', 'scraps BAM', 'pulse features', 'Pacific Biosciences'],
     input: {
       required: {
         files: { type: 'FILE', is_list: true },
@@ -3652,7 +3652,7 @@ const objectInfo = {
     display_name: 'Berokka',
     category: 'assembly',
     description: 'Trim, circularise, orient and filter long read bacterial genome assemblies.',
-    search_aliases: ['Galaxy', 'berokka', 'Berokka', 'trim circularise orient', 'long read bacterial genome assemblies', 'completed assemblies', 'CANU', 'HGAP', 'Circlator', 'PacBio control sequence'],
+    search_aliases: ['BioNodulo builtin', 'berokka', 'Berokka', 'trim circularise orient', 'long read bacterial genome assemblies', 'completed assemblies', 'CANU', 'HGAP', 'Circlator', 'PacBio control sequence'],
     input: {
       required: {
         input_file: { type: 'FASTA' },
@@ -3678,7 +3678,7 @@ const objectInfo = {
     display_name: 'cd-hit',
     category: 'clustering',
     description: 'Cluster or compare biological sequence datasets with CD-HIT.',
-    search_aliases: ['Galaxy', 'cd-hit', 'cd_hit', 'CD-HIT', 'cd-hit-est', 'cd-hit-2d', 'cd-hit-est-2d', 'sequence clustering', 'non-redundant sequences', 'representative sequences'],
+    search_aliases: ['BioNodulo builtin', 'cd-hit', 'cd_hit', 'CD-HIT', 'cd-hit-est', 'cd-hit-2d', 'cd-hit-est-2d', 'sequence clustering', 'non-redundant sequences', 'representative sequences'],
     input: {
       required: {
         fasta_in: { type: 'FASTA' },
@@ -3729,7 +3729,7 @@ const objectInfo = {
     display_name: 'Distance matrix-based hierarchical clustering',
     category: 'clustering',
     description: 'Cluster samples from a symmetric distance matrix with SciPy hierarchical clustering.',
-    search_aliases: ['Galaxy', 'clustering_from_distmat', 'Distance matrix-based hierarchical clustering', 'distance matrix', 'hierarchical clustering', 'SciPy linkage', 'UPGMA', 'WPGMA', 'dendrogram', 'newick', 'cut_tree', 'cluster assignments'],
+    search_aliases: ['BioNodulo builtin', 'clustering_from_distmat', 'Distance matrix-based hierarchical clustering', 'distance matrix', 'hierarchical clustering', 'SciPy linkage', 'UPGMA', 'WPGMA', 'dendrogram', 'newick', 'cut_tree', 'cluster assignments'],
     input: {
       required: {
         distmat: { type: 'TSV' },
@@ -3759,7 +3759,7 @@ const objectInfo = {
     display_name: 'Fasta regular expression finder',
     category: 'sequence',
     description: 'Search FASTA sequences for regular-expression matches and report BED coordinates.',
-    search_aliases: ['Galaxy', 'fasta_regex_finder', 'fastaRegexFinder', 'FASTA regex', 'regular expression finder', 'motif search', 'G-quadruplex', 'BED coordinates', 'reverse complement'],
+    search_aliases: ['BioNodulo builtin', 'fasta_regex_finder', 'fastaRegexFinder', 'FASTA regex', 'regular expression finder', 'motif search', 'G-quadruplex', 'BED coordinates', 'reverse complement'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -3788,7 +3788,7 @@ const objectInfo = {
     display_name: 'Chopper',
     category: 'trimming',
     description: 'Filter and trim long-read FASTQ data with Chopper.',
-    search_aliases: ['Galaxy', 'Chopper', 'chopper', 'long-read filtering', 'long-read trimming', 'Nanopore', 'PacBio', 'NanoFilt', 'NanoLyse', 'quality filtering'],
+    search_aliases: ['BioNodulo builtin', 'Chopper', 'chopper', 'long-read filtering', 'long-read trimming', 'Nanopore', 'PacBio', 'NanoFilt', 'NanoLyse', 'quality filtering'],
     input: {
       required: {
         input: { type: 'FASTQ' },
@@ -3823,7 +3823,7 @@ const objectInfo = {
     display_name: 'chopin2',
     category: 'ai',
     description: 'Domain-agnostic supervised learning with hyperdimensional computing.',
-    search_aliases: ['Galaxy', 'chopin2', 'CHOPIN2', 'hyperdimensional computing', 'supervised learning', 'feature selection', 'backward variable selection', 'cross-validation', 'DNA methylation classification'],
+    search_aliases: ['BioNodulo builtin', 'chopin2', 'CHOPIN2', 'hyperdimensional computing', 'supervised learning', 'feature selection', 'backward variable selection', 'cross-validation', 'DNA methylation classification'],
     input: {
       required: {
         dataset: { type: 'FILE' },
@@ -3856,7 +3856,7 @@ const objectInfo = {
     display_name: 'CIAlign',
     category: 'alignment',
     description: 'Clean, visualise, and interpret multiple sequence alignments with CIAlign.',
-    search_aliases: ['Galaxy', 'CIAlign', 'cialign', 'multiple sequence alignment', 'MSA cleaning', 'alignment visualisation', 'alignment interpretation', 'sequence logo', 'consensus sequence', 'position weight matrix'],
+    search_aliases: ['BioNodulo builtin', 'CIAlign', 'cialign', 'multiple sequence alignment', 'MSA cleaning', 'alignment visualisation', 'alignment interpretation', 'sequence logo', 'consensus sequence', 'position weight matrix'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -3910,7 +3910,7 @@ const objectInfo = {
     display_name: 'CITE-seq-Count',
     category: 'single_cell',
     description: 'Count CMO/HTO tags from raw CITE-seq or cell-hashing FASTQ reads.',
-    search_aliases: ['Galaxy', 'CITE-seq-Count', 'cite_seq_count', 'CITE-seq', 'cell hashing', 'CMO', 'HTO', 'hashtag oligo', 'cell multiplexing oligo', 'UMI and read counts', 'raw FASTQ CITE-seq'],
+    search_aliases: ['BioNodulo builtin', 'CITE-seq-Count', 'cite_seq_count', 'CITE-seq', 'cell hashing', 'CMO', 'HTO', 'hashtag oligo', 'cell multiplexing oligo', 'UMI and read counts', 'raw FASTQ CITE-seq'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'repeat', options: ['repeat', 'list_paired'] },
@@ -3954,7 +3954,7 @@ const objectInfo = {
     display_name: 'chromap',
     category: 'alignment',
     description: 'Fast alignment and preprocessing of chromatin profiling reads.',
-    search_aliases: ['Galaxy', 'chromap', 'Chromap', 'chromatin profiles', 'ATAC-seq', 'scATAC-seq', 'ChIP-seq', 'Hi-C', 'TagAlign', '4DN pairs'],
+    search_aliases: ['BioNodulo builtin', 'chromap', 'Chromap', 'chromatin profiles', 'ATAC-seq', 'scATAC-seq', 'ChIP-seq', 'Hi-C', 'TagAlign', '4DN pairs'],
     input: {
       required: {
         read_type: { type: 'STRING', default: 'single', options: ['single', 'paired'] },
@@ -3999,7 +3999,7 @@ const objectInfo = {
     display_name: 'CIRCexplorer2',
     category: 'rna_seq',
     description: 'Circular RNA analysis with CIRCexplorer2 modules.',
-    search_aliases: ['Galaxy', 'CIRCexplorer2', 'circexplorer2', 'circular RNA', 'circRNA', 'back-splicing', 'alternative splicing', 'TopHat-Fusion', 'STAR', 'MapSplice'],
+    search_aliases: ['BioNodulo builtin', 'CIRCexplorer2', 'circexplorer2', 'circular RNA', 'circRNA', 'back-splicing', 'alternative splicing', 'TopHat-Fusion', 'STAR', 'MapSplice'],
     input: {
       required: {
         mode: { type: 'STRING', default: 'align', options: ['align', 'parse', 'annotate', 'assemble', 'denovo'] },
@@ -4044,7 +4044,7 @@ const objectInfo = {
     display_name: 'Circos',
     category: 'visualization',
     description: 'Visualize genomic data in a circular layout with the Galaxy IUC Circos wrapper.',
-    search_aliases: ['Galaxy', 'Circos', 'circos', 'circular layout', 'circular genome plot', 'karyotype', '2D data tracks', 'link tracks', 'comparative genomics'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'circos', 'circular layout', 'circular genome plot', 'karyotype', '2D data tracks', 'link tracks', 'comparative genomics'],
     input: {
       required: {
         reference_source: { type: 'STRING', default: 'preset', options: ['preset', 'history', 'cached', 'karyotype', 'lengths'] },
@@ -4088,7 +4088,7 @@ const objectInfo = {
     display_name: 'Circos: Resample 1/2D data',
     category: 'visualization',
     description: 'Reduce dense 1D/2D Circos data tracks before plotting.',
-    search_aliases: ['Galaxy', 'Circos', 'circos_resample', 'resample', 'downsample', '1D track', '2D track', 'bin size', 'comparative genomics'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'circos_resample', 'resample', 'downsample', '1D track', '2D track', 'bin size', 'comparative genomics'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -4112,7 +4112,7 @@ const objectInfo = {
     display_name: 'Circos: Alignments to links',
     category: 'visualization',
     description: 'Convert MAF, XMFA, or Stockholm alignments into Circos link tracks.',
-    search_aliases: ['Galaxy', 'Circos', 'circos_aln_to_links', 'alignments to links', 'alignment links', 'MAF', 'XMFA', 'Stockholm', 'comparative genomics'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'circos_aln_to_links', 'alignments to links', 'alignment links', 'MAF', 'XMFA', 'Stockholm', 'comparative genomics'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -4135,7 +4135,7 @@ const objectInfo = {
     display_name: 'Circos: Link Density Track',
     category: 'visualization',
     description: 'Reduce Circos links to binned density tracks.',
-    search_aliases: ['Galaxy', 'Circos', 'circos_binlinks', 'binlinks', 'link density', 'density track', 'stacked histogram', 'comparative genomics'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'circos_binlinks', 'binlinks', 'link density', 'density track', 'stacked histogram', 'comparative genomics'],
     input: {
       required: {
         linksfile: { type: 'TSV' },
@@ -4163,7 +4163,7 @@ const objectInfo = {
     display_name: 'Circos: Bundle Links',
     category: 'visualization',
     description: 'Bundle adjacent Circos links before plotting.',
-    search_aliases: ['Galaxy', 'Circos', 'circos_bundlelinks', 'bundlelinks', 'bundle links', 'ribbon', 'link reduction', 'comparative genomics'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'circos_bundlelinks', 'bundlelinks', 'bundle links', 'ribbon', 'link reduction', 'comparative genomics'],
     input: {
       required: {
         linksfile: { type: 'TSV' },
@@ -4190,7 +4190,7 @@ const objectInfo = {
     display_name: 'GC Skew',
     category: 'visualization',
     description: 'Calculate GC skew over genomic sequences for Circos tracks.',
-    search_aliases: ['Galaxy', 'Circos', 'GC skew', 'circos_gc_skew', 'genomic sequences', 'BigWig', 'comparative genomics'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'GC skew', 'circos_gc_skew', 'genomic sequences', 'BigWig', 'comparative genomics'],
     input: {
       required: {
         reference_genome_source: { type: 'STRING', default: 'history', options: ['history', 'builtin'] },
@@ -4215,7 +4215,7 @@ const objectInfo = {
     display_name: 'Circos: bigWig to Scatter',
     category: 'visualization',
     description: 'Convert bigWig data into Circos scatter, line, or histogram tracks.',
-    search_aliases: ['Galaxy', 'Circos', 'bigWig', 'scatter', 'line plot', 'histogram', 'wiggle', '2D track'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'bigWig', 'scatter', 'line plot', 'histogram', 'wiggle', '2D track'],
     input: {
       required: {
         input: { type: 'BIGWIG' },
@@ -4235,7 +4235,7 @@ const objectInfo = {
     display_name: 'Circos: Stack bigWigs as Histogram',
     category: 'visualization',
     description: 'Convert multiple bigWig tracks into Circos stacked-histogram rows.',
-    search_aliases: ['Galaxy', 'Circos', 'circos_wiggle_to_stacked', 'stacked histogram', 'bigWig', 'histogram', 'track stacking', 'comparative genomics'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'circos_wiggle_to_stacked', 'stacked histogram', 'bigWig', 'histogram', 'track stacking', 'comparative genomics'],
     input: {
       required: {
         input: { type: 'BIGWIG', is_list: true },
@@ -4255,7 +4255,7 @@ const objectInfo = {
     display_name: 'Circos: Table viewer',
     category: 'visualization',
     description: 'Create Circos tableviewer plots from tabular matrix data.',
-    search_aliases: ['Galaxy', 'Circos', 'circos_tableviewer', 'tableviewer', 'table viewer', 'matrix table', 'ribbon plot', 'comparative genomics'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'circos_tableviewer', 'tableviewer', 'table viewer', 'matrix table', 'ribbon plot', 'comparative genomics'],
     input: {
       required: {
         table: { type: 'TSV' },
@@ -4294,7 +4294,7 @@ const objectInfo = {
     display_name: 'Circos: Interval to Circos Text Labels',
     category: 'visualization',
     description: 'Convert BED6+ or GFF3 intervals into Circos text-label tracks.',
-    search_aliases: ['Galaxy', 'Circos', 'text labels', 'interval labels', 'BED6', 'GFF3', 'annotation labels'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'text labels', 'interval labels', 'BED6', 'GFF3', 'annotation labels'],
     input: {
       required: {
         ref_source: { type: 'STRING', default: 'bed', options: ['bed', 'gff3'] },
@@ -4318,7 +4318,7 @@ const objectInfo = {
     display_name: 'Circos: Interval to Tiles',
     category: 'visualization',
     description: 'Convert BED3+ or GFF3 intervals into Circos tile tracks.',
-    search_aliases: ['Galaxy', 'Circos', 'tile tracks', 'interval tiles', 'BED3', 'BED6', 'GFF3', 'annotation tiles'],
+    search_aliases: ['BioNodulo builtin', 'Circos', 'tile tracks', 'interval tiles', 'BED3', 'BED6', 'GFF3', 'annotation tiles'],
     input: {
       required: {
         ref_source: { type: 'STRING', default: 'bed', options: ['bed', 'gff3'] },
@@ -4342,7 +4342,7 @@ const objectInfo = {
     display_name: 'filtlong',
     category: 'trimming',
     description: 'Filter long reads by quality, length, and optional external references with Filtlong.',
-    search_aliases: ['Galaxy', 'filtlong', 'Filtlong', 'long-read filtering', 'long-read quality', 'Nanopore', 'PacBio', 'target bases', 'read identity'],
+    search_aliases: ['BioNodulo builtin', 'filtlong', 'Filtlong', 'long-read filtering', 'long-read quality', 'Nanopore', 'PacBio', 'target bases', 'read identity'],
     input: {
       required: {
         input_file: { type: 'FASTQ' },
@@ -4379,7 +4379,7 @@ const objectInfo = {
     display_name: 'GFA to FASTA',
     category: 'assembly',
     description: 'Convert Graphical Fragment Assembly files to FASTA format.',
-    search_aliases: ['Galaxy', 'gfa_to_fa', 'GFA to FASTA', 'Graphical Fragment Assembly', 'assembly graph conversion', 'GFA v1', 'FASTA conversion'],
+    search_aliases: ['BioNodulo builtin', 'gfa_to_fa', 'GFA to FASTA', 'Graphical Fragment Assembly', 'assembly graph conversion', 'GFA v1', 'FASTA conversion'],
     input: {
       required: {
         in_gfa: { type: 'GFA' },
@@ -4402,7 +4402,7 @@ const objectInfo = {
     display_name: 'CheckM2',
     category: 'qc',
     description: 'Rapidly predict genome bin completeness and contamination for MAGs, SAGs, and isolate genomes using CheckM2 machine-learning models.',
-    search_aliases: ['Galaxy', 'checkm2', 'CheckM2', 'genome quality', 'MAG quality', 'SAG quality', 'completeness contamination', 'bin quality'],
+    search_aliases: ['BioNodulo builtin', 'checkm2', 'CheckM2', 'genome quality', 'MAG quality', 'SAG quality', 'completeness contamination', 'bin quality'],
     input: {
       required: {
         input: { type: 'FASTA_LIST' },
@@ -4423,7 +4423,7 @@ const objectInfo = {
     display_name: 'Evaluation of RRIs using CheRRI',
     category: 'rna_seq',
     description: 'Evaluate RNA-RNA interaction sites with a trained CheRRI model.',
-    search_aliases: ['Galaxy', 'CheRRI', 'cherri_eval', 'cherri eval', 'RNA-RNA interaction', 'RRI evaluation', 'interaction site filtering', 'IntaRNA'],
+    search_aliases: ['BioNodulo builtin', 'CheRRI', 'cherri_eval', 'cherri eval', 'RNA-RNA interaction', 'RRI evaluation', 'interaction site filtering', 'IntaRNA'],
     input: {
       required: {
         rris_table: { type: 'CSV' },
@@ -4453,7 +4453,7 @@ const objectInfo = {
     display_name: 'Train a CheRRI model using RRIs',
     category: 'rna_seq',
     description: 'Train a CheRRI model from RNA-RNA interaction summary files.',
-    search_aliases: ['Galaxy', 'CheRRI', 'cherri_train', 'cherri train', 'RNA-RNA interaction', 'RRI model training', 'ChiRA interaction summary', 'mixed model', 'IntaRNA'],
+    search_aliases: ['BioNodulo builtin', 'CheRRI', 'cherri_train', 'cherri train', 'RNA-RNA interaction', 'RRI model training', 'ChiRA interaction summary', 'mixed model', 'IntaRNA'],
     input: {
       optional: {
         experiments: { type: 'JSON', default: [], is_list: true },
@@ -4483,7 +4483,7 @@ const objectInfo = {
     display_name: 'ChiRA collapse',
     category: 'rna_seq',
     description: 'Deduplicate FASTQ reads and write unique sequences with UMI and read counts.',
-    search_aliases: ['Galaxy', 'ChiRA', 'ChiRA collapse', 'chira_collapse', 'chira_collapse.py', 'chimeric read analysis', 'RNA-RNA interactome', 'deduplicate fastq reads'],
+    search_aliases: ['BioNodulo builtin', 'ChiRA', 'ChiRA collapse', 'chira_collapse', 'chira_collapse.py', 'chimeric read analysis', 'RNA-RNA interactome', 'deduplicate fastq reads'],
     input: {
       required: {
         input_fastq: { type: 'FASTQ' },
@@ -4506,7 +4506,7 @@ const objectInfo = {
     display_name: 'ChiRA map',
     category: 'rna_seq',
     description: 'Map collapsed ChiRA reads to single or split transcriptome references.',
-    search_aliases: ['Galaxy', 'ChiRA', 'ChiRA map', 'chira_map', 'chira_map.py', 'chimeric read mapping', 'RNA-RNA interactome', 'BWA-MEM', 'CLAN'],
+    search_aliases: ['BioNodulo builtin', 'ChiRA', 'ChiRA map', 'chira_map', 'chira_map.py', 'chimeric read mapping', 'RNA-RNA interactome', 'BWA-MEM', 'CLAN'],
     input: {
       required: {
         query: { type: 'FASTA' },
@@ -4551,7 +4551,7 @@ const objectInfo = {
     display_name: 'ChiRA merge',
     category: 'rna_seq',
     description: 'Merge overlapping ChiRA read alignments into read-concentrated loci.',
-    search_aliases: ['Galaxy', 'ChiRA', 'ChiRA merge', 'chira_merge', 'chira_merge.py', 'read-concentrated loci', 'chimeric read loci', 'blockbuster'],
+    search_aliases: ['BioNodulo builtin', 'ChiRA', 'ChiRA merge', 'chira_merge', 'chira_merge.py', 'read-concentrated loci', 'chimeric read loci', 'blockbuster'],
     input: {
       required: {
         alignments: { type: 'BED' },
@@ -4588,7 +4588,7 @@ const objectInfo = {
     display_name: 'ChiRA quantify',
     category: 'rna_seq',
     description: 'Create and quantify ChiRA read-concentrated loci from merged alignments.',
-    search_aliases: ['Galaxy', 'ChiRA', 'ChiRA quantify', 'chira_quantify', 'chira_quantify.py', 'read-concentrated loci', 'CRL', 'CRL TPM', 'TPM'],
+    search_aliases: ['BioNodulo builtin', 'ChiRA', 'ChiRA quantify', 'chira_quantify', 'chira_quantify.py', 'read-concentrated loci', 'CRL', 'CRL TPM', 'TPM'],
     input: {
       required: {
         segments: { type: 'BED' },
@@ -4615,7 +4615,7 @@ const objectInfo = {
     display_name: 'ChiRA extract',
     category: 'rna_seq',
     description: 'Extract best ChiRA chimeric alignments and optionally summarize interactions.',
-    search_aliases: ['Galaxy', 'ChiRA', 'ChiRA extract', 'chira_extract', 'chira_extract.py', 'chimeric reads', 'chimeric alignments', 'RNA-RNA interactions', 'CRL', 'IntaRNA'],
+    search_aliases: ['BioNodulo builtin', 'ChiRA', 'ChiRA extract', 'chira_extract', 'chira_extract.py', 'chimeric reads', 'chimeric alignments', 'RNA-RNA interactions', 'CRL', 'IntaRNA'],
     input: {
       required: {
         loci: { type: 'TSV' },
@@ -4658,7 +4658,7 @@ const objectInfo = {
     display_name: 'ChewBBACA AlleleCall',
     category: 'typing',
     description: 'Determine allelic profiles for genome assemblies with a chewBBACA schema.',
-    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_allelecall', 'ChewBBACA AlleleCall', 'AlleleCall', 'cgMLST', 'wgMLST', 'allelic profiles', 'schema_seed', 'bacterial typing'],
+    search_aliases: ['BioNodulo builtin', 'chewBBACA', 'chewbbaca_allelecall', 'ChewBBACA AlleleCall', 'AlleleCall', 'cgMLST', 'wgMLST', 'allelic profiles', 'schema_seed', 'bacterial typing'],
     input: {
       required: {
         input_file: { type: 'FASTA', is_list: true, multiple: true },
@@ -4692,7 +4692,7 @@ const objectInfo = {
     display_name: 'chewBBACA AlleleCallEvaluator',
     category: 'typing',
     description: 'Build an interactive report for chewBBACA allele calling result evaluation.',
-    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_allelecallevaluator', 'chewBBACA AlleleCallEvaluator', 'AlleleCallEvaluator', 'AlleleCall', 'cgMLST', 'presence absence', 'distance matrix', 'Neighbor-Joining tree'],
+    search_aliases: ['BioNodulo builtin', 'chewBBACA', 'chewbbaca_allelecallevaluator', 'chewBBACA AlleleCallEvaluator', 'AlleleCallEvaluator', 'AlleleCall', 'cgMLST', 'presence absence', 'distance matrix', 'Neighbor-Joining tree'],
     input: {
       required: {
         input_file: { type: 'TSV', is_list: true, multiple: true },
@@ -4718,7 +4718,7 @@ const objectInfo = {
     display_name: 'chewBBACA CreateSchema',
     category: 'typing',
     description: 'Create a gene-by-gene schema.',
-    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_createschema', 'chewBBACA CreateSchema', 'CreateSchema', 'schema_seed', 'cgMLST', 'wgMLST', 'gene-by-gene schema', 'bacterial typing'],
+    search_aliases: ['BioNodulo builtin', 'chewBBACA', 'chewbbaca_createschema', 'chewBBACA CreateSchema', 'CreateSchema', 'schema_seed', 'cgMLST', 'wgMLST', 'gene-by-gene schema', 'bacterial typing'],
     input: {
       required: {
         input_file: { type: 'FASTA', is_list: true, multiple: true },
@@ -4749,7 +4749,7 @@ const objectInfo = {
     display_name: 'chewBBACA DownloadSchema',
     category: 'typing',
     description: 'Download a schema from Chewie-NS.',
-    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_downloadschema', 'chewBBACA DownloadSchema', 'DownloadSchema', 'Chewie-NS', 'schema_seed', 'cgMLST', 'wgMLST', 'bacterial typing'],
+    search_aliases: ['BioNodulo builtin', 'chewBBACA', 'chewbbaca_downloadschema', 'chewBBACA DownloadSchema', 'DownloadSchema', 'Chewie-NS', 'schema_seed', 'cgMLST', 'wgMLST', 'bacterial typing'],
     input: {
       required: {
         species_id: { type: 'STRING', options: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'], option_labels: { '1': 'Streptococcus pyogenes', '2': 'Acinetobacter baumannii', '3': 'Arcobacter butzleri', '4': 'Campylobacter jejuni', '5': 'Escherichia coli', '6': 'Listeria monocytogenes', '7': 'Yersinia enterocolitica', '8': 'Salmonella enterica', '9': 'Streptococcus agalactiae', '10': 'Brucella melitensis', '11': 'Brucella', '12': 'Clostridium perfringens', '13': 'Clostridium chauvoei', '14': 'Bacillus anthracis', '15': 'Klebsiella oxytoca', '16': 'Clostridium neonatale' } },
@@ -4772,7 +4772,7 @@ const objectInfo = {
     display_name: 'chewBBACA ExtractCgMLST',
     category: 'typing',
     description: 'Determine the set of loci that constitute the core genome.',
-    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_extractcgmlst', 'chewBBACA ExtractCgMLST', 'ExtractCgMLST', 'core genome', 'cgMLST', 'presence threshold', 'allelic profiles', 'bacterial typing'],
+    search_aliases: ['BioNodulo builtin', 'chewBBACA', 'chewbbaca_extractcgmlst', 'chewBBACA ExtractCgMLST', 'ExtractCgMLST', 'core genome', 'cgMLST', 'presence threshold', 'allelic profiles', 'bacterial typing'],
     input: {
       required: {
         input_file: { type: 'TSV' },
@@ -4797,7 +4797,7 @@ const objectInfo = {
     display_name: 'chewBBACA JoinProfiles',
     category: 'typing',
     description: 'Join allele calling results from different runs.',
-    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_joinprofiles', 'chewBBACA JoinProfiles', 'JoinProfiles', 'allele calling results', 'common loci', 'cgMLST', 'wgMLST', 'bacterial typing'],
+    search_aliases: ['BioNodulo builtin', 'chewBBACA', 'chewbbaca_joinprofiles', 'chewBBACA JoinProfiles', 'JoinProfiles', 'allele calling results', 'common loci', 'cgMLST', 'wgMLST', 'bacterial typing'],
     input: {
       required: {
         input1: { type: 'TSV', is_list: true, multiple: true },
@@ -4820,7 +4820,7 @@ const objectInfo = {
     display_name: 'chewBBACA NSStats',
     category: 'typing',
     description: 'Retrieve basic information about the species and schemas in Chewie-NS.',
-    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_nsstats', 'chewBBACA NSStats', 'NSStats', 'Chewie-NS', 'species schemas', 'schema statistics', 'cgMLST', 'bacterial typing'],
+    search_aliases: ['BioNodulo builtin', 'chewBBACA', 'chewbbaca_nsstats', 'chewBBACA NSStats', 'NSStats', 'Chewie-NS', 'species schemas', 'schema statistics', 'cgMLST', 'bacterial typing'],
     input: {
       required: {
         mode: { type: 'STRING', options: ['species', 'schemas'] },
@@ -4844,7 +4844,7 @@ const objectInfo = {
     display_name: 'chewBBACA PrepExternalSchema',
     category: 'typing',
     description: 'Adapt an external schema to be used with chewBBACA.',
-    search_aliases: ['Galaxy', 'chewBBACA', 'chewbbaca_prepexternalschema', 'chewBBACA PrepExternalSchema', 'PrepExternalSchema', 'external schema', 'schema adaptation', 'schema_seed', 'cgMLST', 'bacterial typing'],
+    search_aliases: ['BioNodulo builtin', 'chewBBACA', 'chewbbaca_prepexternalschema', 'chewBBACA PrepExternalSchema', 'PrepExternalSchema', 'external schema', 'schema adaptation', 'schema_seed', 'cgMLST', 'bacterial typing'],
     input: {
       required: {
         input_schema: { type: 'FILE' },
@@ -4873,7 +4873,7 @@ const objectInfo = {
     display_name: 'CheckM lineage_wf',
     category: 'metagenomics',
     description: 'Assess genome-bin completeness and contamination using lineage-specific marker sets.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'lineage_wf', 'lineage-specific marker sets', 'genome bin quality', 'MAG quality', 'SAG quality', 'completeness contamination'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'lineage_wf', 'lineage-specific marker sets', 'genome bin quality', 'MAG quality', 'SAG quality', 'completeness contamination'],
     input: {
       required: {
         bins: { type: 'FASTA_LIST', multiple: true },
@@ -4900,7 +4900,7 @@ const objectInfo = {
     display_name: 'CheckM tree',
     category: 'metagenomics',
     description: 'Place genome bins in the CheckM reference genome tree.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm tree', 'genome tree', 'phylogenetic placement', 'phylogenetic marker', 'pplacer'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm tree', 'genome tree', 'phylogenetic placement', 'phylogenetic marker', 'pplacer'],
     input: {
       required: {
         bins: { type: 'FASTA_LIST', multiple: true },
@@ -4928,7 +4928,7 @@ const objectInfo = {
     display_name: 'CheckM tree_qa',
     category: 'metagenomics',
     description: 'Assess phylogenetic markers and placements in the CheckM genome tree.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm tree_qa', 'tree qa', 'genome tree placement', 'phylogenetic markers', 'Newick', 'alignment'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm tree_qa', 'tree qa', 'genome tree placement', 'phylogenetic markers', 'Newick', 'alignment'],
     input: {
       required: {
         phylo_hmm_info: { type: 'FILE' },
@@ -4955,7 +4955,7 @@ const objectInfo = {
     display_name: 'CheckM lineage_set',
     category: 'metagenomics',
     description: 'Infer lineage-specific marker sets for each genome bin.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm lineage_set', 'lineage set', 'lineage-specific marker sets', 'marker genes', 'bin marker set'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm lineage_set', 'lineage set', 'lineage-specific marker sets', 'marker genes', 'bin marker set'],
     input: {
       required: {
         phylo_hmm_info: { type: 'FILE' },
@@ -4984,7 +4984,7 @@ const objectInfo = {
     display_name: 'CheckM taxon_set',
     category: 'metagenomics',
     description: 'Generate a taxonomic-specific CheckM marker set.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm taxon_set', 'taxon set', 'taxonomic marker set', 'marker genes', 'Prokaryote'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm taxon_set', 'taxon set', 'taxonomic marker set', 'marker genes', 'Prokaryote'],
     input: {
       required: {
         rank: { type: 'STRING', default: 'life', options: ['life', 'domain', 'phylum', 'order', 'family', 'genus', 'species'] },
@@ -5005,7 +5005,7 @@ const objectInfo = {
     display_name: 'CheckM taxonomy_wf',
     category: 'metagenomics',
     description: 'Analyze genome bins with a shared taxonomic-specific marker set.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm taxonomy_wf', 'taxonomy_wf', 'taxonomic marker set', 'genome bin quality', 'completeness contamination'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm taxonomy_wf', 'taxonomy_wf', 'taxonomic marker set', 'genome bin quality', 'completeness contamination'],
     input: {
       required: {
         rank: { type: 'STRING', default: 'life', options: ['life', 'domain', 'phylum', 'order', 'family', 'genus', 'species'] },
@@ -5035,7 +5035,7 @@ const objectInfo = {
     display_name: 'CheckM tetra',
     category: 'metagenomics',
     description: 'Calculate tetranucleotide signatures for FASTA sequences.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm tetra', 'tetra', 'tetranucleotide', 'tetranucleotide signatures', 'sequence composition'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm tetra', 'tetra', 'tetranucleotide', 'tetranucleotide signatures', 'sequence composition'],
     input: {
       required: {
         seq_file: { type: 'FASTA' },
@@ -5058,7 +5058,7 @@ const objectInfo = {
     display_name: 'CheckM plot',
     category: 'visualization',
     description: 'Generate CheckM genome-bin quality assessment plots.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm plot', 'genome bin plots', 'GC plot', 'coding density plot', 'tetranucleotide distance plot', 'marker gene position plot'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm plot', 'genome bin plots', 'GC plot', 'coding density plot', 'tetranucleotide distance plot', 'marker gene position plot'],
     input: {
       required: {
         bins: { type: 'FASTA_LIST', multiple: true },
@@ -5089,7 +5089,7 @@ const objectInfo = {
     display_name: 'CheckM analyze',
     category: 'metagenomics',
     description: 'Identify marker genes in genome bins and calculate genome statistics.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm analyze', 'marker genes', 'genome bin statistics', 'MAG quality', 'completeness contamination'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm analyze', 'marker genes', 'genome bin statistics', 'MAG quality', 'completeness contamination'],
     input: {
       required: {
         marker_file: { type: 'TSV' },
@@ -5117,7 +5117,7 @@ const objectInfo = {
     display_name: 'CheckM qa',
     category: 'metagenomics',
     description: 'Assess genome bins for completeness and contamination from CheckM analyze outputs.',
-    search_aliases: ['Galaxy', 'checkm', 'CheckM', 'checkm qa', 'genome completeness', 'genome contamination', 'bin quality', 'marker gene stats'],
+    search_aliases: ['BioNodulo builtin', 'checkm', 'CheckM', 'checkm qa', 'genome completeness', 'genome contamination', 'bin quality', 'marker gene stats'],
     input: {
       required: {
         marker_file: { type: 'TSV' },
@@ -5145,7 +5145,7 @@ const objectInfo = {
     display_name: 'DAS Tool',
     category: 'metagenomics',
     description: 'Integrate multiple metagenomic binning predictions into an optimized, non-redundant set of genome bins.',
-    search_aliases: ['Galaxy', 'das tool', 'DAS Tool', 'DAS_Tool', 'dastool', 'genome-resolved metagenomics', 'bin dereplication', 'bin aggregation', 'metagenome binning'],
+    search_aliases: ['BioNodulo builtin', 'das tool', 'DAS Tool', 'DAS_Tool', 'dastool', 'genome-resolved metagenomics', 'bin dereplication', 'bin aggregation', 'metagenome binning'],
     input: {
       required: {
         contigs: { type: 'FASTA' },
@@ -5166,7 +5166,7 @@ const objectInfo = {
     display_name: 'FASTA to Contig2Bin',
     category: 'metagenomics',
     description: 'Convert a list of genome-bin FASTA files into a tabular contig-to-bin assignment table for DAS Tool.',
-    search_aliases: ['Galaxy', 'Fasta_to_Contig2Bin', 'Fasta_to_Contig2Bin.sh', 'DAS Tool helper', 'contig2bin', 'contigs2bin', 'genome bins', 'bin FASTA'],
+    search_aliases: ['BioNodulo builtin', 'Fasta_to_Contig2Bin', 'Fasta_to_Contig2Bin.sh', 'DAS Tool helper', 'contig2bin', 'contigs2bin', 'genome bins', 'bin FASTA'],
     input: {
       required: {
         inputs: { type: 'FASTA_LIST' },
@@ -5186,7 +5186,7 @@ const objectInfo = {
     display_name: 'VSEARCH Dereplication',
     category: 'metagenomics',
     description: 'Dereplicate identical FASTA sequences with VSEARCH derep_fulllength and optional abundance filters.',
-    search_aliases: ['Galaxy', 'vsearch', 'dereplication', 'derep_fulllength', 'amplicon dereplication', 'unique sequences', 'abundance'],
+    search_aliases: ['BioNodulo builtin', 'vsearch', 'dereplication', 'derep_fulllength', 'amplicon dereplication', 'unique sequences', 'abundance'],
     input: {
       required: {
         infile: { type: 'FASTA' },
@@ -5216,7 +5216,7 @@ const objectInfo = {
     display_name: 'VSEARCH Masking',
     category: 'metagenomics',
     description: 'Mask FASTA sequences with VSEARCH maskfasta using dust, soft, or no qmask modes and optional hard masking.',
-    search_aliases: ['Galaxy', 'vsearch', 'masking', 'maskfasta', 'qmask', 'hardmask', 'soft masking', 'dust masking'],
+    search_aliases: ['BioNodulo builtin', 'vsearch', 'masking', 'maskfasta', 'qmask', 'hardmask', 'soft masking', 'dust masking'],
     input: {
       required: {
         infile: { type: 'FASTA' },
@@ -5241,7 +5241,7 @@ const objectInfo = {
     display_name: 'VSEARCH Shuffling',
     category: 'metagenomics',
     description: 'Shuffle FASTA sequence order pseudo-randomly with VSEARCH, using an explicit random seed and optional top-N limit.',
-    search_aliases: ['Galaxy', 'vsearch', 'shuffling', 'shuffle', 'random sequence order', 'randseed', 'topn'],
+    search_aliases: ['BioNodulo builtin', 'vsearch', 'shuffling', 'shuffle', 'random sequence order', 'randseed', 'topn'],
     input: {
       required: {
         infile: { type: 'FASTA' },
@@ -5266,7 +5266,7 @@ const objectInfo = {
     display_name: 'VSEARCH Sorting',
     category: 'metagenomics',
     description: 'Sort FASTA sequences by length or abundance with VSEARCH, with optional abundance filters, relabeling, size annotations, and top-N output.',
-    search_aliases: ['Galaxy', 'vsearch', 'sorting', 'sortbylength', 'sortbysize', 'sort by abundance', 'sizeout', 'relabel'],
+    search_aliases: ['BioNodulo builtin', 'vsearch', 'sorting', 'sortbylength', 'sortbysize', 'sort by abundance', 'sizeout', 'relabel'],
     input: {
       required: {
         infile: { type: 'FASTA' },
@@ -5295,7 +5295,7 @@ const objectInfo = {
     display_name: 'VSEARCH Alignment',
     category: 'metagenomics',
     description: 'Compute all-pairs global alignments for FASTA sequences with VSEARCH and optional tabular user fields.',
-    search_aliases: ['Galaxy', 'vsearch', 'alignment', 'allpairs_global', 'pairwise alignment', 'alnout', 'userfields'],
+    search_aliases: ['BioNodulo builtin', 'vsearch', 'alignment', 'allpairs_global', 'pairwise alignment', 'alnout', 'userfields'],
     input: {
       required: {
         infile: { type: 'FASTA' },
@@ -5373,7 +5373,7 @@ const objectInfo = {
     display_name: 'VSEARCH Chimera Detection',
     category: 'metagenomics',
     description: 'Detect chimeric FASTA sequences with VSEARCH uchime_denovo or uchime_ref and optional UCHIME reports.',
-    search_aliases: ['Galaxy', 'vsearch', 'chimera', 'chimera detection', 'uchime_denovo', 'uchime_ref', 'uchimeout', 'nonchimeras'],
+    search_aliases: ['BioNodulo builtin', 'vsearch', 'chimera', 'chimera detection', 'uchime_denovo', 'uchime_ref', 'uchimeout', 'nonchimeras'],
     input: {
       required: {
         detection_mode: { type: 'STRING', default: 'denovo', options: ['denovo', 'reference'] },
@@ -5408,7 +5408,7 @@ const objectInfo = {
     display_name: 'Bandage Info',
     category: 'assembly',
     description: 'Determine node, edge, length, connectivity, and N50 statistics for de novo assembly graphs.',
-    search_aliases: ['Galaxy', 'Bandage', 'bandage info', 'assembly graph', 'GFA statistics', 'FASTG statistics', 'de novo assembly graph'],
+    search_aliases: ['BioNodulo builtin', 'Bandage', 'bandage info', 'assembly graph', 'GFA statistics', 'FASTG statistics', 'de novo assembly graph'],
     input: {
       required: {
         input_file: { type: 'GFA' },
@@ -5428,7 +5428,7 @@ const objectInfo = {
     display_name: 'Bandage Image',
     category: 'visualization',
     description: 'Visualize de novo assembly graphs as JPG, PNG, or SVG images using Bandage.',
-    search_aliases: ['Galaxy', 'Bandage', 'bandage image', 'assembly graph image', 'GFA visualization', 'FASTG visualization', 'de novo assembly graph'],
+    search_aliases: ['BioNodulo builtin', 'Bandage', 'bandage image', 'assembly graph image', 'GFA visualization', 'FASTG visualization', 'de novo assembly graph'],
     input: {
       required: {
         input_file: { type: 'GFA' },
@@ -5448,7 +5448,7 @@ const objectInfo = {
     display_name: 'megahit contig2fastg',
     category: 'assembly',
     description: 'Convert MEGAHIT contigs into FASTG assembly graph format.',
-    search_aliases: ['Galaxy', 'MEGAHIT', 'megahit_contig2fastg', 'megahit_toolkit', 'contig2fastg', 'FASTG', 'assembly graph', 'metagenomics assembly'],
+    search_aliases: ['BioNodulo builtin', 'MEGAHIT', 'megahit_contig2fastg', 'megahit_toolkit', 'contig2fastg', 'FASTG', 'assembly graph', 'metagenomics assembly'],
     input: {
       required: {
         contigs: { type: 'FASTA' },
@@ -5471,7 +5471,7 @@ const objectInfo = {
     display_name: 'AdapterRemoval',
     category: 'trimming',
     description: 'Remove adapter sequences from high-throughput sequencing FASTQ reads, trim low-quality bases, and optionally merge overlapping pairs.',
-    search_aliases: ['Galaxy', 'AdapterRemoval', 'adapter_removal', 'adapterremoval', 'adapter trimming', 'FASTQ trimming', 'read merging', 'ancient DNA'],
+    search_aliases: ['BioNodulo builtin', 'AdapterRemoval', 'adapter_removal', 'adapterremoval', 'adapter trimming', 'FASTQ trimming', 'read merging', 'ancient DNA'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired', 'interleaved'] },
@@ -5502,7 +5502,7 @@ const objectInfo = {
     display_name: 'Pear',
     category: 'trimming',
     description: 'Merge paired-end reads with PEAR and emit selected assembled, unassembled, or discarded reads.',
-    search_aliases: ['Galaxy', 'PEAR', 'Pear', 'iuc_pear', 'PEAR paired-end read merger', 'paired-end read merger', 'read merging', 'Illumina paired-end merge'],
+    search_aliases: ['BioNodulo builtin', 'PEAR', 'Pear', 'iuc_pear', 'PEAR paired-end read merger', 'paired-end read merger', 'read merging', 'Illumina paired-end merge'],
     input: {
       required: {
         library_type: { type: 'STRING', default: 'paired', options: ['paired', 'paired_collection'] },
@@ -5542,7 +5542,7 @@ const objectInfo = {
     display_name: 'TrimN',
     category: 'trimming',
     description: 'Trim N stretches and remove fake cut sites from bionano hybrid scaffold FASTA assemblies.',
-    search_aliases: ['Galaxy', 'TrimN', 'trimns', 'trimns_vgp', 'trim_Ns_DNAnexus.py', 'remove fake cut sites', 'bionano scaffolds', 'VGP'],
+    search_aliases: ['BioNodulo builtin', 'TrimN', 'trimns', 'trimns_vgp', 'trim_Ns_DNAnexus.py', 'remove fake cut sites', 'bionano scaffolds', 'VGP'],
     input: {
       required: {
         fasta_in: { type: 'FASTA' },
@@ -5562,7 +5562,7 @@ const objectInfo = {
     display_name: 'TrimN (Galaxy)',
     category: 'trimming',
     description: 'Trim N stretches and remove fake cut sites from bionano hybrid scaffold FASTA assemblies.',
-    search_aliases: ['Galaxy', 'trimns', 'TrimN', 'trimns_vgp', 'trim_Ns_DNAnexus.py', 'remove fake cut sites', 'bionano scaffolds', 'VGP'],
+    search_aliases: ['BioNodulo builtin', 'trimns', 'TrimN', 'trimns_vgp', 'trim_Ns_DNAnexus.py', 'remove fake cut sites', 'bionano scaffolds', 'VGP'],
     input: {
       required: {
         fasta_in: { type: 'FASTA' },
@@ -5582,7 +5582,7 @@ const objectInfo = {
     display_name: 'Assembly Stats',
     category: 'assembly',
     description: 'Generate assembly metric visualisations or JSON statistics from a genome FASTA file.',
-    search_aliases: ['Galaxy', 'assembly-stats', 'Assembly stats', 'asm2stats.minmaxgc.pl', 'genome assembly metrics', 'assembly visualisation', 'snail plot', 'N50', 'GC content'],
+    search_aliases: ['BioNodulo builtin', 'assembly-stats', 'Assembly stats', 'asm2stats.minmaxgc.pl', 'genome assembly metrics', 'assembly visualisation', 'snail plot', 'N50', 'GC content'],
     input: {
       required: {
         input_fasta: { type: 'FASTA' },
@@ -5602,7 +5602,7 @@ const objectInfo = {
     display_name: 'Minia',
     category: 'assembly',
     description: 'Assemble short reads into contigs with Minia, a compact de Bruijn graph assembler.',
-    search_aliases: ['Galaxy', 'Minia', 'minia', 'short-read assembler', 'de Bruijn graph', 'Bloom filter', 'contig assembly', 'k-mer assembler'],
+    search_aliases: ['BioNodulo builtin', 'Minia', 'minia', 'short-read assembler', 'de Bruijn graph', 'Bloom filter', 'contig assembly', 'k-mer assembler'],
     input: {
       required: {
         in: { type: 'FASTQ' },
@@ -5628,7 +5628,7 @@ const objectInfo = {
     display_name: 'Raven',
     category: 'assembly',
     description: 'Assemble Oxford Nanopore or other long uncorrected reads with Raven.',
-    search_aliases: ['Galaxy', 'Raven', 'raven', 'raven-assembler', 'Oxford Nanopore', 'long-read assembler', 'de novo assembly', 'Graphical Fragment Assembly', 'GFA'],
+    search_aliases: ['BioNodulo builtin', 'Raven', 'raven', 'raven-assembler', 'Oxford Nanopore', 'long-read assembler', 'de novo assembly', 'Graphical Fragment Assembly', 'GFA'],
     input: {
       required: {
         input_reads: { type: 'FILE' },
@@ -5663,7 +5663,7 @@ const objectInfo = {
     display_name: 'Shovill',
     category: 'assembly',
     description: 'Assemble bacterial isolate genomes from Illumina paired-end reads with Shovill.',
-    search_aliases: ['Galaxy', 'Shovill', 'shovill', 'SPAdes', 'Faster SPAdes assembly', 'Illumina paired-end', 'bacterial isolate assembly', 'skesa', 'megahit', 'velvet', 'contigs.fa'],
+    search_aliases: ['BioNodulo builtin', 'Shovill', 'shovill', 'SPAdes', 'Faster SPAdes assembly', 'Illumina paired-end', 'bacterial isolate assembly', 'skesa', 'megahit', 'velvet', 'contigs.fa'],
     input: {
       required: {
         lib_type: { type: 'STRING', default: 'paired', options: ['paired', 'collection'] },
@@ -5703,7 +5703,7 @@ const objectInfo = {
     display_name: 'Snippy',
     category: 'variant',
     description: 'Call SNPs and indels between a haploid reference genome and reads or contigs with Snippy.',
-    search_aliases: ['Galaxy', 'Snippy', 'snippy', 'haploid variant calling', 'fast bacterial variant calling', 'NGS reads', 'core genome alignment', 'snippy-core', 'SNPs', 'indels'],
+    search_aliases: ['BioNodulo builtin', 'Snippy', 'snippy', 'haploid variant calling', 'fast bacterial variant calling', 'NGS reads', 'core genome alignment', 'snippy-core', 'SNPs', 'indels'],
     input: {
       required: {
         reference_source_selector: { type: 'STRING', default: 'history', options: ['history', 'cached'] },
@@ -5742,7 +5742,7 @@ const objectInfo = {
     display_name: 'snippy-core',
     category: 'variant',
     description: 'Combine multiple Snippy outputs into a core SNP alignment.',
-    search_aliases: ['Galaxy', 'snippy-core', 'Snippy core', 'Snippy', 'core SNP alignment', 'core genome alignment', 'core SNP phylogeny', 'bacterial SNP alignment'],
+    search_aliases: ['BioNodulo builtin', 'snippy-core', 'Snippy core', 'Snippy', 'core SNP alignment', 'core genome alignment', 'core SNP phylogeny', 'bacterial SNP alignment'],
     input: {
       required: {
         indirs: { type: 'FILE', multiple: true },
@@ -5768,7 +5768,7 @@ const objectInfo = {
     display_name: 'snippy-clean_full_aln',
     category: 'variant',
     description: 'Replace non-standard sequence characters in a Snippy core.full.aln alignment.',
-    search_aliases: ['Galaxy', 'snippy-clean_full_aln', 'Snippy clean full alignment', 'Snippy', 'core.full.aln', 'clean.full.aln', 'whole genome SNP alignment', 'Gubbins'],
+    search_aliases: ['BioNodulo builtin', 'snippy-clean_full_aln', 'Snippy clean full alignment', 'Snippy', 'core.full.aln', 'clean.full.aln', 'whole genome SNP alignment', 'Gubbins'],
     input: {
       required: {
         full_aln: { type: 'FASTA' },
@@ -5792,7 +5792,7 @@ const objectInfo = {
     display_name: 'GenomeScope',
     category: 'assembly',
     description: 'Profile genomes from k-mer frequency histograms with the GenomeScope 2.0 model.',
-    search_aliases: ['Galaxy', 'GenomeScope', 'GenomeScope 2.0', 'genomescope2', 'reference-free genome profiling', 'k-mer spectrum', 'kmer histogram', 'polyploid genome profiling'],
+    search_aliases: ['BioNodulo builtin', 'GenomeScope', 'GenomeScope 2.0', 'genomescope2', 'reference-free genome profiling', 'k-mer spectrum', 'kmer histogram', 'polyploid genome profiling'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -5828,7 +5828,7 @@ const objectInfo = {
     display_name: 'ART Illumina',
     category: 'simulation',
     description: 'Simulate Illumina sequencing reads from DNA or RNA reference sequences with ART.',
-    search_aliases: ['Galaxy', 'ART', 'ART Illumina', 'art_illumina', 'Illumina read simulator', 'synthetic sequencing reads', 'NGS read simulation', 'paired-end simulation'],
+    search_aliases: ['BioNodulo builtin', 'ART', 'ART Illumina', 'art_illumina', 'Illumina read simulator', 'synthetic sequencing reads', 'NGS read simulation', 'paired-end simulation'],
     input: {
       required: {
         input_seq_file: { type: 'FASTA' },
@@ -5863,7 +5863,7 @@ const objectInfo = {
     display_name: 'ART 454',
     category: 'simulation',
     description: 'Simulate Roche 454 pyrosequencing reads from DNA or RNA reference sequences with ART.',
-    search_aliases: ['Galaxy', 'ART', 'ART 454', 'art_454', '454 pyrosequencing simulator', 'Roche 454 read simulator', 'synthetic pyrosequencing reads', 'amplicon sequencing simulation'],
+    search_aliases: ['BioNodulo builtin', 'ART', 'ART 454', 'art_454', '454 pyrosequencing simulator', 'Roche 454 read simulator', 'synthetic pyrosequencing reads', 'amplicon sequencing simulation'],
     input: {
       required: {
         input_seq_file: { type: 'FASTA' },
@@ -5897,7 +5897,7 @@ const objectInfo = {
     display_name: 'ART SOLiD',
     category: 'simulation',
     description: 'Simulate SOLiD sequencing reads from DNA or RNA reference sequences with ART.',
-    search_aliases: ['Galaxy', 'ART', 'ART SOLiD', 'art_solid', 'art_SOLiD', 'SOLiD read simulator', 'color-space read simulation', 'mate-pair simulation'],
+    search_aliases: ['BioNodulo builtin', 'ART', 'ART SOLiD', 'art_solid', 'art_SOLiD', 'SOLiD read simulator', 'color-space read simulation', 'mate-pair simulation'],
     input: {
       required: {
         input_seq_file: { type: 'FASTA' },
@@ -5931,7 +5931,7 @@ const objectInfo = {
     display_name: 'ABRicate',
     category: 'annotation',
     description: 'Mass screen contigs for antimicrobial resistance and virulence genes with ABRicate.',
-    search_aliases: ['Galaxy', 'ABRicate', 'abricate', 'antimicrobial resistance', 'AMR genes', 'virulence genes', 'ResFinder', 'CARD', 'PlasmidFinder', 'VFDB'],
+    search_aliases: ['BioNodulo builtin', 'ABRicate', 'abricate', 'antimicrobial resistance', 'AMR genes', 'virulence genes', 'ResFinder', 'CARD', 'PlasmidFinder', 'VFDB'],
     input: {
       required: {
         file_input: { type: 'FILE' },
@@ -5957,7 +5957,7 @@ const objectInfo = {
     display_name: 'ABRicate List',
     category: 'annotation',
     description: 'List ABRicate databases available in the local installation.',
-    search_aliases: ['Galaxy', 'ABRicate', 'abricate', 'ABRicate databases', 'abricate --list', 'AMR database list', 'ResFinder database'],
+    search_aliases: ['BioNodulo builtin', 'ABRicate', 'abricate', 'ABRicate databases', 'abricate --list', 'AMR database list', 'ResFinder database'],
     input: {
       required: {},
       optional: {},
@@ -5976,7 +5976,7 @@ const objectInfo = {
     display_name: 'ABRicate Summary',
     category: 'annotation',
     description: 'Combine ABRicate reports into a gene presence and coverage matrix.',
-    search_aliases: ['Galaxy', 'ABRicate', 'abricate', 'ABRicate Summary', 'presence absence matrix', 'gene coverage matrix', 'abricate --summary', 'AMR report summary'],
+    search_aliases: ['BioNodulo builtin', 'ABRicate', 'abricate', 'ABRicate Summary', 'presence absence matrix', 'gene coverage matrix', 'abricate --summary', 'AMR report summary'],
     input: {
       required: {
         abricate_reports: { type: 'STRING', multiple: true },
@@ -5999,7 +5999,7 @@ const objectInfo = {
     display_name: 'Kleborate',
     category: 'typing',
     description: 'Screen Klebsiella genome assemblies for species, MLST, virulence, resistance, and K/O loci.',
-    search_aliases: ['Galaxy', 'Kleborate', 'kleborate', 'Klebsiella', 'Klebsiella pneumoniae', 'KpSC', 'MLST', 'virulence score', 'resistance score', 'Kaptive', 'K locus', 'O locus'],
+    search_aliases: ['BioNodulo builtin', 'Kleborate', 'kleborate', 'Klebsiella', 'Klebsiella pneumoniae', 'KpSC', 'MLST', 'virulence score', 'resistance score', 'Kaptive', 'K locus', 'O locus'],
     input: {
       required: {
         assemblies: { type: 'FASTA', multiple: true },
@@ -6029,7 +6029,7 @@ const objectInfo = {
     display_name: 'PlasmidFinder',
     category: 'annotation',
     description: 'Identify plasmid replicons in bacterial assemblies or reads with PlasmidFinder.',
-    search_aliases: ['Galaxy', 'PlasmidFinder', 'plasmidfinder', 'plasmid identification', 'plasmid replicon', 'pMLST', 'bacterial WGS', 'replicon typing'],
+    search_aliases: ['BioNodulo builtin', 'PlasmidFinder', 'plasmidfinder', 'plasmid identification', 'plasmid replicon', 'pMLST', 'bacterial WGS', 'replicon typing'],
     input: {
       required: {
         input_file: { type: 'FILE' },
@@ -6056,7 +6056,7 @@ const objectInfo = {
     display_name: 'staramr',
     category: 'annotation',
     description: 'Scan bacterial genome assemblies against ResFinder, PointFinder, and PlasmidFinder databases with starAMR.',
-    search_aliases: ['Galaxy', 'staramr', 'starAMR', 'ResFinder', 'PointFinder', 'PlasmidFinder', 'antimicrobial resistance', 'AMR genes', 'bacterial WGS'],
+    search_aliases: ['BioNodulo builtin', 'staramr', 'starAMR', 'ResFinder', 'PointFinder', 'PlasmidFinder', 'antimicrobial resistance', 'AMR genes', 'bacterial WGS'],
     input: {
       required: {
         genomes: { type: 'STRING', multiple: true },
@@ -6099,7 +6099,7 @@ const objectInfo = {
     display_name: 'AmpliCan',
     category: 'crispr',
     description: 'Analyze CRISPR and other genome editing amplicon sequencing experiments with ampliCan.',
-    search_aliases: ['Galaxy', 'AmpliCan', 'amplican', 'CRISPR editing analysis', 'genome editing amplicons', 'amplicon sequencing', 'HDR repair', 'base editing'],
+    search_aliases: ['BioNodulo builtin', 'AmpliCan', 'amplican', 'CRISPR editing analysis', 'genome editing amplicons', 'amplicon sequencing', 'HDR repair', 'base editing'],
     input: {
       required: {
         config_file: { type: 'STRING' },
@@ -6140,7 +6140,7 @@ const objectInfo = {
     display_name: 'ALDEx2',
     category: 'metagenomics',
     description: 'Differential abundance analysis with ALDEx2 compositional data methods.',
-    search_aliases: ['Galaxy', 'ALDEx2', 'aldex2', 'ALDEx2 differential abundance', 'compositional data analysis', 'microbiome differential abundance', 'RNA-seq differential abundance', 'Dirichlet Monte Carlo'],
+    search_aliases: ['BioNodulo builtin', 'ALDEx2', 'aldex2', 'ALDEx2 differential abundance', 'compositional data analysis', 'microbiome differential abundance', 'RNA-seq differential abundance', 'Dirichlet Monte Carlo'],
     input: {
       required: {
         reads: { type: 'TSV' },
@@ -6183,7 +6183,7 @@ const objectInfo = {
     display_name: 'ampvis2 alpha diversity',
     category: 'metagenomics',
     description: 'Calculate alpha-diversity indices for samples in an ampvis2 RDS dataset.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 alpha diversity', 'amp_alphadiv', 'alpha-diversity indices', 'microbiome alpha diversity', 'vegan diversity', 'rarefaction'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 alpha diversity', 'amp_alphadiv', 'alpha-diversity indices', 'microbiome alpha diversity', 'vegan diversity', 'rarefaction'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6213,7 +6213,7 @@ const objectInfo = {
     display_name: 'ampvis2 boxplot',
     category: 'metagenomics',
     description: 'Generate boxplots of abundant taxa from an ampvis2 RDS dataset.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 boxplot', 'amp_boxplot', 'taxa boxplot', 'abundant taxa', 'microbiome boxplot', 'amplicon abundance plot'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 boxplot', 'amp_boxplot', 'taxa boxplot', 'abundant taxa', 'microbiome boxplot', 'amplicon abundance plot'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6253,7 +6253,7 @@ const objectInfo = {
     display_name: 'ampvis2 core community analysis',
     category: 'metagenomics',
     description: 'Create core-community plots for grouped ampvis2 samples.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 core community analysis', 'amp_core', 'core community plot', 'core taxa', 'abundant OTUs', 'microbiome core community'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 core community analysis', 'amp_core', 'core community plot', 'core taxa', 'abundant OTUs', 'microbiome core community'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6285,7 +6285,7 @@ const objectInfo = {
     display_name: 'ampvis2 export fasta',
     category: 'metagenomics',
     description: 'Export sequences from an ampvis2 RDS dataset as FASTA.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 export fasta', 'amp_export_fasta', 'export FASTA', 'amplicon sequences', 'taxonomy FASTA headers'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 export fasta', 'amp_export_fasta', 'export FASTA', 'amplicon sequences', 'taxonomy FASTA headers'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6308,7 +6308,7 @@ const objectInfo = {
     display_name: 'ampvis2 export otu',
     category: 'metagenomics',
     description: 'Export OTU, taxonomy, metadata, and phyloseq tables from an ampvis2 object.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 export otu', 'amp_export_otutable', 'OTU table export', 'taxonomy mapping', 'metadata mapping', 'phyloseq object'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 export otu', 'amp_export_otutable', 'OTU table export', 'taxonomy mapping', 'metadata mapping', 'phyloseq object'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6332,7 +6332,7 @@ const objectInfo = {
     display_name: 'ampvis2 frequency plot',
     category: 'metagenomics',
     description: 'Generate frequency versus read-abundance barplots from an ampvis2 RDS dataset.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 frequency plot', 'amp_frequency', 'frequency plot', 'read abundance frequency', 'microbiome frequency'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 frequency plot', 'amp_frequency', 'frequency plot', 'read abundance frequency', 'microbiome frequency'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6363,7 +6363,7 @@ const objectInfo = {
     display_name: 'ampvis2 heatmap',
     category: 'metagenomics',
     description: 'Generate ampvis2 heatmaps from metadata-grouped samples and aggregated OTUs.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 heatmap', 'amp_heatmap', 'microbiome heatmap', 'amplicon heatmap', 'taxonomy abundance heatmap'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 heatmap', 'amp_heatmap', 'microbiome heatmap', 'amplicon heatmap', 'taxonomy abundance heatmap'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6418,7 +6418,7 @@ const objectInfo = {
     display_name: 'ampvis2 load',
     category: 'metagenomics',
     description: 'Load OTU, ASV, BIOM, or phyloseq data into an ampvis2 RDS object.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 load', 'amp_load', 'OTU table', 'ASV table', 'BIOM', 'phyloseq', 'metadata list', 'taxonomy list'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 load', 'amp_load', 'OTU table', 'ASV table', 'BIOM', 'phyloseq', 'metadata list', 'taxonomy list'],
     input: {
       required: {
         otutable: { type: 'FILE' },
@@ -6452,7 +6452,7 @@ const objectInfo = {
     display_name: 'ampvis2 merge ampvis2 data sets',
     category: 'metagenomics',
     description: 'Merge multiple ampvis2 RDS datasets into a single ampvis2 object.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 merge ampvis2 data sets', 'amp_merge_ampvis2', 'merge ampvis2 objects', 'RDS merge', 'by reference sequence', 'DNA reference sequences'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 merge ampvis2 data sets', 'amp_merge_ampvis2', 'merge ampvis2 objects', 'RDS merge', 'by reference sequence', 'DNA reference sequences'],
     input: {
       required: {
         data: { type: 'FILE', multiple: true },
@@ -6475,7 +6475,7 @@ const objectInfo = {
     display_name: 'ampvis2 merge replicates',
     category: 'metagenomics',
     description: 'Merge replicate samples in an ampvis2 RDS dataset by averaging OTU abundances.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 merge replicates', 'amp_mergereplicates', 'amp_merge_replicates', 'replicate samples', 'average OTU abundances', 'metadata groups'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 merge replicates', 'amp_mergereplicates', 'amp_merge_replicates', 'replicate samples', 'average OTU abundances', 'metadata groups'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6500,7 +6500,7 @@ const objectInfo = {
     display_name: 'ampvis2 octave plot',
     category: 'metagenomics',
     description: 'Generate octave plots to assess alpha diversity sequencing depth.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 octave plot', 'amp_octave', 'octave plot', 'alpha diversity', 'sequencing depth', 'read count bins', 'microbiome diversity'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 octave plot', 'amp_octave', 'octave plot', 'alpha diversity', 'sequencing depth', 'read count bins', 'microbiome diversity'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6529,7 +6529,7 @@ const objectInfo = {
     display_name: 'ampvis2 ordination plot',
     category: 'metagenomics',
     description: 'Generate ampvis2 ordination plots for comparing microbial communities.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 ordination plot', 'amp_ordinate', 'ordination', 'vegan ordination', 'PCA', 'RDA', 'CCA', 'NMDS', 'PCoA', 'microbial communities'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 ordination plot', 'amp_ordinate', 'ordination', 'vegan ordination', 'PCA', 'RDA', 'CCA', 'NMDS', 'PCoA', 'microbial communities'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6579,7 +6579,7 @@ const objectInfo = {
     display_name: 'ampvis2 OTU network plot',
     category: 'metagenomics',
     description: 'Generate network plots connecting taxa and samples from an ampvis2 RDS dataset.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 OTU network plot', 'amp_otu_network', 'OTU network', 'taxa sample network', 'ggnet2', 'microbiome network'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 OTU network plot', 'amp_otu_network', 'OTU network', 'taxa sample network', 'ggnet2', 'microbiome network'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6614,7 +6614,7 @@ const objectInfo = {
     display_name: 'ampvis2 rank abundance plot',
     category: 'metagenomics',
     description: 'Generate rank-abundance curves from grouped ampvis2 samples.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 rank abundance plot', 'amp_rankabundance', 'rank abundance curve', 'cumulative read abundance', 'OTU rank abundance', 'microbiome diversity'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 rank abundance plot', 'amp_rankabundance', 'rank abundance curve', 'cumulative read abundance', 'OTU rank abundance', 'microbiome diversity'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6643,7 +6643,7 @@ const objectInfo = {
     display_name: 'ampvis2 rarefaction curve',
     category: 'metagenomics',
     description: 'Generate rarefaction curves showing reads versus observed OTUs for ampvis2 samples.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 rarefaction curve', 'amp_rarecurve', 'amp_rarefaction_curve', 'rarefaction curve', 'observed OTUs', 'reads versus observed OTUs', 'microbiome rarefaction'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 rarefaction curve', 'amp_rarecurve', 'amp_rarefaction_curve', 'rarefaction curve', 'observed OTUs', 'reads versus observed OTUs', 'microbiome rarefaction'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6673,7 +6673,7 @@ const objectInfo = {
     display_name: 'ampvis2 set metadata',
     category: 'metagenomics',
     description: 'Manually set ampvis2 sample metadata column types and regenerate the metadata list.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 set metadata', 'metadata type conversion', 'metadata classes', 'as.numeric metadata', 'as.integer metadata', 'lubridate as_date', 'sample metadata list'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 set metadata', 'metadata type conversion', 'metadata classes', 'as.numeric metadata', 'as.integer metadata', 'lubridate as_date', 'sample metadata list'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6700,7 +6700,7 @@ const objectInfo = {
     display_name: 'ampvis2 subset samples',
     category: 'metagenomics',
     description: 'Subset ampvis2 samples by sample metadata values.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 subset samples', 'amp_subset_samples', 'amp_filter_samples', 'sample metadata filtering', 'metadata values', 'rarefy samples', 'remove absent OTUs'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 subset samples', 'amp_subset_samples', 'amp_filter_samples', 'sample metadata filtering', 'metadata values', 'rarefy samples', 'remove absent OTUs'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6730,7 +6730,7 @@ const objectInfo = {
     display_name: 'ampvis2 subset data',
     category: 'metagenomics',
     description: 'Subset ampvis2 data by matching taxa across taxonomy ranks.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 subset data', 'ampvis2 subset taxa', 'amp_subset_taxa', 'amp_filter_taxa', 'taxonomy filtering', 'selected taxonomy list', 'remove taxa'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 subset data', 'ampvis2 subset taxa', 'amp_subset_taxa', 'amp_filter_taxa', 'taxonomy filtering', 'selected taxonomy list', 'remove taxa'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6758,7 +6758,7 @@ const objectInfo = {
     display_name: 'ampvis2 timeseries plot',
     category: 'metagenomics',
     description: 'Generate ampvis2 time-series plots of relative read abundance over time.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 timeseries plot', 'amp_timeseries', 'time-series abundance', 'relative read abundance over time', 'date metadata', 'taxon facets', 'microbiome time series'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 timeseries plot', 'amp_timeseries', 'time-series abundance', 'relative read abundance over time', 'date metadata', 'taxon facets', 'microbiome time series'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6795,7 +6795,7 @@ const objectInfo = {
     display_name: 'ampvis2 venn diagram',
     category: 'metagenomics',
     description: 'Generate ampvis2 Venn diagrams of core OTUs shared across sample groups.',
-    search_aliases: ['Galaxy', 'ampvis2', 'ampvis2 venn diagram', 'amp_venn', 'Venn diagram', 'core OTUs', 'shared OTUs', 'sample group overlap', 'microbiome core community'],
+    search_aliases: ['BioNodulo builtin', 'ampvis2', 'ampvis2 venn diagram', 'amp_venn', 'Venn diagram', 'core OTUs', 'shared OTUs', 'sample group overlap', 'microbiome core community'],
     input: {
       required: {
         data: { type: 'FILE' },
@@ -6826,7 +6826,7 @@ const objectInfo = {
     display_name: 'Allegro',
     category: 'linkage',
     description: 'Multipoint genetic linkage, haplotype, IBD sharing, and simulation analysis.',
-    search_aliases: ['Galaxy', 'Allegro', 'allegro', 'multipoint linkage analysis', 'haplotype analysis', 'IBD sharing', 'parametric linkage', 'allele sharing', 'Genehunter'],
+    search_aliases: ['BioNodulo builtin', 'Allegro', 'allegro', 'multipoint linkage analysis', 'haplotype analysis', 'IBD sharing', 'parametric linkage', 'allele sharing', 'Genehunter'],
     input: {
       required: {
         inp_ped: { type: 'FILE' },
@@ -6879,7 +6879,7 @@ const objectInfo = {
     display_name: 'AlphaGenome Interval Predictor',
     category: 'ai',
     description: 'Predict regulatory tracks for genomic intervals with AlphaGenome.',
-    search_aliases: ['Galaxy', 'AlphaGenome', 'alphagenome', 'AlphaGenome interval prediction', 'regulatory track prediction', 'predict_interval', 'chromatin prediction', 'expression prediction'],
+    search_aliases: ['BioNodulo builtin', 'AlphaGenome', 'alphagenome', 'AlphaGenome interval prediction', 'regulatory track prediction', 'predict_interval', 'chromatin prediction', 'expression prediction'],
     input: {
       required: {
         input_bed: { type: 'BED' },
@@ -6910,7 +6910,7 @@ const objectInfo = {
     display_name: 'AlphaGenome ISM Scanner',
     category: 'ai',
     description: 'Perform in-silico saturation mutagenesis with AlphaGenome.',
-    search_aliases: ['Galaxy', 'AlphaGenome', 'alphagenome', 'AlphaGenome saturation mutagenesis', 'in-silico saturation mutagenesis', 'ISM scanner', 'score_ism_variants', 'variant scorer'],
+    search_aliases: ['BioNodulo builtin', 'AlphaGenome', 'alphagenome', 'AlphaGenome saturation mutagenesis', 'in-silico saturation mutagenesis', 'ISM scanner', 'score_ism_variants', 'variant scorer'],
     input: {
       required: {
         input_bed: { type: 'BED' },
@@ -6941,7 +6941,7 @@ const objectInfo = {
     display_name: 'AlphaGenome Sequence Predictor',
     category: 'ai',
     description: 'Predict regulatory tracks from DNA sequence with AlphaGenome.',
-    search_aliases: ['Galaxy', 'AlphaGenome', 'alphagenome', 'AlphaGenome sequence prediction', 'predict_sequence', 'synthetic biology', 'regulatory sequence prediction', 'designed sequences'],
+    search_aliases: ['BioNodulo builtin', 'AlphaGenome', 'alphagenome', 'AlphaGenome sequence prediction', 'predict_sequence', 'synthetic biology', 'regulatory sequence prediction', 'designed sequences'],
     input: {
       required: {
         input_fasta: { type: 'FASTA' },
@@ -6972,7 +6972,7 @@ const objectInfo = {
     display_name: 'AlphaGenome Variant Effect',
     category: 'ai',
     description: 'Annotate VCF variants with AlphaGenome variant-effect scores.',
-    search_aliases: ['Galaxy', 'AlphaGenome', 'alphagenome', 'AlphaGenome variant effect', 'predict_variant', 'regulatory variant effect', 'VCF annotation', 'log fold change'],
+    search_aliases: ['BioNodulo builtin', 'AlphaGenome', 'alphagenome', 'AlphaGenome variant effect', 'predict_variant', 'regulatory variant effect', 'VCF annotation', 'log fold change'],
     input: {
       required: {
         input_vcf: { type: 'VCF' },
@@ -7001,7 +7001,7 @@ const objectInfo = {
     display_name: 'AlphaGenome Variant Scorer',
     category: 'ai',
     description: 'Score variants with AlphaGenome gene-level quantile-normalized scores.',
-    search_aliases: ['Galaxy', 'AlphaGenome', 'alphagenome', 'AlphaGenome variant scoring', 'score_variant', 'gene-level variant scoring', 'quantile normalized variant score', 'tidy_scores'],
+    search_aliases: ['BioNodulo builtin', 'AlphaGenome', 'alphagenome', 'AlphaGenome variant scoring', 'score_variant', 'gene-level variant scoring', 'quantile normalized variant score', 'tidy_scores'],
     input: {
       required: {
         input_vcf: { type: 'VCF' },
@@ -7029,7 +7029,7 @@ const objectInfo = {
     display_name: 'ANCOM-BC',
     category: 'metagenomics',
     description: 'Differential abundance analysis for microbiome compositions with bias correction.',
-    search_aliases: ['Galaxy', 'ANCOM-BC', 'ANCOMBC', 'ancombc', 'ANCOM-BC differential abundance', 'microbiome composition', 'bias correction', 'phyloseq', 'structural zeros', 'global test'],
+    search_aliases: ['BioNodulo builtin', 'ANCOM-BC', 'ANCOMBC', 'ancombc', 'ANCOM-BC differential abundance', 'microbiome composition', 'bias correction', 'phyloseq', 'structural zeros', 'global test'],
     input: {
       required: {
         phyloseq: { type: 'FILE' },
@@ -7064,7 +7064,7 @@ const objectInfo = {
     display_name: 'ANGSD',
     category: 'population_genetics',
     description: 'Extract internal counts for ANGSD X-contamination analysis.',
-    search_aliases: ['Galaxy', 'ANGSD', 'angsd', 'ANGSD internal counts', 'X-contamination', 'low coverage sequencing', 'population genetics', 'BAM internal counts'],
+    search_aliases: ['BioNodulo builtin', 'ANGSD', 'angsd', 'ANGSD internal counts', 'X-contamination', 'low coverage sequencing', 'population genetics', 'BAM internal counts'],
     input: {
       required: {
         input_bams: { type: 'BAM', multiple: true },
@@ -7091,7 +7091,7 @@ const objectInfo = {
     display_name: 'ANGSD X-Contamination',
     category: 'population_genetics',
     description: 'Estimate nuclear contamination on the X chromosome for biologically male samples.',
-    search_aliases: ['Galaxy', 'ANGSD X-Contamination', 'angsd_contamination', 'X chromosome contamination', 'nuclear contamination', 'ancient DNA contamination', 'HapMap ChrX', 'EAGER contamination'],
+    search_aliases: ['BioNodulo builtin', 'ANGSD X-Contamination', 'angsd_contamination', 'X chromosome contamination', 'nuclear contamination', 'ancient DNA contamination', 'HapMap ChrX', 'EAGER contamination'],
     input: {
       required: {
         icnts_file: { type: 'FILE' },
@@ -7115,7 +7115,7 @@ const objectInfo = {
     display_name: 'PlasFlow',
     category: 'metagenomics',
     description: 'Predict plasmid sequences in metagenomic contigs with PlasFlow genome-signature models.',
-    search_aliases: ['Galaxy', 'PlasFlow', 'plasflow', 'plasmid prediction', 'metagenomic contigs', 'genome signatures', 'chromosome classification'],
+    search_aliases: ['BioNodulo builtin', 'PlasFlow', 'plasflow', 'plasmid prediction', 'metagenomic contigs', 'genome signatures', 'chromosome classification'],
     input: {
       required: {
         read_file: { type: 'FASTA' },
@@ -7138,7 +7138,7 @@ const objectInfo = {
     display_name: 'GAMMA',
     category: 'annotation',
     description: 'Find and annotate gene matches in microbial assemblies using protein-coding identity with GAMMA.',
-    search_aliases: ['Galaxy', 'GAMMA', 'Gene Allele Mutation Microbial Assessment', 'gene match annotation', 'antimicrobial resistance genes', 'virulence genes', 'protein coding identity'],
+    search_aliases: ['BioNodulo builtin', 'GAMMA', 'Gene Allele Mutation Microbial Assessment', 'gene match annotation', 'antimicrobial resistance genes', 'virulence genes', 'protein coding identity'],
     input: {
       required: {
         input_fasta: { type: 'FASTA' },
@@ -7167,7 +7167,7 @@ const objectInfo = {
     display_name: 'GAMMA-S',
     category: 'annotation',
     description: 'Find gene matches in microbial assemblies using nucleotide identity with GAMMA-S.',
-    search_aliases: ['Galaxy', 'GAMMA-S', 'gamma_s', 'Gene Allele Mutation Microbial Assessment Sequence', 'nucleotide gene matching', 'protein-protein comparisons', 'gene match annotation'],
+    search_aliases: ['BioNodulo builtin', 'GAMMA-S', 'gamma_s', 'Gene Allele Mutation Microbial Assessment Sequence', 'nucleotide gene matching', 'protein-protein comparisons', 'gene match annotation'],
     input: {
       required: {
         input_fasta: { type: 'FASTA' },
@@ -7195,7 +7195,7 @@ const objectInfo = {
     display_name: 'Red',
     category: 'genomics',
     description: 'Detect and mask repeats de novo in genome FASTA sequences with RED.',
-    search_aliases: ['Galaxy', 'Red', 'RED', 'REpeat Detector', 'repeat masking', 'de novo repeats', 'genome masking'],
+    search_aliases: ['BioNodulo builtin', 'Red', 'RED', 'REpeat Detector', 'repeat masking', 'de novo repeats', 'genome masking'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -7218,7 +7218,7 @@ const objectInfo = {
     display_name: 'abriTAMR',
     category: 'annotation',
     description: 'Detect and collate antimicrobial resistance genes, partial genes, and virulence factors with abriTAMR.',
-    search_aliases: ['Galaxy', 'abriTAMR', 'abritamr', 'AMR gene detection', 'AMRFinderPlus', 'antimicrobial resistance', 'virulence summary'],
+    search_aliases: ['BioNodulo builtin', 'abriTAMR', 'abritamr', 'AMR gene detection', 'AMRFinderPlus', 'antimicrobial resistance', 'virulence summary'],
     input: {
       required: {
         contig: { type: 'FASTA' },
@@ -7264,7 +7264,7 @@ const objectInfo = {
     display_name: 'Nonpareil',
     category: 'metagenomics',
     description: 'Estimate metagenomic coverage and generate Nonpareil redundancy curves from FASTA or FASTQ reads.',
-    search_aliases: ['Galaxy', 'Nonpareil', 'nonpareil', 'metagenomic coverage', 'redundancy curve', 'sequencing effort', 'library complexity'],
+    search_aliases: ['BioNodulo builtin', 'Nonpareil', 'nonpareil', 'metagenomic coverage', 'redundancy curve', 'sequencing effort', 'library complexity'],
     input: {
       required: {
         input: { type: 'FASTQ' },
@@ -7307,7 +7307,7 @@ const objectInfo = {
     display_name: 'BBTools BBDuk',
     category: 'trimming',
     description: 'Filter, trim, and mask FASTQ reads with k-mer matching, entropy filtering, and BBDuk statistics.',
-    search_aliases: ['Galaxy', 'BBTools', 'BBDuk', 'bbduk', 'bbtools_bbduk', 'kmer decontamination', 'adapter trimming', 'entropy filtering', 'FASTQ filtering', 'quality histograms'],
+    search_aliases: ['BioNodulo builtin', 'BBTools', 'BBDuk', 'bbduk', 'bbtools_bbduk', 'kmer decontamination', 'adapter trimming', 'entropy filtering', 'FASTQ filtering', 'quality histograms'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired'] },
@@ -7346,7 +7346,7 @@ const objectInfo = {
     display_name: 'BBTools BBMerge',
     category: 'trimming',
     description: 'Merge overlapping paired-end reads with BBMerge and report unmerged reads plus insert-length histograms.',
-    search_aliases: ['Galaxy', 'BBTools', 'BBMerge', 'bbmerge', 'bbtools_bbmerge', 'overlapping mates', 'paired-end merge', 'read merging', 'insert length histogram', 'error correction'],
+    search_aliases: ['BioNodulo builtin', 'BBTools', 'BBMerge', 'bbmerge', 'bbtools_bbmerge', 'overlapping mates', 'paired-end merge', 'read merging', 'insert length histogram', 'error correction'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired'] },
@@ -7390,7 +7390,7 @@ const objectInfo = {
     display_name: 'BBTools BBNorm',
     category: 'qc',
     description: 'Normalize sequencing coverage with BBNorm count-min-sketch k-mer depth estimates.',
-    search_aliases: ['Galaxy', 'BBTools', 'BBNorm', 'bbnorm', 'bbtools_bbnorm', 'coverage normalization', 'digital normalization', 'kmer depth', 'count-min sketch', 'read downsampling'],
+    search_aliases: ['BioNodulo builtin', 'BBTools', 'BBNorm', 'bbnorm', 'bbtools_bbnorm', 'coverage normalization', 'digital normalization', 'kmer depth', 'count-min sketch', 'read downsampling'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'PE_2files', options: ['single_end', 'PE_1file', 'PE_2files', 'paired'] },
@@ -7433,7 +7433,7 @@ const objectInfo = {
     display_name: 'BBTools Tadpole',
     category: 'assembly',
     description: 'Assemble, extend, or correct reads with Tadpole k-mer processing from BBTools.',
-    search_aliases: ['Galaxy', 'BBTools', 'Tadpole', 'tadpole', 'bbtools_tadpole', 'kmer assembler', 'error correction', 'read extension', 'contig mode', 'fastadump'],
+    search_aliases: ['BioNodulo builtin', 'BBTools', 'Tadpole', 'tadpole', 'bbtools_tadpole', 'kmer assembler', 'error correction', 'read extension', 'contig mode', 'fastadump'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired'] },
@@ -7462,7 +7462,7 @@ const objectInfo = {
     display_name: 'BBTools CallVariants',
     category: 'variant',
     description: 'Call variants from aligned BAM files with BBTools CallVariants.',
-    search_aliases: ['Galaxy', 'BBTools', 'CallVariants', 'callvariants', 'bbtools_callvariants', 'variant caller', 'BAM variants', 'ploidy', 'variant score histogram'],
+    search_aliases: ['BioNodulo builtin', 'BBTools', 'CallVariants', 'callvariants', 'bbtools_callvariants', 'variant caller', 'BAM variants', 'ploidy', 'variant score histogram'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -7491,7 +7491,7 @@ const objectInfo = {
     display_name: 'BBTools BBMap',
     category: 'alignment',
     description: 'Map short reads to a reference genome with BBMap and emit all, unmapped, and mapped BAM files.',
-    search_aliases: ['Galaxy', 'BBTools', 'BBMap', 'bbmap', 'bbtools_bbmap', 'short-read aligner', 'read mapping', 'BAM output', 'mapped reads'],
+    search_aliases: ['BioNodulo builtin', 'BBTools', 'BBMap', 'bbmap', 'bbtools_bbmap', 'short-read aligner', 'read mapping', 'BAM output', 'mapped reads'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'single', options: ['single', 'pair', 'paired'] },
@@ -7531,7 +7531,7 @@ const objectInfo = {
     display_name: 'Miniasm',
     category: 'assembly',
     description: 'Assemble noisy long reads into a GFA assembly graph using Miniasm and all-vs-all PAF overlaps.',
-    search_aliases: ['Galaxy', 'Miniasm', 'miniasm', 'noisy long reads', 'long-read assembler', 'PAF overlaps', 'GFA assembly graph', 'OLC assembler'],
+    search_aliases: ['BioNodulo builtin', 'Miniasm', 'miniasm', 'noisy long reads', 'long-read assembler', 'PAF overlaps', 'GFA assembly graph', 'OLC assembler'],
     input: {
       required: {
         read_file: { type: 'FASTQ' },
@@ -7566,7 +7566,7 @@ const objectInfo = {
     display_name: 'AMAS Summary',
     category: 'phylogeny',
     description: 'Calculate alignment summary statistics and optional per-taxon summaries with AMAS.',
-    search_aliases: ['Galaxy', 'AMAS', 'amas summary', 'alignment summary', 'alignment manipulation', 'phylogenomics', 'missing data', 'parsimony informative sites'],
+    search_aliases: ['BioNodulo builtin', 'AMAS', 'amas summary', 'alignment summary', 'alignment manipulation', 'phylogenomics', 'missing data', 'parsimony informative sites'],
     input: {
       required: {
         input_files: { type: 'ALIGNMENT' },
@@ -7587,7 +7587,7 @@ const objectInfo = {
     display_name: 'AMAS Concat',
     category: 'phylogeny',
     description: 'Concatenate multiple pre-aligned sequence files and emit a partition map with AMAS.',
-    search_aliases: ['Galaxy', 'AMAS', 'amas concat', 'alignment concatenation', 'supermatrix', 'partition file', 'phylogenomics', 'RAxML partitions'],
+    search_aliases: ['BioNodulo builtin', 'AMAS', 'amas concat', 'alignment concatenation', 'supermatrix', 'partition file', 'phylogenomics', 'RAxML partitions'],
     input: {
       required: {
         input_files: { type: 'ALIGNMENT' },
@@ -7610,7 +7610,7 @@ const objectInfo = {
     display_name: 'AMAS Split',
     category: 'phylogeny',
     description: 'Split a concatenated sequence alignment into per-partition alignment files with AMAS.',
-    search_aliases: ['Galaxy', 'AMAS', 'amas split', 'alignment splitting', 'partition file', 'concatenated alignment', 'phylogenomics', 'locus extraction'],
+    search_aliases: ['BioNodulo builtin', 'AMAS', 'amas split', 'alignment splitting', 'partition file', 'concatenated alignment', 'phylogenomics', 'locus extraction'],
     input: {
       required: {
         input_file: { type: 'ALIGNMENT' },
@@ -7633,7 +7633,7 @@ const objectInfo = {
     display_name: 'AMAS Remove',
     category: 'phylogeny',
     description: 'Remove named taxa from one or more sequence alignments with AMAS.',
-    search_aliases: ['Galaxy', 'AMAS', 'amas remove', 'remove taxa', 'taxon filtering', 'alignment subset', 'phylogenomics', 'outgroup removal'],
+    search_aliases: ['BioNodulo builtin', 'AMAS', 'amas remove', 'remove taxa', 'taxon filtering', 'alignment subset', 'phylogenomics', 'outgroup removal'],
     input: {
       required: {
         input_files: { type: 'ALIGNMENT' },
@@ -7656,7 +7656,7 @@ const objectInfo = {
     display_name: 'AMAS Replicate',
     category: 'phylogeny',
     description: 'Generate replicate alignment datasets by sampling loci from multiple alignments with AMAS.',
-    search_aliases: ['Galaxy', 'AMAS', 'amas replicate', 'alignment replicate', 'phylogenetic jackknife', 'loci sampling', 'bootstrap loci', 'phylogenomics'],
+    search_aliases: ['BioNodulo builtin', 'AMAS', 'amas replicate', 'alignment replicate', 'phylogenetic jackknife', 'loci sampling', 'bootstrap loci', 'phylogenomics'],
     input: {
       required: {
         input_files: { type: 'ALIGNMENT' },
@@ -7680,7 +7680,7 @@ const objectInfo = {
     display_name: 'ClustalW',
     category: 'phylogeny',
     description: 'Align DNA or protein FASTA sequences with ClustalW and emit the alignment plus guide tree.',
-    search_aliases: ['Galaxy', 'ClustalW', 'clustalw2', 'clustal', 'multiple sequence alignment', 'DNA alignment', 'protein alignment', 'guide tree'],
+    search_aliases: ['BioNodulo builtin', 'ClustalW', 'clustalw2', 'clustal', 'multiple sequence alignment', 'DNA alignment', 'protein alignment', 'guide tree'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -7703,7 +7703,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Estimate an unrooted species tree from unrooted gene trees with ASTRAL-III.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'ASTRAL',
       'ASTRAL-III',
       'astral',
@@ -7737,7 +7737,7 @@ const objectInfo = {
     display_name: 'Quicktree',
     category: 'phylogeny',
     description: 'Construct phylogenetic trees or distance matrices from alignments with Quicktree.',
-    search_aliases: ['Galaxy', 'Quicktree', 'quicktree', 'neighbor joining', 'distance matrix', 'UPGMA', 'Kimura', 'bootstrap'],
+    search_aliases: ['BioNodulo builtin', 'Quicktree', 'quicktree', 'neighbor joining', 'distance matrix', 'UPGMA', 'Kimura', 'bootstrap'],
     input: {
       required: {
         format: { type: 'STRING', default: 'align', options: ['align', 'dist'] },
@@ -7764,7 +7764,7 @@ const objectInfo = {
     display_name: 'RapidNJ',
     category: 'phylogeny',
     description: 'Construct neighbour-joining phylogenetic trees or distance matrices rapidly with RapidNJ.',
-    search_aliases: ['Galaxy', 'RapidNJ', 'rapidnj', 'neighbor joining', 'neighbour joining', 'distance matrix', 'Kimura', 'Jukes-Cantor', 'bootstrap'],
+    search_aliases: ['BioNodulo builtin', 'RapidNJ', 'rapidnj', 'neighbor joining', 'neighbour joining', 'distance matrix', 'Kimura', 'Jukes-Cantor', 'bootstrap'],
     input: {
       required: {
         alignments: { type: 'STRING' },
@@ -7793,7 +7793,7 @@ const objectInfo = {
     display_name: 'PhyML',
     category: 'phylogeny',
     description: 'Infer maximum-likelihood phylogenies from PHYLIP alignments with PhyML.',
-    search_aliases: ['Galaxy', 'PhyML', 'phyml', 'maximum likelihood', 'phylogeny', 'PHYLIP', 'bootstrap', 'aLRT', 'SH-like branch support'],
+    search_aliases: ['BioNodulo builtin', 'PhyML', 'phyml', 'maximum likelihood', 'phylogeny', 'PHYLIP', 'bootstrap', 'aLRT', 'SH-like branch support'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -7820,7 +7820,7 @@ const objectInfo = {
     display_name: 'FLASH',
     category: 'trimming',
     description: 'Merge paired-end reads with FLASH and emit merged, unmerged, log, and histogram outputs.',
-    search_aliases: ['Galaxy', 'FLASH', 'flash', 'read merging', 'paired-end merge', 'overlap', 'Fast Length Adjustment of SHort reads'],
+    search_aliases: ['BioNodulo builtin', 'FLASH', 'flash', 'read merging', 'paired-end merge', 'overlap', 'Fast Length Adjustment of SHort reads'],
     input: {
       required: {
         layout: { type: 'STRING', default: 'individual', options: ['individual', 'collection'] },
@@ -7853,7 +7853,7 @@ const objectInfo = {
     display_name: 'FragGeneScan',
     category: 'annotation',
     description: 'Find complete and fragmented genes in short reads, incomplete assemblies, or complete genomes.',
-    search_aliases: ['Galaxy', 'FragGeneScan', 'fraggenescan', 'run_FragGeneScan.pl', 'fragmented genes', 'gene prediction', 'short reads', 'prokaryotic genes'],
+    search_aliases: ['BioNodulo builtin', 'FragGeneScan', 'fraggenescan', 'run_FragGeneScan.pl', 'fragmented genes', 'gene prediction', 'short reads', 'prokaryotic genes'],
     input: {
       required: {
         genome: { type: 'FASTA' },
@@ -7900,7 +7900,7 @@ const objectInfo = {
     display_name: 'Prodigal Gene Predictor',
     category: 'annotation',
     description: 'Predict protein-coding genes in microbial genomes, draft assemblies, and metagenomic sequences.',
-    search_aliases: ['Galaxy', 'Prodigal', 'prodigal', 'gene prediction', 'microbial genomes', 'protein-coding genes', 'translation initiation sites', 'metagenomic gene prediction'],
+    search_aliases: ['BioNodulo builtin', 'Prodigal', 'prodigal', 'gene prediction', 'microbial genomes', 'protein-coding genes', 'translation initiation sites', 'metagenomic gene prediction'],
     input: {
       required: {
         input_fa: { type: 'FASTA' },
@@ -7959,7 +7959,7 @@ const objectInfo = {
     display_name: 'EukRep',
     category: 'metagenomics',
     description: 'Classify eukaryotic and prokaryotic sequences from metagenomic datasets with EukRep.',
-    search_aliases: ['Galaxy', 'EukRep', 'eukrep', 'metagenomic eukaryotes', 'eukaryotic scaffolds', 'prokaryotic sequences', 'metagenome classification', 'SVM k-mer classifier'],
+    search_aliases: ['BioNodulo builtin', 'EukRep', 'eukrep', 'metagenomic eukaryotes', 'eukaryotic scaffolds', 'prokaryotic sequences', 'metagenome classification', 'SVM k-mer classifier'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -7987,7 +7987,7 @@ const objectInfo = {
     display_name: 'PlasClass',
     category: 'metagenomics',
     description: 'Classify plasmid and chromosome sequences in metagenomic or isolate assemblies with PlasClass.',
-    search_aliases: ['Galaxy', 'PlasClass', 'plasclass', 'plasmid sequence classification', 'plasmid classifier', 'chromosome classification', 'metagenomic contigs', 'isolate assemblies'],
+    search_aliases: ['BioNodulo builtin', 'PlasClass', 'plasclass', 'plasmid sequence classification', 'plasmid classifier', 'chromosome classification', 'metagenomic contigs', 'isolate assemblies'],
     input: {
       required: {
         fasta: { type: 'FASTA' },
@@ -8010,7 +8010,7 @@ const objectInfo = {
     display_name: 'PRINSEQ',
     category: 'trimming',
     description: 'Filter and trim single-end or paired-end FASTQ reads with PRINSEQ.',
-    search_aliases: ['Galaxy', 'PRINSEQ', 'prinseq-lite', 'quality control', 'quality filter', 'metagenomic preprocessing', 'read trimming', 'N filtering'],
+    search_aliases: ['BioNodulo builtin', 'PRINSEQ', 'prinseq-lite', 'quality control', 'quality filter', 'metagenomic preprocessing', 'read trimming', 'N filtering'],
     input: {
       required: {
         paired: { type: 'BOOLEAN', default: false },
@@ -8033,7 +8033,7 @@ const objectInfo = {
     display_name: 'HMMER hmmscan',
     category: 'annotation',
     description: 'Search protein sequences against a profile HMM database.',
-    search_aliases: ['Galaxy', 'hmmer', 'hmmscan', 'pfam'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'hmmscan', 'pfam'],
     input: {
       required: {
         seqfile: { type: 'FASTA' },
@@ -8050,7 +8050,7 @@ const objectInfo = {
     display_name: 'HMMER hmmalign',
     category: 'alignment',
     description: 'Align sequences to a profile HMM and write a Stockholm alignment.',
-    search_aliases: ['Galaxy', 'hmmer', 'hmmalign', 'profile HMM alignment', 'Stockholm alignment'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'hmmalign', 'profile HMM alignment', 'Stockholm alignment'],
     input: {
       required: {
         seq: { type: 'FASTA' },
@@ -8075,7 +8075,7 @@ const objectInfo = {
     display_name: 'HMMER hmmbuild',
     category: 'annotation',
     description: 'Build a profile HMM from a multiple sequence alignment.',
-    search_aliases: ['Galaxy', 'hmmer', 'hmmbuild', 'profile HMM', 'multiple sequence alignment', 'HMM profile'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'hmmbuild', 'profile HMM', 'multiple sequence alignment', 'HMM profile'],
     input: {
       required: {
         msafile: { type: 'ALIGNMENT' },
@@ -8110,7 +8110,7 @@ const objectInfo = {
     display_name: 'HMMER hmmconvert',
     category: 'annotation',
     description: 'Convert HMM profile files between HMMER formats.',
-    search_aliases: ['Galaxy', 'hmmer', 'hmmconvert', 'HMMER2', 'HMMER3', 'profile conversion'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'hmmconvert', 'HMMER2', 'HMMER3', 'profile conversion'],
     input: {
       required: {
         hmmfile: { type: 'FILE' },
@@ -8131,7 +8131,7 @@ const objectInfo = {
     display_name: 'HMMER hmmemit',
     category: 'annotation',
     description: 'Sample sequences or consensus output from a profile HMM.',
-    search_aliases: ['Galaxy', 'hmmer', 'hmmemit', 'emit sequences', 'consensus sequence', 'profile sampling'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'hmmemit', 'emit sequences', 'consensus sequence', 'profile sampling'],
     input: {
       required: {
         hmmfile: { type: 'FILE' },
@@ -8162,7 +8162,7 @@ const objectInfo = {
     display_name: 'HMMER hmmfetch',
     category: 'annotation',
     description: 'Retrieve selected profile HMM models from a HMM file.',
-    search_aliases: ['Galaxy', 'hmmer', 'hmmfetch', 'retrieve HMM', 'profile HMM names', 'Pfam subset'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'hmmfetch', 'retrieve HMM', 'profile HMM names', 'Pfam subset'],
     input: {
       required: {
         hmmfile: { type: 'FILE' },
@@ -8183,7 +8183,7 @@ const objectInfo = {
     display_name: 'HMMER jackhmmer',
     category: 'annotation',
     description: 'Iteratively search protein sequences against a protein FASTA database.',
-    search_aliases: ['Galaxy', 'hmmer', 'jackhmmer', 'iterative search', 'profile iteration', 'PSI-BLAST-like'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'jackhmmer', 'iterative search', 'profile iteration', 'PSI-BLAST-like'],
     input: {
       required: {
         seqfile: { type: 'FASTA' },
@@ -8230,7 +8230,7 @@ const objectInfo = {
     display_name: 'HMMER phmmer',
     category: 'annotation',
     description: 'Search protein sequences against a protein FASTA database.',
-    search_aliases: ['Galaxy', 'hmmer', 'phmmer', 'protein search', 'BLASTP-like', 'sequence homology'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'phmmer', 'protein search', 'BLASTP-like', 'sequence homology'],
     input: {
       required: {
         seqfile: { type: 'FASTA' },
@@ -8271,7 +8271,7 @@ const objectInfo = {
     display_name: 'HMMER nhmmer',
     category: 'annotation',
     description: 'Search a nucleotide profile HMM or alignment against a nucleotide FASTA database.',
-    search_aliases: ['Galaxy', 'hmmer', 'nhmmer', 'DNA search', 'RNA search', 'BLASTN-like', 'nucleotide homology'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'nhmmer', 'DNA search', 'RNA search', 'BLASTN-like', 'nucleotide homology'],
     input: {
       required: {
         hmmfile: { type: 'FILE' },
@@ -8312,7 +8312,7 @@ const objectInfo = {
     display_name: 'HMMER nhmmscan',
     category: 'annotation',
     description: 'Search nucleotide sequences against a nucleotide profile HMM database.',
-    search_aliases: ['Galaxy', 'hmmer', 'nhmmscan', 'Dfam scan', 'DNA profile database', 'nucleotide profiles'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'nhmmscan', 'Dfam scan', 'DNA profile database', 'nucleotide profiles'],
     input: {
       required: {
         hmm_source: { type: 'STRING', default: 'history', options: ['history', 'indexed'] },
@@ -8354,7 +8354,7 @@ const objectInfo = {
     display_name: 'HMMER alimask',
     category: 'annotation',
     description: 'Append a mask line to a multiple sequence alignment using HMMER alimask.',
-    search_aliases: ['Galaxy', 'hmmer', 'alimask', 'alignment mask', 'model range', 'Stockholm alignment'],
+    search_aliases: ['BioNodulo builtin', 'hmmer', 'alimask', 'alignment mask', 'model range', 'Stockholm alignment'],
     input: {
       required: {
         msafile: { type: 'ALIGNMENT' },
@@ -8385,7 +8385,7 @@ const objectInfo = {
     display_name: 'MMseqs2 Easy Search',
     category: 'alignment',
     description: 'Run MMseqs2 easy-search for sequence homology searches.',
-    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-search'],
+    search_aliases: ['BioNodulo builtin', 'mmseqs2', 'mmseqs', 'easy-search'],
     input: {
       required: {
         query_fasta: { type: 'FASTA' },
@@ -8402,7 +8402,7 @@ const objectInfo = {
     display_name: 'MMseqs2 Easy Cluster',
     category: 'clustering',
     description: 'Cluster protein or nucleotide sequences with MMseqs2 cascaded clustering.',
-    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-cluster', 'cascaded clustering', 'sequence clustering'],
+    search_aliases: ['BioNodulo builtin', 'mmseqs2', 'mmseqs', 'easy-cluster', 'cascaded clustering', 'sequence clustering'],
     input: {
       required: {
         input_fasta: { type: 'FASTA' },
@@ -8432,7 +8432,7 @@ const objectInfo = {
     display_name: 'MMseqs2 Easy Linclust',
     category: 'clustering',
     description: 'Cluster very large protein or nucleotide datasets in linear time with MMseqs2 Linclust.',
-    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-linclust', 'linclust', 'linear clustering'],
+    search_aliases: ['BioNodulo builtin', 'mmseqs2', 'mmseqs', 'easy-linclust', 'linclust', 'linear clustering'],
     input: {
       required: {
         input_fasta: { type: 'FASTA' },
@@ -8463,7 +8463,7 @@ const objectInfo = {
     display_name: 'MMseqs2 Easy Linsearch',
     category: 'alignment',
     description: 'Run fast linear-time homology searches against large MMseqs2 target databases.',
-    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-linsearch', 'linsearch', 'linear homology search'],
+    search_aliases: ['BioNodulo builtin', 'mmseqs2', 'mmseqs', 'easy-linsearch', 'linsearch', 'linear homology search'],
     input: {
       required: {
         query_fasta: { type: 'FASTA' },
@@ -8497,7 +8497,7 @@ const objectInfo = {
     display_name: 'MMseqs2 Easy RBH',
     category: 'alignment',
     description: 'Identify reciprocal best hits between two sequence sets for ortholog detection.',
-    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-rbh', 'reciprocal best hit', 'ortholog detection'],
+    search_aliases: ['BioNodulo builtin', 'mmseqs2', 'mmseqs', 'easy-rbh', 'reciprocal best hit', 'ortholog detection'],
     input: {
       required: {
         query_fasta: { type: 'FASTA' },
@@ -8535,7 +8535,7 @@ const objectInfo = {
     display_name: 'MMseqs2 Easy Taxonomy',
     category: 'taxonomy',
     description: 'Assign taxonomy to query sequences against an MMseqs2 taxonomy database using LCA.',
-    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'easy-taxonomy', 'taxonomy assignment', 'LCA', 'metagenomic classification'],
+    search_aliases: ['BioNodulo builtin', 'mmseqs2', 'mmseqs', 'easy-taxonomy', 'taxonomy assignment', 'LCA', 'metagenomic classification'],
     input: {
       required: {
         query_fasta: { type: 'FASTA' },
@@ -8574,7 +8574,7 @@ const objectInfo = {
     display_name: 'MMseqs2 Taxonomy',
     category: 'taxonomy',
     description: 'Run the fine-grained MMseqs2 taxonomy workflow with optional taxon filtering and reports.',
-    search_aliases: ['Galaxy', 'mmseqs2', 'mmseqs', 'taxonomy', 'taxonomy assignment', 'filtertaxseqdb', 'Kraken report', 'Krona report'],
+    search_aliases: ['BioNodulo builtin', 'mmseqs2', 'mmseqs', 'taxonomy', 'taxonomy assignment', 'filtertaxseqdb', 'Kraken report', 'Krona report'],
     input: {
       required: {
         input_fasta: { type: 'FASTA' },
@@ -8612,7 +8612,7 @@ const objectInfo = {
     display_name: 'Kaiju',
     category: 'taxonomy',
     description: 'Classify metagenomic reads or report best matching database sequences with Kaiju.',
-    search_aliases: ['Galaxy', 'kaiju', 'taxonomic classification', 'metagenomics', 'protein-level classifier', 'best matching sequence'],
+    search_aliases: ['BioNodulo builtin', 'kaiju', 'taxonomic classification', 'metagenomics', 'protein-level classifier', 'best matching sequence'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'single', options: ['single', 'paired'] },
@@ -8648,7 +8648,7 @@ const objectInfo = {
     display_name: 'Kaiju Add Taxon Names',
     category: 'taxonomy',
     description: 'Append taxon names or taxonomic paths to Kaiju output tables.',
-    search_aliases: ['Galaxy', 'kaiju', 'kaiju-addTaxonNames', 'taxon names', 'Print full taxon path', 'readable taxonomy'],
+    search_aliases: ['BioNodulo builtin', 'kaiju', 'kaiju-addTaxonNames', 'taxon names', 'Print full taxon path', 'readable taxonomy'],
     input: {
       required: {
         kaiju_table: { type: 'TSV' },
@@ -8674,7 +8674,7 @@ const objectInfo = {
     display_name: 'Kaiju2Krona',
     category: 'taxonomy',
     description: 'Convert Kaiju output into a Krona-compatible taxonomy import table.',
-    search_aliases: ['Galaxy', 'kaiju', 'kaiju2krona', 'Krona import', 'selected ranks', 'taxonomy sunburst'],
+    search_aliases: ['BioNodulo builtin', 'kaiju', 'kaiju2krona', 'Krona import', 'selected ranks', 'taxonomy sunburst'],
     input: {
       required: {
         kaiju_table: { type: 'TSV' },
@@ -8699,7 +8699,7 @@ const objectInfo = {
     display_name: 'Kaiju Merge Outputs',
     category: 'taxonomy',
     description: 'Merge Kaiju and Kraken-style classification output tables with conflict resolution.',
-    search_aliases: ['Galaxy', 'kaiju', 'kaiju-mergeOutputs', 'merge classifications', 'conflict resolution', 'Kraken table'],
+    search_aliases: ['BioNodulo builtin', 'kaiju', 'kaiju-mergeOutputs', 'merge classifications', 'conflict resolution', 'Kraken table'],
     input: {
       required: {
         kaiju_table: { type: 'TSV' },
@@ -8725,7 +8725,7 @@ const objectInfo = {
     display_name: 'Kaiju2Table',
     category: 'taxonomy',
     description: 'Convert one or more Kaiju classification outputs into summary tables by taxonomic rank.',
-    search_aliases: ['Galaxy', 'kaiju', 'kaiju2table', 'summary table', 'minimum reporting percentage', 'taxonomic rank'],
+    search_aliases: ['BioNodulo builtin', 'kaiju', 'kaiju2table', 'summary table', 'minimum reporting percentage', 'taxonomic rank'],
     input: {
       required: {
         kaiju_tables: { type: 'TSV', list: true },
@@ -8756,7 +8756,7 @@ const objectInfo = {
     display_name: 'Kraken2',
     category: 'metagenomics',
     description: 'Assign taxonomic labels to sequencing reads with Kraken2.',
-    search_aliases: ['Galaxy', 'Kraken2', 'taxonomic classification', 'classified reads', 'unclassified reads', 'Kraken report', 'MPA style report', 'minimizer data'],
+    search_aliases: ['BioNodulo builtin', 'Kraken2', 'taxonomic classification', 'classified reads', 'unclassified reads', 'Kraken report', 'MPA style report', 'minimizer data'],
     input: {
       required: {
         db: { type: 'DIRECTORY' },
@@ -8795,7 +8795,7 @@ const objectInfo = {
     display_name: 'Kraken',
     category: 'metagenomics',
     description: 'Assign taxonomic labels to sequencing reads with Kraken.',
-    search_aliases: ['Galaxy', 'Kraken', 'taxonomic classification', 'metagenomics', 'k-mer exact alignment', 'classified reads', 'unclassified reads', 'quick mode'],
+    search_aliases: ['BioNodulo builtin', 'Kraken', 'taxonomic classification', 'metagenomics', 'k-mer exact alignment', 'classified reads', 'unclassified reads', 'quick mode'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'single', options: ['single', 'paired', 'paired_collection'] },
@@ -8829,7 +8829,7 @@ const objectInfo = {
     display_name: 'Kraken Report',
     category: 'metagenomics',
     description: 'Generate a tabular sample report from classic Kraken classification output.',
-    search_aliases: ['Galaxy', 'Kraken Report', 'kraken-report', 'sample report', 'taxonomy summary', 'classification report', 'NCBI taxonomy ID'],
+    search_aliases: ['BioNodulo builtin', 'Kraken Report', 'kraken-report', 'sample report', 'taxonomy summary', 'classification report', 'NCBI taxonomy ID'],
     input: {
       required: {
         kraken_output: { type: 'STRING' },
@@ -8851,7 +8851,7 @@ const objectInfo = {
     display_name: 'Kraken Filter',
     category: 'metagenomics',
     description: 'Filter classic Kraken classification output by confidence score.',
-    search_aliases: ['Galaxy', 'Kraken Filter', 'kraken-filter', 'confidence threshold', 'classification filter', 'taxonomy confidence', 'unclassified'],
+    search_aliases: ['BioNodulo builtin', 'Kraken Filter', 'kraken-filter', 'confidence threshold', 'classification filter', 'taxonomy confidence', 'unclassified'],
     input: {
       required: {
         input: { type: 'STRING' },
@@ -8875,7 +8875,7 @@ const objectInfo = {
     display_name: 'Kraken Translate',
     category: 'metagenomics',
     description: 'Convert Kraken taxonomy IDs into taxonomic lineage names.',
-    search_aliases: ['Galaxy', 'Kraken Translate', 'kraken-translate', 'taxonomy labels', 'lineage names', 'MPA format', 'standard ranks'],
+    search_aliases: ['BioNodulo builtin', 'Kraken Translate', 'kraken-translate', 'taxonomy labels', 'lineage names', 'MPA format', 'standard ranks'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -8899,7 +8899,7 @@ const objectInfo = {
     display_name: 'Kraken MPA Report',
     category: 'metagenomics',
     description: 'Summarize classic Kraken classifications across taxonomic ranks for multiple samples.',
-    search_aliases: ['Galaxy', 'Kraken MPA Report', 'kraken-mpa-report', 'multiple samples', 'taxonomic ranks', 'MetaPhlAn style', 'show zeros', 'header line'],
+    search_aliases: ['BioNodulo builtin', 'Kraken MPA Report', 'kraken-mpa-report', 'multiple samples', 'taxonomic ranks', 'MetaPhlAn style', 'show zeros', 'header line'],
     input: {
       required: {
         classification: { type: 'TSV', multiple: true },
@@ -8925,7 +8925,7 @@ const objectInfo = {
     display_name: 'Centrifuge',
     category: 'metagenomics',
     description: 'Read-based metagenome characterization with Centrifuge.',
-    search_aliases: ['Galaxy', 'Centrifuge', 'metagenomic classification', 'taxonomic classification', 'read-based metagenomics', 'SRA accession', 'FM index'],
+    search_aliases: ['BioNodulo builtin', 'Centrifuge', 'metagenomic classification', 'taxonomic classification', 'read-based metagenomics', 'SRA accession', 'FM index'],
     input: {
       required: {
         db: { type: 'DIRECTORY' },
@@ -8966,7 +8966,7 @@ const objectInfo = {
     display_name: 'MetaPhlAn',
     category: 'metagenomics',
     description: 'Profile microbial community composition with MetaPhlAn 4 marker genes.',
-    search_aliases: ['Galaxy', 'MetaPhlAn', 'metagenomic profiling', 'relative abundance', 'marker abundance', 'VSC breadth', 'Krona', 'BIOM'],
+    search_aliases: ['BioNodulo builtin', 'MetaPhlAn', 'metagenomic profiling', 'relative abundance', 'marker abundance', 'VSC breadth', 'Krona', 'BIOM'],
     input: {
       required: {
         reads: { type: 'FASTQ_LIST' },
@@ -9007,7 +9007,7 @@ const objectInfo = {
     display_name: 'HUMAnN',
     category: 'metagenomics',
     description: 'Profile microbial pathway and gene-family abundance with HUMAnN 3.',
-    search_aliases: ['Galaxy', 'HUMAnN', 'functional profiling', 'pathway abundance', 'gene families', 'ChocoPhlAn', 'UniRef', 'intermediate output files'],
+    search_aliases: ['BioNodulo builtin', 'HUMAnN', 'functional profiling', 'pathway abundance', 'gene families', 'ChocoPhlAn', 'UniRef', 'intermediate output files'],
     input: {
       required: {
         reads: { type: 'FILE' },
@@ -9065,7 +9065,7 @@ const objectInfo = {
     display_name: 'Bracken',
     category: 'metagenomics',
     description: 'Re-estimate taxonomic abundance from a Kraken report with Bracken.',
-    search_aliases: ['Galaxy', 'Bracken', 'est_abundance.py', 'Kraken report', 'taxonomy abundance', 'Kraken-style Bracken report'],
+    search_aliases: ['BioNodulo builtin', 'Bracken', 'est_abundance.py', 'Kraken report', 'taxonomy abundance', 'Kraken-style Bracken report'],
     input: {
       required: {
         report: { type: 'TSV' },
@@ -9094,7 +9094,7 @@ const objectInfo = {
     display_name: 'Bracken',
     category: 'metagenomics',
     description: 'Re-estimate taxonomic abundance from a Kraken report with Bracken.',
-    search_aliases: ['Galaxy', 'Bracken', 'est_abundance', 'est_abundance.py', 'Kraken report', 'taxonomy abundance', 'Kraken-style Bracken report', 'Bayesian abundance'],
+    search_aliases: ['BioNodulo builtin', 'Bracken', 'est_abundance', 'est_abundance.py', 'Kraken report', 'taxonomy abundance', 'Kraken-style Bracken report', 'Bayesian abundance'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -9121,7 +9121,7 @@ const objectInfo = {
     display_name: 'Magic-BLAST',
     category: 'alignment',
     description: 'Map large RNA or DNA sequencing reads against a whole genome or transcriptome.',
-    search_aliases: ['Galaxy', 'Magic-BLAST', 'magicblast', 'RNA-seq aligner', 'long and short reads', 'whole genome mapping', 'transcriptome mapping', 'spliced alignments', 'BLAST mapper'],
+    search_aliases: ['BioNodulo builtin', 'Magic-BLAST', 'magicblast', 'RNA-seq aligner', 'long and short reads', 'whole genome mapping', 'transcriptome mapping', 'spliced alignments', 'BLAST mapper'],
     input: {
       required: {
         query: { type: 'FASTQ' },
@@ -9183,7 +9183,7 @@ const objectInfo = {
     display_name: 'bmtagger',
     category: 'metagenomics',
     description: 'Filter contaminant sequences from input FASTA or FASTQ reads.',
-    search_aliases: ['Galaxy', 'BMTagger', 'bmtagger', 'contaminant reads', 'host read removal', 'human read filtering', 'metagenomics contamination', 'Best Match Tagger'],
+    search_aliases: ['BioNodulo builtin', 'BMTagger', 'bmtagger', 'contaminant reads', 'host read removal', 'human read filtering', 'metagenomics contamination', 'Best Match Tagger'],
     input: {
       required: {
         reads: { type: 'FASTQ' },
@@ -9213,7 +9213,7 @@ const objectInfo = {
     display_name: 'BIOM summarize table',
     category: 'metagenomics',
     description: 'Summarize sample or observation data in a BIOM table.',
-    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_summarize_table', 'biom summarize-table', 'summarize sample data', 'summarize observation data', 'microbiome table summary'],
+    search_aliases: ['BioNodulo builtin', 'BIOM', 'biom-format', 'biom_summarize_table', 'biom summarize-table', 'summarize sample data', 'summarize observation data', 'microbiome table summary'],
     input: {
       required: {
         input_fp: { type: 'FILE' },
@@ -9237,7 +9237,7 @@ const objectInfo = {
     display_name: 'BIOM normalize table',
     category: 'metagenomics',
     description: 'Normalize a BIOM table.',
-    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_normalize_table', 'biom normalize-table', 'relative abundance', 'presence absence', 'normalize microbiome table'],
+    search_aliases: ['BioNodulo builtin', 'BIOM', 'biom-format', 'biom_normalize_table', 'biom normalize-table', 'relative abundance', 'presence absence', 'normalize microbiome table'],
     input: {
       required: {
         input_fp: { type: 'FILE' },
@@ -9262,7 +9262,7 @@ const objectInfo = {
     display_name: 'BIOM subset table',
     category: 'metagenomics',
     description: 'Subset a BIOM table by sample or observation IDs.',
-    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_subset_table', 'biom subset-table', 'sample IDs', 'observation IDs', 'subset microbiome table'],
+    search_aliases: ['BioNodulo builtin', 'BIOM', 'biom-format', 'biom_subset_table', 'biom subset-table', 'sample IDs', 'observation IDs', 'subset microbiome table'],
     input: {
       required: {
         input_json_fp: { type: 'FILE' },
@@ -9286,7 +9286,7 @@ const objectInfo = {
     display_name: 'BIOM from UC',
     category: 'metagenomics',
     description: 'Create a BIOM table from a vsearch, uclust, or usearch UC file.',
-    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_from_uc', 'biom from-uc', 'UC file', 'vsearch', 'uclust', 'usearch'],
+    search_aliases: ['BioNodulo builtin', 'BIOM', 'biom-format', 'biom_from_uc', 'biom from-uc', 'UC file', 'vsearch', 'uclust', 'usearch'],
     input: {
       required: {
         input_fp: { type: 'FILE' },
@@ -9309,7 +9309,7 @@ const objectInfo = {
     display_name: 'BIOM add metadata',
     category: 'metagenomics',
     description: 'Add sample and/or observation metadata to a BIOM table.',
-    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_add_metadata', 'biom add-metadata', 'sample metadata', 'observation metadata', 'taxonomy metadata'],
+    search_aliases: ['BioNodulo builtin', 'BIOM', 'biom-format', 'biom_add_metadata', 'biom add-metadata', 'sample metadata', 'observation metadata', 'taxonomy metadata'],
     input: {
       required: {
         input_fp: { type: 'FILE' },
@@ -9340,7 +9340,7 @@ const objectInfo = {
     display_name: 'BIOM convert',
     category: 'metagenomics',
     description: 'Convert between BIOM table formats and tabular text.',
-    search_aliases: ['Galaxy', 'BIOM', 'biom-format', 'biom_convert', 'biom convert', 'BIOM1', 'BIOM2', 'HDF5', 'TSV-formatted table'],
+    search_aliases: ['BioNodulo builtin', 'BIOM', 'biom-format', 'biom_convert', 'biom convert', 'BIOM1', 'BIOM2', 'HDF5', 'TSV-formatted table'],
     input: {
       required: {
         input_fp: { type: 'FILE' },
@@ -9374,7 +9374,7 @@ const objectInfo = {
     display_name: 'Beacon2 CSV2XLSX',
     category: 'metadata',
     description: 'Convert Beacon v2 Model CSV files into a multi-sheet XLSX template.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'Beacon v2 Models', 'beacon2_csv2xlsx', 'csv2xlsx', 'CSV Models to XLSX', 'Beacon-v2-Models_template'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'Beacon v2 Models', 'beacon2_csv2xlsx', 'csv2xlsx', 'CSV Models to XLSX', 'Beacon-v2-Models_template'],
     input: {
       required: {
         csvs: { type: 'CSV', multiple: true },
@@ -9397,7 +9397,7 @@ const objectInfo = {
     display_name: 'Beacon2 Analyses',
     category: 'metadata',
     description: 'Query the analyses collection in a Beacon database for bioinformatic procedures that identify variants.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_analyses', 'Beacon2 Analyses', 'beacon2-search analyses', 'analyses collection', 'bioinformatic procedures', 'variant caller', 'pipelineName'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_analyses', 'Beacon2 Analyses', 'beacon2-search analyses', 'analyses collection', 'bioinformatic procedures', 'variant caller', 'pipelineName'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9434,7 +9434,7 @@ const objectInfo = {
     display_name: 'Beacon2 Biosamples',
     category: 'metadata',
     description: 'Query the biosamples collection in a Beacon database for samples taken from individuals.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_biosamples', 'Beacon2 Biosamples', 'beacon2-search biosamples', 'biosamples collection', 'samples taken from individuals', 'biosampleStatus', 'sampleOriginDetail', 'tumorProgression'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_biosamples', 'Beacon2 Biosamples', 'beacon2-search biosamples', 'biosamples collection', 'samples taken from individuals', 'biosampleStatus', 'sampleOriginDetail', 'tumorProgression'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9479,7 +9479,7 @@ const objectInfo = {
     display_name: 'Beacon2 Bracket',
     category: 'metadata',
     description: 'Query Beacon genomic variations by sequence ranges for both start and end positions.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_bracket', 'Beacon2 Bracket', 'beacon2-search bracket', 'bracket query', 'genomic variation range', 'copy number variation', 'structural variant range'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_bracket', 'Beacon2 Bracket', 'beacon2-search bracket', 'bracket query', 'genomic variation range', 'copy number variation', 'structural variant range'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9513,7 +9513,7 @@ const objectInfo = {
     display_name: 'Beacon2 CNV',
     category: 'metadata',
     description: 'Query copy number variants from the Beacon genomicVariations collection with optional overlap filters.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_cnv', 'Beacon2 CNV', 'beacon2-search cnv', 'copy number variants', 'genomicVariations', 'variantStateId', 'copy number loss', 'copy number gain'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_cnv', 'Beacon2 CNV', 'beacon2-search cnv', 'copy number variants', 'genomicVariations', 'variantStateId', 'copy number loss', 'copy number gain'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9553,7 +9553,7 @@ const objectInfo = {
     display_name: 'Beacon2 Cohorts',
     category: 'metadata',
     description: 'Query the cohorts collection in a Beacon database for populations or groups sharing common attributes.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_cohorts', 'Beacon2 Cohorts', 'beacon2-search cohorts', 'cohorts collection', 'cohortDataTypes', 'cohortType', 'genders'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_cohorts', 'Beacon2 Cohorts', 'beacon2-search cohorts', 'cohorts collection', 'cohortDataTypes', 'cohortType', 'genders'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9588,7 +9588,7 @@ const objectInfo = {
     display_name: 'Beacon2 Datasets',
     category: 'metadata',
     description: 'Query the datasets collection in a Beacon database for repositories containing variants or individuals.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_datasets', 'Beacon2 Datasets', 'beacon2-search datasets', 'datasets collection', 'dataUseConditions', 'ontologyModifiers', 'repository'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_datasets', 'Beacon2 Datasets', 'beacon2-search datasets', 'datasets collection', 'dataUseConditions', 'ontologyModifiers', 'repository'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9620,7 +9620,7 @@ const objectInfo = {
     display_name: 'Beacon2 Gene',
     category: 'metadata',
     description: 'Query Beacon genomic variants by HGNC gene symbol.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_gene', 'Beacon2 Gene', 'beacon2-search gene', 'geneId', 'HGNC gene symbol', 'genomic variants', 'aminoacidChange'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_gene', 'Beacon2 Gene', 'beacon2-search gene', 'geneId', 'HGNC gene symbol', 'genomic variants', 'aminoacidChange'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9654,7 +9654,7 @@ const objectInfo = {
     display_name: 'Beacon2 Import',
     category: 'metadata',
     description: 'Import a Beacon JSON document into a Beacon MongoDB collection.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_import', 'Beacon2 Import', 'beacon2-import', 'Beacon JSON', 'MongoDB import', 'clearAll', 'clearColl'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_import', 'Beacon2 Import', 'beacon2-import', 'Beacon JSON', 'MongoDB import', 'clearAll', 'clearColl'],
     input: {
       required: {
         input_json_file: { type: 'JSON' },
@@ -9686,7 +9686,7 @@ const objectInfo = {
     display_name: 'Beacon2 Individuals',
     category: 'metadata',
     description: 'Query the individuals collection in a Beacon database for patients or healthy controls.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_individuals', 'Beacon2 Individuals', 'beacon2-search individuals', 'individuals collection', 'patients', 'healthy controls', 'geographicOrigin', 'familyHistory'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_individuals', 'Beacon2 Individuals', 'beacon2-search individuals', 'individuals collection', 'patients', 'healthy controls', 'geographicOrigin', 'familyHistory'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9724,7 +9724,7 @@ const objectInfo = {
     display_name: 'Beacon2 Range',
     category: 'metadata',
     description: 'Query Beacon genomic variants overlapping a start and end position range.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_range', 'Beacon2 Range', 'beacon2-search range', 'range query', 'genomic variants', 'start', 'end', 'referenceName'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_range', 'Beacon2 Range', 'beacon2-search range', 'range query', 'genomic variants', 'start', 'end', 'referenceName'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9760,7 +9760,7 @@ const objectInfo = {
     display_name: 'Beacon2 Runs',
     category: 'metadata',
     description: 'Query the runs collection in a Beacon database for sequencing and library preparation metadata.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_runs', 'Beacon2 Runs', 'beacon2-search runs', 'runs collection', 'sequencing runs', 'libraryLayout', 'librarySource', 'platformModel'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_runs', 'Beacon2 Runs', 'beacon2-search runs', 'runs collection', 'sequencing runs', 'libraryLayout', 'librarySource', 'platformModel'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9797,7 +9797,7 @@ const objectInfo = {
     display_name: 'Beacon2 Sequence',
     category: 'metadata',
     description: 'Query Beacon for the existence of a specified sequence at a genomic position.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_sequence', 'Beacon2 Sequence', 'beacon2-search sequence', 'sequence query', 'alternateBases', 'referenceBases', 'SNV', 'INDEL'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_sequence', 'Beacon2 Sequence', 'beacon2-search sequence', 'sequence query', 'alternateBases', 'referenceBases', 'SNV', 'INDEL'],
     input: {
       required: {
         database: { type: 'STRING' },
@@ -9830,7 +9830,7 @@ const objectInfo = {
     display_name: 'Beacon2 PXF2BFF',
     category: 'metadata',
     description: 'Combine Phenopacket JSON files into Beacon Friendly Format JSON.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_pxf2bff', 'pxf2bff', 'Phenopacket', 'Phenopacket JSON', 'Beacon Friendly Format', 'individuals.json'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_pxf2bff', 'pxf2bff', 'Phenopacket', 'Phenopacket JSON', 'Beacon Friendly Format', 'individuals.json'],
     input: {
       required: {
         input: { type: 'JSON', multiple: true },
@@ -9853,7 +9853,7 @@ const objectInfo = {
     display_name: 'Beacon2 VCF2BFF',
     category: 'variant',
     description: 'Convert annotated VCF files to Beacon v2 genomic variations JSON.',
-    search_aliases: ['Galaxy', 'Beacon2', 'Beacon v2', 'beacon2_vcf2bff', 'vcf2bff.pl', 'annotated VCF', 'Beacon Friendly Format', 'genomicVariations', 'genomicVariationsVcf'],
+    search_aliases: ['BioNodulo builtin', 'Beacon2', 'Beacon v2', 'beacon2_vcf2bff', 'vcf2bff.pl', 'annotated VCF', 'Beacon Friendly Format', 'genomicVariations', 'genomicVariationsVcf'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -9878,7 +9878,7 @@ const objectInfo = {
     display_name: 'Manhattan Plots',
     category: 'visualization',
     description: 'Create a GWAS Manhattan plot PDF from a tabular association-results file.',
-    search_aliases: ['Galaxy', 'qqman', 'qq_manhattan', 'Manhattan Plots', 'GWAS Manhattan plot', 'association results', 'genome-wide association study', 'SNP p-values'],
+    search_aliases: ['BioNodulo builtin', 'qqman', 'qq_manhattan', 'Manhattan Plots', 'GWAS Manhattan plot', 'association results', 'genome-wide association study', 'SNP p-values'],
     input: {
       required: {
         data: { type: 'TSV' },
@@ -9906,7 +9906,7 @@ const objectInfo = {
     display_name: 'Visualize Heinz subnetwork',
     category: 'visualization',
     description: 'Render a Heinz optimal scoring subnetwork DOT output as a PDF graph.',
-    search_aliases: ['Galaxy', 'Heinz', 'heinz_visualization', 'Visualize Heinz subnetwork', 'optimal scoring subnetwork', 'DOT graph', 'Graphviz', 'subnetwork PDF'],
+    search_aliases: ['BioNodulo builtin', 'Heinz', 'heinz_visualization', 'Visualize Heinz subnetwork', 'optimal scoring subnetwork', 'DOT graph', 'Graphviz', 'subnetwork PDF'],
     input: {
       required: {
         subnetwork: { type: 'FILE' },
@@ -9929,7 +9929,7 @@ const objectInfo = {
     display_name: 'Identify optimal scoring subnetwork',
     category: 'statistics',
     description: 'Identify an optimal scoring subnetwork from Heinz score and edge files.',
-    search_aliases: ['Galaxy', 'Heinz', 'heinz', 'optimal scoring subnetwork', 'protein-protein interaction networks', 'functional modules', 'score file', 'edge file'],
+    search_aliases: ['BioNodulo builtin', 'Heinz', 'heinz', 'optimal scoring subnetwork', 'protein-protein interaction networks', 'functional modules', 'score file', 'edge file'],
     input: {
       required: {
         score: { type: 'STRING' },
@@ -9953,7 +9953,7 @@ const objectInfo = {
     display_name: 'Calculate a Heinz score',
     category: 'statistics',
     description: 'Calculate Heinz node scores from p-values and BUM model parameters.',
-    search_aliases: ['Galaxy', 'Heinz', 'heinz_scoring', 'Calculate a Heinz score', 'Heinz score', 'BUM model', 'Beta-Uniform Mixture', 'p-value scoring', 'node p-values'],
+    search_aliases: ['BioNodulo builtin', 'Heinz', 'heinz_scoring', 'Calculate a Heinz score', 'Heinz score', 'BUM model', 'Beta-Uniform Mixture', 'p-value scoring', 'node p-values'],
     input: {
       required: {
         node: { type: 'STRING' },
@@ -9981,7 +9981,7 @@ const objectInfo = {
     display_name: 'Fit a BUM model',
     category: 'statistics',
     description: 'Fit a Beta-Uniform Mixture model to a one-column p-value distribution.',
-    search_aliases: ['Galaxy', 'Heinz', 'BioNet', 'heinz_bum', 'BUM model', 'Beta-Uniform Mixture', 'p-value distribution', 'fitBumModel'],
+    search_aliases: ['BioNodulo builtin', 'Heinz', 'BioNet', 'heinz_bum', 'BUM model', 'Beta-Uniform Mixture', 'p-value distribution', 'fitBumModel'],
     input: {
       required: {
         p_values: { type: 'FILE' },
@@ -10004,7 +10004,7 @@ const objectInfo = {
     display_name: 'BREW3R.r',
     category: 'annotation',
     description: "Extend GTF annotations at 3' ends with another GTF while preventing new gene overlaps.",
-    search_aliases: ['Galaxy', 'BREW3R.r', 'brew3r_r', 'extend GTF', 'GTF extension', '3-prime exon extension', 'StringTie annotation extension'],
+    search_aliases: ['BioNodulo builtin', 'BREW3R.r', 'brew3r_r', 'extend GTF', 'GTF extension', '3-prime exon extension', 'StringTie annotation extension'],
     input: {
       required: {
         gtf_to_extend: { type: 'GTF' },
@@ -10032,7 +10032,7 @@ const objectInfo = {
     display_name: 'chainSwap',
     category: 'genomics',
     description: 'Swap target and query sequences in a UCSC chain alignment file.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainswap', 'chainSwap', 'chain file', 'UCSC chain', 'swap target query'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_chainswap', 'chainSwap', 'chain file', 'UCSC chain', 'swap target query'],
     input: {
       required: {
         in_chain: { type: 'FILE' },
@@ -10052,7 +10052,7 @@ const objectInfo = {
     display_name: 'chainSort',
     category: 'genomics',
     description: 'Sort UCSC chain alignment records by score, target start, or query start.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainsort', 'chainSort', 'chain file', 'UCSC chain', 'sort chains', 'target start', 'query start'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_chainsort', 'chainSort', 'chain file', 'UCSC chain', 'sort chains', 'target start', 'query start'],
     input: {
       required: {
         in_chain: { type: 'FILE' },
@@ -10075,7 +10075,7 @@ const objectInfo = {
     display_name: 'netSyntenic',
     category: 'genomics',
     description: 'Add synteny information to a UCSC net alignment file.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_netsyntenic', 'netSyntenic', 'net file', 'UCSC net', 'synteny info'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_netsyntenic', 'netSyntenic', 'net file', 'UCSC net', 'synteny info'],
     input: {
       required: {
         in_net: { type: 'FILE' },
@@ -10095,7 +10095,7 @@ const objectInfo = {
     display_name: 'netChainSubset',
     category: 'genomics',
     description: 'Create a UCSC chain file containing only chains that appear in a net file.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_netchainsubset', 'netChainSubset', 'UCSC net', 'UCSC chain', 'liftOver', 'chain subset'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_netchainsubset', 'netChainSubset', 'UCSC net', 'UCSC chain', 'liftOver', 'chain subset'],
     input: {
       required: {
         in_net: { type: 'FILE' },
@@ -10121,7 +10121,7 @@ const objectInfo = {
     display_name: 'netFilter',
     category: 'genomics',
     description: 'Filter out parts of a UCSC net alignment file.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_netfilter', 'netFilter', 'UCSC net', 'net file', 'synteny filter', 'minimum gap'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_netfilter', 'netFilter', 'UCSC net', 'net file', 'synteny filter', 'minimum gap'],
     input: {
       required: {
         in_net: { type: 'FILE' },
@@ -10149,7 +10149,7 @@ const objectInfo = {
     display_name: 'chainPreNet',
     category: 'genomics',
     description: 'Remove UCSC chains that do not have a chance of being netted.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainprenet', 'chainPreNet', 'UCSC chain', 'UCSC net', 'netted chains', 'chrom sizes', 'haplotype pseudochromosomes'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_chainprenet', 'chainPreNet', 'UCSC chain', 'UCSC net', 'netted chains', 'chrom sizes', 'haplotype pseudochromosomes'],
     input: {
       required: {
         in_chain: { type: 'FILE' },
@@ -10179,7 +10179,7 @@ const objectInfo = {
     display_name: 'netToAxt',
     category: 'genomics',
     description: 'Convert UCSC net and chain alignments to AXT format.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_nettoaxt', 'netToAxt', 'UCSC net', 'UCSC chain', 'net to AXT', 'pairwise alignment'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_nettoaxt', 'netToAxt', 'UCSC net', 'UCSC chain', 'net to AXT', 'pairwise alignment'],
     input: {
       required: {
         in_net: { type: 'FILE' },
@@ -10207,7 +10207,7 @@ const objectInfo = {
     display_name: 'twoBitToFa',
     category: 'genomics',
     description: 'Convert all or part of a TwoBit sequence file to FASTA.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc-twobittofa', 'twoBitToFa', 'TwoBit', '2bit to FASTA', 'sequence range', 'seqList'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc-twobittofa', 'twoBitToFa', 'TwoBit', '2bit to FASTA', 'sequence range', 'seqList'],
     input: {
       required: {
         twobit_input: { type: 'FILE' },
@@ -10234,7 +10234,7 @@ const objectInfo = {
     display_name: 'wigtobigwig',
     category: 'genomics',
     description: 'Convert bedGraph or Wiggle data to an indexed bigWig track.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_wigtobigwig', 'wigtobigwig', 'wigToBigWig', 'bigWig', 'bedGraph', 'Wiggle', 'genome browser track'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_wigtobigwig', 'wigtobigwig', 'wigToBigWig', 'bigWig', 'bedGraph', 'Wiggle', 'genome browser track'],
     input: {
       required: {
         input1: { type: 'FILE' },
@@ -10264,7 +10264,7 @@ const objectInfo = {
     display_name: 'axtToMaf',
     category: 'genomics',
     description: 'Convert UCSC AXT pairwise alignments to MAF format.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_axtomaf', 'axtToMaf', 'AXT to MAF', 'multiple alignment format', 'pairwise alignment', 'chrom sizes'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_axtomaf', 'axtToMaf', 'AXT to MAF', 'multiple alignment format', 'pairwise alignment', 'chrom sizes'],
     input: {
       required: {
         in_axt: { type: 'FILE' },
@@ -10296,7 +10296,7 @@ const objectInfo = {
     display_name: 'axtChain',
     category: 'genomics',
     description: 'Chain together UCSC AXT or PSL pairwise alignments into chain format.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_axtchain', 'axtChain', 'chain together axt', 'AXT chain', 'PSL chain', 'linear gap costs'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_axtchain', 'axtChain', 'chain together axt', 'AXT chain', 'PSL chain', 'linear gap costs'],
     input: {
       required: {
         in_aln: { type: 'FILE' },
@@ -10326,7 +10326,7 @@ const objectInfo = {
     display_name: 'chainNet',
     category: 'genomics',
     description: 'Create target and query UCSC net alignment files from chain alignments.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainnet', 'chainNet', 'UCSC chain', 'UCSC net', 'alignment nets', 'target net', 'query net'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_chainnet', 'chainNet', 'UCSC chain', 'UCSC net', 'alignment nets', 'target net', 'query net'],
     input: {
       required: {
         in_chain: { type: 'FILE' },
@@ -10359,7 +10359,7 @@ const objectInfo = {
     display_name: 'faSplit',
     category: 'genomics',
     description: 'Split a FASTA file into multiple FASTA files.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'fasplit', 'faSplit', 'split FASTA', 'FASTA chunks', 'by sequence name', 'gap boundaries'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'fasplit', 'faSplit', 'split FASTA', 'FASTA chunks', 'by sequence name', 'gap boundaries'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -10391,7 +10391,7 @@ const objectInfo = {
     display_name: 'faToVcf',
     category: 'variant',
     description: 'Convert a FASTA alignment file to Variant Call Format single-nucleotide differences.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'fatovcf', 'faToVcf', 'FASTA alignment to VCF', 'single-nucleotide diffs', 'ambiguous bases', 'mask sites'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'fatovcf', 'faToVcf', 'FASTA alignment to VCF', 'single-nucleotide diffs', 'ambiguous bases', 'mask sites'],
     input: {
       required: {
         in_fasta: { type: 'FASTA' },
@@ -10428,7 +10428,7 @@ const objectInfo = {
     display_name: 'mafFilter',
     category: 'genomics',
     description: 'Filter UCSC MAF alignment blocks by size, score, species, and component criteria.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafFilter', 'ucsc_maffilter', 'mafFilter', 'MAF block filter', 'multiple alignment format', 'species filter', 'component filter', 'rejected MAF blocks'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_mafFilter', 'ucsc_maffilter', 'mafFilter', 'MAF block filter', 'multiple alignment format', 'species filter', 'component filter', 'rejected MAF blocks'],
     input: {
       required: {
         input_maf: { type: 'FILE' },
@@ -10462,7 +10462,7 @@ const objectInfo = {
     display_name: 'mafFetch',
     category: 'genomics',
     description: 'Fetch UCSC MAF records overlapping BED regions from an indexed UCSC table.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafFetch', 'ucsc_maffetch', 'mafFetch', 'MAF indexed lookup', 'multiple alignment format', 'BED overlap', 'UCSC MAF table'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_mafFetch', 'ucsc_maffetch', 'mafFetch', 'MAF indexed lookup', 'multiple alignment format', 'BED overlap', 'UCSC MAF table'],
     input: {
       required: {
         bed_file: { type: 'BED' },
@@ -10487,7 +10487,7 @@ const objectInfo = {
     display_name: 'mafAddIRows',
     category: 'genomics',
     description: 'Add UCSC MAF i rows or N/dash sequence rows using a twoBit reference.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafAddIRows', 'ucsc_mafaddirows', 'mafAddIRows', 'MAF i rows', 'multiple alignment format', 'twoBit reference', 'N BED files'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_mafAddIRows', 'ucsc_mafaddirows', 'mafAddIRows', 'MAF i rows', 'multiple alignment format', 'twoBit reference', 'N BED files'],
     input: {
       required: {
         input_maf: { type: 'FILE' },
@@ -10513,7 +10513,7 @@ const objectInfo = {
     display_name: 'mafFrag',
     category: 'genomics',
     description: 'Extract UCSC MAF sequences for one genomic region from a database track.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafFrag', 'ucsc_maffrag', 'mafFrag', 'MAF region extract', 'multiple alignment format', 'UCSC MAF track', 'single region'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_mafFrag', 'ucsc_maffrag', 'mafFrag', 'MAF region extract', 'multiple alignment format', 'UCSC MAF track', 'single region'],
     input: {
       required: {
         genome: { type: 'STRING' },
@@ -10542,7 +10542,7 @@ const objectInfo = {
     display_name: 'mafFrags',
     category: 'genomics',
     description: 'Extract UCSC MAF alignments for multiple BED regions from a database track.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafFrags', 'ucsc_maffrags', 'mafFrags', 'BED region MAF extraction', 'multiple alignment format', 'BED12 exons', 'UCSC MAF track'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_mafFrags', 'ucsc_maffrags', 'mafFrags', 'BED region MAF extraction', 'multiple alignment format', 'BED12 exons', 'UCSC MAF track'],
     input: {
       required: {
         bed_file: { type: 'BED' },
@@ -10573,7 +10573,7 @@ const objectInfo = {
     display_name: 'mafGene',
     category: 'genomics',
     description: 'Extract FASTA protein or nucleotide alignments from UCSC MAF and genePred inputs.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafGene', 'ucsc_mafgene', 'mafGene', 'genePred protein alignments', 'multiple alignment format', 'species list', 'UTR alignment'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_mafGene', 'ucsc_mafgene', 'mafGene', 'genePred protein alignments', 'multiple alignment format', 'species list', 'UTR alignment'],
     input: {
       required: {
         twoBitFile: { type: 'FILE' },
@@ -10612,7 +10612,7 @@ const objectInfo = {
     display_name: 'Convert GTF to BED12',
     category: 'genomics',
     description: 'Convert a GTF gene annotation to blocked BED12 using UCSC gtfToGenePred and genePredToBed.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'gtfToBed12', 'gtftobed12', 'GTF to BED12', 'gtfToGenePred', 'genePredToBed', 'gene annotation conversion', 'transcript info'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'gtfToBed12', 'gtftobed12', 'GTF to BED12', 'gtfToGenePred', 'genePredToBed', 'gene annotation conversion', 'transcript info'],
     input: {
       required: {
         gtf_file: { type: 'GTF' },
@@ -10642,7 +10642,7 @@ const objectInfo = {
     display_name: 'gffread',
     category: 'annotation',
     description: 'Filter, convert, cluster, and extract sequences from GFF3, GTF, or BED annotations.',
-    search_aliases: ['Galaxy', 'gffread', 'GffRead', 'GFF Utilities', 'GTF to GFF3', 'GFF3 to GTF', 'GFF to BED', 'annotation conversion', 'extract transcript FASTA', 'transcript clustering'],
+    search_aliases: ['BioNodulo builtin', 'gffread', 'GffRead', 'GFF Utilities', 'GTF to GFF3', 'GFF3 to GTF', 'GFF to BED', 'annotation conversion', 'extract transcript FASTA', 'transcript clustering'],
     input: {
       required: {
         input: { type: 'GFF_GTF' },
@@ -10683,7 +10683,7 @@ const objectInfo = {
     display_name: 'GffCompare',
     category: 'annotation',
     description: 'Compare, classify, merge, and track GFF/GTF transcript annotations.',
-    search_aliases: ['Galaxy', 'gffcompare', 'GffCompare', 'GFF Utilities', 'CuffCompare', 'transcript tracking', 'transcript classification', 'GTF comparison', 'GFF comparison', 'annotation mode', 'RefMap', 'TMAP'],
+    search_aliases: ['BioNodulo builtin', 'gffcompare', 'GffCompare', 'GFF Utilities', 'CuffCompare', 'transcript tracking', 'transcript classification', 'GTF comparison', 'GFF comparison', 'annotation mode', 'RefMap', 'TMAP'],
     input: {
       required: {
         gffinputs: { type: 'GFF_GTF', multiple: true },
@@ -10730,7 +10730,7 @@ const objectInfo = {
     display_name: 'mafCoverage',
     category: 'genomics',
     description: 'Analyse chromosome and genome-wide coverage from sorted UCSC MAF alignments.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_mafCoverage', 'ucsc_mafcoverage', 'mafCoverage', 'MAF coverage', 'multiple alignment format', 'genome-wide coverage', 'restricted coverage'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_mafCoverage', 'ucsc_mafcoverage', 'mafCoverage', 'MAF coverage', 'multiple alignment format', 'genome-wide coverage', 'restricted coverage'],
     input: {
       required: {
         maf_file: { type: 'FILE' },
@@ -10757,7 +10757,7 @@ const objectInfo = {
     display_name: 'mafToAxt',
     category: 'genomics',
     description: 'Convert a UCSC MAF multiple-alignment file to AXT pairwise alignment format.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'maftoaxt', 'mafToAxt', 'MAF to AXT', 'multiple alignment format', 'pairwise alignment'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'maftoaxt', 'mafToAxt', 'MAF to AXT', 'multiple alignment format', 'pairwise alignment'],
     input: {
       required: {
         in_maf: { type: 'FILE' },
@@ -10783,7 +10783,7 @@ const objectInfo = {
     display_name: 'chainAntiRepeat',
     category: 'genomics',
     description: 'Remove UCSC chains that primarily represent repeats or degenerate DNA.',
-    search_aliases: ['Galaxy', 'UCSC Genome Browser Utilities', 'ucsc_chainantirepeat', 'chainAntiRepeat', 'UCSC chain', 'twoBit', 'repeat chains', 'degenerate DNA'],
+    search_aliases: ['BioNodulo builtin', 'UCSC Genome Browser Utilities', 'ucsc_chainantirepeat', 'chainAntiRepeat', 'UCSC chain', 'twoBit', 'repeat chains', 'degenerate DNA'],
     input: {
       required: {
         in_target: { type: 'FILE' },
@@ -10809,7 +10809,7 @@ const objectInfo = {
     display_name: 'Recentrifuge',
     category: 'metagenomics',
     description: 'Robust comparative analysis and contamination removal for metagenomics.',
-    search_aliases: ['Galaxy', 'Recentrifuge', 'robust contamination removal', 'comparative analysis', 'metagenomics', 'Centrifuge', 'Kraken', 'CLARK', 'LMAT', 'generic classifier'],
+    search_aliases: ['BioNodulo builtin', 'Recentrifuge', 'robust contamination removal', 'comparative analysis', 'metagenomics', 'Centrifuge', 'Kraken', 'CLARK', 'LMAT', 'generic classifier'],
     input: {
       required: {
         input_file: { type: 'TSV', multiple: true },
@@ -10852,7 +10852,7 @@ const objectInfo = {
     display_name: 'Krakentools Combine Kraken Reports',
     category: 'taxonomy',
     description: 'Combine multiple Kraken-style taxonomy reports into one summed report.',
-    search_aliases: ['Galaxy', 'krakentools', 'combine_kreports.py', 'Kraken reports', 'combined report', 'only combined'],
+    search_aliases: ['BioNodulo builtin', 'krakentools', 'combine_kreports.py', 'Kraken reports', 'combined report', 'only combined'],
     input: {
       required: {
         reports: { type: 'TSV', list: true },
@@ -10877,7 +10877,7 @@ const objectInfo = {
     display_name: 'Krakentools Alpha Diversity',
     category: 'taxonomy',
     description: 'Calculate alpha diversity metrics from a Bracken abundance estimation table.',
-    search_aliases: ['Galaxy', 'krakentools', 'alpha_diversity.py', 'alpha diversity', 'Bracken abundance', 'Shannon diversity'],
+    search_aliases: ['BioNodulo builtin', 'krakentools', 'alpha_diversity.py', 'alpha diversity', 'Bracken abundance', 'Shannon diversity'],
     input: {
       required: {
         abundance_file: { type: 'TSV' },
@@ -10900,7 +10900,7 @@ const objectInfo = {
     display_name: 'Krakentools Beta Diversity',
     category: 'taxonomy',
     description: 'Calculate Bray-Curtis beta diversity from Kraken, Krona, Bracken, or tabular taxonomy files.',
-    search_aliases: ['Galaxy', 'krakentools', 'beta_diversity.py', 'beta diversity', 'Bray-Curtis', 'Krona file', 'Bracken abundance'],
+    search_aliases: ['BioNodulo builtin', 'krakentools', 'beta_diversity.py', 'beta diversity', 'Bray-Curtis', 'Krona file', 'Bracken abundance'],
     input: {
       required: {
         taxonomy_files: { type: 'TSV', list: true },
@@ -10925,7 +10925,7 @@ const objectInfo = {
     display_name: 'Krakentools Kreport2Krona',
     category: 'taxonomy',
     description: 'Convert a Kraken report into a Krona-compatible text table.',
-    search_aliases: ['Galaxy', 'krakentools', 'kreport2krona.py', 'Krona-compatible', 'intermediate ranks', 'Kraken report'],
+    search_aliases: ['BioNodulo builtin', 'krakentools', 'kreport2krona.py', 'Krona-compatible', 'intermediate ranks', 'Kraken report'],
     input: {
       required: {
         report: { type: 'TSV' },
@@ -10948,7 +10948,7 @@ const objectInfo = {
     display_name: 'Krona pie chart',
     category: 'taxonomy',
     description: 'Render taxonomic profiles as an interactive Krona HTML pie chart.',
-    search_aliases: ['Galaxy', 'Krona', 'taxonomy_krona_chart', 'ktImportGalaxy', 'ktImportText', 'taxonomy sunburst', 'metagenomic visualization', 'taxonomic profile'],
+    search_aliases: ['BioNodulo builtin', 'Krona', 'taxonomy_krona_chart', 'ktImportGalaxy', 'ktImportText', 'taxonomy sunburst', 'metagenomic visualization', 'taxonomic profile'],
     input: {
       required: {
         input: { type: 'TSV', multiple: true },
@@ -10975,7 +10975,7 @@ const objectInfo = {
     display_name: 'Taxonomy-to-Krona',
     category: 'taxonomy',
     description: 'Convert a mothur consensus taxonomy file to Krona text input format.',
-    search_aliases: ['Galaxy', 'mothur', 'mothur_taxonomy_to_krona', 'Taxonomy-to-Krona', 'mothur consensus taxonomy', 'Krona text input', 'strip confidence values', 'cons.taxonomy'],
+    search_aliases: ['BioNodulo builtin', 'mothur', 'mothur_taxonomy_to_krona', 'Taxonomy-to-Krona', 'mothur consensus taxonomy', 'Krona text input', 'strip confidence values', 'cons.taxonomy'],
     input: {
       required: {
         inputfile: { type: 'TSV' },
@@ -10998,7 +10998,7 @@ const objectInfo = {
     display_name: 'Krakentools Kreport2MPA',
     category: 'taxonomy',
     description: 'Convert a Kraken report into a MetaPhlAn-style profile table.',
-    search_aliases: ['Galaxy', 'krakentools', 'kreport2mpa.py', 'MetaPhlAn-style', 'percentages', 'intermediate ranks', 'Kraken report'],
+    search_aliases: ['BioNodulo builtin', 'krakentools', 'kreport2mpa.py', 'MetaPhlAn-style', 'percentages', 'intermediate ranks', 'Kraken report'],
     input: {
       required: {
         report: { type: 'TSV' },
@@ -11022,7 +11022,7 @@ const objectInfo = {
     display_name: 'Krakentools Extract Kraken Reads By ID',
     category: 'taxonomy',
     description: 'Extract FASTA or FASTQ reads assigned to selected taxonomic IDs from Kraken, KrakenUniq, or Kraken2 classifications.',
-    search_aliases: ['Galaxy', 'krakentools', 'extract_kraken_reads.py', 'Kraken reads', 'taxonomic IDs', 'include children', 'paired collection'],
+    search_aliases: ['BioNodulo builtin', 'krakentools', 'extract_kraken_reads.py', 'Kraken reads', 'taxonomic IDs', 'include children', 'paired collection'],
     input: {
       required: {
         library_type: { type: 'STRING', default: 'single', options: ['single', 'paired', 'paired_collection'] },
@@ -11058,7 +11058,7 @@ const objectInfo = {
     category: 'taxonomy',
     description: 'Standardise and merge taxonomic profiles from common metagenomic profilers.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'taxpasta',
       'taxonomic profile standardisation',
       'taxonomy aggregation',
@@ -11102,7 +11102,7 @@ const objectInfo = {
     display_name: 'Name2taxid',
     category: 'taxonomy',
     description: 'Convert NCBI taxon names in a tabular column to taxids with TaxonKit.',
-    search_aliases: ['Galaxy', 'TaxonKit', 'Name2taxid', 'TaxonKit name2taxid', 'NCBI taxid lookup', 'taxon names to taxids'],
+    search_aliases: ['BioNodulo builtin', 'TaxonKit', 'Name2taxid', 'TaxonKit name2taxid', 'NCBI taxid lookup', 'taxon names to taxids'],
     input: {
       required: {
         input: { type: 'TSV' },
@@ -11130,7 +11130,7 @@ const objectInfo = {
     display_name: 'Profile2CAMI',
     category: 'taxonomy',
     description: 'Convert metagenomic taxonomic profile tables to CAMI format with TaxonKit.',
-    search_aliases: ['Galaxy', 'TaxonKit', 'Profile2CAMI', 'TaxonKit profile2cami', 'CAMI profile format', 'taxonomic profile conversion'],
+    search_aliases: ['BioNodulo builtin', 'TaxonKit', 'Profile2CAMI', 'TaxonKit profile2cami', 'CAMI profile format', 'taxonomic profile conversion'],
     input: {
       required: {
         input_file: { type: 'TSV' },
@@ -11162,7 +11162,7 @@ const objectInfo = {
     display_name: 'tracy Basecall',
     category: 'sequence',
     description: 'Basecall a Sanger chromatogram trace file with Tracy.',
-    search_aliases: ['Galaxy', 'Tracy', 'tracy Basecall', 'tracy Sanger basecalling', 'Sanger chromatogram', 'AB1 trace', 'SCF trace'],
+    search_aliases: ['BioNodulo builtin', 'Tracy', 'tracy Basecall', 'tracy Sanger basecalling', 'Sanger chromatogram', 'AB1 trace', 'SCF trace'],
     input: {
       required: {
         tracefile: { type: 'FILE' },
@@ -11186,7 +11186,7 @@ const objectInfo = {
     display_name: 'tracy Align',
     category: 'alignment',
     description: 'Align a Sanger chromatogram trace file to a FASTA, ABI, or SCF reference with Tracy.',
-    search_aliases: ['Galaxy', 'Tracy', 'tracy Align', 'tracy trace alignment', 'Sanger chromatogram alignment', 'AB1 trace alignment', 'SCF trace alignment'],
+    search_aliases: ['BioNodulo builtin', 'Tracy', 'tracy Align', 'tracy trace alignment', 'Sanger chromatogram alignment', 'AB1 trace alignment', 'SCF trace alignment'],
     input: {
       required: {
         reference: { type: 'FILE' },
@@ -11223,7 +11223,7 @@ const objectInfo = {
     display_name: 'tracy Assemble',
     category: 'assembly',
     description: 'Assemble overlapping Sanger chromatogram trace files into a consensus sequence with Tracy.',
-    search_aliases: ['Galaxy', 'Tracy', 'tracy Assemble', 'tracy trace assembly', 'Sanger chromatogram assembly', 'overlapping Sanger traces', 'consensus sequence'],
+    search_aliases: ['BioNodulo builtin', 'Tracy', 'tracy Assemble', 'tracy trace assembly', 'Sanger chromatogram assembly', 'overlapping Sanger traces', 'consensus sequence'],
     input: {
       required: {
         tracefiles: { type: 'FILE', multiple: true },
@@ -11259,7 +11259,7 @@ const objectInfo = {
     display_name: 'tracy Decompose',
     category: 'variant',
     description: 'Decompose heterozygous Sanger chromatogram mutations and optionally call variants with Tracy.',
-    search_aliases: ['Galaxy', 'Tracy', 'tracy Decompose', 'tracy heterozygous deconvolution', 'Sanger chromatogram variants', 'heterozygous mutations', 'trace deconvolution'],
+    search_aliases: ['BioNodulo builtin', 'Tracy', 'tracy Decompose', 'tracy heterozygous deconvolution', 'Sanger chromatogram variants', 'heterozygous mutations', 'trace deconvolution'],
     input: {
       required: {
         genome: { type: 'FILE' },
@@ -11298,7 +11298,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Join gene, pathway, or taxonomy HUMAnN/MetaPhlAn tables into one table.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_join_tables',
       'Join merge',
@@ -11331,7 +11331,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Renormalize HUMAnN gene or pathway tables to CPM or relative abundance units.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_renorm_table',
       'Renormalize',
@@ -11367,7 +11367,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Split a merged HUMAnN feature table into one table per sample.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_split_table',
       'Split',
@@ -11404,7 +11404,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Split a stratified HUMAnN table into stratified and unstratified tables.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_split_stratified_table',
       'Split a HUMAnN table',
@@ -11432,7 +11432,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Reduce a joined HUMAnN table by applying a row-wise summary function.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_reduce_table',
       'Reduce',
@@ -11465,7 +11465,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Regroup HUMAnN gene-family features into functional categories.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_regroup_table',
       'Regroup',
@@ -11506,7 +11506,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Attach readable names to HUMAnN gene, pathway, or regrouped feature IDs.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_rename_table',
       'Rename features',
@@ -11547,7 +11547,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Add gene-family or EC abundance stratification to HUMAnN pathway abundance tables.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_unpack_pathways',
       'Unpack pathway abundances',
@@ -11583,7 +11583,7 @@ const objectInfo = {
     category: 'metagenomics',
     description: 'Plot a single stratified HUMAnN feature across samples.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HUMAnN',
       'humann_barplot',
       'Barplot',
@@ -11637,7 +11637,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Analyse targeted sequence capture data with HybPiper.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HybPiper',
       'targeted sequence capture',
       'target loci assembly',
@@ -11691,7 +11691,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect episodic diversifying selection with adaptive Branch-Site Random Effects Likelihood.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'aBSREL',
       'adaptive branch-site random effects likelihood',
@@ -11760,7 +11760,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Annotate a Newick/NHX phylogenetic tree with HyPhy label-tree.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'label-tree',
       'Annotate',
@@ -11802,7 +11802,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect invariant or near-invariant codon sites with HyPhy B-STILL.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'B-STILL',
       'Bayesian Significance Test of Invariant Low Likelihoods',
@@ -11879,7 +11879,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect coevolving sites in sequence alignments with HyPhy Bayesian graphical models.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'BGM',
       'Bayesian graphical model',
@@ -11959,7 +11959,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect gene-wide episodic diversifying selection with HyPhy BUSTED.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'BUSTED',
       'Branch-site Unrestricted Statistical Test',
@@ -12049,7 +12049,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Test for site-wise selective pressure differences among clades or branch sets with HyPhy Contrast-FEL.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'CFEL',
       'Contrast-FEL',
@@ -12124,7 +12124,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Translate an in-frame codon alignment to proteins with HyPhy CONV.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'CONV',
       'CodonToProtein',
@@ -12188,7 +12188,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Clean and normalize codon alignments with HyPhy CLN.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'CLN',
       'CleanStopCodons',
@@ -12258,7 +12258,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Test a protein alignment for directional selection with HyPhy FADE.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'FADE',
       'FUBAR Approach to Directional Evolution',
@@ -12311,7 +12311,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect pervasive site-level selection with HyPhy Fixed Effects Likelihood.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'FEL',
       'Fixed Effects Likelihood',
@@ -12364,7 +12364,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect pervasive site-level selection with HyPhy FUBAR.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'FUBAR',
       'Fast Unconstrained Bayesian AppRoximation',
@@ -12415,7 +12415,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect recombination breakpoints with HyPhy Genetic Algorithm for Recombination Detection.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'GARD',
       'Genetic Algorithm for Recombination Detection',
@@ -12462,7 +12462,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Identify regional footprints of extreme purifying selection from B-STILL results.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'B-STILL',
       'Infer Stasis Clusters',
@@ -12501,7 +12501,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect pervasive or episodic site-level diversifying selection with HyPhy MEME.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'MEME',
       'Mixed Effects Model of Evolution',
@@ -12553,7 +12553,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Model site-level physicochemical selection with HyPhy PRIME.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'PRIME',
       'Property Informed Models of Evolution',
@@ -12601,7 +12601,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect relaxed or intensified selection in a codon-based phylogenetic framework with HyPhy RELAX.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'RELAX',
       'relaxed selection',
@@ -12659,7 +12659,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Detect pervasive site-level selection with HyPhy SLAC.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'SLAC',
       'Single Likelihood Ancestor Counting',
@@ -12703,7 +12703,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Partition trees using the modified Slatkin-Maddison test with HyPhy SM2019.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'SM2019',
       'SM19',
@@ -12743,7 +12743,7 @@ const objectInfo = {
     category: 'phylogeny',
     description: 'Replace ambiguous codons in an in-frame alignment using HyPhy.',
     search_aliases: [
-      'Galaxy',
+      'BioNodulo builtin',
       'HyPhy',
       'Strike-Ambigs',
       'Replace ambiguous codons',
@@ -12777,7 +12777,7 @@ const objectInfo = {
     display_name: 'Merge MetaPhlAn Tables',
     category: 'metagenomics',
     description: 'Join one or more MetaPhlAn predicted taxon relative abundance tables into a merged sample-by-clade table.',
-    search_aliases: ['Galaxy', 'MetaPhlAn', 'merge_metaphlan_tables.py', 'relative abundance', 'abundance tables', 'GTDB profiles'],
+    search_aliases: ['BioNodulo builtin', 'MetaPhlAn', 'merge_metaphlan_tables.py', 'relative abundance', 'abundance tables', 'GTDB profiles'],
     input: {
       required: {
         abundance_tables: { type: 'TSV', list: true },
@@ -12801,7 +12801,7 @@ const objectInfo = {
     display_name: 'Extract MetaPhlAn DB',
     category: 'metagenomics',
     description: 'Reconstruct marker sequences and marker metadata from a cached MetaPhlAn BowTie2 database.',
-    search_aliases: ['Galaxy', 'MetaPhlAn', 'bowtie2-inspect', 'marker sequences', 'marker metadata', 'customizemetadata.py'],
+    search_aliases: ['BioNodulo builtin', 'MetaPhlAn', 'bowtie2-inspect', 'marker sequences', 'marker metadata', 'customizemetadata.py'],
     input: {
       required: {
         database_path: { type: 'DIRECTORY' },
@@ -12825,7 +12825,7 @@ const objectInfo = {
     display_name: 'Customize MetaPhlAn DB',
     category: 'metagenomics',
     description: 'Add, remove, or keep marker sequences and marker metadata for a custom MetaPhlAn database.',
-    search_aliases: ['Galaxy', 'MetaPhlAn', 'customizemetadata.py', 'add marker', 'remove markers', 'keep markers', 'seqtk subseq'],
+    search_aliases: ['BioNodulo builtin', 'MetaPhlAn', 'customizemetadata.py', 'add marker', 'remove markers', 'keep markers', 'seqtk subseq'],
     input: {
       required: {
         marker_sequences: { type: 'FASTA' },
@@ -12871,7 +12871,7 @@ const objectInfo = {
     display_name: 'Mash Dist',
     category: 'genomics',
     description: 'Estimate genome or metagenome distances from FASTA/FASTQ files or Mash sketches.',
-    search_aliases: ['Galaxy', 'mash', 'mash dist', 'minhash', 'minhash distance', 'genome distance'],
+    search_aliases: ['BioNodulo builtin', 'mash', 'mash dist', 'minhash', 'minhash distance', 'genome distance'],
     input: {
       required: {
         reference: { type: 'FASTA' },
@@ -12888,7 +12888,7 @@ const objectInfo = {
     display_name: 'Mash Sketch',
     category: 'genomics',
     description: 'Create reduced MinHash sequence sketches from FASTA/FASTQ reads or assemblies with Mash.',
-    search_aliases: ['Galaxy', 'mash', 'mash sketch', 'minhash', 'sketch', 'msh', 'genome sketch', 'metagenome sketch'],
+    search_aliases: ['BioNodulo builtin', 'mash', 'mash sketch', 'minhash', 'sketch', 'msh', 'genome sketch', 'metagenome sketch'],
     input: {
       required: {
         reads_assembly_selector: { type: 'STRING', default: 'reads', options: ['reads', 'assembly'] },
@@ -12923,7 +12923,7 @@ const objectInfo = {
     display_name: 'Mash Paste',
     category: 'genomics',
     description: 'Create a single Mash sketch file from multiple Mash sketch files.',
-    search_aliases: ['Galaxy', 'mash', 'mash paste', 'minhash', 'sketch merge', 'merge sketches', 'msh'],
+    search_aliases: ['BioNodulo builtin', 'mash', 'mash paste', 'minhash', 'sketch merge', 'merge sketches', 'msh'],
     input: {
       required: {
         msh_files: { type: 'FILE', list: true },
@@ -12943,7 +12943,7 @@ const objectInfo = {
     display_name: 'Mash Screen',
     category: 'genomics',
     description: 'Screen reads against a Mash sketch database to estimate sequence containment.',
-    search_aliases: ['Galaxy', 'mash', 'mash screen', 'containment', 'metagenome screen', 'genome discovery', 'read screening', 'minhash'],
+    search_aliases: ['BioNodulo builtin', 'mash', 'mash screen', 'containment', 'metagenome screen', 'genome discovery', 'read screening', 'minhash'],
     input: {
       required: {
         queries: { type: 'FILE' },
@@ -12972,7 +12972,7 @@ const objectInfo = {
     display_name: 'MashMap',
     category: 'genomics',
     description: 'Compute fast approximate local alignment boundaries between query and reference DNA sequences.',
-    search_aliases: ['Galaxy', 'mashmap', 'MashMap3', 'local alignment boundaries', 'PAF', 'genome mapping', 'long read mapping', 'minmers', 'minhash'],
+    search_aliases: ['BioNodulo builtin', 'mashmap', 'MashMap3', 'local alignment boundaries', 'PAF', 'genome mapping', 'long read mapping', 'minmers', 'minhash'],
     input: {
       required: {
         query: { type: 'STRING', multiple: true },
@@ -13005,7 +13005,7 @@ const objectInfo = {
     display_name: 'FastANI',
     category: 'genomics',
     description: 'Compute alignment-free whole-genome Average Nucleotide Identity for query and reference genomes.',
-    search_aliases: ['Galaxy', 'fastani', 'ANI', 'average nucleotide identity', 'genome comparison'],
+    search_aliases: ['BioNodulo builtin', 'fastani', 'ANI', 'average nucleotide identity', 'genome comparison'],
     input: {
       required: {
         query: { type: 'FASTA_LIST' },
@@ -13022,7 +13022,7 @@ const objectInfo = {
     display_name: 'LoFreq Call',
     category: 'variant',
     description: 'Call sequence-quality-aware SNVs and indels from mapped reads using LoFreq.',
-    search_aliases: ['Galaxy', 'lofreq', 'variant caller', 'low frequency variants'],
+    search_aliases: ['BioNodulo builtin', 'lofreq', 'variant caller', 'low frequency variants'],
     input: {
       required: {
         reads: { type: 'BAM' },
@@ -13039,7 +13039,7 @@ const objectInfo = {
     display_name: 'LoFreq Alignment Quality',
     category: 'variant',
     description: 'Compute base and indel alignment quality scores for mapped reads and store them as LoFreq BAM tags.',
-    search_aliases: ['Galaxy', 'lofreq', 'lofreq alnqual', 'alignment quality', 'BAQ', 'IDAQ', 'base alignment quality', 'indel alignment quality', 'variant preprocessing'],
+    search_aliases: ['BioNodulo builtin', 'lofreq', 'lofreq alnqual', 'alignment quality', 'BAQ', 'IDAQ', 'base alignment quality', 'indel alignment quality', 'variant preprocessing'],
     input: {
       required: {
         reads: { type: 'BAM' },
@@ -13065,7 +13065,7 @@ const objectInfo = {
     display_name: 'LoFreq Indel Quality',
     category: 'variant',
     description: 'Insert indel qualities into mapped reads using uniform values or Dindel-based estimates for LoFreq indel calling.',
-    search_aliases: ['Galaxy', 'lofreq', 'lofreq indelqual', 'indel quality', 'indel qualities', 'Dindel', 'BI BD tags', 'variant preprocessing'],
+    search_aliases: ['BioNodulo builtin', 'lofreq', 'lofreq indelqual', 'indel quality', 'indel qualities', 'Dindel', 'BI BD tags', 'variant preprocessing'],
     input: {
       required: {
         reads: { type: 'BAM' },
@@ -13091,7 +13091,7 @@ const objectInfo = {
     display_name: 'LoFreq Filter',
     category: 'variant',
     description: 'Filter LoFreq VCF variants by type, quality, coverage, allele frequency, and strand-bias evidence.',
-    search_aliases: ['Galaxy', 'lofreq', 'lofreq filter', 'lofreq strand bias filter', 'variant filtering', 'posterior filtering', 'strand bias', 'multiple testing correction', 'VCF filter'],
+    search_aliases: ['BioNodulo builtin', 'lofreq', 'lofreq filter', 'lofreq strand bias filter', 'variant filtering', 'posterior filtering', 'strand bias', 'multiple testing correction', 'VCF filter'],
     input: {
       required: {
         invcf: { type: 'VCF' },
@@ -13135,7 +13135,7 @@ const objectInfo = {
     display_name: 'LoFreq Viterbi Realignment',
     category: 'variant',
     description: 'Probabilistically realign mapped Illumina reads with LoFreq viterbi and emit a coordinate-sorted BAM.',
-    search_aliases: ['Galaxy', 'lofreq', 'lofreq viterbi', 'realign reads', 'read realignment', 'Viterbi realignment', 'mapping error correction', 'variant preprocessing'],
+    search_aliases: ['BioNodulo builtin', 'lofreq', 'lofreq viterbi', 'realign reads', 'read realignment', 'Viterbi realignment', 'mapping error correction', 'variant preprocessing'],
     input: {
       required: {
         reads: { type: 'BAM' },
@@ -13162,7 +13162,7 @@ const objectInfo = {
     display_name: 'Freyja Variants',
     category: 'variant',
     description: 'Call variants and genome-wide sequencing depths from aligned viral reads for Freyja demixing.',
-    search_aliases: ['Galaxy', 'Freyja', 'freyja variants', 'wastewater sequencing', 'lineage abundance', 'SARS-CoV-2 variants', 'sequencing depth'],
+    search_aliases: ['BioNodulo builtin', 'Freyja', 'freyja variants', 'wastewater sequencing', 'lineage abundance', 'SARS-CoV-2 variants', 'sequencing depth'],
     input: {
       required: {
         bam_file: { type: 'BAM' },
@@ -13183,7 +13183,7 @@ const objectInfo = {
     display_name: 'Freyja Demix',
     category: 'variant',
     description: 'Estimate mixed viral lineage abundances from Freyja variant calls and sequencing depths.',
-    search_aliases: ['Galaxy', 'Freyja', 'freyja demix', 'lineage abundances', 'wastewater variants', 'deconvolution', 'UShER barcodes'],
+    search_aliases: ['BioNodulo builtin', 'Freyja', 'freyja demix', 'lineage abundances', 'wastewater variants', 'deconvolution', 'UShER barcodes'],
     input: {
       required: {
         variants_in: { type: 'TSV' },
@@ -13215,7 +13215,7 @@ const objectInfo = {
     display_name: 'Freyja Boot',
     category: 'variant',
     description: 'Bootstrap Freyja lineage abundances and optionally emit lineage and summary boxplots.',
-    search_aliases: ['Galaxy', 'Freyja', 'freyja boot', 'bootstrap lineages', 'lineage uncertainty', 'boxplot', 'wastewater variants'],
+    search_aliases: ['BioNodulo builtin', 'Freyja', 'freyja boot', 'bootstrap lineages', 'lineage uncertainty', 'boxplot', 'wastewater variants'],
     input: {
       required: {
         variants_file: { type: 'TSV' },
@@ -13247,7 +13247,7 @@ const objectInfo = {
     display_name: 'Freyja Aggregate Plot',
     category: 'variant',
     description: 'Aggregate Freyja demixing outputs and create lineage abundance dashboard or PDF plots.',
-    search_aliases: ['Galaxy', 'Freyja', 'freyja aggregate', 'freyja plot', 'freyja dash', 'lineage abundance dashboard', 'wastewater visualization'],
+    search_aliases: ['BioNodulo builtin', 'Freyja', 'freyja aggregate', 'freyja plot', 'freyja dash', 'lineage abundance dashboard', 'wastewater visualization'],
     input: {
       required: {
         aggregation_mode: { type: 'STRING', default: 'aggregate', options: ['aggregate', 'provided'] },
@@ -13279,7 +13279,7 @@ const objectInfo = {
     display_name: 'Preseq c_curve',
     category: 'qc',
     description: 'Estimate a sequencing library complexity curve from a coordinate-sorted BAM file.',
-    search_aliases: ['Galaxy', 'Preseq', 'preseq c_curve', 'library complexity', 'sequencing saturation', 'distinct reads', 'duplicate complexity'],
+    search_aliases: ['BioNodulo builtin', 'Preseq', 'preseq c_curve', 'library complexity', 'sequencing saturation', 'distinct reads', 'duplicate complexity'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -13304,7 +13304,7 @@ const objectInfo = {
     display_name: 'Preseq lc_extrap',
     category: 'qc',
     description: 'Predict additional distinct reads from deeper sequencing of a coordinate-sorted BAM library.',
-    search_aliases: ['Galaxy', 'Preseq', 'preseq lc_extrap', 'yield extrapolation', 'library complexity', 'future sequencing', 'distinct read yield'],
+    search_aliases: ['BioNodulo builtin', 'Preseq', 'preseq lc_extrap', 'yield extrapolation', 'library complexity', 'future sequencing', 'distinct read yield'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -13329,7 +13329,7 @@ const objectInfo = {
     display_name: 'ABySS',
     category: 'assembly',
     description: 'Run the ABySS de novo assembler pipeline for paired-end, mate-pair, single-end, or long-read libraries.',
-    search_aliases: ['Galaxy', 'ABySS', 'abyss-pe', 'de novo assembler', 'short read assembly', 'paired-end assembly', 'genome assembler'],
+    search_aliases: ['BioNodulo builtin', 'ABySS', 'abyss-pe', 'de novo assembler', 'short read assembly', 'paired-end assembly', 'genome assembler'],
     input: {
       required: {
         libraries: { type: 'JSON' },
@@ -13372,7 +13372,7 @@ const objectInfo = {
     display_name: 'ABySS (Galaxy)',
     category: 'assembly',
     description: 'Run the ABySS de novo assembler pipeline for paired-end, mate-pair, single-end, or long-read libraries.',
-    search_aliases: ['Galaxy', 'ABySS', 'abyss-pe', 'de novo assembler', 'short read assembly', 'paired-end assembly', 'genome assembler'],
+    search_aliases: ['BioNodulo builtin', 'ABySS', 'abyss-pe', 'de novo assembler', 'short read assembly', 'paired-end assembly', 'genome assembler'],
     input: {
       required: {
         libraries: { type: 'JSON' },
@@ -13415,7 +13415,7 @@ const objectInfo = {
     display_name: 'BayeScan',
     category: 'population_genetics',
     description: 'Identify candidate loci under natural selection from population allele-frequency differences.',
-    search_aliases: ['Galaxy', 'BayeScan', 'bayescan2', 'natural selection', 'population genetics', 'FST', 'genome scan', 'dominant markers', 'codominant markers'],
+    search_aliases: ['BioNodulo builtin', 'BayeScan', 'bayescan2', 'natural selection', 'population genetics', 'FST', 'genome scan', 'dominant markers', 'codominant markers'],
     input: {
       required: {
         input: { type: 'TXT' },
@@ -13451,7 +13451,7 @@ const objectInfo = {
     display_name: 'BayeScan (Galaxy)',
     category: 'population_genetics',
     description: 'Identify candidate loci under natural selection from population allele-frequency differences.',
-    search_aliases: ['Galaxy', 'BayeScan', 'bayescan2', 'natural selection', 'population genetics', 'FST', 'genome scan', 'dominant markers', 'codominant markers'],
+    search_aliases: ['BioNodulo builtin', 'BayeScan', 'bayescan2', 'natural selection', 'population genetics', 'FST', 'genome scan', 'dominant markers', 'codominant markers'],
     input: {
       required: {
         input: { type: 'TXT' },
@@ -13487,7 +13487,7 @@ const objectInfo = {
     display_name: 'Bellerophon',
     category: 'assembly',
     description: 'Filter mapped reads spanning Arima Genomics junctions, keep the 5-prime read, merge mates, and sort the BAM output.',
-    search_aliases: ['Galaxy', 'Bellerophon', 'Arima Genomics', 'chimeric reads', 'Hi-C', 'junction-spanning reads', 'qname sorted BAM', 'genome assembly'],
+    search_aliases: ['BioNodulo builtin', 'Bellerophon', 'Arima Genomics', 'chimeric reads', 'Hi-C', 'junction-spanning reads', 'qname sorted BAM', 'genome assembly'],
     input: {
       required: {
         forward: { type: 'BAM' },
@@ -13514,7 +13514,7 @@ const objectInfo = {
     display_name: 'Bellavista',
     category: 'visualization',
     description: 'Prepare large images for bellavista visualizer.',
-    search_aliases: ['Galaxy', 'Bellavista', 'BellaVista', 'bellavista_prepare', 'spatial transcriptomics', 'imaging-based spatial transcriptomics', 'MERSCOPE', 'Xenium', 'OME-Zarr', 'visualizer'],
+    search_aliases: ['BioNodulo builtin', 'Bellavista', 'BellaVista', 'bellavista_prepare', 'spatial transcriptomics', 'imaging-based spatial transcriptomics', 'MERSCOPE', 'Xenium', 'OME-Zarr', 'visualizer'],
     input: {
       required: {
         images: { type: 'FILE', is_list: true },
@@ -13552,7 +13552,7 @@ const objectInfo = {
     display_name: 'Build a workflow with BiaPy',
     category: 'ai',
     description: 'Run BiaPy deep-learning workflows for bioimage analysis.',
-    search_aliases: ['Galaxy', 'BiaPy', 'biapy', 'Build a workflow with BiaPy', 'accessible deep learning on bioimages', 'bioimage analysis', 'image segmentation', 'object detection', 'image denoising', 'BioImage Model Zoo'],
+    search_aliases: ['BioNodulo builtin', 'BiaPy', 'biapy', 'Build a workflow with BiaPy', 'accessible deep learning on bioimages', 'bioimage analysis', 'image segmentation', 'object detection', 'image denoising', 'BioImage Model Zoo'],
     input: {
       required: {},
       optional: {
@@ -13590,7 +13590,7 @@ const objectInfo = {
     display_name: 'Chromeister',
     category: 'comparative_genomics',
     description: 'Compare two FASTA assemblies with Chromeister to produce a comparison matrix, dotplot, event calls, and similarity score.',
-    search_aliases: ['Galaxy', 'Chromeister', 'pairwise genome comparison', 'dotplot', 'synteny blocks', 'large-scale rearrangements', 'whole genome comparison', 'CHROMEISTER'],
+    search_aliases: ['BioNodulo builtin', 'Chromeister', 'pairwise genome comparison', 'dotplot', 'synteny blocks', 'large-scale rearrangements', 'whole genome comparison', 'CHROMEISTER'],
     input: {
       required: {
         query: { type: 'FASTA' },
@@ -13618,7 +13618,7 @@ const objectInfo = {
     display_name: 'Bigwig outliers to bed features',
     category: 'genomics',
     description: 'Write continuous high, low, or zero-valued BigWig outlier regions as BED features, with optional contig statistics.',
-    search_aliases: ['Galaxy', 'BigWig outliers', 'bigwig_outlier_bed', 'pybigtools', 'coverage outliers', 'BED features', 'quantile cutoff', 'contig statistics'],
+    search_aliases: ['BioNodulo builtin', 'BigWig outliers', 'bigwig_outlier_bed', 'pybigtools', 'coverage outliers', 'BED features', 'quantile cutoff', 'contig statistics'],
     input: {
       required: {
         bigwig: { type: 'BIGWIG', multiple: true },
@@ -13647,7 +13647,7 @@ const objectInfo = {
     display_name: 'AmpliGone',
     category: 'sequence',
     description: 'Remove primer-derived sequence from FASTQ or BAM amplicon reads using primer coordinates or primer FASTA against a reference.',
-    search_aliases: ['Galaxy', 'AmpliGone', 'AmpliGone primer removal', 'primer removal', 'amplicon reads', 'ARTIC primers', 'Nanopore', 'Illumina', 'fragmented amplicons'],
+    search_aliases: ['BioNodulo builtin', 'AmpliGone', 'AmpliGone primer removal', 'primer removal', 'amplicon reads', 'ARTIC primers', 'Nanopore', 'Illumina', 'fragmented amplicons'],
     input: {
       required: {
         input: { type: 'FASTQ' },
@@ -13679,7 +13679,7 @@ const objectInfo = {
     display_name: 'Binette',
     category: 'metagenomics',
     description: 'Refine multiple contig-to-bin tables into high-quality metagenome-assembled genomes with quality reports.',
-    search_aliases: ['Galaxy', 'Binette', 'Binette binning refinement', 'binning refinement', 'metagenomic binning', 'MAG refinement', 'CheckM2 database', 'contig-to-bin tables'],
+    search_aliases: ['BioNodulo builtin', 'Binette', 'Binette binning refinement', 'binning refinement', 'metagenomic binning', 'MAG refinement', 'CheckM2 database', 'contig-to-bin tables'],
     input: {
       required: {
         contig2bin_tables: { type: 'TSV', multiple: true, min_items: 2 },
@@ -13709,7 +13709,7 @@ const objectInfo = {
     display_name: 'Binning refiner',
     category: 'metagenomics',
     description: 'Refine metagenome bins from one or more FASTA bin sets and report refined-bin membership and source lengths.',
-    search_aliases: ['Galaxy', 'Binning refiner', 'Binning_refiner', 'Binning refiner metagenome bins', 'bin_refiner', 'genome bins', 'metagenome bin refinement', 'contamination reduction', 'refined bins'],
+    search_aliases: ['BioNodulo builtin', 'Binning refiner', 'Binning_refiner', 'Binning refiner metagenome bins', 'bin_refiner', 'genome bins', 'metagenome bin refinement', 'contamination reduction', 'refined bins'],
     input: {
       required: {
         input_bins: { type: 'FASTA_LIST', multiple: true },
@@ -13734,7 +13734,7 @@ const objectInfo = {
     display_name: 'Beagle',
     category: 'variant',
     description: 'Phase genotypes and impute ungenotyped markers from VCF genotype data using Beagle.',
-    search_aliases: ['Galaxy', 'Beagle', 'Beagle genotype imputation', 'genotype phasing', 'impute ungenotyped markers', 'haplotype phasing', 'VCF imputation', 'GWAS'],
+    search_aliases: ['BioNodulo builtin', 'Beagle', 'Beagle genotype imputation', 'genotype phasing', 'impute ungenotyped markers', 'haplotype phasing', 'VCF imputation', 'GWAS'],
     input: {
       required: {
         gt: { type: 'VCF' },
@@ -13781,7 +13781,7 @@ const objectInfo = {
     display_name: 'breseq',
     category: 'variant',
     description: 'Find mutations in haploid microbial genomes and annotate GenomeDiff variants with breseq and gdtools.',
-    search_aliases: ['Galaxy', 'breseq', 'breseq mutation detection', 'GenomeDiff', 'gdtools ANNOTATE', 'microbial resequencing', 'haploid microbial genomes', 'laboratory evolution'],
+    search_aliases: ['BioNodulo builtin', 'breseq', 'breseq mutation detection', 'GenomeDiff', 'gdtools ANNOTATE', 'microbial resequencing', 'haploid microbial genomes', 'laboratory evolution'],
     input: {
       required: {
         references: { type: 'FILE_LIST', multiple: true },
@@ -13811,7 +13811,7 @@ const objectInfo = {
     display_name: 'BiSCoT',
     category: 'assembly',
     description: 'Correct Bionano optical-map scaffolds by merging contigs, re-estimating gaps, and writing FASTA and AGP scaffolds.',
-    search_aliases: ['Galaxy', 'BiSCoT', 'BiSCoT optical map', 'Bionano scaffolding correction', 'optical maps', 'CMAP', 'XMAP', 'AGP scaffolds'],
+    search_aliases: ['BioNodulo builtin', 'BiSCoT', 'BiSCoT optical map', 'Bionano scaffolding correction', 'optical maps', 'CMAP', 'XMAP', 'AGP scaffolds'],
     input: {
       required: {
         cmap_ref: { type: 'FILE' },
@@ -13842,7 +13842,7 @@ const objectInfo = {
     display_name: 'BiG-SCAPE',
     category: 'secondary_metabolism',
     description: 'Construct sequence similarity networks of biosynthetic gene clusters and group them into gene cluster families.',
-    search_aliases: ['Galaxy', 'BiG-SCAPE', 'BiG-SCAPE gene cluster families', 'biosynthetic gene clusters', 'BGC networks', 'GCF clustering', 'MIBiG', 'Pfam-A'],
+    search_aliases: ['BioNodulo builtin', 'BiG-SCAPE', 'BiG-SCAPE gene cluster families', 'biosynthetic gene clusters', 'BGC networks', 'GCF clustering', 'MIBiG', 'Pfam-A'],
     input: {
       required: {
         inputdir: { type: 'FILE_LIST', multiple: true },
@@ -13886,7 +13886,7 @@ const objectInfo = {
     display_name: 'compleasm',
     category: 'assembly',
     description: 'Assess genome assembly completeness with compleasm using cached BUSCO lineage data.',
-    search_aliases: ['Galaxy', 'compleasm', 'compleasm genome completeness', 'BUSCO lineage', 'assembly completeness', 'miniprot', 'single-copy orthologs'],
+    search_aliases: ['BioNodulo builtin', 'compleasm', 'compleasm genome completeness', 'BUSCO lineage', 'assembly completeness', 'miniprot', 'single-copy orthologs'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -13914,7 +13914,7 @@ const objectInfo = {
     display_name: 'EASTR',
     category: 'rna_seq',
     description: 'Emend spliced transcript read alignments by identifying and removing spurious splice junctions.',
-    search_aliases: ['Galaxy', 'EASTR', 'EASTR splice junction filtering', 'spurious splice junctions', 'spliced transcript reads', 'filtered BAM', 'Bowtie2 junction screening'],
+    search_aliases: ['BioNodulo builtin', 'EASTR', 'EASTR splice junction filtering', 'spurious splice junctions', 'spliced transcript reads', 'filtered BAM', 'Bowtie2 junction screening'],
     input: {
       required: {
         input_select: { type: 'STRING', default: 'bam', options: ['bam', 'gtf', 'bed'] },
@@ -13953,7 +13953,7 @@ const objectInfo = {
     display_name: 'Export to GraPhlAn',
     category: 'visualization',
     description: 'Convert MetaPhlAn, LEfSe, or HUMAnN profiles into GraPhlAn tree and annotation inputs.',
-    search_aliases: ['Galaxy', 'export2graphlan', 'export2graphlan GraPhlAn conversion', 'GraPhlAn annotation', 'LEfSe to GraPhlAn', 'MetaPhlAn tree visualization', 'taxonomic profile visualization'],
+    search_aliases: ['BioNodulo builtin', 'export2graphlan', 'export2graphlan GraPhlAn conversion', 'GraPhlAn annotation', 'LEfSe to GraPhlAn', 'MetaPhlAn tree visualization', 'taxonomic profile visualization'],
     input: {
       required: {
         lefse_input: { type: 'FILE' },
@@ -14001,7 +14001,7 @@ const objectInfo = {
     display_name: 'GraPhlAn Annotate',
     category: 'visualization',
     description: 'Apply GraPhlAn annotation settings to a Newick, NHX, Nexus, or PhyloXML tree.',
-    search_aliases: ['Galaxy', 'GraPhlAn Annotate', 'graphlan_annotate tree annotation', 'GraPhlAn personalization', 'phylogenetic tree annotation', 'circular tree annotations'],
+    search_aliases: ['BioNodulo builtin', 'GraPhlAn Annotate', 'graphlan_annotate tree annotation', 'GraPhlAn personalization', 'phylogenetic tree annotation', 'circular tree annotations'],
     input: {
       required: {
         input_tree: { type: 'STRING' },
@@ -14024,7 +14024,7 @@ const objectInfo = {
     display_name: 'GraPhlAn',
     category: 'visualization',
     description: 'Produce graphical circular representations of taxonomic or phylogenetic trees with GraPhlAn.',
-    search_aliases: ['Galaxy', 'GraPhlAn', 'graphlan circular tree rendering', 'phylogenetic tree visualization', 'taxonomic tree image', 'publication-ready tree plot'],
+    search_aliases: ['BioNodulo builtin', 'GraPhlAn', 'graphlan circular tree rendering', 'phylogenetic tree visualization', 'taxonomic tree image', 'publication-ready tree plot'],
     input: {
       required: {
         input_tree: { type: 'STRING' },
@@ -14050,7 +14050,7 @@ const objectInfo = {
     display_name: 'Exonerate',
     category: 'alignment',
     description: 'Run pairwise sequence comparison with Exonerate alignment models and Galaxy-style GFF outputs.',
-    search_aliases: ['Galaxy', 'Exonerate', 'exonerate pairwise sequence comparison', 'est2genome', 'protein2genome', 'coding2coding', 'target GFF', 'query GFF'],
+    search_aliases: ['BioNodulo builtin', 'Exonerate', 'exonerate pairwise sequence comparison', 'est2genome', 'protein2genome', 'coding2coding', 'target GFF', 'query GFF'],
     input: {
       required: {
         query: { type: 'FASTA' },
@@ -14082,7 +14082,7 @@ const objectInfo = {
     display_name: 'EVidenceModeler',
     category: 'annotation',
     description: 'Combine ab initio gene predictions, protein alignments, and transcript alignments into consensus gene structures.',
-    search_aliases: ['Galaxy', 'EVidenceModeler', 'EvidenceModeler gene structure consensus', 'EVM', 'gene predictions', 'protein alignments', 'transcript alignments'],
+    search_aliases: ['BioNodulo builtin', 'EVidenceModeler', 'EvidenceModeler gene structure consensus', 'EVM', 'gene predictions', 'protein alignments', 'transcript alignments'],
     input: {
       required: {
         input_genome: { type: 'FASTA' },
@@ -14117,7 +14117,7 @@ const objectInfo = {
     display_name: 'COMEBin',
     category: 'metagenomics',
     description: 'Bin metagenomic contigs using contrastive multi-view representation learning with COMEBin.',
-    search_aliases: ['Galaxy', 'COMEBin', 'COMEBin metagenomic binning', 'contrastive multi-view binning', 'metagenome bins', 'contig binning', 'coverage embeddings'],
+    search_aliases: ['BioNodulo builtin', 'COMEBin', 'COMEBin metagenomic binning', 'contrastive multi-view binning', 'metagenome bins', 'contig binning', 'coverage embeddings'],
     input: {
       required: {
         assembly_file: { type: 'FASTA' },
@@ -14148,7 +14148,7 @@ const objectInfo = {
     display_name: 'Generate BAM file for COMEBin',
     category: 'metagenomics',
     description: 'Generate a COMEBin-compatible BAM coverage file from reads using the COMEBin MetaWRAP-derived helper.',
-    search_aliases: ['Galaxy', 'COMEBin BAM', 'COMEBin BAM generation', 'gen_cov_file.sh', 'COMEBin coverage BAM', 'metagenomic coverage'],
+    search_aliases: ['BioNodulo builtin', 'COMEBin BAM', 'COMEBin BAM generation', 'gen_cov_file.sh', 'COMEBin coverage BAM', 'metagenomic coverage'],
     input: {
       required: {
         assembly: { type: 'FASTA' },
@@ -14178,7 +14178,7 @@ const objectInfo = {
     display_name: 'dRep compare',
     category: 'metagenomics',
     description: 'Compare genome sets with dRep using Mash primary clustering and optional secondary ANI clustering.',
-    search_aliases: ['Galaxy', 'dRep', 'dRep compare', 'dRep genome comparison', 'genome dereplication', 'average nucleotide identity', 'Mash ANI clustering'],
+    search_aliases: ['BioNodulo builtin', 'dRep', 'dRep compare', 'dRep genome comparison', 'genome dereplication', 'average nucleotide identity', 'Mash ANI clustering'],
     input: {
       required: {
         genomes: { type: 'STRING', multiple: true, min: 2 },
@@ -14245,7 +14245,7 @@ const objectInfo = {
     display_name: 'dRep dereplicate',
     category: 'metagenomics',
     description: 'De-replicate genome sets with dRep, genome quality filtering, and representative genome scoring.',
-    search_aliases: ['Galaxy', 'dRep', 'dRep dereplicate', 'dRep genome dereplication', 'bin dereplication', 'metagenome genome recovery', 'representative genomes'],
+    search_aliases: ['BioNodulo builtin', 'dRep', 'dRep dereplicate', 'dRep genome dereplication', 'bin dereplication', 'metagenome genome recovery', 'representative genomes'],
     input: {
       required: {
         genomes: { type: 'STRING', multiple: true, min: 2 },
@@ -14336,7 +14336,7 @@ const objectInfo = {
     display_name: 'CAMI AMBER',
     category: 'metagenomics',
     description: 'Evaluate genome reconstructions and taxonomic assignments from metagenome benchmark data with AMBER.',
-    search_aliases: ['Galaxy', 'CAMI AMBER', 'AMBER metagenome binning evaluation', 'Assessment of Metagenome BinnERs', 'binning benchmark', 'genome reconstruction metrics'],
+    search_aliases: ['BioNodulo builtin', 'CAMI AMBER', 'AMBER metagenome binning evaluation', 'Assessment of Metagenome BinnERs', 'binning benchmark', 'genome reconstruction metrics'],
     input: {
       required: {
         gold_standard_file: { type: 'TSV' },
@@ -14372,7 +14372,7 @@ const objectInfo = {
     display_name: 'CAMI AMBER add length column',
     category: 'metagenomics',
     description: 'Create an AMBER gold standard biobox file by adding sequence lengths from matching FASTA or FASTQ records.',
-    search_aliases: ['Galaxy', 'CAMI AMBER add length column', 'AMBER gold standard length', 'add_length_column.py', 'biobox length column', 'metagenome benchmark gold standard'],
+    search_aliases: ['BioNodulo builtin', 'CAMI AMBER add length column', 'AMBER gold standard length', 'add_length_column.py', 'biobox length column', 'metagenome benchmark gold standard'],
     input: {
       required: {
         gold_standard_file: { type: 'TSV' },
@@ -14397,7 +14397,7 @@ const objectInfo = {
     display_name: 'CAMI AMBER convert to biobox',
     category: 'metagenomics',
     description: 'Convert one or more FASTA bin files to CAMI AMBER biobox binning TSV format.',
-    search_aliases: ['Galaxy', 'CAMI AMBER convert to biobox', 'AMBER biobox conversion', 'convert_fasta_bins_to_biobox_format.py', 'FASTA bins to biobox', 'binning TSV'],
+    search_aliases: ['BioNodulo builtin', 'CAMI AMBER convert to biobox', 'AMBER biobox conversion', 'convert_fasta_bins_to_biobox_format.py', 'FASTA bins to biobox', 'binning TSV'],
     input: {
       required: {
         work: { type: 'STRING', default: 'single', options: ['single', 'all'] },
@@ -14421,7 +14421,7 @@ const objectInfo = {
     display_name: 'Biobox add taxid',
     category: 'metagenomics',
     description: 'Add taxid output from BAT or GTDB to biobox binning data.',
-    search_aliases: ['Galaxy', 'Biobox add taxid', 'biobox_add_taxid.py', 'CAMI AMBER biobox taxid', 'ContigID2TaxID', 'BinID2TaxID'],
+    search_aliases: ['BioNodulo builtin', 'Biobox add taxid', 'biobox_add_taxid.py', 'CAMI AMBER biobox taxid', 'ContigID2TaxID', 'BinID2TaxID'],
     input: {
       required: {
         biobox_file: { type: 'TSV' },
@@ -14448,7 +14448,7 @@ const objectInfo = {
     display_name: 'fargene',
     category: 'annotation',
     description: 'Identify and reconstruct antibiotic resistance genes from metagenomic reads or contigs with fARGene.',
-    search_aliases: ['Galaxy', 'fARGene', 'fragmented antibiotic resistance genes', 'antibiotic resistance gene identifier', 'ARG prediction', 'metagenomic resistance genes'],
+    search_aliases: ['BioNodulo builtin', 'fARGene', 'fragmented antibiotic resistance genes', 'antibiotic resistance gene identifier', 'ARG prediction', 'metagenomic resistance genes'],
     input: {
       required: {
         input_type: { type: 'STRING', options: ['paired', 'collection', 'sequence'] },
@@ -14489,7 +14489,7 @@ const objectInfo = {
     display_name: 'MetaBAT2',
     category: 'metagenomics',
     description: 'Bin metagenome assemblies using MetaBAT2 abundance and tetranucleotide-frequency clustering.',
-    search_aliases: ['Galaxy', 'MetaBAT2', 'MetaBAT 2', 'metagenome binning', 'metabat2 bins', 'contig abundance binning'],
+    search_aliases: ['BioNodulo builtin', 'MetaBAT2', 'MetaBAT 2', 'metagenome binning', 'metabat2 bins', 'contig abundance binning'],
     input: {
       required: {
         inFile: { type: 'FASTA' },
@@ -14531,7 +14531,7 @@ const objectInfo = {
     display_name: 'Calculate contig depths',
     category: 'metagenomics',
     description: 'Calculate per-contig coverage depth matrices from one or more BAM files for MetaBAT2 binning.',
-    search_aliases: ['Galaxy', 'Calculate contig depths', 'jgi_summarize_bam_contig_depths', 'MetaBAT2 depth matrix', 'contig coverage depth', 'BAM contig depths'],
+    search_aliases: ['BioNodulo builtin', 'Calculate contig depths', 'jgi_summarize_bam_contig_depths', 'MetaBAT2 depth matrix', 'contig coverage depth', 'BAM contig depths'],
     input: {
       required: {
         mode_type: { type: 'STRING', options: ['individual', 'co'] },
@@ -14571,7 +14571,7 @@ const objectInfo = {
     display_name: 'FastSpar',
     category: 'metagenomics',
     description: 'Estimate FastSpar/SparCC correlation and covariance matrices from compositional OTU count tables.',
-    search_aliases: ['Galaxy', 'FastSpar', 'FastSpar correlation', 'SparCC compositional correlation', 'OTU correlation', 'microbiome co-occurrence'],
+    search_aliases: ['BioNodulo builtin', 'FastSpar', 'FastSpar correlation', 'SparCC compositional correlation', 'OTU correlation', 'microbiome co-occurrence'],
     input: {
       required: {
         otu_table: { type: 'TSV' },
@@ -14598,7 +14598,7 @@ const objectInfo = {
     display_name: 'FastSpar: Reduce correlation table',
     category: 'metagenomics',
     description: 'Filter FastSpar correlation and p-value matrices into sparse tabular edge lists.',
-    search_aliases: ['Galaxy', 'FastSpar reduce', 'FastSpar: Reduce correlation table', 'FastSpar sparse filter', 'filtered correlations', 'p-value threshold', 'microbiome network edges'],
+    search_aliases: ['BioNodulo builtin', 'FastSpar reduce', 'FastSpar: Reduce correlation table', 'FastSpar sparse filter', 'filtered correlations', 'p-value threshold', 'microbiome network edges'],
     input: {
       required: {
         correlation_table: { type: 'TSV' },
@@ -14623,7 +14623,7 @@ const objectInfo = {
     display_name: 'FastSpar: estimate p-values',
     category: 'metagenomics',
     description: 'Estimate empirical p-values for FastSpar correlations with bootstrap resampling.',
-    search_aliases: ['Galaxy', 'FastSpar p-values', 'FastSpar: estimate p-values', 'FastSpar bootstrap p-values', 'SparCC empirical p-values', 'microbiome correlation significance'],
+    search_aliases: ['BioNodulo builtin', 'FastSpar p-values', 'FastSpar: estimate p-values', 'FastSpar bootstrap p-values', 'SparCC empirical p-values', 'microbiome correlation significance'],
     input: {
       required: {
         otu_table: { type: 'TSV' },
@@ -14654,7 +14654,7 @@ const objectInfo = {
     display_name: 'iVar Variants',
     category: 'variant',
     description: 'Call iSNVs and indels from aligned viral amplicon reads with iVar variants.',
-    search_aliases: ['Galaxy', 'ivar', 'viral variants', 'amplicon variants', 'iSNV'],
+    search_aliases: ['BioNodulo builtin', 'ivar', 'viral variants', 'amplicon variants', 'iSNV'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -14671,7 +14671,7 @@ const objectInfo = {
     display_name: 'iVar Trim',
     category: 'variant',
     description: 'Soft-clip primer sequences and quality-trim aligned viral amplicon reads with iVar trim.',
-    search_aliases: ['Galaxy', 'ivar', 'ivar trim', 'primer trimming', 'quality trimming', 'amplicon trimming', 'soft clip primers'],
+    search_aliases: ['BioNodulo builtin', 'ivar', 'ivar trim', 'primer trimming', 'quality trimming', 'amplicon trimming', 'soft clip primers'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -14703,7 +14703,7 @@ const objectInfo = {
     display_name: 'iVar Consensus',
     category: 'variant',
     description: 'Call a consensus FASTA from aligned viral amplicon reads with iVar consensus.',
-    search_aliases: ['Galaxy', 'ivar', 'ivar consensus', 'viral consensus', 'amplicon consensus', 'consensus fasta'],
+    search_aliases: ['BioNodulo builtin', 'ivar', 'ivar consensus', 'viral consensus', 'amplicon consensus', 'consensus fasta'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -14728,7 +14728,7 @@ const objectInfo = {
     display_name: 'iVar Filter Variants',
     category: 'variant',
     description: 'Intersect iVar variant TSV calls across replicates or samples aligned to the same reference.',
-    search_aliases: ['Galaxy', 'ivar', 'ivar filtervariants', 'replicate variants', 'variant intersection', 'viral variant filtering'],
+    search_aliases: ['BioNodulo builtin', 'ivar', 'ivar filtervariants', 'replicate variants', 'variant intersection', 'viral variant filtering'],
     input: {
       required: {
         inputs: { type: 'TSV', list: true },
@@ -14751,7 +14751,7 @@ const objectInfo = {
     display_name: 'iVar Remove Reads',
     category: 'variant',
     description: 'Remove reads from iVar-trimmed BAMs for amplicons whose primer binding sites overlap variants.',
-    search_aliases: ['Galaxy', 'ivar', 'ivar removereads', 'ivar getmasked', 'primer mismatch', 'remove primer-biased reads', 'amplicon filtering'],
+    search_aliases: ['BioNodulo builtin', 'ivar', 'ivar removereads', 'ivar getmasked', 'primer mismatch', 'remove primer-biased reads', 'amplicon filtering'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -14777,7 +14777,7 @@ const objectInfo = {
     display_name: 'GTDB-Tk Classify',
     category: 'taxonomy',
     description: 'Classify bacterial and archaeal genomes against the GTDB reference taxonomy.',
-    search_aliases: ['Galaxy', 'gtdbtk', 'GTDB-Tk', 'classify_wf', 'taxonomy', 'genome taxonomy'],
+    search_aliases: ['BioNodulo builtin', 'gtdbtk', 'GTDB-Tk', 'classify_wf', 'taxonomy', 'genome taxonomy'],
     input: {
       required: {
         input: { type: 'FASTA_LIST' },
@@ -14798,7 +14798,7 @@ const objectInfo = {
     display_name: 'RSeQC Infer Experiment',
     category: 'rna_seq',
     description: 'Estimate RNA-seq strandedness and library configuration from mapped reads.',
-    search_aliases: ['Galaxy', 'rseqc', 'infer_experiment', 'strandedness', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'infer_experiment', 'strandedness', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -14819,7 +14819,7 @@ const objectInfo = {
     display_name: 'RSeQC FPKM Count',
     category: 'rna_seq',
     description: 'Calculate raw read count, FPM, and FPKM for each gene in a BED12 reference gene model.',
-    search_aliases: ['Galaxy', 'rseqc', 'FPKM_count', 'fpkm', 'gene expression', 'fragments per kilobase', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'FPKM_count', 'fpkm', 'gene expression', 'fragments per kilobase', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -14849,7 +14849,7 @@ const objectInfo = {
     display_name: 'RSeQC RPKM Saturation',
     category: 'rna_seq',
     description: 'Resample RNA-seq alignments to evaluate whether transcript RPKM estimates are stable at the current sequencing depth.',
-    search_aliases: ['Galaxy', 'rseqc', 'RPKM_saturation', 'rpkm saturation', 'expression saturation', 'sequencing depth', 'jackknifing', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'RPKM_saturation', 'rpkm saturation', 'expression saturation', 'sequencing depth', 'jackknifing', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -14881,7 +14881,7 @@ const objectInfo = {
     display_name: 'RSeQC BAM to Wiggle',
     category: 'rna_seq',
     description: 'Convert RNA-seq BAM alignments into wiggle coverage tracks for genome browser visualization.',
-    search_aliases: ['Galaxy', 'rseqc', 'bam2wig', 'BAM to Wiggle', 'wiggle', 'coverage track', 'genome browser', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'bam2wig', 'BAM to Wiggle', 'wiggle', 'coverage track', 'genome browser', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -14911,7 +14911,7 @@ const objectInfo = {
     display_name: 'RSeQC Clipping Profile',
     category: 'rna_seq',
     description: 'Calculate the distribution of soft-clipped nucleotides across RNA-seq reads from BAM alignments.',
-    search_aliases: ['Galaxy', 'rseqc', 'clipping_profile', 'clipping profile', 'soft clipping', 'CIGAR', 'RNA-seq read clipping', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'clipping_profile', 'clipping profile', 'soft clipping', 'CIGAR', 'RNA-seq read clipping', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -14936,7 +14936,7 @@ const objectInfo = {
     display_name: 'RSeQC Deletion Profile',
     category: 'rna_seq',
     description: 'Calculate the distribution of deleted nucleotides across RNA-seq reads from BAM alignments.',
-    search_aliases: ['Galaxy', 'rseqc', 'deletion_profile', 'deletion profile', 'deleted nucleotides', 'read deletions', 'CIGAR', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'deletion_profile', 'deletion profile', 'deleted nucleotides', 'read deletions', 'CIGAR', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -14962,7 +14962,7 @@ const objectInfo = {
     display_name: 'RSeQC Gene Body Coverage',
     category: 'rna_seq',
     description: 'Calculate read coverage across scaled gene bodies to reveal RNA-seq 5 prime or 3 prime coverage bias.',
-    search_aliases: ['Galaxy', 'rseqc', 'geneBody_coverage', 'gene body coverage', 'coverage uniformity', '5 prime bias', '3 prime bias', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'geneBody_coverage', 'gene body coverage', 'coverage uniformity', '5 prime bias', '3 prime bias', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM', multiple: true },
@@ -14987,7 +14987,7 @@ const objectInfo = {
     display_name: 'RSeQC Gene Body Coverage BigWig',
     category: 'rna_seq',
     description: 'Calculate read coverage across scaled gene bodies from a BigWig signal file with lower memory use.',
-    search_aliases: ['Galaxy', 'rseqc', 'geneBody_coverage2', 'gene body coverage bigwig', 'BigWig coverage', 'coverage uniformity', '5 prime bias', '3 prime bias', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'geneBody_coverage2', 'gene body coverage bigwig', 'BigWig coverage', 'coverage uniformity', '5 prime bias', '3 prime bias', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BIGWIG' },
@@ -15011,7 +15011,7 @@ const objectInfo = {
     display_name: 'RSeQC Inner Distance',
     category: 'rna_seq',
     description: 'Calculate the mRNA inner distance between paired RNA-seq reads and summarize the insert-size distribution.',
-    search_aliases: ['Galaxy', 'rseqc', 'inner_distance', 'inner distance', 'insert size', 'paired reads', 'fragment distance', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'inner_distance', 'inner distance', 'insert size', 'paired reads', 'fragment distance', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15040,7 +15040,7 @@ const objectInfo = {
     display_name: 'RSeQC Insertion Profile',
     category: 'rna_seq',
     description: 'Calculate the distribution of inserted nucleotides across RNA-seq reads from BAM alignments.',
-    search_aliases: ['Galaxy', 'rseqc', 'insertion_profile', 'insertion profile', 'inserted nucleotides', 'read insertions', 'CIGAR', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'insertion_profile', 'insertion profile', 'inserted nucleotides', 'read insertions', 'CIGAR', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15065,7 +15065,7 @@ const objectInfo = {
     display_name: 'RSeQC Read Hexamer',
     category: 'rna_seq',
     description: 'Calculate hexamer or 6-mer frequencies for read FASTA/FASTQ files and optional reference genome or mRNA sequences.',
-    search_aliases: ['Galaxy', 'rseqc', 'read_hexamer', 'read hexamer', 'hexamer frequency', '6mer frequency', 'kmer bias', 'nucleotide composition', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'read_hexamer', 'read hexamer', 'hexamer frequency', '6mer frequency', 'kmer bias', 'nucleotide composition', 'rna-seq qc'],
     input: {
       required: {
         inputs: { type: 'FASTQ', multiple: true },
@@ -15089,7 +15089,7 @@ const objectInfo = {
     display_name: 'RSeQC Read Quality',
     category: 'rna_seq',
     description: 'Calculate Phred base quality score distributions for BAM or SAM alignments and generate quality heatmap and boxplot reports.',
-    search_aliases: ['Galaxy', 'rseqc', 'read_quality', 'read quality', 'Phred quality', 'base quality', 'quality heatmap', 'quality boxplot', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'read_quality', 'read quality', 'Phred quality', 'base quality', 'quality heatmap', 'quality boxplot', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15114,7 +15114,7 @@ const objectInfo = {
     display_name: 'RSeQC RNA Fragment Size',
     category: 'rna_seq',
     description: 'Estimate mean, median, and standard deviation of RNA-seq fragment sizes for each gene or transcript.',
-    search_aliases: ['Galaxy', 'rseqc', 'RNA_fragment_size', 'rna fragment size', 'insert size', 'fragment length', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'RNA_fragment_size', 'rna fragment size', 'insert size', 'fragment length', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15139,7 +15139,7 @@ const objectInfo = {
     display_name: 'RSeQC Junction Annotation',
     category: 'rna_seq',
     description: 'Classify detected splice junctions as annotated, complete novel, or partial novel against a BED12 gene model.',
-    search_aliases: ['Galaxy', 'rseqc', 'junction_annotation', 'splice junction annotation', 'splice events', 'novel junctions', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'junction_annotation', 'splice junction annotation', 'splice events', 'novel junctions', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15165,7 +15165,7 @@ const objectInfo = {
     display_name: 'RSeQC Junction Saturation',
     category: 'rna_seq',
     description: 'Resample alignments to evaluate saturation of known and novel splice-junction detection.',
-    search_aliases: ['Galaxy', 'rseqc', 'junction_saturation', 'splice junction saturation', 'alternative splicing', 'sequencing depth', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'junction_saturation', 'splice junction saturation', 'alternative splicing', 'sequencing depth', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15196,7 +15196,7 @@ const objectInfo = {
     display_name: 'RSeQC Mismatch Profile',
     category: 'rna_seq',
     description: 'Calculate the distribution of mismatches across read positions for BAM alignments with MD tags.',
-    search_aliases: ['Galaxy', 'rseqc', 'mismatch_profile', 'mismatch profile', 'MD tag', 'read mismatches', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'mismatch_profile', 'mismatch profile', 'MD tag', 'read mismatches', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15222,7 +15222,7 @@ const objectInfo = {
     display_name: 'RSeQC Read GC',
     category: 'rna_seq',
     description: 'Calculate GC content distribution for reads in BAM or SAM alignments.',
-    search_aliases: ['Galaxy', 'rseqc', 'read_GC', 'read GC', 'GC content', 'GC bias', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'read_GC', 'read GC', 'GC content', 'GC bias', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15246,7 +15246,7 @@ const objectInfo = {
     display_name: 'RSeQC Read NVC',
     category: 'rna_seq',
     description: 'Calculate nucleotide-versus-cycle composition to inspect nucleotide composition bias across aligned reads.',
-    search_aliases: ['Galaxy', 'rseqc', 'read_NVC', 'read NVC', 'nucleotide composition', 'nucleotide versus cycle', 'random priming bias', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'read_NVC', 'read NVC', 'nucleotide composition', 'nucleotide versus cycle', 'random priming bias', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15271,7 +15271,7 @@ const objectInfo = {
     display_name: 'RSeQC BAM Stat',
     category: 'rna_seq',
     description: 'Calculate mapped-read summary statistics from a BAM or SAM alignment file.',
-    search_aliases: ['Galaxy', 'rseqc', 'bam_stat', 'bam stats', 'mapping statistics', 'rna-seq qc', 'sam stats'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'bam_stat', 'bam stats', 'mapping statistics', 'rna-seq qc', 'sam stats'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15294,7 +15294,7 @@ const objectInfo = {
     display_name: 'RSeQC Read Distribution',
     category: 'rna_seq',
     description: 'Calculate how mapped reads are distributed across genomic features from a BED12 gene model.',
-    search_aliases: ['Galaxy', 'rseqc', 'read_distribution', 'read distribution', 'mapped reads', 'genome features', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'read_distribution', 'read distribution', 'mapped reads', 'genome features', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15315,7 +15315,7 @@ const objectInfo = {
     display_name: 'RSeQC Read Duplication',
     category: 'rna_seq',
     description: 'Determine read duplication rates from mapped read positions and read sequences.',
-    search_aliases: ['Galaxy', 'rseqc', 'read_duplication', 'read duplication', 'duplication rate', 'PCR bias', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'read_duplication', 'read duplication', 'duplication rate', 'PCR bias', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15340,7 +15340,7 @@ const objectInfo = {
     display_name: 'RSeQC Transcript Integrity Number',
     category: 'rna_seq',
     description: 'Calculate transcript integrity number scores from sorted and indexed BAM alignments against a BED12 gene model.',
-    search_aliases: ['Galaxy', 'rseqc', 'tin', 'tin.py', 'Transcript Integrity Number', 'transcript integrity', 'RNA integrity', 'RNA degradation', 'medTIN', 'rna-seq qc'],
+    search_aliases: ['BioNodulo builtin', 'rseqc', 'tin', 'tin.py', 'Transcript Integrity Number', 'transcript integrity', 'RNA integrity', 'RNA degradation', 'medTIN', 'rna-seq qc'],
     input: {
       required: {
         input: { type: 'BAM', multiple: true },
@@ -15366,7 +15366,7 @@ const objectInfo = {
     display_name: 'BEDTools Coverage',
     category: 'genomics',
     description: 'Compute interval coverage depth and breadth using bedtools coverage.',
-    search_aliases: ['Galaxy', 'bedtools', 'coverage', 'coveragebed', 'depth', 'breadth'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'coverage', 'coveragebed', 'depth', 'breadth'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15387,7 +15387,7 @@ const objectInfo = {
     display_name: 'BEDOPS Sort BED',
     category: 'genomics',
     description: 'Sort one or more BED files into BEDOPS canonical order, optionally emitting only unique or duplicate records.',
-    search_aliases: ['Galaxy', 'bedops', 'sort-bed', 'BEDOPS sort-bed', 'sort BED', 'unique BED', 'duplicate BED'],
+    search_aliases: ['BioNodulo builtin', 'bedops', 'sort-bed', 'BEDOPS sort-bed', 'sort BED', 'unique BED', 'duplicate BED'],
     input: {
       required: {
         inputs: { type: 'BED_LIST' },
@@ -15407,7 +15407,7 @@ const objectInfo = {
     display_name: 'BEDOPS sort-bed',
     category: 'genomics',
     description: 'Sort one or more BED files into BEDOPS canonical order, optionally emitting only unique or duplicate records.',
-    search_aliases: ['Galaxy', 'bedops-sort-bed', 'bedops', 'sort-bed', 'BEDOPS sort-bed', 'sort BED', 'unique BED', 'duplicate BED'],
+    search_aliases: ['BioNodulo builtin', 'bedops-sort-bed', 'bedops', 'sort-bed', 'BEDOPS sort-bed', 'sort BED', 'unique BED', 'duplicate BED'],
     input: {
       required: {
         inputs: { type: 'BED_LIST' },
@@ -15427,7 +15427,7 @@ const objectInfo = {
     display_name: 'BEDTools Genome Coverage',
     category: 'genomics',
     description: 'Compute genome-wide coverage from BAM or interval files with bedtools genomecov.',
-    search_aliases: ['Galaxy', 'bedtools', 'genomecov', 'genome coverage', 'bedgraph'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'genomecov', 'genome coverage', 'bedgraph'],
     input: {
       required: {
         input_type: { type: 'STRING', default: 'bed', options: ['bed', 'bam'] },
@@ -15449,7 +15449,7 @@ const objectInfo = {
     display_name: 'BEDTools Subtract',
     category: 'genomics',
     description: 'Remove intervals or overlapping bases from one feature set using bedtools subtract.',
-    search_aliases: ['Galaxy', 'bedtools', 'subtract', 'subtractbed', 'interval subtraction', 'blacklist'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'subtract', 'subtractbed', 'interval subtraction', 'blacklist'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15470,7 +15470,7 @@ const objectInfo = {
     display_name: 'BEDTools Merge',
     category: 'genomics',
     description: 'Combine overlapping or nearby intervals into flattened regions with optional column summaries.',
-    search_aliases: ['Galaxy', 'bedtools', 'merge', 'mergebed', 'combine intervals', 'flatten intervals'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'merge', 'mergebed', 'combine intervals', 'flatten intervals'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -15491,7 +15491,7 @@ const objectInfo = {
     display_name: 'BEDTools Sort',
     category: 'genomics',
     description: 'Order BED, GFF, VCF, or bedGraph intervals by coordinate, size, score, or a genome file.',
-    search_aliases: ['Galaxy', 'bedtools', 'sort', 'sortbed', 'coordinate sort', 'genome order'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'sort', 'sortbed', 'coordinate sort', 'genome order'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -15511,7 +15511,7 @@ const objectInfo = {
     display_name: 'BEDTools getfasta',
     category: 'genomics',
     description: 'Extract sequences from a FASTA file using BED, GFF, VCF, or bedGraph intervals.',
-    search_aliases: ['Galaxy', 'bedtools', 'getfasta', 'getfastabed', 'extract sequence', 'fasta intervals'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'getfasta', 'getfastabed', 'extract sequence', 'fasta intervals'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15532,7 +15532,7 @@ const objectInfo = {
     display_name: 'BEDTools Complement',
     category: 'genomics',
     description: 'Extract genome intervals not represented by an interval file using bedtools complement.',
-    search_aliases: ['Galaxy', 'bedtools', 'complement', 'complementbed', 'genome gaps', 'uncovered intervals'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'complement', 'complementbed', 'genome gaps', 'uncovered intervals'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15553,7 +15553,7 @@ const objectInfo = {
     display_name: 'BEDTools Flank',
     category: 'genomics',
     description: 'Create new intervals from the flanks of existing intervals with bedtools flank.',
-    search_aliases: ['Galaxy', 'bedtools', 'flank', 'flankbed', 'upstream', 'downstream'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'flank', 'flankbed', 'upstream', 'downstream'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15574,7 +15574,7 @@ const objectInfo = {
     display_name: 'BEDTools Slop',
     category: 'genomics',
     description: 'Adjust interval sizes with bedtools slop while clipping to chromosome boundaries.',
-    search_aliases: ['Galaxy', 'bedtools', 'slop', 'slopbed', 'extend intervals', 'resize intervals'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'slop', 'slopbed', 'extend intervals', 'resize intervals'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15595,7 +15595,7 @@ const objectInfo = {
     display_name: 'BEDTools Window',
     category: 'genomics',
     description: 'Find intervals in B that overlap a window around each interval in A.',
-    search_aliases: ['Galaxy', 'bedtools', 'window', 'windowbed', 'nearby intervals', 'proximal features'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'window', 'windowbed', 'nearby intervals', 'proximal features'],
     input: {
       required: {
         inputA: { type: 'FILE' },
@@ -15616,7 +15616,7 @@ const objectInfo = {
     display_name: 'BEDTools Map',
     category: 'genomics',
     description: 'Apply summary operations to columns from B intervals that overlap each A interval.',
-    search_aliases: ['Galaxy', 'bedtools', 'map', 'mapbed', 'interval statistics', 'overlap summary'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'map', 'mapbed', 'interval statistics', 'overlap summary'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15639,7 +15639,7 @@ const objectInfo = {
     display_name: 'BEDTools Multiple Intersect',
     category: 'genomics',
     description: 'Identify common intervals among multiple sorted interval files with bedtools multiinter.',
-    search_aliases: ['Galaxy', 'bedtools', 'multiinter', 'multiintersect', 'multiple intersect', 'shared intervals'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'multiinter', 'multiintersect', 'multiple intersect', 'shared intervals'],
     input: {
       required: {
         inputs: { type: 'BED_LIST' },
@@ -15659,7 +15659,7 @@ const objectInfo = {
     display_name: 'BEDTools Cluster',
     category: 'genomics',
     description: 'Cluster overlapping or nearby sorted intervals without flattening them.',
-    search_aliases: ['Galaxy', 'bedtools', 'cluster', 'clusterbed', 'overlap clusters', 'nearby intervals'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'cluster', 'clusterbed', 'overlap clusters', 'nearby intervals'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15679,7 +15679,7 @@ const objectInfo = {
     display_name: 'BEDTools Jaccard',
     category: 'genomics',
     description: 'Calculate intersection, union, Jaccard similarity, and intersection counts for two sorted interval sets.',
-    search_aliases: ['Galaxy', 'bedtools', 'jaccard', 'jaccardbed', 'interval similarity', 'set overlap'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'jaccard', 'jaccardbed', 'interval similarity', 'set overlap'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15700,7 +15700,7 @@ const objectInfo = {
     display_name: 'BEDTools Fisher',
     category: 'genomics',
     description: "Calculate Fisher's exact test statistics for overlaps between two feature files.",
-    search_aliases: ['Galaxy', 'bedtools', 'fisher', 'fisherbed', 'overlap significance', 'exact test'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'fisher', 'fisherbed', 'overlap significance', 'exact test'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15722,7 +15722,7 @@ const objectInfo = {
     display_name: 'BEDTools Relative Distance',
     category: 'genomics',
     description: 'Calculate the relative distance distribution between intervals in two feature sets.',
-    search_aliases: ['Galaxy', 'bedtools', 'reldist', 'reldistbed', 'relative distance', 'spatial correlation'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'reldist', 'reldistbed', 'relative distance', 'spatial correlation'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15743,7 +15743,7 @@ const objectInfo = {
     display_name: 'BEDTools Spacing',
     category: 'genomics',
     description: 'Report the spacing between adjacent intervals in a sorted interval file.',
-    search_aliases: ['Galaxy', 'bedtools', 'spacing', 'spacingbed', 'distance between intervals', 'adjacent intervals'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'spacing', 'spacingbed', 'distance between intervals', 'adjacent intervals'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15763,7 +15763,7 @@ const objectInfo = {
     display_name: 'BEDTools GroupBy',
     category: 'genomics',
     description: 'Group intervals by one or more columns and summarize selected columns with bedtools groupby.',
-    search_aliases: ['Galaxy', 'bedtools', 'groupby', 'groupbybed', 'summarize intervals', 'aggregate columns'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'groupby', 'groupbybed', 'summarize intervals', 'aggregate columns'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15786,7 +15786,7 @@ const objectInfo = {
     display_name: 'BEDTools BAM to BED',
     category: 'genomics',
     description: 'Convert BAM alignments to BED, BED12, or paired BEDPE records with bedtools bamtobed.',
-    search_aliases: ['Galaxy', 'bedtools', 'bamtobed', 'bam to bed', 'bed12', 'bedpe'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'bamtobed', 'bam to bed', 'bed12', 'bedpe'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -15807,7 +15807,7 @@ const objectInfo = {
     display_name: 'BEDTools BED12 to BED6',
     category: 'genomics',
     description: 'Convert blocked BED12 features into discrete BED6 features with bed12ToBed6.',
-    search_aliases: ['Galaxy', 'bedtools', 'bed12tobed6', 'bed12 to bed6', 'blocked bed', 'exons'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'bed12tobed6', 'bed12 to bed6', 'blocked bed', 'exons'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15827,7 +15827,7 @@ const objectInfo = {
     display_name: 'BEDTools BED to BAM',
     category: 'genomics',
     description: 'Convert BED annotations to BAM format with optional BED12 spliced alignment handling.',
-    search_aliases: ['Galaxy', 'bedtools', 'bedtobam', 'bed to bam', 'bed12', 'annotation bam'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'bedtobam', 'bed to bam', 'bed12', 'annotation bam'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15848,7 +15848,7 @@ const objectInfo = {
     display_name: 'BEDTools BEDPE to BAM',
     category: 'genomics',
     description: 'Convert BEDPE paired feature records to an unsorted BAM file with bedtools bedpetobam.',
-    search_aliases: ['Galaxy', 'bedtools', 'bedpetobam', 'bedpe to bam', 'paired intervals', 'paired-end'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'bedpetobam', 'bedpe to bam', 'paired intervals', 'paired-end'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15869,7 +15869,7 @@ const objectInfo = {
     display_name: 'BEDTools Make Windows',
     category: 'genomics',
     description: 'Create adjacent or sliding windows across a genome file or BED interval file with bedtools makewindows.',
-    search_aliases: ['Galaxy', 'bedtools', 'makewindows', 'makewindowsbed', 'sliding windows', 'genome windows'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'makewindows', 'makewindowsbed', 'sliding windows', 'genome windows'],
     input: {
       required: {
         type: { type: 'STRING', default: 'bed' },
@@ -15890,7 +15890,7 @@ const objectInfo = {
     display_name: 'BEDTools Annotate',
     category: 'genomics',
     description: 'Annotate one interval file with coverage fractions or counts from multiple BED-like files.',
-    search_aliases: ['Galaxy', 'bedtools', 'annotate', 'annotatebed', 'coverage annotation', 'multiple feature types'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'annotate', 'annotatebed', 'coverage annotation', 'multiple feature types'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -15911,7 +15911,7 @@ const objectInfo = {
     display_name: 'BEDTools Expand',
     category: 'genomics',
     description: 'Replicate BED-like records by expanding comma-separated values in selected columns.',
-    search_aliases: ['Galaxy', 'bedtools', 'expand', 'expandbed', 'split columns', 'comma-separated values'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'expand', 'expandbed', 'split columns', 'comma-separated values'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15932,7 +15932,7 @@ const objectInfo = {
     display_name: 'BEDTools Mask FASTA',
     category: 'genomics',
     description: 'Mask FASTA sequence bases that overlap intervals from a BED-like file.',
-    search_aliases: ['Galaxy', 'bedtools', 'maskfasta', 'maskfastabed', 'soft mask', 'masked genome'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'maskfasta', 'maskfastabed', 'soft mask', 'masked genome'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15953,7 +15953,7 @@ const objectInfo = {
     display_name: 'BEDTools MultiCov',
     category: 'genomics',
     description: 'Count overlapping alignments from multiple sorted and indexed BAM files for each interval.',
-    search_aliases: ['Galaxy', 'bedtools', 'multicov', 'multicovbed', 'bam counts', 'interval read counts'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'multicov', 'multicovbed', 'bam counts', 'interval read counts'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15974,7 +15974,7 @@ const objectInfo = {
     display_name: 'BEDTools Nucleotide Content',
     category: 'genomics',
     description: 'Compute nucleotide content, optional sequence output, and motif counts for FASTA intervals.',
-    search_aliases: ['Galaxy', 'bedtools', 'nuc', 'nucbed', 'nucleotide content', 'gc content'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'nuc', 'nucbed', 'nucleotide content', 'gc content'],
     input: {
       required: {
         input: { type: 'BED' },
@@ -15995,7 +15995,7 @@ const objectInfo = {
     display_name: 'BEDTools Random',
     category: 'genomics',
     description: 'Generate a random set of BED6 intervals across chromosomes defined by a genome file.',
-    search_aliases: ['Galaxy', 'bedtools', 'random', 'randombed', 'random intervals', 'null intervals'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'random', 'randombed', 'random intervals', 'null intervals'],
     input: {
       required: {
         genome: { type: 'TSV' },
@@ -16015,7 +16015,7 @@ const objectInfo = {
     display_name: 'BEDTools Shuffle',
     category: 'genomics',
     description: 'Shuffle feature locations across a genome, optionally constraining or excluding target regions.',
-    search_aliases: ['Galaxy', 'bedtools', 'shuffle', 'shufflebed', 'randomize intervals', 'permutation'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'shuffle', 'shufflebed', 'randomize intervals', 'permutation'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -16036,7 +16036,7 @@ const objectInfo = {
     display_name: 'BEDTools Union BedGraph',
     category: 'genomics',
     description: 'Merge multiple sorted BedGraph files into a common set of intervals with one value column per input.',
-    search_aliases: ['Galaxy', 'bedtools', 'unionbedg', 'unionbedgraph', 'bedgraph union', 'coverage tracks'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'unionbedg', 'unionbedgraph', 'bedgraph union', 'coverage tracks'],
     input: {
       required: {
         inputs: { type: 'BEDGRAPH_LIST' },
@@ -16056,7 +16056,7 @@ const objectInfo = {
     display_name: 'BEDTools ClosestBed',
     category: 'genomics',
     description: 'Find closest or overlapping features in one or more B interval files for every interval in A.',
-    search_aliases: ['Galaxy', 'bedtools', 'closest', 'closestbed', 'nearest interval', 'nearest feature'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'closest', 'closestbed', 'nearest interval', 'nearest feature'],
     input: {
       required: {
         inputA: { type: 'BED' },
@@ -16077,7 +16077,7 @@ const objectInfo = {
     display_name: 'BEDTools Intersect Intervals',
     category: 'genomics',
     description: 'Find overlaps between A and one or more B BED-like or BAM files with configurable reporting modes.',
-    search_aliases: ['Galaxy', 'bedtools', 'intersect', 'intersectbed', 'overlap intervals', 'feature intersection'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'intersect', 'intersectbed', 'overlap intervals', 'feature intersection'],
     input: {
       required: {
         inputA: { type: 'FILE' },
@@ -16098,7 +16098,7 @@ const objectInfo = {
     display_name: 'BEDTools BED to IGV',
     category: 'genomics',
     description: 'Create an IGV batch script that takes snapshots at intervals from a BED-like file.',
-    search_aliases: ['Galaxy', 'bedtools', 'bedtoigv', 'bedToIgv', 'IGV snapshots', 'batch script'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'bedtoigv', 'bedToIgv', 'IGV snapshots', 'batch script'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -16118,7 +16118,7 @@ const objectInfo = {
     display_name: 'BEDTools LinksBed',
     category: 'genomics',
     description: 'Create an HTML page with UCSC Genome Browser links for intervals in a BED-like file.',
-    search_aliases: ['Galaxy', 'bedtools', 'links', 'linksbed', 'linksbed ucsc', 'UCSC links', 'genome browser'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'links', 'linksbed', 'linksbed ucsc', 'UCSC links', 'genome browser'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -16138,7 +16138,7 @@ const objectInfo = {
     display_name: 'BEDTools OverlapBed',
     category: 'genomics',
     description: 'Compute the amount of overlap or distance between two feature coordinate ranges on each input row.',
-    search_aliases: ['Galaxy', 'bedtools', 'overlap', 'overlapbed', 'overlapbed custom score', 'overlap distance', 'custom overlap score'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'overlap', 'overlapbed', 'overlapbed custom score', 'overlap distance', 'custom overlap score'],
     input: {
       required: {
         input: { type: 'FILE' },
@@ -16159,7 +16159,7 @@ const objectInfo = {
     display_name: 'BEDTools TagBed',
     category: 'genomics',
     description: 'Annotate BAM alignments with tags populated from one or more overlapping interval files.',
-    search_aliases: ['Galaxy', 'bedtools', 'tag', 'tagbed', 'tagbed bam tags', 'BAM tags', 'alignment annotation'],
+    search_aliases: ['BioNodulo builtin', 'bedtools', 'tag', 'tagbed', 'tagbed bam tags', 'BAM tags', 'alignment annotation'],
     input: {
       required: {
         inputA: { type: 'BAM' },
@@ -16180,7 +16180,7 @@ const objectInfo = {
     display_name: 'BCFtools Annotate',
     category: 'variant',
     description: 'Annotate and edit VCF/BCF records using BED, tabular, VCF, or BCF annotation sources.',
-    search_aliases: ['Galaxy', 'bcftools', 'annotate', 'annotate vcf', 'edit vcf annotations', 'custom annotation', 'bed annotation', 'remove annotations'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'annotate', 'annotate vcf', 'edit vcf annotations', 'custom annotation', 'bed annotation', 'remove annotations'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16209,7 +16209,7 @@ const objectInfo = {
     display_name: 'BCFtools Call',
     category: 'variant',
     description: 'Call SNP and indel variants from genotype likelihoods in VCF/BCF using bcftools call.',
-    search_aliases: ['Galaxy', 'bcftools', 'call', 'variant calling', 'SNP indel calling', 'multiallelic caller', 'consensus caller'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'call', 'variant calling', 'SNP indel calling', 'multiallelic caller', 'consensus caller'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16236,7 +16236,7 @@ const objectInfo = {
     display_name: 'BCFtools Mpileup',
     category: 'variant',
     description: 'Generate VCF or BCF containing genotype likelihoods for one or multiple BAM/CRAM alignment files.',
-    search_aliases: ['Galaxy', 'bcftools', 'mpileup', 'genotype likelihoods', 'BAM CRAM pileup', 'variant pileup'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'mpileup', 'genotype likelihoods', 'BAM CRAM pileup', 'variant pileup'],
     input: {
       required: {
         input_bams: { type: 'BAM_LIST', multiple: true },
@@ -16265,7 +16265,7 @@ const objectInfo = {
     display_name: 'BCFtools Filter',
     category: 'variant',
     description: 'Apply fixed-threshold, expression, and optional soft filters to VCF/BCF records with bcftools filter.',
-    search_aliases: ['Galaxy', 'bcftools', 'filter', 'fixed-threshold filters', 'variant filter', 'soft filter', 'filter vcf'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'filter', 'fixed-threshold filters', 'variant filter', 'soft filter', 'filter vcf'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16295,7 +16295,7 @@ const objectInfo = {
     display_name: 'BamLeftAlign',
     category: 'variant',
     description: 'Left-realign indels in BAM alignments using the FreeBayes bamleftalign utility.',
-    search_aliases: ['Galaxy', 'FreeBayes', 'bamleftalign', 'left realignment', 'left-align BAM indels', 'indel normalization'],
+    search_aliases: ['BioNodulo builtin', 'FreeBayes', 'bamleftalign', 'left realignment', 'left-align BAM indels', 'indel normalization'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -16320,7 +16320,7 @@ const objectInfo = {
     display_name: 'BWA-MEM2 Indexer',
     category: 'alignment',
     description: 'Build a BWA-MEM2 reference index from a FASTA sequence.',
-    search_aliases: ['Galaxy', 'BWA-MEM2', 'bwa_mem2_idx', 'BWA-MEM2 reference index', 'reference index', 'bwa-mem2 index'],
+    search_aliases: ['BioNodulo builtin', 'BWA-MEM2', 'bwa_mem2_idx', 'BWA-MEM2 reference index', 'reference index', 'bwa-mem2 index'],
     input: {
       required: {
         reference: { type: 'FASTA' },
@@ -16346,7 +16346,7 @@ const objectInfo = {
     display_name: 'BWA-MEM2',
     category: 'alignment',
     description: 'Map medium and long reads against a reference genome with BWA-MEM2 and emit BAM.',
-    search_aliases: ['Galaxy', 'BWA-MEM2', 'bwa_mem2', 'bwa-mem2 mem', 'read mapping', 'medium and long reads', 'BAM output'],
+    search_aliases: ['BioNodulo builtin', 'BWA-MEM2', 'bwa_mem2', 'bwa-mem2 mem', 'read mapping', 'medium and long reads', 'BAM output'],
     input: {
       required: {
         ref_file: { type: 'BWA_MEM2_INDEX' },
@@ -16387,7 +16387,7 @@ const objectInfo = {
     display_name: 'Map with BWA',
     category: 'alignment',
     description: 'Map short reads against a reference genome with BWA aln and emit coordinate-sorted BAM.',
-    search_aliases: ['Galaxy', 'BWA', 'bwa', 'bwa aln', 'bwa samse', 'bwa sampe', 'short read mapping', 'BAM output'],
+    search_aliases: ['BioNodulo builtin', 'BWA', 'bwa', 'bwa aln', 'bwa samse', 'bwa sampe', 'short read mapping', 'BAM output'],
     input: {
       required: {
         ref_file: { type: 'FASTA' },
@@ -16422,7 +16422,7 @@ const objectInfo = {
     display_name: 'Bowtie2',
     category: 'alignment',
     description: 'Map reads against a reference genome with Bowtie2 and emit BAM or SAM alignments.',
-    search_aliases: ['Galaxy', 'Bowtie2', 'bowtie2', 'bowtie2-build', 'read mapping', 'paired-end alignment', 'BAM output', 'SAM output'],
+    search_aliases: ['BioNodulo builtin', 'Bowtie2', 'bowtie2', 'bowtie2-build', 'read mapping', 'paired-end alignment', 'BAM output', 'SAM output'],
     input: {
       required: {
         ref_file: { type: 'BOWTIE2_INDEX' },
@@ -16466,7 +16466,7 @@ const objectInfo = {
     display_name: 'BCFtools Stats',
     category: 'variant',
     description: 'Parse VCF or BCF files with bcftools stats and optionally render plot-vcfstats summaries.',
-    search_aliases: ['Galaxy', 'bcftools', 'stats', 'vcf stats', 'plot-vcfstats', 'variant statistics', 'genotype concordance'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'stats', 'vcf stats', 'plot-vcfstats', 'variant statistics', 'genotype concordance'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16493,7 +16493,7 @@ const objectInfo = {
     display_name: 'BCFtools Norm',
     category: 'variant',
     description: 'Left-align and normalize indels, check reference alleles, split or join multiallelic records, and atomize complex variants.',
-    search_aliases: ['Galaxy', 'bcftools', 'norm', 'normalize', 'left-align indels', 'split multiallelic', 'join multiallelic', 'atomize variants'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'norm', 'normalize', 'left-align indels', 'split multiallelic', 'join multiallelic', 'atomize variants'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16520,7 +16520,7 @@ const objectInfo = {
     display_name: 'BCFtools Concat',
     category: 'variant',
     description: 'Concatenate chromosome shards or combine sorted VCF/BCF files with compatible sample columns.',
-    search_aliases: ['Galaxy', 'bcftools', 'concat', 'concatenate vcf', 'combine vcf', 'ligate phased vcfs'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'concat', 'concatenate vcf', 'combine vcf', 'ligate phased vcfs'],
     input: {
       required: {
         input_files: { type: 'VCF_LIST' },
@@ -16540,7 +16540,7 @@ const objectInfo = {
     display_name: 'BCFtools Consensus',
     category: 'variant',
     description: 'Create a consensus FASTA by applying VCF/BCF variants, masks, and sample or haplotype choices to a reference.',
-    search_aliases: ['Galaxy', 'bcftools', 'consensus', 'consensus fasta', 'apply variants', 'haplotype consensus'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'consensus', 'consensus fasta', 'apply variants', 'haplotype consensus'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16561,7 +16561,7 @@ const objectInfo = {
     display_name: 'BCFtools Query',
     category: 'variant',
     description: 'Transform VCF/BCF records into tabular or custom text output using bcftools query format strings.',
-    search_aliases: ['Galaxy', 'bcftools', 'query', 'extract fields', 'format vcf', 'vcf to tsv'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'query', 'extract fields', 'format vcf', 'vcf to tsv'],
     input: {
       required: {
         input_files: { type: 'VCF_LIST' },
@@ -16582,7 +16582,7 @@ const objectInfo = {
     display_name: 'BCFtools List Samples',
     category: 'variant',
     description: 'List sample names from a VCF/BCF file using bcftools query --list-samples.',
-    search_aliases: ['Galaxy', 'bcftools', 'query', 'list samples', 'sample names', 'vcf samples'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'query', 'list samples', 'sample names', 'vcf samples'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16602,7 +16602,7 @@ const objectInfo = {
     display_name: 'BCFtools Reheader',
     category: 'variant',
     description: 'Replace a VCF/BCF header and optionally rename samples using a sample mapping file.',
-    search_aliases: ['Galaxy', 'bcftools', 'reheader', 'rename samples', 'change header', 'sample names'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'reheader', 'rename samples', 'change header', 'sample names'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16622,7 +16622,7 @@ const objectInfo = {
     display_name: 'BCFtools View',
     category: 'variant',
     description: 'Subset samples, filter variants, and convert VCF/BCF files with bcftools view.',
-    search_aliases: ['Galaxy', 'bcftools', 'view', 'subset vcf', 'filter vcf', 'vcf conversion'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'view', 'subset vcf', 'filter vcf', 'vcf conversion'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16642,7 +16642,7 @@ const objectInfo = {
     display_name: 'BCFtools Merge',
     category: 'variant',
     description: 'Merge multiple VCF/BCF files from non-overlapping sample sets into one multi-sample file.',
-    search_aliases: ['Galaxy', 'bcftools', 'merge', 'merge samples', 'multi-sample vcf', 'combine cohorts'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'merge', 'merge samples', 'multi-sample vcf', 'combine cohorts'],
     input: {
       required: {
         input_files: { type: 'VCF_LIST' },
@@ -16662,7 +16662,7 @@ const objectInfo = {
     display_name: 'BCFtools Isec',
     category: 'variant',
     description: 'Create intersections, unions, and complements across multiple VCF/BCF files.',
-    search_aliases: ['Galaxy', 'bcftools', 'isec', 'variant intersection', 'vcf union', 'vcf complement'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'isec', 'variant intersection', 'vcf union', 'vcf complement'],
     input: {
       required: {
         input_files: { type: 'VCF_LIST' },
@@ -16682,7 +16682,7 @@ const objectInfo = {
     display_name: 'BCFtools GTcheck',
     category: 'variant',
     description: 'Check sample identity by comparing genotypes within or between VCF/BCF files.',
-    search_aliases: ['Galaxy', 'bcftools', 'gtcheck', 'sample identity', 'genotype concordance', 'discordance'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'gtcheck', 'sample identity', 'genotype concordance', 'discordance'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16702,7 +16702,7 @@ const objectInfo = {
     display_name: 'BCFtools Convert to VCF',
     category: 'variant',
     description: 'Convert gVCF, tabular genotype data, and IMPUTE2/SHAPEIT files into VCF/BCF.',
-    search_aliases: ['Galaxy', 'bcftools', 'convert', 'gvcf to vcf', 'tsv to vcf', 'shapeit to vcf'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'convert', 'gvcf to vcf', 'tsv to vcf', 'shapeit to vcf'],
     input: {
       required: {
         input_file: { type: 'FILE' },
@@ -16722,7 +16722,7 @@ const objectInfo = {
     display_name: 'BCFtools Convert from VCF',
     category: 'variant',
     description: 'Convert VCF/BCF records to GEN/SAMPLE, HAP/SAMPLE, or HAP/LEGEND/SAMPLE files.',
-    search_aliases: ['Galaxy', 'bcftools', 'convert', 'vcf to shapeit', 'vcf to impute2', 'hap legend sample'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'convert', 'vcf to shapeit', 'vcf to impute2', 'hap legend sample'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16742,7 +16742,7 @@ const objectInfo = {
     display_name: 'BCFtools CNV',
     category: 'variant',
     description: 'Call copy number variation from VCF B-allele frequency and Log R Ratio intensity annotations.',
-    search_aliases: ['Galaxy', 'bcftools', 'cnv', 'copy number variation', 'BAF', 'LRR'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'cnv', 'copy number variation', 'BAF', 'LRR'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16763,7 +16763,7 @@ const objectInfo = {
     display_name: 'CNVkit Access',
     category: 'variant',
     description: 'Calculate sequence-accessible reference genome coordinates for CNVkit.',
-    search_aliases: ['Galaxy', 'CNVkit', 'CNVkit Access', 'cnvkit.py access', 'sequence-accessible coordinates', 'copy number variation', 'accessible genome regions', 'masked N regions'],
+    search_aliases: ['BioNodulo builtin', 'CNVkit', 'CNVkit Access', 'cnvkit.py access', 'sequence-accessible coordinates', 'copy number variation', 'accessible genome regions', 'masked N regions'],
     input: {
       required: {
         fa_fname: { type: 'FASTA' },
@@ -16787,7 +16787,7 @@ const objectInfo = {
     display_name: 'CNVkit Antitarget',
     category: 'variant',
     description: 'Derive CNVkit antitarget BED intervals from targeted resequencing regions.',
-    search_aliases: ['Galaxy', 'CNVkit', 'CNVkit Antitarget', 'cnvkit.py antitarget', 'antitarget regions', 'off-target bins', 'targeted resequencing', 'copy number variation'],
+    search_aliases: ['BioNodulo builtin', 'CNVkit', 'CNVkit Antitarget', 'cnvkit.py antitarget', 'antitarget regions', 'off-target bins', 'targeted resequencing', 'copy number variation'],
     input: {
       required: {
         targets_file: { type: 'BED' },
@@ -16812,7 +16812,7 @@ const objectInfo = {
     display_name: 'CNVkit Target',
     category: 'variant',
     description: 'Prepare CNVkit target BED intervals from capture bait regions.',
-    search_aliases: ['Galaxy', 'CNVkit', 'CNVkit Target', 'cnvkit.py target', 'baited regions', 'capture targets', 'target BED', 'split target bins', 'copy number variation'],
+    search_aliases: ['BioNodulo builtin', 'CNVkit', 'CNVkit Target', 'cnvkit.py target', 'baited regions', 'capture targets', 'target BED', 'split target bins', 'copy number variation'],
     input: {
       required: {
         input_file: { type: 'BED' },
@@ -16838,7 +16838,7 @@ const objectInfo = {
     display_name: 'BCFtools CSQ',
     category: 'variant',
     description: 'Annotate VCF/BCF records with haplotype-aware consequence predictions from a FASTA and GFF3 annotation.',
-    search_aliases: ['Galaxy', 'bcftools', 'csq', 'consequence prediction', 'haplotype aware consequence', 'BCSQ'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'csq', 'consequence prediction', 'haplotype aware consequence', 'BCSQ'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16860,7 +16860,7 @@ const objectInfo = {
     display_name: 'BCFtools ROH',
     category: 'variant',
     description: 'Detect runs of homozygosity or autozygosity in VCF/BCF genotypes using a hidden Markov model.',
-    search_aliases: ['Galaxy', 'bcftools', 'roh', 'runs of homozygosity', 'autozygosity', 'HMM'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'roh', 'runs of homozygosity', 'autozygosity', 'HMM'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16880,7 +16880,7 @@ const objectInfo = {
     display_name: 'BCFtools +counts',
     category: 'variant',
     description: 'Count samples, SNPs, indels, MNPs, and total sites in a VCF/BCF file.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'counts', 'variant counts', 'sample counts'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'counts', 'variant counts', 'sample counts'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16900,7 +16900,7 @@ const objectInfo = {
     display_name: 'BCFtools +dosage',
     category: 'variant',
     description: 'Calculate per-sample genotype dosage from PL, GL, or GT tags in VCF/BCF records.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'dosage', 'genotype dosage', 'PL GL GT'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'dosage', 'genotype dosage', 'PL GL GT'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16920,7 +16920,7 @@ const objectInfo = {
     display_name: 'BCFtools +missing2ref',
     category: 'variant',
     description: 'Replace missing genotypes with reference or major-allele calls using the bcftools +missing2ref plugin.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'missing2ref', 'set missing genotypes', 'missing to reference'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'missing2ref', 'set missing genotypes', 'missing to reference'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16940,7 +16940,7 @@ const objectInfo = {
     display_name: 'BCFtools +tag2tag',
     category: 'variant',
     description: 'Convert between related genotype likelihood and probability tags such as GL, PL, GP, and GT.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'tag2tag', 'convert genotype tags', 'GL PL GP GT'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'tag2tag', 'convert genotype tags', 'GL PL GP GT'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16960,7 +16960,7 @@ const objectInfo = {
     display_name: 'BCFtools +fill-AN-AC',
     category: 'variant',
     description: 'Fill INFO/AN and INFO/AC allele count fields in VCF/BCF records with the deprecated bcftools +fill-AN-AC plugin.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'fill-AN-AC', 'fill AN AC', 'allele count tags'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'fill-AN-AC', 'fill AN AC', 'allele count tags'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -16980,7 +16980,7 @@ const objectInfo = {
     display_name: 'BCFtools +fill-tags',
     category: 'variant',
     description: 'Set INFO tags such as AF, AC, AN, HWE, MAF, NS, and FORMAT/VAF with the bcftools +fill-tags plugin.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'fill-tags', 'fill INFO tags', 'allele frequency tags'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'fill-tags', 'fill INFO tags', 'allele frequency tags'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -17000,7 +17000,7 @@ const objectInfo = {
     display_name: 'BCFtools +setGT',
     category: 'variant',
     description: 'Set genotypes to missing, reference, major, minor, phased, unphased, or custom calls using bcftools +setGT.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'setGT', 'set genotype calls', 'replace genotypes'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'setGT', 'set genotype calls', 'replace genotypes'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -17020,7 +17020,7 @@ const objectInfo = {
     display_name: 'BCFtools +fixploidy',
     category: 'variant',
     description: 'Adjust genotype ploidy from sample sex and ploidy-region tables using the bcftools +fixploidy plugin.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'fixploidy', 'fix ploidy', 'sample sex ploidy'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'fixploidy', 'fix ploidy', 'sample sex ploidy'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -17040,7 +17040,7 @@ const objectInfo = {
     display_name: 'BCFtools +mendelian2',
     category: 'variant',
     description: 'Count, annotate, filter, or repair Mendelian-consistent and inconsistent trio genotypes with bcftools +mendelian2.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'mendelian2', 'mendelian consistency', 'trio genotypes'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'mendelian2', 'mendelian consistency', 'trio genotypes'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -17060,7 +17060,7 @@ const objectInfo = {
     display_name: 'BCFtools +impute-info',
     category: 'variant',
     description: 'Add IMPUTE2-style imputation information metrics from FORMAT/GP probabilities using the bcftools +impute-info plugin.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'impute-info', 'imputation info', 'IMPUTE2 INFO'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'impute-info', 'imputation info', 'IMPUTE2 INFO'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -17080,7 +17080,7 @@ const objectInfo = {
     display_name: 'BCFtools +color-chrs',
     category: 'variant',
     description: 'Color shared chromosomal segments between trio or unrelated phased genotype samples with the bcftools +color-chrs plugin.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'color-chrs', 'color shared chromosomal segments', 'phased GTs'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'color-chrs', 'color shared chromosomal segments', 'phased GTs'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -17100,7 +17100,7 @@ const objectInfo = {
     display_name: 'BCFtools +frameshifts',
     category: 'variant',
     description: 'Annotate indel records with out-of-frame status from exon intervals using the bcftools +frameshifts plugin.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'frameshifts', 'frameshift indels', 'OOF annotation'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'frameshifts', 'frameshift indels', 'OOF annotation'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -17121,7 +17121,7 @@ const objectInfo = {
     display_name: 'BCFtools +split-vep',
     category: 'variant',
     description: 'Extract fields from VEP, ANN, EFF, or other structured INFO annotations into new VCF INFO tags.',
-    search_aliases: ['Galaxy', 'bcftools', 'plugin', 'split-vep', 'split VEP annotations', 'structured annotations'],
+    search_aliases: ['BioNodulo builtin', 'bcftools', 'plugin', 'split-vep', 'split VEP annotations', 'structured annotations'],
     input: {
       required: {
         input_file: { type: 'VCF' },
@@ -17141,7 +17141,7 @@ const objectInfo = {
     display_name: 'Samtools Idxstats',
     category: 'samtools',
     description: 'Report mapped and unmapped read counts per reference sequence from a BAM or CRAM index.',
-    search_aliases: ['Galaxy', 'samtools', 'idxstats', 'index stats', 'BAM index', 'MultiQC'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'idxstats', 'index stats', 'BAM index', 'MultiQC'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -17162,7 +17162,7 @@ const objectInfo = {
     display_name: 'Samtools Depth',
     category: 'samtools',
     description: 'Compute per-position alignment depth for one or more BAM files, optionally restricted to regions.',
-    search_aliases: ['Galaxy', 'samtools', 'depth', 'coverage depth', 'per-base coverage'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'depth', 'coverage depth', 'per-base coverage'],
     input: {
       required: {
         input_bams: { type: 'BAM_LIST' },
@@ -17182,7 +17182,7 @@ const objectInfo = {
     display_name: 'Samtools Faidx',
     category: 'samtools',
     description: 'Create a FASTA/FASTQ fai index, with fallback handling for gzip-compressed inputs.',
-    search_aliases: ['Galaxy', 'samtools', 'faidx', 'FASTA index', 'FASTQ index', 'fai'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'faidx', 'FASTA index', 'FASTQ index', 'fai'],
     input: {
       required: {
         input: { type: 'FASTA' },
@@ -17202,7 +17202,7 @@ const objectInfo = {
     display_name: 'Samtools Coverage',
     category: 'samtools',
     description: 'Compute tabular or histogram coverage summaries per reference sequence using samtools coverage.',
-    search_aliases: ['Galaxy', 'samtools', 'coverage', 'histogram', 'BAM coverage'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'coverage', 'histogram', 'BAM coverage'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -17222,7 +17222,7 @@ const objectInfo = {
     display_name: 'Samtools Bedcov',
     category: 'samtools',
     description: 'Calculate read depth totals for BED intervals across one or more BAM files.',
-    search_aliases: ['Galaxy', 'samtools', 'bedcov', 'interval coverage', 'BED coverage'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'bedcov', 'interval coverage', 'BED coverage'],
     input: {
       required: {
         input_bed: { type: 'BED' },
@@ -17243,7 +17243,7 @@ const objectInfo = {
     display_name: 'Samtools Calmd',
     category: 'samtools',
     description: 'Recalculate MD and NM tags against a reference FASTA, optionally adding BAQ-adjusted qualities.',
-    search_aliases: ['Galaxy', 'samtools', 'calmd', 'MD tags', 'NM tags', 'BAQ'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'calmd', 'MD tags', 'NM tags', 'BAQ'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -17265,7 +17265,7 @@ const objectInfo = {
     display_name: 'Samtools Ampliconclip',
     category: 'samtools',
     description: 'Clip primer bases from amplicon BAM files and re-sort alignments for downstream analysis.',
-    search_aliases: ['Galaxy', 'samtools', 'ampliconclip', 'primer trimming', 'amplicon'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'ampliconclip', 'primer trimming', 'amplicon'],
     input: {
       required: {
         input_bed: { type: 'BED' },
@@ -17287,7 +17287,7 @@ const objectInfo = {
     display_name: 'Samtools Fastx',
     category: 'samtools',
     description: 'Extract FASTA or FASTQ reads from alignment files, with optional read-pair and index-read outputs.',
-    search_aliases: ['Galaxy', 'samtools', 'fastx', 'bam2fq', 'FASTQ extraction'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'fastx', 'bam2fq', 'FASTQ extraction'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -17308,7 +17308,7 @@ const objectInfo = {
     display_name: 'Samtools Mpileup',
     category: 'samtools',
     description: 'Generate pileup format text for one or more BAM files using samtools mpileup.',
-    search_aliases: ['Galaxy', 'samtools', 'mpileup', 'pileup', 'BAQ'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'mpileup', 'pileup', 'BAQ'],
     input: {
       required: {
         input_bams: { type: 'BAM_LIST' },
@@ -17329,7 +17329,7 @@ const objectInfo = {
     display_name: 'Samtools Reheader',
     category: 'samtools',
     description: 'Replace the header of a BAM file using a SAM or BAM source header.',
-    search_aliases: ['Galaxy', 'samtools', 'reheader', 'SAM header', 'BAM header'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'reheader', 'SAM header', 'BAM header'],
     input: {
       required: {
         input_header: { type: 'BAM' },
@@ -17350,7 +17350,7 @@ const objectInfo = {
     display_name: 'Samtools Split',
     category: 'samtools',
     description: 'Split a BAM file into separate BAM files by read group.',
-    search_aliases: ['Galaxy', 'samtools', 'split', 'read groups', 'readgroup'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'split', 'read groups', 'readgroup'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -17371,7 +17371,7 @@ const objectInfo = {
     display_name: 'Samtools Slice BAM',
     category: 'samtools',
     description: 'Slice an indexed BAM to BED intervals, contigs, or manually supplied genomic regions.',
-    search_aliases: ['Galaxy', 'samtools', 'slice', 'regions', 'BED slice'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'slice', 'regions', 'BED slice'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -17393,7 +17393,7 @@ const objectInfo = {
     display_name: 'Samtools Phase',
     category: 'samtools',
     description: 'Call and phase heterozygous SNPs, producing phase-set logs and phased BAM outputs.',
-    search_aliases: ['Galaxy', 'samtools', 'phase', 'heterozygous SNPs', 'phasing'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'phase', 'heterozygous SNPs', 'phasing'],
     input: {
       required: {
         input_bam: { type: 'BAM' },
@@ -17413,7 +17413,7 @@ const objectInfo = {
     display_name: 'Samtools Consensus',
     category: 'samtools',
     description: 'Generate FASTA, FASTQ, or pileup consensus sequence from SAM, BAM, or CRAM alignments.',
-    search_aliases: ['Galaxy', 'samtools', 'consensus', 'Bayesian', 'Gap5', 'consensus sequence'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'consensus', 'Bayesian', 'Gap5', 'consensus sequence'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -17434,7 +17434,7 @@ const objectInfo = {
     display_name: 'Samtools BAM to CRAM',
     category: 'samtools',
     description: 'Convert BAM or SAM alignments to CRAM format with reference-based compression.',
-    search_aliases: ['Galaxy', 'samtools', 'BAM to CRAM', 'SAM to CRAM', 'CRAM compression', 'reference based compression'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'BAM to CRAM', 'SAM to CRAM', 'CRAM compression', 'reference based compression'],
     input: {
       required: {
         input: { type: 'BAM', options: ['BAM', 'SAM'] },
@@ -17456,7 +17456,7 @@ const objectInfo = {
     display_name: 'Samtools CRAM to BAM',
     category: 'samtools',
     description: 'Convert CRAM alignments to BAM format using a reference FASTA.',
-    search_aliases: ['Galaxy', 'samtools', 'CRAM to BAM', 'CRAM decompression', 'alignment conversion', 'reference'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'CRAM to BAM', 'CRAM decompression', 'alignment conversion', 'reference'],
     input: {
       required: {
         input: { type: 'CRAM' },
@@ -17478,7 +17478,7 @@ const objectInfo = {
     display_name: 'Samtools BAM to SAM',
     category: 'samtools',
     description: 'Convert BAM alignments to SAM text format with Galaxy-compatible header handling.',
-    search_aliases: ['Galaxy', 'samtools', 'BAM to SAM', 'SAM output', 'header only', 'include header'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'BAM to SAM', 'SAM output', 'header only', 'include header'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -17498,7 +17498,7 @@ const objectInfo = {
     display_name: 'BAM-to-SAM',
     category: 'samtools',
     description: 'Convert a BAM dataset to SAM text using the Galaxy BAM-to-SAM wrapper.',
-    search_aliases: ['Galaxy', 'samtools', 'bam_to_sam', 'BAM-to-SAM', 'BAM to SAM', 'converted SAM', 'header only'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'bam_to_sam', 'BAM-to-SAM', 'BAM to SAM', 'converted SAM', 'header only'],
     input: {
       required: {
         input1: { type: 'BAM' },
@@ -17521,7 +17521,7 @@ const objectInfo = {
     display_name: 'Samtools SAM to BAM',
     category: 'samtools',
     description: 'Convert SAM alignments to sorted BAM format using a reference FASTA index.',
-    search_aliases: ['Galaxy', 'samtools', 'SAM to BAM', 'sorted BAM', 'reference index', 'alignment conversion'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'SAM to BAM', 'sorted BAM', 'reference index', 'alignment conversion'],
     input: {
       required: {
         input: { type: 'SAM' },
@@ -17543,7 +17543,7 @@ const objectInfo = {
     display_name: 'SAM-to-BAM',
     category: 'samtools',
     description: 'Convert a SAM dataset into sorted BAM format using the Galaxy SAM-to-BAM wrapper.',
-    search_aliases: ['Galaxy', 'samtools', 'sam_to_bam', 'SAM-to-BAM', 'SAM to BAM', 'converted BAM', 'reference sequence'],
+    search_aliases: ['BioNodulo builtin', 'samtools', 'sam_to_bam', 'SAM-to-BAM', 'SAM to BAM', 'converted BAM', 'reference sequence'],
     input: {
       required: {
         input: { type: 'SAM' },
@@ -17570,7 +17570,7 @@ const objectInfo = {
     display_name: 'Cramino',
     category: 'qc',
     description: 'Extract summary QC metrics, histograms, and optional Arrow output from long-read BAM or CRAM files.',
-    search_aliases: ['Galaxy', 'cramino', 'BAM CRAM QC', 'long read QC', 'NanoPack2'],
+    search_aliases: ['BioNodulo builtin', 'cramino', 'BAM CRAM QC', 'long read QC', 'NanoPack2'],
     input: {
       required: {
         input_file: { type: 'BAM' },
@@ -17590,7 +17590,7 @@ const objectInfo = {
     display_name: 'BamUtil clipOverlap',
     category: 'alignment',
     description: 'Clip overlapping paired-end reads in SAM or BAM alignments using BamUtil clipOverlap.',
-    search_aliases: ['Galaxy', 'bamutil', 'clipOverlap', 'clip overlapping read pairs', 'overlap clipping'],
+    search_aliases: ['BioNodulo builtin', 'bamutil', 'clipOverlap', 'clip overlapping read pairs', 'overlap clipping'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -17610,7 +17610,7 @@ const objectInfo = {
     display_name: 'BamUtil diff',
     category: 'alignment',
     description: 'Compare two coordinate-sorted SAM or BAM files and report differing records with BamUtil diff.',
-    search_aliases: ['Galaxy', 'bamutil', 'diff', 'compare SAM BAM files', 'alignment diff'],
+    search_aliases: ['BioNodulo builtin', 'bamutil', 'diff', 'compare SAM BAM files', 'alignment diff'],
     input: {
       required: {
         in1: { type: 'BAM' },
@@ -17631,7 +17631,7 @@ const objectInfo = {
     display_name: 'samblaster',
     category: 'alignment',
     description: 'Mark duplicates and optionally output split reads, discordant read pairs, and unmapped or clipped reads.',
-    search_aliases: ['Galaxy', 'samblaster', 'duplicate marking', 'split reads', 'discordant read pairs', 'structural variant extraction'],
+    search_aliases: ['BioNodulo builtin', 'samblaster', 'duplicate marking', 'split reads', 'discordant read pairs', 'structural variant extraction'],
     input: {
       required: {
         input: { type: 'BAM' },
@@ -17654,7 +17654,7 @@ const objectInfo = {
     display_name: 'mosdepth',
     category: 'qc',
     description: 'Calculate BAM or CRAM depth coverage summaries, per-base depth, region means, thresholds, and quantized coverage.',
-    search_aliases: ['Galaxy', 'mosdepth', 'BAM CRAM depth', 'coverage depth', 'per-base coverage', 'genome coverage', 'exome coverage'],
+    search_aliases: ['BioNodulo builtin', 'mosdepth', 'BAM CRAM depth', 'coverage depth', 'per-base coverage', 'genome coverage', 'exome coverage'],
     input: {
       required: {
         input_alignment: { type: 'BAM' },
@@ -17685,7 +17685,7 @@ const objectInfo = {
     display_name: 'Rasusa',
     category: 'qc',
     description: 'Randomly subsample FASTA/FASTQ reads to coverage, bases, read count, or fraction; optionally downsample BAM alignments.',
-    search_aliases: ['Galaxy', 'rasusa', 'subsample reads', 'downsample reads', 'coverage subsampling', 'alignment downsampling', 'FASTQ subsampling'],
+    search_aliases: ['BioNodulo builtin', 'rasusa', 'subsample reads', 'downsample reads', 'coverage subsampling', 'alignment downsampling', 'FASTQ subsampling'],
     input: {
       required: {
         input_selector: { type: 'STRING', default: 'single', options: ['single', 'paired', 'paired_collection', 'aligned'] },
@@ -17709,7 +17709,7 @@ const objectInfo = {
     display_name: 'MUMmer4 Nucmer',
     category: 'genomics',
     description: 'Align two nucleotide FASTA files with nucmer and optionally generate delta, BAM/CRAM, and dotplot outputs.',
-    search_aliases: ['Galaxy', 'MUMmer4', 'nucmer', 'genome alignment', 'delta alignment', 'dotplot'],
+    search_aliases: ['BioNodulo builtin', 'MUMmer4', 'nucmer', 'genome alignment', 'delta alignment', 'dotplot'],
     input: {
       required: {
         reference_sequence: { type: 'FASTA' },
@@ -17731,7 +17731,7 @@ const objectInfo = {
     display_name: 'MUMmer4 DNAdiff',
     category: 'genomics',
     description: 'Compare two FASTA sequences with dnadiff and return the report plus optional delta, coordinates, SNP, and difference tables.',
-    search_aliases: ['Galaxy', 'MUMmer4', 'dnadiff', 'genome difference', 'assembly comparison'],
+    search_aliases: ['BioNodulo builtin', 'MUMmer4', 'dnadiff', 'genome difference', 'assembly comparison'],
     input: {
       required: {
         reference_sequence: { type: 'FASTA' },
@@ -17752,7 +17752,7 @@ const objectInfo = {
     display_name: 'MUMmer4 Delta Filter',
     category: 'genomics',
     description: 'Filter nucmer delta alignments by alignment strategy, identity, length, uniqueness, and overlap.',
-    search_aliases: ['Galaxy', 'MUMmer4', 'delta-filter', 'filter delta', 'alignment filter'],
+    search_aliases: ['BioNodulo builtin', 'MUMmer4', 'delta-filter', 'filter delta', 'alignment filter'],
     input: {
       required: {
         delta: { type: 'FILE' },
@@ -17772,7 +17772,7 @@ const objectInfo = {
     display_name: 'MUMmer4 Show Coordinates',
     category: 'genomics',
     description: 'Parse nucmer delta alignments with show-coords into tabular alignment coordinate summaries.',
-    search_aliases: ['Galaxy', 'MUMmer4', 'show-coords', 'alignment coordinates', 'delta coordinates'],
+    search_aliases: ['BioNodulo builtin', 'MUMmer4', 'show-coords', 'alignment coordinates', 'delta coordinates'],
     input: {
       required: {
         delta: { type: 'FILE' },
@@ -17792,7 +17792,7 @@ const objectInfo = {
     display_name: 'MUMmer4 Mummer',
     category: 'genomics',
     description: 'Find maximal matches between FASTA sequences with mummer and optionally generate a 2-D dotplot.',
-    search_aliases: ['Galaxy', 'MUMmer4', 'mummer', 'maximal matches', 'suffix tree', 'dotplot'],
+    search_aliases: ['BioNodulo builtin', 'MUMmer4', 'mummer', 'maximal matches', 'suffix tree', 'dotplot'],
     input: {
       required: {
         reference_sequence: { type: 'FASTA' },
@@ -17813,7 +17813,7 @@ const objectInfo = {
     display_name: 'MUMmer4 Mummerplot',
     category: 'genomics',
     description: 'Generate a 2-D dotplot or coverage plot from MUMmer or nucmer alignment output.',
-    search_aliases: ['Galaxy', 'MUMmer4', 'mummerplot', 'mummerplot dotplot', 'dotplot', 'coverage plot', 'gnuplot'],
+    search_aliases: ['BioNodulo builtin', 'MUMmer4', 'mummerplot', 'mummerplot dotplot', 'dotplot', 'coverage plot', 'gnuplot'],
     input: {
       required: {
         delta: { type: 'FILE' },
@@ -18499,7 +18499,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await expect(page.locator('.workflow-stats-cat', { hasText: 'ai' })).toBeVisible();
 });
 
-test('Galaxy parity nodes render citation metadata in node info', async ({ page }) => {
+test('BioNodulo built-in nodes render citation metadata in node info', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   const canvas = page.locator('canvas').first();

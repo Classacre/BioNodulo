@@ -23,6 +23,33 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def test_bionodulo_builtin_wrapped_nodes_do_not_use_generic_galaxy_alias() -> None:
+    info = _registry().object_info()
+    allowlist = {"taxonomy_krona_chart"}
+
+    offenders = sorted(
+        node_id
+        for node_id, node_info in info.items()
+        if node_id not in allowlist
+        and node_info["python_class"].startswith("bionodulo.nodes.builtin.")
+        and "Galaxy" in node_info["search_aliases"]
+    )
+
+    assert offenders == []
+
+
+def test_bionodulo_builtin_wrapped_nodes_live_in_flat_builtin_modules() -> None:
+    info = _registry().object_info()
+
+    offenders = sorted(
+        node_id
+        for node_id, node_info in info.items()
+        if node_info["python_class"].startswith("bionodulo.nodes.builtin.galaxy_parity")
+    )
+
+    assert offenders == []
+
+
 def test_anndata_export_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     node_info = _registry().object_info()["anndata_export"]
 
@@ -37,7 +64,8 @@ def test_anndata_export_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert node_info["citation_dois"] == ["10.1186/s13059-017-1382-0"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1186/s13059-017-1382-0"]
     assert "AnnData" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
+    assert "Galaxy" not in node_info["search_aliases"]
     assert "write_csvs" in node_info["search_aliases"]
     assert node_info["version"] == "0.11.4+galaxy3"
     assert node_info["input"]["required"]["input"][0] == "H5AD"
@@ -86,7 +114,7 @@ def test_anndata_import_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert node_info["citation_dois"] == ["10.1186/s13059-017-1382-0"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1186/s13059-017-1382-0"]
     assert "AnnData" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "read_10x_mtx" in node_info["search_aliases"]
     assert node_info["version"] == "0.11.4+galaxy3"
     assert node_info["input"]["optional"]["adata_format"][1]["default"] == "loom"
@@ -238,7 +266,7 @@ def test_celltypist_exposes_galaxy_metadata_inputs_outputs_and_citation() -> Non
     assert node_info["citation_dois"] == ["10.1126/science.abl5197"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1126/science.abl5197"]
     assert "automated cell type annotation" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Immune_All_High_v1" in node_info["search_aliases"]
     assert node_info["version"] == "1.7.1+galaxy1"
     assert node_info["input"]["required"]["adata"][0] == "H5AD"
@@ -498,7 +526,7 @@ def test_cemitool_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None
         "https://doi.org/10.18129/B9.bioc.CEMiTool",
     ]
     assert "co-expression modules" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Gene Set Enrichment Analysis" in node_info["search_aliases"]
     assert node_info["version"] == "1.34.0+galaxy0"
     assert node_info["input"]["required"]["expression_matrix"][0] == "TSV"
@@ -641,7 +669,7 @@ def test_charts_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/charts"]
     assert "Chart Utilities" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "histogramdiscrete" in node_info["search_aliases"]
     assert node_info["version"] == "1.0.1"
     assert node_info["input"]["required"]["input"][0] == "TSV"
@@ -734,7 +762,7 @@ def test_anndata_inspect_exposes_galaxy_metadata_inputs_outputs_and_doi() -> Non
     assert node_info["citation_dois"] == ["10.1186/s13059-017-1382-0"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1186/s13059-017-1382-0"]
     assert "AnnData" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "chunk_X" in node_info["search_aliases"]
     assert node_info["version"] == "0.11.4+galaxy3"
     assert node_info["input"]["required"]["input"][0] == "H5AD"
@@ -902,7 +930,7 @@ def test_anndata_manipulate_exposes_galaxy_metadata_inputs_outputs_and_doi() -> 
     assert node_info["citation_dois"] == ["10.1186/s13059-017-1382-0"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1186/s13059-017-1382-0"]
     assert "AnnData" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "split_on_obs" in node_info["search_aliases"]
     assert "copy_layers" in node_info["search_aliases"]
     assert node_info["version"] == "0.11.4+galaxy3"
@@ -1155,7 +1183,7 @@ def test_modify_loom_exposes_galaxy_metadata_inputs_outputs_and_citation() -> No
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/linnarsson-lab/loompy"]
     assert "Loompy" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "loompy_to_tsv" in node_info["search_aliases"]
     assert node_info["version"] == "0.11.4+galaxy3"
     assert node_info["input"]["optional"]["operation"][1]["default"] == "manipulate"
@@ -1301,7 +1329,7 @@ def test_annotatemyids_exposes_galaxy_metadata_inputs_outputs_and_citation() -> 
         "https://github.com/markdunning/galaxy-annotateMyIDs",
     ]
     assert "AnnotationDbi" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "AnnotationDbi" in node_info["search_aliases"]
     assert node_info["version"] == "3.18.0+galaxy0"
     assert node_info["input"]["required"]["id_file"][0] == "TSV"
@@ -1461,7 +1489,7 @@ def test_anndata2ri_exposes_galaxy_metadata_inputs_outputs_and_citation() -> Non
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/theislab/anndata2ri"]
     assert "Convert between AnnData and SingleCellExperiment" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "SingleCellExperiment" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input_object"][0] == "FILE"
     assert node_info["input"]["optional"]["direction"][1]["default"] == "sce2anndata"
@@ -1526,7 +1554,7 @@ def test_argnorm_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btaf173"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btaf173"]
     assert "antibiotic resistance gene annotation" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "ARO" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input"][0] == "TSV"
     assert node_info["input"]["optional"]["tool"][1]["default"] == "deeparg"
@@ -1625,7 +1653,7 @@ def test_autobigs_cli_exposes_galaxy_metadata_inputs_outputs_and_citation() -> N
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/Syph-and-VPD-Lab/autoBIGS.cli"]
     assert "Syph-and-VPD-Lab/autoBIGS.cli" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "MLST" in node_info["search_aliases"]
     assert node_info["input"]["required"]["bigsdb"][0] == "STRING"
     assert node_info["input"]["optional"]["operation"][1]["default"] == "st"
@@ -1703,7 +1731,7 @@ def test_mlst_exposes_iuc_metadata_inputs_outputs_and_citation() -> None:
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/tseemann/mlst"]
     assert "Scan contig files against PubMLST typing schemes" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "PubMLST" in node_info["search_aliases"]
     assert "sequence typing" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input_files"][0] == "FASTA"
@@ -1832,7 +1860,7 @@ def test_seqsero2_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1128/AEM.01746-19"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1128/AEM.01746-19"]
     assert "Salmonella serotype determination" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Salmonella serotype" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input_type"][1]["options"] == [
         "paired",
@@ -1970,7 +1998,7 @@ def test_bam_to_scidx_exposes_galaxy_metadata_inputs_outputs_and_citation() -> N
         "http://www.huck.psu.edu/content/research/independent-centers-excellence/center-for-eukaryotic-gene-regulation"
     ]
     assert "Strand-specific coordinate count" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "ScIdx" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input_bam"][0] == "BAM"
     assert node_info["input"]["required"]["bam_index"][0] == "BAI"
@@ -2065,7 +2093,7 @@ def test_b2btools_single_sequence_exposes_galaxy_metadata_inputs_outputs_and_doi
         "https://doi.org/10.1093/bioinformatics/btz912",
     ]
     assert "DynaMine" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "DisoMine" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input"][0] == "FASTA"
     assert node_info["input"]["optional"]["dynamine"][1]["default"] is True
@@ -2152,7 +2180,7 @@ def test_bp_genbank2gff3_exposes_galaxy_metadata_inputs_outputs_and_doi() -> Non
     assert node_info["citation_dois"] == ["10.1101/gr.361602"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1101/gr.361602"]
     assert "BioPerl GenBank-to-GFF3 converter" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "BioPerl" in node_info["search_aliases"]
     assert node_info["input"]["required"]["genbank"][0] == "FILE"
     assert node_info["input"]["optional"]["infer_subfeatures"][1]["default"] is True
@@ -2241,7 +2269,7 @@ def test_basil_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btv051"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btv051"]
     assert "detect breakpoints for structural variants" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "large insertions" in node_info["search_aliases"]
     assert node_info["input"]["required"]["bam"][0] == "BAM"
     assert node_info["input"]["required"]["ref"][0] == "FASTA"
@@ -2318,7 +2346,7 @@ def test_bbgtobigwig_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btq351"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btq351"]
     assert "BigWig and BigBed" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "bedGraphToBigWig" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input1"][0] == "FILE"
     assert node_info["input"]["required"]["chromfile"][0] == "FILE"
@@ -2885,7 +2913,7 @@ def test_bax2bam_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/pacificbiosciences/bax2bam/"]
     assert "legacy PacBio basecall format" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "pulse features" in node_info["search_aliases"]
     assert node_info["input"]["required"]["files"][0] == "FILE"
     assert node_info["input"]["required"]["files"][1]["is_list"] is True
@@ -2970,7 +2998,7 @@ def test_berokka_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/tseemann/berokka"]
     assert "Faster Trim, circularise and orient" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Circlator" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input_file"][0] == "FASTA"
     assert node_info["input"]["optional"]["filter_fasta"][0] == "FASTA"
@@ -3046,7 +3074,7 @@ def test_fasta_regex_finder_exposes_galaxy_metadata_inputs_outputs_and_citation(
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/dariober/bioinformatics-cafe/tree/master/fastaRegexFinder"]
     assert "fastaRegexFinder" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "G-quadruplex" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input"][0] == "FASTA"
     assert node_info["input"]["optional"]["regex"][1]["default"] == r"([gG]{3,}\w{1,7}){3,}[gG]{3,}"
@@ -3124,7 +3152,7 @@ def test_cd_hit_exposes_galaxy_metadata_inputs_outputs_and_dois() -> None:
         "https://doi.org/10.1093/bioinformatics/bts565",
     ]
     assert "CD-HIT" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "cd-hit-est-2d" in node_info["search_aliases"]
     assert node_info["input"]["required"]["fasta_in"][0] == "FASTA"
     assert node_info["input"]["optional"]["sequence_type"][1]["default"] == "protein"
@@ -3389,7 +3417,7 @@ class _RecordingCommandContext:
         return {"returncode": 0, "stdout": "", "stderr": ""}
 
 
-def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_batch_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -4286,7 +4314,7 @@ def test_galaxy_parity_batch_nodes_expose_citation_and_dependency_metadata() -> 
         assert metadata["doi"] in node_info["citation_dois"]
         assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
         assert node_info["documentation_url"].startswith(("https://", "http://"))
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_busco_renders_galaxy_aligned_completeness_command_and_outputs(tmp_path: Path) -> None:
@@ -4414,7 +4442,7 @@ def test_featurecounts_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btt656"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt656"]
     assert "assigning sequence reads to genomic features" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "subread" in node_info["search_aliases"]
     assert "featureCounts gene counts" in node_info["search_aliases"]
     assert "RNA-seq read counting" in node_info["search_aliases"]
@@ -4624,7 +4652,7 @@ def test_roary_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btv421"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btv421"]
     assert "prokaryote pan genome analysis" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "pan genome" in node_info["search_aliases"]
     assert "core gene alignment" in node_info["search_aliases"]
     assert "Prokka GFF3" in node_info["search_aliases"]
@@ -6688,7 +6716,7 @@ def test_datamash_nodes_expose_galaxy_metadata_inputs_outputs_and_citations() ->
     assert ops["citation_dois"] == []
     assert ops["citation_urls"] == ["https://www.gnu.org/software/datamash/"]
     assert "GNU Datamash" in ops["citation_text"]
-    assert "Galaxy" in ops["search_aliases"]
+    assert "BioNodulo builtin" in ops["search_aliases"]
     assert "group by fields" in ops["search_aliases"]
     assert ops["input"]["required"]["in_file"][0] == "TSV"
     assert ops["input"]["optional"]["operations"][0] == "JSON"
@@ -6816,7 +6844,7 @@ def test_falco_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_dois"] == ["10.12688/f1000research.21142.2"]
     assert info["citation_urls"] == ["https://doi.org/10.12688/f1000research.21142.2"]
     assert "Falco: high-speed FastQC emulation" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "FastQC emulation" in info["search_aliases"]
     assert info["input"]["required"]["input_file"][0] == "FASTQ"
     assert info["input"]["optional"]["input_ext"][1]["options"] == ["fastq", "fastq.gz", "bam", "sam"]
@@ -6909,7 +6937,7 @@ def test_happy_sompy_exposes_galaxy_metadata_inputs_outputs_and_citation() -> No
     assert info["citation_dois"] == []
     assert info["citation_urls"] == ["https://github.com/Illumina/hap.py"]
     assert "hap.py" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "variant benchmarking" in info["search_aliases"]
     assert info["input"]["required"]["truth"][0] == "VCF"
     assert info["input"]["required"]["query"][0] == "VCF"
@@ -7006,7 +7034,7 @@ def test_bwameth_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert info["citation_dois"] == ["10.48550/arXiv.1401.1129"]
     assert info["citation_urls"] == ["https://doi.org/10.48550/arXiv.1401.1129", "http://arxiv.org/abs/1401.1129"]
     assert "Fast and accurate alignment of long bisulfite-seq reads" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "BS-Seq alignment" in info["search_aliases"]
     assert info["input"]["required"]["input_singles"][0] == "FASTQ"
     assert info["input"]["optional"]["reference_source"][1]["options"] == ["history", "indexed"]
@@ -7100,7 +7128,7 @@ def test_crossmap_bed_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
     assert "CrossMap" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BED" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BED"
     assert info["input"]["required"]["input_chain"][0] == "STRING"
@@ -7177,7 +7205,7 @@ def test_crossmap_bam_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
     assert "CrossMap" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BAM" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BAM"
     assert info["input"]["required"]["input_chain"][0] == "STRING"
@@ -7256,7 +7284,7 @@ def test_crossmap_bw_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
     assert "CrossMap" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BigWig" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BIGWIG"
     assert info["input"]["required"]["input_chain"][0] == "STRING"
@@ -7313,7 +7341,7 @@ def test_crossmap_gff_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
     assert "CrossMap" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover GFF" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "GFF_GTF"
     assert info["input"]["required"]["input_chain"][0] == "STRING"
@@ -7374,7 +7402,7 @@ def test_crossmap_region_exposes_galaxy_metadata_inputs_outputs_and_doi() -> Non
     assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
     assert "CrossMap" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BED regions" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BED"
     assert info["input"]["required"]["input_chain"][0] == "STRING"
@@ -7455,7 +7483,7 @@ def test_crossmap_vcf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
     assert "CrossMap" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover VCF" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "VCF"
     assert info["input"]["required"]["input_fasta"][0] == "FASTA"
@@ -7537,7 +7565,7 @@ def test_crossmap_wig_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_dois"] == ["10.1093/bioinformatics/btt730"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt730"]
     assert "CrossMap" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover Wiggle" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "FILE"
     assert info["input"]["required"]["input_chain"][0] == "STRING"
@@ -11308,7 +11336,7 @@ def test_cherri_eval_exposes_galaxy_metadata_inputs_outputs_and_citation() -> No
     assert info["citation_dois"] == []
     assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/cherri"]
     assert "RNA-RNA interaction" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "cherri eval" in info["search_aliases"]
     assert info["version"] == "0.7"
     assert info["input"]["required"]["rris_table"][0] == "CSV"
@@ -11405,7 +11433,7 @@ def test_cherri_train_exposes_galaxy_metadata_inputs_outputs_and_citation() -> N
     assert info["citation_dois"] == []
     assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/cherri"]
     assert "RNA-RNA interaction" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "cherri train" in info["search_aliases"]
     assert info["version"] == "0.7+galaxy0"
     assert info["input"]["optional"]["experiments"][0] == "JSON"
@@ -11954,7 +11982,7 @@ def test_chewbbaca_allelecall_exposes_galaxy_metadata_inputs_outputs_and_citatio
     assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
     assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
     assert "chewBBACA" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "cgMLST" in info["search_aliases"]
     assert info["version"] == "3.3.10+galaxy1"
     assert info["input"]["required"]["input_file"][0] == "FASTA"
@@ -12049,7 +12077,7 @@ def test_chewbbaca_allelecallevaluator_exposes_metadata_inputs_outputs_and_citat
     assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
     assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
     assert "chewBBACA" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "AlleleCallEvaluator" in info["search_aliases"]
     assert info["version"] == "3.3.10+galaxy1"
     assert info["input"]["required"]["input_file"][0] == "TSV"
@@ -12150,7 +12178,7 @@ def test_chewbbaca_createschema_exposes_metadata_inputs_outputs_and_citation() -
     assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
     assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
     assert "chewBBACA" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "CreateSchema" in info["search_aliases"]
     assert info["version"] == "3.3.10+galaxy1"
     assert info["input"]["required"]["input_file"][0] == "FASTA"
@@ -12223,7 +12251,7 @@ def test_chewbbaca_downloadschema_exposes_metadata_inputs_outputs_and_citation()
     assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
     assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
     assert "chewBBACA" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "Chewie-NS" in info["search_aliases"]
     assert info["version"] == "3.3.10+galaxy1"
     assert info["input"]["required"]["species_id"][0] == "STRING"
@@ -12270,7 +12298,7 @@ def test_chewbbaca_extractcgmlst_exposes_metadata_inputs_outputs_and_citation() 
     assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
     assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
     assert "chewBBACA" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "core genome" in info["search_aliases"]
     assert info["version"] == "3.3.10+galaxy1"
     assert info["input"]["required"]["input_file"][0] == "TSV"
@@ -12321,7 +12349,7 @@ def test_chewbbaca_joinprofiles_exposes_metadata_inputs_outputs_and_citation() -
     assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
     assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
     assert "chewBBACA" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "JoinProfiles" in info["search_aliases"]
     assert info["version"] == "3.3.10+galaxy1"
     assert info["input"]["required"]["input1"][0] == "TSV"
@@ -12364,7 +12392,7 @@ def test_chewbbaca_nsstats_exposes_metadata_inputs_outputs_and_citation() -> Non
     assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
     assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
     assert "chewBBACA" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "NSStats" in info["search_aliases"]
     assert info["version"] == "3.3.10+galaxy1"
     assert info["input"]["required"]["mode"][0] == "STRING"
@@ -12410,7 +12438,7 @@ def test_chewbbaca_prepexternalschema_exposes_metadata_inputs_outputs_and_citati
     assert info["citation_dois"] == ["10.1099/mgen.0.000166"]
     assert info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000166"]
     assert "chewBBACA" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "PrepExternalSchema" in info["search_aliases"]
     assert info["version"] == "3.3.10+galaxy1"
     assert info["input"]["required"]["input_schema"][0] == "FILE"
@@ -12512,7 +12540,7 @@ def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> N
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "lineage-specific marker sets" in info["search_aliases"]
     assert info["input"]["required"]["bins"][0] == "STRING"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
@@ -12755,7 +12783,7 @@ def test_checkm_tree_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm tree" in info["search_aliases"]
     assert info["input"]["required"]["bins"][0] == "STRING"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
@@ -12928,7 +12956,7 @@ def test_checkm_tree_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm tree_qa" in info["search_aliases"]
     assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
@@ -13110,7 +13138,7 @@ def test_checkm_lineage_set_exposes_galaxy_metadata_inputs_outputs_and_doi() -> 
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm lineage_set" in info["search_aliases"]
     assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
@@ -13250,7 +13278,7 @@ def test_checkm_taxon_set_exposes_galaxy_metadata_inputs_outputs_and_doi() -> No
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm taxon_set" in info["search_aliases"]
     assert info["input"]["required"]["rank"][0] == "STRING"
     assert info["input"]["required"]["rank"][1]["options"] == [
@@ -13329,7 +13357,7 @@ def test_checkm_taxonomy_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> 
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm taxonomy_wf" in info["search_aliases"]
     assert info["input"]["required"]["rank"][0] == "STRING"
     assert info["input"]["required"]["rank"][1]["options"] == [
@@ -13493,7 +13521,7 @@ def test_checkm_tetra_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm tetra" in info["search_aliases"]
     assert info["input"]["required"]["seq_file"][0] == "FASTA"
     assert info["input"]["optional"]["threads"][1]["default"] == 1
@@ -13545,7 +13573,7 @@ def test_checkm_plot_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm plot" in info["search_aliases"]
     assert info["input"]["required"]["bins"][0] == "STRING"
     assert info["input"]["required"]["plot_command"][1]["options"] == [
@@ -13740,7 +13768,7 @@ def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm analyze" in info["search_aliases"]
     assert info["input"]["required"]["bins"][0] == "STRING"
     assert info["input"]["required"]["marker_file"][0] == "TSV"
@@ -13876,7 +13904,7 @@ def test_checkm_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.186072.114"]
     assert "lineage-specific marker sets" in info["citation_text"]
     assert info["version"] == "1.2.5+galaxy0"
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm qa" in info["search_aliases"]
     assert info["input"]["required"]["marker_file"][0] == "TSV"
     assert info["input"]["required"]["checkm_hmm_info"][0] == "FILE"
@@ -14515,7 +14543,7 @@ def test_trimn_exposes_galaxy_metadata_and_citations() -> None:
     assert node_info["citation_dois"] == ["10.1101/2020.05.22.110833", "10.1101/2020.06.30.177956"]
     assert "https://doi.org/10.1101/2020.05.22.110833" in node_info["citation_urls"]
     assert "Vertebrate Genomes Project" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "trim_Ns_DNAnexus.py" in node_info["search_aliases"]
 
 
@@ -14601,7 +14629,7 @@ def test_barrnap_exposes_galaxy_metadata_inputs_and_citation_url() -> None:
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/tseemann/barrnap"]
     assert "rapid ribosomal RNA prediction" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "rRNA prediction" in node_info["search_aliases"]
     assert node_info["input"]["required"]["fasta_file"][0] == "FASTA"
     assert node_info["input"]["optional"]["kingdom"][1]["options"] == ["bac", "euk", "mito", "arc"]
@@ -14685,7 +14713,7 @@ def test_fasta_stats_exposes_galaxy_metadata_inputs_outputs_and_citation() -> No
         "https://github.com/galaxyproject/tools-iuc/tree/main/tools/fasta_stats"
     ]
     assert "Fasta Statistics: Display summary statistics for a fasta file" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "NG50" in node_info["search_aliases"]
     assert node_info["input"]["required"]["fasta"][0] == "FASTA"
     assert node_info["input"]["optional"]["genome_size"][0] == "INT"
@@ -14761,7 +14789,7 @@ def test_chopper_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btad311"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btad311"]
     assert "NanoPack2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "NanoFilt" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input"][0] == "FASTQ"
     assert node_info["input"]["optional"]["quality"][1]["default"] == 0
@@ -16503,7 +16531,7 @@ def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/rrwick/Filtlong"]
     assert "Filtlong" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "long-read filtering" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input_file"][0] == "FASTQ"
     assert node_info["input"]["optional"]["keep_percent"][1]["max"] == 100
@@ -16595,7 +16623,7 @@ def test_gfa_to_fa_exposes_galaxy_metadata_inputs_outputs_and_spec_citation() ->
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["http://gfa-spec.github.io/GFA-spec/GFA1.html"]
     assert "GFA v1 specification" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "GFA to FASTA" in node_info["search_aliases"]
     assert node_info["input"]["required"]["in_gfa"][0] == "GFA"
     assert node_info["input"]["optional"]["script_path"][1]["default"] == "gfa_to_fa.py"
@@ -17014,7 +17042,7 @@ def test_clustalw_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btm404"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btm404"]
     assert node_info["citation_text"] == "Clustal W and Clustal X version 2.0."
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "multiple sequence alignment" in node_info["search_aliases"]
 
 
@@ -17116,7 +17144,7 @@ def test_quicktree_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/oxfordjournals.molbev.a040454"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/oxfordjournals.molbev.a040454"]
     assert "neighbor-joining method" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "distance matrix" in node_info["search_aliases"]
 
 
@@ -17179,7 +17207,7 @@ def test_rapidnj_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1007/978-3-540-87361-7_10"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1007/978-3-540-87361-7_10"]
     assert "Rapid Neighbour Joining" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "RapidNJ" in node_info["search_aliases"]
     assert node_info["version"] == "2.3.2"
     assert node_info["input"]["required"]["alignments"][0] == "STRING"
@@ -17261,7 +17289,7 @@ def test_astral_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1186/s12859-018-2129-y"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1186/s12859-018-2129-y"]
     assert "ASTRAL-III" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "species tree" in node_info["search_aliases"]
     assert node_info["version"] == "5.7.8+galaxy0"
     assert node_info["input"]["required"]["input"][0] == "PHYLOGENY_TREE"
@@ -17321,7 +17349,7 @@ def test_phyml_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1093/sysbio/syq010"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/sysbio/syq010"]
     assert "Maximum-Likelihood Phylogenies" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "maximum likelihood" in node_info["search_aliases"]
     assert "PHYLIP" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input"][0] == "FILE"
@@ -17483,7 +17511,7 @@ def test_flash_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btr507"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btr507"]
     assert "fast length adjustment of short reads" in node_info["citation_text"].lower()
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "read merging" in node_info["search_aliases"]
 
 
@@ -17616,7 +17644,7 @@ def test_iuc_pear_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btt593"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt593"]
     assert "PEAR: a fast and accurate Illumina Paired-End reAd mergeR." in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "PEAR paired-end read merger" in node_info["search_aliases"]
 
 
@@ -17718,7 +17746,7 @@ def test_fraggenescan_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/nar/gkq747"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/nar/gkq747"]
     assert "FragGeneScan" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "fragmented genes" in node_info["search_aliases"]
 
 
@@ -17778,7 +17806,7 @@ def test_prodigal_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1186/1471-2105-11-119"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1186/1471-2105-11-119"]
     assert "prokaryotic gene recognition" in node_info["citation_text"].lower()
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "translation initiation sites" in node_info["search_aliases"]
 
 
@@ -17881,7 +17909,7 @@ def test_eukrep_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1101/gr.228429.117"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1101/gr.228429.117"]
     assert "Genome-reconstruction for eukaryotes" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "metagenomic eukaryotes" in node_info["search_aliases"]
 
 
@@ -17955,7 +17983,7 @@ def test_gamma_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btab607"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btab607"]
     assert "rapid identification, classification and annotation" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Gene Allele Mutation Microbial Assessment" in node_info["search_aliases"]
 
 
@@ -18018,7 +18046,7 @@ def test_gamma_s_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btab607"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btab607"]
     assert "rapid identification, classification and annotation" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "GAMMA-S" in node_info["search_aliases"]
 
 
@@ -18075,7 +18103,7 @@ def test_red_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1186/s12859-015-0654-5"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1186/s12859-015-0654-5"]
     assert "detecting repeats de-novo" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "repeat masking" in node_info["search_aliases"]
 
 
@@ -18129,7 +18157,7 @@ def test_abritamr_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.5281/zenodo.7370627"]
     assert node_info["citation_urls"] == ["https://doi.org/10.5281/zenodo.7370627"]
     assert "MDU-PHL/abritamr" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "AMR gene detection" in node_info["search_aliases"]
 
 
@@ -18198,7 +18226,7 @@ def test_nonpareil_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btt584"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt584"]
     assert "redundancy-based approach" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "metagenomic coverage" in node_info["search_aliases"]
 
 
@@ -18333,7 +18361,7 @@ def test_bbtools_bbduk_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
     assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "entropy filtering" in node_info["search_aliases"]
 
 
@@ -18462,7 +18490,7 @@ def test_bbtools_bbmerge_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
     assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "overlapping mates" in node_info["search_aliases"]
 
 
@@ -18573,7 +18601,7 @@ def test_bbtools_bbnorm_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
     assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "coverage normalization" in node_info["search_aliases"]
 
 
@@ -18704,7 +18732,7 @@ def test_bbtools_tadpole_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
     assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "kmer assembler" in node_info["search_aliases"]
 
 
@@ -18779,7 +18807,7 @@ def test_bbtools_callvariants_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
     assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "variant caller" in node_info["search_aliases"]
 
 
@@ -18859,7 +18887,7 @@ def test_bbtools_bbmap_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1371/journal.pone.0185056"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pone.0185056"]
     assert "Accurate paired shotgun read merging via overlap" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "short-read aligner" in node_info["search_aliases"]
 
 
@@ -18952,7 +18980,7 @@ def test_plasclass_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1371/journal.pcbi.1007781"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1007781"]
     assert "PlasClass improves plasmid sequence classification" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "plasmid sequence classification" in node_info["search_aliases"]
 
 
@@ -19002,7 +19030,7 @@ def test_plasflow_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/nar/gkx1321"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/nar/gkx1321"]
     assert "genome signatures" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "plasmid prediction" in node_info["search_aliases"]
 
 
@@ -19158,7 +19186,7 @@ def test_raven_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert node_info["citation_dois"] == ["10.1038/s43588-021-00073-4"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1038/s43588-021-00073-4"]
     assert "Time- and memory-efficient genome assembly with Raven" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Oxford Nanopore" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input_reads"][0] == "FILE"
     assert node_info["input"]["optional"]["kmer_len"][1]["default"] == 15
@@ -19246,7 +19274,7 @@ def test_shovill_exposes_galaxy_metadata_inputs_outputs_and_citation_url() -> No
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/tseemann/shovill"]
     assert "Faster SPAdes assembly of Illumina reads" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Illumina paired-end" in node_info["search_aliases"]
     assert node_info["input"]["required"]["lib_type"][1]["default"] == "paired"
     assert node_info["input"]["required"]["lib_type"][1]["options"] == ["paired", "collection"]
@@ -19371,7 +19399,7 @@ def test_snippy_exposes_galaxy_metadata_inputs_outputs_and_citation_url() -> Non
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/tseemann/snippy"]
     assert "fast bacterial variant calling from NGS reads" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "haploid variant calling" in node_info["search_aliases"]
     assert node_info["input"]["required"]["reference_source_selector"][1]["default"] == "history"
     assert node_info["input"]["required"]["reference_source_selector"][1]["options"] == ["history", "cached"]
@@ -19490,7 +19518,7 @@ def test_snippy_core_exposes_galaxy_metadata_inputs_outputs_and_citation_url() -
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/tseemann/snippy"]
     assert "fast bacterial variant calling from NGS reads" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "core SNP alignment" in node_info["search_aliases"]
     assert node_info["input"]["required"]["indirs"][0] == "FILE"
     assert node_info["input"]["required"]["indirs"][1]["multiple"] is True
@@ -19594,7 +19622,7 @@ def test_snippy_clean_full_aln_exposes_galaxy_metadata_inputs_outputs_and_citati
     assert node_info["citation_dois"] == []
     assert node_info["citation_urls"] == ["https://github.com/tseemann/snippy"]
     assert "fast bacterial variant calling from NGS reads" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "core.full.aln" in node_info["search_aliases"]
     assert node_info["input"]["required"]["full_aln"][0] == "FASTA"
     assert node_info["input"]["optional"]["custom_char_selector"][1]["default"] is False
@@ -19651,7 +19679,7 @@ def test_minia_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1186/1748-7188-8-22"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1186/1748-7188-8-22"]
     assert "de Bruijn graph" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Bloom filter" in node_info["search_aliases"]
 
 
@@ -19722,7 +19750,7 @@ def test_genomescope_exposes_galaxy_metadata_and_citation() -> None:
         "https://doi.org/10.1038/s41467-020-14998-3",
     ]
     assert "GenomeScope 2.0" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "reference-free genome profiling" in node_info["search_aliases"]
 
 
@@ -19836,7 +19864,7 @@ def test_art_illumina_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btr708"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btr708"]
     assert "ART: a next-generation sequencing read simulator" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "Illumina read simulator" in node_info["search_aliases"]
 
 
@@ -19982,7 +20010,7 @@ def test_art_454_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btr708"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btr708"]
     assert "ART: a next-generation sequencing read simulator" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "454 pyrosequencing simulator" in node_info["search_aliases"]
 
 
@@ -20147,7 +20175,7 @@ def test_art_solid_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btr708"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btr708"]
     assert "ART: a next-generation sequencing read simulator" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "SOLiD read simulator" in node_info["search_aliases"]
 
 
@@ -20310,7 +20338,7 @@ def test_amplican_exposes_galaxy_metadata_and_citation() -> None:
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.244293.118"]
     assert "Accurate analysis of genuine CRISPR editing events with ampliCan" in info["citation_text"]
     assert "Genome Research" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "CRISPR editing analysis" in info["search_aliases"]
 
 
@@ -20447,7 +20475,7 @@ def test_ampvis2_alpha_diversity_exposes_galaxy_metadata_and_citation() -> None:
     assert info["citation_urls"] == ["https://doi.org/10.1101/299537", "https://doi.org/10.1371/journal.pcbi.1003531"]
     assert "ampvis2" in info["citation_text"]
     assert "Waste Not, Want Not" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "ampvis2 alpha diversity" in info["search_aliases"]
     assert "vegan diversity" in info["search_aliases"]
 
@@ -23804,7 +23832,7 @@ def test_miniasm_exposes_galaxy_metadata_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btw152"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btw152"]
     assert "fast mapping and de novo assembly" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "noisy long reads" in node_info["search_aliases"]
 
 
@@ -23873,7 +23901,7 @@ def test_megahit_contig2fastg_exposes_galaxy_metadata_inputs_outputs_and_citatio
     assert info["citation_dois"] == ["10.1093/bioinformatics/btv033"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btv033"]
     assert "ultra-fast single-node solution" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "contig2fastg" in info["search_aliases"]
     assert info["version"] == "1.1.3+galaxy1"
     assert info["input"]["required"]["contigs"][0] == "FASTA"
@@ -27198,7 +27226,7 @@ def test_kraken_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
     assert info["category"] == "metagenomics"
     assert info["description"] == "Assign taxonomic labels to sequencing reads with Kraken."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "Kraken",
         "taxonomic classification",
         "metagenomics",
@@ -27318,7 +27346,7 @@ def test_kraken_report_exposes_galaxy_aligned_inputs_outputs_and_citation() -> N
     assert info["category"] == "metagenomics"
     assert info["description"] == "Generate a tabular sample report from classic Kraken classification output."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "Kraken Report",
         "kraken-report",
         "sample report",
@@ -27383,7 +27411,7 @@ def test_kraken_filter_exposes_galaxy_aligned_inputs_outputs_and_citation() -> N
     assert info["category"] == "metagenomics"
     assert info["description"] == "Filter classic Kraken classification output by confidence score."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "Kraken Filter",
         "kraken-filter",
         "confidence threshold",
@@ -27461,7 +27489,7 @@ def test_kraken_translate_exposes_galaxy_aligned_inputs_outputs_and_citation() -
     assert info["category"] == "metagenomics"
     assert info["description"] == "Convert Kraken taxonomy IDs into taxonomic lineage names."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "Kraken Translate",
         "kraken-translate",
         "taxonomy labels",
@@ -27528,7 +27556,7 @@ def test_kraken_mpa_report_exposes_galaxy_aligned_inputs_outputs_and_citation() 
     assert info["category"] == "metagenomics"
     assert info["description"] == "Summarize classic Kraken classifications across taxonomic ranks for multiple samples."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "Kraken MPA Report",
         "kraken-mpa-report",
         "multiple samples",
@@ -27610,7 +27638,7 @@ def test_bracken_est_abundance_exposes_galaxy_metadata_and_doi() -> None:
     assert info["category"] == "metagenomics"
     assert info["description"] == "Re-estimate taxonomic abundance from a Kraken report with Bracken."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "Bracken",
         "est_abundance",
         "est_abundance.py",
@@ -27703,7 +27731,7 @@ def test_biom_summarize_table_exposes_galaxy_metadata_and_doi() -> None:
     assert info["category"] == "metagenomics"
     assert info["description"] == "Summarize sample or observation data in a BIOM table."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "BIOM",
         "biom-format",
         "biom_summarize_table",
@@ -27761,7 +27789,7 @@ def test_biom_normalize_table_exposes_galaxy_metadata_and_doi() -> None:
     assert info["category"] == "metagenomics"
     assert info["description"] == "Normalize a BIOM table."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "BIOM",
         "biom-format",
         "biom_normalize_table",
@@ -27831,7 +27859,7 @@ def test_biom_subset_table_exposes_galaxy_metadata_and_doi() -> None:
     assert info["category"] == "metagenomics"
     assert info["description"] == "Subset a BIOM table by sample or observation IDs."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "BIOM",
         "biom-format",
         "biom_subset_table",
@@ -27898,7 +27926,7 @@ def test_biom_from_uc_exposes_galaxy_metadata_and_doi() -> None:
     assert info["category"] == "metagenomics"
     assert info["description"] == "Create a BIOM table from a vsearch, uclust, or usearch UC file."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "BIOM",
         "biom-format",
         "biom_from_uc",
@@ -27955,7 +27983,7 @@ def test_magicblast_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["display_name"] == "Magic-BLAST"
     assert info["category"] == "alignment"
     assert info["description"] == "Map large RNA or DNA sequencing reads against a whole genome or transcriptome."
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "Magic-BLAST" in info["search_aliases"]
     assert "RNA-seq aligner" in info["search_aliases"]
     assert info["output"] == ["BAM", "FILE"]
@@ -28085,7 +28113,7 @@ def test_bmtagger_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert info["display_name"] == "bmtagger"
     assert info["category"] == "metagenomics"
     assert info["description"] == "Filter contaminant sequences from input FASTA or FASTQ reads."
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "BMTagger" in info["search_aliases"]
     assert "contaminant reads" in info["search_aliases"]
     assert info["output"] == ["FASTQ", "FASTQ"]
@@ -28197,7 +28225,7 @@ def test_biom_add_metadata_exposes_galaxy_metadata_and_doi() -> None:
     assert info["category"] == "metagenomics"
     assert info["description"] == "Add sample and/or observation metadata to a BIOM table."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "BIOM",
         "biom-format",
         "biom_add_metadata",
@@ -28275,7 +28303,7 @@ def test_biom_convert_exposes_galaxy_metadata_and_doi() -> None:
     assert info["category"] == "metagenomics"
     assert info["description"] == "Convert between BIOM table formats and tabular text."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "BIOM",
         "biom-format",
         "biom_convert",
@@ -28581,7 +28609,7 @@ def test_taxonomy_krona_chart_exposes_galaxy_metadata_inputs_outputs_and_citatio
         "https://doi.org/10.1093/bioinformatics/btu135",
     ]
     assert "Interactive metagenomic visualization" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "ktImportText" in info["search_aliases"]
     assert info["version"] == "2.7.1+galaxy0"
     assert info["input"]["required"]["input"][0] == "TSV"
@@ -28657,7 +28685,7 @@ def test_mothur_taxonomy_to_krona_exposes_galaxy_metadata_inputs_outputs_and_cit
     ]
     assert "Introducing mothur" in info["citation_text"]
     assert "Interactive metagenomic visualization" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "strip confidence values" in info["search_aliases"]
     assert info["version"] == "1.0"
     assert info["input"]["required"]["inputfile"][0] == "TSV"
@@ -28806,7 +28834,7 @@ def test_taxpasta_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
     assert info["category"] == "taxonomy"
     assert info["description"] == "Standardise and merge taxonomic profiles from common metagenomic profilers."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "taxpasta",
         "taxonomic profile standardisation",
         "taxonomy aggregation",
@@ -28952,7 +28980,7 @@ def test_humann_join_tables_exposes_galaxy_aligned_inputs_outputs_and_citation()
     assert info["category"] == "metagenomics"
     assert info["description"] == "Join gene, pathway, or taxonomy HUMAnN/MetaPhlAn tables into one table."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_join_tables",
         "Join merge",
@@ -29038,7 +29066,7 @@ def test_humann_renorm_table_exposes_galaxy_aligned_inputs_outputs_and_citation(
     assert info["category"] == "metagenomics"
     assert info["description"] == "Renormalize HUMAnN gene or pathway tables to CPM or relative abundance units."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_renorm_table",
         "Renormalize",
@@ -29129,7 +29157,7 @@ def test_humann_split_table_exposes_galaxy_aligned_inputs_outputs_and_citation()
     assert info["category"] == "metagenomics"
     assert info["description"] == "Split a merged HUMAnN feature table into one table per sample."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_split_table",
         "Split",
@@ -29219,7 +29247,7 @@ def test_humann_split_stratified_table_exposes_galaxy_aligned_inputs_outputs_and
     assert info["category"] == "metagenomics"
     assert info["description"] == "Split a stratified HUMAnN table into stratified and unstratified tables."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_split_stratified_table",
         "Split a HUMAnN table",
@@ -29297,7 +29325,7 @@ def test_humann_reduce_table_exposes_galaxy_aligned_inputs_outputs_and_citation(
     assert info["category"] == "metagenomics"
     assert info["description"] == "Reduce a joined HUMAnN table by applying a row-wise summary function."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_reduce_table",
         "Reduce",
@@ -29379,7 +29407,7 @@ def test_humann_regroup_table_exposes_galaxy_aligned_inputs_outputs_and_citation
     assert info["category"] == "metagenomics"
     assert info["description"] == "Regroup HUMAnN gene-family features into functional categories."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_regroup_table",
         "Regroup",
@@ -29503,7 +29531,7 @@ def test_humann_rename_table_exposes_galaxy_aligned_inputs_outputs_and_citation(
     assert info["category"] == "metagenomics"
     assert info["description"] == "Attach readable names to HUMAnN gene, pathway, or regrouped feature IDs."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_rename_table",
         "Rename features",
@@ -29620,7 +29648,7 @@ def test_humann_unpack_pathways_exposes_galaxy_aligned_inputs_outputs_and_citati
     assert info["category"] == "metagenomics"
     assert info["description"] == "Add gene-family or EC abundance stratification to HUMAnN pathway abundance tables."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_unpack_pathways",
         "Unpack pathway abundances",
@@ -29709,7 +29737,7 @@ def test_humann_barplot_exposes_galaxy_aligned_inputs_outputs_and_citation() -> 
     assert info["category"] == "metagenomics"
     assert info["description"] == "Plot a single stratified HUMAnN feature across samples."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HUMAnN",
         "humann_barplot",
         "Barplot",
@@ -29860,7 +29888,7 @@ def test_hybpiper_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
     assert info["category"] == "phylogeny"
     assert info["description"] == "Analyse targeted sequence capture data with HybPiper."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HybPiper",
         "targeted sequence capture",
         "target loci assembly",
@@ -30132,7 +30160,7 @@ def test_hyphy_absrel_exposes_galaxy_aligned_inputs_outputs_and_citation() -> No
         "Detect episodic diversifying selection with adaptive Branch-Site Random Effects Likelihood."
     )
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "aBSREL",
         "adaptive branch-site random effects likelihood",
@@ -30311,7 +30339,7 @@ def test_hyphy_annotate_exposes_galaxy_aligned_inputs_outputs_and_citation() -> 
     assert info["category"] == "phylogeny"
     assert info["description"] == "Annotate a Newick/NHX phylogenetic tree with HyPhy label-tree."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "label-tree",
         "Annotate",
@@ -30447,7 +30475,7 @@ def test_hyphy_b_still_exposes_galaxy_aligned_inputs_outputs_and_citation() -> N
     assert info["category"] == "phylogeny"
     assert info["description"] == "Detect invariant or near-invariant codon sites with HyPhy B-STILL."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "B-STILL",
         "Bayesian Significance Test of Invariant Low Likelihoods",
@@ -30624,7 +30652,7 @@ def test_hyphy_bgm_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
     assert info["category"] == "phylogeny"
     assert info["description"] == "Detect coevolving sites in sequence alignments with HyPhy Bayesian graphical models."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "BGM",
         "Bayesian graphical model",
@@ -30811,7 +30839,7 @@ def test_hyphy_fade_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
     assert info["category"] == "phylogeny"
     assert info["description"] == "Test a protein alignment for directional selection with HyPhy FADE."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "FADE",
         "FUBAR Approach to Directional Evolution",
@@ -30992,7 +31020,7 @@ def test_hyphy_fel_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
     assert info["category"] == "phylogeny"
     assert info["description"] == "Detect pervasive site-level selection with HyPhy Fixed Effects Likelihood."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "FEL",
         "Fixed Effects Likelihood",
@@ -31186,7 +31214,7 @@ def test_hyphy_fubar_exposes_galaxy_aligned_inputs_outputs_and_citation() -> Non
     assert info["category"] == "phylogeny"
     assert info["description"] == "Detect pervasive site-level selection with HyPhy FUBAR."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "FUBAR",
         "Fast Unconstrained Bayesian AppRoximation",
@@ -31350,7 +31378,7 @@ def test_hyphy_gard_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
     assert info["category"] == "phylogeny"
     assert info["description"] == "Detect recombination breakpoints with HyPhy Genetic Algorithm for Recombination Detection."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "GARD",
         "Genetic Algorithm for Recombination Detection",
@@ -31538,7 +31566,7 @@ def test_hyphy_infer_stasis_clusters_exposes_galaxy_aligned_inputs_outputs_and_c
     assert info["category"] == "phylogeny"
     assert info["description"] == "Identify regional footprints of extreme purifying selection from B-STILL results."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "B-STILL",
         "Infer Stasis Clusters",
@@ -31667,7 +31695,7 @@ def test_hyphy_meme_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
     assert info["category"] == "phylogeny"
     assert info["description"] == "Detect pervasive or episodic site-level diversifying selection with HyPhy MEME."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "MEME",
         "Mixed Effects Model of Evolution",
@@ -31866,7 +31894,7 @@ def test_hyphy_prime_exposes_galaxy_aligned_inputs_outputs_and_citation() -> Non
     assert info["category"] == "phylogeny"
     assert info["description"] == "Model site-level physicochemical selection with HyPhy PRIME."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "PRIME",
         "Property Informed Models of Evolution",
@@ -32057,7 +32085,7 @@ def test_hyphy_relax_exposes_galaxy_aligned_inputs_outputs_and_citation() -> Non
         "Detect relaxed or intensified selection in a codon-based phylogenetic framework with HyPhy RELAX."
     )
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "RELAX",
         "relaxed selection",
@@ -32287,7 +32315,7 @@ def test_hyphy_slac_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
     assert info["category"] == "phylogeny"
     assert info["description"] == "Detect pervasive site-level selection with HyPhy SLAC."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "SLAC",
         "Single Likelihood Ancestor Counting",
@@ -32443,7 +32471,7 @@ def test_hyphy_sm19_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
     assert info["category"] == "phylogeny"
     assert info["description"] == "Partition trees using the modified Slatkin-Maddison test with HyPhy SM2019."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "SM2019",
         "SM19",
@@ -32619,7 +32647,7 @@ def test_hyphy_strike_ambigs_exposes_galaxy_aligned_inputs_outputs_and_citation(
     assert info["category"] == "phylogeny"
     assert info["description"] == "Replace ambiguous codons in an in-frame alignment using HyPhy."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "Strike-Ambigs",
         "Replace ambiguous codons",
@@ -32705,7 +32733,7 @@ def test_hyphy_busted_exposes_galaxy_aligned_inputs_outputs_and_citation() -> No
     assert info["category"] == "phylogeny"
     assert info["description"] == "Detect gene-wide episodic diversifying selection with HyPhy BUSTED."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "BUSTED",
         "Branch-site Unrestricted Statistical Test",
@@ -32937,7 +32965,7 @@ def test_hyphy_cfel_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
         "Test for site-wise selective pressure differences among clades or branch sets with HyPhy Contrast-FEL."
     )
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "CFEL",
         "Contrast-FEL",
@@ -33099,7 +33127,7 @@ def test_hyphy_conv_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
     assert info["category"] == "phylogeny"
     assert info["description"] == "Translate an in-frame codon alignment to proteins with HyPhy CONV."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "CONV",
         "CodonToProtein",
@@ -33196,7 +33224,7 @@ def test_hyphy_cln_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None:
     assert info["category"] == "phylogeny"
     assert info["description"] == "Clean and normalize codon alignments with HyPhy CLN."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "HyPhy",
         "CLN",
         "CleanStopCodons",
@@ -33516,7 +33544,7 @@ def test_recentrifuge_exposes_galaxy_aligned_inputs_outputs_and_citation() -> No
     assert info["category"] == "metagenomics"
     assert info["description"] == "Robust comparative analysis and contamination removal for metagenomics."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "Recentrifuge",
         "robust contamination removal",
         "comparative analysis",
@@ -33695,7 +33723,7 @@ def test_centrifuge_exposes_galaxy_aligned_inputs_outputs_and_citation() -> None
     assert info["category"] == "metagenomics"
     assert info["description"] == "Read-based metagenome characterization with Centrifuge."
     assert info["search_aliases"] == [
-        "Galaxy",
+        "BioNodulo builtin",
         "Centrifuge",
         "metagenomic classification",
         "taxonomic classification",
@@ -33835,7 +33863,7 @@ def test_centrifuge_renders_sra_command_and_validates_wrapper_inputs(tmp_path: P
     ]
 
 
-def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_second_batch_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -34270,7 +34298,7 @@ def test_galaxy_parity_second_batch_nodes_expose_citation_and_dependency_metadat
         assert metadata["doi"] in node_info["citation_dois"]
         assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
         assert node_info["documentation_url"].startswith(("https://", "http://"))
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_mash_dist_renders_distance_command_and_output(tmp_path: Path) -> None:
@@ -34442,7 +34470,7 @@ def test_mashmap_exposes_galaxy_metadata_inputs_outputs_and_verified_dois() -> N
         "https://doi.org/10.1007/978-3-319-56970-3_5",
     ]
     assert "fast approximate algorithm" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "local alignment boundaries" in node_info["search_aliases"]
     assert node_info["input"]["required"]["query"] == ("STRING", {"multiple": True, "description": "One or more query FASTA or FASTQ sequences"})
     assert node_info["input"]["required"]["reflist"] == (
@@ -36604,7 +36632,7 @@ def test_bioext_bam2msa_renders_indexed_bam_alignment_command_outputs_and_valida
     assert info["citation_dois"] == []
     assert info["citation_urls"] == ["http://hyphy.org/"]
     assert "HyPhy: Hypothesis Testing using Phylogenies" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "bam2msa" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BAM"
     assert info["input"]["optional"]["region_start"][1]["default"] == 0
@@ -36648,7 +36676,7 @@ def test_bioext_bealign_renders_alignment_command_outputs_and_validation(tmp_pat
     assert info["citation_dois"] == []
     assert info["citation_urls"] == ["http://hyphy.org/"]
     assert "HyPhy: Hypothesis Testing using Phylogenies" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "bealign" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "FASTA"
     assert info["input"]["optional"]["reference_type"][1]["options"] == ["preset", "dataset"]
@@ -38458,7 +38486,7 @@ def test_biobox_add_taxid_renders_taxid_annotation_command_outputs_and_validatio
     assert info["required_conda_packages"] == ["biobox_add_taxid"]
     assert info["citation_dois"] == []
     assert info["citation_urls"] == ["https://github.com/SantaMcCloud/biobox_add_taxid/tree/release-1.0"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "biobox_add_taxid.py" in info["search_aliases"]
     assert info["version"] == "1.2+galaxy0"
     assert node_class.render_command(
@@ -39618,7 +39646,7 @@ def test_ivar_removereads_renders_mask_and_remove_pipeline_and_output(tmp_path: 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ivar_removereads" / "removed_reads.bam"]
 
 
-def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_third_batch_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -39808,7 +39836,7 @@ def test_galaxy_parity_third_batch_nodes_expose_citation_and_dependency_metadata
         assert metadata["doi"] in node_info["citation_dois"]
         assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
         assert node_info["documentation_url"].startswith(("https://", "http://"))
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_gtdbtk_classify_wf_renders_classification_command_and_outputs(tmp_path: Path) -> None:
@@ -41003,7 +41031,7 @@ def test_bedtools_genomecoveragebed_renders_bam_bedgraph_command_and_outputs(tmp
     ]
 
 
-def test_galaxy_parity_bedtools_followup_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bedtools_followup_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -41046,7 +41074,7 @@ def test_galaxy_parity_bedtools_followup_nodes_expose_citation_and_dependency_me
         assert metadata["doi"] in node_info["citation_dois"]
         assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
         assert node_info["documentation_url"].startswith(("https://", "http://"))
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_bedtools_subtractbed_renders_overlap_command_and_output(tmp_path: Path) -> None:
@@ -41183,7 +41211,7 @@ def test_bedtools_getfastabed_renders_sequence_extraction_command_and_outputs(tm
     ]
 
 
-def test_galaxy_parity_bedtools_interval_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bedtools_interval_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -41222,7 +41250,7 @@ def test_galaxy_parity_bedtools_interval_nodes_expose_citation_and_dependency_me
         assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
         assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
         assert node_info["documentation_url"].startswith("https://bedtools.readthedocs.io/")
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_bedtools_complementbed_renders_genome_gap_command_and_output(tmp_path: Path) -> None:
@@ -41442,7 +41470,7 @@ def test_bedtools_multiintersectbed_renders_custom_names_command_and_output(tmp_
     ]
 
 
-def test_galaxy_parity_bedtools_statistics_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bedtools_statistics_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -41487,7 +41515,7 @@ def test_galaxy_parity_bedtools_statistics_nodes_expose_citation_and_dependency_
         assert metadata["doi"] in node_info["citation_dois"]
         assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
         assert node_info["documentation_url"].startswith("https://bedtools.readthedocs.io/")
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_bedtools_clusterbed_renders_stranded_cluster_command_and_output(tmp_path: Path) -> None:
@@ -41673,7 +41701,7 @@ def test_bedtools_groupbybed_renders_summary_command_and_output(tmp_path: Path) 
     ]
 
 
-def test_galaxy_parity_bedtools_conversion_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bedtools_conversion_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -41718,7 +41746,7 @@ def test_galaxy_parity_bedtools_conversion_nodes_expose_citation_and_dependency_
         assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
         assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
         assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_bedtools_bamtobed_renders_bedpe_sort_command_and_output(tmp_path: Path) -> None:
@@ -41876,7 +41904,7 @@ def test_bedtools_makewindowsbed_renders_sliding_windows_command_and_output(tmp_
     ]
 
 
-def test_galaxy_parity_bedtools_annotation_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bedtools_annotation_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -41916,7 +41944,7 @@ def test_galaxy_parity_bedtools_annotation_nodes_expose_citation_and_dependency_
         assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
         assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
         assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_bedtools_annotatebed_renders_named_coverage_command_and_output(tmp_path: Path) -> None:
@@ -42090,7 +42118,7 @@ def test_bedtools_nucbed_renders_sequence_pattern_command_and_output(tmp_path: P
     ]
 
 
-def test_galaxy_parity_bedtools_randomization_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bedtools_randomization_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -42117,7 +42145,7 @@ def test_galaxy_parity_bedtools_randomization_nodes_expose_citation_and_dependen
         assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
         assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
         assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_bedtools_randombed_renders_seeded_interval_command_and_output(tmp_path: Path) -> None:
@@ -42235,7 +42263,7 @@ def test_bedtools_unionbedgraph_renders_named_empty_union_command_and_output(tmp
     ]
 
 
-def test_galaxy_parity_bedtools_overlap_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bedtools_overlap_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -42262,7 +42290,7 @@ def test_galaxy_parity_bedtools_overlap_nodes_expose_citation_and_dependency_met
         assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
         assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
         assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_bedtools_closestbed_renders_distance_mode_command_and_output(tmp_path: Path) -> None:
@@ -42372,7 +42400,7 @@ def test_bedtools_intersectbed_renders_reduced_named_overlap_command_and_output(
     ]
 
 
-def test_galaxy_parity_bedtools_legacy_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bedtools_legacy_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -42416,7 +42444,7 @@ def test_galaxy_parity_bedtools_legacy_nodes_expose_citation_and_dependency_meta
         assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
         assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
         assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
         assert metadata["search_alias"] in node_info["search_aliases"]
 
 
@@ -42561,7 +42589,7 @@ def test_bedops_sort_bed_exposes_citation_and_dependency_metadata() -> None:
     assert "10.1093/bioinformatics/bts277" in node_info["citation_dois"]
     assert "https://doi.org/10.1093/bioinformatics/bts277" in node_info["citation_urls"]
     assert "BEDOPS: high-performance genomic feature operations" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "sort-bed" in node_info["search_aliases"]
 
 
@@ -42711,7 +42739,7 @@ def test_bwa_mem2_idx_exposes_galaxy_metadata_and_bwa_citations() -> None:
     ]
     assert "http://arxiv.org/abs/1303.3997" in node_info["citation_urls"]
     assert "BWA-MEM2 acceleration of the BWA-MEM algorithm" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "BWA-MEM2 reference index" in node_info["search_aliases"]
 
 
@@ -42768,7 +42796,7 @@ def test_bwa_mem2_exposes_galaxy_metadata_inputs_and_bwa_citations() -> None:
     ]
     assert "http://arxiv.org/abs/1303.3997" in node_info["citation_urls"]
     assert "BWA-MEM2 acceleration of the BWA-MEM algorithm" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "bwa-mem2 mem" in node_info["search_aliases"]
     assert node_info["input"]["required"]["ref_file"][0] == "BWA_MEM2_INDEX"
     assert node_info["input"]["required"]["fastq_input_selector"][1]["options"] == [
@@ -43049,7 +43077,7 @@ def test_bwa_exposes_galaxy_metadata_inputs_and_bwa_citations() -> None:
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btp324", "10.1093/bioinformatics/btp698"]
     assert "https://doi.org/10.1093/bioinformatics/btp324" in node_info["citation_urls"]
     assert "Burrows-Wheeler Transform" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "bwa aln" in node_info["search_aliases"]
     assert node_info["input"]["required"]["input_type_selector"][1]["options"] == [
         "paired",
@@ -43352,7 +43380,7 @@ def test_bowtie2_exposes_galaxy_metadata_inputs_and_citation() -> None:
     assert node_info["citation_dois"] == ["10.1038/nmeth.1923"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1038/nmeth.1923"]
     assert "Fast gapped-read alignment with Bowtie 2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "bowtie2" in node_info["search_aliases"]
     assert node_info["input"]["required"]["ref_file"][0] == "BOWTIE2_INDEX"
     assert node_info["input"]["required"]["library_type"][1]["options"] == ["single", "paired_collection"]
@@ -43692,7 +43720,7 @@ def test_bamleftalign_exposes_freebayes_citation_and_dependency_metadata() -> No
     assert "https://doi.org/10.48550/arXiv.1207.3907" in node_info["citation_urls"]
     assert "http://arxiv.org/abs/1207.3907" in node_info["citation_urls"]
     assert "Haplotype-based variant detection from short-read sequencing" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "left realignment" in node_info["search_aliases"]
 
 
@@ -43770,7 +43798,7 @@ def test_bamleftalign_validates_required_inputs_reference_source_and_iterations(
     assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa"}) is True
 
 
-def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bcftools_utility_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -43867,7 +43895,7 @@ def test_galaxy_parity_bcftools_utility_nodes_expose_citation_and_dependency_met
         assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
         assert "https://doi.org/10.1093/gigascience/giab008" in node_info["citation_urls"]
         assert "https://doi.org/10.1093/bioinformatics/btp352" in node_info["citation_urls"]
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
         assert metadata["search_alias"] in node_info["search_aliases"]
 
 
@@ -45062,7 +45090,7 @@ def test_bcftools_view_renders_subset_filter_command_and_output(tmp_path: Path) 
     ]
 
 
-def test_galaxy_parity_bcftools_conversion_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bcftools_conversion_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -45351,7 +45379,7 @@ def test_bcftools_convert_from_vcf_renders_hap_legend_sample_outputs(tmp_path: P
     ]
 
 
-def test_galaxy_parity_bcftools_analysis_nodes_expose_citation_and_dependency_metadata() -> None:
+def test_bionodulo_builtin_bcftools_analysis_nodes_expose_citation_and_dependency_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -45817,7 +45845,7 @@ def test_bcftools_roh_accepts_fractional_gts_only_and_gates_buffer_overlap() -> 
     )
 
 
-def test_galaxy_parity_bcftools_plugin_nodes_expose_metadata() -> None:
+def test_bionodulo_builtin_bcftools_plugin_nodes_expose_metadata() -> None:
     info = _registry().object_info()
 
     expected = {
@@ -46602,7 +46630,7 @@ def test_beacon2_analyses_exposes_galaxy_metadata_inputs_outputs_and_citation() 
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search analyses" in node_info["search_aliases"]
     assert node_info["version"] == "2.2.4+galaxy0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -46670,7 +46698,7 @@ def test_beacon2_biosamples_exposes_galaxy_metadata_inputs_outputs_and_citation(
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search biosamples" in node_info["search_aliases"]
     assert node_info["version"] == "1.0.0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -46742,7 +46770,7 @@ def test_beacon2_bracket_exposes_galaxy_metadata_inputs_outputs_and_citation() -
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search bracket" in node_info["search_aliases"]
     assert node_info["version"] == "2.2.4+galaxy0"
     assert node_info["input"]["required"]["start_minimum"][0] == "INT"
@@ -46830,7 +46858,7 @@ def test_beacon2_cnv_exposes_galaxy_metadata_inputs_outputs_and_citation() -> No
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search cnv" in node_info["search_aliases"]
     assert node_info["version"] == "2.2.4+galaxy0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -46917,7 +46945,7 @@ def test_beacon2_cohorts_exposes_galaxy_metadata_inputs_outputs_and_citation() -
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search cohorts" in node_info["search_aliases"]
     assert node_info["version"] == "1.0.0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -46992,7 +47020,7 @@ def test_beacon2_datasets_exposes_galaxy_metadata_inputs_outputs_and_citation() 
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search datasets" in node_info["search_aliases"]
     assert node_info["version"] == "1.0.0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -47060,7 +47088,7 @@ def test_beacon2_gene_exposes_galaxy_metadata_inputs_outputs_and_citation() -> N
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search gene" in node_info["search_aliases"]
     assert node_info["version"] == "2.2.4+galaxy0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -47138,7 +47166,7 @@ def test_beacon2_import_exposes_galaxy_metadata_inputs_outputs_and_citation() ->
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-import" in node_info["search_aliases"]
     assert node_info["version"] == "2.2.4+galaxy0"
     assert node_info["input"]["required"]["input_json_file"][0] == "JSON"
@@ -47214,7 +47242,7 @@ def test_beacon2_individuals_exposes_galaxy_metadata_inputs_outputs_and_citation
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search individuals" in node_info["search_aliases"]
     assert node_info["version"] == "1.0.0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -47296,7 +47324,7 @@ def test_beacon2_range_exposes_galaxy_metadata_inputs_outputs_and_citation() -> 
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search range" in node_info["search_aliases"]
     assert node_info["version"] == "2.2.4+galaxy0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -47381,7 +47409,7 @@ def test_beacon2_runs_exposes_galaxy_metadata_inputs_outputs_and_citation() -> N
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search runs" in node_info["search_aliases"]
     assert node_info["version"] == "1.0.0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -47456,7 +47484,7 @@ def test_beacon2_sequence_exposes_galaxy_metadata_inputs_outputs_and_citation() 
     assert node_info["citation_dois"] == ["10.1002/humu.24369"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1002/humu.24369"]
     assert "Beacon v2" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "beacon2-search sequence" in node_info["search_aliases"]
     assert node_info["version"] == "2.2.4+galaxy0"
     assert node_info["input"]["required"]["database"][0] == "STRING"
@@ -47532,7 +47560,7 @@ def test_beacon2_nodes_expose_galaxy_metadata_inputs_outputs_and_citation() -> N
     assert csv2xlsx["citation_dois"] == ["10.1093/bioinformatics/btac568"]
     assert csv2xlsx["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btac568"]
     assert "Beacon v2" in csv2xlsx["citation_text"]
-    assert "Galaxy" in csv2xlsx["search_aliases"]
+    assert "BioNodulo builtin" in csv2xlsx["search_aliases"]
     assert "Beacon v2 Models" in csv2xlsx["search_aliases"]
     assert csv2xlsx["input"]["required"]["csvs"][0] == "CSV"
     assert csv2xlsx["input"]["required"]["csvs"][1]["multiple"] is True
@@ -47660,7 +47688,7 @@ def test_qq_manhattan_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
     assert info["citation_dois"] == ["10.1101/005165", "10.21105/joss.00731"]
     assert info["citation_urls"] == ["https://doi.org/10.1101/005165", "https://doi.org/10.21105/joss.00731"]
     assert "qqman" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "GWAS Manhattan plot" in info["search_aliases"]
     assert info["input"]["required"]["data"][0] == "TSV"
     assert info["input"]["optional"]["pval"][1]["default"] == "P"
@@ -47724,7 +47752,7 @@ def test_heinz_visualization_exposes_galaxy_metadata_inputs_outputs_and_citation
         "https://doi.org/10.1093/bioinformatics/btg148",
     ]
     assert "Heinz" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "optimal scoring subnetwork" in info["search_aliases"]
     assert info["input"]["required"]["subnetwork"][0] == "FILE"
     assert info["input"]["optional"]["script_path"][1]["default"] == "visualization.py"
@@ -47770,7 +47798,7 @@ def test_heinz_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert info["citation_dois"] == ["10.1093/bioinformatics/btn161"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btn161"]
     assert "optimal scoring subnetworks" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "protein-protein interaction networks" in info["search_aliases"]
     assert info["version"] == "1.0"
     assert info["input"]["required"]["score"][0] == "STRING"
@@ -47829,7 +47857,7 @@ def test_heinz_scoring_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
         "https://doi.org/10.1093/bioinformatics/btg148",
     ]
     assert "Beta-Uniform Mixture" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "Heinz score" in info["search_aliases"]
     assert "BUM model" in info["search_aliases"]
     assert info["version"] == "1.0"
@@ -47921,7 +47949,7 @@ def test_heinz_bum_exposes_galaxy_metadata_inputs_outputs_and_citations() -> Non
         "https://doi.org/10.1093/bioinformatics/btn161",
     ]
     assert "Beta-Uniform Mixture" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "BioNet" in info["search_aliases"]
     assert info["input"]["required"]["p_values"][0] == "FILE"
     assert info["input"]["optional"]["script_path"][1]["default"] == "bum.R"
@@ -47964,7 +47992,7 @@ def test_brew3r_r_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert info["citation_dois"] == []
     assert info["citation_urls"] == ["https://github.com/lldelisle/BREW3R.r"]
     assert "BREW3R.r" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "extend GTF" in info["search_aliases"]
     assert info["version"] == "1.0.2+galaxy1"
     assert info["input"]["required"]["gtf_to_extend"][0] == "GTF"
@@ -48044,7 +48072,7 @@ def test_ucsc_chainswap_exposes_galaxy_metadata_inputs_outputs_and_citations() -
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "UCSC Genome Browser Utilities" in info["search_aliases"]
     assert info["input"]["required"]["in_chain"][0] == "FILE"
 
@@ -48085,7 +48113,7 @@ def test_ucsc_chainsort_exposes_galaxy_metadata_inputs_outputs_and_citations() -
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "UCSC Genome Browser Utilities" in info["search_aliases"]
     assert info["input"]["required"]["in_chain"][0] == "FILE"
     assert info["input"]["optional"]["sort_by"][1]["default"] == ""
@@ -48138,7 +48166,7 @@ def test_ucsc_netsyntenic_exposes_galaxy_metadata_inputs_outputs_and_citations()
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "UCSC Genome Browser Utilities" in info["search_aliases"]
     assert info["input"]["required"]["in_net"][0] == "FILE"
 
@@ -48179,7 +48207,7 @@ def test_ucsc_netchainsubset_exposes_galaxy_metadata_inputs_outputs_and_citation
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftOver" in info["search_aliases"]
     assert info["input"]["required"]["in_net"][0] == "FILE"
     assert info["input"]["required"]["in_chain"][0] == "FILE"
@@ -48232,7 +48260,7 @@ def test_ucsc_netfilter_exposes_galaxy_metadata_inputs_outputs_and_citations() -
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "synteny filter" in info["search_aliases"]
     assert info["input"]["required"]["in_net"][0] == "FILE"
     assert info["input"]["optional"]["syn_filter"][1]["default"] == "skipsyn"
@@ -48314,7 +48342,7 @@ def test_ucsc_chainprenet_exposes_galaxy_metadata_inputs_outputs_and_citations()
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "netted chains" in info["search_aliases"]
     assert info["input"]["required"]["in_chain"][0] == "FILE"
     assert info["input"]["optional"]["target_reference_index_source_selector"][1]["default"] == "history"
@@ -48411,7 +48439,7 @@ def test_ucsc_nettoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "net to AXT" in info["search_aliases"]
     assert info["input"]["required"]["in_net"][0] == "FILE"
     assert info["input"]["required"]["in_chain"][0] == "FILE"
@@ -48485,7 +48513,7 @@ def test_ucsc_twobittofa_exposes_galaxy_metadata_inputs_outputs_and_citations() 
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "2bit to FASTA" in info["search_aliases"]
     assert info["input"]["required"]["twobit_input"][0] == "FILE"
     assert info["input"]["optional"]["seq"][0] == "STRING"
@@ -48551,7 +48579,7 @@ def test_ucsc_wigtobigwig_exposes_galaxy_metadata_inputs_outputs_and_citations()
     assert info["citation_dois"] == ["10.1093/bioinformatics/btq351"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btq351"]
     assert "BigWig and BigBed" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "wigToBigWig" in info["search_aliases"]
     assert info["input"]["required"]["input1"][0] == "FILE"
     assert info["input"]["optional"]["genome_type_select"][1]["options"] == ["indexed", "history"]
@@ -48653,7 +48681,7 @@ def test_ucsc_axtomaf_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "AXT to MAF" in info["search_aliases"]
     assert info["input"]["required"]["in_axt"][0] == "FILE"
     assert info["input"]["optional"]["target_reference_index_source_selector"][1]["options"] == ["cached", "history"]
@@ -48745,7 +48773,7 @@ def test_ucsc_axtchain_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "chain together axt" in info["search_aliases"]
     assert info["input"]["required"]["in_aln"][0] == "FILE"
     assert info["input"]["required"]["in_target"][0] == "FASTA"
@@ -48851,7 +48879,7 @@ def test_ucsc_chainnet_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "alignment nets" in info["search_aliases"]
     assert info["input"]["required"]["in_chain"][0] == "FILE"
     assert info["input"]["optional"]["target_reference_index_source_selector"][1]["options"] == ["cached", "history"]
@@ -48953,7 +48981,7 @@ def test_fasplit_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "split FASTA" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "FASTA"
     assert info["input"]["optional"]["split_type"][1]["default"] == "sequence"
@@ -49071,7 +49099,7 @@ def test_fatovcf_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "FASTA alignment to VCF" in info["search_aliases"]
     assert info["input"]["required"]["in_fasta"][0] == "FASTA"
     assert info["input"]["optional"]["refSeq"][1]["default"] == ""
@@ -49185,7 +49213,7 @@ def test_ucsc_maffilter_exposes_galaxy_metadata_inputs_outputs_and_citations() -
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "MAF block filter" in info["search_aliases"]
     assert info["input"]["required"]["input_maf"][0] == "FILE"
     assert info["input"]["optional"]["tolerate"][0] == "BOOLEAN"
@@ -49296,7 +49324,7 @@ def test_ucsc_maffetch_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "MAF indexed lookup" in info["search_aliases"]
     assert info["input"]["required"]["bed_file"][0] == "BED"
     assert info["input"]["required"]["genome"][0] == "STRING"
@@ -49359,7 +49387,7 @@ def test_ucsc_mafaddirows_exposes_galaxy_metadata_inputs_outputs_and_citations()
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "MAF i rows" in info["search_aliases"]
     assert info["input"]["required"]["input_maf"][0] == "FILE"
     assert info["input"]["required"]["twoBitFile"][0] == "FILE"
@@ -49427,7 +49455,7 @@ def test_ucsc_maffrag_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "MAF region extract" in info["search_aliases"]
     assert info["input"]["required"]["genome"][0] == "STRING"
     assert info["input"]["required"]["track"][0] == "STRING"
@@ -49524,7 +49552,7 @@ def test_ucsc_maffrags_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "BED region MAF extraction" in info["search_aliases"]
     assert info["input"]["required"]["bed_file"][0] == "BED"
     assert info["input"]["required"]["genome"][0] == "STRING"
@@ -49620,7 +49648,7 @@ def test_ucsc_mafgene_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "genePred protein alignments" in info["search_aliases"]
     assert info["input"]["required"]["twoBitFile"][0] == "FILE"
     assert info["input"]["required"]["db_name"][0] == "STRING"
@@ -49760,7 +49788,7 @@ def test_gtftobed12_exposes_galaxy_metadata_inputs_outputs_and_citations() -> No
     assert info["citation_dois"] == ["10.1101/gr.229102"]
     assert info["citation_urls"] == ["https://doi.org/10.1101/gr.229102"]
     assert "Human Genome Browser at UCSC" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "GTF to BED12" in info["search_aliases"]
     assert info["input"]["required"]["gtf_file"][0] == "GTF"
     assert info["input"]["optional"]["advanced_options_selector"][1]["options"] == ["default", "advanced"]
@@ -49852,7 +49880,7 @@ def test_gffread_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     assert info["citation_dois"] == ["10.12688/f1000research.23297.2"]
     assert info["citation_urls"] == ["https://doi.org/10.12688/f1000research.23297.2"]
     assert "GFF Utilities: GffRead and GffCompare" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "GTF to GFF3" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "GFF_GTF"
     assert info["input"]["optional"]["gff_fmt"][1]["options"] == ["none", "gff", "gtf", "bed"]
@@ -49994,7 +50022,7 @@ def test_gffcompare_exposes_galaxy_metadata_inputs_outputs_and_citations() -> No
     assert info["citation_dois"] == ["10.12688/f1000research.23297.2"]
     assert info["citation_urls"] == ["https://doi.org/10.12688/f1000research.23297.2"]
     assert "GFF Utilities: GffRead and GffCompare" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "transcript tracking" in info["search_aliases"]
     assert info["input"]["required"]["gffinputs"][0] == "GFF_GTF"
     assert info["input"]["required"]["gffinputs"][1]["multiple"] is True
@@ -50155,7 +50183,7 @@ def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations()
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "MAF coverage" in info["search_aliases"]
     assert info["input"]["required"]["maf_file"][0] == "FILE"
     assert info["input"]["required"]["genome"][0] == "STRING"
@@ -50237,7 +50265,7 @@ def test_maftoaxt_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "MAF to AXT" in info["search_aliases"]
     assert info["input"]["required"]["in_maf"][0] == "FILE"
     assert info["input"]["required"]["querySeq"][0] == "STRING"
@@ -50300,7 +50328,7 @@ def test_ucsc_chainantirepeat_exposes_galaxy_metadata_inputs_outputs_and_citatio
     assert info["citation_dois"] == ["10.1093/bib/bbs038"]
     assert info["citation_urls"] == ["https://doi.org/10.1093/bib/bbs038"]
     assert "UCSC genome browser" in info["citation_text"]
-    assert "Galaxy" in info["search_aliases"]
+    assert "BioNodulo builtin" in info["search_aliases"]
     assert "degenerate DNA" in info["search_aliases"]
     assert info["input"]["required"]["in_target"][0] == "FILE"
     assert info["input"]["required"]["in_query"][0] == "FILE"

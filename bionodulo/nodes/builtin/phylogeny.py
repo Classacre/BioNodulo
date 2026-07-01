@@ -822,7 +822,7 @@ class ASTRALNode(CommandNode):
     CATEGORY = "phylogeny"
     DESCRIPTION = "Estimate an unrooted species tree from unrooted gene trees with ASTRAL-III."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "ASTRAL",
         "ASTRAL-III",
         "astral",

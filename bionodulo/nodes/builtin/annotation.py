@@ -222,7 +222,7 @@ class BaktaNode(CommandNode):
     CATEGORY = "annotation"
     DESCRIPTION = "Rapid and standardized annotation of bacterial genomes, MAGs and plasmids."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "Bakta",
         "bakta",
         "bacterial genome annotation",
@@ -940,7 +940,7 @@ class BcftoolsAnnotateNode(CommandNode):
     CATEGORY = "variant"
     DESCRIPTION = "Annotate and edit VCF/BCF records using BED, tabular, VCF, or BCF annotation sources."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "bcftools",
         "annotate",
         "annotate vcf",

@@ -1,4 +1,4 @@
-"""Galaxy parity samblaster node."""
+"""BioNodulo built-in samblaster node."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -40,7 +40,7 @@ class SamblasterNode(CommandNode):
     CATEGORY = "alignment"
     DESCRIPTION = "Mark duplicates and optionally output split reads, discordant read pairs, and unmapped or clipped reads."
     SEARCH_ALIASES = [
-        "Galaxy",
+        "BioNodulo builtin",
         "samblaster",
         "duplicate marking",
         "split reads",

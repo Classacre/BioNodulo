@@ -1,4 +1,4 @@
-"""Galaxy parity BAM/CRAM utility nodes."""
+"""BioNodulo built-in BAM/CRAM utility nodes."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +7,7 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 
-GALAXY_ALIAS = "Galaxy"
+GALAXY_ALIAS = "BioNodulo builtin"
 CRAMINO_CITATION_DOI = "10.1093/bioinformatics/btad311"
 CRAMINO_CITATION_TEXT = "NanoPack2: population-scale evaluation of long-read sequencing data."
 BAMUTIL_CITATION_DOI = "10.1101/gr.176552.114"

@@ -11,7 +11,7 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 
-GALAXY_ALIAS = "Galaxy"
+GALAXY_ALIAS = "BioNodulo builtin"
 SAMTOOLS_CITATION_DOIS = ["10.1093/gigascience/giab008", "10.1093/bioinformatics/btp352"]
 SAMTOOLS_CITATION_URLS = [f"https://doi.org/{doi}" for doi in SAMTOOLS_CITATION_DOIS]
 SAMTOOLS_CITATION_TEXT = (

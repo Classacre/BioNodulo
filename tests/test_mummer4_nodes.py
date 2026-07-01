@@ -17,7 +17,7 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
-def test_mummer4_nodes_expose_galaxy_metadata() -> None:
+def test_mummer4_nodes_expose_bionodulo_builtin_metadata() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     info = registry.object_info()
@@ -73,7 +73,7 @@ def test_mummer4_nodes_expose_galaxy_metadata() -> None:
         assert node_info["citation_dois"] == [MUMMER4_DOI]
         assert f"https://doi.org/{MUMMER4_DOI}" in node_info["citation_urls"]
         assert "MUMmer4" in node_info["citation_text"]
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_mummer4_environment_metadata_maps_executables_to_packages() -> None:

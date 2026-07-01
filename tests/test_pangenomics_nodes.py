@@ -2162,7 +2162,7 @@ def test_minigraph_cactus_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["cactus"] == ">=2.9.0"
 
 
-def test_galaxy_cactus_is_registered_for_frontend_discovery() -> None:
+def test_bionodulo_builtin_cactus_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     info = registry.object_info()
@@ -2179,7 +2179,7 @@ def test_galaxy_cactus_is_registered_for_frontend_discovery() -> None:
     assert node_info["citation_dois"] == ["10.1038/s41586-020-2871-y"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1038/s41586-020-2871-y"]
     assert "Progressive Cactus is a multiple-genome aligner" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "whole-genome multiple alignment" in node_info["search_aliases"]
     assert node_info["version"] == "2.7.1+galaxy0"
 
@@ -2197,7 +2197,7 @@ def test_galaxy_cactus_is_registered_for_frontend_discovery() -> None:
     assert _node_class("cactus_cactus").INPUT_TYPES()["required"]["labels"][0] == "STRING_LIST"
 
 
-def test_galaxy_cactus_renders_interspecies_command_and_outputs() -> None:
+def test_bionodulo_builtin_cactus_renders_interspecies_command_and_outputs() -> None:
     node_class = _node_class("cactus_cactus")
 
     cmd = node_class.render_command({
@@ -2266,7 +2266,7 @@ def test_galaxy_cactus_renders_interspecies_command_and_outputs() -> None:
     ]
 
 
-def test_galaxy_cactus_renders_intraspecies_command_outputs_and_validation() -> None:
+def test_bionodulo_builtin_cactus_renders_intraspecies_command_outputs_and_validation() -> None:
     node_class = _node_class("cactus_cactus")
 
     cmd = node_class.render_command({
@@ -2343,7 +2343,7 @@ def test_galaxy_cactus_renders_intraspecies_command_outputs_and_validation() -> 
     }) is True
 
 
-def test_galaxy_cactus_environment_metadata_is_declared() -> None:
+def test_bionodulo_builtin_cactus_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["cactus"] == "cactus"
     assert EXECUTABLE_TO_CONDA_PACKAGE["cactus-pangenome"] == "cactus"
     assert PACKAGE_MIN_VERSIONS["cactus"] == ">=2.9.0"
@@ -2366,7 +2366,7 @@ def test_cactus_export_is_registered_for_frontend_discovery() -> None:
     assert node_info["citation_dois"] == ["10.1038/s41586-020-2871-y"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1038/s41586-020-2871-y"]
     assert "Progressive Cactus" in node_info["citation_text"]
-    assert "Galaxy" in node_info["search_aliases"]
+    assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "hal2maf" in node_info["search_aliases"]
     assert node_info["version"] == "2.7.1+galaxy0"
 

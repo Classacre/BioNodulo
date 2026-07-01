@@ -13,7 +13,7 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
-def test_bam_cram_utility_nodes_expose_galaxy_metadata() -> None:
+def test_bam_cram_utility_nodes_expose_bionodulo_builtin_metadata() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     info = registry.object_info()
@@ -66,7 +66,7 @@ def test_bam_cram_utility_nodes_expose_galaxy_metadata() -> None:
         assert metadata["citation_doi"] in node_info["citation_dois"]
         assert f"https://doi.org/{metadata['citation_doi']}" in node_info["citation_urls"]
         assert metadata["search_alias"] in node_info["search_aliases"]
-        assert "Galaxy" in node_info["search_aliases"]
+        assert "BioNodulo builtin" in node_info["search_aliases"]
 
 
 def test_cramino_renders_optional_qc_outputs(tmp_path: Path) -> None:
