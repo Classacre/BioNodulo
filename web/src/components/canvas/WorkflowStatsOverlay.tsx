@@ -14,6 +14,11 @@ import type { TFunction } from 'i18next';
 import type { Workflow } from '../../types';
 import { apiGet } from '../../api/client';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
+import {
+  SYSTEM_STATS_POLL_HIDDEN_MS,
+  SYSTEM_STATS_POLL_VISIBLE_MS,
+  startVisibilityAwarePolling,
+} from '../../utils/pollingPolicy';
 
 interface SystemStats {
   system: {
@@ -108,8 +113,8 @@ export default function WorkflowStatsOverlay({ workflow, hidden, systemStats = t
   const [collapsed, setCollapsed] = useState(false);
   const stats = useMemo(() => summarise(workflow, t, t('workflowStats.categoryFallback')), [workflow, t]);
 
-  // Live system stats. Polled at 2 s on a single shared interval, regardless
-  // of whether the card is collapsed (the pill needs CPU / RAM numbers too).
+  // Live system stats. Poll on a visibility-aware cadence so the local monitor
+  // stays useful without turning hidden tabs into constant backend/GPU probes.
   const [system, setSystem] = useState<SystemStats | null>(null);
   const [systemErrored, setSystemErrored] = useState(false);
 
@@ -131,11 +136,14 @@ export default function WorkflowStatsOverlay({ workflow, hidden, systemStats = t
         setSystemErrored(true);
       }
     };
-    fetchStats();
-    const id = window.setInterval(fetchStats, 2000);
+    const stopPolling = startVisibilityAwarePolling(
+      fetchStats,
+      SYSTEM_STATS_POLL_VISIBLE_MS,
+      SYSTEM_STATS_POLL_HIDDEN_MS,
+    );
     return () => {
       active = false;
-      window.clearInterval(id);
+      stopPolling();
     };
   }, [systemStats]);
 

@@ -67,6 +67,13 @@ import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
 import { nodeCategoryDisplayLabel } from './utils/nodeCategories';
 import { redactSecrets } from './utils/redaction';
+import {
+  CLOUD_CREDITS_POLL_HIDDEN_MS,
+  CLOUD_CREDITS_POLL_VISIBLE_MS,
+  CLOUD_RUN_POLL_HIDDEN_MS,
+  CLOUD_RUN_POLL_VISIBLE_MS,
+  startVisibilityAwarePolling,
+} from './utils/pollingPolicy';
 import { makeConsoleActionCopy } from './utils/consoleActionCopy';
 import { makeAppFileActionCopy } from './utils/appFileActionCopy';
 import { promptWorkflowRunParameters } from './utils/workflowParameters';
@@ -893,10 +900,19 @@ export default function App() {
   useEffect(() => {
     if (!creditsEligible) return;
     let cancelled = false;
-    const refresh = () => { void getCloudCredits().then(c => { if (!cancelled && c) setCloudCredits(c.remaining); }); };
-    refresh();
-    const id = setInterval(refresh, 60_000); // keep it fresh; runs burn credits
-    return () => { cancelled = true; clearInterval(id); };
+    const refresh = async () => {
+      const credits = await getCloudCredits();
+      if (!cancelled && credits) setCloudCredits(credits.remaining);
+    };
+    const stopPolling = startVisibilityAwarePolling(
+      refresh,
+      CLOUD_CREDITS_POLL_VISIBLE_MS,
+      CLOUD_CREDITS_POLL_HIDDEN_MS,
+    );
+    return () => {
+      cancelled = true;
+      stopPolling();
+    };
   }, [creditsEligible]);
 
   // Per-node run progress for inline canvas captions. Populated on node_start
@@ -1577,6 +1593,7 @@ export default function App() {
     const lineRe = /^\[.*?\]\s+(\w+):\s+([\s\S]*)$/;
     let lastLen = 0;
     let stopped = false;
+    let stopPolling: (() => void) | null = null;
     const tick = async () => {
       if (stopped) return;
       const snap = await getCloudRun(runId);
@@ -1617,6 +1634,7 @@ export default function App() {
         });
         if (isTerminalCloudStatus(snap.status)) {
           stopped = true;
+          stopPolling?.();
           addLog({
             run_id: runId,
             node_id: 'cloud',
@@ -1630,9 +1648,12 @@ export default function App() {
           return;
         }
       }
-      setTimeout(() => { void tick(); }, 4000);
     };
-    void tick();
+    stopPolling = startVisibilityAwarePolling(
+      tick,
+      CLOUD_RUN_POLL_VISIBLE_MS,
+      CLOUD_RUN_POLL_HIDDEN_MS,
+    );
   }, [addLog, updateRun, activeWorkflow, t]);
 
   const handleRun = useCallback(async () => {

@@ -4,8 +4,11 @@ Provides CPU, memory, GPU, and VRAM information for the frontend monitor.
 """
 from __future__ import annotations
 
+import copy
 import logging
+import os
 import sys
+import time
 from typing import Any
 
 import psutil
@@ -15,8 +18,29 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_GPU_INFO_CACHE: tuple[float, list[dict[str, Any]]] | None = None
+_DEFAULT_GPU_STATS_TTL_SECONDS = 30.0
 
-def _get_gpu_info() -> list[dict[str, Any]]:
+
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _gpu_stats_ttl_seconds() -> float:
+    raw = os.getenv("BIONODULO_GPU_STATS_TTL_SECONDS")
+    if raw is None:
+        return _DEFAULT_GPU_STATS_TTL_SECONDS
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        logger.debug("Invalid BIONODULO_GPU_STATS_TTL_SECONDS=%r", raw)
+        return _DEFAULT_GPU_STATS_TTL_SECONDS
+
+
+def _detect_gpu_info() -> list[dict[str, Any]]:
     """Try to detect NVIDIA GPUs via pynvml or nvidia-ml-py."""
     gpus: list[dict[str, Any]] = []
     try:
@@ -87,6 +111,24 @@ def _get_gpu_info() -> list[dict[str, Any]]:
     except Exception as exc:
         logger.debug("pynvml GPU detection failed: %s", exc)
     return gpus
+
+
+def _get_gpu_info() -> list[dict[str, Any]]:
+    """Return GPU stats with a short TTL to avoid repeated NVML initialization."""
+    global _GPU_INFO_CACHE
+    if not _env_flag("BIONODULO_ENABLE_GPU_STATS", True):
+        return []
+
+    ttl = _gpu_stats_ttl_seconds()
+    now = time.monotonic()
+    if _GPU_INFO_CACHE is not None:
+        cached_at, devices = _GPU_INFO_CACHE
+        if now - cached_at < ttl:
+            return copy.deepcopy(devices)
+
+    devices = _detect_gpu_info()
+    _GPU_INFO_CACHE = (now, copy.deepcopy(devices))
+    return devices
 
 
 def _get_cpu_temp() -> float | None:
