@@ -11,8 +11,8 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 
 ## Features
 
-- **Visual Node Editor** — Drag-and-drop canvas for building workflows with ~90 built-in bioinformatics nodes
-- **90+ Bioinformatics Nodes** — Covering QC, alignment, variant calling, assembly, RNA-Seq, metagenomics, phylogenetics, ChIP-Seq, single-cell analysis, BioPython integration, R scripting, and more
+- **Visual Node Editor** — Drag-and-drop canvas for building workflows with 800+ built-in bioinformatics nodes
+- **800+ Bioinformatics Nodes** — Covering QC, alignment, variant calling, assembly, RNA-Seq, metagenomics, phylogenetics, ChIP-Seq, single-cell analysis, BioPython integration, R scripting, and more
 - **22 Pre-built Templates** — FASTQ QC Pipeline, RNA-Seq Pipeline, Variant Calling Pipeline, WGS Variant Pipeline, Genome Assembly, Metagenomics Profiling, Phylogenetics Pipeline, ChIP-Seq Pipeline, Single Cell RNA-Seq, DESeq2 Differential Expression, Transcript Quantification, Biopython Analysis Pipeline, R Visualization Pipeline, ONT Long-Read Sequencing, Proteomics Sage-Percolator Search, Protein Structure Database Workflow, WGBS Methylation Profiling, CRISPR Editing and Screen Analysis, Pangenomics Graph QC and Visualization, Metabolomics LC-MS Workflow, Spatial Transcriptomics QC and Clustering, Synthetic Biology Design and Simulation
 - **HPC Integration** — Submit workflows to SLURM, PBS/Torque, or SGE clusters with a single toggle
 - **Workflow Converters** — Import and export workflows between SnakeMake, NextFlow, CWL, Galaxy, and BioNodulo JSON formats
@@ -21,7 +21,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 - **AI Assistant** — Chat-based workflow builder assistant
 - **Environment Manager** — Auto-detect missing dependencies, one-click install, Conda/Mamba/Micromamba env CRUD, Docker/Apptainer support, per-workflow isolation
 - **Dependency Resolution** — Scans workflows on open for missing nodes, executables, and Python packages with a top-center banner + Auto Install
-- **Custom Nodes** — Extensible plugin system; nodes declare `GIT_URL` for automatic source discovery and installation
+- **Custom Nodes** — Extensible plugin system for local custom node packages; Git URL installation exists in the backend but still needs frontend validation before it should be treated as a polished user flow
 - **Dark/Light Theme** — Full theme support with system detection
 - **Multi-tab Workflows** — Work on multiple workflows simultaneously with top tabs
 - **Undo/Redo** — Full history support
@@ -103,7 +103,7 @@ Click the **Import** button in the top bar (Ctrl+I) and paste workflow code from
 
 1. Copy `custom_nodes/example_node.py.example` to `custom_nodes/my_node.py`
 2. Edit the node class with your tool's parameters
-3. Set `GIT_URL` (and optionally `GIT_COMMIT`) so BioNodulo can auto-install your node when it's missing
+3. Optionally set `GIT_URL` and `GIT_COMMIT` as source metadata. Backend Git install support exists, but the recommended supported path today is loading and testing local custom nodes directly.
 4. Restart BioNodulo — your node appears in the palette automatically
 
 ### Managing Environments
@@ -111,7 +111,7 @@ Click the **Import** button in the top bar (Ctrl+I) and paste workflow code from
 BioNodulo automatically checks for missing dependencies every time you open or load a workflow:
 
 1. **Auto-detect** — Open any template or workflow. If nodes or tools are missing, a top-center banner appears
-2. **Auto Install** — Click **Auto Install** in the banner to clone custom nodes and `conda install` missing executables automatically
+2. **Auto Install** — Click **Auto Install** in the banner to install missing Conda-backed executables. Git-backed custom node cloning exists in backend code but is still experimental.
 3. **Environment Panel** (Ctrl+4) — Browse existing Conda environments, create new ones, delete old ones, and view installed packages
 4. **Dependency Tree** — See per-workflow dependency status (installed / missing / available in which env)
 5. **Isolate Workflow** — Create a dedicated Conda environment containing only the tools your current workflow needs
@@ -130,7 +130,7 @@ bionodulo-v2/
 │   ├── core/                  # Config, events, paths
 │   ├── api/                   # REST API routes, WebSocket
 │   ├── nodes/                 # Node system
-│   │   ├── builtin/           # 90+ bioinformatics nodes
+│   │   ├── builtin/           # 800+ bioinformatics nodes
 │   │   ├── base.py            # BaseNode class
 │   │   ├── command_node.py    # External tool wrapper
 │   │   ├── registry.py        # Node discovery & loading
