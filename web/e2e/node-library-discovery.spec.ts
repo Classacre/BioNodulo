@@ -3869,6 +3869,34 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
     citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
   },
+  circos_binlinks: {
+    name: 'circos_binlinks',
+    display_name: 'Circos: Link Density Track',
+    category: 'visualization',
+    description: 'Reduce Circos links to binned density tracks.',
+    search_aliases: ['Galaxy', 'Circos', 'circos_binlinks', 'binlinks', 'link density', 'density track', 'stacked histogram', 'comparative genomics'],
+    input: {
+      required: {
+        linksfile: { type: 'TSV' },
+      },
+      optional: {
+        bin_size: { type: 'INT', default: 1000000, min: 0 },
+        link_end: { type: 'STRING', default: '', options: ['', '0', '1', '2'] },
+        output_style: { type: 'STRING', default: '', options: ['', '0', '1', '2', '3'] },
+        num: { type: 'BOOLEAN', default: false },
+        log: { type: 'BOOLEAN', default: false },
+        normalize: { type: 'BOOLEAN', default: false },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['outfile'],
+    required_executables: ['binlinks', 'sed'],
+    required_conda_packages: ['circos', 'circos-tools'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos',
+    citation_dois: ['10.1093/gigascience/giaa065', '10.1101/gr.092759.109'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
+    citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
+  },
   circos_gc_skew: {
     name: 'circos_gc_skew',
     display_name: 'GC Skew',
@@ -17431,7 +17459,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('584 nodes available')).toBeVisible();
+  await expect(page.getByText('585 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17577,6 +17605,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'circular RNA', name: 'CIRCexplorer2', category: 'rna_seq' },
     { query: 'downsample', name: 'Circos: Resample 1/2D data', category: 'visualization' },
     { query: 'alignment links', name: 'Circos: Alignments to links', category: 'visualization' },
+    { query: 'link density', name: 'Circos: Link Density Track', category: 'visualization' },
     { query: 'GC skew', name: 'GC Skew', category: 'visualization' },
     { query: 'bigWig', name: 'Circos: bigWig to Scatter', category: 'visualization' },
     { query: 'text labels', name: 'Circos: Interval to Circos Text Labels', category: 'visualization' },

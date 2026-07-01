@@ -17871,6 +17871,99 @@ class CircosAlignmentsToLinksNode(CommandNode):
         }
 
 
+class CircosBinlinksNode(CommandNode):
+    """Reduce Circos links into binned density track rows."""
+
+    NODE_ID = "circos_binlinks"
+    DISPLAY_NAME = "Circos: Link Density Track"
+    REQUIRED_CONDA_PACKAGES = ["circos", "circos-tools"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Reduce Circos links to binned density tracks."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "circos_binlinks",
+        "binlinks",
+        "link density",
+        "density track",
+        "stacked histogram",
+        "comparative genomics",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("outfile",)
+    REQUIRED_EXECUTABLES = ["binlinks", "sed"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    LINK_END_OPTIONS = ["", "0", "1", "2"]
+    OUTPUT_STYLE_OPTIONS = ["", "0", "1", "2", "3"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/link_density.tabular"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["binlinks", "-bin_size", str(inputs.get("bin_size", 1000000))]
+        _add_if_value(cmd, "-link_end", inputs.get("link_end"))
+        _add_if_value(cmd, "-output_style", inputs.get("output_style"))
+        if inputs.get("num"):
+            cmd.append("-num")
+        if inputs.get("log"):
+            cmd.append("-log")
+        if inputs.get("normalize"):
+            cmd.append("-normalize")
+        return (
+            f"{_shell_join(cmd)} < {shlex.quote(str(inputs.get('linksfile', '')))} "
+            f"| sed 's/ /\\t/g' > {shlex.quote(cls._output_path(inputs))}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "link_density.tabular"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("linksfile", "")).strip():
+            return "linksfile is required"
+        try:
+            bin_size = int(inputs.get("bin_size", 1000000))
+        except (TypeError, ValueError):
+            return "bin_size must be an integer"
+        if bin_size < 0:
+            return "bin_size must be greater than or equal to 0"
+        link_end = str(inputs.get("link_end", "") or "")
+        if link_end not in cls.LINK_END_OPTIONS:
+            return f"link_end must be one of: {', '.join(cls.LINK_END_OPTIONS)}"
+        output_style = str(inputs.get("output_style", "") or "")
+        if output_style not in cls.OUTPUT_STYLE_OPTIONS:
+            return f"output_style must be one of: {', '.join(cls.OUTPUT_STYLE_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "linksfile": ("TSV", {"description": "Six-column Circos links table"}),
+            },
+            "optional": {
+                "bin_size": ("INT", {"default": 1000000, "min": 0, "description": "Bin size"}),
+                "link_end": ("STRING", {"default": "", "options": cls.LINK_END_OPTIONS}),
+                "output_style": ("STRING", {"default": "", "options": cls.OUTPUT_STYLE_OPTIONS}),
+                "num": ("BOOLEAN", {"default": False, "description": "Use number of links rather than sum"}),
+                "log": ("BOOLEAN", {"default": False, "description": "Calculate log10 of values"}),
+                "normalize": ("BOOLEAN", {"default": False, "description": "Normalize stacked histograms"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class FiltlongNode(CommandNode):
     """Filter long reads by quality, length, and optional references with Filtlong."""
 

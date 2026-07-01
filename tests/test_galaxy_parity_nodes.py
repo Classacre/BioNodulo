@@ -15252,6 +15252,73 @@ def test_circos_aln_to_links_renders_alignment_conversion_command_outputs_and_va
     assert node_class.VALIDATE_INPUTS({"input": "blocks.maf"}) is True
 
 
+def test_circos_binlinks_renders_link_density_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_binlinks")
+    info = _registry().object_info()["circos_binlinks"]
+
+    assert info["display_name"] == "Circos: Link Density Track"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Reduce Circos links to binned density tracks."
+    assert info["input"]["required"]["linksfile"][0] == "TSV"
+    assert info["input"]["optional"]["bin_size"][1]["default"] == 1000000
+    assert info["input"]["optional"]["bin_size"][1]["min"] == 0
+    assert info["input"]["optional"]["link_end"][1]["options"] == ["", "0", "1", "2"]
+    assert info["input"]["optional"]["output_style"][1]["options"] == ["", "0", "1", "2", "3"]
+    assert info["input"]["optional"]["num"][1]["default"] is False
+    assert info["input"]["optional"]["log"][1]["default"] is False
+    assert info["input"]["optional"]["normalize"][1]["default"] is False
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["outfile"]
+    assert info["required_executables"] == ["binlinks", "sed"]
+    assert info["required_conda_packages"] == ["circos", "circos-tools"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Galactic Circos" in info["citation_text"]
+    assert "link density" in info["search_aliases"]
+    assert "stacked histogram" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "linksfile": "links track.tsv",
+            "bin_size": 500000,
+            "link_end": "2",
+            "output_style": "3",
+            "num": True,
+            "log": True,
+            "normalize": True,
+            "output": "/work/circos_binlinks",
+        }
+    ) == (
+        "binlinks -bin_size 500000 -link_end 2 -output_style 3 -num -log -normalize "
+        "< 'links track.tsv' | sed 's/ /\\t/g' > /work/circos_binlinks/link_density.tabular"
+    )
+    assert node_class.render_command(
+        {
+            "linksfile": "links.tsv",
+            "output": "/work/circos_binlinks",
+        }
+    ) == "binlinks -bin_size 1000000 < links.tsv | sed 's/ /\\t/g' > /work/circos_binlinks/link_density.tabular"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "circos_binlinks" / "link_density.tabular"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "linksfile is required"
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "bin_size": "bad"}) == "bin_size must be an integer"
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "bin_size": -1}) == (
+        "bin_size must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "link_end": "start"}) == (
+        "link_end must be one of: , 0, 1, 2"
+    )
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv", "output_style": "4"}) == (
+        "output_style must be one of: , 0, 1, 2, 3"
+    )
+    assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 
