@@ -3969,6 +3969,26 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
     citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
   },
+  circos_wiggle_to_stacked: {
+    name: 'circos_wiggle_to_stacked',
+    display_name: 'Circos: Stack bigWigs as Histogram',
+    category: 'visualization',
+    description: 'Convert multiple bigWig tracks into Circos stacked-histogram rows.',
+    search_aliases: ['Galaxy', 'Circos', 'circos_wiggle_to_stacked', 'stacked histogram', 'bigWig', 'histogram', 'track stacking', 'comparative genomics'],
+    input: {
+      required: {
+        input: { type: 'BIGWIG', is_list: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['python'],
+    required_conda_packages: ['circos', 'pybigwig'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos',
+    citation_dois: ['10.1093/gigascience/giaa065', '10.1101/gr.092759.109'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
+    citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
+  },
   circos_interval_to_text: {
     name: 'circos_interval_to_text',
     display_name: 'Circos: Interval to Circos Text Labels',
@@ -17486,7 +17506,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('586 nodes available')).toBeVisible();
+  await expect(page.getByText('587 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17636,6 +17656,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'bundle links', name: 'Circos: Bundle Links', category: 'visualization' },
     { query: 'GC skew', name: 'GC Skew', category: 'visualization' },
     { query: 'bigWig', name: 'Circos: bigWig to Scatter', category: 'visualization' },
+    { query: 'stacked histogram', name: 'Circos: Stack bigWigs as Histogram', category: 'visualization' },
     { query: 'text labels', name: 'Circos: Interval to Circos Text Labels', category: 'visualization' },
     { query: 'tile tracks', name: 'Circos: Interval to Tiles', category: 'visualization' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },

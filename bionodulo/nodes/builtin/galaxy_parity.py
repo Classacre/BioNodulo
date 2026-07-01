@@ -18083,6 +18083,75 @@ class CircosBundlelinksNode(CommandNode):
         }
 
 
+class CircosWiggleToStackedNode(CommandNode):
+    """Convert bigWig tracks into Circos stacked histogram rows."""
+
+    NODE_ID = "circos_wiggle_to_stacked"
+    DISPLAY_NAME = "Circos: Stack bigWigs as Histogram"
+    REQUIRED_CONDA_PACKAGES = ["circos", "pybigwig"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Convert multiple bigWig tracks into Circos stacked-histogram rows."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "circos_wiggle_to_stacked",
+        "stacked histogram",
+        "bigWig",
+        "histogram",
+        "track stacking",
+        "comparative genomics",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/stacked_histogram.tabular"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["python", "stack-histogram.py", *_as_list(inputs.get("input"))]
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "stacked_histogram.tabular"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        raw_input = inputs.get("input")
+        input_files = _as_list(raw_input)
+        if not input_files:
+            return "at least one input value is required"
+        if isinstance(raw_input, (list, tuple)) and any(str(value) == "" for value in raw_input):
+            return "input values must not be empty"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": (
+                    "BIGWIG",
+                    {
+                        "is_list": True,
+                        "description": "bigWig files with identical chromosomes and intervals",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class FiltlongNode(CommandNode):
     """Filter long reads by quality, length, and optional references with Filtlong."""
 

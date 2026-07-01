@@ -15395,6 +15395,56 @@ def test_circos_bundlelinks_renders_link_bundling_command_outputs_and_validation
     assert node_class.VALIDATE_INPUTS({"linksfile": "links.tsv"}) is True
 
 
+def test_circos_wiggle_to_stacked_renders_multi_bigwig_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_wiggle_to_stacked")
+    info = _registry().object_info()["circos_wiggle_to_stacked"]
+
+    assert info["display_name"] == "Circos: Stack bigWigs as Histogram"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Convert multiple bigWig tracks into Circos stacked-histogram rows."
+    assert info["input"]["required"]["input"][0] == "BIGWIG"
+    assert info["input"]["required"]["input"][1]["is_list"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["circos", "pybigwig"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Galactic Circos" in info["citation_text"]
+    assert "stacked histogram" in info["search_aliases"]
+    assert "bigWig" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "input": ["first signal.bw", "second.bw", "third.bw"],
+            "output": "/work/circos_wiggle_to_stacked",
+        }
+    ) == (
+        "python stack-histogram.py 'first signal.bw' second.bw third.bw "
+        "> /work/circos_wiggle_to_stacked/stacked_histogram.tabular"
+    )
+    assert node_class.render_command(
+        {
+            "input": "signal.bw",
+            "output": "/work/circos_wiggle_to_stacked",
+        }
+    ) == "python stack-histogram.py signal.bw > /work/circos_wiggle_to_stacked/stacked_histogram.tabular"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "circos_wiggle_to_stacked" / "stacked_histogram.tabular"
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one input value is required"
+    assert node_class.VALIDATE_INPUTS({"input": []}) == "at least one input value is required"
+    assert node_class.VALIDATE_INPUTS({"input": ["first.bw", ""]}) == "input values must not be empty"
+    assert node_class.VALIDATE_INPUTS({"input": ["first.bw", "second.bw"]}) is True
+    assert node_class.VALIDATE_INPUTS({"input": "signal.bw"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 
