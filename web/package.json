@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@clerk/clerk-js": "^6.18.1",
+    "@xyflow/react": "^12.11.1",
     "fuse.js": "^7.3.0",
     "i18next": "^26.2.0",
     "jotai": "^2.20.0",
