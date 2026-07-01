@@ -617,6 +617,26 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/compress_file'],
     citation_text: 'Compress files with gzip. If compressing a collection, all elements within that collection will be compressed.',
   },
+  collection_element_identifiers: {
+    name: 'collection_element_identifiers',
+    display_name: 'Extract element identifiers',
+    category: 'data_transform',
+    description: 'Extract top-level element identifiers from a list or list:paired collection.',
+    search_aliases: ['Galaxy', 'collection_element_identifiers', 'Extract element identifiers', 'dataset collection names', 'element identifiers', 'list collection', 'list:paired collection', 'sample names'],
+    input: {
+      required: {
+        input_collection: { type: 'JSON', is_list: true },
+      },
+    },
+    output: ['TXT'],
+    output_name: ['output'],
+    required_executables: [],
+    required_conda_packages: [],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_element_identifiers',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_element_identifiers'],
+    citation_text: 'Extracts the element identifiers from a list collection and writes them to a plain text file.',
+  },
   calculate_contrast_threshold: {
     name: 'calculate_contrast_threshold',
     display_name: 'Calculate Contrast threshold',
@@ -17759,7 +17779,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('595 nodes available')).toBeVisible();
+  await expect(page.getByText('596 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17786,6 +17806,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'arithmetic parameter', name: 'Calculate numeric parameter value', category: 'data_transform' },
     { query: 'workflow text parameter', name: 'Compose text parameter value', category: 'data_transform' },
     { query: 'gzip compression', name: 'Compress file(s)', category: 'data_transform' },
+    { query: 'list:paired collection', name: 'Extract element identifiers', category: 'data_transform' },
     { query: 'tag pileup CDT', name: 'Calculate Contrast threshold', category: 'visualization' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

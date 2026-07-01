@@ -7870,6 +7870,61 @@ def test_compress_file_renders_gzip_command_outputs_and_validation(tmp_path: Pat
     assert node_class.VALIDATE_INPUTS({"input": "table.csv"}) is True
 
 
+def test_collection_element_identifiers_exposes_galaxy_metadata_without_citations() -> None:
+    info = _registry().object_info()["collection_element_identifiers"]
+
+    assert info["display_name"] == "Extract element identifiers"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Extract top-level element identifiers from a list or list:paired collection."
+    assert info["input"]["required"]["input_collection"][0] == "JSON"
+    assert info["input"]["required"]["input_collection"][1]["is_list"] is True
+    assert info["output"] == ["TXT"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == []
+    assert info["required_conda_packages"] == []
+    assert info["documentation_url"] == (
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_element_identifiers"
+    )
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == [
+        "https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_element_identifiers"
+    ]
+    assert "Extracts the element identifiers" in info["citation_text"]
+    assert "list:paired collection" in info["search_aliases"]
+    assert info["version"] == "0.0.3"
+
+
+def test_collection_element_identifiers_runs_collections_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("collection_element_identifiers")
+
+    assert asyncio.run(
+        node_class().run(
+            input_collection=[
+                {"element_identifier": "e1", "path": "simple_line.txt"},
+                {"element_identifier": "e2", "path": "simple_line.txt"},
+                {"element_identifier": "e3", "path": "simple_line.txt"},
+            ]
+        )
+    ) == ("e1\ne2\ne3\n",)
+    assert asyncio.run(
+        node_class().run(
+            input_collection=[
+                {"name": "pair1", "elements": [{"name": "forward"}, {"name": "reverse"}]},
+                {"name": "pair2", "elements": [{"name": "forward"}, {"name": "reverse"}]},
+            ]
+        )
+    ) == ("pair1\npair2\n",)
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "collection_element_identifiers" / "output.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "input_collection is required"
+    assert node_class.VALIDATE_INPUTS({"input_collection": []}) == "input_collection is required"
+    assert node_class.VALIDATE_INPUTS({"input_collection": [{"path": "sample.fastq"}]}) == (
+        "each collection element requires an identifier"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_collection": ["sample_A"]}) is True
+
+
 def test_calculate_contrast_threshold_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["calculate_contrast_threshold"]
 

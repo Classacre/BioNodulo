@@ -283,6 +283,12 @@ COMPRESS_FILE_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/ma
 COMPRESS_FILE_CITATION_TEXT = (
     "Compress files with gzip. If compressing a collection, all elements within that collection will be compressed."
 )
+COLLECTION_ELEMENT_IDENTIFIERS_CITATION_URL = (
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_element_identifiers"
+)
+COLLECTION_ELEMENT_IDENTIFIERS_CITATION_TEXT = (
+    "Extracts the element identifiers from a list collection and writes them to a plain text file."
+)
 CALCULATE_CONTRAST_THRESHOLD_DOCUMENTATION_URL = (
     "https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold"
 )
@@ -7947,6 +7953,94 @@ class CompressFileNode(CommandNode):
             "optional": {},
             "hidden": {"output": ("STRING", {})},
         }
+
+
+class CollectionElementIdentifiersNode(BaseNode):
+    """Extract top-level identifiers from collection metadata."""
+
+    NODE_ID = "collection_element_identifiers"
+    DISPLAY_NAME = "Extract element identifiers"
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Extract top-level element identifiers from a list or list:paired collection."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "collection_element_identifiers",
+        "Extract element identifiers",
+        "dataset collection names",
+        "element identifiers",
+        "list collection",
+        "list:paired collection",
+        "sample names",
+    ]
+    RETURN_TYPES = ("TXT",)
+    RETURN_NAMES = ("output",)
+    REQUIRES_EXTERNAL_TOOLS = False
+    REQUIRED_EXECUTABLES: list[str] = []
+    REQUIRED_CONDA_PACKAGES: list[str] = []
+    DOCUMENTATION_URL = COLLECTION_ELEMENT_IDENTIFIERS_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [COLLECTION_ELEMENT_IDENTIFIERS_CITATION_URL]
+    CITATION_TEXT = COLLECTION_ELEMENT_IDENTIFIERS_CITATION_TEXT
+    VERSION = "0.0.3"
+
+    @classmethod
+    def _items(cls, inputs: dict[str, Any]) -> list[Any]:
+        collection = inputs.get("input_collection")
+        if isinstance(collection, (list, tuple)):
+            return list(collection)
+        return []
+
+    @classmethod
+    def _identifier(cls, item: Any) -> str:
+        if isinstance(item, str):
+            return item
+        if isinstance(item, dict):
+            for key in ("element_identifier", "name", "identifier", "id"):
+                value = item.get(key)
+                if value is not None and str(value).strip():
+                    return str(value)
+        return ""
+
+    @classmethod
+    def _output_text(cls, inputs: dict[str, Any]) -> str:
+        return "".join(f"{cls._identifier(item)}\n" for item in cls._items(inputs))
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        items = cls._items(inputs)
+        if not items:
+            return "input_collection is required"
+        if any(not cls._identifier(item).strip() for item in items):
+            return "each collection element requires an identifier"
+        return True
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "output.txt"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_collection": (
+                    "JSON",
+                    {
+                        "is_list": True,
+                        "description": "List or list:paired collection elements with top-level identifiers",
+                    },
+                ),
+            },
+            "optional": {},
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str]:
+        validation = self.VALIDATE_INPUTS(kwargs)
+        if validation is not True:
+            raise ValueError(str(validation))
+        return (self._output_text(kwargs),)
 
 
 class CalculateContrastThresholdNode(CommandNode):
