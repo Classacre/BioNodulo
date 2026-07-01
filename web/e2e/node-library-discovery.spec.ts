@@ -3678,6 +3678,60 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.3390/a13090233'],
     citation_text: 'A Brain-Inspired Hyperdimensional Computing Approach for Classifying Massive DNA Methylation Data of Cancer.',
   },
+  cialign: {
+    name: 'cialign',
+    display_name: 'CIAlign',
+    category: 'alignment',
+    description: 'Clean, visualise, and interpret multiple sequence alignments with CIAlign.',
+    search_aliases: ['Galaxy', 'CIAlign', 'cialign', 'multiple sequence alignment', 'MSA cleaning', 'alignment visualisation', 'alignment interpretation', 'sequence logo', 'consensus sequence', 'position weight matrix'],
+    input: {
+      required: {
+        input: { type: 'FASTA' },
+      },
+      optional: {
+        input_is_gz: { type: 'BOOLEAN', default: false },
+        all: { type: 'BOOLEAN', default: false },
+        clean: { type: 'BOOLEAN', default: false },
+        visualise: { type: 'BOOLEAN', default: false },
+        interpret: { type: 'BOOLEAN', default: false },
+        log_out: { type: 'BOOLEAN', default: false },
+        remove_divergent: { type: 'BOOLEAN', default: false },
+        remove_divergent_minperc: { type: 'FLOAT', default: 0.65, min: 0, max: 1 },
+        remove_insertions: { type: 'BOOLEAN', default: false },
+        insertion_min_size: { type: 'INT', default: 3, min: 1 },
+        crop_ends: { type: 'BOOLEAN', default: false },
+        remove_short: { type: 'BOOLEAN', default: false },
+        remove_min_length: { type: 'INT', default: 50, min: 0 },
+        crop_divergent: { type: 'BOOLEAN', default: false },
+        keep_gaponly: { type: 'BOOLEAN', default: false },
+        plot_input: { type: 'BOOLEAN', default: false },
+        plot_output: { type: 'BOOLEAN', default: false },
+        plot_markup: { type: 'BOOLEAN', default: false },
+        plot_consensus_identity: { type: 'BOOLEAN', default: false },
+        make_sequence_logo: { type: 'BOOLEAN', default: false },
+        sequence_logo_type: { type: 'STRING', default: 'text', options: ['bar', 'text', 'both'] },
+        plot_stats_input: { type: 'BOOLEAN', default: false },
+        plot_stats_output: { type: 'BOOLEAN', default: false },
+        make_consensus: { type: 'BOOLEAN', default: false },
+        consensus_type: { type: 'STRING', default: 'majority', options: ['majority', 'majority_nongap'] },
+        pwm_input: { type: 'BOOLEAN', default: false },
+        pwm_output: { type: 'BOOLEAN', default: false },
+        make_similarity_matrix_input: { type: 'BOOLEAN', default: false },
+        make_similarity_matrix_output: { type: 'BOOLEAN', default: false },
+        get_section: { type: 'BOOLEAN', default: false },
+        deduplicate_ids: { type: 'BOOLEAN', default: false },
+        duporder: { type: 'STRING', default: 'first', options: ['first', 'last'] },
+      },
+    },
+    output: ['FASTA', 'TXT', 'TXT', 'IMAGE', 'IMAGE', 'IMAGE', 'IMAGE', 'IMAGE', 'IMAGE', 'IMAGE', 'IMAGE', 'DIRECTORY', 'DIRECTORY', 'FASTA', 'FASTA', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'TXT', 'TSV', 'TSV', 'TSV', 'TSV', 'FASTA', 'FASTA', 'FASTA', 'FASTA', 'FASTA', 'FASTA'],
+    output_name: ['output_cleaned', 'output_removed', 'output_log', 'plot_input', 'plot_output', 'plot_markup', 'plot_markup_legend', 'plot_consensus_identity', 'plot_consensus_similarity', 'logo_bar', 'logo_text', 'plot_stats_input', 'plot_stats_outputs', 'output_consensus', 'output_with_consensus', 'pwm_input', 'ppm_input', 'pfm_input', 'ppm_meme_input', 'blamm_input', 'pwm_output', 'ppm_output', 'pfm_output', 'ppm_meme_output', 'blamm_output', 'input_similarity', 'output_similarity', 'output_output_column_stats', 'output_input_column_stats', 'U_input', 'T_input', 'U_output', 'T_output', 'unaligned_input', 'unaligned_output'],
+    required_executables: ['CIAlign', 'gunzip'],
+    required_conda_packages: ['cialign'],
+    documentation_url: 'https://github.com/KatyBrown/CIAlign',
+    citation_dois: ['10.7717/peerj.12983'],
+    citation_urls: ['https://doi.org/10.7717/peerj.12983'],
+    citation_text: 'CIAlign: A highly customisable command line tool to clean, interpret and visualise multiple sequence alignments.',
+  },
   filtlong: {
     name: 'filtlong',
     display_name: 'filtlong',
@@ -17147,7 +17201,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('575 nodes available')).toBeVisible();
+  await expect(page.getByText('576 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17288,6 +17342,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'CRL TPM', name: 'ChiRA quantify', category: 'rna_seq' },
     { query: 'IntaRNA', name: 'ChiRA extract', category: 'rna_seq' },
     { query: 'hyperdimensional computing', name: 'chopin2', category: 'ai' },
+    { query: 'multiple sequence alignment', name: 'CIAlign', category: 'alignment' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },

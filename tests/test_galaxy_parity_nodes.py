@@ -14369,6 +14369,238 @@ def test_chopin2_renders_supervised_learning_command_outputs_and_validation(tmp_
     assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "enable_fs": True}) is True
 
 
+def test_cialign_renders_alignment_cleaning_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cialign")
+    info = _registry().object_info()["cialign"]
+
+    assert info["display_name"] == "CIAlign"
+    assert info["category"] == "alignment"
+    assert info["description"] == "Clean, visualise, and interpret multiple sequence alignments with CIAlign."
+    assert info["input"]["required"]["input"][0] == "FASTA"
+    assert info["input"]["optional"]["input_is_gz"][1]["default"] is False
+    assert info["input"]["optional"]["clean"][1]["default"] is False
+    assert info["input"]["optional"]["remove_divergent_minperc"][1]["default"] == 0.65
+    assert info["input"]["optional"]["plot_width"][1]["min"] == 2
+    assert info["input"]["optional"]["sequence_logo_type"][1]["options"] == ["bar", "text", "both"]
+    assert info["input"]["optional"]["consensus_type"][1]["options"] == ["majority", "majority_nongap"]
+    assert info["input"]["optional"]["make_simmatrix_keepgaps"][1]["options"] == ["0", "1", "2"]
+    assert info["input"]["optional"]["duporder"][1]["options"] == ["first", "last"]
+    assert info["output"] == [
+        "FASTA",
+        "TXT",
+        "TXT",
+        "IMAGE",
+        "IMAGE",
+        "IMAGE",
+        "IMAGE",
+        "IMAGE",
+        "IMAGE",
+        "IMAGE",
+        "IMAGE",
+        "DIRECTORY",
+        "DIRECTORY",
+        "FASTA",
+        "FASTA",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TXT",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "FASTA",
+        "FASTA",
+        "FASTA",
+        "FASTA",
+        "FASTA",
+        "FASTA",
+    ]
+    assert info["output_name"][:3] == ["output_cleaned", "output_removed", "output_log"]
+    assert info["required_executables"] == ["CIAlign", "gunzip"]
+    assert info["required_conda_packages"] == ["cialign"]
+    assert info["documentation_url"] == "https://github.com/KatyBrown/CIAlign"
+    assert info["citation_dois"] == ["10.7717/peerj.12983"]
+    assert info["citation_urls"] == ["https://doi.org/10.7717/peerj.12983"]
+    assert "CIAlign: A highly customisable command line tool" in info["citation_text"]
+    assert "multiple sequence alignment" in info["search_aliases"]
+    assert info["version"] == "1.1.4+galaxy1"
+
+    assert node_class.render_command(
+        {
+            "input": "example3.fasta.gz",
+            "input_is_gz": True,
+            "log_out": True,
+            "output": "/work/cialign",
+        }
+    ) == (
+        "mkdir -p /work/cialign && cd /work/cialign && gunzip -c example3.fasta.gz > input.fasta && "
+        "CIAlign --infile input.fasta --outfile_stem output"
+    )
+    assert node_class.PLAN_OUTPUTS({"log_out": True}, tmp_path) == [
+        tmp_path / "cialign" / "output_cleaned.fasta",
+        tmp_path / "cialign" / "output_removed.txt",
+        tmp_path / "cialign" / "output_log.txt",
+    ]
+
+    command = node_class.render_command(
+        {
+            "input": "alignment file.fasta",
+            "all": True,
+            "clean": True,
+            "visualise": True,
+            "interpret": True,
+            "remove_divergent": True,
+            "remove_divergent_minperc": 0.9,
+            "remove_divergent_retain": ["Seq1", "Seq 2"],
+            "remove_divergent_retain_str": ["control"],
+            "remove_insertions": True,
+            "insertion_min_size": 4,
+            "insertion_max_size": 150,
+            "insertion_min_flank": 6,
+            "insertion_min_perc": 0.6,
+            "crop_ends": True,
+            "crop_ends_mingap_perc": 0.05,
+            "crop_ends_redefine_perc": 0.1,
+            "crop_ends_retain": ["Seq3"],
+            "crop_ends_retain_str": ["q7"],
+            "remove_short": True,
+            "remove_min_length": 70,
+            "remove_short_retain": ["Seq4"],
+            "remove_short_retain_str": ["q2"],
+            "crop_divergent": True,
+            "crop_divergent_min_prop_ident": 0.5,
+            "crop_divergent_min_prop_nongap": 0.6,
+            "crop_divergent_buffer_size": 5,
+            "retain": ["Seq5"],
+            "retain_str": ["keep"],
+            "keep_gaponly": True,
+            "plot_input": True,
+            "plot_output": True,
+            "plot_markup": True,
+            "plot_consensus_identity": True,
+            "plot_consensus_similarity": True,
+            "output_settings": True,
+            "plot_width": 6,
+            "plot_height": 4,
+            "plot_dpi": 200,
+            "plot_keep_numbers": True,
+            "plot_force_numbers": True,
+            "plot_identity_palette": "bone",
+            "plot_identity_gap_col": "#ffffff",
+            "plot_similarity_palette": "bone",
+            "plot_similarity_gap_col": "#eeeeee",
+            "plot_sub_matrix_name": "BLOSUM62",
+            "palette": "CBS",
+            "make_sequence_logo": True,
+            "sequence_logo_type": "both",
+            "sequence_logo_dpi": 300,
+            "sequence_logo_font": "monospace",
+            "sequence_logo_nt_per_row": 40,
+            "logo_start": 2,
+            "logo_end": 80,
+            "plot_stats_input": True,
+            "plot_stats_output": True,
+            "plot_stats_dpi": 250,
+            "plot_stats_width": 7,
+            "plot_stats_height": 5,
+            "plot_stats_colour": "#0000ff",
+            "make_consensus": True,
+            "consensus_type": "majority_nongap",
+            "consensus_keep_gaps": True,
+            "pwm_input": True,
+            "pwm_output": True,
+            "pwm_start": 1,
+            "pwm_end": 100,
+            "pwm_freqtype": "equal",
+            "pwm_alphatype": "calc",
+            "pwm_alphaval": 1,
+            "pwm_output_blamm": True,
+            "pwm_output_meme": True,
+            "make_similarity_matrix_input": True,
+            "make_similarity_matrix_output": True,
+            "make_simmatrix_keepgaps": "1",
+            "make_simmatrix_dp": 4,
+            "make_simmatrix_minoverlap": 2,
+            "get_section": True,
+            "section_start": 10,
+            "section_end": 50,
+            "replace_input_tu": True,
+            "replace_input_ut": True,
+            "replace_output_tu": True,
+            "replace_output_ut": True,
+            "unalign_input": True,
+            "unalign_output": True,
+            "deduplicate_ids": True,
+            "duporder": "last",
+            "output": "/work/cialign",
+        }
+    )
+    assert command == (
+        "mkdir -p /work/cialign && cd /work/cialign && CIAlign --infile 'alignment file.fasta' "
+        "--outfile_stem output --all --clean --visualise --interpret --remove_divergent "
+        "--remove_divergent_minperc 0.9 --remove_divergent_retain Seq1 --remove_divergent_retain 'Seq 2' "
+        "--remove_divergent_retain_str control --remove_insertions --insertion_min_size 4 "
+        "--insertion_max_size 150 --insertion_min_flank 6 --insertion_min_perc 0.6 --crop_ends "
+        "--crop_ends_mingap_perc 0.05 --crop_ends_redefine_perc 0.1 --crop_ends_retain Seq3 "
+        "--crop_ends_retain_str q7 --remove_short --remove_min_length 70 --remove_short_retain Seq4 "
+        "--remove_short_retain_str q2 --crop_divergent --crop_divergent_min_prop_ident 0.5 "
+        "--crop_divergent_min_prop_nongap 0.6 --crop_divergent_buffer_size 5 --retain Seq5 --retain_str keep "
+        "--keep_gaponly --plot_input --plot_output --plot_markup --plot_consensus_identity "
+        "--plot_consensus_similarity --plot_width 6 --plot_height 4 --plot_dpi 200 --plot_keep_numbers "
+        "--plot_force_numbers --plot_identity_palette bone --plot_identity_gap_col '#ffffff' "
+        "--plot_similarity_palette bone --plot_similarity_gap_col '#eeeeee' --plot_sub_matrix_name BLOSUM62 "
+        "--palette CBS --make_sequence_logo --sequence_logo_type both --sequence_logo_dpi 300 "
+        "--sequence_logo_font monospace --sequence_logo_nt_per_row 40 --logo_start 2 --logo_end 80 "
+        "--plot_stats_input --plot_stats_output --plot_stats_dpi 250 --plot_stats_height 7 --plot_stats_width 5 "
+        "--plot_stats_colour '#0000ff' --make_consensus --consensus_type majority_nongap --consensus_keep_gaps "
+        "--pwm_input --pwm_output --pwm_start 1 --pwm_end 100 --pwm_freqtype equal --pwm_alphatype calc "
+        "--pwm_alphaval 1 --pwm_output_blamm --pwm_output_meme --make_similarity_matrix_input "
+        "--make_similarity_matrix_output --make_simmatrix_keepgaps 1 --make_simmatrix_dp 4 "
+        "--make_simmatrix_minoverlap 2 --get_section --section_start 10 --section_end 50 --replace_input_tu "
+        "--replace_input_ut --replace_output_tu --replace_output_ut --unalign_input --unalign_output "
+        "--deduplicate_ids --duporder last"
+    )
+    planned = node_class.PLAN_OUTPUTS({"all": True, "make_sequence_logo": True, "sequence_logo_type": "both"}, tmp_path)
+    assert tmp_path / "cialign" / "output_cleaned.fasta" in planned
+    assert tmp_path / "cialign" / "output_removed.txt" in planned
+    assert tmp_path / "cialign" / "output_input.png" in planned
+    assert tmp_path / "cialign" / "output_logo_bar.png" in planned
+    assert tmp_path / "cialign" / "input_stats_plots" in planned
+    assert tmp_path / "cialign" / "output_consensus.fasta" in planned
+    assert tmp_path / "cialign" / "output_input_similarity.tsv" in planned
+    assert tmp_path / "cialign" / "output_output_column_stats.tsv" in planned
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "a.fa", "remove_divergent_minperc": 1.2}) == (
+        "remove_divergent_minperc must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "a.fa", "insertion_min_size": 0}) == (
+        "insertion_min_size must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "a.fa", "plot_width": 1}) == "plot_width must be between 2 and 20"
+    assert node_class.VALIDATE_INPUTS({"input": "a.fa", "sequence_logo_type": "bad"}) == (
+        "sequence_logo_type must be one of: bar, text, both"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "a.fa", "make_simmatrix_keepgaps": "3"}) == (
+        "make_simmatrix_keepgaps must be one of: 0, 1, 2"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "a.fa", "get_section": True, "section_end": 10}) == (
+        "section_start is required when get_section is enabled"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "a.fa", "deduplicate_ids": True, "duporder": "bad"}) == (
+        "duporder must be one of: first, last"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "a.fa", "clean": True}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 
