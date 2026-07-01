@@ -289,6 +289,10 @@ COLLECTION_ELEMENT_IDENTIFIERS_CITATION_URL = (
 COLLECTION_ELEMENT_IDENTIFIERS_CITATION_TEXT = (
     "Extracts the element identifiers from a list collection and writes them to a plain text file."
 )
+COLLECTION_COLUMN_JOIN_CITATION_URL = (
+    "https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_column_join"
+)
+COLLECTION_COLUMN_JOIN_CITATION_TEXT = "Joins lists of tabular datasets together on a field."
 CALCULATE_CONTRAST_THRESHOLD_DOCUMENTATION_URL = (
     "https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold"
 )
@@ -7951,6 +7955,285 @@ class CompressFileNode(CommandNode):
                 "input": ("FILE", {"description": "Dataset to compress with gzip"}),
             },
             "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class CollectionColumnJoinNode(CommandNode):
+    """Join multiple tabular collection elements on an identifier column."""
+
+    NODE_ID = "collection_column_join"
+    DISPLAY_NAME = "Column join"
+    REQUIRED_CONDA_PACKAGES = ["coreutils"]
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Join multiple tabular datasets together on an identifier field."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Column join",
+        "collection_column_join",
+        "join tabular datasets",
+        "identifier column",
+        "list collection",
+        "coreutils join",
+    ]
+    RETURN_TYPES = ("TSV", "TXT")
+    RETURN_NAMES = ("tabular_output", "script_output")
+    REQUIRED_EXECUTABLES = ["sh", "awk", "sort", "join", "paste", "head", "tail"]
+    DOCUMENTATION_URL = COLLECTION_COLUMN_JOIN_CITATION_URL
+    CITATION_DOIS: list[str] = []
+    CITATION_URLS = [COLLECTION_COLUMN_JOIN_CITATION_URL]
+    CITATION_TEXT = COLLECTION_COLUMN_JOIN_CITATION_TEXT
+    VERSION = "0.0.3"
+    SHELL = True
+
+    OPTIONAL_OUTPUTS = ["output_shell_script"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/tabular_output.tsv"
+
+    @classmethod
+    def _script_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/collection_column_join.sh"
+
+    @classmethod
+    def _script_output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/script_output.txt"
+
+    @classmethod
+    def _include_outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        raw = inputs.get("include_outputs")
+        if isinstance(raw, str):
+            return [item.strip() for item in raw.split(",") if item.strip()]
+        return _as_list(raw)
+
+    @classmethod
+    def _include_shell_script(cls, inputs: dict[str, Any]) -> bool:
+        return "output_shell_script" in cls._include_outputs(inputs)
+
+    @classmethod
+    def _tabular_items(cls, inputs: dict[str, Any]) -> list[dict[str, str]]:
+        raw_items = inputs.get("input_tabular")
+        if isinstance(raw_items, str):
+            items: list[Any] = [item.strip() for item in raw_items.split(",") if item.strip()]
+        elif isinstance(raw_items, (list, tuple)):
+            items = list(raw_items)
+        else:
+            items = []
+
+        normalized: list[dict[str, str]] = []
+        for item in items:
+            if isinstance(item, dict):
+                path = next(
+                    (
+                        str(item[key])
+                        for key in ("path", "file", "input", "location")
+                        if item.get(key) is not None and str(item[key]).strip()
+                    ),
+                    "",
+                )
+                label = next(
+                    (
+                        str(item[key])
+                        for key in ("element_identifier", "name", "identifier", "id")
+                        if item.get(key) is not None and str(item[key]).strip()
+                    ),
+                    Path(path).name,
+                )
+            else:
+                path = str(item)
+                label = Path(path).name
+            if path:
+                normalized.append({"path": path, "label": label})
+        return normalized
+
+    @classmethod
+    def _positive_int(cls, inputs: dict[str, Any], name: str, default: int) -> int:
+        return int(inputs.get(name, default))
+
+    @classmethod
+    def _awk_text(cls, value: str) -> str:
+        return value.replace("\\", "\\\\").replace('"', '\\"')
+
+    @classmethod
+    def _shell_quote_always(cls, value: str) -> str:
+        return "'" + value.replace("'", "'\"'\"'") + "'"
+
+    @classmethod
+    def _script_lines(cls, inputs: dict[str, Any]) -> list[str]:
+        identifier_column = cls._positive_int(inputs, "identifier_column", 1)
+        has_header = cls._positive_int(inputs, "has_header", 0)
+        tail_offset = has_header + 1
+        fill_char = str(inputs.get("fill_char", ".") or ".")
+        old_col_in_header = bool(inputs.get("old_col_in_header", True))
+        literal_tab = "\t"
+        lines = [
+            "#!/bin/sh",
+            "touch header0.tmp &&",
+            "touch output0.tmp &&",
+        ]
+        left_identifier_column = identifier_column
+        items = cls._tabular_items(inputs)
+        for index, item in enumerate(items):
+            path = shlex.quote(item["path"])
+            label = cls._awk_text(item["label"])
+            if old_col_in_header:
+                if has_header:
+                    lines.extend(
+                        [
+                            (
+                                f"head -n {has_header} {path} | awk '{{ n = split($0,arr,\"\\t\"); ctr=1; "
+                                f"for(i=1;i<=n;i++){{ if( i != {identifier_column} ){{ if( ctr > 1) "
+                                f"{{printf(\"\\t\")}}; printf( \"{label}_%s\", arr[i] ); ctr++ }} }}; "
+                                'printf( "\\n" ); }\' > input_header.tmp &&'
+                            ),
+                            (
+                                f"tail -n +{tail_offset} {path} | LC_ALL=C sort -t \"{literal_tab}\" -k "
+                                f"{identifier_column} > input_file.tmp &&"
+                            ),
+                        ]
+                    )
+                else:
+                    lines.extend(
+                        [
+                            (
+                                f"awk '{{ n = split($0,arr,\"\\t\"); ctr=1; for(i=1;i<=n;i++){{ "
+                                f"if( i != {identifier_column} ){{ if( ctr > 1) {{printf(\"\\t\")}}; "
+                                f"printf( \"{label}_%s\", i ); ctr++ }} }}; exit }}' {path} > input_header.tmp &&"
+                            ),
+                            f"LC_ALL=C sort -t \"{literal_tab}\" -k {identifier_column} {path} > input_file.tmp &&",
+                        ]
+                    )
+            elif has_header:
+                lines.extend(
+                    [
+                        (
+                            f"head -n {has_header} {path} | awk '{{ n = split($0,arr,\"\\t\"); ctr=1; "
+                            f"for(i=1;i<=n;i++){{ if( i != {identifier_column} ){{ if( ctr > 1) "
+                            f"{{printf(\"\\t\")}}; printf( \"{label}\" ); ctr++ }} }}; "
+                            'printf( "\\n" ); }\' > input_header.tmp &&'
+                        ),
+                        (
+                            f"tail -n +{tail_offset} {path} | LC_ALL=C sort -t \"{literal_tab}\" -k "
+                            f"{identifier_column} > input_file.tmp &&"
+                        ),
+                    ]
+                )
+            else:
+                lines.extend(
+                    [
+                        (
+                            f"awk '{{ n = split($0,arr,\"\\t\"); ctr=1; for(i=1;i<=n;i++){{ "
+                            f"if( i != {identifier_column} ){{ if( ctr > 1) {{printf(\"\\t\")}}; "
+                            f"printf( \"{label}\"); ctr++ }} }}; exit }}' {path} > input_header.tmp &&"
+                        ),
+                        f"LC_ALL=C sort -t \"{literal_tab}\" -k {identifier_column} {path} > input_file.tmp &&",
+                    ]
+                )
+
+            if index == 0:
+                lines.append(f"mv input_file.tmp output{(index + 1) % 2}.tmp &&")
+                if has_header:
+                    lines.append(f"awk '{{ printf ${identifier_column}; exit }}' {path} > header{index % 2}.tmp &&")
+                else:
+                    lines.append(f'echo "#KEY" > header{index % 2}.tmp &&')
+            else:
+                lines.append(
+                    f"LC_ALL=C join -o auto -a 1 -a 2 -1 {left_identifier_column} -2 {identifier_column} "
+                    f"-t \"{literal_tab}\" -e {cls._shell_quote_always(fill_char)} output{index % 2}.tmp input_file.tmp "
+                    f"> output{(index + 1) % 2}.tmp &&"
+                )
+                left_identifier_column = 1
+            lines.append(
+                f"paste -d \"{literal_tab}\" header{index % 2}.tmp input_header.tmp > "
+                f"header{(index + 1) % 2}.tmp &&"
+            )
+
+        final_index = len(items) % 2
+        lines.append(f'cat header{final_index}.tmp output{final_index}.tmp > "{cls._output_path(inputs)}"')
+        return lines
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        script_path = cls._script_path(inputs)
+        command = (
+            f"mkdir -p {shlex.quote(_out(inputs))} && "
+            f"cat > {shlex.quote(script_path)} <<'SH'\n"
+            + "\n".join(cls._script_lines(inputs))
+            + "\nSH\n"
+        )
+        if cls._include_shell_script(inputs):
+            command += f"cp {shlex.quote(script_path)} {shlex.quote(cls._script_output_path(inputs))} && "
+        command += f"cd {shlex.quote(_out(inputs))} && sh {shlex.quote(Path(script_path).name)}"
+        return command
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs = [out / "tabular_output.tsv"]
+        if cls._include_shell_script(inputs):
+            outputs.append(out / "script_output.txt")
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if len(cls._tabular_items(inputs)) < 2:
+            return "at least two input_tabular files are required"
+        for name, default in (("identifier_column", 1), ("has_header", 0)):
+            try:
+                value = cls._positive_int(inputs, name, default)
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < 0:
+                return f"{name} must be greater than or equal to 0"
+        if not str(inputs.get("fill_char", ".")).strip():
+            return "fill_char is required"
+        invalid_outputs = [output for output in cls._include_outputs(inputs) if output not in cls.OPTIONAL_OUTPUTS]
+        if invalid_outputs:
+            return f"include_outputs must be one of: {', '.join(cls.OPTIONAL_OUTPUTS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_tabular": (
+                    "JSON",
+                    {
+                        "is_list": True,
+                        "description": "Tabular collection elements with path and element_identifier metadata",
+                    },
+                ),
+            },
+            "optional": {
+                "identifier_column": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "description": "One-based column used to join the input datasets",
+                    },
+                ),
+                "has_header": (
+                    "INT",
+                    {"default": 0, "min": 0, "description": "Number of header lines in each input file"},
+                ),
+                "old_col_in_header": (
+                    "BOOLEAN",
+                    {"default": True, "description": "Include original column names in generated headers"},
+                ),
+                "fill_char": ("STRING", {"default": ".", "description": "Placeholder for empty joined cells"}),
+                "include_outputs": (
+                    "STRING",
+                    {
+                        "is_list": True,
+                        "default": [],
+                        "options": cls.OPTIONAL_OUTPUTS,
+                        "description": "Additional datasets to create",
+                    },
+                ),
+            },
             "hidden": {"output": ("STRING", {})},
         }
 

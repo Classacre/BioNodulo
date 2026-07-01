@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -7868,6 +7869,142 @@ def test_compress_file_renders_gzip_command_outputs_and_validation(tmp_path: Pat
     ]
     assert node_class.VALIDATE_INPUTS({}) == "input is required"
     assert node_class.VALIDATE_INPUTS({"input": "table.csv"}) is True
+
+
+def test_collection_column_join_exposes_galaxy_metadata_without_citations() -> None:
+    info = _registry().object_info()["collection_column_join"]
+
+    assert info["display_name"] == "Column join"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Join multiple tabular datasets together on an identifier field."
+    assert info["input"]["required"]["input_tabular"][0] == "JSON"
+    assert info["input"]["required"]["input_tabular"][1]["is_list"] is True
+    assert info["input"]["optional"]["identifier_column"][1]["default"] == 1
+    assert info["input"]["optional"]["identifier_column"][1]["min"] == 0
+    assert info["input"]["optional"]["has_header"][1]["default"] == 0
+    assert info["input"]["optional"]["old_col_in_header"][1]["default"] is True
+    assert info["input"]["optional"]["fill_char"][1]["default"] == "."
+    assert info["input"]["optional"]["include_outputs"][1]["options"] == ["output_shell_script"]
+    assert info["output"] == ["TSV", "TXT"]
+    assert info["output_name"] == ["tabular_output", "script_output"]
+    assert info["required_executables"] == ["sh", "awk", "sort", "join", "paste", "head", "tail"]
+    assert info["required_conda_packages"] == ["coreutils"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_column_join"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_column_join"]
+    assert "Joins lists of tabular datasets together on a field" in info["citation_text"]
+    assert "join tabular datasets" in info["search_aliases"]
+    assert info["version"] == "0.0.3"
+
+
+def test_collection_column_join_renders_script_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("collection_column_join")
+
+    command = node_class.render_command(
+        {
+            "input_tabular": [
+                {"element_identifier": "in_1.tabular", "path": "/data/in 1.tabular"},
+                {"element_identifier": "in_2.tabular", "path": "/data/in_2.tabular"},
+                {"element_identifier": "in_3.tabular", "path": "/data/in_3.tabular"},
+            ],
+            "identifier_column": 1,
+            "has_header": 1,
+            "old_col_in_header": True,
+            "fill_char": ".",
+            "include_outputs": ["output_shell_script"],
+            "output": "/work/collection_column_join",
+        }
+    )
+    assert command.startswith(
+        "mkdir -p /work/collection_column_join && "
+        "cat > /work/collection_column_join/collection_column_join.sh <<'SH'\n"
+        "#!/bin/sh\n"
+        "touch header0.tmp &&\n"
+        "touch output0.tmp &&\n"
+    )
+    assert (
+        "head -n 1 '/data/in 1.tabular' | awk '{ n = split($0,arr,\"\\t\"); ctr=1; "
+        "for(i=1;i<=n;i++){ if( i != 1 ){ if( ctr > 1) {printf(\"\\t\")}; "
+        "printf( \"in_1.tabular_%s\", arr[i] ); ctr++ } }; printf( \"\\n\" ); }' > input_header.tmp &&"
+    ) in command
+    assert (
+        "LC_ALL=C join -o auto -a 1 -a 2 -1 1 -2 1 -t \"\t\" -e '.' output1.tmp input_file.tmp "
+        "> output0.tmp &&"
+    ) in command
+    assert 'cat header1.tmp output1.tmp > "/work/collection_column_join/tabular_output.tsv"\n' in command
+    assert command.endswith(
+        "SH\n"
+        "cp /work/collection_column_join/collection_column_join.sh "
+        "/work/collection_column_join/script_output.txt && "
+        "cd /work/collection_column_join && sh collection_column_join.sh"
+    )
+
+    no_header_command = node_class.render_command(
+        {
+            "input_tabular": "a.tsv,b.tsv",
+            "identifier_column": 1,
+            "has_header": 0,
+            "old_col_in_header": False,
+            "fill_char": "NA",
+            "output": "/work/join_no_header",
+        }
+    )
+    assert 'printf( "a.tsv"); ctr++' in no_header_command
+    assert 'echo "#KEY" > header0.tmp &&' in no_header_command
+    assert "script_output.txt" not in no_header_command
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "collection_column_join" / "tabular_output.tsv",
+    ]
+    assert node_class.PLAN_OUTPUTS({"include_outputs": ["output_shell_script"]}, tmp_path) == [
+        tmp_path / "collection_column_join" / "tabular_output.tsv",
+        tmp_path / "collection_column_join" / "script_output.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "at least two input_tabular files are required"
+    assert node_class.VALIDATE_INPUTS({"input_tabular": ["one.tsv"]}) == "at least two input_tabular files are required"
+    assert node_class.VALIDATE_INPUTS({"input_tabular": ["one.tsv", "two.tsv"], "identifier_column": -1}) == (
+        "identifier_column must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tabular": ["one.tsv", "two.tsv"], "has_header": -1}) == (
+        "has_header must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"input_tabular": ["one.tsv", "two.tsv"], "fill_char": ""}) == (
+        "fill_char is required"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"input_tabular": ["one.tsv", "two.tsv"], "include_outputs": ["bad_output"]}
+    ) == "include_outputs must be one of: output_shell_script"
+    assert node_class.VALIDATE_INPUTS({"input_tabular": ["one.tsv", "two.tsv"]}) is True
+
+
+def test_collection_column_join_executes_coreutils_script_with_literal_tab_delimiters(tmp_path: Path) -> None:
+    node_class = _node_class("collection_column_join")
+    input_a = tmp_path / "in_a.tsv"
+    input_b = tmp_path / "in_b.tsv"
+    input_a.write_text("#KEY\tc2\tc3\none\tA1\tA2\ntwo\tA3\tA4\n", encoding="utf-8")
+    input_b.write_text("#KEY\tc2\tc3\none\tB1\tB2\ntwo\tB3\tB4\n", encoding="utf-8")
+    output_dir = tmp_path / "out"
+    command = node_class.render_command(
+        {
+            "input_tabular": [
+                {"element_identifier": "in_a.tsv", "path": str(input_a)},
+                {"element_identifier": "in_b.tsv", "path": str(input_b)},
+            ],
+            "identifier_column": 1,
+            "has_header": 1,
+            "old_col_in_header": True,
+            "fill_char": ".",
+            "output": str(output_dir),
+        }
+    )
+
+    subprocess.run(command, shell=True, check=True, cwd=tmp_path)
+
+    assert (output_dir / "tabular_output.tsv").read_text(encoding="utf-8") == (
+        "#KEY\tin_a.tsv_c2\tin_a.tsv_c3\tin_b.tsv_c2\tin_b.tsv_c3\n"
+        "one\tA1\tA2\tB1\tB2\n"
+        "two\tA3\tA4\tB3\tB4\n"
+    )
 
 
 def test_collection_element_identifiers_exposes_galaxy_metadata_without_citations() -> None:

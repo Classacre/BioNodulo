@@ -617,6 +617,33 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/compress_file'],
     citation_text: 'Compress files with gzip. If compressing a collection, all elements within that collection will be compressed.',
   },
+  collection_column_join: {
+    name: 'collection_column_join',
+    display_name: 'Column join',
+    category: 'data_transform',
+    description: 'Join multiple tabular datasets together on an identifier field.',
+    search_aliases: ['Galaxy', 'Column join', 'collection_column_join', 'join tabular datasets', 'identifier column', 'list collection', 'coreutils join'],
+    input: {
+      required: {
+        input_tabular: { type: 'JSON', is_list: true },
+      },
+      optional: {
+        identifier_column: { type: 'INT', default: 1, min: 0 },
+        has_header: { type: 'INT', default: 0, min: 0 },
+        old_col_in_header: { type: 'BOOLEAN', default: true },
+        fill_char: { type: 'STRING', default: '.' },
+        include_outputs: { type: 'STRING', is_list: true, default: [], options: ['output_shell_script'] },
+      },
+    },
+    output: ['TSV', 'TXT'],
+    output_name: ['tabular_output', 'script_output'],
+    required_executables: ['sh', 'awk', 'sort', 'join', 'paste', 'head', 'tail'],
+    required_conda_packages: ['coreutils'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_column_join',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/collection_column_join'],
+    citation_text: 'Joins lists of tabular datasets together on a field.',
+  },
   collection_element_identifiers: {
     name: 'collection_element_identifiers',
     display_name: 'Extract element identifiers',
@@ -17779,7 +17806,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('596 nodes available')).toBeVisible();
+  await expect(page.getByText('597 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17806,6 +17833,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'arithmetic parameter', name: 'Calculate numeric parameter value', category: 'data_transform' },
     { query: 'workflow text parameter', name: 'Compose text parameter value', category: 'data_transform' },
     { query: 'gzip compression', name: 'Compress file(s)', category: 'data_transform' },
+    { query: 'join tabular datasets', name: 'Column join', category: 'data_transform' },
     { query: 'list:paired collection', name: 'Extract element identifiers', category: 'data_transform' },
     { query: 'tag pileup CDT', name: 'Calculate Contrast threshold', category: 'visualization' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
