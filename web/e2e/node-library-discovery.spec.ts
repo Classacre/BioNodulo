@@ -16758,6 +16758,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giab008', 'https://doi.org/10.1093/bioinformatics/btp352'],
     citation_text: 'Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools.',
   },
+  cnvkit_access: {
+    name: 'cnvkit_access',
+    display_name: 'CNVkit Access',
+    category: 'variant',
+    description: 'Calculate sequence-accessible reference genome coordinates for CNVkit.',
+    search_aliases: ['Galaxy', 'CNVkit', 'CNVkit Access', 'cnvkit.py access', 'sequence-accessible coordinates', 'copy number variation', 'accessible genome regions', 'masked N regions'],
+    input: {
+      required: {
+        fa_fname: { type: 'FASTA' },
+      },
+      optional: {
+        min_gap_size: { type: 'INT', default: 5000, min: 0 },
+        exclude: { type: 'BED', default: [], multiple: true },
+      },
+    },
+    output: ['BED'],
+    output_name: ['out_sample_access'],
+    required_executables: ['cnvkit.py'],
+    required_conda_packages: ['cnvkit', 'samtools'],
+    documentation_url: 'https://cnvkit.readthedocs.io/en/stable/pipeline.html#access',
+    citation_dois: ['10.1371/journal.pcbi.1004873'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1004873'],
+    citation_text: 'CNVkit: Genome-Wide Copy Number Detection and Visualization from Targeted DNA Sequencing.',
+  },
   bcftools_csq: {
     name: 'bcftools_csq',
     display_name: 'BCFtools CSQ',
@@ -17806,7 +17830,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('597 nodes available')).toBeVisible();
+  await expect(page.getByText('598 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -18359,6 +18383,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'gvcf to vcf', name: 'BCFtools Convert to VCF', category: 'variant' },
     { query: 'vcf to shapeit', name: 'BCFtools Convert from VCF', category: 'variant' },
     { query: 'copy number variation', name: 'BCFtools CNV', category: 'variant' },
+    { query: 'sequence-accessible coordinates', name: 'CNVkit Access', category: 'variant' },
     { query: 'consequence prediction', name: 'BCFtools CSQ', category: 'variant' },
     { query: 'runs of homozygosity', name: 'BCFtools ROH', category: 'variant' },
     { query: 'variant counts', name: 'BCFtools +counts', category: 'variant' },

@@ -74,6 +74,10 @@ BCFTOOLS_CITATION_TEXT = (
     "Twelve years of SAMtools and BCFtools; "
     "The Sequence Alignment/Map format and SAMtools."
 )
+CNVKIT_CITATION_DOI = "10.1371/journal.pcbi.1004873"
+CNVKIT_CITATION_TEXT = (
+    "CNVkit: Genome-Wide Copy Number Detection and Visualization from Targeted DNA Sequencing."
+)
 FREEBAYES_CITATION_DOIS = ["10.48550/arXiv.1207.3907"]
 FREEBAYES_CITATION_URLS = [
     "https://doi.org/10.48550/arXiv.1207.3907",
@@ -77385,6 +77389,142 @@ with plots_out.open("w", encoding="utf-8") as handle:
                 "regions_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy regions-overlap mode"}),
                 "targets": ("STRING", {"default": "", "description": "Restrict to targets"}),
                 "targets_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"], "description": "Galaxy targets-overlap mode"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class CNVkitAccessNode(CommandNode):
+    """Calculate CNVkit sequence-accessible genome coordinates."""
+
+    NODE_ID = "cnvkit_access"
+    DISPLAY_NAME = "CNVkit Access"
+    REQUIRED_CONDA_PACKAGES = ["cnvkit", "samtools"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Calculate sequence-accessible reference genome coordinates for CNVkit."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CNVkit",
+        "CNVkit Access",
+        "cnvkit.py access",
+        "sequence-accessible coordinates",
+        "copy number variation",
+        "accessible genome regions",
+        "masked N regions",
+    ]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("out_sample_access",)
+    REQUIRED_EXECUTABLES = ["cnvkit.py"]
+    DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/en/stable/pipeline.html#access"
+    CITATION_DOIS = [CNVKIT_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CNVKIT_CITATION_DOI}"]
+    CITATION_TEXT = CNVKIT_CITATION_TEXT
+    VERSION = "0.9.12+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/access-excludes.bed"
+
+    @classmethod
+    def _exclude_items(cls, inputs: dict[str, Any]) -> list[dict[str, str]]:
+        raw = inputs.get("exclude")
+        if raw is None or raw == "":
+            values: list[Any] = []
+        elif isinstance(raw, str):
+            values = [item.strip() for item in raw.split(",") if item.strip()]
+        elif isinstance(raw, (list, tuple)):
+            values = list(raw)
+        else:
+            values = [raw]
+
+        items: list[dict[str, str]] = []
+        for index, value in enumerate(values, start=1):
+            if isinstance(value, dict):
+                path = next(
+                    (
+                        str(value[key])
+                        for key in ("path", "file", "input", "location")
+                        if value.get(key) is not None and str(value[key]).strip()
+                    ),
+                    "",
+                )
+                label = next(
+                    (
+                        str(value[key])
+                        for key in ("element_identifier", "name", "identifier", "id")
+                        if value.get(key) is not None and str(value[key]).strip()
+                    ),
+                    Path(path).stem or f"exclude_{index}",
+                )
+            else:
+                path = str(value)
+                label = Path(path).stem or f"exclude_{index}"
+            items.append({"path": path, "label": _safe_label(label)})
+        return items
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        commands = [f"ln -s {shlex.quote(str(inputs.get('fa_fname', '')))} ./genome.fasta"]
+        exclude_names: list[str] = []
+        for item in cls._exclude_items(inputs):
+            link_name = f"{item['label']}.bed"
+            exclude_names.append(link_name)
+            commands.append(f"ln -s {shlex.quote(item['path'])} {shlex.quote(link_name)}")
+
+        cmd = ["cnvkit.py", "access", "./genome.fasta"]
+        for exclude_name in exclude_names:
+            cmd.extend(["--exclude", exclude_name])
+        min_gap_size = inputs.get("min_gap_size", 5000)
+        if min_gap_size is not None and str(min_gap_size) != "":
+            cmd.extend(["--min-gap-size", str(min_gap_size)])
+        cmd.extend(["--output", cls._output_path(inputs)])
+        commands.append(_shell_join(cmd))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "access-excludes.bed"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("fa_fname", "")).strip():
+            return "fa_fname is required"
+        try:
+            min_gap_size = int(inputs.get("min_gap_size", 5000))
+        except (TypeError, ValueError):
+            return "min_gap_size must be an integer"
+        if min_gap_size < 0:
+            return "min_gap_size must be greater than or equal to 0"
+        if any(not item["path"].strip() for item in cls._exclude_items(inputs)):
+            return "each exclude BED requires a path"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "fa_fname": ("FASTA", {"description": "Reference genome FASTA file"}),
+            },
+            "optional": {
+                "min_gap_size": (
+                    "INT",
+                    {
+                        "default": 5000,
+                        "min": 0,
+                        "description": "Minimum gap size between accessible regions; smaller gaps are joined",
+                    },
+                ),
+                "exclude": (
+                    "BED",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": "Additional BED regions to exclude from accessible coordinates",
+                    },
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }

@@ -45482,6 +45482,61 @@ def test_bcftools_cnv_renders_pairwise_hmm_command_and_outputs(tmp_path: Path) -
     ]
 
 
+def test_cnvkit_access_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    info = _registry().object_info()["cnvkit_access"]
+
+    assert info["display_name"] == "CNVkit Access"
+    assert info["category"] == "variant"
+    assert info["description"] == "Calculate sequence-accessible reference genome coordinates for CNVkit."
+    assert info["input"]["required"]["fa_fname"][0] == "FASTA"
+    assert info["input"]["optional"]["min_gap_size"][1]["default"] == 5000
+    assert info["input"]["optional"]["min_gap_size"][1]["min"] == 0
+    assert info["input"]["optional"]["exclude"][0] == "BED"
+    assert info["input"]["optional"]["exclude"][1]["multiple"] is True
+    assert info["output"] == ["BED"]
+    assert info["output_name"] == ["out_sample_access"]
+    assert info["required_executables"] == ["cnvkit.py"]
+    assert info["required_conda_packages"] == ["cnvkit", "samtools"]
+    assert info["documentation_url"] == "https://cnvkit.readthedocs.io/en/stable/pipeline.html#access"
+    assert info["citation_dois"] == ["10.1371/journal.pcbi.1004873"]
+    assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1004873"]
+    assert "Genome-Wide Copy Number Detection and Visualization" in info["citation_text"]
+    assert "sequence-accessible coordinates" in info["search_aliases"]
+    assert info["version"] == "0.9.12+galaxy0"
+
+
+def test_cnvkit_access_renders_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cnvkit_access")
+
+    command = node_class.render_command(
+        {
+            "fa_fname": "reference genome.fa",
+            "min_gap_size": 2500,
+            "exclude": [
+                {"element_identifier": "centromeres and telomeres", "path": "excluded regions.bed"},
+                {"element_identifier": "blacklist", "path": "blacklist.bed"},
+            ],
+            "output": "/work/cnvkit_access",
+        }
+    )
+    assert command == (
+        "ln -s 'reference genome.fa' ./genome.fasta && "
+        "ln -s 'excluded regions.bed' centromeres_and_telomeres.bed && "
+        "ln -s blacklist.bed blacklist.bed && "
+        "cnvkit.py access ./genome.fasta --exclude centromeres_and_telomeres.bed "
+        "--exclude blacklist.bed --min-gap-size 2500 --output /work/cnvkit_access/access-excludes.bed"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cnvkit_access" / "access-excludes.bed"]
+    assert node_class.VALIDATE_INPUTS({}) == "fa_fname is required"
+    assert node_class.VALIDATE_INPUTS({"fa_fname": "genome.fa", "min_gap_size": -1}) == (
+        "min_gap_size must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"fa_fname": "genome.fa", "exclude": [{"name": "missing path"}]}) == (
+        "each exclude BED requires a path"
+    )
+    assert node_class.VALIDATE_INPUTS({"fa_fname": "genome.fa", "exclude": ["excludes.bed"]}) is True
+
+
 def test_bcftools_csq_renders_haplotype_consequence_command_and_output(tmp_path: Path) -> None:
     node_class = _node_class("bcftools_csq")
 
