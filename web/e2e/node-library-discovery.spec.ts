@@ -3891,6 +3891,33 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giaa158'],
     citation_text: 'ChiRA: an integrated framework for chimeric read analysis from RNA-RNA interactome and structurome data.',
   },
+  chira_quantify: {
+    name: 'chira_quantify',
+    display_name: 'ChiRA quantify',
+    category: 'rna_seq',
+    description: 'Create and quantify ChiRA read-concentrated loci from merged alignments.',
+    search_aliases: ['Galaxy', 'ChiRA', 'ChiRA quantify', 'chira_quantify', 'chira_quantify.py', 'read-concentrated loci', 'CRL', 'CRL TPM', 'TPM'],
+    input: {
+      required: {
+        segments: { type: 'BED' },
+        merged: { type: 'TSV' },
+      },
+      optional: {
+        crl_share: { type: 'FLOAT', default: 0.7, min: 0, max: 1 },
+        min_locus_size: { type: 'INT', default: 10, min: 1 },
+        em_threshold: { type: 'FLOAT', default: 0.00001, min: 0 },
+        crl: { type: 'BOOLEAN', default: true },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['loci'],
+    required_executables: ['chira_quantify.py'],
+    required_conda_packages: ['chira'],
+    documentation_url: 'https://github.com/BackofenLab/ChiRA',
+    citation_dois: ['10.1093/gigascience/giaa158'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa158'],
+    citation_text: 'ChiRA: an integrated framework for chimeric read analysis from RNA-RNA interactome and structurome data.',
+  },
   chewbbaca_allelecall: {
     name: 'chewbbaca_allelecall',
     display_name: 'ChewBBACA AlleleCall',
@@ -17044,7 +17071,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('572 nodes available')).toBeVisible();
+  await expect(page.getByText('573 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17182,6 +17209,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'deduplicate fastq reads', name: 'ChiRA collapse', category: 'rna_seq' },
     { query: 'chimeric read mapping', name: 'ChiRA map', category: 'rna_seq' },
     { query: 'read-concentrated loci', name: 'ChiRA merge', category: 'rna_seq' },
+    { query: 'CRL TPM', name: 'ChiRA quantify', category: 'rna_seq' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },

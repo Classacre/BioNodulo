@@ -11183,6 +11183,76 @@ def test_chira_merge_renders_locus_merging_command_outputs_and_validation(tmp_pa
     assert node_class.VALIDATE_INPUTS({"alignments": "a.bed"}) is True
 
 
+def test_chira_quantify_renders_locus_quantification_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chira_quantify")
+    info = _registry().object_info()["chira_quantify"]
+
+    assert info["display_name"] == "ChiRA quantify"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Create and quantify ChiRA read-concentrated loci from merged alignments."
+    assert info["input"]["required"]["segments"][0] == "BED"
+    assert info["input"]["required"]["merged"][0] == "TSV"
+    assert info["input"]["optional"]["crl_share"][1]["default"] == 0.7
+    assert info["input"]["optional"]["crl_share"][1]["min"] == 0
+    assert info["input"]["optional"]["crl_share"][1]["max"] == 1
+    assert info["input"]["optional"]["min_locus_size"][1]["default"] == 10
+    assert info["input"]["optional"]["min_locus_size"][1]["min"] == 1
+    assert info["input"]["optional"]["em_threshold"][1]["default"] == 0.00001
+    assert info["input"]["optional"]["em_threshold"][1]["min"] == 0
+    assert info["input"]["optional"]["crl"][1]["default"] is True
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["loci"]
+    assert info["required_executables"] == ["chira_quantify.py"]
+    assert info["required_conda_packages"] == ["chira"]
+    assert info["documentation_url"] == "https://github.com/BackofenLab/ChiRA"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa158"]
+    assert info["citation_urls"] == ["https://doi.org/10.1093/gigascience/giaa158"]
+    assert "ChiRA quantify" in info["search_aliases"]
+    assert "chira_quantify.py" in info["search_aliases"]
+    assert "CRL TPM" in info["search_aliases"]
+    assert "TPM" in info["search_aliases"]
+    assert info["version"] == "1.4.3+galaxy0"
+
+    assert node_class.render_command(
+        {
+            "segments": "segments.bed",
+            "merged": "merged.bed",
+            "crl_share": 0.8,
+            "min_locus_size": 5,
+            "em_threshold": 1,
+            "crl": True,
+            "output": "/work/chira_quantify",
+        }
+    ) == (
+        "mkdir -p /work/chira_quantify && cd /work/chira_quantify && "
+        "chira_quantify.py -b segments.bed -m merged.bed -cs 0.8 -ls 5 -e 1 -crl -o ./"
+    )
+    assert node_class.render_command(
+        {
+            "segments": "segments file.bed",
+            "merged": "merged loci.tsv",
+            "crl": False,
+            "output": "/work/chira_quantify",
+        }
+    ) == (
+        "mkdir -p /work/chira_quantify && cd /work/chira_quantify && "
+        "chira_quantify.py -b 'segments file.bed' -m 'merged loci.tsv' -cs 0.7 -ls 10 -e 1e-05 -o ./"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "chira_quantify" / "loci.counts"]
+    assert node_class.VALIDATE_INPUTS({}) == "segments is required"
+    assert node_class.VALIDATE_INPUTS({"segments": "segments.bed"}) == "merged is required"
+    assert node_class.VALIDATE_INPUTS({"segments": "segments.bed", "merged": "merged.bed", "crl_share": 1.2}) == (
+        "crl_share must be between 0 and 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"segments": "segments.bed", "merged": "merged.bed", "min_locus_size": 0}) == (
+        "min_locus_size must be >= 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"segments": "segments.bed", "merged": "merged.bed", "em_threshold": -1}) == (
+        "em_threshold must be >= 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"segments": "segments.bed", "merged": "merged.bed"}) is True
+
+
 def test_chewbbaca_allelecall_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["chewbbaca_allelecall"]
 

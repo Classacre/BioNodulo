@@ -21517,6 +21517,120 @@ class ChiraMergeNode(CommandNode):
         return True
 
 
+class ChiraQuantifyNode(CommandNode):
+    """Quantify ChiRA read-concentrated loci."""
+
+    NODE_ID = "chira_quantify"
+    DISPLAY_NAME = "ChiRA quantify"
+    REQUIRED_CONDA_PACKAGES = ["chira"]
+    CATEGORY = "rna_seq"
+    DESCRIPTION = "Create and quantify ChiRA read-concentrated loci from merged alignments."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "ChiRA",
+        "ChiRA quantify",
+        "chira_quantify",
+        "chira_quantify.py",
+        "read-concentrated loci",
+        "CRL",
+        "CRL TPM",
+        "TPM",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("loci",)
+    REQUIRED_EXECUTABLES = ["chira_quantify.py"]
+    DOCUMENTATION_URL = CHIRA_DOCUMENTATION_URL
+    CITATION_DOIS = [CHIRA_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CHIRA_CITATION_DOI}"]
+    CITATION_TEXT = CHIRA_CITATION_TEXT
+    VERSION = "1.4.3+galaxy0"
+    SHELL = True
+
+    @staticmethod
+    def _bool_flag(value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, str):
+            return value.lower() not in {"", "false", "0", "no", "off"}
+        return bool(value)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        cmd = [
+            "chira_quantify.py",
+            "-b",
+            str(inputs.get("segments", "")),
+            "-m",
+            str(inputs.get("merged", "")),
+            "-cs",
+            str(inputs.get("crl_share", 0.7)),
+            "-ls",
+            str(inputs.get("min_locus_size", 10)),
+            "-e",
+            str(inputs.get("em_threshold", 0.00001)),
+        ]
+        if cls._bool_flag(inputs.get("crl", True)):
+            cmd.append("-crl")
+        cmd.extend(["-o", "./"])
+        return f"{_shell_join(['mkdir', '-p', out])} && cd {shlex.quote(out)} && {_shell_join(cmd)}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "loci.counts"]
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "segments": ("BED", {"description": "BED file of aligned ChiRA segments"}),
+                "merged": ("TSV", {"description": "Tabular file of merged ChiRA alignments"}),
+            },
+            "optional": {
+                "crl_share": ("FLOAT", {"default": 0.7, "min": 0, "max": 1}),
+                "min_locus_size": ("INT", {"default": 10, "min": 1}),
+                "em_threshold": ("FLOAT", {"default": 0.00001, "min": 0}),
+                "crl": ("BOOLEAN", {"default": True, "description": "Create and quantify CRLs"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def _validate_float_range(cls, inputs: dict[str, Any], name: str, default: float) -> bool | str:
+        try:
+            value = float(inputs.get(name, default))
+        except (TypeError, ValueError):
+            return f"{name} must be numeric"
+        if not 0 <= value <= 1:
+            return f"{name} must be between 0 and 1"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("segments", "")).strip():
+            return "segments is required"
+        if not str(inputs.get("merged", "")).strip():
+            return "merged is required"
+        result = cls._validate_float_range(inputs, "crl_share", 0.7)
+        if result is not True:
+            return result
+        try:
+            min_locus_size = int(inputs.get("min_locus_size", 10))
+        except (TypeError, ValueError):
+            return "min_locus_size must be an integer"
+        if min_locus_size < 1:
+            return "min_locus_size must be >= 1"
+        try:
+            em_threshold = float(inputs.get("em_threshold", 0.00001))
+        except (TypeError, ValueError):
+            return "em_threshold must be numeric"
+        if em_threshold < 0:
+            return "em_threshold must be >= 0"
+        return True
+
+
 class ChewBBACAAlleleCallNode(CommandNode):
     """Determine allelic profiles for genome assemblies with chewBBACA."""
 
