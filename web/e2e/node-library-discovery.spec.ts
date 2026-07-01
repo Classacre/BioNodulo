@@ -3732,6 +3732,51 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.12983'],
     citation_text: 'CIAlign: A highly customisable command line tool to clean, interpret and visualise multiple sequence alignments.',
   },
+  chromap: {
+    name: 'chromap',
+    display_name: 'chromap',
+    category: 'alignment',
+    description: 'Fast alignment and preprocessing of chromatin profiling reads.',
+    search_aliases: ['Galaxy', 'chromap', 'Chromap', 'chromatin profiles', 'ATAC-seq', 'scATAC-seq', 'ChIP-seq', 'Hi-C', 'TagAlign', '4DN pairs'],
+    input: {
+      required: {
+        read_type: { type: 'STRING', default: 'single', options: ['single', 'paired'] },
+        ref: { type: 'FASTA' },
+      },
+      optional: {
+        single_reads: { type: 'FASTQ', default: [], is_list: true },
+        paired_collection: { type: 'JSON', default: {} },
+        barcode: { type: 'FASTQ', default: '' },
+        barcode_whitelist: { type: 'TXT', default: '' },
+        read_format: { type: 'STRING', default: '' },
+        barcode_translate: { type: 'TSV', default: '' },
+        min_frag_length: { type: 'INT', default: 30, min: 1 },
+        kmer: { type: 'INT', default: 17, min: 1 },
+        window: { type: 'INT', default: 7, min: 1 },
+        preset: { type: 'STRING', default: 'atac', options: ['atac', 'chip', 'hic'] },
+        split_alignment: { type: 'BOOLEAN', default: false },
+        error_threshold: { type: 'INT', default: 8, min: 0 },
+        min_num_seeds: { type: 'INT', default: 2, min: 1 },
+        max_seed_frequencies: { type: 'STRING', default: '500,1000' },
+        max_insert_size: { type: 'INT', default: 1000, min: 1 },
+        MAPQ_threshold: { type: 'INT', default: 30, min: 0, max: 60 },
+        min_read_length: { type: 'INT', default: 30, min: 1 },
+        trim_adapters: { type: 'BOOLEAN', default: false },
+        Tn5_shift: { type: 'BOOLEAN', default: false },
+        out_format: { type: 'STRING', default: '--BED', options: ['--SAM', '--BED', '--TagAlign', '--pairs'] },
+        summary: { type: 'BOOLEAN', default: true },
+        threads: { type: 'INT', default: 8, min: 1, max: 128, display: 'slider' },
+      },
+    },
+    output: ['BED', 'TXT'],
+    output_name: ['mapping_out', 'summary_out'],
+    required_executables: ['chromap'],
+    required_conda_packages: ['chromap'],
+    documentation_url: 'https://github.com/haowenz/chromap',
+    citation_dois: ['10.1038/s41467-021-26865-w'],
+    citation_urls: ['https://doi.org/10.1038/s41467-021-26865-w'],
+    citation_text: 'Fast alignment and preprocessing of chromatin profiles with Chromap.',
+  },
   filtlong: {
     name: 'filtlong',
     display_name: 'filtlong',
@@ -17201,7 +17246,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('576 nodes available')).toBeVisible();
+  await expect(page.getByText('577 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17343,6 +17388,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'IntaRNA', name: 'ChiRA extract', category: 'rna_seq' },
     { query: 'hyperdimensional computing', name: 'chopin2', category: 'ai' },
     { query: 'multiple sequence alignment', name: 'CIAlign', category: 'alignment' },
+    { query: 'chromatin profiles', name: 'chromap', category: 'alignment' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },

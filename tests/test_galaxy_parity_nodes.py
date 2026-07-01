@@ -14601,6 +14601,134 @@ def test_cialign_renders_alignment_cleaning_command_outputs_and_validation(tmp_p
     assert node_class.VALIDATE_INPUTS({"input": "a.fa", "clean": True}) is True
 
 
+def test_chromap_renders_mapping_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chromap")
+    info = _registry().object_info()["chromap"]
+
+    assert info["display_name"] == "chromap"
+    assert info["category"] == "alignment"
+    assert info["description"] == "Fast alignment and preprocessing of chromatin profiling reads."
+    assert info["input"]["required"]["read_type"][1]["options"] == ["single", "paired"]
+    assert info["input"]["required"]["ref"][0] == "FASTA"
+    assert info["input"]["optional"]["preset"][1]["default"] == "atac"
+    assert info["input"]["optional"]["preset"][1]["options"] == ["atac", "chip", "hic"]
+    assert info["input"]["optional"]["out_format"][1]["options"] == ["--SAM", "--BED", "--TagAlign", "--pairs"]
+    assert info["input"]["optional"]["MAPQ_threshold"][1]["max"] == 60
+    assert info["output"] == ["BED", "TXT"]
+    assert info["output_name"] == ["mapping_out", "summary_out"]
+    assert info["required_executables"] == ["chromap"]
+    assert info["required_conda_packages"] == ["chromap"]
+    assert info["documentation_url"] == "https://github.com/haowenz/chromap"
+    assert info["citation_dois"] == ["10.1038/s41467-021-26865-w"]
+    assert info["citation_urls"] == ["https://doi.org/10.1038/s41467-021-26865-w"]
+    assert "Fast alignment and preprocessing of chromatin profiles with Chromap" in info["citation_text"]
+    assert "ATAC-seq" in info["search_aliases"]
+    assert info["version"] == "0.3.2+galaxy0"
+
+    assert node_class.render_command(
+        {
+            "read_type": "paired",
+            "paired_collection": {"forward": "read 1.fq", "reverse": "read2.fq"},
+            "ref": "ref genome.fa",
+            "kmer": 17,
+            "window": 7,
+            "min_frag_length": 30,
+            "preset": "chip",
+            "error_threshold": 8,
+            "min_num_seeds": 2,
+            "max_seed_frequencies": "500,1000",
+            "max_insert_size": 1000,
+            "MAPQ_threshold": 30,
+            "min_read_length": 30,
+            "out_format": "--BED",
+            "summary": True,
+            "threads": 6,
+            "output": "/work/chromap",
+        }
+    ) == (
+        "mkdir -p /work/chromap && cd /work/chromap && chromap -i -r 'ref genome.fa' -o chromap_index "
+        "-k 17 -w 7 --min-frag-length 30 && chromap --preset chip -1 'read 1.fq' -2 read2.fq "
+        "-r 'ref genome.fa' -x chromap_index --error-threshold 8 --min-num-seeds 2 "
+        "--max-seed-frequencies 500,1000 --max-insert-size 1000 --MAPQ-threshold 30 "
+        "--min-read-length 30 --BED --summary /work/chromap/summary.txt -t ${GALAXY_SLOTS:-6} "
+        "-o /work/chromap/mapping.bed"
+    )
+    assert node_class.render_command(
+        {
+            "read_type": "single",
+            "single_reads": ["read1.fq", "read two.fq"],
+            "ref": "ref.fa",
+            "kmer": 15,
+            "window": 5,
+            "min_frag_length": "",
+            "preset": "atac",
+            "barcode": "barcode.fq",
+            "barcode_whitelist": "whitelist.txt",
+            "read_format": "r1:0:-1,bc:0:-1",
+            "barcode_translate": "translate.tsv",
+            "split_alignment": True,
+            "trim_adapters": True,
+            "Tn5_shift": True,
+            "bc_error_threshold": 1,
+            "bc_probability_threshold": 0.9,
+            "chr_order": "chr_order.tsv",
+            "pairs_natural_chr_order": "pairs.tsv",
+            "out_format": "--SAM",
+            "summary": False,
+            "output": "/work/chromap",
+        }
+    ) == (
+        "mkdir -p /work/chromap && cd /work/chromap && chromap -i -r ref.fa -o chromap_index -k 15 -w 5 && "
+        "chromap --preset atac -1 read1.fq 'read two.fq' -r ref.fa -x chromap_index -b barcode.fq "
+        "--barcode-whitelist whitelist.txt --read-format r1:0:-1,bc:0:-1 --barcode-translate translate.tsv "
+        "--split-alignment --error-threshold 8 --min-num-seeds 2 --max-seed-frequencies 500,1000 "
+        "--max-insert-size 1000 --MAPQ-threshold 30 --min-read-length 30 --trim-adapters --Tn5-shift "
+        "--bc-error-threshold 1 --bc-probability-threshold 0.9 --chr-order chr_order.tsv "
+        "--pairs-natural-chr-order pairs.tsv --SAM -t ${GALAXY_SLOTS:-8} -o /work/chromap/mapping.sam"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"out_format": "--BED", "summary": True}, tmp_path) == [
+        tmp_path / "chromap" / "mapping.bed",
+        tmp_path / "chromap" / "summary.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"out_format": "--SAM", "summary": False}, tmp_path) == [
+        tmp_path / "chromap" / "mapping.sam"
+    ]
+    assert node_class.PLAN_OUTPUTS({"out_format": "--TagAlign", "summary": False}, tmp_path) == [
+        tmp_path / "chromap" / "mapping.tsv"
+    ]
+    assert node_class.PLAN_OUTPUTS({"out_format": "--pairs", "summary": False}, tmp_path) == [
+        tmp_path / "chromap" / "mapping.pairs"
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "ref is required"
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "bad"}) == (
+        "read_type must be one of: single, paired"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "single"}) == (
+        "at least one single_reads value is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "paired", "paired_collection": {"forward": "r1.fq"}}) == (
+        "paired_collection with forward and reverse reads is required"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "single", "single_reads": ["r.fq"], "preset": "bad"}) == (
+        "preset must be one of: atac, chip, hic"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "single", "single_reads": ["r.fq"], "out_format": "bam"}) == (
+        "out_format must be one of: --SAM, --BED, --TagAlign, --pairs"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "single", "single_reads": ["r.fq"], "kmer": 0}) == (
+        "kmer must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "single", "single_reads": ["r.fq"], "MAPQ_threshold": 61}) == (
+        "MAPQ_threshold must be between 0 and 60"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"ref": "ref.fa", "read_type": "single", "single_reads": ["r.fq"], "bc_probability_threshold": 1.2}
+    ) == "bc_probability_threshold must be between 0 and 1"
+    assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "single", "single_reads": ["r.fq"]}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 
