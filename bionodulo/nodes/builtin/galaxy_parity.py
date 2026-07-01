@@ -17414,6 +17414,288 @@ class CIRCexplorer2Node(CommandNode):
         }
 
 
+class CircosNode(CommandNode):
+    """Render Galaxy IUC Circos plots from karyotype, data, and link tracks."""
+
+    NODE_ID = "circos"
+    DISPLAY_NAME = "Circos"
+    REQUIRED_CONDA_PACKAGES = [
+        "circos",
+        "bcbiogff",
+        "biopython",
+        "pybigwig",
+        "circos-tools",
+        "grep",
+        "tar",
+    ]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Visualize genomic data in a circular layout with the Galaxy IUC Circos wrapper."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "circos",
+        "circular layout",
+        "circular genome plot",
+        "karyotype",
+        "2D data tracks",
+        "link tracks",
+        "comparative genomics",
+    ]
+    RETURN_TYPES = ("IMAGE", "IMAGE", "TAR", "TSV")
+    RETURN_NAMES = ("output_png", "output_svg", "output_tar", "karyotype_txt")
+    REQUIRED_EXECUTABLES = ["python", "grep", "cp", "ln", "head", "tar", "circos"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    REFERENCE_SOURCES = ["preset", "history", "cached", "karyotype", "lengths"]
+    UNITS = ["bases", "kb", "mb", "gb"]
+    PRESET_KARYOTYPES = [
+        "karyotype.arabidopsis.tair10.txt",
+        "karyotype.chimp.pt4.txt",
+        "karyotype.drosophila.dm6.hires.txt",
+        "karyotype.drosophila.hires.dm3.txt",
+        "karyotype.human.hg38.txt",
+        "karyotype.human.hg19.txt",
+        "karyotype.human.hg18.txt",
+        "karyotype.human.hg17.txt",
+        "karyotype.human.hg16.txt",
+        "karyotype.mouse.mm10.txt",
+        "karyotype.mouse.mm9.txt",
+        "karyotype.oryzasativa.txt",
+        "karyotype.rat.rn4.txt",
+        "karyotype.sorghum.txt",
+        "karyotype.yeast.txt",
+        "karyotype.zeamays.txt",
+    ]
+    LIMIT_DEFAULTS = {
+        "max_ticks": 5000,
+        "max_ideograms": 200,
+        "max_links": 25000,
+        "max_points_per_track": 25000,
+    }
+    LIMIT_MINIMUM = 200
+
+    @classmethod
+    def _reference_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("reference_source", "preset") or "preset")
+
+    @classmethod
+    def _output_enabled(cls, inputs: dict[str, Any], key: str) -> bool:
+        if key not in inputs:
+            return key == "output_png"
+        return bool(inputs.get(key))
+
+    @classmethod
+    def _outputs_plot(cls, inputs: dict[str, Any]) -> bool:
+        return cls._output_enabled(inputs, "output_png") or cls._output_enabled(inputs, "output_svg")
+
+    @classmethod
+    def _outputs_karyotype(cls, inputs: dict[str, Any]) -> bool:
+        return cls._reference_source(inputs) not in {"karyotype", "preset"}
+
+    @classmethod
+    def _conf_dir(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/circos/conf"
+
+    @classmethod
+    def _data_dir(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/circos/data"
+
+    @classmethod
+    def _karyotype_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{cls._conf_dir(inputs)}/karyotype.txt"
+
+    @classmethod
+    def _reference_commands(cls, inputs: dict[str, Any]) -> list[str]:
+        out = _out(inputs)
+        karyotype = cls._karyotype_path(inputs)
+        source = cls._reference_source(inputs)
+        if source == "history":
+            genome_ref = f"{out}/genomeref.fa"
+            return [
+                _shell_join(["ln", "-s", str(inputs.get("genome_fasta", "") or ""), genome_ref]),
+                f"{_shell_join(['python', 'karyotype-from-fasta.py', genome_ref])} > {shlex.quote(karyotype)}",
+            ]
+        if source == "lengths":
+            return (
+                f"{_shell_join(['python', 'karyotype-from-lengths.py', str(inputs.get('input_lengths', '') or '')])} "
+                f"> {shlex.quote(karyotype)}"
+            ).split(" && ")
+        if source == "cached":
+            lengths = str(inputs.get("cached_lengths", "") or "")
+            if inputs.get("limit_chromosomes"):
+                length_source = lengths
+            else:
+                length_source = f"<(head -n 50 {shlex.quote(lengths)})"
+            return [
+                f"{_shell_join(['python', 'karyotype-from-lengths.py', length_source])} > {shlex.quote(karyotype)}"
+            ]
+        if source == "karyotype":
+            return [_shell_join(["cp", str(inputs.get("input_karyotype", "") or ""), karyotype])]
+        return [
+            _shell_join(
+                [
+                    "cp",
+                    f"karyotype/{str(inputs.get('preset_karyotype', 'karyotype.human.hg38.txt') or 'karyotype.human.hg38.txt')}",
+                    karyotype,
+                ]
+            )
+        ]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        karyotype = cls._karyotype_path(inputs)
+        commands = [
+            _shell_join(["mkdir", "-p", cls._conf_dir(inputs), cls._data_dir(inputs)]),
+            *cls._reference_commands(inputs),
+            (
+                f"python karyotype-colors.py `grep -c '^chr\\s' {shlex.quote(karyotype)}` "
+                f"> {shlex.quote(f'{cls._conf_dir(inputs)}/karyotype-colors.conf')}"
+            ),
+            _shell_join(["touch", f"{cls._conf_dir(inputs)}/karyotype-colors.conf"]),
+        ]
+        if str(inputs.get("colour_profile", "") or "") == "cg":
+            commands.append(f"cat colours/cg.conf >> {shlex.quote(f'{cls._conf_dir(inputs)}/karyotype-colors.conf')}")
+        if cls._outputs_karyotype(inputs):
+            commands.append(_shell_join(["cp", karyotype, f"{out}/karyotype.txt"]))
+        for source, target in [
+            ("circos.conf", "circos.conf"),
+            ("ticks.conf", "ticks.conf"),
+            ("ideogram.conf", "ideogram.conf"),
+            ("data.conf", "data.conf"),
+            ("links.conf", "links.conf"),
+            ("galaxy_test_case.json", "galaxy_test_case.json"),
+        ]:
+            commands.append(_shell_join(["cp", source, f"{cls._conf_dir(inputs)}/{target}"]))
+        for idx, track in enumerate(_as_list(inputs.get("data_tracks"))):
+            commands.append(_shell_join(["cp", track, f"{cls._data_dir(inputs)}/data-{idx}.txt"]))
+        for idx, track in enumerate(_as_list(inputs.get("link_tracks"))):
+            commands.append(_shell_join(["cp", track, f"{cls._data_dir(inputs)}/links-{idx}.txt"]))
+        if cls._output_enabled(inputs, "output_tar"):
+            commands.append(_shell_join(["tar", "-czf", f"{out}/circos.tar.gz", "-C", out, "circos"]))
+        if cls._outputs_plot(inputs):
+            commands.append(_shell_join(["cd", out]))
+            commands.append(_shell_join(["circos", "-conf", "circos/conf/circos.conf", "-noparanoid"]))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs: list[Path] = []
+        if cls._output_enabled(inputs, "output_png"):
+            outputs.append(out / "circos.png")
+        if cls._output_enabled(inputs, "output_svg"):
+            outputs.append(out / "circos.svg")
+        if cls._output_enabled(inputs, "output_tar"):
+            outputs.append(out / "circos.tar.gz")
+        if cls._outputs_karyotype(inputs):
+            outputs.append(out / "karyotype.txt")
+        return outputs
+
+    @classmethod
+    def _validate_int_min(cls, inputs: dict[str, Any], key: str, default: int, minimum: int = 0) -> bool | str:
+        value = inputs.get(key, default)
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return f"{key} must be an integer"
+        if parsed < minimum:
+            return f"{key} must be greater than or equal to {minimum}"
+        return True
+
+    @classmethod
+    def _validate_track_list(cls, inputs: dict[str, Any], key: str) -> bool | str:
+        raw = inputs.get(key)
+        if isinstance(raw, (list, tuple)) and any(str(value) == "" for value in raw):
+            return f"{key} values must not be empty"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        source = cls._reference_source(inputs)
+        if source not in cls.REFERENCE_SOURCES:
+            return f"reference_source must be one of: {', '.join(cls.REFERENCE_SOURCES)}"
+        required_by_source = {
+            "history": "genome_fasta",
+            "cached": "cached_lengths",
+            "karyotype": "input_karyotype",
+            "lengths": "input_lengths",
+        }
+        required = required_by_source.get(source)
+        if required and not str(inputs.get(required, "") or "").strip():
+            return f"{required} is required when reference_source is {source}"
+        preset = str(inputs.get("preset_karyotype", "karyotype.human.hg38.txt") or "karyotype.human.hg38.txt")
+        if source == "preset" and preset not in cls.PRESET_KARYOTYPES:
+            return f"preset_karyotype must be one of: {', '.join(cls.PRESET_KARYOTYPES)}"
+        if not any(
+            [
+                cls._output_enabled(inputs, "output_png"),
+                cls._output_enabled(inputs, "output_svg"),
+                cls._output_enabled(inputs, "output_tar"),
+                cls._outputs_karyotype(inputs),
+            ]
+        ):
+            return "at least one of output_png, output_svg, output_tar, or generated karyotype_txt must be selected"
+        units = str(inputs.get("units", "mb") or "mb")
+        if units not in cls.UNITS:
+            return f"units must be one of: {', '.join(cls.UNITS)}"
+        for key, default in cls.LIMIT_DEFAULTS.items():
+            validation = cls._validate_int_min(inputs, key, default, cls.LIMIT_MINIMUM)
+            if validation is not True:
+                return validation
+        for key in ("data_tracks", "link_tracks"):
+            validation = cls._validate_track_list(inputs, key)
+            if validation is not True:
+                return validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference_source": ("STRING", {"default": "preset", "options": cls.REFERENCE_SOURCES}),
+            },
+            "optional": {
+                "preset_karyotype": (
+                    "STRING",
+                    {
+                        "default": "karyotype.human.hg38.txt",
+                        "options": cls.PRESET_KARYOTYPES,
+                        "description": "Bundled Circos karyotype preset",
+                    },
+                ),
+                "genome_fasta": ("FASTA", {"default": "", "description": "Reference FASTA for history mode"}),
+                "input_karyotype": ("TSV", {"default": "", "description": "Custom Circos karyotype table"}),
+                "input_lengths": ("TSV", {"default": "", "description": "Sequence lengths table"}),
+                "cached_lengths": ("TSV", {"default": "", "description": "Cached reference lengths table"}),
+                "limit_chromosomes": ("STRING", {"default": "", "description": "Limit, filter, and order chromosomes"}),
+                "chromosomes_reverse": ("STRING", {"default": "", "description": "Chromosomes to draw in reverse order"}),
+                "units": ("STRING", {"default": "mb", "options": cls.UNITS}),
+                "data_tracks": ("TSV", {"default": [], "is_list": True, "description": "2D Circos data tracks"}),
+                "link_tracks": ("TSV", {"default": [], "is_list": True, "description": "Six-column Circos link tracks"}),
+                "output_png": ("BOOLEAN", {"default": True, "description": "Output PNG plot"}),
+                "output_svg": ("BOOLEAN", {"default": False, "description": "Output SVG plot"}),
+                "output_tar": ("BOOLEAN", {"default": False, "description": "Output configuration archive"}),
+                "colour_profile": ("STRING", {"default": "", "options": ["", "cg"]}),
+                "image_radius": ("INT", {"default": 1500, "min": 500, "max": 5000}),
+                "ideogram_radius": ("FLOAT", {"default": 0.90, "min": 0}),
+                "ideogram_thickness": ("FLOAT", {"default": 30, "min": 0}),
+                "angle_offset": ("INT", {"default": -90, "min": -180, "max": 180}),
+                "max_ticks": ("INT", {"default": 5000, "min": cls.LIMIT_MINIMUM}),
+                "max_ideograms": ("INT", {"default": 200, "min": cls.LIMIT_MINIMUM}),
+                "max_links": ("INT", {"default": 25000, "min": cls.LIMIT_MINIMUM}),
+                "max_points_per_track": ("INT", {"default": 25000, "min": cls.LIMIT_MINIMUM}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class CircosResampleNode(CommandNode):
     """Reduce dense Circos data tracks with the Circos tools resample utility."""
 

@@ -14943,6 +14943,168 @@ def test_circexplorer2_renders_module_commands_outputs_and_validation(tmp_path: 
     ) is True
 
 
+def test_circos_renders_plot_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos")
+    info = _registry().object_info()["circos"]
+
+    assert info["display_name"] == "Circos"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Visualize genomic data in a circular layout with the Galaxy IUC Circos wrapper."
+    assert info["input"]["required"]["reference_source"][1]["default"] == "preset"
+    assert info["input"]["required"]["reference_source"][1]["options"] == [
+        "preset",
+        "history",
+        "cached",
+        "karyotype",
+        "lengths",
+    ]
+    assert info["input"]["optional"]["preset_karyotype"][1]["default"] == "karyotype.human.hg38.txt"
+    assert info["input"]["optional"]["genome_fasta"][0] == "FASTA"
+    assert info["input"]["optional"]["input_karyotype"][0] == "TSV"
+    assert info["input"]["optional"]["input_lengths"][0] == "TSV"
+    assert info["input"]["optional"]["cached_lengths"][0] == "TSV"
+    assert info["input"]["optional"]["units"][1]["options"] == ["bases", "kb", "mb", "gb"]
+    assert info["input"]["optional"]["data_tracks"][1]["is_list"] is True
+    assert info["input"]["optional"]["link_tracks"][1]["is_list"] is True
+    assert info["input"]["optional"]["output_png"][1]["default"] is True
+    assert info["input"]["optional"]["output_svg"][1]["default"] is False
+    assert info["input"]["optional"]["output_tar"][1]["default"] is False
+    assert info["output"] == ["IMAGE", "IMAGE", "TAR", "TSV"]
+    assert info["output_name"] == ["output_png", "output_svg", "output_tar", "karyotype_txt"]
+    assert info["required_executables"] == ["python", "grep", "cp", "ln", "head", "tar", "circos"]
+    assert info["required_conda_packages"] == [
+        "circos",
+        "bcbiogff",
+        "biopython",
+        "pybigwig",
+        "circos-tools",
+        "grep",
+        "tar",
+    ]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Galactic Circos" in info["citation_text"]
+    assert "circular layout" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "reference_source": "history",
+            "genome_fasta": "reference genome.fa",
+            "data_tracks": ["histogram track.tsv", "scatter.tsv"],
+            "link_tracks": ["links track.tsv"],
+            "output_svg": True,
+            "output_tar": True,
+            "colour_profile": "cg",
+            "output": "/work/circos",
+        }
+    ) == (
+        "mkdir -p /work/circos/circos/conf /work/circos/circos/data && "
+        "ln -s 'reference genome.fa' /work/circos/genomeref.fa && "
+        "python karyotype-from-fasta.py /work/circos/genomeref.fa > /work/circos/circos/conf/karyotype.txt && "
+        "python karyotype-colors.py `grep -c '^chr\\s' /work/circos/circos/conf/karyotype.txt` "
+        "> /work/circos/circos/conf/karyotype-colors.conf && "
+        "touch /work/circos/circos/conf/karyotype-colors.conf && "
+        "cat colours/cg.conf >> /work/circos/circos/conf/karyotype-colors.conf && "
+        "cp /work/circos/circos/conf/karyotype.txt /work/circos/karyotype.txt && "
+        "cp circos.conf /work/circos/circos/conf/circos.conf && "
+        "cp ticks.conf /work/circos/circos/conf/ticks.conf && "
+        "cp ideogram.conf /work/circos/circos/conf/ideogram.conf && "
+        "cp data.conf /work/circos/circos/conf/data.conf && "
+        "cp links.conf /work/circos/circos/conf/links.conf && "
+        "cp galaxy_test_case.json /work/circos/circos/conf/galaxy_test_case.json && "
+        "cp 'histogram track.tsv' /work/circos/circos/data/data-0.txt && "
+        "cp scatter.tsv /work/circos/circos/data/data-1.txt && "
+        "cp 'links track.tsv' /work/circos/circos/data/links-0.txt && "
+        "tar -czf /work/circos/circos.tar.gz -C /work/circos circos && "
+        "cd /work/circos && circos -conf circos/conf/circos.conf -noparanoid"
+    )
+    assert node_class.render_command(
+        {
+            "reference_source": "preset",
+            "preset_karyotype": "karyotype.mouse.mm10.txt",
+            "output": "/work/circos",
+        }
+    ) == (
+        "mkdir -p /work/circos/circos/conf /work/circos/circos/data && "
+        "cp karyotype/karyotype.mouse.mm10.txt /work/circos/circos/conf/karyotype.txt && "
+        "python karyotype-colors.py `grep -c '^chr\\s' /work/circos/circos/conf/karyotype.txt` "
+        "> /work/circos/circos/conf/karyotype-colors.conf && "
+        "touch /work/circos/circos/conf/karyotype-colors.conf && "
+        "cp circos.conf /work/circos/circos/conf/circos.conf && "
+        "cp ticks.conf /work/circos/circos/conf/ticks.conf && "
+        "cp ideogram.conf /work/circos/circos/conf/ideogram.conf && "
+        "cp data.conf /work/circos/circos/conf/data.conf && "
+        "cp links.conf /work/circos/circos/conf/links.conf && "
+        "cp galaxy_test_case.json /work/circos/circos/conf/galaxy_test_case.json && "
+        "cd /work/circos && circos -conf circos/conf/circos.conf -noparanoid"
+    )
+    assert node_class.render_command(
+        {
+            "reference_source": "cached",
+            "cached_lengths": "genome lengths.tsv",
+            "limit_chromosomes": "hs1;hs2",
+            "output_png": False,
+            "output_tar": True,
+            "output": "/work/circos",
+        }
+    ) == (
+        "mkdir -p /work/circos/circos/conf /work/circos/circos/data && "
+        "python karyotype-from-lengths.py 'genome lengths.tsv' > /work/circos/circos/conf/karyotype.txt && "
+        "python karyotype-colors.py `grep -c '^chr\\s' /work/circos/circos/conf/karyotype.txt` "
+        "> /work/circos/circos/conf/karyotype-colors.conf && "
+        "touch /work/circos/circos/conf/karyotype-colors.conf && "
+        "cp /work/circos/circos/conf/karyotype.txt /work/circos/karyotype.txt && "
+        "cp circos.conf /work/circos/circos/conf/circos.conf && "
+        "cp ticks.conf /work/circos/circos/conf/ticks.conf && "
+        "cp ideogram.conf /work/circos/circos/conf/ideogram.conf && "
+        "cp data.conf /work/circos/circos/conf/data.conf && "
+        "cp links.conf /work/circos/circos/conf/links.conf && "
+        "cp galaxy_test_case.json /work/circos/circos/conf/galaxy_test_case.json && "
+        "tar -czf /work/circos/circos.tar.gz -C /work/circos circos"
+    )
+
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "circos" / "circos.png"]
+    assert node_class.PLAN_OUTPUTS(
+        {"reference_source": "history", "output_svg": True, "output_tar": True},
+        tmp_path,
+    ) == [
+        tmp_path / "circos" / "circos.png",
+        tmp_path / "circos" / "circos.svg",
+        tmp_path / "circos" / "circos.tar.gz",
+        tmp_path / "circos" / "karyotype.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"reference_source": "karyotype", "output_png": False, "output_svg": True}, tmp_path) == [
+        tmp_path / "circos" / "circos.svg",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"reference_source": "bad"}) == (
+        "reference_source must be one of: preset, history, cached, karyotype, lengths"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference_source": "history"}) == (
+        "genome_fasta is required when reference_source is history"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference_source": "lengths"}) == (
+        "input_lengths is required when reference_source is lengths"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference_source": "cached"}) == (
+        "cached_lengths is required when reference_source is cached"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference_source": "karyotype"}) == (
+        "input_karyotype is required when reference_source is karyotype"
+    )
+    assert node_class.VALIDATE_INPUTS({"output_png": False}) == (
+        "at least one of output_png, output_svg, output_tar, or generated karyotype_txt must be selected"
+    )
+    assert node_class.VALIDATE_INPUTS({"units": "bp"}) == "units must be one of: bases, kb, mb, gb"
+    assert node_class.VALIDATE_INPUTS({"data_tracks": ["track.tsv", ""]}) == "data_tracks values must not be empty"
+    assert node_class.VALIDATE_INPUTS({"link_tracks": ["links.tsv"]}) is True
+
+
 def test_circos_resample_renders_track_downsampling_command_outputs_and_validation(tmp_path: Path) -> None:
     node_class = _node_class("circos_resample")
     info = _registry().object_info()["circos_resample"]

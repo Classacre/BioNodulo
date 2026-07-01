@@ -3822,6 +3822,50 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.202895.115'],
     citation_text: 'Diverse alternative back-splicing and alternative splicing landscape of circular RNAs.',
   },
+  circos: {
+    name: 'circos',
+    display_name: 'Circos',
+    category: 'visualization',
+    description: 'Visualize genomic data in a circular layout with the Galaxy IUC Circos wrapper.',
+    search_aliases: ['Galaxy', 'Circos', 'circos', 'circular layout', 'circular genome plot', 'karyotype', '2D data tracks', 'link tracks', 'comparative genomics'],
+    input: {
+      required: {
+        reference_source: { type: 'STRING', default: 'preset', options: ['preset', 'history', 'cached', 'karyotype', 'lengths'] },
+      },
+      optional: {
+        preset_karyotype: { type: 'STRING', default: 'karyotype.human.hg38.txt', options: ['karyotype.arabidopsis.tair10.txt', 'karyotype.chimp.pt4.txt', 'karyotype.drosophila.dm6.hires.txt', 'karyotype.drosophila.hires.dm3.txt', 'karyotype.human.hg38.txt', 'karyotype.human.hg19.txt', 'karyotype.human.hg18.txt', 'karyotype.human.hg17.txt', 'karyotype.human.hg16.txt', 'karyotype.mouse.mm10.txt', 'karyotype.mouse.mm9.txt', 'karyotype.oryzasativa.txt', 'karyotype.rat.rn4.txt', 'karyotype.sorghum.txt', 'karyotype.yeast.txt', 'karyotype.zeamays.txt'] },
+        genome_fasta: { type: 'FASTA', default: '' },
+        input_karyotype: { type: 'TSV', default: '' },
+        input_lengths: { type: 'TSV', default: '' },
+        cached_lengths: { type: 'TSV', default: '' },
+        limit_chromosomes: { type: 'STRING', default: '' },
+        chromosomes_reverse: { type: 'STRING', default: '' },
+        units: { type: 'STRING', default: 'mb', options: ['bases', 'kb', 'mb', 'gb'] },
+        data_tracks: { type: 'TSV', default: [], is_list: true },
+        link_tracks: { type: 'TSV', default: [], is_list: true },
+        output_png: { type: 'BOOLEAN', default: true },
+        output_svg: { type: 'BOOLEAN', default: false },
+        output_tar: { type: 'BOOLEAN', default: false },
+        colour_profile: { type: 'STRING', default: '', options: ['', 'cg'] },
+        image_radius: { type: 'INT', default: 1500, min: 500, max: 5000 },
+        ideogram_radius: { type: 'FLOAT', default: 0.9, min: 0 },
+        ideogram_thickness: { type: 'FLOAT', default: 30, min: 0 },
+        angle_offset: { type: 'INT', default: -90, min: -180, max: 180 },
+        max_ticks: { type: 'INT', default: 5000, min: 200 },
+        max_ideograms: { type: 'INT', default: 200, min: 200 },
+        max_links: { type: 'INT', default: 25000, min: 200 },
+        max_points_per_track: { type: 'INT', default: 25000, min: 200 },
+      },
+    },
+    output: ['IMAGE', 'IMAGE', 'TAR', 'TSV'],
+    output_name: ['output_png', 'output_svg', 'output_tar', 'karyotype_txt'],
+    required_executables: ['python', 'grep', 'cp', 'ln', 'head', 'tar', 'circos'],
+    required_conda_packages: ['circos', 'bcbiogff', 'biopython', 'pybigwig', 'circos-tools', 'grep', 'tar'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos',
+    citation_dois: ['10.1093/gigascience/giaa065', '10.1101/gr.092759.109'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
+    citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
+  },
   circos_resample: {
     name: 'circos_resample',
     display_name: 'Circos: Resample 1/2D data',
@@ -17545,7 +17589,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('588 nodes available')).toBeVisible();
+  await expect(page.getByText('589 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17689,6 +17733,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'multiple sequence alignment', name: 'CIAlign', category: 'alignment' },
     { query: 'chromatin profiles', name: 'chromap', category: 'alignment' },
     { query: 'circular RNA', name: 'CIRCexplorer2', category: 'rna_seq' },
+    { query: 'circular layout', name: 'Circos', category: 'visualization' },
     { query: 'downsample', name: 'Circos: Resample 1/2D data', category: 'visualization' },
     { query: 'alignment links', name: 'Circos: Alignments to links', category: 'visualization' },
     { query: 'link density', name: 'Circos: Link Density Track', category: 'visualization' },
