@@ -222,6 +222,11 @@ CIRCEXPLORER2_CITATION_DOI = "10.1101/gr.202895.115"
 CIRCEXPLORER2_CITATION_TEXT = (
     "Diverse alternative back-splicing and alternative splicing landscape of circular RNAs."
 )
+CIRCOS_CITATION_DOIS = ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+CIRCOS_CITATION_TEXT = (
+    "Galactic Circos: User-friendly Circos plots within the Galaxy platform; "
+    "Circos: an information aesthetic for comparative genomics."
+)
 FILTLONG_CITATION_URL = "https://github.com/rrwick/Filtlong"
 FILTLONG_CITATION_TEXT = "Filtlong: quality filtering tool for long reads."
 GFA_TO_FA_CITATION_URL = "http://gfa-spec.github.io/GFA-spec/GFA1.html"
@@ -17404,6 +17409,89 @@ class CIRCexplorer2Node(CommandNode):
                 "type_mapping": ("STRING", {"default": "-m", "options": cls.TYPE_MAPPINGS}),
                 "rpkm": ("BOOLEAN", {"default": False}),
                 "threads": ("INT", {"default": 10, "min": 1, "max": 128, "display": "slider"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
+class CircosResampleNode(CommandNode):
+    """Reduce dense Circos data tracks with the Circos tools resample utility."""
+
+    NODE_ID = "circos_resample"
+    DISPLAY_NAME = "Circos: Resample 1/2D data"
+    REQUIRED_CONDA_PACKAGES = ["circos", "circos-tools"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Reduce dense 1D/2D Circos data tracks before plotting."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "circos_resample",
+        "resample",
+        "downsample",
+        "1D track",
+        "2D track",
+        "bin size",
+        "comparative genomics",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["resample", "sed"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    METHODS = ["-avg", "-min", "-max", "-sum", "-count"]
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/resampled.tabular"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = [
+            "resample",
+            "-bin",
+            str(inputs.get("bins", 1000000)),
+            str(inputs.get("method", "-avg") or "-avg"),
+        ]
+        return (
+            f"{_shell_join(cmd)} < {shlex.quote(str(inputs.get('input', '')))} "
+            f"| sed 's/ /\\t/g' > {shlex.quote(cls._output_path(inputs))}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "resampled.tabular"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        try:
+            bins = int(inputs.get("bins", 1000000))
+        except (TypeError, ValueError):
+            return "bins must be an integer"
+        if bins < 1:
+            return "bins must be greater than or equal to 1"
+        method = str(inputs.get("method", "-avg") or "-avg")
+        if method not in cls.METHODS:
+            return f"method must be one of: {', '.join(cls.METHODS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("TSV", {"description": "1D/2D Circos data track"}),
+            },
+            "optional": {
+                "bins": ("INT", {"default": 1000000, "min": 1, "description": "Bin size for resampling"}),
+                "method": ("STRING", {"default": "-avg", "options": cls.METHODS}),
             },
             "hidden": {"output": ("STRING", {})},
         }

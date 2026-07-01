@@ -14943,6 +14943,58 @@ def test_circexplorer2_renders_module_commands_outputs_and_validation(tmp_path: 
     ) is True
 
 
+def test_circos_resample_renders_track_downsampling_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_resample")
+    info = _registry().object_info()["circos_resample"]
+
+    assert info["display_name"] == "Circos: Resample 1/2D data"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Reduce dense 1D/2D Circos data tracks before plotting."
+    assert info["input"]["required"]["input"][0] == "TSV"
+    assert info["input"]["optional"]["bins"][1]["default"] == 1000000
+    assert info["input"]["optional"]["bins"][1]["min"] == 1
+    assert info["input"]["optional"]["method"][1]["options"] == ["-avg", "-min", "-max", "-sum", "-count"]
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["resample", "sed"]
+    assert info["required_conda_packages"] == ["circos", "circos-tools"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Galactic Circos" in info["citation_text"]
+    assert "Circos" in info["search_aliases"]
+    assert "downsample" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "input": "dense track.tsv",
+            "bins": 10000000,
+            "method": "-sum",
+            "output": "/work/circos_resample",
+        }
+    ) == "resample -bin 10000000 -sum < 'dense track.tsv' | sed 's/ /\\t/g' > /work/circos_resample/resampled.tabular"
+    assert node_class.render_command(
+        {
+            "input": "track.tsv",
+            "method": "-count",
+            "output": "/work/circos_resample",
+        }
+    ) == "resample -bin 1000000 -count < track.tsv | sed 's/ /\\t/g' > /work/circos_resample/resampled.tabular"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "circos_resample" / "resampled.tabular"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "track.tsv", "bins": 0}) == "bins must be greater than or equal to 1"
+    assert node_class.VALIDATE_INPUTS({"input": "track.tsv", "bins": "bad"}) == "bins must be an integer"
+    assert node_class.VALIDATE_INPUTS({"input": "track.tsv", "method": "-median"}) == (
+        "method must be one of: -avg, -min, -max, -sum, -count"
+    )
+    assert node_class.VALIDATE_INPUTS({"input": "track.tsv"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 

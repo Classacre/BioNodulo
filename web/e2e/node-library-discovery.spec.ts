@@ -3822,6 +3822,30 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1101/gr.202895.115'],
     citation_text: 'Diverse alternative back-splicing and alternative splicing landscape of circular RNAs.',
   },
+  circos_resample: {
+    name: 'circos_resample',
+    display_name: 'Circos: Resample 1/2D data',
+    category: 'visualization',
+    description: 'Reduce dense 1D/2D Circos data tracks before plotting.',
+    search_aliases: ['Galaxy', 'Circos', 'circos_resample', 'resample', 'downsample', '1D track', '2D track', 'bin size', 'comparative genomics'],
+    input: {
+      required: {
+        input: { type: 'TSV' },
+      },
+      optional: {
+        bins: { type: 'INT', default: 1000000, min: 1 },
+        method: { type: 'STRING', default: '-avg', options: ['-avg', '-min', '-max', '-sum', '-count'] },
+      },
+    },
+    output: ['TSV'],
+    output_name: ['output'],
+    required_executables: ['resample', 'sed'],
+    required_conda_packages: ['circos', 'circos-tools'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos',
+    citation_dois: ['10.1093/gigascience/giaa065', '10.1101/gr.092759.109'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
+    citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
+  },
   filtlong: {
     name: 'filtlong',
     display_name: 'filtlong',
@@ -17291,7 +17315,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('578 nodes available')).toBeVisible();
+  await expect(page.getByText('579 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17435,6 +17459,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'multiple sequence alignment', name: 'CIAlign', category: 'alignment' },
     { query: 'chromatin profiles', name: 'chromap', category: 'alignment' },
     { query: 'circular RNA', name: 'CIRCexplorer2', category: 'rna_seq' },
+    { query: 'downsample', name: 'Circos: Resample 1/2D data', category: 'visualization' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },
