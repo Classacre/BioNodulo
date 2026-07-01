@@ -14729,6 +14729,220 @@ def test_chromap_renders_mapping_command_outputs_and_validation(tmp_path: Path) 
     assert node_class.VALIDATE_INPUTS({"ref": "ref.fa", "read_type": "single", "single_reads": ["r.fq"]}) is True
 
 
+def test_circexplorer2_renders_module_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circexplorer2")
+    info = _registry().object_info()["circexplorer2"]
+
+    assert info["display_name"] == "CIRCexplorer2"
+    assert info["category"] == "rna_seq"
+    assert info["description"] == "Circular RNA analysis with CIRCexplorer2 modules."
+    assert info["input"]["required"]["mode"][1]["options"] == ["align", "parse", "annotate", "assemble", "denovo"]
+    assert info["input"]["optional"]["aligner"][1]["options"] == ["TopHat-Fusion", "STAR", "MapSplice", "BWA", "segemehl"]
+    assert info["input"]["optional"]["type_mapping"][1]["options"] == ["-m", "-n"]
+    assert info["output"] == [
+        "TGZ",
+        "BIGWIG",
+        "BED",
+        "TSV",
+        "TSV",
+        "TGZ",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+        "TSV",
+    ]
+    assert info["output_name"] == [
+        "alignment",
+        "fusion_junction_bw",
+        "parse",
+        "annotate",
+        "annotate_low",
+        "assemble",
+        "denovo_combined",
+        "denovo_circularRNA",
+        "denovo_annotated",
+        "denovo_novel",
+        "denovo_abs5",
+        "denovo_abs3",
+        "denovo_all_exon",
+        "denovo_all_intron",
+        "denovo_a5ss",
+        "denovo_a3ss",
+    ]
+    assert info["required_executables"] == ["CIRCexplorer2"]
+    assert info["required_conda_packages"] == ["circexplorer2"]
+    assert info["documentation_url"] == "https://circexplorer2.readthedocs.io/en/latest/"
+    assert info["citation_dois"] == ["10.1101/gr.202895.115"]
+    assert info["citation_urls"] == ["https://doi.org/10.1101/gr.202895.115"]
+    assert "Diverse alternative back-splicing and alternative splicing landscape" in info["citation_text"]
+    assert "circRNA" in info["search_aliases"]
+    assert info["version"] == "2.3.8+galaxy0"
+
+    assert node_class.render_command(
+        {
+            "mode": "align",
+            "gtf": "annotation.gtf",
+            "genome": "ref genome.fa",
+            "fastq": ["reads 1.fastq", "reads2.fastq.gz"],
+            "bw": True,
+            "scale": True,
+            "skip_tophat": True,
+            "skip_tophat_fusion": True,
+            "threads": 4,
+            "output": "/work/circexplorer2",
+        }
+    ) == (
+        "mkdir -p /work/circexplorer2 && cd /work/circexplorer2 && mkdir -p reads && "
+        "ln -s 'reads 1.fastq' reads/file0.fastq && ln -s reads2.fastq.gz reads/file1.fastq.gz && "
+        "CIRCexplorer2 align --thread=${GALAXY_SLOTS:-4} --gtf annotation.gtf -g 'ref genome.fa' "
+        "--fastq reads/file0.fastq,reads/file1.fastq.gz --bw --scale --skip-tophat --skip-tophat-fusion && "
+        "tar -zcvf alignment.tgz ./alignment"
+    )
+    assert node_class.render_command(
+        {
+            "mode": "parse",
+            "aligner": "TopHat-Fusion",
+            "fusion_file": "accepted hits.bam",
+            "pe": True,
+            "f": True,
+            "output": "/work/circexplorer2",
+        }
+    ) == (
+        "mkdir -p /work/circexplorer2 && cd /work/circexplorer2 && "
+        "CIRCexplorer2 parse -t TopHat-Fusion 'accepted hits.bam' --pe -f"
+    )
+    assert node_class.render_command(
+        {
+            "mode": "annotate",
+            "ref": "ref genes.txt",
+            "genome": "genome.fa",
+            "bed": "junctions.bed",
+            "no_fix": True,
+            "low_confidence": True,
+            "output": "/work/circexplorer2",
+        }
+    ) == (
+        "mkdir -p /work/circexplorer2 && cd /work/circexplorer2 && ln -s genome.fa reference_genome.fa && "
+        "CIRCexplorer2 annotate -r 'ref genes.txt' -g reference_genome.fa -b junctions.bed --no-fix --low-confidence"
+    )
+    assert node_class.render_command(
+        {
+            "mode": "assemble",
+            "ref": "ref.txt",
+            "tophat": "alignment.tgz",
+            "remove_rRNA": True,
+            "threads": 12,
+            "output": "/work/circexplorer2",
+        }
+    ) == (
+        "mkdir -p /work/circexplorer2 && cd /work/circexplorer2 && tar -zxf alignment.tgz && "
+        "CIRCexplorer2 assemble --thread=${GALAXY_SLOTS:-12} -r ref.txt -m ./alignment --remove-rRNA && "
+        "tar -zcvf assemble.tgz ./assemble"
+    )
+    assert node_class.render_command(
+        {
+            "mode": "denovo",
+            "ref": "ref.txt",
+            "bed": "junctions.bed",
+            "genome": "genome.fa",
+            "assemble_file": "assemble archive.tar",
+            "abs": True,
+            "as_option": "enabled",
+            "tophat": "alignment.tgz",
+            "type_mapping": "-n",
+            "no_fix": True,
+            "rpkm": True,
+            "output": "/work/circexplorer2",
+        }
+    ) == (
+        "mkdir -p /work/circexplorer2 && cd /work/circexplorer2 && ln -s genome.fa reference_genome.fa && "
+        "tar -xf 'assemble archive.tar' && tar -zxf alignment.tgz && CIRCexplorer2 denovo -d ./assemble "
+        "-r ref.txt -b junctions.bed -g reference_genome.fa --abs abs --as as -n ./alignment --no-fix --rpkm"
+    )
+
+    assert node_class.PLAN_OUTPUTS({"mode": "align", "bw": True}, tmp_path) == [
+        tmp_path / "circexplorer2" / "alignment.tgz",
+        tmp_path / "circexplorer2" / "accepted_hits.bw",
+    ]
+    assert node_class.PLAN_OUTPUTS({"mode": "parse"}, tmp_path) == [
+        tmp_path / "circexplorer2" / "back_spliced_junction.bed"
+    ]
+    assert node_class.PLAN_OUTPUTS({"mode": "annotate", "low_confidence": True}, tmp_path) == [
+        tmp_path / "circexplorer2" / "circularRNA_known.txt",
+        tmp_path / "circexplorer2" / "low_conf_circularRNA_known.txt",
+    ]
+    assert node_class.PLAN_OUTPUTS({"mode": "assemble"}, tmp_path) == [tmp_path / "circexplorer2" / "assemble.tgz"]
+    assert node_class.PLAN_OUTPUTS({"mode": "denovo", "abs": True, "as_option": "enabled"}, tmp_path) == [
+        tmp_path / "circexplorer2" / "combined_ref.txt",
+        tmp_path / "circexplorer2" / "circularRNA_full.txt",
+        tmp_path / "circexplorer2" / "annotated_circ.txt",
+        tmp_path / "circexplorer2" / "novel_circ.txt",
+        tmp_path / "circexplorer2" / "a5bs.txt",
+        tmp_path / "circexplorer2" / "a3bs.txt",
+        tmp_path / "circexplorer2" / "all_exon_info.txt",
+        tmp_path / "circexplorer2" / "all_intron_info.txt",
+        tmp_path / "circexplorer2" / "all_A5SS_info.txt",
+        tmp_path / "circexplorer2" / "all_A3SS_info.txt",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({"mode": "bad"}) == "mode must be one of: align, parse, annotate, assemble, denovo"
+    assert node_class.VALIDATE_INPUTS({"mode": "align", "genome": "g.fa", "fastq": ["r.fq"]}) == (
+        "gtf is required when mode is align"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "align", "gtf": "a.gtf", "genome": "g.fa", "fastq": []}) == (
+        "at least one fastq value is required when mode is align"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "parse", "aligner": "bad", "fusion_file": "f.bam"}) == (
+        "aligner must be one of: TopHat-Fusion, STAR, MapSplice, BWA, segemehl"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "annotate", "ref": "r.txt", "bed": "b.bed"}) == (
+        "genome is required when mode is annotate"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "assemble", "ref": "r.txt"}) == (
+        "tophat is required when mode is assemble"
+    )
+    assert node_class.VALIDATE_INPUTS({"mode": "denovo", "ref": "r.txt", "bed": "b.bed", "genome": "g.fa"}) == (
+        "assemble_file is required when mode is denovo"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "mode": "denovo",
+            "ref": "r.txt",
+            "bed": "b.bed",
+            "genome": "g.fa",
+            "assemble_file": "a.tgz",
+            "as_option": "enabled",
+        }
+    ) == "tophat is required when as_option is enabled"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "mode": "denovo",
+            "ref": "r.txt",
+            "bed": "b.bed",
+            "genome": "g.fa",
+            "assemble_file": "a.tgz",
+            "as_option": "enabled",
+            "tophat": "t.tgz",
+            "type_mapping": "-x",
+        }
+    ) == "type_mapping must be one of: -m, -n"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "mode": "denovo",
+            "ref": "r.txt",
+            "bed": "b.bed",
+            "genome": "g.fa",
+            "assemble_file": "a.tgz",
+        }
+    ) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 

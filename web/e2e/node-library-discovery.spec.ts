@@ -3777,6 +3777,51 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1038/s41467-021-26865-w'],
     citation_text: 'Fast alignment and preprocessing of chromatin profiles with Chromap.',
   },
+  circexplorer2: {
+    name: 'circexplorer2',
+    display_name: 'CIRCexplorer2',
+    category: 'rna_seq',
+    description: 'Circular RNA analysis with CIRCexplorer2 modules.',
+    search_aliases: ['Galaxy', 'CIRCexplorer2', 'circexplorer2', 'circular RNA', 'circRNA', 'back-splicing', 'alternative splicing', 'TopHat-Fusion', 'STAR', 'MapSplice'],
+    input: {
+      required: {
+        mode: { type: 'STRING', default: 'align', options: ['align', 'parse', 'annotate', 'assemble', 'denovo'] },
+      },
+      optional: {
+        gtf: { type: 'GTF', default: '' },
+        genome: { type: 'FASTA', default: '' },
+        fastq: { type: 'FASTQ', default: [], is_list: true },
+        bw: { type: 'BOOLEAN', default: false },
+        scale: { type: 'BOOLEAN', default: false },
+        skip_tophat: { type: 'BOOLEAN', default: false },
+        skip_tophat_fusion: { type: 'BOOLEAN', default: false },
+        aligner: { type: 'STRING', default: 'TopHat-Fusion', options: ['TopHat-Fusion', 'STAR', 'MapSplice', 'BWA', 'segemehl'] },
+        fusion_file: { type: 'FILE', default: '' },
+        pe: { type: 'BOOLEAN', default: false },
+        f: { type: 'BOOLEAN', default: false },
+        ref: { type: 'TXT', default: '' },
+        bed: { type: 'BED', default: '' },
+        no_fix: { type: 'BOOLEAN', default: false },
+        low_confidence: { type: 'BOOLEAN', default: false },
+        tophat: { type: 'TGZ', default: '' },
+        remove_rRNA: { type: 'BOOLEAN', default: false },
+        assemble_file: { type: 'TGZ', default: '' },
+        abs: { type: 'BOOLEAN', default: false },
+        as_option: { type: 'STRING', default: 'disabled', options: ['disabled', 'enabled'] },
+        type_mapping: { type: 'STRING', default: '-m', options: ['-m', '-n'] },
+        rpkm: { type: 'BOOLEAN', default: false },
+        threads: { type: 'INT', default: 10, min: 1, max: 128, display: 'slider' },
+      },
+    },
+    output: ['TGZ', 'BIGWIG', 'BED', 'TSV', 'TSV', 'TGZ', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV', 'TSV'],
+    output_name: ['alignment', 'fusion_junction_bw', 'parse', 'annotate', 'annotate_low', 'assemble', 'denovo_combined', 'denovo_circularRNA', 'denovo_annotated', 'denovo_novel', 'denovo_abs5', 'denovo_abs3', 'denovo_all_exon', 'denovo_all_intron', 'denovo_a5ss', 'denovo_a3ss'],
+    required_executables: ['CIRCexplorer2'],
+    required_conda_packages: ['circexplorer2'],
+    documentation_url: 'https://circexplorer2.readthedocs.io/en/latest/',
+    citation_dois: ['10.1101/gr.202895.115'],
+    citation_urls: ['https://doi.org/10.1101/gr.202895.115'],
+    citation_text: 'Diverse alternative back-splicing and alternative splicing landscape of circular RNAs.',
+  },
   filtlong: {
     name: 'filtlong',
     display_name: 'filtlong',
@@ -17246,7 +17291,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('577 nodes available')).toBeVisible();
+  await expect(page.getByText('578 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17389,6 +17434,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'hyperdimensional computing', name: 'chopin2', category: 'ai' },
     { query: 'multiple sequence alignment', name: 'CIAlign', category: 'alignment' },
     { query: 'chromatin profiles', name: 'chromap', category: 'alignment' },
+    { query: 'circular RNA', name: 'CIRCexplorer2', category: 'rna_seq' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },
