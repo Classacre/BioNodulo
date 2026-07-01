@@ -14369,6 +14369,227 @@ def test_chopin2_renders_supervised_learning_command_outputs_and_validation(tmp_
     assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "enable_fs": True}) is True
 
 
+def test_cite_seq_count_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
+    node_info = _registry().object_info()["cite_seq_count"]
+
+    assert node_info["display_name"] == "CITE-seq-Count"
+    assert node_info["category"] == "single_cell"
+    assert node_info["description"] == "Count CMO/HTO tags from raw CITE-seq or cell-hashing FASTQ reads."
+    assert node_info["input"]["required"]["input_type"][0] == "STRING"
+    assert node_info["input"]["required"]["input_type"][1]["default"] == "repeat"
+    assert node_info["input"]["required"]["input_type"][1]["options"] == ["repeat", "list_paired"]
+    assert node_info["input"]["required"]["tags"][0] == "CSV"
+    assert node_info["input"]["optional"]["input1"][0] == "FASTQ"
+    assert node_info["input"]["optional"]["input1"][1]["is_list"] is True
+    assert node_info["input"]["optional"]["input2"][0] == "FASTQ"
+    assert node_info["input"]["optional"]["input_collection"][0] == "JSON"
+    assert node_info["input"]["optional"]["chemistry"][1]["default"] == "v2"
+    assert node_info["input"]["optional"]["chemistry"][1]["options"] == ["v2", "v3", "custom"]
+    assert node_info["input"]["optional"]["cell_barcode_first_base"][1]["default"] == 1
+    assert node_info["input"]["optional"]["cell_barcode_last_base"][1]["default"] == 16
+    assert node_info["input"]["optional"]["umi_first_base"][1]["default"] == 17
+    assert node_info["input"]["optional"]["umi_last_base"][1]["default"] == 26
+    assert node_info["input"]["optional"]["bc_collapsing_dist"][1]["default"] == 1
+    assert node_info["input"]["optional"]["bc_collapsing_dist"][1]["min"] == 0
+    assert node_info["input"]["optional"]["umi_collapsing_dist"][1]["default"] == 2
+    assert node_info["input"]["optional"]["no_umi_correction"][1]["default"] is False
+    assert node_info["input"]["optional"]["expected_cells"][1]["default"] == 3000
+    assert node_info["input"]["optional"]["expected_cells"][1]["min"] == 1
+    assert node_info["input"]["optional"]["whitelist"][0] == "FILE"
+    assert node_info["input"]["optional"]["max_error"][1]["default"] == 2
+    assert node_info["input"]["optional"]["start_trim"][1]["default"] == 0
+    assert node_info["input"]["optional"]["sliding_window"][1]["default"] is False
+    assert node_info["input"]["optional"]["dense"][1]["default"] is False
+    assert node_info["input"]["optional"]["first_n"][1]["default"] == 0
+    assert node_info["input"]["optional"]["unknown_tags_output"][1]["default"] is False
+    assert node_info["input"]["optional"]["unknown_top_tags"][1]["default"] == 100
+    assert node_info["input"]["optional"]["threads"][1]["default"] == 4
+    assert node_info["output"] == ["YAML", "TSV", "TSV", "FILE", "TSV", "TSV", "FILE", "TSV"]
+    assert node_info["output_name"] == [
+        "report",
+        "output_features",
+        "output_barcodes",
+        "output_matrix",
+        "output_features_filtered",
+        "output_barcodes_filtered",
+        "output_matrix_filtered",
+        "dense_output_matrix",
+    ]
+    assert node_info["required_executables"] == ["CITE-seq-Count", "gunzip"]
+    assert node_info["required_conda_packages"] == [
+        "cite-seq-count",
+        "python",
+        "umi_tools",
+        "python-levenshtein",
+        "levenshtein",
+        "pandas",
+        "bzip2",
+        "expat",
+        "multiprocess",
+        "numpy",
+        "pysam",
+        "scipy",
+    ]
+    assert node_info["documentation_url"] == "https://hoohm.github.io/CITE-seq-Count/"
+    assert node_info["citation_dois"] == ["10.5281/zenodo.2585469"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.5281/zenodo.2585469"]
+    assert "UMI and read counts" in node_info["citation_text"]
+    assert "cell hashing" in node_info["search_aliases"]
+    assert "HTO" in node_info["search_aliases"]
+    assert node_info["version"] == "1.4.4+galaxy0"
+
+
+def test_cite_seq_count_renders_commands_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("cite_seq_count")
+
+    assert node_class.render_command(
+        {
+            "input_type": "repeat",
+            "input1": ["barcode R1.fastq.gz", "barcode R1 second.fastq.gz"],
+            "input2": ["hto R2.fastq.gz", "hto R2 second.fastq.gz"],
+            "tags": "tags.csv",
+            "chemistry": "v3",
+            "no_umi_correction": True,
+            "expected_cells": 5000,
+            "whitelist": "cell whitelist.tsv",
+            "max_error": 3,
+            "start_trim": 2,
+            "sliding_window": True,
+            "dense": True,
+            "first_n": 1000,
+            "unknown_tags_output": True,
+            "unknown_top_tags": 25,
+            "threads": 8,
+            "output": "/work/cite_seq_count",
+        }
+    ) == (
+        "mkdir -p /work/cite_seq_count && cd /work/cite_seq_count && CITE-seq-Count "
+        "--threads ${GALAXY_SLOTS:-8} --read1 'barcode R1.fastq.gz,barcode R1 second.fastq.gz' "
+        "--read2 'hto R2.fastq.gz,hto R2 second.fastq.gz' --tags tags.csv "
+        "--cell_barcode_first_base 1 --cell_barcode_last_base 16 --umi_first_base 17 --umi_last_base 28 "
+        "--bc_collapsing_dist 1 --umi_collapsing_dist 2 --no_umi_correction --expected_cells 5000 "
+        "--whitelist 'cell whitelist.tsv' --max-error 3 --start-trim 2 --sliding-window --dense "
+        "--first_n 1000 --unknown-top-tags 25 && gunzip Results/read_count/barcodes.tsv.gz && "
+        "gunzip Results/read_count/features.tsv.gz && gunzip Results/read_count/matrix.mtx.gz && "
+        "gunzip Results/umi_count/barcodes.tsv.gz && gunzip Results/umi_count/features.tsv.gz && "
+        "gunzip Results/umi_count/matrix.mtx.gz && mv Results/run_report.yaml run_report.yaml && "
+        "mv Results/read_count/features.tsv read_count_features.tsv && "
+        "mv Results/read_count/barcodes.tsv read_count_barcodes.tsv && "
+        "mv Results/read_count/matrix.mtx read_count_matrix.mtx && "
+        "mv Results/umi_count/features.tsv umi_count_features.tsv && "
+        "mv Results/umi_count/barcodes.tsv umi_count_barcodes.tsv && "
+        "mv Results/umi_count/matrix.mtx umi_count_matrix.mtx && mv Results/dense_umis.tsv dense_umis.tsv"
+    )
+    assert node_class.render_command(
+        {
+            "input_type": "list_paired",
+            "input_collection": {"forward": "R1.fastq.gz", "reverse": "R2.fastq.gz"},
+            "tags": "tags.csv",
+            "output": "/work/cite_seq_count",
+        }
+    ) == (
+        "mkdir -p /work/cite_seq_count && cd /work/cite_seq_count && CITE-seq-Count "
+        "--threads ${GALAXY_SLOTS:-4} --read1 R1.fastq.gz --read2 R2.fastq.gz --tags tags.csv "
+        "--cell_barcode_first_base 1 --cell_barcode_last_base 16 --umi_first_base 17 --umi_last_base 26 "
+        "--bc_collapsing_dist 1 --umi_collapsing_dist 2 --expected_cells 3000 --max-error 2 && "
+        "gunzip Results/read_count/barcodes.tsv.gz && gunzip Results/read_count/features.tsv.gz && "
+        "gunzip Results/read_count/matrix.mtx.gz && gunzip Results/umi_count/barcodes.tsv.gz && "
+        "gunzip Results/umi_count/features.tsv.gz && gunzip Results/umi_count/matrix.mtx.gz && "
+        "mv Results/run_report.yaml run_report.yaml && mv Results/read_count/features.tsv read_count_features.tsv && "
+        "mv Results/read_count/barcodes.tsv read_count_barcodes.tsv && "
+        "mv Results/read_count/matrix.mtx read_count_matrix.mtx && "
+        "mv Results/umi_count/features.tsv umi_count_features.tsv && "
+        "mv Results/umi_count/barcodes.tsv umi_count_barcodes.tsv && "
+        "mv Results/umi_count/matrix.mtx umi_count_matrix.mtx"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "cite_seq_count" / "run_report.yaml",
+        tmp_path / "cite_seq_count" / "read_count_features.tsv",
+        tmp_path / "cite_seq_count" / "read_count_barcodes.tsv",
+        tmp_path / "cite_seq_count" / "read_count_matrix.mtx",
+        tmp_path / "cite_seq_count" / "umi_count_features.tsv",
+        tmp_path / "cite_seq_count" / "umi_count_barcodes.tsv",
+        tmp_path / "cite_seq_count" / "umi_count_matrix.mtx",
+    ]
+    assert node_class.PLAN_OUTPUTS({"dense": True}, tmp_path) == [
+        tmp_path / "cite_seq_count" / "run_report.yaml",
+        tmp_path / "cite_seq_count" / "read_count_features.tsv",
+        tmp_path / "cite_seq_count" / "read_count_barcodes.tsv",
+        tmp_path / "cite_seq_count" / "read_count_matrix.mtx",
+        tmp_path / "cite_seq_count" / "umi_count_features.tsv",
+        tmp_path / "cite_seq_count" / "umi_count_barcodes.tsv",
+        tmp_path / "cite_seq_count" / "umi_count_matrix.mtx",
+        tmp_path / "cite_seq_count" / "dense_umis.tsv",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "tags is required"
+    assert node_class.VALIDATE_INPUTS({"tags": "tags.csv", "input_type": "bad"}) == (
+        "input_type must be one of: repeat, list_paired"
+    )
+    assert node_class.VALIDATE_INPUTS({"tags": "tags.csv", "input_type": "repeat"}) == (
+        "input1 and input2 are required for repeat input"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"tags": "tags.csv", "input_type": "repeat", "input1": ["R1a", "R1b"], "input2": ["R2a"]}
+    ) == "input1 and input2 must contain the same number of FASTQ files"
+    assert node_class.VALIDATE_INPUTS(
+        {"tags": "tags.csv", "input_type": "repeat", "input1": "R1a,R1b", "input2": "R2a"}
+    ) == "input1 and input2 must contain the same number of FASTQ files"
+    assert node_class.VALIDATE_INPUTS({"tags": "tags.csv", "input_type": "list_paired", "input_collection": {}}) == (
+        "input_collection with forward and reverse reads is required for list_paired input"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"tags": "tags.csv", "input_type": "repeat", "input1": ["R1"], "input2": ["R2"], "chemistry": "v4"}
+    ) == "chemistry must be one of: v2, v3, custom"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "tags": "tags.csv",
+            "input_type": "repeat",
+            "input1": ["R1"],
+            "input2": ["R2"],
+            "chemistry": "custom",
+            "cell_barcode_first_base": 0,
+        }
+    ) == "cell_barcode_first_base must be greater than or equal to 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"tags": "tags.csv", "input_type": "repeat", "input1": ["R1"], "input2": ["R2"], "expected_cells": 0}
+    ) == "expected_cells must be greater than or equal to 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"tags": "tags.csv", "input_type": "repeat", "input1": ["R1"], "input2": ["R2"], "max_error": -1}
+    ) == "max_error must be greater than or equal to 0"
+    assert node_class.VALIDATE_INPUTS(
+        {"tags": "tags.csv", "input_type": "repeat", "input1": ["R1"], "input2": ["R2"], "threads": 0}
+    ) == "threads must be greater than or equal to 1"
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "tags": "tags.csv",
+                "input_type": "repeat",
+                "input1": "R1.fastq.gz",
+                "input2": "R2.fastq.gz",
+                "unknown_tags_output": False,
+                "unknown_top_tags": 0,
+            }
+        )
+        is True
+    )
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "tags": "tags.csv",
+                "input_type": "list_paired",
+                "input_collection": {"forward": "R1.fastq.gz", "reverse": "R2.fastq.gz"},
+                "chemistry": "custom",
+                "cell_barcode_first_base": 1,
+                "cell_barcode_last_base": 16,
+                "umi_first_base": 17,
+                "umi_last_base": 28,
+            }
+        )
+        is True
+    )
+
+
 def test_cialign_renders_alignment_cleaning_command_outputs_and_validation(tmp_path: Path) -> None:
     node_class = _node_class("cialign")
     info = _registry().object_info()["cialign"]

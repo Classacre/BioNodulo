@@ -3732,6 +3732,50 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.7717/peerj.12983'],
     citation_text: 'CIAlign: A highly customisable command line tool to clean, interpret and visualise multiple sequence alignments.',
   },
+  cite_seq_count: {
+    name: 'cite_seq_count',
+    display_name: 'CITE-seq-Count',
+    category: 'single_cell',
+    description: 'Count CMO/HTO tags from raw CITE-seq or cell-hashing FASTQ reads.',
+    search_aliases: ['Galaxy', 'CITE-seq-Count', 'cite_seq_count', 'CITE-seq', 'cell hashing', 'CMO', 'HTO', 'hashtag oligo', 'cell multiplexing oligo', 'UMI and read counts', 'raw FASTQ CITE-seq'],
+    input: {
+      required: {
+        input_type: { type: 'STRING', default: 'repeat', options: ['repeat', 'list_paired'] },
+        tags: { type: 'CSV' },
+      },
+      optional: {
+        input1: { type: 'FASTQ', default: [], is_list: true },
+        input2: { type: 'FASTQ', default: [], is_list: true },
+        input_collection: { type: 'JSON', default: {} },
+        chemistry: { type: 'STRING', default: 'v2', options: ['v2', 'v3', 'custom'] },
+        cell_barcode_first_base: { type: 'INT', default: 1, min: 1, advanced: true },
+        cell_barcode_last_base: { type: 'INT', default: 16, min: 1, advanced: true },
+        umi_first_base: { type: 'INT', default: 17, min: 1, advanced: true },
+        umi_last_base: { type: 'INT', default: 26, min: 1, advanced: true },
+        bc_collapsing_dist: { type: 'INT', default: 1, min: 0 },
+        umi_collapsing_dist: { type: 'INT', default: 2, min: 0 },
+        no_umi_correction: { type: 'BOOLEAN', default: false },
+        expected_cells: { type: 'INT', default: 3000, min: 1 },
+        whitelist: { type: 'FILE', default: '' },
+        max_error: { type: 'INT', default: 2, min: 0 },
+        start_trim: { type: 'INT', default: 0, min: 0 },
+        sliding_window: { type: 'BOOLEAN', default: false },
+        dense: { type: 'BOOLEAN', default: false },
+        first_n: { type: 'INT', default: 0, min: 0 },
+        unknown_tags_output: { type: 'BOOLEAN', default: false },
+        unknown_top_tags: { type: 'INT', default: 100, min: 1 },
+        threads: { type: 'INT', default: 4, min: 1, max: 128, display: 'slider' },
+      },
+    },
+    output: ['YAML', 'TSV', 'TSV', 'FILE', 'TSV', 'TSV', 'FILE', 'TSV'],
+    output_name: ['report', 'output_features', 'output_barcodes', 'output_matrix', 'output_features_filtered', 'output_barcodes_filtered', 'output_matrix_filtered', 'dense_output_matrix'],
+    required_executables: ['CITE-seq-Count', 'gunzip'],
+    required_conda_packages: ['cite-seq-count', 'python', 'umi_tools', 'python-levenshtein', 'levenshtein', 'pandas', 'bzip2', 'expat', 'multiprocess', 'numpy', 'pysam', 'scipy'],
+    documentation_url: 'https://hoohm.github.io/CITE-seq-Count/',
+    citation_dois: ['10.5281/zenodo.2585469'],
+    citation_urls: ['https://doi.org/10.5281/zenodo.2585469'],
+    citation_text: 'CITE-seq-Count outputs UMI and read counts from raw FASTQ CITE-seq or cell-hashing data.',
+  },
   chromap: {
     name: 'chromap',
     display_name: 'chromap',
@@ -17589,7 +17633,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('589 nodes available')).toBeVisible();
+  await expect(page.getByText('590 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17731,6 +17775,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'IntaRNA', name: 'ChiRA extract', category: 'rna_seq' },
     { query: 'hyperdimensional computing', name: 'chopin2', category: 'ai' },
     { query: 'multiple sequence alignment', name: 'CIAlign', category: 'alignment' },
+    { query: 'cell hashing', name: 'CITE-seq-Count', category: 'single_cell' },
     { query: 'chromatin profiles', name: 'chromap', category: 'alignment' },
     { query: 'circular RNA', name: 'CIRCexplorer2', category: 'rna_seq' },
     { query: 'circular layout', name: 'Circos', category: 'visualization' },
