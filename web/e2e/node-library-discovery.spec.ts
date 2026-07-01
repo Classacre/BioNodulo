@@ -3645,6 +3645,39 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/bioinformatics/btad311'],
     citation_text: 'NanoPack2: population-scale evaluation of long-read sequencing data.',
   },
+  chopin2: {
+    name: 'chopin2',
+    display_name: 'chopin2',
+    category: 'ai',
+    description: 'Domain-agnostic supervised learning with hyperdimensional computing.',
+    search_aliases: ['Galaxy', 'chopin2', 'CHOPIN2', 'hyperdimensional computing', 'supervised learning', 'feature selection', 'backward variable selection', 'cross-validation', 'DNA methylation classification'],
+    input: {
+      required: {
+        dataset: { type: 'FILE' },
+      },
+      optional: {
+        dataset_ext: { type: 'STRING', default: 'csv', options: ['csv', 'tabular'] },
+        dataset_identifier: { type: 'STRING', default: '' },
+        dimensionality: { type: 'INT', default: 10000, min: 100 },
+        levels: { type: 'INT', default: 1000, min: 2 },
+        retrain: { type: 'INT', default: 0, min: 0 },
+        folds: { type: 'INT', default: 2, min: 2 },
+        enable_fs: { type: 'BOOLEAN', default: false },
+        group_min: { type: 'INT', default: 1, min: 1 },
+        accuracy_threshold: { type: 'FLOAT', default: 60.0, min: 0, max: 100 },
+        accuracy_uncertainty_perc: { type: 'FLOAT', default: 5.0, min: 0, max: 100 },
+        threads: { type: 'INT', default: 4, min: 1, max: 128, display: 'slider' },
+      },
+    },
+    output: ['TSV', 'TSV'],
+    output_name: ['summary', 'selection'],
+    required_executables: ['chopin2'],
+    required_conda_packages: ['chopin2'],
+    documentation_url: 'https://github.com/cumbof/chopin2',
+    citation_dois: ['10.3390/a13090233'],
+    citation_urls: ['https://doi.org/10.3390/a13090233'],
+    citation_text: 'A Brain-Inspired Hyperdimensional Computing Approach for Classifying Massive DNA Methylation Data of Cancer.',
+  },
   filtlong: {
     name: 'filtlong',
     display_name: 'filtlong',
@@ -17114,7 +17147,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('574 nodes available')).toBeVisible();
+  await expect(page.getByText('575 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17254,6 +17287,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'read-concentrated loci', name: 'ChiRA merge', category: 'rna_seq' },
     { query: 'CRL TPM', name: 'ChiRA quantify', category: 'rna_seq' },
     { query: 'IntaRNA', name: 'ChiRA extract', category: 'rna_seq' },
+    { query: 'hyperdimensional computing', name: 'chopin2', category: 'ai' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
     { query: 'AlleleCallEvaluator', name: 'chewBBACA AlleleCallEvaluator', category: 'typing' },
     { query: 'CreateSchema', name: 'chewBBACA CreateSchema', category: 'typing' },

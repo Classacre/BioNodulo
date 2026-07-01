@@ -14275,6 +14275,100 @@ def test_chopper_validates_input_ranges_and_trimming_modes() -> None:
     assert node_class.VALIDATE_INPUTS({"input": "reads.fastq", "trim_approach": "fixed-crop", "headcrop": 10}) is True
 
 
+def test_chopin2_renders_supervised_learning_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("chopin2")
+    node_info = _registry().object_info()["chopin2"]
+
+    assert node_info["display_name"] == "chopin2"
+    assert node_info["category"] == "ai"
+    assert node_info["description"] == "Domain-agnostic supervised learning with hyperdimensional computing."
+    assert node_info["input"]["required"]["dataset"][0] == "FILE"
+    assert node_info["input"]["optional"]["dataset_ext"][1]["default"] == "csv"
+    assert node_info["input"]["optional"]["dataset_ext"][1]["options"] == ["csv", "tabular"]
+    assert node_info["input"]["optional"]["dimensionality"][1]["default"] == 10000
+    assert node_info["input"]["optional"]["dimensionality"][1]["min"] == 100
+    assert node_info["input"]["optional"]["levels"][1]["default"] == 1000
+    assert node_info["input"]["optional"]["levels"][1]["min"] == 2
+    assert node_info["input"]["optional"]["enable_fs"][1]["default"] is False
+    assert node_info["input"]["optional"]["accuracy_threshold"][1]["max"] == 100
+    assert node_info["output"] == ["TSV", "TSV"]
+    assert node_info["output_name"] == ["summary", "selection"]
+    assert node_info["required_executables"] == ["chopin2"]
+    assert node_info["required_conda_packages"] == ["chopin2"]
+    assert node_info["documentation_url"] == "https://github.com/cumbof/chopin2"
+    assert node_info["citation_dois"] == ["10.3390/a13090233"]
+    assert node_info["citation_urls"] == ["https://doi.org/10.3390/a13090233"]
+    assert "A Brain-Inspired Hyperdimensional Computing Approach" in node_info["citation_text"]
+    assert "hyperdimensional computing" in node_info["search_aliases"]
+    assert "feature selection" in node_info["search_aliases"]
+    assert node_info["version"] == "1.0.9.post1+galaxy0"
+
+    assert node_class.render_command(
+        {
+            "dataset": "iris data.csv",
+            "dataset_ext": "csv",
+            "dataset_identifier": "iris.csv",
+            "dimensionality": 1000,
+            "levels": 100,
+            "retrain": 10,
+            "folds": 5,
+            "enable_fs": True,
+            "group_min": 2,
+            "accuracy_threshold": 70.5,
+            "accuracy_uncertainty_perc": 4.5,
+            "threads": 8,
+            "output": "/work/chopin2",
+        }
+    ) == (
+        "mkdir -p /work/chopin2 && cd /work/chopin2 && ln -s 'iris data.csv' iris.csv && "
+        "chopin2 --dataset iris.csv --fieldsep , --dimensionality 1000 --levels 100 --retrain 10 "
+        "--stop --crossv_k 5 --select_features --group_min 2 --accuracy_threshold 70.5 "
+        "--accuracy_uncertainty_perc 4.5 --dump --cleanup --nproc ${GALAXY_SLOTS:-8} --verbose"
+    )
+    assert node_class.render_command(
+        {
+            "dataset": "iris.tsv",
+            "dataset_ext": "tabular",
+            "output": "/work/chopin2",
+        }
+    ) == (
+        "mkdir -p /work/chopin2 && cd /work/chopin2 && ln -s iris.tsv iris.tsv && "
+        "chopin2 --dataset iris.tsv --fieldsep $'\\t' --dimensionality 10000 --levels 1000 --retrain 0 "
+        "--stop --crossv_k 2 --dump --cleanup --nproc ${GALAXY_SLOTS:-4} --verbose"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "chopin2" / "summary.txt"]
+    assert node_class.PLAN_OUTPUTS({"enable_fs": True}, tmp_path) == [
+        tmp_path / "chopin2" / "summary.txt",
+        tmp_path / "chopin2" / "selection.txt",
+    ]
+    assert node_class.VALIDATE_INPUTS({}) == "dataset is required"
+    assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "dataset_ext": "xlsx"}) == (
+        "dataset_ext must be one of: csv, tabular"
+    )
+    assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "dimensionality": 99}) == (
+        "dimensionality must be greater than or equal to 100"
+    )
+    assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "levels": 1}) == (
+        "levels must be greater than or equal to 2"
+    )
+    assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "retrain": -1}) == (
+        "retrain must be greater than or equal to 0"
+    )
+    assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "folds": 1}) == (
+        "folds must be greater than or equal to 2"
+    )
+    assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "enable_fs": True, "group_min": 0}) == (
+        "group_min must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "enable_fs": True, "accuracy_threshold": 101}) == (
+        "accuracy_threshold must be between 0 and 100"
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {"dataset": "iris.csv", "enable_fs": True, "accuracy_uncertainty_perc": -1}
+    ) == "accuracy_uncertainty_perc must be between 0 and 100"
+    assert node_class.VALIDATE_INPUTS({"dataset": "iris.csv", "enable_fs": True}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 
