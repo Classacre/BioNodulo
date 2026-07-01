@@ -15445,6 +15445,102 @@ def test_circos_wiggle_to_stacked_renders_multi_bigwig_command_outputs_and_valid
     assert node_class.VALIDATE_INPUTS({"input": "signal.bw"}) is True
 
 
+def test_circos_tableviewer_renders_table_plot_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_tableviewer")
+    info = _registry().object_info()["circos_tableviewer"]
+
+    assert info["display_name"] == "Circos: Table viewer"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Create Circos tableviewer plots from tabular matrix data."
+    assert info["input"]["required"]["table"][0] == "TSV"
+    assert info["input"]["optional"]["output_png"][1]["default"] is True
+    assert info["input"]["optional"]["output_svg"][1]["default"] is False
+    assert info["input"]["optional"]["output_tar"][1]["default"] is False
+    assert info["input"]["optional"]["segment_label_size"][1]["default"] == 50
+    assert info["input"]["optional"]["tick_label_size"][1]["default"] == 24
+    assert info["input"]["optional"]["segment_font"][1]["options"] == [
+        "light",
+        "normal",
+        "default",
+        "semibold",
+        "bold",
+        "italic",
+        "bolditalic",
+        "italicbold",
+    ]
+    assert info["input"]["optional"]["max_ticks"][1]["default"] == 5000
+    assert info["input"]["optional"]["max_ticks"][1]["min"] == 200
+    assert info["input"]["optional"]["max_ideograms"][1]["default"] == 200
+    assert info["input"]["optional"]["max_links"][1]["default"] == 25000
+    assert info["input"]["optional"]["max_points_per_track"][1]["default"] == 25000
+    assert info["output"] == ["IMAGE", "IMAGE", "TAR"]
+    assert info["output_name"] == ["output_png", "output_svg", "output_tar"]
+    assert info["required_executables"] == ["parse-table", "make-conf", "circos", "tar"]
+    assert info["required_conda_packages"] == ["circos", "circos-tools", "tar"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Galactic Circos" in info["citation_text"]
+    assert "tableviewer" in info["search_aliases"]
+    assert "matrix table" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "table": "matrix table.tsv",
+            "output": "/work/circos_tableviewer",
+        }
+    ) == (
+        "mkdir -p /work/circos_tableviewer/circos/data /work/circos_tableviewer/circos/etc && "
+        "cp circos_tableviewer.conf /work/circos_tableviewer/circos/etc/circos.conf && "
+        "parse-table -file 'matrix table.tsv' -conf circos_tableviewer_parse_table.conf "
+        "> /work/circos_tableviewer/tmp && make-conf -dir /work/circos_tableviewer/circos/data "
+        "< /work/circos_tableviewer/tmp && tar -czf /work/circos_tableviewer/circos.tar.gz "
+        "-C /work/circos_tableviewer circos && cd /work/circos_tableviewer/circos && "
+        "circos -conf etc/circos.conf && mv circos.png ../circos.png"
+    )
+    assert node_class.render_command(
+        {
+            "table": "matrix.tsv",
+            "output_svg": True,
+            "output_tar": True,
+            "output": "/work/circos_tableviewer",
+        }
+    ) == (
+        "mkdir -p /work/circos_tableviewer/circos/data /work/circos_tableviewer/circos/etc && "
+        "cp circos_tableviewer.conf /work/circos_tableviewer/circos/etc/circos.conf && "
+        "parse-table -file matrix.tsv -conf circos_tableviewer_parse_table.conf "
+        "> /work/circos_tableviewer/tmp && make-conf -dir /work/circos_tableviewer/circos/data "
+        "< /work/circos_tableviewer/tmp && tar -czf /work/circos_tableviewer/circos.tar.gz "
+        "-C /work/circos_tableviewer circos && cd /work/circos_tableviewer/circos && "
+        "circos -conf etc/circos.conf && mv circos.png ../circos.png && mv circos.svg ../circos.svg"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "circos_tableviewer" / "circos.png"]
+    assert node_class.PLAN_OUTPUTS({"output_svg": True, "output_tar": True}, tmp_path) == [
+        tmp_path / "circos_tableviewer" / "circos.png",
+        tmp_path / "circos_tableviewer" / "circos.svg",
+        tmp_path / "circos_tableviewer" / "circos.tar.gz",
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "table is required"
+    assert node_class.VALIDATE_INPUTS({"table": "matrix.tsv", "output_png": False}) == (
+        "at least one of output_png, output_svg, or output_tar must be selected"
+    )
+    assert node_class.VALIDATE_INPUTS({"table": "matrix.tsv", "max_ticks": 199}) == (
+        "max_ticks must be greater than or equal to 200"
+    )
+    assert node_class.VALIDATE_INPUTS({"table": "matrix.tsv", "segment_label_size": "big"}) == (
+        "segment_label_size must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"table": "matrix.tsv", "segment_font": "giant"}) == (
+        "segment_font must be one of: light, normal, default, semibold, bold, italic, bolditalic, italicbold"
+    )
+    assert node_class.VALIDATE_INPUTS({"table": "matrix.tsv"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 

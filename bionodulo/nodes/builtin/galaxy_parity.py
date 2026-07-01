@@ -18152,6 +18152,146 @@ class CircosWiggleToStackedNode(CommandNode):
         }
 
 
+class CircosTableviewerNode(CommandNode):
+    """Create Circos tableviewer plots from tabular matrix data."""
+
+    NODE_ID = "circos_tableviewer"
+    DISPLAY_NAME = "Circos: Table viewer"
+    REQUIRED_CONDA_PACKAGES = ["circos", "circos-tools", "tar"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Create Circos tableviewer plots from tabular matrix data."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "circos_tableviewer",
+        "tableviewer",
+        "table viewer",
+        "matrix table",
+        "ribbon plot",
+        "comparative genomics",
+    ]
+    RETURN_TYPES = ("IMAGE", "IMAGE", "TAR")
+    RETURN_NAMES = ("output_png", "output_svg", "output_tar")
+    REQUIRED_EXECUTABLES = ["parse-table", "make-conf", "circos", "tar"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    FONT_OPTIONS = ["light", "normal", "default", "semibold", "bold", "italic", "bolditalic", "italicbold"]
+    LIMIT_DEFAULTS = {
+        "max_ticks": 5000,
+        "max_ideograms": 200,
+        "max_links": 25000,
+        "max_points_per_track": 25000,
+    }
+    LIMIT_MINIMUM = 200
+
+    @classmethod
+    def _output_enabled(cls, inputs: dict[str, Any], key: str) -> bool:
+        if key not in inputs:
+            return key == "output_png"
+        return bool(inputs.get(key))
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        commands = [
+            _shell_join(["mkdir", "-p", f"{out}/circos/data", f"{out}/circos/etc"]),
+            _shell_join(["cp", "circos_tableviewer.conf", f"{out}/circos/etc/circos.conf"]),
+            (
+                f"{_shell_join(['parse-table', '-file', str(inputs.get('table', '')), '-conf', 'circos_tableviewer_parse_table.conf'])} "
+                f"> {shlex.quote(f'{out}/tmp')}"
+            ),
+            (
+                f"{_shell_join(['make-conf', '-dir', f'{out}/circos/data'])} "
+                f"< {shlex.quote(f'{out}/tmp')}"
+            ),
+            _shell_join(["tar", "-czf", f"{out}/circos.tar.gz", "-C", out, "circos"]),
+            _shell_join(["cd", f"{out}/circos"]),
+            _shell_join(["circos", "-conf", "etc/circos.conf"]),
+        ]
+        if cls._output_enabled(inputs, "output_png"):
+            commands.append(_shell_join(["mv", "circos.png", "../circos.png"]))
+        if cls._output_enabled(inputs, "output_svg"):
+            commands.append(_shell_join(["mv", "circos.svg", "../circos.svg"]))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        outputs: list[Path] = []
+        if cls._output_enabled(inputs, "output_png"):
+            outputs.append(out / "circos.png")
+        if cls._output_enabled(inputs, "output_svg"):
+            outputs.append(out / "circos.svg")
+        if cls._output_enabled(inputs, "output_tar"):
+            outputs.append(out / "circos.tar.gz")
+        return outputs
+
+    @classmethod
+    def _validate_int_min(cls, inputs: dict[str, Any], key: str, default: int, minimum: int = 0) -> bool | str:
+        value = inputs.get(key, default)
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return f"{key} must be an integer"
+        if parsed < minimum:
+            return f"{key} must be greater than or equal to {minimum}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("table", "")).strip():
+            return "table is required"
+        if not any(cls._output_enabled(inputs, key) for key in ("output_png", "output_svg", "output_tar")):
+            return "at least one of output_png, output_svg, or output_tar must be selected"
+        for key, default in cls.LIMIT_DEFAULTS.items():
+            validation = cls._validate_int_min(inputs, key, default, cls.LIMIT_MINIMUM)
+            if validation is not True:
+                return validation
+        for key, default in (("segment_label_size", 50), ("tick_label_size", 24)):
+            validation = cls._validate_int_min(inputs, key, default, 0)
+            if validation is not True:
+                return validation
+        for key in ("segment_font", "tick_font"):
+            font = str(inputs.get(key, "bold" if key == "segment_font" else "normal") or "")
+            if font not in cls.FONT_OPTIONS:
+                return f"{key} must be one of: {', '.join(cls.FONT_OPTIONS)}"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "table": ("TSV", {"description": "Tableviewer matrix with header row and column"}),
+            },
+            "optional": {
+                "output_png": ("BOOLEAN", {"default": True, "description": "Output PNG plot"}),
+                "output_svg": ("BOOLEAN", {"default": False, "description": "Output SVG plot"}),
+                "output_tar": ("BOOLEAN", {"default": False, "description": "Output configuration archive"}),
+                "segment_show_label": ("BOOLEAN", {"default": True, "description": "Show segment labels"}),
+                "segment_parallel": ("BOOLEAN", {"default": False, "description": "Draw segment labels parallel"}),
+                "segment_label_size": ("INT", {"default": 50, "min": 0, "description": "Segment label font size"}),
+                "segment_font": ("STRING", {"default": "bold", "options": cls.FONT_OPTIONS}),
+                "segment_color": ("STRING", {"default": "#000000", "description": "Segment label color"}),
+                "tick_show_label": ("BOOLEAN", {"default": True, "description": "Show tick labels"}),
+                "tick_parallel": ("BOOLEAN", {"default": False, "description": "Draw tick labels parallel"}),
+                "tick_label_size": ("INT", {"default": 24, "min": 0, "description": "Tick label font size"}),
+                "tick_font": ("STRING", {"default": "normal", "options": cls.FONT_OPTIONS}),
+                "tick_color": ("STRING", {"default": "#000000", "description": "Tick label color"}),
+                "max_ticks": ("INT", {"default": 5000, "min": cls.LIMIT_MINIMUM}),
+                "max_ideograms": ("INT", {"default": 200, "min": cls.LIMIT_MINIMUM}),
+                "max_links": ("INT", {"default": 25000, "min": cls.LIMIT_MINIMUM}),
+                "max_points_per_track": ("INT", {"default": 25000, "min": cls.LIMIT_MINIMUM}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class FiltlongNode(CommandNode):
     """Filter long reads by quality, length, and optional references with Filtlong."""
 

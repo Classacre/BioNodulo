@@ -3989,6 +3989,45 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
     citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
   },
+  circos_tableviewer: {
+    name: 'circos_tableviewer',
+    display_name: 'Circos: Table viewer',
+    category: 'visualization',
+    description: 'Create Circos tableviewer plots from tabular matrix data.',
+    search_aliases: ['Galaxy', 'Circos', 'circos_tableviewer', 'tableviewer', 'table viewer', 'matrix table', 'ribbon plot', 'comparative genomics'],
+    input: {
+      required: {
+        table: { type: 'TSV' },
+      },
+      optional: {
+        output_png: { type: 'BOOLEAN', default: true },
+        output_svg: { type: 'BOOLEAN', default: false },
+        output_tar: { type: 'BOOLEAN', default: false },
+        segment_show_label: { type: 'BOOLEAN', default: true },
+        segment_parallel: { type: 'BOOLEAN', default: false },
+        segment_label_size: { type: 'INT', default: 50, min: 0 },
+        segment_font: { type: 'STRING', default: 'bold', options: ['light', 'normal', 'default', 'semibold', 'bold', 'italic', 'bolditalic', 'italicbold'] },
+        segment_color: { type: 'STRING', default: '#000000' },
+        tick_show_label: { type: 'BOOLEAN', default: true },
+        tick_parallel: { type: 'BOOLEAN', default: false },
+        tick_label_size: { type: 'INT', default: 24, min: 0 },
+        tick_font: { type: 'STRING', default: 'normal', options: ['light', 'normal', 'default', 'semibold', 'bold', 'italic', 'bolditalic', 'italicbold'] },
+        tick_color: { type: 'STRING', default: '#000000' },
+        max_ticks: { type: 'INT', default: 5000, min: 200 },
+        max_ideograms: { type: 'INT', default: 200, min: 200 },
+        max_links: { type: 'INT', default: 25000, min: 200 },
+        max_points_per_track: { type: 'INT', default: 25000, min: 200 },
+      },
+    },
+    output: ['IMAGE', 'IMAGE', 'TAR'],
+    output_name: ['output_png', 'output_svg', 'output_tar'],
+    required_executables: ['parse-table', 'make-conf', 'circos', 'tar'],
+    required_conda_packages: ['circos', 'circos-tools', 'tar'],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos',
+    citation_dois: ['10.1093/gigascience/giaa065', '10.1101/gr.092759.109'],
+    citation_urls: ['https://doi.org/10.1093/gigascience/giaa065', 'https://doi.org/10.1101/gr.092759.109'],
+    citation_text: 'Galactic Circos: User-friendly Circos plots within the Galaxy platform; Circos: an information aesthetic for comparative genomics.',
+  },
   circos_interval_to_text: {
     name: 'circos_interval_to_text',
     display_name: 'Circos: Interval to Circos Text Labels',
@@ -17506,7 +17545,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('587 nodes available')).toBeVisible();
+  await expect(page.getByText('588 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17657,6 +17696,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'GC skew', name: 'GC Skew', category: 'visualization' },
     { query: 'bigWig', name: 'Circos: bigWig to Scatter', category: 'visualization' },
     { query: 'stacked histogram', name: 'Circos: Stack bigWigs as Histogram', category: 'visualization' },
+    { query: 'matrix table', name: 'Circos: Table viewer', category: 'visualization' },
     { query: 'text labels', name: 'Circos: Interval to Circos Text Labels', category: 'visualization' },
     { query: 'tile tracks', name: 'Circos: Interval to Tiles', category: 'visualization' },
     { query: 'cgMLST', name: 'ChewBBACA AlleleCall', category: 'typing' },
