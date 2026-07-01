@@ -277,6 +277,8 @@ CALCULATE_NUMERIC_PARAM_CITATION_URL = (
 CALCULATE_NUMERIC_PARAM_CITATION_TEXT = (
     "Galaxy calculate_numeric_param expression tool for deriving integer or floating-point parameter values."
 )
+COMPOSE_TEXT_PARAM_CITATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/compose_text_param"
+COMPOSE_TEXT_PARAM_CITATION_TEXT = "This tool concatenates each parameter value to a string."
 CALCULATE_CONTRAST_THRESHOLD_DOCUMENTATION_URL = (
     "https://github.com/CEGRcode/ChIP-QC-tools/tree/master/calculate_contrast_threshold"
 )
@@ -7770,6 +7772,118 @@ class CalculateNumericParamNode(BaseNode):
         if str(kwargs.get("output_type", "integer") or "integer") == "integer":
             value = float(int(value))
         return (value, int(value))
+
+
+class ComposeTextParamNode(BaseNode):
+    """Compose a Galaxy text workflow parameter from repeated components."""
+
+    NODE_ID = "compose_text_param"
+    DISPLAY_NAME = "Compose text parameter value"
+    CATEGORY = "data_transform"
+    DESCRIPTION = "Concatenate text, integer, and float parameters into a workflow text value."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "compose_text_param",
+        "Compose text parameter value",
+        "workflow text parameter",
+        "text parameter",
+        "integer parameter",
+        "float parameter",
+        "concatenate parameter values",
+    ]
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("out1",)
+    REQUIRES_EXTERNAL_TOOLS = False
+    REQUIRED_EXECUTABLES: list[str] = []
+    REQUIRED_CONDA_PACKAGES: list[str] = []
+    DOCUMENTATION_URL = COMPOSE_TEXT_PARAM_CITATION_URL
+    CITATION_URLS = [COMPOSE_TEXT_PARAM_CITATION_URL]
+    CITATION_TEXT = COMPOSE_TEXT_PARAM_CITATION_TEXT
+    VERSION = "0.1.1"
+
+    PARAM_TYPES = ["text", "integer", "float"]
+
+    @classmethod
+    def _component_items(cls, inputs: dict[str, Any]) -> list[dict[str, Any]]:
+        components = inputs.get("components")
+        if isinstance(components, (list, tuple)):
+            return [dict(item) for item in components if isinstance(item, dict)]
+        return []
+
+    @classmethod
+    def _param_type(cls, component: dict[str, Any]) -> str:
+        param_type = component.get("param_type")
+        if isinstance(param_type, dict) and "select_param_type" in param_type:
+            return str(param_type["select_param_type"])
+        return str(component.get("select_param_type", "text") or "text")
+
+    @classmethod
+    def _component_value(cls, component: dict[str, Any]) -> Any:
+        param_type = component.get("param_type")
+        if isinstance(param_type, dict) and "component_value" in param_type:
+            return param_type["component_value"]
+        return component.get("component_value")
+
+    @classmethod
+    def _composed_text(cls, inputs: dict[str, Any]) -> str:
+        return "".join(str(cls._component_value(component)) for component in cls._component_items(inputs))
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        components = cls._component_items(inputs)
+        if not components:
+            return "at least one component is required"
+        for component in components:
+            param_type = cls._param_type(component)
+            if param_type not in cls.PARAM_TYPES:
+                return f"select_param_type must be one of: {', '.join(cls.PARAM_TYPES)}"
+            value = cls._component_value(component)
+            if value is None:
+                return "component_value is required"
+            if param_type == "integer":
+                try:
+                    if int(value) != float(value):
+                        return "integer component_value must be an integer"
+                except (TypeError, ValueError):
+                    return "integer component_value must be an integer"
+            elif param_type == "float":
+                try:
+                    float(value)
+                except (TypeError, ValueError):
+                    return "float component_value must be numeric"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "components": (
+                    "JSON",
+                    {
+                        "is_list": True,
+                        "description": "Galaxy repeat components with select_param_type and component_value",
+                    },
+                ),
+            },
+            "optional": {
+                "select_param_type": (
+                    "STRING",
+                    {
+                        "default": "text",
+                        "options": cls.PARAM_TYPES,
+                        "description": "Parameter type for a single component fallback",
+                    },
+                ),
+                "component_value": ("STRING", {"default": "", "description": "Single component value"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str]:
+        validation = self.VALIDATE_INPUTS(kwargs)
+        if validation is not True:
+            raise ValueError(str(validation))
+        return (self._composed_text(kwargs),)
 
 
 class CalculateContrastThresholdNode(CommandNode):

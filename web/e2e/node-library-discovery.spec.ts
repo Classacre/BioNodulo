@@ -573,6 +573,30 @@ const objectInfo = {
     citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/calculate_numeric_param'],
     citation_text: 'Galaxy calculate_numeric_param expression tool for deriving integer or floating-point parameter values.',
   },
+  compose_text_param: {
+    name: 'compose_text_param',
+    display_name: 'Compose text parameter value',
+    category: 'data_transform',
+    description: 'Concatenate text, integer, and float parameters into a workflow text value.',
+    search_aliases: ['Galaxy', 'compose_text_param', 'Compose text parameter value', 'workflow text parameter', 'text parameter', 'integer parameter', 'float parameter', 'concatenate parameter values'],
+    input: {
+      required: {
+        components: { type: 'JSON', is_list: true },
+      },
+      optional: {
+        select_param_type: { type: 'STRING', default: 'text', options: ['text', 'integer', 'float'] },
+        component_value: { type: 'STRING', default: '' },
+      },
+    },
+    output: ['STRING'],
+    output_name: ['out1'],
+    required_executables: [],
+    required_conda_packages: [],
+    documentation_url: 'https://github.com/galaxyproject/tools-iuc/tree/main/tools/compose_text_param',
+    citation_dois: [],
+    citation_urls: ['https://github.com/galaxyproject/tools-iuc/tree/main/tools/compose_text_param'],
+    citation_text: 'This tool concatenates each parameter value to a string.',
+  },
   calculate_contrast_threshold: {
     name: 'calculate_contrast_threshold',
     display_name: 'Calculate Contrast threshold',
@@ -17715,7 +17739,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('593 nodes available')).toBeVisible();
+  await expect(page.getByText('594 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -17740,6 +17764,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'liftover Wiggle', name: 'CrossMap Wig', category: 'genomics' },
     { query: 'computed columns', name: 'Compute on rows', category: 'data_transform' },
     { query: 'arithmetic parameter', name: 'Calculate numeric parameter value', category: 'data_transform' },
+    { query: 'workflow text parameter', name: 'Compose text parameter value', category: 'data_transform' },
     { query: 'tag pileup CDT', name: 'Calculate Contrast threshold', category: 'visualization' },
     { query: 'mapping statistics', name: 'Panel Coverage Report', category: 'qc' },
     { query: 'twoBit', name: 'Extract Genomic DNA', category: 'sequence' },

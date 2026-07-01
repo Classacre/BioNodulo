@@ -7771,6 +7771,73 @@ def test_calculate_numeric_param_validates_components_and_operators() -> None:
     ) == "division by zero is not allowed"
 
 
+def test_compose_text_param_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
+    info = _registry().object_info()["compose_text_param"]
+
+    assert info["display_name"] == "Compose text parameter value"
+    assert info["category"] == "data_transform"
+    assert info["description"] == "Concatenate text, integer, and float parameters into a workflow text value."
+    assert info["input"]["required"]["components"][0] == "JSON"
+    assert info["input"]["required"]["components"][1]["is_list"] is True
+    assert info["input"]["optional"]["select_param_type"][1]["options"] == ["text", "integer", "float"]
+    assert info["input"]["optional"]["component_value"][0] == "STRING"
+    assert info["output"] == ["STRING"]
+    assert info["output_name"] == ["out1"]
+    assert info["required_executables"] == []
+    assert info["required_conda_packages"] == []
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/compose_text_param"
+    assert info["citation_dois"] == []
+    assert info["citation_urls"] == ["https://github.com/galaxyproject/tools-iuc/tree/main/tools/compose_text_param"]
+    assert "concatenates each parameter value" in info["citation_text"]
+    assert "workflow text parameter" in info["search_aliases"]
+    assert info["version"] == "0.1.1"
+
+
+def test_compose_text_param_runs_components_with_nested_galaxy_conditionals() -> None:
+    node_class = _node_class("compose_text_param")
+
+    result = asyncio.run(
+        node_class().run(
+            components=[
+                {"param_type": {"select_param_type": "text", "component_value": "Text: "}},
+                {"param_type": {"select_param_type": "text", "component_value": "value,"}},
+                {"param_type": {"select_param_type": "text", "component_value": " Integer: "}},
+                {"param_type": {"select_param_type": "integer", "component_value": 1}},
+                {"param_type": {"select_param_type": "text", "component_value": ", Float: "}},
+                {"param_type": {"select_param_type": "float", "component_value": 1.5}},
+            ]
+        )
+    )
+    assert result == ("Text: value, Integer: 1, Float: 1.5",)
+
+    flat_result = asyncio.run(
+        node_class().run(
+            components=[
+                {"select_param_type": "text", "component_value": "Text: "},
+                {"select_param_type": "text", "component_value": "value with; > & and !"},
+            ]
+        )
+    )
+    assert flat_result == ("Text: value with; > & and !",)
+
+
+def test_compose_text_param_validates_components_and_parameter_types() -> None:
+    node_class = _node_class("compose_text_param")
+
+    assert node_class.VALIDATE_INPUTS({}) == "at least one component is required"
+    assert node_class.VALIDATE_INPUTS({"components": [{"component_value": "x", "select_param_type": "bad"}]}) == (
+        "select_param_type must be one of: text, integer, float"
+    )
+    assert node_class.VALIDATE_INPUTS({"components": [{"select_param_type": "text"}]}) == "component_value is required"
+    assert node_class.VALIDATE_INPUTS({"components": [{"select_param_type": "integer", "component_value": "1.2"}]}) == (
+        "integer component_value must be an integer"
+    )
+    assert node_class.VALIDATE_INPUTS({"components": [{"select_param_type": "float", "component_value": "x"}]}) == (
+        "float component_value must be numeric"
+    )
+    assert node_class.VALIDATE_INPUTS({"components": [{"select_param_type": "text", "component_value": "ok"}]}) is True
+
+
 def test_calculate_contrast_threshold_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     info = _registry().object_info()["calculate_contrast_threshold"]
 
