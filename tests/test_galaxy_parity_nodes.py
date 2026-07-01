@@ -15058,6 +15058,43 @@ def test_circos_gc_skew_renders_bigwig_command_outputs_and_validation(tmp_path: 
     assert node_class.VALIDATE_INPUTS({"history_item": "ref.fa"}) is True
 
 
+def test_circos_wiggle_to_scatter_renders_bigwig_conversion_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_wiggle_to_scatter")
+    info = _registry().object_info()["circos_wiggle_to_scatter"]
+
+    assert info["display_name"] == "Circos: bigWig to Scatter"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Convert bigWig data into Circos scatter, line, or histogram tracks."
+    assert info["input"]["required"]["input"][0] == "BIGWIG"
+    assert info["output"] == ["TSV"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["python"]
+    assert info["required_conda_packages"] == ["circos", "pybigwig"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Galactic Circos" in info["citation_text"]
+    assert "scatter" in info["search_aliases"]
+    assert "bigWig" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "input": "signal track.bw",
+            "output": "/work/circos_wiggle_to_scatter",
+        }
+    ) == "python scatter-from-wiggle.py 'signal track.bw' > /work/circos_wiggle_to_scatter/scatter.tabular"
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "circos_wiggle_to_scatter" / "scatter.tabular"
+    ]
+
+    assert node_class.VALIDATE_INPUTS({}) == "input is required"
+    assert node_class.VALIDATE_INPUTS({"input": "signal.bw"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 

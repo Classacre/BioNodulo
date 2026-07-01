@@ -17587,6 +17587,65 @@ class CircosGCSkewNode(CommandNode):
         }
 
 
+class CircosWiggleToScatterNode(CommandNode):
+    """Convert bigWig intervals into Circos scatter track rows."""
+
+    NODE_ID = "circos_wiggle_to_scatter"
+    DISPLAY_NAME = "Circos: bigWig to Scatter"
+    REQUIRED_CONDA_PACKAGES = ["circos", "pybigwig"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Convert bigWig data into Circos scatter, line, or histogram tracks."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "bigWig",
+        "scatter",
+        "line plot",
+        "histogram",
+        "wiggle",
+        "2D track",
+    ]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["python"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/scatter.tabular"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        cmd = ["python", "scatter-from-wiggle.py", str(inputs.get("input", ""))]
+        return f"{_shell_join(cmd)} > {shlex.quote(cls._output_path(inputs))}"
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "scatter.tabular"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input", "")).strip():
+            return "input is required"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input": ("BIGWIG", {"description": "bigWig data file to convert"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class FiltlongNode(CommandNode):
     """Filter long reads by quality, length, and optional references with Filtlong."""
 
