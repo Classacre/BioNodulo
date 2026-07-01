@@ -14995,6 +14995,69 @@ def test_circos_resample_renders_track_downsampling_command_outputs_and_validati
     assert node_class.VALIDATE_INPUTS({"input": "track.tsv"}) is True
 
 
+def test_circos_gc_skew_renders_bigwig_command_outputs_and_validation(tmp_path: Path) -> None:
+    node_class = _node_class("circos_gc_skew")
+    info = _registry().object_info()["circos_gc_skew"]
+
+    assert info["display_name"] == "GC Skew"
+    assert info["category"] == "visualization"
+    assert info["description"] == "Calculate GC skew over genomic sequences for Circos tracks."
+    assert info["input"]["required"]["reference_genome_source"][1]["options"] == ["history", "builtin"]
+    assert info["input"]["optional"]["history_item"][0] == "FASTA"
+    assert info["input"]["optional"]["builtin_path"][0] == "FASTA"
+    assert info["input"]["optional"]["window"][1]["default"] == 100000
+    assert info["input"]["optional"]["window"][1]["min"] == 1
+    assert info["output"] == ["BIGWIG"]
+    assert info["output_name"] == ["output"]
+    assert info["required_executables"] == ["python", "ln"]
+    assert info["required_conda_packages"] == ["circos", "pybigwig", "biopython"]
+    assert info["documentation_url"] == "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    assert info["citation_dois"] == ["10.1093/gigascience/giaa065", "10.1101/gr.092759.109"]
+    assert info["citation_urls"] == [
+        "https://doi.org/10.1093/gigascience/giaa065",
+        "https://doi.org/10.1101/gr.092759.109",
+    ]
+    assert "Circos: an information aesthetic" in info["citation_text"]
+    assert "GC skew" in info["search_aliases"]
+    assert info["version"] == "0.69.8+galaxy12"
+
+    assert node_class.render_command(
+        {
+            "reference_genome_source": "history",
+            "history_item": "ref genome.fa",
+            "window": 2,
+            "output": "/work/circos_gc_skew",
+        }
+    ) == (
+        "mkdir -p /work/circos_gc_skew && cd /work/circos_gc_skew && ln -s -f 'ref genome.fa' reference.fa && "
+        "python gc_skew.py reference.fa 2 /work/circos_gc_skew/gc_skew.bw"
+    )
+    assert node_class.render_command(
+        {
+            "reference_genome_source": "builtin",
+            "builtin_path": "/indexes/hg38.fa",
+            "output": "/work/circos_gc_skew",
+        }
+    ) == (
+        "mkdir -p /work/circos_gc_skew && cd /work/circos_gc_skew && ln -s -f /indexes/hg38.fa reference.fa && "
+        "python gc_skew.py reference.fa 100000 /work/circos_gc_skew/gc_skew.bw"
+    )
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "circos_gc_skew" / "gc_skew.bw"]
+
+    assert node_class.VALIDATE_INPUTS({}) == "history_item is required when reference_genome_source is history"
+    assert node_class.VALIDATE_INPUTS({"reference_genome_source": "bad", "history_item": "ref.fa"}) == (
+        "reference_genome_source must be one of: history, builtin"
+    )
+    assert node_class.VALIDATE_INPUTS({"reference_genome_source": "builtin"}) == (
+        "builtin_path is required when reference_genome_source is builtin"
+    )
+    assert node_class.VALIDATE_INPUTS({"history_item": "ref.fa", "window": 0}) == (
+        "window must be greater than or equal to 1"
+    )
+    assert node_class.VALIDATE_INPUTS({"history_item": "ref.fa", "window": "bad"}) == "window must be an integer"
+    assert node_class.VALIDATE_INPUTS({"history_item": "ref.fa"}) is True
+
+
 def test_filtlong_exposes_galaxy_metadata_inputs_outputs_and_github_citation() -> None:
     node_info = _registry().object_info()["filtlong"]
 

@@ -17497,6 +17497,96 @@ class CircosResampleNode(CommandNode):
         }
 
 
+class CircosGCSkewNode(CommandNode):
+    """Calculate GC skew over a reference genome for Circos BigWig tracks."""
+
+    NODE_ID = "circos_gc_skew"
+    DISPLAY_NAME = "GC Skew"
+    REQUIRED_CONDA_PACKAGES = ["circos", "pybigwig", "biopython"]
+    CATEGORY = "visualization"
+    DESCRIPTION = "Calculate GC skew over genomic sequences for Circos tracks."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "Circos",
+        "GC skew",
+        "circos_gc_skew",
+        "genomic sequences",
+        "BigWig",
+        "comparative genomics",
+    ]
+    RETURN_TYPES = ("BIGWIG",)
+    RETURN_NAMES = ("output",)
+    REQUIRED_EXECUTABLES = ["python", "ln"]
+    DOCUMENTATION_URL = "https://github.com/galaxyproject/tools-iuc/tree/main/tools/circos"
+    CITATION_DOIS = CIRCOS_CITATION_DOIS
+    CITATION_URLS = [f"{DOI_URL}{doi}" for doi in CIRCOS_CITATION_DOIS]
+    CITATION_TEXT = CIRCOS_CITATION_TEXT
+    VERSION = "0.69.8+galaxy12"
+    SHELL = True
+
+    REFERENCE_SOURCES = ["history", "builtin"]
+
+    @classmethod
+    def _reference_source(cls, inputs: dict[str, Any]) -> str:
+        return str(inputs.get("reference_genome_source", "history") or "history")
+
+    @classmethod
+    def _reference_path(cls, inputs: dict[str, Any]) -> str:
+        if cls._reference_source(inputs) == "builtin":
+            return str(inputs.get("builtin_path", inputs.get("builtin", "")) or "")
+        return str(inputs.get("history_item", "") or "")
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/gc_skew.bw"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        out = _out(inputs)
+        reference = cls._reference_path(inputs)
+        return (
+            f"{_shell_join(['mkdir', '-p', out])} && cd {shlex.quote(out)} && "
+            f"{_shell_join(['ln', '-s', '-f', reference, 'reference.fa'])} && "
+            f"{_shell_join(['python', 'gc_skew.py', 'reference.fa', str(inputs.get('window', 100000)), cls._output_path(inputs)])}"
+        )
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "gc_skew.bw"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        source = cls._reference_source(inputs)
+        if source not in cls.REFERENCE_SOURCES:
+            return f"reference_genome_source must be one of: {', '.join(cls.REFERENCE_SOURCES)}"
+        if not cls._reference_path(inputs).strip():
+            key = "builtin_path" if source == "builtin" else "history_item"
+            return f"{key} is required when reference_genome_source is {source}"
+        try:
+            window = int(inputs.get("window", 100000))
+        except (TypeError, ValueError):
+            return "window must be an integer"
+        if window < 1:
+            return "window must be greater than or equal to 1"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference_genome_source": ("STRING", {"default": "history", "options": cls.REFERENCE_SOURCES}),
+            },
+            "optional": {
+                "history_item": ("FASTA", {"default": "", "description": "Reference genome FASTA from history"}),
+                "builtin_path": ("FASTA", {"default": "", "description": "Built-in reference genome FASTA path"}),
+                "window": ("INT", {"default": 100000, "min": 1, "description": "Window size for GC skew"}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class FiltlongNode(CommandNode):
     """Filter long reads by quality, length, and optional references with Filtlong."""
 
