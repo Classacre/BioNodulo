@@ -16807,6 +16807,32 @@ const objectInfo = {
     citation_urls: ['https://doi.org/10.1371/journal.pcbi.1004873'],
     citation_text: 'CNVkit: Genome-Wide Copy Number Detection and Visualization from Targeted DNA Sequencing.',
   },
+  cnvkit_target: {
+    name: 'cnvkit_target',
+    display_name: 'CNVkit Target',
+    category: 'variant',
+    description: 'Prepare CNVkit target BED intervals from capture bait regions.',
+    search_aliases: ['Galaxy', 'CNVkit', 'CNVkit Target', 'cnvkit.py target', 'baited regions', 'capture targets', 'target BED', 'split target bins', 'copy number variation'],
+    input: {
+      required: {
+        input_file: { type: 'BED' },
+      },
+      optional: {
+        annotate: { type: 'FILE' },
+        short_names: { type: 'BOOLEAN', default: false },
+        split: { type: 'BOOLEAN', default: false },
+        avg_size: { type: 'INT', default: 266, min: 1 },
+      },
+    },
+    output: ['BED'],
+    output_name: ['out_capture_target'],
+    required_executables: ['cnvkit.py'],
+    required_conda_packages: ['cnvkit', 'samtools'],
+    documentation_url: 'https://cnvkit.readthedocs.io/en/stable/pipeline.html#target',
+    citation_dois: ['10.1371/journal.pcbi.1004873'],
+    citation_urls: ['https://doi.org/10.1371/journal.pcbi.1004873'],
+    citation_text: 'CNVkit: Genome-Wide Copy Number Detection and Visualization from Targeted DNA Sequencing.',
+  },
   bcftools_csq: {
     name: 'bcftools_csq',
     display_name: 'BCFtools CSQ',
@@ -17855,7 +17881,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('599 nodes available')).toBeVisible();
+  await expect(page.getByText('600 nodes available')).toBeVisible();
 
   const search = page.getByRole('combobox', { name: 'Search nodes' });
   const expectedNodes = [
@@ -18410,6 +18436,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'copy number variation', name: 'BCFtools CNV', category: 'variant' },
     { query: 'sequence-accessible coordinates', name: 'CNVkit Access', category: 'variant' },
     { query: 'antitarget regions', name: 'CNVkit Antitarget', category: 'variant' },
+    { query: 'baited regions', name: 'CNVkit Target', category: 'variant' },
     { query: 'consequence prediction', name: 'BCFtools CSQ', category: 'variant' },
     { query: 'runs of homozygosity', name: 'BCFtools ROH', category: 'variant' },
     { query: 'variant counts', name: 'BCFtools +counts', category: 'variant' },

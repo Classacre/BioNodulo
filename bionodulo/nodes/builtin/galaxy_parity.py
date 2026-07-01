@@ -77633,6 +77633,112 @@ class CNVkitAntitargetNode(CommandNode):
         }
 
 
+class CNVkitTargetNode(CommandNode):
+    """Prepare CNVkit target BED intervals from capture bait regions."""
+
+    NODE_ID = "cnvkit_target"
+    DISPLAY_NAME = "CNVkit Target"
+    REQUIRED_CONDA_PACKAGES = ["cnvkit", "samtools"]
+    CATEGORY = "variant"
+    DESCRIPTION = "Prepare CNVkit target BED intervals from capture bait regions."
+    SEARCH_ALIASES = [
+        GALAXY_ALIAS,
+        "CNVkit",
+        "CNVkit Target",
+        "cnvkit.py target",
+        "baited regions",
+        "capture targets",
+        "target BED",
+        "split target bins",
+        "copy number variation",
+    ]
+    RETURN_TYPES = ("BED",)
+    RETURN_NAMES = ("out_capture_target",)
+    REQUIRED_EXECUTABLES = ["cnvkit.py"]
+    DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/en/stable/pipeline.html#target"
+    CITATION_DOIS = [CNVKIT_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{CNVKIT_CITATION_DOI}"]
+    CITATION_TEXT = CNVKIT_CITATION_TEXT
+    VERSION = "0.9.12+galaxy0"
+    SHELL = True
+
+    @classmethod
+    def _output_path(cls, inputs: dict[str, Any]) -> str:
+        return f"{_out(inputs)}/capture.split.bed"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        input_file = str(inputs.get("input_file", ""))
+        commands = [f"ln -s {shlex.quote(input_file)} ./capture.bed"]
+        annotate = inputs.get("annotate")
+        if annotate:
+            commands.append(f"ln -s {shlex.quote(str(annotate))} ./annotate.bed")
+
+        cmd = ["cnvkit.py", "target", input_file, "--output", cls._output_path(inputs)]
+        if annotate:
+            cmd.extend(["--annotate", "./annotate.bed"])
+        if inputs.get("short_names"):
+            cmd.append("--short-names")
+        if inputs.get("split"):
+            cmd.append("--split")
+        avg_size = inputs.get("avg_size", 266)
+        if avg_size is not None and str(avg_size) != "":
+            cmd.extend(["--avg-size", str(avg_size)])
+        commands.append(_shell_join(cmd))
+        return " && ".join(commands)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / "capture.split.bed"]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        if not str(inputs.get("input_file", "")).strip():
+            return "input_file is required"
+        avg_size = inputs.get("avg_size")
+        if avg_size is not None and str(avg_size) != "":
+            try:
+                integer_value = int(avg_size)
+            except (TypeError, ValueError):
+                return "avg_size must be an integer"
+            if integer_value < 1:
+                return "avg_size must be at least 1"
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "input_file": ("BED", {"description": "Capture or target BED file"}),
+            },
+            "optional": {
+                "annotate": (
+                    "FILE",
+                    {"description": "Gene model file used to assign names to target regions"},
+                ),
+                "short_names": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Reduce multi-accession bait labels to short names"},
+                ),
+                "split": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Split large tiled intervals into smaller targets"},
+                ),
+                "avg_size": (
+                    "INT",
+                    {
+                        "default": 266,
+                        "min": 1,
+                        "description": "Average size of split target bins",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+
 class BCFtoolsCSQNode(CommandNode):
     """Annotate haplotype-aware variant consequences with bcftools csq."""
 
