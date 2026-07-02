@@ -34,7 +34,7 @@ const utilsMocks = vi.hoisted(() => ({
 }));
 
 const thumbnailMocks = vi.hoisted(() => ({
-  renderWorkflowThumbnail: vi.fn(() => 'data:image/png;base64,dGh1bWI='),
+  renderWorkflowThumbnailPng: vi.fn(async () => 'data:image/png;base64,dGh1bWI='),
 }));
 
 const pngMetadataMocks = vi.hoisted(() => ({
@@ -89,7 +89,7 @@ describe('ExportModal i18n', () => {
     apiMocks.apiPost.mockReset();
     loggingMock.logError.mockReset();
     utilsMocks.saveToFile.mockReset();
-    thumbnailMocks.renderWorkflowThumbnail.mockClear();
+    thumbnailMocks.renderWorkflowThumbnailPng.mockClear();
     pngMetadataMocks.embedWorkflowInPngDataUrl.mockReset();
     pngMetadataMocks.embedWorkflowInPngDataUrl.mockReturnValue(new Blob(['png'], { type: 'image/png' }));
     vi.stubGlobal('localStorage', localStorageStub);
@@ -164,9 +164,7 @@ describe('ExportModal i18n', () => {
     const { default: ExportModal } = await import('../components/modals/ExportModal');
     const { setLanguage } = await import('../i18n');
     const error = new Error('Canvas 2D context unavailable');
-    thumbnailMocks.renderWorkflowThumbnail.mockImplementationOnce(() => {
-      throw error;
-    });
+    thumbnailMocks.renderWorkflowThumbnailPng.mockRejectedValueOnce(error);
 
     await setLanguage('es');
 

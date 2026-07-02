@@ -1,6 +1,13 @@
-// Render a workflow JSON to a PNG dataURL with no dependency on the live
-// canvas component, so the export modal can produce a thumbnail without
-// the WorkflowCanvas being mounted on a particular tab.
+// Render a workflow JSON to a thumbnail with no dependency on the live canvas
+// component, so recents, template cards, and the export modal can produce a
+// preview without the React Flow canvas being mounted.
+//
+// The graph is drawn declaratively as an SVG string (matching the React Flow
+// DOM aesthetic) — there is NO Canvas2D node renderer here. For the paths that
+// need real PNG bytes (the export download + template drag-drop, which embed
+// the workflow JSON as a PNG tEXt chunk for the Python `workflow_embed.py`
+// interop), `rasterizeSvgToPng` converts the SVG to a PNG using an <img> +
+// one-shot canvas purely for image encoding.
 
 import type { Workflow, WorkflowNode } from '../types';
 import i18n from '../i18n';
@@ -75,89 +82,66 @@ function estimateHeight(node: WorkflowNode): number {
   return NODE_HEADER_H + io + widgetBlock + 24;
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + w - radius, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-  ctx.lineTo(x + w, y + h - radius);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-  ctx.lineTo(x + radius, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
+// Escape text for inclusion in SVG element bodies / attribute values.
+function esc(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 export interface RenderOptions {
   width?: number;
   height?: number;
   background?: string;
-  /** Output encoding for the dataURL. JPEG is ~10x smaller — good for localStorage. */
-  format?: 'png' | 'jpeg';
   /**
-   * For JPEG: encoder quality (0-1, default 0.85).
-   * For PNG: rendering scale (PNG is lossless, so we drive output resolution
-   * instead). 1.0 keeps the requested width/height; 0.5 halves them, etc.
+   * PNG resolution multiplier (SVG is vector, so this only affects the
+   * rasterised PNG output via `renderWorkflowThumbnailPng`). 1.0 keeps the
+   * requested width/height; 0.5 halves them, etc. Clamped to [0.25, 1].
    */
   quality?: number;
   /**
-   * When `true`, the background fill is skipped and the canvas remains
-   * transparent. Useful for embedding the thumbnail in slide decks / docs.
+   * When `true`, the background fill is skipped and the SVG stays transparent.
+   * Useful for embedding the thumbnail in slide decks / docs.
    */
   transparent?: boolean;
 }
 
-// Smaller, JPEG-encoded variant used to stamp recents in localStorage. Keeps
-// the per-entry payload to ~3-6 KB so we stay well under the 5 MB origin quota
-// even with the full 12-entry MAX_ENTRIES recents list.
+// Compact SVG thumbnail used to stamp recents in localStorage. SVG is plain
+// text, so a small graph serialises to a few KB — well under the origin quota
+// even across the full recents list.
 export function renderRecentThumbnail(workflow: Workflow): string {
   try {
-    return renderWorkflowThumbnail(workflow, {
-      width: 240,
-      height: 150,
-      format: 'jpeg',
-      quality: 0.72,
-    });
+    return renderWorkflowThumbnail(workflow, { width: 240, height: 150 });
   } catch {
     return '';
   }
 }
 
+/**
+ * Render the workflow to an inline SVG data URL. Synchronous and safe to use
+ * directly as an `<img src>`; call `rasterizeSvgToPng` on the result when real
+ * PNG bytes are required (e.g. the workflow-embedded export download).
+ */
 export function renderWorkflowThumbnail(workflow: Workflow, options: RenderOptions = {}): string {
-  const baseWidth = options.width ?? 640;
-  const baseHeight = options.height ?? 400;
-  const format = options.format ?? 'png';
-  const quality = options.quality ?? (format === 'jpeg' ? 0.85 : 1);
+  const width = Math.max(64, options.width ?? 640);
+  const height = Math.max(64, options.height ?? 400);
   const transparent = options.transparent === true;
   const background = transparent ? null : (options.background ?? '#0f172a');
-  // PNG uses `quality` as a resolution multiplier (it's lossless). Clamp so
-  // we never produce an absurdly large or near-empty canvas.
-  const pngScale = format === 'png' ? Math.max(0.25, Math.min(1, quality)) : 1;
-  const width = Math.max(64, Math.round(baseWidth * pngScale));
-  const height = Math.max(64, Math.round(baseHeight * pngScale));
 
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D context unavailable');
+  const body: string[] = [];
   if (background) {
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, width, height);
-  } else {
-    ctx.clearRect(0, 0, width, height);
+    body.push(`<rect width="${width}" height="${height}" fill="${esc(background)}"/>`);
   }
 
   const nodes = workflow.nodes || [];
   if (nodes.length === 0) {
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '14px Inter, sans-serif';
-    ctx.fillText(i18n.t('workflowThumbnail.emptyWorkflow'), 16, 24);
-    return format === 'jpeg'
-      ? canvas.toDataURL('image/jpeg', quality)
-      : canvas.toDataURL('image/png');
+    body.push(
+      `<text x="16" y="24" font-family="Inter, sans-serif" font-size="14" fill="#94a3b8">` +
+      `${esc(i18n.t('workflowThumbnail.emptyWorkflow'))}</text>`,
+    );
+    return svgDataUrl(width, height, body.join(''));
   }
 
   let minX = Infinity;
@@ -178,11 +162,9 @@ export function renderWorkflowThumbnail(workflow: Workflow, options: RenderOptio
   const scale = Math.min(width / bw, height / bh);
   const offX = (width - bw * scale) / 2 + (pad - minX) * scale;
   const offY = (height - bh * scale) / 2 + (pad - minY) * scale;
-
   const toScreen = (x: number, y: number): [number, number] => [x * scale + offX, y * scale + offY];
 
-  ctx.strokeStyle = '#94a3b8';
-  ctx.lineWidth = 1.4;
+  // Edges (behind nodes).
   const byId = new Map(nodes.map(node => [node.id, node]));
   for (const edge of workflow.edges || []) {
     const a = byId.get(edge.from.node);
@@ -194,62 +176,121 @@ export function renderWorkflowThumbnail(workflow: Workflow, options: RenderOptio
     const [x1, y1] = toScreen(a.position[0] + aW, a.position[1] + aH / 2);
     const [x2, y2] = toScreen(b.position[0], b.position[1] + bH / 2);
     const cd = Math.max(20, Math.hypot(x2 - x1, y2 - y1) * 0.25);
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.bezierCurveTo(x1 + cd, y1, x2 - cd, y2, x2, y2);
-    ctx.stroke();
+    body.push(
+      `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} C${(x1 + cd).toFixed(1)},${y1.toFixed(1)} ` +
+      `${(x2 - cd).toFixed(1)},${y2.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" ` +
+      `fill="none" stroke="#94a3b8" stroke-width="1.4"/>`,
+    );
   }
 
+  // Nodes.
   for (const node of nodes) {
     const ui = node.ui || {};
     const color = ui.color || colorForType(node.type);
     if (isReroute(node)) {
       const [cx, cy] = toScreen(node.position[0] + 20, node.position[1] + 10);
       const r = Math.max(3, 6 * scale);
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fill();
+      body.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${esc(color)}"/>`);
       continue;
     }
-    const nw = NODE_WIDTH;
     const nh = estimateHeight(node);
     const [x0, y0] = toScreen(node.position[0], node.position[1]);
-    const w = nw * scale;
+    const w = NODE_WIDTH * scale;
     const h = nh * scale;
     const radius = Math.max(2, 8 * scale);
     if (isNote(node)) {
-      ctx.fillStyle = 'rgba(245,158,11,0.18)';
-      roundRect(ctx, x0, y0, w, h, radius);
-      ctx.fill();
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      body.push(
+        `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
+        `rx="${radius.toFixed(1)}" fill="rgba(245,158,11,0.18)" stroke="#f59e0b" stroke-width="1"/>`,
+      );
     } else {
-      ctx.fillStyle = 'rgba(30,41,59,0.9)';
-      roundRect(ctx, x0, y0, w, h, radius);
-      ctx.fill();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-      ctx.fillStyle = color;
-      roundRect(ctx, x0, y0, w, Math.max(6, NODE_HEADER_H * scale), radius);
-      ctx.fill();
+      const headerH = Math.max(6, NODE_HEADER_H * scale);
+      body.push(
+        `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" ` +
+        `rx="${radius.toFixed(1)}" fill="rgba(30,41,59,0.9)" stroke="${esc(color)}" stroke-width="1.2"/>`,
+        `<path d="M${x0.toFixed(1)},${(y0 + radius).toFixed(1)} q0,${(-radius).toFixed(1)} ${radius.toFixed(1)},${(-radius).toFixed(1)} ` +
+        `h${(w - 2 * radius).toFixed(1)} q${radius.toFixed(1)},0 ${radius.toFixed(1)},${radius.toFixed(1)} ` +
+        `v${(headerH - radius).toFixed(1)} h${(-w).toFixed(1)} Z" fill="${esc(color)}"/>`,
+      );
     }
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `600 ${Math.max(9, 11 * scale)}px Inter, sans-serif`;
     const label = ui.title || node.type || i18n.t('workflowThumbnail.nodeFallback');
-    const maxChars = Math.max(6, Math.floor((nw - 12) * scale / 6));
+    const maxChars = Math.max(6, Math.floor((NODE_WIDTH - 12) * scale / 6));
     const text = label.length > maxChars ? label.slice(0, maxChars - 1) + '…' : label;
-    ctx.fillText(text, x0 + 6, y0 + Math.max(10, NODE_HEADER_H * scale * 0.65));
+    const fontSize = Math.max(9, 11 * scale);
+    body.push(
+      `<text x="${(x0 + 6).toFixed(1)}" y="${(y0 + Math.max(10, NODE_HEADER_H * scale * 0.65)).toFixed(1)}" ` +
+      `font-family="Inter, sans-serif" font-weight="600" font-size="${fontSize.toFixed(1)}" fill="#ffffff">` +
+      `${esc(text)}</text>`,
+    );
   }
 
-  ctx.strokeStyle = 'rgba(45,212,191,0.35)';
-  ctx.lineWidth = 1;
-  roundRect(ctx, 0.5, 0.5, width - 1, height - 1, 8);
-  ctx.stroke();
+  // Subtle border.
+  body.push(
+    `<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="8" ` +
+    `fill="none" stroke="rgba(45,212,191,0.35)" stroke-width="1"/>`,
+  );
 
-  return format === 'jpeg'
-    ? canvas.toDataURL('image/jpeg', quality)
-    : canvas.toDataURL('image/png');
+  return svgDataUrl(width, height, body.join(''));
+}
+
+function svgDataUrl(width: number, height: number, inner: string): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+    `viewBox="0 0 ${width} ${height}">${inner}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Rasterise an SVG data URL to a PNG data URL. The canvas here is used purely
+ * as an image encoder (it draws a fully-formed SVG image), not as a graph
+ * renderer. Needed by the paths that embed the workflow JSON into PNG metadata.
+ */
+export function rasterizeSvgToPng(
+  svgDataUrl: string,
+  options: { width?: number; height?: number; background?: string; timeoutMs?: number } = {},
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    // Guard against an <img> that never fires load/error (which would strand
+    // callers like ExportModal in a stuck loading state).
+    const timer = setTimeout(() => {
+      img.onload = img.onerror = null;
+      reject(new Error('Timed out rasterising SVG thumbnail'));
+    }, options.timeoutMs ?? 10_000);
+    img.onload = () => {
+      clearTimeout(timer);
+      const width = options.width ?? img.width ?? 640;
+      const height = options.height ?? img.height ?? 400;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas 2D context unavailable')); return; }
+      if (options.background) {
+        ctx.fillStyle = options.background;
+        ctx.fillRect(0, 0, width, height);
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('Failed to rasterise SVG thumbnail'));
+    };
+    img.src = svgDataUrl;
+  });
+}
+
+/**
+ * Convenience: render the workflow and rasterise it to a PNG data URL in one
+ * step, for callers that need real PNG bytes (export download, template embed).
+ */
+export async function renderWorkflowThumbnailPng(workflow: Workflow, options: RenderOptions = {}): Promise<string> {
+  const svg = renderWorkflowThumbnail(workflow, options);
+  const scale = Math.max(0.25, Math.min(1, options.quality ?? 1));
+  return rasterizeSvgToPng(svg, {
+    width: Math.round((options.width ?? 640) * scale),
+    height: Math.round((options.height ?? 400) * scale),
+    background: options.transparent ? undefined : (options.background ?? '#0f172a'),
+  });
 }

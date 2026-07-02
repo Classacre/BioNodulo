@@ -28,31 +28,11 @@ const emptyWorkflow: Workflow = {
   outputs: {},
 };
 
-function stubCanvas(fillText: ReturnType<typeof vi.fn>) {
-  const context = {
-    arc: vi.fn(),
-    beginPath: vi.fn(),
-    bezierCurveTo: vi.fn(),
-    closePath: vi.fn(),
-    clearRect: vi.fn(),
-    fill: vi.fn(),
-    fillRect: vi.fn(),
-    fillText,
-    lineTo: vi.fn(),
-    moveTo: vi.fn(),
-    quadraticCurveTo: vi.fn(),
-    stroke: vi.fn(),
-  };
-
-  vi.spyOn(document, 'createElement').mockImplementation(((tagName: string) => {
-    if (tagName !== 'canvas') return document.createElement(tagName);
-    return {
-      width: 0,
-      height: 0,
-      getContext: () => context,
-      toDataURL: () => 'data:image/png;base64,thumbnail',
-    } as unknown as HTMLCanvasElement;
-  }) as typeof document.createElement);
+// The thumbnail renderer now emits an inline SVG data URL (no Canvas2D). Decode
+// it back to the SVG markup so we can assert on the rendered label text.
+function decodeSvg(dataUrl: string): string {
+  const comma = dataUrl.indexOf(',');
+  return decodeURIComponent(dataUrl.slice(comma + 1));
 }
 
 describe('workflow thumbnail copy i18n', () => {
@@ -69,30 +49,24 @@ describe('workflow thumbnail copy i18n', () => {
     vi.unstubAllGlobals();
   });
 
-  it('draws the empty-workflow thumbnail label from the active locale', async () => {
+  it('renders the empty-workflow thumbnail label from the active locale', async () => {
     const { setLanguage } = await import('../i18n');
     const { renderWorkflowThumbnail } = await import('../utils/workflowThumbnail');
-    const fillText = vi.fn();
-    stubCanvas(fillText);
 
     await setLanguage('es');
+    const svg = decodeSvg(renderWorkflowThumbnail(emptyWorkflow));
 
-    renderWorkflowThumbnail(emptyWorkflow);
-
-    expect(fillText).toHaveBeenCalledWith('(flujo de trabajo vacio)', 16, 24);
-    expect(fillText).not.toHaveBeenCalledWith('(workflow vacio)', 16, 24);
-    expect(fillText).not.toHaveBeenCalledWith('(empty workflow)', 16, 24);
+    expect(svg).toContain('(flujo de trabajo vacio)');
+    expect(svg).not.toContain('(workflow vacio)');
+    expect(svg).not.toContain('(empty workflow)');
   });
 
-  it('draws the node fallback label from the active locale', async () => {
+  it('renders the node fallback label from the active locale', async () => {
     const { setLanguage } = await import('../i18n');
     const { renderWorkflowThumbnail } = await import('../utils/workflowThumbnail');
-    const fillText = vi.fn();
-    stubCanvas(fillText);
 
     await setLanguage('es');
-
-    renderWorkflowThumbnail({
+    const svg = decodeSvg(renderWorkflowThumbnail({
       ...emptyWorkflow,
       nodes: [{
         id: 'node-1',
@@ -101,9 +75,8 @@ describe('workflow thumbnail copy i18n', () => {
         params: {},
         ui: {},
       }],
-    });
+    }));
 
-    expect(fillText).toHaveBeenCalledWith('Nodo', expect.any(Number), expect.any(Number));
-    expect(fillText).not.toHaveBeenCalledWith('node', expect.any(Number), expect.any(Number));
+    expect(svg).toContain('Nodo');
   });
 });
