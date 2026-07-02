@@ -78,8 +78,7 @@ import {
 // Re-export the model types the sub-components (NodeEditor, NodeInfoPanel,
 // SelectionToolbox, Minimap, InspectorPanel) and App import from this module so
 // their existing import paths keep working after the React Flow migration.
-export type { GraphNode, NodeCommentSummary, WorkflowCanvasRef };
-export { INLINE_PREVIEW_TOGGLE_H, INLINE_PREVIEW_BAND_H };
+export type { GraphNode, WorkflowCanvasRef };
 
 interface WorkflowCanvasProps {
   nodes: WorkflowNode[];

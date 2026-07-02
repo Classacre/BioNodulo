@@ -188,20 +188,6 @@ export function calcNodeHeight(
   return base;
 }
 
-export function getNodesInGroup(group: WorkflowGroup, graphNodes: GraphNode[]): string[] {
-  const gx1 = group.position[0];
-  const gy1 = group.position[1];
-  const gx2 = gx1 + group.width;
-  const gy2 = gy1 + group.height;
-  return graphNodes
-    .filter(n => {
-      const ncx = n.x + n.width / 2;
-      const ncy = n.y + n.height / 2;
-      return ncx >= gx1 && ncx <= gx2 && ncy >= gy1 && ncy <= gy2;
-    })
-    .map(n => n.id);
-}
-
 // Topmost group whose body contains the point, or null. Used by reroute
 // insertion so a reroute dropped inside a group inherits that group as its
 // parentId (so future select/move-by-group also picks up the reroute).
