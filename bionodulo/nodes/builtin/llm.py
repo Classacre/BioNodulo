@@ -118,7 +118,7 @@ class LLMPromptNode(BaseNode):
     DISPLAY_NAME = "LLM Prompt"
     CATEGORY = "ai"
     DESCRIPTION = "Render a prompt template and run it through an LLM provider"
-    SEARCH_ALIASES = ["llm", "ai", "prompt", "openai", "anthropic", "litellm", "chatgpt"]
+    SEARCH_ALIASES = ["llm", "ai", "prompt", "openai", "anthropic", "litellm", "chatgpt", "language model", "language-model"]
     RETURN_TYPES = ("STRING", "JSON")
     RETURN_NAMES = ("response", "metadata")
     REQUIRES_EXTERNAL_TOOLS = False

@@ -18502,8 +18502,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
 test('BioNodulo built-in nodes render citation metadata in node info', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-  const canvas = page.locator('canvas').first();
-  const canvasBox = await canvas.boundingBox();
+  // React Flow renders DOM (no <canvas>); the interactive surface is the pane.
+  const pane = page.locator('.react-flow__pane');
+  await expect(pane).toBeVisible();
+  const canvasBox = await pane.boundingBox();
   expect(canvasBox).not.toBeNull();
   const nodePoint = {
     x: canvasBox!.x + Math.min(320, canvasBox!.width / 2),
@@ -18516,7 +18518,9 @@ test('BioNodulo built-in nodes render citation metadata in node info', async ({ 
   await search.fill('diamond blastx');
   await page.getByTitle('Add DIAMOND Align').click();
 
-  await expect(page.getByRole('status')).toContainText('1');
+  // Scope to the workflow-stats overlay — the transient `#bn-boot` element also
+  // carries role="status", which makes a bare getByRole('status') ambiguous.
+  await expect(page.locator('.workflow-stats-overlay')).toContainText('1');
   await page.mouse.click(nodePoint.x + 80, nodePoint.y + 30, { button: 'right' });
   await page.getByText('Node Info').click();
 
