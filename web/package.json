@@ -21,6 +21,7 @@
     "@clerk/clerk-js": "^6.18.1",
     "@xyflow/react": "^12.11.1",
     "fuse.js": "^7.3.0",
+    "html-to-image": "^1.11.13",
     "i18next": "^26.2.0",
     "jotai": "^2.20.0",
     "lib0": "^0.2.98",

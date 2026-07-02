@@ -3,7 +3,7 @@
 // implementation so the node geometry / colour / layout logic stays a single
 // source of truth during and after the React Flow migration.
 import type { WorkflowEdge, WorkflowGroup, NodeMetadata, NodeStatus } from '../../types';
-import { NODE_HEADER_H, NODE_PIN_H, calcRegularNodeHeight } from '../../utils/nodeLayout';
+import { NODE_HEADER_H, calcRegularNodeHeight } from '../../utils/nodeLayout';
 
 export const NODE_WIDTH = 220;
 export const NODE_NOTE_WIDTH = 260;
@@ -312,100 +312,6 @@ export function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[
     result.push({ id: n.id, x: layerX.get(l) ?? 60, y });
   }
   return result;
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | Record<string, number>) {
-  if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
-  const rad = r as Record<string, number>;
-  ctx.beginPath();
-  ctx.moveTo(x + rad.tl, y);
-  ctx.lineTo(x + w - rad.tr, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + rad.tr);
-  ctx.lineTo(x + w, y + h - rad.br);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - rad.br, y + h);
-  ctx.lineTo(x + rad.bl, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - rad.bl);
-  ctx.lineTo(x, y + rad.tl);
-  ctx.quadraticCurveTo(x, y, x + rad.tl, y);
-  ctx.closePath();
-}
-
-// Rasterises the current graph into a 480x360 PNG data URL for thumbnails and
-// the export-thumbnail canvas menu action. Uses an offscreen 2D context; this
-// is not part of the interactive render path.
-export function exportThumbnailDataURL(graphNodes: GraphNode[], edges: WorkflowEdge[], groups: WorkflowGroup[]): string {
-  const c = document.createElement('canvas');
-  c.width = 480;
-  c.height = 360;
-  const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(0, 0, c.width, c.height);
-
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const n of graphNodes) {
-    minX = Math.min(minX, n.x);
-    minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x + n.width);
-    maxY = Math.max(maxY, n.y + n.height);
-  }
-  for (const g of groups) {
-    minX = Math.min(minX, g.position[0]);
-    minY = Math.min(minY, g.position[1]);
-    maxX = Math.max(maxX, g.position[0] + g.width);
-    maxY = Math.max(maxY, g.position[1] + g.height);
-  }
-  if (!isFinite(minX)) { minX = 0; minY = 0; maxX = c.width; maxY = c.height; }
-
-  const pad = 30;
-  const bw = maxX - minX + pad * 2;
-  const bh = maxY - minY + pad * 2;
-  const s = Math.min(c.width / bw, c.height / bh);
-  const ox = (c.width - bw * s) / 2 + pad * s - minX * s;
-  const oy = (c.height - bh * s) / 2 + pad * s - minY * s;
-  ctx.setTransform(s, 0, 0, s, ox, oy);
-
-  for (const g of groups) {
-    ctx.fillStyle = g.color + '18';
-    ctx.fillRect(g.position[0], g.position[1], g.width, g.height);
-    ctx.strokeStyle = g.color + '40';
-    ctx.lineWidth = 1 / s;
-    ctx.strokeRect(g.position[0], g.position[1], g.width, g.height);
-  }
-
-  for (const edge of edges) {
-    const fromNode = graphNodes.find(n => n.id === edge.from.node);
-    const toNode = graphNodes.find(n => n.id === edge.to.node);
-    if (!fromNode || !toNode) continue;
-    const fromOutIndex = fromNode.outputs.findIndex(o => o.name === edge.from.output);
-    const toInIndex = toNode.inputs.findIndex(i => i.name === edge.to.input);
-    const fy = fromNode.y + NODE_HEADER_H + NODE_PIN_H / 2 + (fromOutIndex >= 0 ? fromOutIndex : 0) * NODE_PIN_H;
-    const ty = toNode.y + NODE_HEADER_H + NODE_PIN_H / 2 + (toInIndex >= 0 ? toInIndex : 0) * NODE_PIN_H;
-    const fx = fromNode.x + fromNode.width;
-    const tx = toNode.x;
-    const dist = Math.hypot(tx - fx, ty - fy);
-    const cd = Math.max(30, dist * 0.25);
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 1.5 / s;
-    ctx.beginPath();
-    ctx.moveTo(fx, fy);
-    ctx.bezierCurveTo(fx + cd, fy, tx - cd, ty, tx, ty);
-    ctx.stroke();
-  }
-
-  for (const node of graphNodes) {
-    ctx.fillStyle = node.color;
-    roundRect(ctx, node.x, node.y, node.width, node.height, 8);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(node.x, node.y, node.width, NODE_HEADER_H);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `${11 / s}px Inter, sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.fillText(node.display_name, node.x + 10, node.y + 21);
-  }
-
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  return c.toDataURL('image/png');
 }
 
 export function createGroupFromNodes(nodes: GraphNode[], fallbackName: string): WorkflowGroup {

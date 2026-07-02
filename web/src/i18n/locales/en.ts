@@ -2068,6 +2068,7 @@ class MyToolNode(CommandNode):
     selectAll: 'Select All',
     arrangeNodes: 'Arrange Nodes',
     exportThumbnail: 'Export Thumbnail',
+    exportThumbnailFailed: 'Could not export thumbnail',
     clearWorkflow: 'Clear Workflow',
     insertReroute: 'Insert Reroute',
     deleteLink: 'Delete Link',

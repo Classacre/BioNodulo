@@ -987,7 +987,6 @@ class CIAlignNode(CommandNode):
         "TXT",
         "TXT",
         "TXT",
-        "TXT",
         "TSV",
         "TSV",
         "TSV",

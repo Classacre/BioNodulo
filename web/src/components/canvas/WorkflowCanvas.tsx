@@ -22,6 +22,7 @@ import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
 import { dragCoordinate } from '../../utils/snap';
+import { captureCanvasThumbnail } from '../../utils/canvasThumbnail';
 import {
   NODE_HEADER_H,
   NODE_PIN_H,
@@ -71,7 +72,6 @@ import {
   calcNodeHeight,
   arrangeNodesLayout,
   createGroupFromNodes,
-  exportThumbnailDataURL,
   groupContainingPoint,
 } from './canvasModel';
 
@@ -1981,12 +1981,27 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
               setCanvasMenu(null);
             }}>{t('canvas.arrangeNodes')}</div>
             <div className="context-menu-item" onClick={() => {
-              const dataUrl = exportThumbnailDataURL(graphNodes, edges, groups);
-              const a = document.createElement('a');
-              a.href = dataUrl;
-              a.download = 'workflow_thumbnail.png';
-              a.click();
               setCanvasMenu(null);
+              void (async () => {
+                try {
+                  rf.fitView({ padding: 0.1, duration: 0 });
+                  // Let React Flow commit the fitted viewport transform before
+                  // we snapshot the DOM.
+                  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                  const dataUrl = await captureCanvasThumbnail(hostRef.current);
+                  if (!dataUrl) {
+                    toast.error(t('canvas.exportThumbnailFailed'));
+                    return;
+                  }
+                  const a = document.createElement('a');
+                  a.href = dataUrl;
+                  a.download = 'workflow_thumbnail.png';
+                  a.click();
+                } catch (err) {
+                  logError('canvas.exportThumbnail', err);
+                  toast.error(t('canvas.exportThumbnailFailed'));
+                }
+              })();
             }}>{t('canvas.exportThumbnail')}</div>
             <div className="context-menu-sep" />
             <div className="context-menu-item" onClick={() => { onNodesChange([]); onEdgesChange([]); onPushHistory(); setCanvasMenu(null); }}>{t('canvas.clearWorkflow')}</div>

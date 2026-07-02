@@ -3466,7 +3466,9 @@ class SeqTKMergePENode(CommandNode):
         "merge paired reads",
         "paired FASTQ",
     ]
-    RETURN_TYPES = ("FASTQ", "FASTA")
+    # Single interleaved output (PLAN_OUTPUTS emits one file); its concrete
+    # format follows the input (FASTA or FASTQ), so we expose one FASTQ port.
+    RETURN_TYPES = ("FASTQ",)
     RETURN_NAMES = ("interleaved_pairs",)
     REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
     DOCUMENTATION_URL = SEQTK_CITATION_URL
@@ -3562,7 +3564,7 @@ class SeqTKMutFANode(CommandNode):
         "mutate FASTQ",
     ]
     RETURN_TYPES = ("FASTA", "FASTQ")
-    RETURN_NAMES = ("mutated_sequences",)
+    RETURN_NAMES = ("mutated_sequences", "mutated_reads")
     REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
     DOCUMENTATION_URL = SEQTK_CITATION_URL
     CITATION_DOIS: list[str] = []
@@ -3664,7 +3666,7 @@ class SeqTKRandBaseNode(CommandNode):
         "resolve heterozygous bases",
     ]
     RETURN_TYPES = ("FASTA", "FASTQ")
-    RETURN_NAMES = ("unambiguous_sequences",)
+    RETURN_NAMES = ("unambiguous_sequences", "unambiguous_reads")
     REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
     DOCUMENTATION_URL = SEQTK_CITATION_URL
     CITATION_DOIS: list[str] = []
@@ -3758,7 +3760,7 @@ class SeqTKSampleNode(CommandNode):
         "RNG seed",
     ]
     RETURN_TYPES = ("FASTA", "FASTQ")
-    RETURN_NAMES = ("subsampled_sequences",)
+    RETURN_NAMES = ("subsampled_sequences", "subsampled_reads")
     REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
     DOCUMENTATION_URL = SEQTK_CITATION_URL
     CITATION_DOIS: list[str] = []
@@ -3884,7 +3886,7 @@ class SeqTKSeqNode(CommandNode):
         "sample fraction",
     ]
     RETURN_TYPES = ("FASTA", "FASTQ")
-    RETURN_NAMES = ("transformed_sequences",)
+    RETURN_NAMES = ("transformed_sequences", "transformed_reads")
     REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
     DOCUMENTATION_URL = SEQTK_CITATION_URL
     CITATION_DOIS: list[str] = []
@@ -4061,7 +4063,7 @@ class SeqTKSubseqNode(CommandNode):
         "selected sequences",
     ]
     RETURN_TYPES = ("FASTA", "FASTQ", "TSV")
-    RETURN_NAMES = ("selected_sequences",)
+    RETURN_NAMES = ("selected_sequences", "selected_reads", "selected_table")
     REQUIRED_EXECUTABLES = ["seqtk", "awk", "pigz"]
     DOCUMENTATION_URL = SEQTK_CITATION_URL
     CITATION_DOIS: list[str] = []

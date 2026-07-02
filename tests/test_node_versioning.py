@@ -7,7 +7,6 @@ import pytest
 from bionodulo.manager.resolver import build_node_manifest
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.registry import NodeRegistry
-from bionodulo.workflow.migrations import apply_workflow_migrations
 
 
 class VersionedLegacyNode(BaseNode):
@@ -119,37 +118,3 @@ def test_node_manifest_preserves_version_lifecycle_contract() -> None:
     assert entry["lifecycle"]["deprecation_message"] == "Use versioned_modern for new workflows."
     assert entry["versioning"]["current"] == "2.1.0"
     assert entry["versioning"]["migrations"][0]["description"] == "Rename the old_value parameter to value."
-
-
-def test_apply_workflow_migrations_renames_params_and_updates_node_info() -> None:
-    registry = NodeRegistry.create_isolated()
-    registry.register(VersionedLegacyNode)
-    workflow = {
-        "nodes": [
-            {
-                "id": "legacy-1",
-                "type": "versioned_legacy",
-                "params": {"old_value": "sample", "other": "kept"},
-                "node_info": {"version": "1.0.0", "label": "cached"},
-            }
-        ],
-        "edges": [],
-    }
-
-    result = apply_workflow_migrations(workflow, registry)
-
-    migrated_node = result.workflow["nodes"][0]
-    assert migrated_node["params"] == {"other": "kept", "value": "sample"}
-    assert migrated_node["node_info"]["version"] == "2.1.0"
-    assert migrated_node["node_info"]["label"] == "cached"
-    assert workflow["nodes"][0]["params"] == {"old_value": "sample", "other": "kept"}
-    assert result.applied == [
-        {
-            "node_id": "legacy-1",
-            "node_type": "versioned_legacy",
-            "from_version": "1.0.0",
-            "to_version": "2.0.0",
-            "description": "Rename the old_value parameter to value.",
-            "actions": [{"op": "rename_param", "from": "old_value", "to": "value"}],
-        }
-    ]

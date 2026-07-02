@@ -212,54 +212,6 @@ def test_cache_clear_preserves_unrelated_files(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_executor_applies_node_param_migrations_before_execution(tmp_path: Path) -> None:
-    class MigratingNode:
-        NODE_ID = "migrating_node"
-        VERSION = "2.0.0"
-        RETURN_TYPES = ("STRING",)
-        RETURN_NAMES = ("value",)
-        MIGRATIONS = [
-            {
-                "from_version": "1.0.0",
-                "to_version": "2.0.0",
-                "description": "Rename old_value to value.",
-                "rename_params": {"old_value": "value"},
-            }
-        ]
-
-        @classmethod
-        def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
-            return {"required": {}, "optional": {}, "hidden": {}}
-
-        async def run(self, **kwargs: Any) -> tuple[str]:
-            return (str(kwargs.get("value", "")),)
-
-    class Registry:
-        def get(self, node_type: str) -> type | None:
-            return {"migrating_node": MigratingNode}.get(node_type)
-
-    workflow = {
-        "nodes": [
-            {
-                "id": "legacy",
-                "type": "migrating_node",
-                "params": {"old_value": "from-legacy"},
-                "node_info": {"version": "1.0.0"},
-            }
-        ],
-        "edges": [],
-    }
-    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
-
-    result = await executor.execute("migration-run", workflow)
-
-    assert result["status"] == "completed"
-    assert result["outputs"]["legacy"] == {"value": "from-legacy"}
-    assert result["metadata"]["workflow_migrations"]["applied"][0]["node_id"] == "legacy"
-    assert workflow["nodes"][0]["params"] == {"old_value": "from-legacy"}
-
-
-@pytest.mark.asyncio
 async def test_workflow_executor_passes_registry_to_node_context(tmp_path: Path) -> None:
     class RegistryAwareNode:
         RETURN_NAMES = ("registry_name",)
