@@ -14,7 +14,7 @@ class LoFreqCallNode(CommandNode):
     DESCRIPTION = "Call sequence-quality-aware SNVs and indels from mapped reads using LoFreq."
     SEARCH_ALIASES = [BIONODULO_BUILTIN_ALIAS, "lofreq", "lofreq call", "variant caller", "low frequency variants", "SNV"]
     RETURN_TYPES = ("VCF",)
-    RETURN_NAMES = ("variants")
+    RETURN_NAMES = ("variants",)
     REQUIRED_EXECUTABLES = ["lofreq"]
     DOCUMENTATION_URL = "http://csb5.github.io/lofreq/"
     CITATION_DOIS = ["10.1093/nar/gks918"]

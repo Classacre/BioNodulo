@@ -5206,7 +5206,7 @@ def test_seqtk_mergepe_exposes_galaxy_metadata_inputs_and_project_citation() -> 
     assert info["category"] == "sequence"
     assert info["description"] == "Interleave two unpaired FASTA or FASTQ files into a paired-end FASTA/Q file."
     assert info["output"] == ["FASTQ", "FASTA"]
-    assert info["output_name"] == ["interleaved_pairs"]
+    assert info["output_name"] == ["interleaved_reads", "interleaved_sequences"]
     assert info["required_executables"] == ["seqtk", "pigz"]
     assert info["required_conda_packages"] == ["seqtk", "pigz"]
     assert info["documentation_url"] == "https://github.com/lh3/seqtk"
@@ -5262,7 +5262,7 @@ def test_seqtk_mutfa_exposes_galaxy_metadata_inputs_and_project_citation() -> No
     assert info["category"] == "sequence"
     assert info["description"] == "Apply point mutations from a tabular SNP file to FASTA or FASTQ sequences."
     assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["mutated_sequences"]
+    assert info["output_name"] == ["mutated_sequences", "mutated_reads"]
     assert info["required_executables"] == ["seqtk", "pigz"]
     assert info["required_conda_packages"] == ["seqtk", "pigz"]
     assert info["documentation_url"] == "https://github.com/lh3/seqtk"
@@ -5318,7 +5318,7 @@ def test_seqtk_randbase_exposes_galaxy_metadata_inputs_and_project_citation() ->
     assert info["category"] == "sequence"
     assert info["description"] == "Randomly resolve ambiguous IUPAC bases in FASTA or FASTQ sequences."
     assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["unambiguous_sequences"]
+    assert info["output_name"] == ["unambiguous_sequences", "unambiguous_reads"]
     assert info["required_executables"] == ["seqtk", "pigz"]
     assert info["required_conda_packages"] == ["seqtk", "pigz"]
     assert info["documentation_url"] == "https://github.com/lh3/seqtk"
@@ -5371,7 +5371,7 @@ def test_seqtk_sample_exposes_galaxy_metadata_inputs_and_project_citation() -> N
     assert info["category"] == "sequence"
     assert info["description"] == "Randomly subsample FASTA or FASTQ sequences with a reproducible seed."
     assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["subsampled_sequences"]
+    assert info["output_name"] == ["subsampled_sequences", "subsampled_reads"]
     assert info["required_executables"] == ["seqtk", "pigz"]
     assert info["required_conda_packages"] == ["seqtk", "pigz"]
     assert info["documentation_url"] == "https://github.com/lh3/seqtk"
@@ -5449,7 +5449,7 @@ def test_seqtk_seq_exposes_galaxy_metadata_inputs_and_project_citation() -> None
     assert info["category"] == "sequence"
     assert info["description"] == "Transform FASTA or FASTQ sequences with seqtk seq."
     assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["transformed_sequences"]
+    assert info["output_name"] == ["transformed_sequences", "transformed_reads"]
     assert info["required_executables"] == ["seqtk", "pigz"]
     assert info["required_conda_packages"] == ["seqtk", "pigz"]
     assert info["documentation_url"] == "https://github.com/lh3/seqtk"
@@ -5563,7 +5563,7 @@ def test_seqtk_subseq_exposes_galaxy_metadata_inputs_and_project_citation() -> N
     assert info["category"] == "sequence"
     assert info["description"] == "Extract selected FASTA or FASTQ records by BED regions or sequence IDs."
     assert info["output"] == ["FASTA", "FASTQ", "TSV"]
-    assert info["output_name"] == ["selected_sequences"]
+    assert info["output_name"] == ["selected_sequences", "selected_reads", "selected_table"]
     assert info["required_executables"] == ["seqtk", "awk", "pigz"]
     assert info["required_conda_packages"] == ["seqtk", "gawk", "pigz"]
     assert info["documentation_url"] == "https://github.com/lh3/seqtk"
@@ -15215,7 +15215,6 @@ def test_cialign_renders_alignment_cleaning_command_outputs_and_validation(tmp_p
         "DIRECTORY",
         "FASTA",
         "FASTA",
-        "TXT",
         "TXT",
         "TXT",
         "TXT",
