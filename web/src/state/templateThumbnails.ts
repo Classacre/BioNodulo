@@ -1,7 +1,7 @@
 // Tiny LRU cache for template thumbnail PNG data URLs. Templates can have a
 // server-rendered `thumbnail_url`, but for local templates (and for templates
 // without a backing PNG on disk) we render the workflow JSON client-side via
-// `renderWorkflowThumbnail` and embed the JSON via `embedWorkflowInPngDataUrl`,
+// `renderWorkflowThumbnailPng` and embed the JSON via `embedWorkflowInPngDataUrl`,
 // so dragging a card off the panel onto the canvas reuses the same
 // PNG-with-embedded-workflow import path used by the export flow.
 //
@@ -9,7 +9,7 @@
 // every template card's data URL alive forever.
 
 import type { Workflow } from '../types';
-import { renderWorkflowThumbnail } from '../utils/workflowThumbnail';
+import { renderWorkflowThumbnailPng } from '../utils/workflowThumbnail';
 import { embedWorkflowInPngDataUrl } from '../utils/pngMetadata';
 
 const MAX_ENTRIES = 50;
@@ -37,10 +37,10 @@ function touch(key: string, value: CachedThumb): void {
 
 /** Render + embed once per (templateId, workflow) pair; subsequent calls hit
  *  the LRU. Returns `null` if rendering fails. */
-export function getOrRenderTemplateThumbnail(
+export async function getOrRenderTemplateThumbnail(
   templateId: string,
   workflow: Workflow,
-): { dataUrl: string; objectUrl: string } | null {
+): Promise<{ dataUrl: string; objectUrl: string } | null> {
   const cached = cache.get(templateId);
   if (cached) {
     cache.delete(templateId);
@@ -58,7 +58,7 @@ export function getOrRenderTemplateThumbnail(
 
   let dataUrl: string;
   try {
-    dataUrl = renderWorkflowThumbnail(workflow);
+    dataUrl = await renderWorkflowThumbnailPng(workflow);
   } catch {
     return null;
   }

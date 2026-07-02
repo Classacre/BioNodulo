@@ -145,12 +145,12 @@ function TemplateThumbnail({ template }: { template: TemplateCardInfo }) {
     apiGet<{ workflow?: unknown; nodes?: unknown[] }>(
       `/workflow_templates/${encodeURIComponent(template.filename)}`,
     )
-      .then(data => {
+      .then(async data => {
         if (cancelled) return;
         const workflow = (data.workflow ?? data) as unknown;
         if (!workflow || typeof workflow !== 'object') return;
-        const result = getOrRenderTemplateThumbnail(template.id, workflow as never);
-        if (result) setRenderedUrl(result.objectUrl);
+        const result = await getOrRenderTemplateThumbnail(template.id, workflow as never);
+        if (result && !cancelled) setRenderedUrl(result.objectUrl);
       })
       .catch(() => { /* network/parse error — fall back to initials block */ });
     return () => { cancelled = true; };

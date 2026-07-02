@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Workflow } from '../../types';
 import { saveToFile } from '../../utils';
 import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
-import { renderWorkflowThumbnail } from '../../utils/workflowThumbnail';
+import { renderWorkflowThumbnailPng } from '../../utils/workflowThumbnail';
 import { apiPost } from '../../api/client';
 import { logError } from '../../state/logging';
 import Dialog from '../ui/Dialog';
@@ -68,7 +68,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
         setContent(JSON.stringify(workflow, null, 2));
         setPngPreview(null);
       } else if (format === 'png') {
-        const dataUrl = renderWorkflowThumbnail(workflow, {
+        const dataUrl = await renderWorkflowThumbnailPng(workflow, {
           transparent: transparentBg,
           quality: pngQuality,
         });
@@ -106,7 +106,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
     let cancelled = false;
     (async () => {
       try {
-        const dataUrl = renderWorkflowThumbnail(workflow, {
+        const dataUrl = await renderWorkflowThumbnailPng(workflow, {
           transparent: transparentBg,
           quality: pngQuality,
         });
