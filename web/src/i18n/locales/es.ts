@@ -2079,6 +2079,7 @@ class MyToolNode(CommandNode):
     selectAll: 'Seleccionar todo',
     arrangeNodes: 'Organizar nodos',
     exportThumbnail: 'Exportar miniatura',
+    exportThumbnailFailed: 'No se pudo exportar la miniatura',
     clearWorkflow: 'Limpiar flujo de trabajo',
     insertReroute: 'Insertar redireccion',
     deleteLink: 'Eliminar enlace',

@@ -3466,8 +3466,10 @@ class SeqTKMergePENode(CommandNode):
         "merge paired reads",
         "paired FASTQ",
     ]
-    RETURN_TYPES = ("FASTQ", "FASTA")
-    RETURN_NAMES = ("interleaved_reads", "interleaved_sequences")
+    # Single interleaved output (PLAN_OUTPUTS emits one file); its concrete
+    # format follows the input (FASTA or FASTQ), so we expose one FASTQ port.
+    RETURN_TYPES = ("FASTQ",)
+    RETURN_NAMES = ("interleaved_pairs",)
     REQUIRED_EXECUTABLES = ["seqtk", "pigz"]
     DOCUMENTATION_URL = SEQTK_CITATION_URL
     CITATION_DOIS: list[str] = []

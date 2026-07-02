@@ -34,9 +34,11 @@ export async function captureCanvasThumbnail(
   const target = viewport ?? pane;
   if (!target) return '';
 
-  const background = options.background === undefined ? '#0f172a' : options.background;
+  // Both `null` and omitted mean "dark canvas fill" (per CaptureOptions docs);
+  // only an explicit color string overrides it.
+  const background = options.background == null ? '#0f172a' : options.background;
   return toPng(target, {
-    backgroundColor: background ?? undefined,
+    backgroundColor: background,
     pixelRatio: options.pixelRatio ?? 1,
     // The viewport is CSS-transformed (translate+scale); html-to-image honours
     // it, but we cap the filter so foreign/overlay-only nodes don't error out.

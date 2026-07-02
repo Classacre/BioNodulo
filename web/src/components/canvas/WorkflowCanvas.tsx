@@ -1989,13 +1989,17 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
                   // we snapshot the DOM.
                   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
                   const dataUrl = await captureCanvasThumbnail(hostRef.current);
-                  if (!dataUrl) return;
+                  if (!dataUrl) {
+                    toast.error(t('canvas.exportThumbnailFailed'));
+                    return;
+                  }
                   const a = document.createElement('a');
                   a.href = dataUrl;
                   a.download = 'workflow_thumbnail.png';
                   a.click();
                 } catch (err) {
                   logError('canvas.exportThumbnail', err);
+                  toast.error(t('canvas.exportThumbnailFailed'));
                 }
               })();
             }}>{t('canvas.exportThumbnail')}</div>

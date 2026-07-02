@@ -5205,8 +5205,8 @@ def test_seqtk_mergepe_exposes_galaxy_metadata_inputs_and_project_citation() -> 
     assert info["display_name"] == "SeqTK Merge Paired-End"
     assert info["category"] == "sequence"
     assert info["description"] == "Interleave two unpaired FASTA or FASTQ files into a paired-end FASTA/Q file."
-    assert info["output"] == ["FASTQ", "FASTA"]
-    assert info["output_name"] == ["interleaved_reads", "interleaved_sequences"]
+    assert info["output"] == ["FASTQ"]
+    assert info["output_name"] == ["interleaved_pairs"]
     assert info["required_executables"] == ["seqtk", "pigz"]
     assert info["required_conda_packages"] == ["seqtk", "pigz"]
     assert info["documentation_url"] == "https://github.com/lh3/seqtk"

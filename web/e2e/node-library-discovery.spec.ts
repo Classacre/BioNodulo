@@ -18505,11 +18505,11 @@ test('BioNodulo built-in nodes render citation metadata in node info', async ({ 
   // React Flow renders DOM (no <canvas>); the interactive surface is the pane.
   const pane = page.locator('.react-flow__pane');
   await expect(pane).toBeVisible();
-  const canvasBox = await pane.boundingBox();
-  expect(canvasBox).not.toBeNull();
+  const paneBox = await pane.boundingBox();
+  expect(paneBox).not.toBeNull();
   const nodePoint = {
-    x: canvasBox!.x + Math.min(320, canvasBox!.width / 2),
-    y: canvasBox!.y + Math.min(220, canvasBox!.height / 2),
+    x: paneBox!.x + Math.min(320, paneBox!.width / 2),
+    y: paneBox!.y + Math.min(220, paneBox!.height / 2),
   };
 
   await page.mouse.click(nodePoint.x, nodePoint.y, { button: 'right' });
