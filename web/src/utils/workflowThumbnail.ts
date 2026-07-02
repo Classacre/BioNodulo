@@ -247,11 +247,18 @@ function svgDataUrl(width: number, height: number, inner: string): string {
  */
 export function rasterizeSvgToPng(
   svgDataUrl: string,
-  options: { width?: number; height?: number; background?: string } = {},
+  options: { width?: number; height?: number; background?: string; timeoutMs?: number } = {},
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    // Guard against an <img> that never fires load/error (which would strand
+    // callers like ExportModal in a stuck loading state).
+    const timer = setTimeout(() => {
+      img.onload = img.onerror = null;
+      reject(new Error('Timed out rasterising SVG thumbnail'));
+    }, options.timeoutMs ?? 10_000);
     img.onload = () => {
+      clearTimeout(timer);
       const width = options.width ?? img.width ?? 640;
       const height = options.height ?? img.height ?? 400;
       const canvas = document.createElement('canvas');
@@ -266,7 +273,10 @@ export function rasterizeSvgToPng(
       ctx.drawImage(img, 0, 0, width, height);
       resolve(canvas.toDataURL('image/png'));
     };
-    img.onerror = () => reject(new Error('Failed to rasterise SVG thumbnail'));
+    img.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('Failed to rasterise SVG thumbnail'));
+    };
     img.src = svgDataUrl;
   });
 }
