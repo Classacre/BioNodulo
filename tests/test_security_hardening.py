@@ -325,3 +325,33 @@ def test_editor_mode_insecure_optout_boots_ungated(
     # Should not raise; app boots (ungated) for local development.
     with TestClient(create_app()) as client:
         assert client.get("/api/config").status_code == 200
+
+
+def test_git_clone_input_validator_rejects_dangerous_transports_and_refs() -> None:
+    """The manager git-install validator must reject ext::/file:// transports and
+    flag-smuggling refs, while accepting normal https/ssh/git@ remotes."""
+    from fastapi import HTTPException
+
+    from bionodulo.api.routes import _validate_git_clone_inputs
+
+    # Accepted forms.
+    _validate_git_clone_inputs("https://github.com/org/repo.git", "main", None)
+    _validate_git_clone_inputs("ssh://git@github.com/org/repo.git", None, "abc123")
+    _validate_git_clone_inputs("git@github.com:org/repo.git", "v1.2.3", None)
+
+    # Dangerous transports.
+    for bad_url in (
+        "ext::sh -c 'id'",
+        "file:///etc/passwd",
+        "fd::17/foo",
+        "http://evil/repo",  # non-https/ssh
+    ):
+        with pytest.raises(HTTPException):
+            _validate_git_clone_inputs(bad_url, None, None)
+
+    # Flag-smuggling / shell-y refs.
+    for bad_ref in ("--upload-pack=sh", "-x", "a;b", "a b", "$(id)"):
+        with pytest.raises(HTTPException):
+            _validate_git_clone_inputs("https://github.com/org/repo.git", bad_ref, None)
+        with pytest.raises(HTTPException):
+            _validate_git_clone_inputs("https://github.com/org/repo.git", None, bad_ref)
