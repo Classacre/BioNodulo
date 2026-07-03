@@ -214,7 +214,13 @@ export async function apiPut<T = unknown>(
   const response = await apiRequest(path, { ...init, method: 'PUT', json });
   const text = await response.text();
   if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  // Guard non-JSON 2xx bodies (e.g. "OK") like apiPost, rather than throwing a
+  // raw SyntaxError.
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined as T;
+  }
 }
 
 /** DELETE <path>, parse JSON response as `T` (or void if empty). */
@@ -222,7 +228,11 @@ export async function apiDelete<T = unknown>(path: string, init: ApiRequestInit 
   const response = await apiRequest(path, { ...init, method: 'DELETE' });
   const text = await response.text();
   if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined as T;
+  }
 }
 
 /** Fetch raw text response (e.g. exported pipeline scripts). */

@@ -97,8 +97,13 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
     if (raw.input_types) {
       return [key, raw as unknown as NodeMetadata];
     }
+    // Key the registry by the ORIGINAL `key` — that's what WorkflowNode.type
+    // references (objectInfo[wn.type]). Re-keying by raw.name diverged the map
+    // key from the lookup key (→ meta=null for those nodes) and collided/dropped
+    // entries whose `name` matched another entry. `id` keeps raw.name for
+    // display/identity.
     const id = String(raw.name || key);
-    return [id, {
+    return [key, {
       id,
       display_name: String(raw.display_name || raw.name || key),
       category: String(raw.category || 'Other'),

@@ -18,7 +18,13 @@ import type { GraphNode } from './canvasModel';
 function formatNodeParamValue(value: unknown, t: TFunction): string {
   if (value === null || value === undefined || value === '') return '-';
   if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/\.?0+$/, '');
+  if (typeof value === 'number') {
+    if (Number.isInteger(value)) return String(value);
+    // Round to 3 dp but don't strip via a trailing-zero regex — that turned
+    // sub-millidecimals like 0.0001 into an empty string ("0.000" → ""). Let
+    // Number re-parse handle the trimming instead.
+    return String(Number(value.toFixed(3)));
+  }
   if (Array.isArray(value)) return t('canvas.itemCount', { count: value.length });
   if (typeof value === 'object') return '{...}';
   const text = String(value);

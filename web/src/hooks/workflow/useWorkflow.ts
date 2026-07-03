@@ -226,13 +226,18 @@ export function useWorkflow() {
   }, [editorMode]);
 
   const closeTab = useCallback((index: number) => {
+    let nextLen = 0;
     setWorkflows(prev => {
       const next = prev.filter((_, i) => i !== index);
       if (next.length === 0) next.push(emptyWorkflow());
+      nextLen = next.length;
       return next;
     });
-    setActiveIndex(prev => Math.max(0, Math.min(prev, Math.max(0, workflows.length - 2))));
-  }, [workflows.length]);
+    // Clamp against the ACTUAL post-close length (captured in the updater),
+    // not the render-closure `workflows.length` which lags one render behind
+    // and could leave activeIndex pointing a tab off after rapid closes.
+    setActiveIndex(prev => Math.max(0, Math.min(prev, nextLen - 1)));
+  }, []);
 
   const reorderWorkflows = useCallback((from: number, to: number) => {
     setWorkflows(prev => {
