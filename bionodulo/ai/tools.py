@@ -910,7 +910,7 @@ async def _download_dataset(
         if not url.startswith(("http://", "https://", "ftp://")):
             return {"error": f"Unsupported URL scheme: {url}"}
         fetch_url = url.replace("ftp://", "https://", 1) if url.startswith("ftp://") else url
-        from bionodulo.core.netguard import assert_safe_url
+        from bionodulo.core.netguard import assert_safe_url, safe_request_event_hook
 
         try:
             assert_safe_url(fetch_url)  # SSRF guard
@@ -921,7 +921,12 @@ async def _download_dataset(
         target = data_dir / safe_name
         written = 0
         try:
-            async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+            # event_hooks re-validate every redirect hop against the SSRF guard.
+            async with httpx.AsyncClient(
+                timeout=120.0,
+                follow_redirects=True,
+                event_hooks={"request": [safe_request_event_hook()]},
+            ) as client:
                 async with client.stream("GET", fetch_url) as resp:
                     resp.raise_for_status()
                     with open(target, "wb") as handle:

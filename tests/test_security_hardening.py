@@ -133,6 +133,68 @@ async def test_slurm_rejects_shell_syntax_in_job_ids() -> None:
 
 
 @pytest.mark.asyncio
+async def test_sge_and_pbs_backends_use_exec_not_shell(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """SGE/PBS must submit via exec (argument list), never a shell string —
+    otherwise a malicious dependency/extra_args element is command injection."""
+    from bionodulo.hpc.pbs import PBSBackend
+    from bionodulo.hpc.sge import SGEBackend
+
+    script = tmp_path / "job.sh"
+    script.write_text("#!/bin/sh\necho hello\n", encoding="utf-8")
+
+    class Proc:
+        returncode = 0
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            return b"Your job 42 (\"job\") has been submitted\n", b""
+
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_exec(*args, **kwargs):
+        del kwargs
+        calls.append(tuple(str(arg) for arg in args))
+        return Proc()
+
+    async def fake_shell(*args, **kwargs):
+        del args, kwargs
+        raise AssertionError("HPC backends must not use create_subprocess_shell")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", fake_shell)
+
+    sge_job = await SGEBackend().submit_job(script)
+    assert sge_job.job_id == "42"
+    pbs_job = await PBSBackend().submit_job(script)
+    assert pbs_job.job_id == "42"
+
+
+@pytest.mark.asyncio
+async def test_sge_and_pbs_reject_shell_syntax_in_job_ids_and_args() -> None:
+    from bionodulo.hpc.pbs import PBSBackend
+    from bionodulo.hpc.sge import SGEBackend
+
+    for backend in (SGEBackend(), PBSBackend()):
+        with pytest.raises(ValueError):
+            await backend.cancel_job(HPCJob(job_id="123; rm -rf /"))
+        with pytest.raises(ValueError):
+            await backend.check_status(HPCJob(job_id="$(whoami)"))
+
+    # Malicious submit-time args (dependency / extra_args) are rejected too.
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as fh:
+        fh.write("#!/bin/sh\n")
+        script = fh.name
+    for backend in (SGEBackend(), PBSBackend()):
+        with pytest.raises(ValueError):
+            await backend.submit_job(script, dependency="1; rm -rf /")
+        with pytest.raises(ValueError):
+            await backend.submit_job(script, extra_args=["--evil=$(id)"])
+
+
+@pytest.mark.asyncio
 async def test_doc_store_sync_bridge_rejects_running_event_loop() -> None:
     async def noop() -> None:
         return None
@@ -164,6 +226,22 @@ def test_netguard_blocks_internal_addresses_and_allows_public():
     assert_safe_url("http://8.8.8.8/")
     # Private egress is permitted only when explicitly opted in.
     assert_safe_url("http://10.0.0.5/", allow_private=True)
+
+
+@pytest.mark.asyncio
+async def test_safe_request_event_hook_blocks_redirect_to_metadata() -> None:
+    """The httpx event hook must re-validate redirect hops: an allowed first
+    host that 30x-bounces to a blocked internal/metadata address is rejected."""
+    import httpx
+
+    from bionodulo.core.netguard import safe_request_event_hook
+
+    hook = safe_request_event_hook()
+    # First-hop public host: allowed.
+    await hook(httpx.Request("GET", "http://8.8.8.8/start"))
+    # Redirect target to cloud metadata: blocked (httpx fires the hook per hop).
+    with pytest.raises(ValueError):
+        await hook(httpx.Request("GET", "http://169.254.169.254/latest/meta-data/"))
 
 
 @pytest.mark.asyncio

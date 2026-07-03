@@ -14,7 +14,11 @@ from __future__ import annotations
 import ipaddress
 import os
 import socket
+from typing import TYPE_CHECKING, Any, Callable, Coroutine
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    import httpx
 
 
 def _private_egress_allowed() -> bool:
@@ -72,3 +76,20 @@ def assert_safe_url(url: str, *, allow_private: bool | None = None) -> None:
                 f"Refusing to connect to non-public address {ip} for host {host!r}. "
                 "Set BIONODULO_ALLOW_PRIVATE_EGRESS=1 to allow private/internal hosts."
             )
+
+
+def safe_request_event_hook(
+    *, allow_private: bool | None = None
+) -> Callable[["httpx.Request"], Coroutine[Any, Any, None]]:
+    """Return an httpx 'request' event hook that validates EVERY outgoing
+    request — including redirect hops — with :func:`assert_safe_url`.
+
+    httpx fires request hooks for each redirect it follows, so attaching this
+    closes the redirect-SSRF gap (an allowed first host that 30x-bounces to
+    169.254.169.254 or an internal address) without disabling redirects.
+    """
+
+    async def _hook(request: "httpx.Request") -> None:
+        assert_safe_url(str(request.url), allow_private=allow_private)
+
+    return _hook
