@@ -7,9 +7,21 @@ import { logError } from '../../state/logging';
 function normalizeInputSpec(spec: unknown): InputSpec {
   if (Array.isArray(spec)) {
     const [type, config] = spec;
+    const configObj = config && typeof config === 'object' ? config as Record<string, unknown> : {};
+    // A tuple type that is ITSELF an array is a COMBO/enum: the array holds the
+    // selectable options (ComfyUI convention). Preserve them as `options` and
+    // mark the type as COMBO — the old code kept only type[0] and dropped the
+    // rest, losing every enum choice.
+    if (Array.isArray(type)) {
+      return {
+        ...configObj,
+        type: 'COMBO',
+        options: type.map(String),
+      } as InputSpec;
+    }
     return {
-      ...(config && typeof config === 'object' ? config as Record<string, unknown> : {}),
-      type: String(Array.isArray(type) ? type[0] : type || 'STRING'),
+      ...configObj,
+      type: String(type || 'STRING'),
     } as InputSpec;
   }
   if (spec && typeof spec === 'object') {

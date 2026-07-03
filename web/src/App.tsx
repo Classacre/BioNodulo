@@ -2188,11 +2188,19 @@ export default function App() {
     const incomingId = workflows[activeIndex]?.id;
     if (incomingId) {
       const saved = viewportByWorkflowRef.current[incomingId];
-      if (saved) {
+      const incomingHasNodes = (workflows[activeIndex]?.nodes?.length ?? 0) > 0;
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => canvasRef.current?.setViewport(saved));
+          if (saved) {
+            canvasRef.current?.setViewport(saved);
+          } else if (incomingHasNodes) {
+            // No stored viewport (first open of a workflow this session): fit to
+            // the nodes rather than leaving the canvas at the origin, where a
+            // workflow saved far from (0,0) would render blank until a manual fit.
+            canvasRef.current?.fitView();
+          }
         });
-      }
+      });
     }
   }, [activeIndex, persistViewportStore, workflows]);
 

@@ -228,19 +228,32 @@ export function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[
       if (newDeg === 0) queue.push(next);
     }
   }
+  // Build incoming-edge adjacency once so layer assignment is O(V+E), not the
+  // previous O(V·E) full-edge scan per topo node.
+  const incoming = new Map<string, string[]>();
+  for (const n of graphNodes) incoming.set(n.id, []);
+  for (const e of edges) incoming.get(e.to.node)?.push(e.from.node);
+
   const layer = new Map<string, number>();
   for (const id of topo) {
     let maxLayer = 0;
-    for (const e of edges) {
-      if (e.to.node === id) {
-        maxLayer = Math.max(maxLayer, (layer.get(e.from.node) || 0) + 1);
-      }
+    for (const from of incoming.get(id) || []) {
+      maxLayer = Math.max(maxLayer, (layer.get(from) ?? 0) + 1);
     }
     layer.set(id, maxLayer);
   }
+  // Nodes left out of the topo order are part of a cycle (their in-degree never
+  // hit 0). Without handling them they'd all default to layer 0 and overlap.
+  // Park them in a trailing layer past everything topologically resolved.
+  const resolvedMax = layer.size > 0 ? Math.max(...layer.values()) : -1;
+  const cyclicLayer = resolvedMax + 1;
+  for (const n of graphNodes) {
+    if (!layer.has(n.id)) layer.set(n.id, cyclicLayer);
+  }
+
   const layerMap = new Map<number, GraphNode[]>();
   for (const n of graphNodes) {
-    const l = layer.get(n.id) || 0;
+    const l = layer.get(n.id) ?? 0;
     if (!layerMap.has(l)) layerMap.set(l, []);
     layerMap.get(l)!.push(n);
   }

@@ -179,6 +179,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const [renamingNode, setRenamingNode] = useState<{ id: string; value: string } | null>(null);
   const [showNodeInfo, setShowNodeInfo] = useState<string | null>(null);
   const [editingZoom, setEditingZoom] = useState(false);
+  // Guards the zoom input's onBlur from double-committing after Enter/Escape.
+  const zoomCommittedRef = useRef(false);
   const [actionFeedback, setActionFeedback] = useState<{ label: string; key: number } | null>(null);
   const actionFeedbackTimer = useRef<number | null>(null);
   const [canvasMenu, setCanvasMenu] = useState<{
@@ -1238,11 +1240,25 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     },
   })), [graphNodes, viewportLocked, missingDependencyNodeIds, t]);
 
+  // Stable map `${nodeId}:${outputName}` -> output type, for edge stroke colour.
+  // Keyed on nodes + objectInfo (not graphNodes), so it does NOT churn while a
+  // node is being dragged — see rfEdges below.
+  const outTypeByNodeOutput = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const wn of nodes) {
+      const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
+      if (!meta) continue;
+      for (const output of resolveNodeOutputs(meta, wn.params || {})) {
+        map.set(`${wn.id}:${output.name}`, output.type);
+      }
+    }
+    return map;
+  }, [nodes, objectInfo]);
+
   const rfEdges = useMemo<RFEdge[]>(() => {
     if (linksHidden) return [];
     return edges.map(edge => {
-      const fromNode = graphNodes.find(n => n.id === edge.from.node);
-      const outType = fromNode?.outputs.find(o => o.name === edge.from.output)?.type || '';
+      const outType = outTypeByNodeOutput.get(`${edge.from.node}:${edge.from.output}`) || '';
       const stroke = edgeColorForSource(outType);
       return {
         id: edge.id,
@@ -1253,7 +1269,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         style: { stroke, strokeWidth: 2 },
       } satisfies RFEdge;
     });
-  }, [edges, graphNodes, linksHidden]);
+    // Depends on outTypeByNodeOutput (stable: [nodes, objectInfo]) rather than
+    // graphNodes, so edges are NOT rebuilt every frame during a node drag (which
+    // mutates graphNodes positions but not output types).
+  }, [edges, outTypeByNodeOutput, linksHidden]);
 
   // Live position updates while dragging so overlays (widgets / previews /
   // errors / comments) follow the node; commit + snap happen on drag stop.
@@ -1884,16 +1903,21 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             autoFocus
             defaultValue={Math.round(scale * 100)}
             onBlur={(e) => {
+              // Enter/Escape already committed (or cancelled) and unmounted this
+              // input, which fires this blur — skip the second commit.
+              if (zoomCommittedRef.current) { zoomCommittedRef.current = false; return; }
               const val = parseInt(e.target.value, 10);
               if (!isNaN(val)) animateViewport(offset, clamp(val / 100, 0.1, 5), 0);
               setEditingZoom(false);
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
+                zoomCommittedRef.current = true;
                 const val = parseInt((e.target as HTMLInputElement).value, 10);
                 if (!isNaN(val)) animateViewport(offset, clamp(val / 100, 0.1, 5), 0);
                 setEditingZoom(false);
               } else if (e.key === 'Escape') {
+                zoomCommittedRef.current = true;
                 setEditingZoom(false);
               }
             }}
