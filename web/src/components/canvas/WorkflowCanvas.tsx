@@ -271,7 +271,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         } else if (collapsed) {
           nodeHeight = calcNodeHeight(meta, true, wn.params);
         } else {
-          const minHeight = calcNodeHeight(meta, false, wn.params, isNote ? nodeWidth : undefined, previewCollapsed);
+          const minHeight = calcNodeHeight(meta, false, wn.params, isNote ? nodeWidth : undefined);
           const storedHeight = wn.ui?.height ?? existing?.height;
           nodeHeight = (storedHeight && !inlinePreview) ? Math.max(storedHeight, minHeight) : minHeight;
         }

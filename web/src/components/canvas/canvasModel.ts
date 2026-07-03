@@ -171,7 +171,6 @@ export function calcNodeHeight(
   collapsed: boolean,
   params?: Record<string, unknown>,
   width?: number,
-  previewCollapsed = false,
 ): number {
   if (collapsed) return NODE_HEADER_H;
   if (meta?.id === 'note') {
@@ -184,7 +183,6 @@ export function calcNodeHeight(
   if (meta?.id === 'image_preview') return base + 120;
   if (meta?.id === 'html_preview') return base + 200;
   if (meta?.id === 'table_preview' || meta?.id === 'text_preview') return base + 180;
-  void previewCollapsed;
   return base;
 }
 

@@ -139,7 +139,10 @@ export async function apiGet<T = unknown>(path: string, init: ApiRequestInit = {
 // ---------------------------------------------------------------------------
 
 interface CacheEntry<T> {
-  value: T;
+  /** Present only once a fetch has RESOLVED. Absent for an in-flight-only entry
+   *  with no prior cached value, so a stale read can never surface `undefined`. */
+  value?: T;
+  hasValue: boolean;
   expiresAt: number;
   inFlight?: Promise<T>;
 }
@@ -163,17 +166,26 @@ export async function apiGetCached<T = unknown>(path: string, options: CachedGet
   if (!force && cached) {
     // If a request is already in flight, deduplicate concurrent callers.
     if (cached.inFlight) return cached.inFlight;
-    if (cached.expiresAt > now) return cached.value;
+    // Only return a genuinely resolved, unexpired value.
+    if (cached.hasValue && cached.expiresAt > now) return cached.value as T;
   }
   const inFlight = apiGet<T>(path, init).then(value => {
-    responseCache.set(key, { value, expiresAt: Date.now() + ttl });
+    responseCache.set(key, { value, hasValue: true, expiresAt: Date.now() + ttl });
     return value;
   }).catch(err => {
     // Failed fetches should not poison the cache.
     responseCache.delete(key);
     throw err;
   });
-  responseCache.set(key, { value: cached?.value as T, expiresAt: cached?.expiresAt ?? 0, inFlight });
+  // Preserve any prior resolved value for stale-while-revalidate reads, but do
+  // NOT invent a value when there was none — keep hasValue false so a concurrent
+  // reader can't be handed `undefined` as if it were data.
+  responseCache.set(key, {
+    value: cached?.value,
+    hasValue: cached?.hasValue ?? false,
+    expiresAt: cached?.expiresAt ?? 0,
+    inFlight,
+  });
   return inFlight;
 }
 
