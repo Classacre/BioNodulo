@@ -190,3 +190,60 @@ def test_set_workspace_root_rejects_paths_outside_base(tmp_path, monkeypatch):
         assert ok.status_code == 200
         bad = client.post("/api/workspace/root", json={"path": "/"})
         assert bad.status_code == 403
+
+
+def test_editor_mode_fails_closed_without_proxy_secret(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A shared editor backend must refuse to boot ungated: editor mode with no
+    proxy secret (and no explicit insecure opt-out) raises rather than serving
+    the multi-tenant editing API without its request gate."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.delenv("BIONODULO_PROXY_SECRET", raising=False)
+    monkeypatch.delenv("BIONODULO_ALLOW_INSECURE_EDITOR", raising=False)
+
+    with pytest.raises(RuntimeError, match="refuses to run ungated"):
+        create_app()
+
+
+def test_editor_mode_boots_with_proxy_secret(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Editor mode WITH a proxy secret boots and gates unexempt paths (401 for
+    requests missing the shared secret; /api/config stays open)."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.setenv("BIONODULO_PROXY_SECRET", "test-proxy-secret-value")
+
+    with TestClient(create_app()) as client:
+        # No secret header -> 401 on a gated path.
+        assert client.get("/api/object_info").status_code == 401
+        # Exempt config path stays open.
+        assert client.get("/api/config").status_code == 200
+        # Correct secret is accepted.
+        ok = client.get(
+            "/api/object_info",
+            headers={"X-Bionodulo-Session": "test-proxy-secret-value"},
+        )
+        assert ok.status_code == 200
+
+
+def test_editor_mode_insecure_optout_boots_ungated(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The explicit local-dev opt-out lets editor mode run without a secret."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.delenv("BIONODULO_PROXY_SECRET", raising=False)
+    monkeypatch.setenv("BIONODULO_ALLOW_INSECURE_EDITOR", "1")
+
+    # Should not raise; app boots (ungated) for local development.
+    with TestClient(create_app()) as client:
+        assert client.get("/api/config").status_code == 200
