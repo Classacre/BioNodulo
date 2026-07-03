@@ -1107,6 +1107,29 @@ body.is-dragging-panel {
 }
 .workflow-canvas-host canvas { display: block; position: relative; z-index: 1; }
 
+/* Group boxes (ViewportPortal): a translucent tinted rectangle behind the nodes
+   with a header label. `--bio-group-color` is the group's color. pointer-events
+   auto so the box is clickable for select/context-menu; it sits below nodes in
+   the portal so nodes stay interactive on top. */
+.bio-group {
+  box-sizing: border-box;
+  border: 1.5px solid var(--bio-group-color, #64748b);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bio-group-color, #64748b) 10%, transparent);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.bio-group.selected {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bio-group-color, #64748b) 70%, transparent);
+}
+.bio-group-label {
+  position: absolute;
+  top: -18px; left: 2px;
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* React Flow migration: the node graph is now DOM/SVG rendered by @xyflow/react
    inside .workflow-canvas-host. Keep the pane transparent so the palette
    background patterns show through, and style the custom BioNode. */

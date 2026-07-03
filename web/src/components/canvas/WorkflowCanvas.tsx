@@ -4,6 +4,7 @@ import {
   ReactFlowProvider,
   Background,
   BackgroundVariant,
+  ViewportPortal,
   useReactFlow,
   useViewport,
   type Node as RFNode,
@@ -418,17 +419,27 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     const y = dragCoordinate(world.y, 0, snapToGrid, gridSize);
     const isNote = meta.id === 'note';
     const newNode: WorkflowNode = {
-      id: `${meta.id}_${Date.now()}`,
+      // Unique id even when several nodes are added within the same millisecond
+      // (paste loop) — Date.now() alone collided and made duplicate ids.
+      id: `${meta.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       type: meta.id,
       position: [x, y],
       params: defaultsFor(meta),
       node_info: meta,
       ui: { title: meta.display_name, color: isNote ? '#f59e0b' : nodeColor(meta) },
     };
-    onNodesChange([...nodes, newNode]);
-    onPushHistory();
+    // Append onto the LATEST committed nodes (ref), not the render-closure
+    // `nodes`. In a paste/loop that calls addNode repeatedly in one tick the
+    // closure is stale, so each call would overwrite the previous and only the
+    // last node would survive. We also advance nodesRef synchronously so a
+    // follow-up read in the same tick (e.g. the media-paste loop patching the
+    // new node's file_path) sees this node before React re-renders.
+    const next = [...nodesRef.current, newNode];
+    nodesRef.current = next;
+    onNodesChangeRef.current(next);
+    onPushHistoryRef.current();
     return newNode;
-  }, [nodes, onNodesChange, onPushHistory, toWorld, snapToGrid, gridSize]);
+  }, [toWorld, snapToGrid, gridSize]);
 
   // ---- Viewport helpers backed by the React Flow instance ----
   const animateViewport = useCallback((targetOffset: { x: number; y: number }, targetScale: number, duration = 220) => {
@@ -551,14 +562,21 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
 
   const handleContextAction = useCallback(async (action: string, nodeId: string, extra?: string) => {
     setContextMenu(null);
+    // Only push an undo snapshot when the action actually mutated the workflow.
+    // Opening a panel/editor/composer (info/edit/comment), a cancelled rename,
+    // or a no-op preset apply must NOT pollute the undo stack; async actions set
+    // this after their await so history ordering stays correct.
+    let mutated = false;
     if (action === 'delete') {
       onNodesChange(nodes.filter(n => n.id !== nodeId));
       onEdgesChange(edges.filter(e => e.from.node !== nodeId && e.to.node !== nodeId));
+      mutated = true;
     } else if (action === 'duplicate') {
       const orig = nodes.find(n => n.id === nodeId);
       if (orig) {
         const dup = { ...orig, id: `${orig.type}_${Date.now()}`, position: [orig.position[0] + 40, orig.position[1] + 40] as [number, number] };
         onNodesChange([...nodes, dup]);
+        mutated = true;
       }
     } else if (action === 'edit') {
       setEditingNode(nodeId);
@@ -575,6 +593,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           const trimmed = newTitle.trim();
           setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, title: trimmed } : n));
           onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, title: trimmed } } : n));
+          mutated = true;
         }
       }
     } else if (action === 'info') {
@@ -585,21 +604,26 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       const newMuted = !graphNodes.find(n => n.id === nodeId)?.muted;
       setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, muted: newMuted } : n));
       onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, muted: newMuted } } : n));
+      mutated = true;
     } else if (action === 'bypass') {
       const newBypassed = !graphNodes.find(n => n.id === nodeId)?.bypassed;
       setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, bypassed: newBypassed } : n));
       onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, bypassed: newBypassed } } : n));
+      mutated = true;
     } else if (action === 'pin') {
       const newPinned = !graphNodes.find(n => n.id === nodeId)?.pinned;
       setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, pinned: newPinned } : n));
       onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, pinned: newPinned } } : n));
+      mutated = true;
     } else if (action === 'shape' && extra) {
       const shape = (extra === 'box' || extra === 'card') ? extra : 'round';
       setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, shape } : n));
       onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, shape } } : n));
+      mutated = true;
     } else if (action === 'color' && extra) {
       setGraphNodes(prev => prev.map(n => n.id === nodeId ? { ...n, color: extra } : n));
       onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, color: extra } } : n));
+      mutated = true;
     } else if (action === 'collapse') {
       setGraphNodes(prev => prev.map(n => {
         if (n.id !== nodeId) return n;
@@ -608,6 +632,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       }));
       const updatedNodes = nodes.map(n => n.id === nodeId ? { ...n, ui: { ...n.ui, collapsed: !(n.ui?.collapsed ?? false) } } : n);
       onNodesChange(updatedNodes);
+      mutated = true;
     } else if (action === 'group') {
       const selectedIds = graphNodes.filter(n => n.selected).map(n => n.id);
       const idsToGroup = selectedIds.length > 0 ? selectedIds : [nodeId];
@@ -615,6 +640,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       if (nodesToGroup.length > 0) {
         const newGroup = createGroupFromNodes(nodesToGroup, t('canvas.groupFallbackName'));
         onGroupsChange([...groups, newGroup]);
+        mutated = true;
       }
     } else if (action === 'subgraph') {
       const selectedIds = graphNodes.filter(n => n.selected).map(n => n.id);
@@ -673,9 +699,13 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             inputLabel: t('canvas.presetNumberInput'),
             defaultValue: '1',
           });
-          const index = Math.max(1, Math.min(presets.length, parseInt(choice || '1', 10))) - 1;
-          if (!Number.isNaN(index)) {
-            const preset = presets[index];
+          // Parse the 1-based choice, defaulting a non-numeric entry to preset
+          // 1 (rather than silently doing nothing), then clamp to range.
+          const parsed = parseInt(choice || '1', 10);
+          const oneBased = Number.isNaN(parsed) ? 1 : parsed;
+          const index = Math.max(1, Math.min(presets.length, oneBased)) - 1;
+          const preset = presets[index];
+          if (preset) {
             const nextParams = { ...node.params };
             for (const [key, value] of Object.entries(preset.params)) {
               if (Object.prototype.hasOwnProperty.call(nextParams, key)) {
@@ -684,6 +714,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             }
             onNodesChange(nodes.map(n => n.id === nodeId ? { ...n, params: nextParams } : n));
             toast.success(t('canvas.presetApplied'), { message: preset.name });
+            mutated = true;
           }
         }
       }
@@ -691,7 +722,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       const selectedIds = graphNodes.filter(n => n.selected).map(n => n.id);
       onExecuteSelectedRef.current?.(selectedIds.length > 0 ? selectedIds : [nodeId]);
     }
-    onPushHistory();
+    if (mutated) onPushHistory();
   }, [nodes, edges, graphNodes, groups, onNodesChange, onEdgesChange, onGroupsChange, onPushHistory, t]);
 
   const handleNodeParamChange = useCallback((nodeId: string, key: string, value: unknown) => {
@@ -1270,12 +1301,15 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     setDragging(null);
     // Commit current graph positions (already snapped by React Flow) to the
     // workflow, honouring snap-to-grid, and push a single history entry.
-    const current = graphNodesRef.current;
+    // Read LIVE positions from React Flow itself — graphNodesRef is frozen at
+    // the pre-drag snapshot (its sync effect is gated off during the drag and
+    // hasn't re-run yet at drag-stop), so using it would commit stale coords.
+    const rfPos = new Map(rf.getNodes().map(n => [n.id, n.position]));
     const updated = nodesRef.current.map(wn => {
-      const gn = current.find(n => n.id === wn.id);
-      if (!gn) return wn;
-      const x = dragCoordinate(gn.x, 0, snapToGrid, gridSize);
-      const y = dragCoordinate(gn.y, 0, snapToGrid, gridSize);
+      const pos = rfPos.get(wn.id);
+      if (!pos) return wn;
+      const x = dragCoordinate(pos.x, 0, snapToGrid, gridSize);
+      const y = dragCoordinate(pos.y, 0, snapToGrid, gridSize);
       if (wn.position[0] === x && wn.position[1] === y) return wn;
       onCollabNodeMove?.(wn.id, [x, y]);
       return { ...wn, position: [x, y] as [number, number] };
@@ -1283,7 +1317,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     onNodesChange(updated);
     onPushHistory();
     onCollabDragEnd?.();
-  }, [onNodesChange, onPushHistory, snapToGrid, gridSize, onCollabNodeMove, onCollabDragEnd]);
+  }, [rf, onNodesChange, onPushHistory, snapToGrid, gridSize, onCollabNodeMove, onCollabDragEnd]);
 
   const onConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) return;
@@ -1310,11 +1344,28 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     const outputName = fromHandle.id || '';
     const outputType = gn?.outputs.find(o => o.name === outputName)?.type || '';
     const host = hostRef.current?.getBoundingClientRect();
-    const clientX = 'changedTouches' in event ? event.changedTouches[0]?.clientX ?? 0 : event.clientX;
-    const clientY = 'changedTouches' in event ? event.changedTouches[0]?.clientY ?? 0 : event.clientY;
+    // Prefer the pointer/touch drop point. If a TouchEvent arrives with an empty
+    // changedTouches (e.g. touch-cancel), fall back to the source node's screen
+    // position rather than (0,0) — which would jump the palette to the corner.
+    const touch = 'changedTouches' in event ? event.changedTouches[0] : undefined;
+    let clientX: number;
+    let clientY: number;
+    if ('changedTouches' in event) {
+      if (touch) {
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        const p = rf.flowToScreenPosition({ x: fromNode.position.x, y: fromNode.position.y });
+        clientX = p.x;
+        clientY = p.y;
+      }
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
     setPendingLinkPickup({ fromNodeId: fromNode.id, fromOutputName: outputName, fromOutputType: outputType });
     setPalettePos({ x: clientX - (host?.left ?? 0), y: clientY - (host?.top ?? 0) });
-  }, []);
+  }, [rf]);
 
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: RFNode) => {
     event.preventDefault();
@@ -1362,6 +1413,36 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     setPalettePos(null);
     setPendingLinkPickup(null);
   }, []);
+
+  // Select a group (exclusive) when its box is clicked, so the toolbox/color
+  // actions that key off `group.selected` become reachable. Node selection is
+  // cleared so group + node selection don't fight.
+  const onGroupClick = useCallback((event: React.MouseEvent, groupId: string) => {
+    event.stopPropagation();
+    const additive = event.shiftKey;
+    onGroupsChange(
+      groups.map(g => ({
+        ...g,
+        selected: g.id === groupId ? true : additive ? g.selected : false,
+      }))
+    );
+    if (!additive) rf.setNodes(nds => nds.map(n => (n.selected ? { ...n, selected: false } : n)));
+    closeMenus();
+  }, [groups, onGroupsChange, rf, closeMenus]);
+
+  // Open the group context menu (rename / recolor / ungroup / delete) at the
+  // cursor. Positioned in host-relative screen coords like the other menus.
+  const onGroupContextMenu = useCallback((event: React.MouseEvent, groupId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const host = hostRef.current?.getBoundingClientRect();
+    onGroupsChange(groups.map(g => ({ ...g, selected: g.id === groupId })));
+    setGroupContextMenu({
+      x: event.clientX - (host?.left ?? 0),
+      y: event.clientY - (host?.top ?? 0),
+      groupId,
+    });
+  }, [groups, onGroupsChange]);
 
   const onPaneMouseMove = useCallback((event: React.MouseEvent) => {
     if (!onCollabCursor) return;
@@ -1416,6 +1497,29 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       >
         {showGrid && <Background variant={BackgroundVariant.Dots} gap={gridSize} size={1} />}
+        {/* Group boxes: rendered in viewport (world) coordinates via xyflow's
+            ViewportPortal so they pan/zoom with the graph and sit BEHIND nodes.
+            This restores the group visual + selection + context-menu layer that
+            was dropped in the Canvas2D → React Flow migration. */}
+        <ViewportPortal>
+          {groups.map(group => (
+            <div
+              key={group.id}
+              className={`bio-group ${group.selected ? 'selected' : ''}`}
+              style={{
+                position: 'absolute',
+                transform: `translate(${group.position[0]}px, ${group.position[1]}px)`,
+                width: group.width,
+                height: group.height,
+                ['--bio-group-color' as string]: group.color,
+              }}
+              onClick={e => onGroupClick(e, group.id)}
+              onContextMenu={e => onGroupContextMenu(e, group.id)}
+            >
+              <span className="bio-group-label" style={{ color: group.color }}>{group.name}</span>
+            </div>
+          ))}
+        </ViewportPortal>
       </ReactFlow>
 
       {actionFeedback && (
@@ -1426,9 +1530,15 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
 
       {collabUsers.filter(user => user.cursor?.visible).map(user => {
         const cursor = user.cursor!;
+        // Only place a remote cursor when it carries WORLD coordinates: those
+        // reproject correctly through the local viewport. The old `cursor.x/y`
+        // fallback used the REMOTE client's raw screen pixels, which are
+        // meaningless here (different pan/zoom/host size) and scattered cursors
+        // to arbitrary spots. Skip rendering rather than misplace.
         const hasWorld = Number.isFinite(cursor.worldX) && Number.isFinite(cursor.worldY);
-        const x = hasWorld ? cursor.worldX! * scale + offset.x : cursor.x;
-        const y = hasWorld ? cursor.worldY! * scale + offset.y : cursor.y;
+        if (!hasWorld) return null;
+        const x = cursor.worldX! * scale + offset.x;
+        const y = cursor.worldY! * scale + offset.y;
         return (
           <div
             key={`cursor-${user.user.sessionId || user.user.id}`}
