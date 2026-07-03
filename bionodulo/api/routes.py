@@ -1486,11 +1486,50 @@ async def manager_registry(request: Request) -> dict[str, Any]:
     }
 
 
+def _validate_git_clone_inputs(
+    url: str, branch: str | None, commit: str | None, directory: str | None = None
+) -> None:
+    """Guard `git clone` against transport/argument-injection abuse.
+
+    `git clone` uses an argument list (no shell), so classic injection is out,
+    but a `url` like `ext::sh -c ...` or `file://` can execute code or read the
+    filesystem, and a `branch`/`commit` starting with `-` can smuggle git flags.
+    Restrict the URL to https/ssh git remotes and refs to safe characters. The
+    `directory` (used to build the clone target under custom_nodes_dir) must not
+    escape it via absolute paths or `..` segments.
+    """
+    from urllib.parse import urlparse
+
+    u = (url or "").strip()
+    if u.startswith("git@") and ":" in u:  # scp-like SSH form: git@host:org/repo
+        pass
+    else:
+        scheme = urlparse(u).scheme.lower()
+        if scheme not in ("https", "ssh"):
+            raise HTTPException(
+                status_code=400,
+                detail="Repository URL must be an https:// or ssh:// (or git@host:) git remote.",
+            )
+    for label, ref in (("branch", branch), ("commit", commit)):
+        if ref and (ref.startswith("-") or not re.fullmatch(r"[A-Za-z0-9._/-]+", ref)):
+            raise HTTPException(status_code=400, detail=f"Invalid git {label}: {ref!r}")
+    if directory is not None and directory != "":
+        d = str(directory)
+        if (
+            d.startswith("/")
+            or d.startswith("-")
+            or ".." in Path(d).parts
+            or not re.fullmatch(r"[A-Za-z0-9._/-]+", d)
+        ):
+            raise HTTPException(status_code=400, detail=f"Invalid directory: {directory!r}")
+
+
 @router.post("/manager/install-git")
 async def manager_install_git(
     request: Request, body: ManagerGitRequest
 ) -> dict[str, str]:
     """Install a custom node from a Git repository."""
+    _validate_git_clone_inputs(body.url, body.branch, body.commit, body.directory)
     settings = _get_settings(request)
     target_dir = settings.custom_nodes_dir
     if body.directory:
@@ -1508,10 +1547,10 @@ async def manager_install_git(
         )
 
     try:
-        cmd = ["git", "clone", "--depth", "1", "--branch", body.branch, body.url, str(target_dir)]
+        cmd = ["git", "clone", "--depth", "1", "--branch", body.branch, "--", body.url, str(target_dir)]
         if body.commit:
             # Full clone for specific commit
-            cmd = ["git", "clone", body.url, str(target_dir)]
+            cmd = ["git", "clone", "--", body.url, str(target_dir)]
         await asyncio.to_thread(
             subprocess.run,
             cmd,

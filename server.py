@@ -253,6 +253,24 @@ def create_app() -> FastAPI:
         app.add_middleware(
             ProxySecretMiddleware, secret=cloud_settings.proxy_secret
         )
+    elif editor_mode and not cloud_settings.proxy_secret:
+        # FAIL-CLOSED: a shared, multi-tenant editor backend must never run
+        # without its request gate. Refuse to boot rather than silently serving
+        # the editing API ungated. Local dev can opt out explicitly.
+        allow_insecure = os.environ.get(
+            "BIONODULO_ALLOW_INSECURE_EDITOR", ""
+        ).strip().lower() in ("1", "true", "yes", "on")
+        if not allow_insecure:
+            raise RuntimeError(
+                "BIONODULO_EDITOR_MODE is set but BIONODULO_PROXY_SECRET is empty. "
+                "The shared editor backend refuses to run ungated. Set "
+                "BIONODULO_PROXY_SECRET, or BIONODULO_ALLOW_INSECURE_EDITOR=1 for "
+                "local development only."
+            )
+        logger.warning(
+            "Editor mode running WITHOUT a proxy secret "
+            "(BIONODULO_ALLOW_INSECURE_EDITOR set) — do NOT use in production."
+        )
     elif cloud_settings.session_token:
         app.add_middleware(
             SessionTokenMiddleware, token=cloud_settings.session_token

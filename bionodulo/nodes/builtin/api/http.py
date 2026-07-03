@@ -253,7 +253,15 @@ class APIHttpClient:
     async def _dispatch(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         if self._send is not None:
             return await self._send(method=method, url=url, **kwargs)
-        async with httpx.AsyncClient(timeout=kwargs.pop("timeout"), follow_redirects=kwargs.pop("follow_redirects")) as client:
+        # SSRF guard on EVERY hop: httpx fires the request hook for each redirect
+        # it follows, so a 30x bounce to an internal/metadata host is rejected.
+        from bionodulo.core.netguard import safe_request_event_hook
+
+        async with httpx.AsyncClient(
+            timeout=kwargs.pop("timeout"),
+            follow_redirects=kwargs.pop("follow_redirects"),
+            event_hooks={"request": [safe_request_event_hook()]},
+        ) as client:
             return await client.request(method, url, **kwargs)
 
     @staticmethod

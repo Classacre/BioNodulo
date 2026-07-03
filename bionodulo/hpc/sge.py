@@ -13,6 +13,9 @@ from typing import Any
 
 from bionodulo.hpc.base import HPCBackend, HPCJob
 
+# Cap scheduler CLI calls so a wedged qsub/qstat/qdel can't hang the request.
+_HPC_CMD_TIMEOUT_S = 30
+
 
 class SGEBackend(HPCBackend):
     """Sun Grid Engine HPC backend implementation."""
@@ -24,6 +27,54 @@ class SGEBackend(HPCBackend):
         self.default_walltime = self.config.get("default_walltime", "01:00:00")
         self.default_cpus = self.config.get("default_cpus", 1)
         self.default_memory_mb = self.config.get("default_memory_mb", 4096)
+
+    async def _run(self, *args: str) -> tuple[int, str, str]:
+        """Run an SGE CLI command WITHOUT a shell (no injection surface).
+
+        Bounded by a timeout so a wedged scheduler binary can't hang the request
+        path; on timeout the process is killed and a RuntimeError is raised.
+        """
+        proc = await asyncio.create_subprocess_exec(
+            *[str(arg) for arg in args],
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=_HPC_CMD_TIMEOUT_S
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise RuntimeError(
+                f"SGE command timed out after {_HPC_CMD_TIMEOUT_S}s: {args[0]!r}"
+            ) from None
+        return (
+            proc.returncode or 0,
+            stdout.decode("utf-8", errors="replace"),
+            stderr.decode("utf-8", errors="replace"),
+        )
+
+    @staticmethod
+    def _validate_job_id(job_id: str) -> str:
+        """Accept SGE job IDs (+ array/step suffixes); reject shell syntax and
+        leading dashes (which qdel/qstat would treat as option flags)."""
+        text = str(job_id)
+        if text.startswith("-") or not re.fullmatch(r"[A-Za-z0-9_.:+-]+", text):
+            raise ValueError(f"Invalid SGE job id: {job_id!r}")
+        return text
+
+    @staticmethod
+    def _validate_arg(value: str) -> str:
+        """Validate a caller-supplied qsub arg (dependency / extra_args element).
+
+        These flow from the /hpc/submit API body, so constrain them to safe
+        characters and reject leading dashes that could smuggle extra options.
+        """
+        text = str(value)
+        if not text or text.startswith("-") or not re.fullmatch(r"[A-Za-z0-9_.,:+=/@-]+", text):
+            raise ValueError(f"Invalid qsub argument: {value!r}")
+        return text
 
     async def submit_job(
         self,
@@ -38,25 +89,17 @@ class SGEBackend(HPCBackend):
 
         cmd_parts = ["qsub"]
         if kwargs.get("dependency"):
-            cmd_parts.extend(["-hold_jid", kwargs["dependency"]])
+            cmd_parts.extend(["-hold_jid", self._validate_job_id(kwargs["dependency"])])
         if kwargs.get("hold"):
             cmd_parts.append("-h")
         if kwargs.get("extra_args"):
-            cmd_parts.extend(kwargs["extra_args"])
+            cmd_parts.extend(self._validate_arg(a) for a in kwargs["extra_args"])
         cmd_parts.append(str(script_path))
-        cmd = " ".join(cmd_parts)
 
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        stdout_text = stdout.decode("utf-8", errors="replace")
-        stderr_text = stderr.decode("utf-8", errors="replace")
+        returncode, stdout_text, stderr_text = await self._run(*cmd_parts)
 
-        if proc.returncode != 0:
-            raise RuntimeError(f"qsub failed (exit {proc.returncode}): {stderr_text}")
+        if returncode != 0:
+            raise RuntimeError(f"qsub failed (exit {returncode}): {stderr_text}")
 
         match = re.search(r"Your job (\d+)", stdout_text)
         if not match:
@@ -84,55 +127,35 @@ class SGEBackend(HPCBackend):
 
     async def cancel_job(self, job: HPCJob) -> HPCJob:
         """Cancel a job via ``qdel``."""
-        proc = await asyncio.create_subprocess_shell(
-            f"qdel {job.job_id}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        returncode, _stdout, stderr_text = await self._run(
+            "qdel", self._validate_job_id(job.job_id)
         )
-        _, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            stderr_text = stderr.decode("utf-8", errors="replace")
+        if returncode != 0:
             if "does not exist" not in stderr_text.lower():
                 raise RuntimeError(f"qdel failed: {stderr_text}")
         job.status = "CANCELLED"
         return job
 
     async def _qstat_status(self, job_id: str) -> str | None:
-        proc = await asyncio.create_subprocess_shell(
-            f'qstat -j {job_id}',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        stdout_text = stdout.decode("utf-8", errors="replace")
-        stderr_text = stderr.decode("utf-8", errors="replace")
+        job_id = self._validate_job_id(job_id)
+        _rc, stdout_text, stderr_text = await self._run("qstat", "-j", job_id)
         if "do not exist" in stderr_text.lower() or "following" in stderr_text.lower():
             return await self._qstat_history_status(job_id)
         for line in stdout_text.splitlines():
             match = re.search(r"job_state\s*:\s*(\w+)", line)
             if match:
                 return self._sge_state_to_status(match.group(1))
-        proc2 = await asyncio.create_subprocess_shell(
-            f'qstat | grep "^{job_id}"',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout2, _ = await proc2.communicate()
-        line = stdout2.decode("utf-8", errors="replace").strip()
-        if line:
+        # Fall back to the summary listing, filtered in-process (no shell pipe).
+        _rc2, stdout2, _err2 = await self._run("qstat")
+        for line in stdout2.splitlines():
             parts = line.split()
-            if len(parts) >= 5:
+            if parts and parts[0] == job_id and len(parts) >= 5:
                 return self._sge_state_to_status(parts[4])
         return None
 
     async def _qstat_history_status(self, job_id: str) -> str | None:
-        proc = await asyncio.create_subprocess_shell(
-            f'qacct -j {job_id}',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await proc.communicate()
-        stdout_text = stdout.decode("utf-8", errors="replace")
+        job_id = self._validate_job_id(job_id)
+        _rc, stdout_text, _err = await self._run("qacct", "-j", job_id)
         if "error" in stdout_text.lower() or not stdout_text.strip():
             return "COMPLETED"
         for line in stdout_text.splitlines():

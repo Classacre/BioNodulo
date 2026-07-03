@@ -133,6 +133,77 @@ async def test_slurm_rejects_shell_syntax_in_job_ids() -> None:
 
 
 @pytest.mark.asyncio
+async def test_sge_and_pbs_backends_use_exec_not_shell(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """SGE/PBS must submit via exec (argument list), never a shell string —
+    otherwise a malicious dependency/extra_args element is command injection."""
+    from bionodulo.hpc.pbs import PBSBackend
+    from bionodulo.hpc.sge import SGEBackend
+
+    script = tmp_path / "job.sh"
+    script.write_text("#!/bin/sh\necho hello\n", encoding="utf-8")
+
+    class Proc:
+        returncode = 0
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            return b"Your job 42 (\"job\") has been submitted\n", b""
+
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_exec(*args, **kwargs):
+        del kwargs
+        calls.append(tuple(str(arg) for arg in args))
+        return Proc()
+
+    async def fake_shell(*args, **kwargs):
+        del args, kwargs
+        raise AssertionError("HPC backends must not use create_subprocess_shell")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", fake_shell)
+
+    sge_job = await SGEBackend().submit_job(script)
+    assert sge_job.job_id == "42"
+    pbs_job = await PBSBackend().submit_job(script)
+    assert pbs_job.job_id == "42"
+    # argv is passed as separate arguments (not a shell-joined string), and the
+    # script path is a distinct final arg — regressions to a single string fail.
+    assert len(calls) == 2
+    assert all(call[0] == "qsub" for call in calls)
+    assert all(call[-1] == str(script) for call in calls)
+    assert all(len(call) >= 2 for call in calls)
+
+
+@pytest.mark.asyncio
+async def test_sge_and_pbs_reject_shell_syntax_in_job_ids_and_args() -> None:
+    from bionodulo.hpc.pbs import PBSBackend
+    from bionodulo.hpc.sge import SGEBackend
+
+    for backend in (SGEBackend(), PBSBackend()):
+        with pytest.raises(ValueError):
+            await backend.cancel_job(HPCJob(job_id="123; rm -rf /"))
+        with pytest.raises(ValueError):
+            await backend.check_status(HPCJob(job_id="$(whoami)"))
+        # Leading-dash job IDs would be read by qdel/qstat as option flags.
+        with pytest.raises(ValueError):
+            await backend.cancel_job(HPCJob(job_id="--force"))
+
+    # Malicious submit-time args (dependency / extra_args) are rejected too.
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as fh:
+        fh.write("#!/bin/sh\n")
+        script = fh.name
+    for backend in (SGEBackend(), PBSBackend()):
+        with pytest.raises(ValueError):
+            await backend.submit_job(script, dependency="1; rm -rf /")
+        with pytest.raises(ValueError):
+            await backend.submit_job(script, extra_args=["--evil=$(id)"])
+
+
+@pytest.mark.asyncio
 async def test_doc_store_sync_bridge_rejects_running_event_loop() -> None:
     async def noop() -> None:
         return None
@@ -167,6 +238,22 @@ def test_netguard_blocks_internal_addresses_and_allows_public():
 
 
 @pytest.mark.asyncio
+async def test_safe_request_event_hook_blocks_redirect_to_metadata() -> None:
+    """The httpx event hook must re-validate redirect hops: an allowed first
+    host that 30x-bounces to a blocked internal/metadata address is rejected."""
+    import httpx
+
+    from bionodulo.core.netguard import safe_request_event_hook
+
+    hook = safe_request_event_hook()
+    # First-hop public host: allowed.
+    await hook(httpx.Request("GET", "http://8.8.8.8/start"))
+    # Redirect target to cloud metadata: blocked (httpx fires the hook per hop).
+    with pytest.raises(ValueError):
+        await hook(httpx.Request("GET", "http://169.254.169.254/latest/meta-data/"))
+
+
+@pytest.mark.asyncio
 async def test_download_dataset_tool_blocks_ssrf(tmp_path):
     from types import SimpleNamespace
 
@@ -190,3 +277,99 @@ def test_set_workspace_root_rejects_paths_outside_base(tmp_path, monkeypatch):
         assert ok.status_code == 200
         bad = client.post("/api/workspace/root", json={"path": "/"})
         assert bad.status_code == 403
+
+
+def test_editor_mode_fails_closed_without_proxy_secret(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A shared editor backend must refuse to boot ungated: editor mode with no
+    proxy secret (and no explicit insecure opt-out) raises rather than serving
+    the multi-tenant editing API without its request gate."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.delenv("BIONODULO_PROXY_SECRET", raising=False)
+    monkeypatch.delenv("BIONODULO_ALLOW_INSECURE_EDITOR", raising=False)
+
+    with pytest.raises(RuntimeError, match="refuses to run ungated"):
+        create_app()
+
+
+def test_editor_mode_boots_with_proxy_secret(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Editor mode WITH a proxy secret boots and gates unexempt paths (401 for
+    requests missing the shared secret; /api/config stays open)."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.setenv("BIONODULO_PROXY_SECRET", "test-proxy-secret-value")
+
+    with TestClient(create_app()) as client:
+        # No secret header -> 401 on a gated path.
+        assert client.get("/api/object_info").status_code == 401
+        # Exempt config path stays open.
+        assert client.get("/api/config").status_code == 200
+        # Correct secret is accepted.
+        ok = client.get(
+            "/api/object_info",
+            headers={"X-Bionodulo-Session": "test-proxy-secret-value"},
+        )
+        assert ok.status_code == 200
+
+
+def test_editor_mode_insecure_optout_boots_ungated(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The explicit local-dev opt-out lets editor mode run without a secret."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.delenv("BIONODULO_PROXY_SECRET", raising=False)
+    monkeypatch.setenv("BIONODULO_ALLOW_INSECURE_EDITOR", "1")
+
+    # Should not raise; app boots (ungated) for local development.
+    with TestClient(create_app()) as client:
+        assert client.get("/api/config").status_code == 200
+
+
+def test_git_clone_input_validator_rejects_dangerous_transports_and_refs() -> None:
+    """The manager git-install validator must reject ext::/file:// transports and
+    flag-smuggling refs, while accepting normal https/ssh/git@ remotes."""
+    from fastapi import HTTPException
+
+    from bionodulo.api.routes import _validate_git_clone_inputs
+
+    # Accepted forms.
+    _validate_git_clone_inputs("https://github.com/org/repo.git", "main", None)
+    _validate_git_clone_inputs("ssh://git@github.com/org/repo.git", None, "abc123")
+    _validate_git_clone_inputs("git@github.com:org/repo.git", "v1.2.3", None)
+
+    # Dangerous transports.
+    for bad_url in (
+        "ext::sh -c 'id'",
+        "file:///etc/passwd",
+        "fd::17/foo",
+        "http://evil/repo",  # non-https/ssh
+    ):
+        with pytest.raises(HTTPException):
+            _validate_git_clone_inputs(bad_url, None, None)
+
+    # Flag-smuggling / shell-y refs.
+    for bad_ref in ("--upload-pack=sh", "-x", "a;b", "a b", "$(id)"):
+        with pytest.raises(HTTPException):
+            _validate_git_clone_inputs("https://github.com/org/repo.git", bad_ref, None)
+        with pytest.raises(HTTPException):
+            _validate_git_clone_inputs("https://github.com/org/repo.git", None, bad_ref)
+
+    # Directory must not escape custom_nodes_dir.
+    for bad_dir in ("/etc/cron.d", "../../evil", "a/../../b", "-x", "a;b"):
+        with pytest.raises(HTTPException):
+            _validate_git_clone_inputs(
+                "https://github.com/org/repo.git", None, None, bad_dir
+            )
+    # A plain sub-directory is accepted.
+    _validate_git_clone_inputs("https://github.com/org/repo.git", None, None, "my-nodes")
