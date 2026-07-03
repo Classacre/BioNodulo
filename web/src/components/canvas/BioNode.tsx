@@ -62,6 +62,62 @@ function BioNodeComponent({ data, selected }: NodeProps) {
   const ioCount = Math.max(g.inputs.length, g.outputs.length);
   const ioHeight = ioCount * NODE_PIN_H;
 
+  // Collapsed nodes shrink to just their header (height === NODE_HEADER_H), so
+  // the per-port IO rows are hidden. React Flow still anchors edges at each
+  // <Handle>'s DOM position, so we MUST keep a handle for every real port id
+  // (edges reference port names as source/targetHandle) — but pin them all to
+  // the header's vertical center so edges attach to the visible node instead of
+  // dangling below it (the pre-fix bug: handles positioned by index math at
+  // ≥43px, outside the 32px collapsed body and clipped by overflow:hidden).
+  if (g.collapsed) {
+    const handleTop = NODE_HEADER_H / 2;
+    return (
+      <div
+        className={[
+          'bio-node',
+          'bio-node-collapsed',
+          `bio-node-shape-${g.shape}`,
+          selected ? 'selected' : '',
+          g.muted ? 'muted' : '',
+          g.bypassed ? 'bypassed' : '',
+          missingDependency ? 'missing-dep' : '',
+          running ? 'running' : '',
+        ].filter(Boolean).join(' ')}
+        style={{ width: g.width, height: g.height, ['--bio-node-color' as string]: g.color }}
+        data-node-id={g.id}
+        data-status={g.status ?? ''}
+        data-category={categoryLabel}
+      >
+        <div className="bio-node-header" style={{ height: NODE_HEADER_H, background: statusTint ?? g.color }}>
+          <span className="bio-node-swatch" style={{ background: g.color }} />
+          <span className="bio-node-title" title={g.title}>{g.title}</span>
+          {g.pinned && <span className="bio-node-flag" aria-hidden>📌</span>}
+          {g.status && <span className="bio-node-status" data-status={g.status} title={g.status} />}
+        </div>
+        {g.inputs.map(input => (
+          <Handle
+            key={`in-${input.name}`}
+            type="target"
+            position={Position.Left}
+            id={input.name}
+            className={`bio-handle bio-handle-in ${input.connected ? 'connected' : ''}`}
+            style={{ top: handleTop }}
+          />
+        ))}
+        {g.outputs.map(output => (
+          <Handle
+            key={`out-${output.name}`}
+            type="source"
+            position={Position.Right}
+            id={output.name}
+            className={`bio-handle bio-handle-out ${output.connected ? 'connected' : ''}`}
+            style={{ top: handleTop }}
+          />
+        ))}
+      </div>
+    );
+  }
+
   // Non-interactive params (no widget) get a compact read-only summary row so
   // key configuration stays visible on the node face, mirroring the legacy
   // Canvas2D param summaries.

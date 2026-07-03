@@ -292,8 +292,42 @@ export default function App() {
   // which applies the active palette and its light/dark class on load and on change.
   const { palettes, setPalette } = usePaletteTheme();
   const { getBinding } = useKeybindings();
-  const { objectInfo, loading: objectInfoLoading } = useObjectInfo();
+  const { objectInfo, loading: objectInfoLoading, error: objectInfoError, refresh: refreshObjectInfo } = useObjectInfo();
   const registeredPanels = usePanelRegistry();
+
+  // Surface node-registry load failures. An empty/failed registry silently
+  // strips node ports and drops every edge (nodes render but nothing connects),
+  // so instead of failing quiet we show a persistent, actionable notification.
+  // A 401 means the editor session isn't authenticated — prompt sign-in; any
+  // other error offers a retry. The registry keeps its last-good value, so an
+  // already-loaded canvas stays intact behind the banner.
+  const objectInfoErrorShownRef = useRef(false);
+  useEffect(() => {
+    if (!objectInfoError) {
+      objectInfoErrorShownRef.current = false;
+      toast.dismiss('object-info-error');
+      return;
+    }
+    if (objectInfoErrorShownRef.current) return;
+    objectInfoErrorShownRef.current = true;
+    const status = objectInfoError instanceof ApiError ? objectInfoError.status : 0;
+    const isAuth = status === 401 || status === 403;
+    toast.show({
+      id: 'object-info-error',
+      tone: 'error',
+      dismissible: true,
+      duration: 0,
+      title: isAuth ? t('objectInfo.authErrorTitle') : t('objectInfo.loadErrorTitle'),
+      message: isAuth ? t('objectInfo.authErrorMessage') : t('objectInfo.loadErrorMessage'),
+      actions: [
+        {
+          label: t('objectInfo.retry'),
+          onClick: () => { objectInfoErrorShownRef.current = false; void refreshObjectInfo(); },
+          dismiss: true,
+        },
+      ],
+    });
+  }, [objectInfoError, refreshObjectInfo, t]);
 
   // Drive the inline boot loader (index.html) as the app initializes, then
   // dismiss it once the node registry + settings have resolved (both settle even

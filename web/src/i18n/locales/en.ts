@@ -7,6 +7,13 @@ const en = {
     loadingNodes: 'Loading the node library…',
     ready: 'Ready',
   },
+  objectInfo: {
+    authErrorTitle: 'Sign in to load the node library',
+    authErrorMessage: 'Your editor session isn’t authenticated, so nodes can’t load their ports and connections won’t render. Sign in, then retry.',
+    loadErrorTitle: 'Couldn’t load the node library',
+    loadErrorMessage: 'The node registry failed to load, so nodes may show without ports or connections. Retry once your connection is back.',
+    retry: 'Retry',
+  },
   common: {
     cancel: 'Cancel',
     close: 'Close',

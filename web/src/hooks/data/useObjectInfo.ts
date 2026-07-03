@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { InputSpec, ObjectInfo, NodeMetadata } from '../../types';
 import { safeValidateObjectInfo } from '../../api/validators';
-import { apiGet } from '../../api/client';
+import { apiGet, ApiError } from '../../api/client';
+import { logError } from '../../state/logging';
 
 function normalizeInputSpec(spec: unknown): InputSpec {
   if (Array.isArray(spec)) {
@@ -134,6 +135,13 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
 export function useObjectInfo() {
   const [objectInfo, setObjectInfo] = useState<ObjectInfo>({});
   const [loading, setLoading] = useState(true);
+  // Surface fetch failures instead of silently leaving the registry empty. An
+  // empty registry makes every node resolve `meta=null`, which strips its
+  // input/output ports and drops all edges (they have no handles to anchor to)
+  // — the graph then looks broken with no error shown. Callers render a retry
+  // banner from `error`; we KEEP the last-good map so a transient 401/blip
+  // doesn't wipe an already-loaded canvas.
+  const [error, setError] = useState<ApiError | Error | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -149,13 +157,19 @@ export function useObjectInfo() {
         // schema change doesn't leave the panel empty.
         setObjectInfo(normalizeObjectInfo(data));
       }
-    } catch {
-      // Will be empty initially without backend
+      setError(null);
+    } catch (err) {
+      // Do NOT reset objectInfo to {} — keep the last-good registry so an
+      // authed reload blip or an anonymous 401 doesn't erase node ports and
+      // orphan every edge. Record the error so the UI can prompt sign-in/retry.
+      const e = err instanceof Error ? err : new Error(String(err));
+      logError('objectInfo.fetch', e);
+      setError(e);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  return { objectInfo, loading, refresh };
+  return { objectInfo, loading, error, refresh };
 }

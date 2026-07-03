@@ -1133,6 +1133,10 @@ body.is-dragging-panel {
 }
 .bio-node.bio-node-shape-box { border-radius: 2px; }
 .bio-node.bio-node-shape-card { border-radius: 12px; }
+/* Collapsed nodes are header-only; their port handles are pinned to the header
+   center and sit at the node's left/right edge (-5px). Allow them to paint
+   outside the rounded body so edges visibly attach to the collapsed node. */
+.bio-node.bio-node-collapsed { overflow: visible; }
 .bio-node.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
 .bio-node.muted { opacity: 0.55; }
 .bio-node.bypassed { border-style: dashed; opacity: 0.7; }

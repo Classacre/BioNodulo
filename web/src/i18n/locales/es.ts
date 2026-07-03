@@ -7,6 +7,13 @@ const es = {
     loadingNodes: 'Cargando la biblioteca de nodos…',
     ready: 'Listo',
   },
+  objectInfo: {
+    authErrorTitle: 'Inicia sesión para cargar la biblioteca de nodos',
+    authErrorMessage: 'Tu sesión del editor no está autenticada, por lo que los nodos no pueden cargar sus puertos y las conexiones no se mostrarán. Inicia sesión y vuelve a intentarlo.',
+    loadErrorTitle: 'No se pudo cargar la biblioteca de nodos',
+    loadErrorMessage: 'El registro de nodos no se cargó, por lo que los nodos pueden aparecer sin puertos ni conexiones. Vuelve a intentarlo cuando se restablezca la conexión.',
+    retry: 'Reintentar',
+  },
   common: {
     cancel: 'Cancelar',
     close: 'Cerrar',

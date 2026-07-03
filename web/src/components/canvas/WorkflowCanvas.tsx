@@ -292,7 +292,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           ] : [],
           outputs: (meta && !visualOnly) ? resolveNodeOutputs(meta, wn.params || {}).map(output => ({
             name: output.name, type: output.type,
-            connected: edges.some(e => e.from.node === wn.id),
+            connected: edges.some(e => e.from.node === wn.id && e.from.output === output.name),
           })) : [],
           params: wn.params || {},
           meta,
