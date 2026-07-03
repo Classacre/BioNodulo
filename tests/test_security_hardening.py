@@ -168,6 +168,12 @@ async def test_sge_and_pbs_backends_use_exec_not_shell(
     assert sge_job.job_id == "42"
     pbs_job = await PBSBackend().submit_job(script)
     assert pbs_job.job_id == "42"
+    # argv is passed as separate arguments (not a shell-joined string), and the
+    # script path is a distinct final arg — regressions to a single string fail.
+    assert len(calls) == 2
+    assert all(call[0] == "qsub" for call in calls)
+    assert all(call[-1] == str(script) for call in calls)
+    assert all(len(call) >= 2 for call in calls)
 
 
 @pytest.mark.asyncio
@@ -180,6 +186,9 @@ async def test_sge_and_pbs_reject_shell_syntax_in_job_ids_and_args() -> None:
             await backend.cancel_job(HPCJob(job_id="123; rm -rf /"))
         with pytest.raises(ValueError):
             await backend.check_status(HPCJob(job_id="$(whoami)"))
+        # Leading-dash job IDs would be read by qdel/qstat as option flags.
+        with pytest.raises(ValueError):
+            await backend.cancel_job(HPCJob(job_id="--force"))
 
     # Malicious submit-time args (dependency / extra_args) are rejected too.
     import tempfile
@@ -355,3 +364,12 @@ def test_git_clone_input_validator_rejects_dangerous_transports_and_refs() -> No
             _validate_git_clone_inputs("https://github.com/org/repo.git", bad_ref, None)
         with pytest.raises(HTTPException):
             _validate_git_clone_inputs("https://github.com/org/repo.git", None, bad_ref)
+
+    # Directory must not escape custom_nodes_dir.
+    for bad_dir in ("/etc/cron.d", "../../evil", "a/../../b", "-x", "a;b"):
+        with pytest.raises(HTTPException):
+            _validate_git_clone_inputs(
+                "https://github.com/org/repo.git", None, None, bad_dir
+            )
+    # A plain sub-directory is accepted.
+    _validate_git_clone_inputs("https://github.com/org/repo.git", None, None, "my-nodes")

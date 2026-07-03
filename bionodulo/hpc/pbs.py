@@ -13,6 +13,9 @@ from typing import Any
 
 from bionodulo.hpc.base import HPCBackend, HPCJob
 
+# Cap scheduler CLI calls so a wedged qsub/qstat/qdel can't hang the request.
+_HPC_CMD_TIMEOUT_S = 30
+
 
 class PBSBackend(HPCBackend):
     """PBS/Torque HPC backend implementation."""
@@ -25,13 +28,26 @@ class PBSBackend(HPCBackend):
         self.default_memory_mb = self.config.get("default_memory_mb", 4096)
 
     async def _run(self, *args: str) -> tuple[int, str, str]:
-        """Run a PBS CLI command WITHOUT a shell (no injection surface)."""
+        """Run a PBS CLI command WITHOUT a shell (no injection surface).
+
+        Bounded by a timeout so a wedged scheduler binary can't hang the request
+        path; on timeout the process is killed and a RuntimeError is raised.
+        """
         proc = await asyncio.create_subprocess_exec(
             *[str(arg) for arg in args],
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await proc.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=_HPC_CMD_TIMEOUT_S
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise RuntimeError(
+                f"PBS command timed out after {_HPC_CMD_TIMEOUT_S}s: {args[0]!r}"
+            ) from None
         return (
             proc.returncode or 0,
             stdout.decode("utf-8", errors="replace"),
@@ -40,10 +56,12 @@ class PBSBackend(HPCBackend):
 
     @staticmethod
     def _validate_job_id(job_id: str) -> str:
-        """Accept PBS job IDs (numeric + host suffix); reject shell syntax."""
-        if not re.fullmatch(r"[A-Za-z0-9_.:+\[\]-]+", str(job_id)):
+        """Accept PBS job IDs (numeric + host suffix); reject shell syntax and
+        leading dashes (which qdel/qstat would treat as option flags)."""
+        text = str(job_id)
+        if text.startswith("-") or not re.fullmatch(r"[A-Za-z0-9_.:+\[\]-]+", text):
             raise ValueError(f"Invalid PBS job id: {job_id!r}")
-        return str(job_id)
+        return text
 
     @staticmethod
     def _validate_arg(value: str) -> str:

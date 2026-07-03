@@ -1486,13 +1486,17 @@ async def manager_registry(request: Request) -> dict[str, Any]:
     }
 
 
-def _validate_git_clone_inputs(url: str, branch: str | None, commit: str | None) -> None:
+def _validate_git_clone_inputs(
+    url: str, branch: str | None, commit: str | None, directory: str | None = None
+) -> None:
     """Guard `git clone` against transport/argument-injection abuse.
 
     `git clone` uses an argument list (no shell), so classic injection is out,
     but a `url` like `ext::sh -c ...` or `file://` can execute code or read the
     filesystem, and a `branch`/`commit` starting with `-` can smuggle git flags.
-    Restrict the URL to https/ssh git remotes and refs to safe characters.
+    Restrict the URL to https/ssh git remotes and refs to safe characters. The
+    `directory` (used to build the clone target under custom_nodes_dir) must not
+    escape it via absolute paths or `..` segments.
     """
     from urllib.parse import urlparse
 
@@ -1509,6 +1513,15 @@ def _validate_git_clone_inputs(url: str, branch: str | None, commit: str | None)
     for label, ref in (("branch", branch), ("commit", commit)):
         if ref and (ref.startswith("-") or not re.fullmatch(r"[A-Za-z0-9._/-]+", ref)):
             raise HTTPException(status_code=400, detail=f"Invalid git {label}: {ref!r}")
+    if directory is not None and directory != "":
+        d = str(directory)
+        if (
+            d.startswith("/")
+            or d.startswith("-")
+            or ".." in Path(d).parts
+            or not re.fullmatch(r"[A-Za-z0-9._/-]+", d)
+        ):
+            raise HTTPException(status_code=400, detail=f"Invalid directory: {directory!r}")
 
 
 @router.post("/manager/install-git")
@@ -1516,7 +1529,7 @@ async def manager_install_git(
     request: Request, body: ManagerGitRequest
 ) -> dict[str, str]:
     """Install a custom node from a Git repository."""
-    _validate_git_clone_inputs(body.url, body.branch, body.commit)
+    _validate_git_clone_inputs(body.url, body.branch, body.commit, body.directory)
     settings = _get_settings(request)
     target_dir = settings.custom_nodes_dir
     if body.directory:
