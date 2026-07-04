@@ -1,7 +1,7 @@
 // Pure (JSX-free, i18n-free) canvas model helpers shared by the React Flow
 // WorkflowCanvas and the inspector/editor panels. Holds the node geometry /
 // colour / layout logic as a single source of truth.
-import type { WorkflowEdge, NodeMetadata, NodeStatus } from '../../types';
+import type { NodeMetadata, NodeStatus } from '../../types';
 import { NODE_HEADER_H, calcRegularNodeHeight } from '../../utils/nodeLayout';
 
 export const NODE_WIDTH = 220;
@@ -175,114 +175,4 @@ export function calcNodeHeight(
   if (meta?.id === 'html_preview') return base + 200;
   if (meta?.id === 'table_preview' || meta?.id === 'text_preview') return base + 180;
   return base;
-}
-
-export function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[]): Array<{ id: string; x: number; y: number }> {
-  const adj = new Map<string, string[]>();
-  const inDegree = new Map<string, number>();
-  for (const n of graphNodes) {
-    adj.set(n.id, []);
-    inDegree.set(n.id, 0);
-  }
-  for (const e of edges) {
-    adj.get(e.from.node)?.push(e.to.node);
-    inDegree.set(e.to.node, (inDegree.get(e.to.node) || 0) + 1);
-  }
-  const queue: string[] = [];
-  for (const [id, deg] of inDegree) {
-    if (deg === 0) queue.push(id);
-  }
-  const topo: string[] = [];
-  while (queue.length > 0) {
-    const id = queue.shift()!;
-    topo.push(id);
-    for (const next of adj.get(id) || []) {
-      const newDeg = (inDegree.get(next) || 0) - 1;
-      inDegree.set(next, newDeg);
-      if (newDeg === 0) queue.push(next);
-    }
-  }
-  // Build incoming-edge adjacency once so layer assignment is O(V+E), not the
-  // previous O(V·E) full-edge scan per topo node.
-  const incoming = new Map<string, string[]>();
-  for (const n of graphNodes) incoming.set(n.id, []);
-  for (const e of edges) incoming.get(e.to.node)?.push(e.from.node);
-
-  const layer = new Map<string, number>();
-  for (const id of topo) {
-    let maxLayer = 0;
-    for (const from of incoming.get(id) || []) {
-      maxLayer = Math.max(maxLayer, (layer.get(from) ?? 0) + 1);
-    }
-    layer.set(id, maxLayer);
-  }
-  // Nodes left out of the topo order are part of a cycle (their in-degree never
-  // hit 0). Without handling them they'd all default to layer 0 and overlap.
-  // Park them in a trailing layer past everything topologically resolved.
-  const resolvedMax = layer.size > 0 ? Math.max(...layer.values()) : -1;
-  const cyclicLayer = resolvedMax + 1;
-  for (const n of graphNodes) {
-    if (!layer.has(n.id)) layer.set(n.id, cyclicLayer);
-  }
-
-  const layerMap = new Map<number, GraphNode[]>();
-  for (const n of graphNodes) {
-    const l = layer.get(n.id) ?? 0;
-    if (!layerMap.has(l)) layerMap.set(l, []);
-    layerMap.get(l)!.push(n);
-  }
-
-  // Use per-node dimensions instead of fixed column/row sizes — otherwise
-  // nodes with tall widget stacks (or user-widened columns) overlap.
-  const COL_GAP = 80;
-  const ROW_GAP = 40;
-  const measure = (n: GraphNode) => {
-    const width = Math.max(NODE_WIDTH, n.width || NODE_WIDTH);
-    if (n.collapsed) {
-      return { width, height: NODE_HEADER_H + 8 };
-    }
-    const minHeight = calcNodeHeight(n.meta, false, n.params, width);
-    const measuredH = n.height && n.height > 0
-      ? Math.max(n.height, minHeight)
-      : minHeight;
-    return { width, height: measuredH };
-  };
-
-  // Pre-compute per-layer column width (max measured width) and per-layer
-  // node heights so the row offsets can step by each node's own height.
-  const layerWidth = new Map<number, number>();
-  const layerNodeHeights = new Map<number, number[]>();
-  for (const [l, nodesInLayer] of layerMap) {
-    let maxW = 0;
-    const heights: number[] = [];
-    for (const n of nodesInLayer) {
-      const { width, height } = measure(n);
-      maxW = Math.max(maxW, width);
-      heights.push(height);
-    }
-    layerWidth.set(l, maxW);
-    layerNodeHeights.set(l, heights);
-  }
-  // Cumulative X by layer.
-  const layerX = new Map<number, number>();
-  let xCursor = 60;
-  const sortedLayers = Array.from(layerWidth.keys()).sort((a, b) => a - b);
-  for (const l of sortedLayers) {
-    layerX.set(l, xCursor);
-    xCursor += (layerWidth.get(l) || NODE_WIDTH) + COL_GAP;
-  }
-
-  const result: Array<{ id: string; x: number; y: number }> = [];
-  for (const n of graphNodes) {
-    const l = layer.get(n.id) || 0;
-    const nodesInLayer = layerMap.get(l)!;
-    const idx = nodesInLayer.findIndex(nn => nn.id === n.id);
-    const heights = layerNodeHeights.get(l) || [];
-    let y = 60;
-    for (let i = 0; i < idx; i++) {
-      y += (heights[i] || 80) + ROW_GAP;
-    }
-    result.push({ id: n.id, x: layerX.get(l) ?? 60, y });
-  }
-  return result;
 }

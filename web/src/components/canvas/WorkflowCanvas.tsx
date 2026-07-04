@@ -45,9 +45,10 @@ import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
 import { dragCoordinate } from '../../utils/snap';
 import {
-  NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor, calcNodeHeight, arrangeNodesLayout,
+  NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor, calcNodeHeight,
   type GraphNode, type WorkflowCanvasRef,
 } from './canvasModel';
+import { dagreLayout } from '../../utils/dagreLayout';
 import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
 import { logError } from '../../state/logging';
@@ -547,16 +548,30 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     if (ids.length) onExecuteSelected?.(ids);
   }, [onExecuteSelected]);
   const autoLayout = useCallback(() => {
-    const graph = nodesRef.current.map(wn => toGraphNode(wn, edgesRef.current, objectInfoRef.current, undefined, tRef.current));
-    const positions = arrangeNodesLayout(graph, edgesRef.current);
-    const posById = new Map(positions.map(p => [p.id, p]));
-    onNodesChange(nodesRef.current.map(wn => {
+    const all = nodesRef.current;
+    // Lay out top-level, non-group nodes only, so grouped sub-flows are left
+    // intact (dagre has no notion of parent/child). Uses live measured sizes.
+    const layoutable = all.filter(n => !n.parentId && n.type !== 'group');
+    const items = layoutable.map(n => {
+      const rfn = rf.getNode(n.id);
+      return {
+        id: n.id,
+        width: rfn?.measured?.width ?? n.ui?.width ?? NODE_WIDTH,
+        height: rfn?.measured?.height ?? n.ui?.height ?? 80,
+      };
+    });
+    const layoutableIds = new Set(layoutable.map(n => n.id));
+    const dagreEdges = edgesRef.current
+      .filter(e => layoutableIds.has(e.from.node) && layoutableIds.has(e.to.node))
+      .map(e => ({ from: e.from.node, to: e.to.node }));
+    const posById = dagreLayout(items, dagreEdges, { direction: 'LR' });
+    onNodesChange(all.map(wn => {
       const p = posById.get(wn.id);
       return p ? { ...wn, position: [p.x, p.y] as [number, number] } : wn;
     }));
     onPushHistory();
     requestAnimationFrame(() => rf.fitView({ padding: 0.2, duration: 240 }));
-  }, [onNodesChange, onPushHistory, rf]);
+  }, [rf, onNodesChange, onPushHistory]);
 
   // Wrap the current selection in a native group node. Children keep their
   // absolute positions in the workflow and gain a parentId; the group node is a

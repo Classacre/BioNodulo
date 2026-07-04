@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@clerk/clerk-js": "^6.18.1",
+    "@dagrejs/dagre": "^3.0.0",
     "@xyflow/react": "^12.11.1",
     "fuse.js": "^7.3.0",
     "html-to-image": "^1.11.13",
