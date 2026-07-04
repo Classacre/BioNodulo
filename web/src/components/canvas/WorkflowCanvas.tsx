@@ -338,6 +338,17 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     onPushHistory();
   }, [onNodesChange, onEdgesChange, onPushHistory]);
 
+  // Native pre-delete guard: pinned nodes are protected. Return a filtered set so
+  // React Flow deletes everything EXCEPT pinned nodes (and cancels entirely if the
+  // only thing selected was pinned).
+  const onBeforeDelete = useCallback(async ({ nodes: delNodes, edges: delEdges }: { nodes: RFNode[]; edges: RFEdge[] }) => {
+    const pinned = new Set(nodesRef.current.filter(n => n.ui?.pinned).map(n => n.id));
+    if (pinned.size === 0) return true;
+    const keptNodes = delNodes.filter(n => !pinned.has(n.id));
+    if (keptNodes.length === 0 && delEdges.length === 0) return false;
+    return { nodes: keptNodes, edges: delEdges };
+  }, []);
+
   const handleSelectionChange = useCallback((params: OnSelectionChangeParams) => {
     const ids = new Set(params.nodes.map(n => n.id));
     selectedIdsRef.current = ids;
@@ -435,16 +446,19 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         isValidConnection={isValidConnection}
         onEdgesDelete={onEdgesDelete}
         onNodesDelete={onNodesDelete}
+        onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
         snapToGrid={snapToGrid}
         snapGrid={[gridSize, gridSize]}
         deleteKeyCode={['Backspace', 'Delete']}
         multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
         connectionLineType={ConnectionLineType.Bezier}
+        connectionRadius={28}
         elevateEdgesOnSelect
         elevateNodesOnSelect
         onlyRenderVisibleElements
         selectionOnDrag
+        panOnDrag={[1, 2]}
         panOnScroll
         fitView
         minZoom={0.1}

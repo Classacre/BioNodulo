@@ -1142,6 +1142,17 @@ body.is-dragging-panel {
   border: 1.5px solid var(--muted);
 }
 .workflow-canvas-host .react-flow__handle.connected { background: var(--accent); border-color: var(--accent); }
+/* While dragging a connection, React Flow marks connectable target handles with
+   .connectionindicator and the origin with .connectingfrom — make valid targets
+   pop (pairs with isValidConnection, which greys out the rejected ones). */
+.workflow-canvas-host .react-flow__handle.connectionindicator {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.workflow-canvas-host .react-flow__handle.connectingfrom {
+  background: var(--accent); border-color: var(--accent);
+}
 
 .bio-node {
   box-sizing: border-box;
