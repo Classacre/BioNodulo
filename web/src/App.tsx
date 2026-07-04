@@ -2290,6 +2290,14 @@ export default function App() {
         onSelect: () => canvasRef.current?.executeSelected(),
       },
       {
+        id: 'workflow.groupSelection',
+        label: t('canvas.group.create'),
+        description: t('canvas.group.createDescription'),
+        group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
+        onSelect: () => canvasRef.current?.createGroupFromSelection(),
+      },
+      {
         id: 'workflow.saveSnippet',
         label: t('snippets.savePromptTitle'),
         description: t('snippets.saveCommandDescription'),

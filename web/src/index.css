@@ -1219,6 +1219,28 @@ body.is-dragging-panel {
 }
 .bio-node-reroute.selected { box-shadow: 0 0 0 2px var(--accent); }
 
+/* Native group node (sub-flow container): a tinted, labelled box that sits
+   behind its children. --bio-group-color is the group's colour. */
+.bio-group-node {
+  box-sizing: border-box;
+  width: 100%; height: 100%;
+  border: 1.5px solid var(--bio-group-color, #6366f1);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bio-group-color, #6366f1) 9%, transparent);
+}
+.bio-group-node.selected {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bio-group-color, #6366f1) 65%, transparent);
+}
+.bio-group-node-label {
+  position: absolute;
+  top: 4px; left: 8px;
+  font-size: 12px; font-weight: 600;
+  color: var(--bio-group-color, #6366f1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: calc(100% - 16px);
+  pointer-events: none;
+}
+
 /* Native React Flow <NodeToolbar> — the per-node hover/selected action menu. */
 .bio-node-toolbar {
   display: flex; gap: 2px;

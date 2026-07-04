@@ -24,6 +24,7 @@ import {
   applyNodeChanges,
   getOutgoers,
   useReactFlow,
+  useKeyPress,
   type Node as RFNode,
   type Edge as RFEdge,
   type NodeChange,
@@ -48,8 +49,9 @@ import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
 import { getResolvedPaletteMode } from '../../state/palettes';
 import { selectedNodeIdAtom } from '../../state/uiAtoms';
-import BioNode, { type BioNodeData } from './BioNode';
+import BioNode from './BioNode';
 import BioEdge from './BioEdge';
+import GroupNode from './GroupNode';
 import Devtools from './Devtools';
 import HelperLines from './HelperLines';
 import { getHelperLines } from './helperLines';
@@ -58,7 +60,8 @@ import { BioEdgeActionsContext, type BioEdgeActions } from './bioEdgeActions';
 
 export type { GraphNode, WorkflowCanvasRef };
 
-const NODE_TYPES = { bio: BioNode };
+const NODE_TYPES = { bio: BioNode, group: GroupNode };
+const GROUP_DEFAULT_COLOR = '#6366f1';
 const EDGE_TYPES = { bio: BioEdge };
 const IS_DEV = import.meta.env.DEV;
 
@@ -210,36 +213,60 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const isDraggingRef = useRef(false);
   const selectedIdsRef = useRef<Set<string>>(new Set());
 
-  const [rfNodes, setRfNodes] = useState<RFNode<BioNodeData>[]>([]);
+  const [rfNodes, setRfNodes] = useState<RFNode[]>([]);
   const [helperLines, setHelperLines] = useState<{ horizontal?: number; vertical?: number }>({});
 
   // Reconcile React Flow node state from props. Skipped mid-drag so a status
   // tick or parent re-render never stomps the in-flight drag position (React
   // Flow owns positions during a drag; we commit them on drag stop).
+  //
+  // Grouping (native sub-flows): a group is a `type: 'group'` node; children
+  // reference it via `parentId`. workflow.nodes stores ABSOLUTE positions, so at
+  // the React Flow boundary we convert a child's position to be relative to its
+  // group, and emit parents before children (React Flow requires that order).
   useEffect(() => {
     if (isDraggingRef.current) return;
     setRfNodes(prev => {
       const prevSel = new Map(prev.map(n => [n.id, n.selected]));
-      return nodes.map(wn => {
-        const g = toGraphNode(wn, edges, objectInfo, nodeStatusMap?.get(wn.id), tRef.current);
+      const groupAbs = new Map<string, { x: number; y: number }>();
+      for (const wn of nodes) {
+        if (wn.type === 'group') groupAbs.set(wn.id, { x: wn.position[0], y: wn.position[1] });
+      }
+      const built: RFNode[] = nodes.map(wn => {
         const selected = prevSel.get(wn.id) ?? false;
+        const parent = wn.parentId && groupAbs.has(wn.parentId) ? groupAbs.get(wn.parentId)! : null;
+        const position = parent
+          ? { x: wn.position[0] - parent.x, y: wn.position[1] - parent.y }
+          : { x: wn.position[0], y: wn.position[1] };
+
+        if (wn.type === 'group') {
+          const w = wn.ui?.width ?? 320;
+          const h = wn.ui?.height ?? 200;
+          return {
+            id: wn.id, type: 'group', position, selected,
+            width: w, height: h, style: { width: w, height: h },
+            data: { title: wn.ui?.title ?? tRef.current('canvas.group.defaultName'), color: wn.ui?.color ?? GROUP_DEFAULT_COLOR },
+          } satisfies RFNode;
+        }
+
+        const g = toGraphNode(wn, edges, objectInfo, nodeStatusMap?.get(wn.id), tRef.current);
         g.selected = selected;
-        return {
-          id: g.id,
-          type: 'bio',
-          position: { x: g.x, y: g.y },
-          selected,
-          width: g.width,
-          height: g.height,
-          style: { width: g.width, height: g.height },
+        const node: RFNode = {
+          id: g.id, type: 'bio', position, selected,
+          width: g.width, height: g.height, style: { width: g.width, height: g.height },
           data: {
             g,
             categoryLabel: nodeCategoryDisplayLabel(g.category, tRef.current, tRef.current('nodeLibrary.otherCategory')),
             missingDependency: missingDependencyNodeIds?.has(g.id) ?? false,
             running: g.status === 'running',
           },
-        } satisfies RFNode<BioNodeData>;
+        };
+        if (parent) { node.parentId = wn.parentId; node.extent = 'parent'; }
+        return node;
       });
+      // Parents (groups) must come before their children.
+      built.sort((a, b) => (a.type === 'group' ? 0 : 1) - (b.type === 'group' ? 0 : 1));
+      return built;
     });
   }, [nodes, edges, objectInfo, nodeStatusMap, missingDependencyNodeIds]);
 
@@ -306,7 +333,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         }
       }
     }
-    setRfNodes(prev => applyNodeChanges(changes, prev) as RFNode<BioNodeData>[]);
+    setRfNodes(prev => applyNodeChanges(changes, prev));
   }, [snapToGrid, rf]);
 
   const onNodeDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
@@ -315,12 +342,21 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     isDraggingRef.current = false;
     setHelperLines({});
     // Commit live React Flow positions (honouring snap) as a single history step.
-    const rfPos = new Map(rf.getNodes().map(n => [n.id, n.position]));
+    // React Flow reports a grouped child's position RELATIVE to its parent, so we
+    // add the parent's (absolute, top-level) position back to store absolutes.
+    const rfById = new Map(rf.getNodes().map(n => [n.id, n]));
     const updated = nodesRef.current.map(wn => {
-      const pos = rfPos.get(wn.id);
-      if (!pos) return wn;
-      const x = dragCoordinate(pos.x, 0, snapToGrid, gridSize);
-      const y = dragCoordinate(pos.y, 0, snapToGrid, gridSize);
+      const rfn = rfById.get(wn.id);
+      if (!rfn) return wn;
+      let ax = rfn.position.x;
+      let ay = rfn.position.y;
+      if (wn.parentId && rfById.has(wn.parentId)) {
+        const parent = rfById.get(wn.parentId)!;
+        ax += parent.position.x;
+        ay += parent.position.y;
+      }
+      const x = dragCoordinate(ax, 0, snapToGrid, gridSize);
+      const y = dragCoordinate(ay, 0, snapToGrid, gridSize);
       if (wn.position[0] === x && wn.position[1] === y) return wn;
       return { ...wn, position: [x, y] as [number, number] };
     });
@@ -451,6 +487,19 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, width, height } } : n));
       onPushHistory();
     },
+    ungroup: (groupId) => {
+      onNodesChange(nodesRef.current
+        .filter(n => n.id !== groupId)
+        .map(n => n.parentId === groupId ? { ...n, parentId: undefined } : n));
+      onPushHistory();
+    },
+    deleteGroup: (groupId) => {
+      const childIds = new Set(nodesRef.current.filter(n => n.parentId === groupId).map(n => n.id));
+      childIds.add(groupId);
+      onNodesChange(nodesRef.current.filter(n => !childIds.has(n.id)));
+      onEdgesChange(edgesRef.current.filter(e => !childIds.has(e.from.node) && !childIds.has(e.to.node)));
+      onPushHistory();
+    },
   }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory]);
 
   const edgeActions = useMemo<BioEdgeActions>(() => ({
@@ -494,9 +543,73 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     requestAnimationFrame(() => rf.fitView({ padding: 0.2, duration: 240 }));
   }, [onNodesChange, onPushHistory, rf]);
 
+  // Wrap the current selection in a native group node. Children keep their
+  // absolute positions in the workflow and gain a parentId; the group node is a
+  // padded box around their bounding box with room for a header label.
+  const createGroupFromSelection = useCallback(() => {
+    const ids = new Set(selectedIdsRef.current);
+    const sel = nodesRef.current.filter(n => ids.has(n.id) && n.type !== 'group' && !n.parentId);
+    if (sel.length < 1) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const wn of sel) {
+      const rfn = rf.getNode(wn.id);
+      const w = rfn?.measured?.width ?? rfn?.width ?? NODE_WIDTH;
+      const h = rfn?.measured?.height ?? rfn?.height ?? 80;
+      minX = Math.min(minX, wn.position[0]);
+      minY = Math.min(minY, wn.position[1]);
+      maxX = Math.max(maxX, wn.position[0] + w);
+      maxY = Math.max(maxY, wn.position[1] + h);
+    }
+    const pad = 30;
+    const header = 26;
+    const groupId = `group_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const group: WorkflowNode = {
+      id: groupId,
+      type: 'group',
+      position: [Math.round(minX - pad), Math.round(minY - pad - header)],
+      params: {},
+      ui: {
+        title: tRef.current('canvas.group.defaultName'),
+        color: GROUP_DEFAULT_COLOR,
+        width: Math.round(maxX - minX + pad * 2),
+        height: Math.round(maxY - minY + pad * 2 + header),
+      },
+    };
+    const selIds = new Set(sel.map(s => s.id));
+    // Parent first, then the children with their new parentId.
+    const next = nodesRef.current.map(n => selIds.has(n.id) ? { ...n, parentId: groupId } : n);
+    onNodesChange([group, ...next]);
+    onPushHistory();
+  }, [rf, onNodesChange, onPushHistory]);
+
+  // Native keyboard shortcuts (React Flow's useKeyPress). Cmd/Ctrl+G groups the
+  // selection; Cmd/Ctrl+Shift+G ungroups the selected group(s). Rising-edge
+  // guards so holding the combo fires the action only once.
+  const groupKey = useKeyPress(['Meta+g', 'Control+g'], { preventDefault: true });
+  const ungroupKey = useKeyPress(['Meta+Shift+g', 'Control+Shift+g'], { preventDefault: true });
+  const groupKeyRef = useRef(false);
+  const ungroupKeyRef = useRef(false);
+  useEffect(() => {
+    if (groupKey && !groupKeyRef.current) createGroupFromSelection();
+    groupKeyRef.current = groupKey;
+  }, [groupKey, createGroupFromSelection]);
+  useEffect(() => {
+    if (ungroupKey && !ungroupKeyRef.current) {
+      const groups = nodesRef.current.filter(n => n.type === 'group' && selectedIdsRef.current.has(n.id));
+      if (groups.length) {
+        const groupIds = new Set(groups.map(g => g.id));
+        onNodesChange(nodesRef.current
+          .filter(n => !groupIds.has(n.id))
+          .map(n => n.parentId && groupIds.has(n.parentId) ? { ...n, parentId: undefined } : n));
+        onPushHistory();
+      }
+    }
+    ungroupKeyRef.current = ungroupKey;
+  }, [ungroupKey, onNodesChange, onPushHistory]);
+
   useImperativeHandle(ref, () => ({
-    fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, autoLayout,
-  }), [fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, autoLayout]);
+    fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, createGroupFromSelection, autoLayout,
+  }), [fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, createGroupFromSelection, autoLayout]);
 
   return (
     <BioNodeActionsContext.Provider value={actions}>
@@ -548,7 +661,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             className="bio-minimap"
             pannable
             zoomable
-            nodeColor={(n) => (n.data as BioNodeData | undefined)?.g?.color ?? '#64748b'}
+            nodeColor={(n) => {
+              const d = n.data as { g?: { color?: string }; color?: string } | undefined;
+              return d?.g?.color ?? d?.color ?? '#64748b';
+            }}
           />
         )}
         <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />

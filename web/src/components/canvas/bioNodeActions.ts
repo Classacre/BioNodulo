@@ -12,6 +12,10 @@ export interface BioNodeActions {
   remove: (id: string) => void;
   /** Commit a native <NodeResizer> resize back to the workflow node's ui. */
   resize: (id: string, width: number, height: number) => void;
+  /** Dissolve a group node, keeping its children (clears their parentId). */
+  ungroup: (groupId: string) => void;
+  /** Delete a group node AND its children. */
+  deleteGroup: (groupId: string) => void;
 }
 
 export const BioNodeActionsContext = createContext<BioNodeActions | null>(null);

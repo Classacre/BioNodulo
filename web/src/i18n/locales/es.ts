@@ -2004,6 +2004,13 @@ class MyToolNode(CommandNode):
   },
   canvas: {
     dragToConnect: 'Arrastra desde un puerto para conectar',
+    group: {
+      defaultName: 'Grupo',
+      create: 'Agrupar seleccion',
+      createDescription: 'Envuelve los nodos seleccionados en un grupo',
+      ungroup: 'Desagrupar',
+      delete: 'Eliminar grupo y contenido',
+    },
     menu: {
       run: 'Ejecutar nodo',
       edit: 'Editar',

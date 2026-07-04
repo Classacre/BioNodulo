@@ -48,6 +48,8 @@ export interface WorkflowCanvasRef {
    *  React Flow projection, used e.g. by file-drop to place a node under the
    *  cursor. */
   screenToFlowPosition: (clientX: number, clientY: number) => { x: number; y: number };
+  /** Wrap the current selection in a native group node. */
+  createGroupFromSelection: () => void;
   /** Topological auto-layout: lays out all nodes in horizontal columns based
    *  on dependency depth. */
   autoLayout: () => void;
