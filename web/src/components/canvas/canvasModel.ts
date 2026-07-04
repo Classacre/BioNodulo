@@ -2,7 +2,6 @@
 // WorkflowCanvas and the inspector/editor panels. Holds the node geometry /
 // colour / layout logic as a single source of truth.
 import type { NodeMetadata, NodeStatus } from '../../types';
-import { NODE_HEADER_H, calcRegularNodeHeight } from '../../utils/nodeLayout';
 
 export const NODE_WIDTH = 220;
 export const NODE_NOTE_WIDTH = 260;
@@ -147,32 +146,4 @@ export function nodeColor(meta: NodeMetadata | null): string {
     if (haystack.includes(keyword)) return color;
   }
   return '#64748b';
-}
-
-function calcNoteHeight(text: string, width: number): number {
-  const maxCharsPerLine = Math.floor((width - 20) / 6.5);
-  const lines = text.split('\n').reduce((total, line) => {
-    return total + Math.max(1, Math.ceil(line.length / maxCharsPerLine));
-  }, 0);
-  return NODE_HEADER_H + Math.max(40, lines * 15 + 20);
-}
-
-export function calcNodeHeight(
-  meta: NodeMetadata | null,
-  collapsed: boolean,
-  params?: Record<string, unknown>,
-  width?: number,
-): number {
-  if (collapsed) return NODE_HEADER_H;
-  if (meta?.id === 'note') {
-    const text = String(params?.text || '');
-    return calcNoteHeight(text, width || NODE_NOTE_WIDTH);
-  }
-  const base = calcRegularNodeHeight(meta, params);
-  // Dedicated preview SINK nodes keep a fixed body. Producer nodes get their
-  // (run-reactive) inline-preview band added separately once a preview exists.
-  if (meta?.id === 'image_preview') return base + 120;
-  if (meta?.id === 'html_preview') return base + 200;
-  if (meta?.id === 'table_preview' || meta?.id === 'text_preview') return base + 180;
-  return base;
 }

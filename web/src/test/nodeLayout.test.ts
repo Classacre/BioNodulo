@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeMetadata } from '../types';
 import {
-  NODE_WIDGET_BOTTOM_PAD,
-  NODE_WIDGET_ROW_H,
-  calcRegularNodeHeight,
   getInteractiveWidgetEntries,
-  getWidgetBlockTop,
   isColorParam,
   toHexColor,
 } from '../utils/nodeLayout';
@@ -55,8 +51,8 @@ const validatorLikeMeta: NodeMetadata = {
   return_names: ['passthrough', 'passed', 'validation_report', 'report_file'],
 };
 
-describe('node layout metrics', () => {
-  it('sizes a node tall enough to contain every DOM widget row', () => {
+describe('interactive widget entries', () => {
+  it('lists the params that render as on-node widgets, in order', () => {
     const params = {
       expected_format: 'fasta',
       min_size_bytes: 1,
@@ -68,14 +64,6 @@ describe('node layout metrics', () => {
     };
 
     const widgets = getInteractiveWidgetEntries(validatorLikeMeta, params);
-    const height = calcRegularNodeHeight(validatorLikeMeta, params);
-    const widgetTop = getWidgetBlockTop(
-      Object.keys(validatorLikeMeta.input_types?.required ?? {}).length
-        + Object.keys(validatorLikeMeta.input_types?.optional ?? {}).length,
-      validatorLikeMeta.return_types?.length ?? 0,
-    );
-    const lastWidgetBottom = widgetTop + widgets.length * NODE_WIDGET_ROW_H;
-
     expect(widgets.map(widget => widget.key)).toEqual([
       'expected_format',
       'min_size_bytes',
@@ -85,6 +73,5 @@ describe('node layout metrics', () => {
       'checksum_expected',
       'fail_on_error',
     ]);
-    expect(height).toBeGreaterThanOrEqual(lastWidgetBottom + NODE_WIDGET_BOTTOM_PAD);
   });
 });

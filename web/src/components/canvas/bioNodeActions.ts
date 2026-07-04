@@ -12,6 +12,10 @@ export interface BioNodeActions {
   remove: (id: string) => void;
   /** Commit a native <NodeResizer> resize back to the workflow node's ui. */
   resize: (id: string, width: number, height: number) => void;
+  /** Update a node param from an on-node widget. `history` (default true) pushes
+   *  an undo entry — pass false for continuous input (slider drag) and true on
+   *  release. */
+  setParam: (id: string, key: string, value: unknown, history?: boolean) => void;
   /** Dissolve a group node, keeping its children (clears their parentId). */
   ungroup: (groupId: string) => void;
   /** Delete a group node AND its children. */

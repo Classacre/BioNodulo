@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { NODE_HEADER_H, NODE_PIN_H } from '../../utils/nodeLayout';
 import type { GraphNode } from './canvasModel';
 import { BioNodeActionsContext, MultiSelectContext } from './bioNodeActions';
+import NodeWidgets from './NodeWidgets';
 
 export interface BioNodeData extends Record<string, unknown> {
   g: GraphNode;
@@ -69,7 +70,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
         running ? 'running' : '',
         g.collapsed ? 'bio-node-collapsed' : '',
       ].filter(Boolean).join(' ')}
-      style={{ width: g.width, height: g.height, ['--bio-node-color' as string]: g.color }}
+      style={{ ['--bio-node-color' as string]: g.color }}
       data-node-id={g.id}
       data-status={g.status ?? ''}
       data-category={categoryLabel}
@@ -110,6 +111,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
       {g.visualOnly && g.type === 'note' ? (
         <div className="bio-node-note-body">{String(g.params?.text ?? '')}</div>
       ) : !g.visualOnly && !g.collapsed ? (
+        <>
         <div className="bio-node-io">
           <div className="bio-node-inputs">
             {g.inputs.map(input => (
@@ -138,6 +140,8 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
             ))}
           </div>
         </div>
+        <NodeWidgets nodeId={id} meta={g.meta} params={g.params} />
+        </>
       ) : g.collapsed && !g.visualOnly ? (
         // Collapsed: keep handles for every port, pinned to header centre.
         <>

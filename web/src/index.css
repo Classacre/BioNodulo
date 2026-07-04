@@ -1212,6 +1212,34 @@ body.is-dragging-panel {
 .bio-node-param { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bio-node-note-body { padding: 6px 8px; white-space: pre-wrap; color: var(--text); }
 
+/* Interactive on-node widgets (toggles/sliders/selects/number/text/colour).
+   The node auto-sizes to fit these — no fixed height. */
+.bio-node-widgets { display: flex; flex-direction: column; gap: 3px; padding: 2px 8px 8px; }
+.bio-widget {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; color: var(--muted); cursor: default;
+}
+.bio-widget-label {
+  flex: 0 0 auto; max-width: 46%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bio-widget input[type="text"],
+.bio-widget input[type="number"],
+.bio-widget select {
+  flex: 1 1 auto; min-width: 0; height: 18px;
+  font-size: 10px; padding: 1px 4px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text);
+}
+.bio-widget-bool { justify-content: space-between; }
+.bio-widget-bool input[type="checkbox"] { accent-color: var(--accent); width: 13px; height: 13px; }
+.bio-widget-slider input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+.bio-widget-value { flex: 0 0 auto; min-width: 24px; text-align: right; font-variant-numeric: tabular-nums; }
+.bio-widget-color input[type="color"] {
+  width: 26px; height: 18px; padding: 0; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 4px; background: none;
+}
+
 .bio-node-reroute {
   border-radius: 50%;
   border: 2px solid var(--surface);

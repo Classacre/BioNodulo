@@ -45,9 +45,10 @@ import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
 import { dragCoordinate } from '../../utils/snap';
 import {
-  NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor, calcNodeHeight,
+  NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor,
   type GraphNode, type WorkflowCanvasRef,
 } from './canvasModel';
+import { NODE_HEADER_H } from '../../utils/nodeLayout';
 import { dagreLayout } from '../../utils/dagreLayout';
 import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
@@ -143,14 +144,13 @@ function toGraphNode(
   const nodeWidth = isNote
     ? (wn.ui?.width ?? NODE_NOTE_WIDTH)
     : (isReroute ? 20 : (wn.ui?.width ?? NODE_WIDTH));
+  // Height: 0 means "auto" — React Flow measures the rendered DOM and sizes the
+  // node to its content (header + ports + widgets). Only reroute (fixed dot),
+  // collapsed (header only), and user-resized nodes carry an explicit height.
   let nodeHeight: number;
   if (isReroute) nodeHeight = 20;
-  else if (collapsed) nodeHeight = calcNodeHeight(meta, true, wn.params);
-  else {
-    const minHeight = calcNodeHeight(meta, false, wn.params, isNote ? nodeWidth : undefined);
-    const storedHeight = wn.ui?.height;
-    nodeHeight = storedHeight ? Math.max(storedHeight, minHeight) : minHeight;
-  }
+  else if (collapsed) nodeHeight = NODE_HEADER_H;
+  else nodeHeight = wn.ui?.height ?? 0;
   const visibleInputs = getVisibleInputSpecs(meta, wn.params || {});
   return {
     id: wn.id,
@@ -259,9 +259,13 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
 
         const g = toGraphNode(wn, edges, objectInfo, nodeStatusMap?.get(wn.id), tRef.current);
         g.selected = selected;
+        // Fix the width; leave height to React Flow's DOM measurement unless the
+        // node has an explicit (fixed/collapsed/reroute/resized) height (g.height > 0).
+        const style: React.CSSProperties = g.height > 0
+          ? { width: g.width, height: g.height }
+          : { width: g.width };
         const node: RFNode = {
-          id: g.id, type: 'bio', position, selected,
-          width: g.width, height: g.height, style: { width: g.width, height: g.height },
+          id: g.id, type: 'bio', position, selected, style,
           data: {
             g,
             categoryLabel: nodeCategoryDisplayLabel(g.category, tRef.current, tRef.current('nodeLibrary.otherCategory')),
@@ -502,6 +506,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     resize: (id, width, height) => {
       onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, width, height } } : n));
       onPushHistory();
+    },
+    setParam: (id, key, value, history = true) => {
+      onNodesChange(nodesRef.current.map(n => n.id === id
+        ? { ...n, params: { ...(n.params || {}), [key]: value } }
+        : n));
+      if (history) onPushHistory();
     },
     ungroup: (groupId) => {
       onNodesChange(nodesRef.current
