@@ -1994,6 +1994,7 @@ class MyToolNode(CommandNode):
   },
   canvas: {
     dragToConnect: 'Drag from a port to connect',
+    edge: { delete: 'Delete link' },
     group: {
       defaultName: 'Group',
       create: 'Group selection',

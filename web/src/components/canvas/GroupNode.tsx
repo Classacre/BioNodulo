@@ -31,9 +31,9 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
         onResizeEnd={(_e, params) => actions?.resize(id, Math.round(params.width), Math.round(params.height))}
       />
       <NodeToolbar isVisible={selected && !multiSelected} position={Position.Top} className="bio-node-toolbar">
-        <button type="button" title={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}>A</button>
-        <button type="button" title={t('canvas.group.ungroup')} onClick={() => actions?.ungroup(id)}>⤢</button>
-        <button type="button" className="danger" title={t('canvas.group.delete')} onClick={() => actions?.deleteGroup(id)}>✕</button>
+        <button type="button" title={t('canvas.menu.rename')} aria-label={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}><span aria-hidden>A</span></button>
+        <button type="button" title={t('canvas.group.ungroup')} aria-label={t('canvas.group.ungroup')} onClick={() => actions?.ungroup(id)}><span aria-hidden>⤢</span></button>
+        <button type="button" className="danger" title={t('canvas.group.delete')} aria-label={t('canvas.group.delete')} onClick={() => actions?.deleteGroup(id)}><span aria-hidden>✕</span></button>
       </NodeToolbar>
       <div className="bio-group-node-label" title={title}>{title}</div>
     </div>

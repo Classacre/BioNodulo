@@ -26,7 +26,6 @@ import {
   SelectionMode,
   applyNodeChanges,
   applyEdgeChanges,
-  getOutgoers,
   useReactFlow,
   useKeyPress,
   type Node as RFNode,
@@ -247,7 +246,6 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // Latest props for callbacks that must read fresh values without re-binding.
   const nodesRef = useRef(nodes); nodesRef.current = nodes;
   const edgesRef = useRef(edges); edgesRef.current = edges;
-  const objectInfoRef = useRef(objectInfo); objectInfoRef.current = objectInfo;
   const isDraggingRef = useRef(false);
   const selectedIdsRef = useRef<Set<string>>(new Set());
 
@@ -459,27 +457,37 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // Native connection gate: React Flow calls this while the user drags a link
   // and greys out ports it rejects. Block self-links, type-incompatible ports,
   // and any connection that would create a cycle (workflows must stay a DAG).
+  // Adjacency (source node -> target nodes), memoized on edges so a connection
+  // drag doesn't rebuild the graph for every hovered port.
+  const adjacency = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const e of edges) {
+      const list = map.get(e.from.node);
+      if (list) list.push(e.to.node); else map.set(e.from.node, [e.to.node]);
+    }
+    return map;
+  }, [edges]);
+
   const isValidConnection = useCallback((conn: Connection | RFEdge): boolean => {
     const { source, target, sourceHandle, targetHandle } = conn;
     if (!source || !target || source === target) return false;
     const outType = outTypeByNodeOutput.get(`${source}:${sourceHandle}`) || '';
     const inType = inTypeByNodeInput.get(`${target}:${targetHandle}`) || '';
     if (!typesCompatible(outType, inType)) return false;
-    const rfN = rf.getNodes();
-    const rfE = rf.getEdges();
-    const targetNode = rfN.find(n => n.id === target);
-    if (!targetNode) return true;
-    const hasCycle = (node: RFNode, seen = new Set<string>()): boolean => {
-      if (seen.has(node.id)) return false;
-      seen.add(node.id);
-      for (const out of getOutgoers(node, rfN, rfE)) {
-        if (out.id === source) return true;
-        if (hasCycle(out, seen)) return true;
-      }
-      return false;
-    };
-    return !hasCycle(targetNode);
-  }, [rf, outTypeByNodeOutput, inTypeByNodeInput]);
+    // Reject if the target already reaches the source (adding source->target would
+    // create a cycle). Iterative BFS over the memoized adjacency map.
+    const seen = new Set<string>();
+    const queue = [target];
+    while (queue.length) {
+      const id = queue.pop()!;
+      if (id === source) return false;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const next = adjacency.get(id);
+      if (next) queue.push(...next);
+    }
+    return true;
+  }, [adjacency, outTypeByNodeOutput, inTypeByNodeInput]);
 
   // Native edge reconnection: drag an existing edge's end onto another port.
   const onReconnect = useCallback((oldEdge: RFEdge, newConn: Connection) => {
@@ -495,17 +503,16 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     onPushHistory();
   }, [onEdgesChange, onPushHistory]);
 
-  const onEdgesDelete = useCallback((deleted: RFEdge[]) => {
-    const gone = new Set(deleted.map(e => e.id));
-    onEdgesChange(edgesRef.current.filter(e => !gone.has(e.id)));
-    onPushHistory();
-  }, [onEdgesChange, onPushHistory]);
-
-  const onNodesDelete = useCallback((deleted: RFNode[]) => {
-    const gone = new Set(deleted.map(n => n.id));
-    onNodesChange(nodesRef.current.filter(n => !gone.has(n.id)));
-    onEdgesChange(edgesRef.current.filter(e => !gone.has(e.from.node) && !gone.has(e.to.node)));
-    onPushHistory();
+  // Single native delete handler: React Flow passes the FULL cascade in one call
+  // — the deleted nodes plus every edge removed as a consequence — so we commit
+  // nodes + edges together with a single history push (using onNodesDelete +
+  // onEdgesDelete separately double-fires off the same stale ref).
+  const onDelete = useCallback(({ nodes: delNodes, edges: delEdges }: { nodes: RFNode[]; edges: RFEdge[] }) => {
+    const goneNodes = new Set(delNodes.map(n => n.id));
+    const goneEdges = new Set(delEdges.map(e => e.id));
+    if (goneNodes.size) onNodesChange(nodesRef.current.filter(n => !goneNodes.has(n.id)));
+    if (goneEdges.size) onEdgesChange(edgesRef.current.filter(e => !goneEdges.has(e.id)));
+    if (goneNodes.size || goneEdges.size) onPushHistory();
   }, [onNodesChange, onEdgesChange, onPushHistory]);
 
   // Native pre-delete guard: pinned nodes are protected. Return a filtered set so
@@ -742,8 +749,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onConnect={onConnect}
         onReconnect={onReconnect}
         isValidConnection={isValidConnection}
-        onEdgesDelete={onEdgesDelete}
-        onNodesDelete={onNodesDelete}
+        onDelete={onDelete}
         onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
         onError={onError}
@@ -787,9 +793,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             bound to several node ids above the selection's bounding box. Replaces
             the old custom SelectionToolbox. */}
         <NodeToolbar nodeId={selectedIds} isVisible={selectedIds.length > 1} position={Position.Top} className="bio-node-toolbar">
-          <button type="button" title={t('canvas.group.create')} onClick={createGroupFromSelection}>▣</button>
-          <button type="button" title={t('canvas.menu.run')} onClick={() => onExecuteSelected?.(selectedIds)}>▶</button>
-          <button type="button" className="danger" title={t('canvas.menu.delete')} onClick={deleteSelected}>✕</button>
+          <button type="button" title={t('canvas.group.create')} aria-label={t('canvas.group.create')} onClick={createGroupFromSelection}><span aria-hidden>▣</span></button>
+          <button type="button" title={t('canvas.menu.run')} aria-label={t('canvas.menu.run')} onClick={() => onExecuteSelected?.(selectedIds)}><span aria-hidden>▶</span></button>
+          <button type="button" className="danger" title={t('canvas.menu.delete')} aria-label={t('canvas.menu.delete')} onClick={deleteSelected}><span aria-hidden>✕</span></button>
         </NodeToolbar>
         {(helperLines.horizontal !== undefined || helperLines.vertical !== undefined) && (
           <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />

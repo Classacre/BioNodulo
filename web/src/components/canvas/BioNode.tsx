@@ -87,11 +87,11 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
       {/* Native React Flow toolbar — the "menu when clicking / hovering a node".
           Portalled + viewport-synced by React Flow, so no custom overlay math. */}
       <NodeToolbar isVisible={showToolbar} position={Position.Top} className="bio-node-toolbar">
-        <button type="button" title={t('canvas.menu.run')} onClick={() => actions?.run(id)}>▶</button>
-        <button type="button" title={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}>A</button>
-        <button type="button" title={t('canvas.menu.duplicate')} onClick={() => actions?.duplicate(id)}>⧉</button>
-        <button type="button" title={t('canvas.menu.collapse')} onClick={() => actions?.toggleCollapse(id)}>{g.collapsed ? '▸' : '▾'}</button>
-        <button type="button" className="danger" title={t('canvas.menu.delete')} onClick={() => actions?.remove(id)}>✕</button>
+        <button type="button" title={t('canvas.menu.run')} aria-label={t('canvas.menu.run')} onClick={() => actions?.run(id)}><span aria-hidden>▶</span></button>
+        <button type="button" title={t('canvas.menu.rename')} aria-label={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}><span aria-hidden>A</span></button>
+        <button type="button" title={t('canvas.menu.duplicate')} aria-label={t('canvas.menu.duplicate')} onClick={() => actions?.duplicate(id)}><span aria-hidden>⧉</span></button>
+        <button type="button" title={t('canvas.menu.collapse')} aria-label={t('canvas.menu.collapse')} onClick={() => actions?.toggleCollapse(id)}><span aria-hidden>{g.collapsed ? '▸' : '▾'}</span></button>
+        <button type="button" className="danger" title={t('canvas.menu.delete')} aria-label={t('canvas.menu.delete')} onClick={() => actions?.remove(id)}><span aria-hidden>✕</span></button>
       </NodeToolbar>
 
       <div className="bio-node-header" style={{ height: NODE_HEADER_H, background: statusTint ?? g.color }}>
@@ -167,6 +167,34 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
   );
 }
 
+type Port = GraphNode['inputs'][number];
+
+// Content-compare port lists: the reconcile rebuilds inputs/outputs with fresh
+// array + object identities every pass, so a reference check (a === b) would
+// ALWAYS differ and defeat the memo — re-rendering every node on each status
+// tick. Compare by the fields that actually paint a port instead.
+function portsEqual(a: Port[], b: Port[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i].name !== b[i].name || a[i].type !== b[i].type || a[i].connected !== b[i].connected) return false;
+  }
+  return true;
+}
+
+// Shallow-compare param maps (widget values). New object identity each reconcile,
+// so compare keys + values by reference (values are primitives or stable refs).
+function paramsEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  if (a === b) return true;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
 // React Flow supplies a fresh `data` object every render (incl. every drag
 // frame, where only x/y changed). Compare only the fields that affect what this
 // node paints — never position (React Flow moves the wrapper via CSS transform).
@@ -191,10 +219,10 @@ function bioNodePropsEqual(prev: NodeProps, next: NodeProps): boolean {
     ga.pinned === gb.pinned &&
     ga.shape === gb.shape &&
     ga.visualOnly === gb.visualOnly &&
-    ga.inputs === gb.inputs &&
-    ga.outputs === gb.outputs &&
-    ga.params === gb.params &&
-    ga.meta === gb.meta
+    ga.meta === gb.meta &&
+    portsEqual(ga.inputs, gb.inputs) &&
+    portsEqual(ga.outputs, gb.outputs) &&
+    paramsEqual(ga.params, gb.params)
   );
 }
 

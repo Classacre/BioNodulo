@@ -34,7 +34,10 @@ export function getHelperLines(
   let hDist = distance;
 
   return nodes
-    .filter((n) => n.id !== nodeA.id)
+    // Skip self and grouped children: in v12 a child's `position` is relative to
+    // its parent, so comparing it against the dragged node's absolute coords would
+    // produce phantom alignment lines. (The dragged node itself is top-level.)
+    .filter((n) => n.id !== nodeA.id && !n.parentId)
     .reduce<HelperLinesResult>((result, nodeB) => {
       const bW = nodeB.measured?.width ?? nodeB.width ?? 0;
       const bH = nodeB.measured?.height ?? nodeB.height ?? 0;

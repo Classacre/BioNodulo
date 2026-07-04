@@ -4,11 +4,13 @@
 // the edge is selected, so clicking a link gives you a one-tap delete.
 import { memo, useContext } from 'react';
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
+import { useTranslation } from 'react-i18next';
 import { BioEdgeActionsContext } from './bioEdgeActions';
 
 function BioEdgeComponent({
   id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, selected,
 }: EdgeProps) {
+  const { t } = useTranslation();
   const actions = useContext(BioEdgeActionsContext);
   const [path, labelX, labelY] = getBezierPath({
     sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
@@ -23,10 +25,10 @@ function BioEdgeComponent({
             className="bio-edge-delete nodrag nopan"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
             onClick={(e) => { e.stopPropagation(); actions?.removeEdge(id); }}
-            title="Delete link"
-            aria-label="Delete link"
+            title={t('canvas.edge.delete')}
+            aria-label={t('canvas.edge.delete')}
           >
-            ✕
+            <span aria-hidden>✕</span>
           </button>
         </EdgeLabelRenderer>
       )}

@@ -2004,6 +2004,7 @@ class MyToolNode(CommandNode):
   },
   canvas: {
     dragToConnect: 'Arrastra desde un puerto para conectar',
+    edge: { delete: 'Eliminar enlace' },
     group: {
       defaultName: 'Grupo',
       create: 'Agrupar seleccion',
