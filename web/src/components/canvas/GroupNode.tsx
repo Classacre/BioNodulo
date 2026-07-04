@@ -6,7 +6,7 @@
 import { memo, useContext, useState } from 'react';
 import { NodeResizer, NodeToolbar, Position, type NodeProps } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
-import { BioNodeActionsContext } from './bioNodeActions';
+import { BioNodeActionsContext, MultiSelectContext } from './bioNodeActions';
 
 export interface GroupNodeData extends Record<string, unknown> {
   title: string;
@@ -16,6 +16,7 @@ export interface GroupNodeData extends Record<string, unknown> {
 function GroupNodeComponent({ id, data, selected }: NodeProps) {
   const { t } = useTranslation();
   const actions = useContext(BioNodeActionsContext);
+  const multiSelected = useContext(MultiSelectContext);
   const [hovered, setHovered] = useState(false);
   const { title, color } = data as GroupNodeData;
 
@@ -32,7 +33,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
         minHeight={90}
         onResizeEnd={(_e, params) => actions?.resize(id, Math.round(params.width), Math.round(params.height))}
       />
-      <NodeToolbar isVisible={selected || hovered} position={Position.Top} className="bio-node-toolbar">
+      <NodeToolbar isVisible={(selected || hovered) && !multiSelected} position={Position.Top} className="bio-node-toolbar">
         <button type="button" title={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}>A</button>
         <button type="button" title={t('canvas.group.ungroup')} onClick={() => actions?.ungroup(id)}>⤢</button>
         <button type="button" className="danger" title={t('canvas.group.delete')} onClick={() => actions?.deleteGroup(id)}>✕</button>

@@ -12,7 +12,7 @@ import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NODE_HEADER_H, NODE_PIN_H } from '../../utils/nodeLayout';
 import type { GraphNode } from './canvasModel';
-import { BioNodeActionsContext } from './bioNodeActions';
+import { BioNodeActionsContext, MultiSelectContext } from './bioNodeActions';
 
 export interface BioNodeData extends Record<string, unknown> {
   g: GraphNode;
@@ -33,6 +33,7 @@ const STATUS_TINT: Record<string, string> = {
 function BioNodeComponent({ id, data, selected }: NodeProps) {
   const { t } = useTranslation();
   const actions = useContext(BioNodeActionsContext);
+  const multiSelected = useContext(MultiSelectContext);
   const [hovered, setHovered] = useState(false);
   const { g, categoryLabel, missingDependency, running } = data as BioNodeData;
 
@@ -51,7 +52,10 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
   }
 
   const statusTint = g.status ? STATUS_TINT[g.status] : undefined;
-  const showToolbar = (selected || hovered) && g.type !== 'reroute';
+  // Show on select OR hover (so moving the mouse onto the portalled toolbar to
+  // click a button keeps it up), but never during a multi-select — that stacks N
+  // toolbars, so the canvas-level multi-select toolbar handles that case.
+  const showToolbar = (selected || hovered) && !multiSelected && g.type !== 'reroute';
 
   return (
     <div

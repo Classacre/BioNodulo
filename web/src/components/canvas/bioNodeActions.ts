@@ -19,3 +19,7 @@ export interface BioNodeActions {
 }
 
 export const BioNodeActionsContext = createContext<BioNodeActions | null>(null);
+
+// True while more than one node is selected. Nodes read this to hide their own
+// per-node toolbar during a multi-select (the canvas shows one shared toolbar).
+export const MultiSelectContext = createContext(false);

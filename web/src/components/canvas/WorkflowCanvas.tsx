@@ -19,8 +19,11 @@ import {
   ControlButton,
   MiniMap,
   Panel,
+  NodeToolbar,
+  Position,
   MarkerType,
   ConnectionLineType,
+  SelectionMode,
   applyNodeChanges,
   getOutgoers,
   useReactFlow,
@@ -47,6 +50,7 @@ import {
 } from './canvasModel';
 import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
+import { logError } from '../../state/logging';
 import { getResolvedPaletteMode } from '../../state/palettes';
 import { selectedNodeIdAtom } from '../../state/uiAtoms';
 import BioNode from './BioNode';
@@ -55,7 +59,7 @@ import GroupNode from './GroupNode';
 import Devtools from './Devtools';
 import HelperLines from './HelperLines';
 import { getHelperLines } from './helperLines';
-import { BioNodeActionsContext, type BioNodeActions } from './bioNodeActions';
+import { BioNodeActionsContext, MultiSelectContext, type BioNodeActions } from './bioNodeActions';
 import { BioEdgeActionsContext, type BioEdgeActions } from './bioEdgeActions';
 
 export type { GraphNode, WorkflowCanvasRef };
@@ -215,6 +219,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
 
   const [rfNodes, setRfNodes] = useState<RFNode[]>([]);
   const [helperLines, setHelperLines] = useState<{ horizontal?: number; vertical?: number }>({});
+  // Reactive selection (for the multi-select toolbar); the ref mirror stays for
+  // callbacks that need the latest value without re-binding.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Reconcile React Flow node state from props. Skipped mid-drag so a status
   // tick or parent re-render never stomps the in-flight drag position (React
@@ -442,10 +449,18 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   }, []);
 
   const handleSelectionChange = useCallback((params: OnSelectionChangeParams) => {
-    const ids = new Set(params.nodes.map(n => n.id));
+    const idList = params.nodes.map(n => n.id);
+    const ids = new Set(idList);
     selectedIdsRef.current = ids;
-    setSelectedNodeId(ids.size === 1 ? Array.from(ids)[0] : null);
+    setSelectedIds(idList);
+    setSelectedNodeId(ids.size === 1 ? idList[0] : null);
   }, [setSelectedNodeId]);
+
+  // Route React Flow's internal warnings/errors into the app log instead of the
+  // bare console (e.g. missing-styles or invalid-parent warnings).
+  const onError = useCallback((code: string, message: string) => {
+    logError('reactflow', new Error(`[${code}] ${message}`));
+  }, []);
 
   // ---- On-node toolbar actions (native <NodeToolbar> in BioNode) ----
   const actions = useMemo<BioNodeActions>(() => ({
@@ -582,6 +597,21 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     onPushHistory();
   }, [rf, onNodesChange, onPushHistory]);
 
+  // Delete the current selection (respecting pinned nodes), cascading to the
+  // children of any selected group. Backs the multi-select toolbar's delete.
+  const deleteSelected = useCallback(() => {
+    const selected = new Set(selectedIdsRef.current);
+    const pinned = new Set(nodesRef.current.filter(n => n.ui?.pinned).map(n => n.id));
+    const toDelete = new Set([...selected].filter(id => !pinned.has(id)));
+    for (const n of nodesRef.current) {
+      if (n.parentId && toDelete.has(n.parentId)) toDelete.add(n.id);
+    }
+    if (!toDelete.size) return;
+    onNodesChange(nodesRef.current.filter(n => !toDelete.has(n.id)));
+    onEdgesChange(edgesRef.current.filter(e => !toDelete.has(e.from.node) && !toDelete.has(e.to.node)));
+    onPushHistory();
+  }, [onNodesChange, onEdgesChange, onPushHistory]);
+
   // Native keyboard shortcuts (React Flow's useKeyPress). Cmd/Ctrl+G groups the
   // selection; Cmd/Ctrl+Shift+G ungroups the selected group(s). Rising-edge
   // guards so holding the combo fires the action only once.
@@ -614,6 +644,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   return (
     <BioNodeActionsContext.Provider value={actions}>
     <BioEdgeActionsContext.Provider value={edgeActions}>
+    <MultiSelectContext.Provider value={selectedIds.length > 1}>
       <div className="workflow-canvas-host">
       <ReactFlow
         nodes={rfNodes}
@@ -630,6 +661,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onNodesDelete={onNodesDelete}
         onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
+        onError={onError}
         snapToGrid={snapToGrid}
         snapGrid={[gridSize, gridSize]}
         deleteKeyCode={['Backspace', 'Delete']}
@@ -640,7 +672,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         elevateNodesOnSelect
         onlyRenderVisibleElements
         selectionOnDrag
+        selectionMode={SelectionMode.Partial}
         panOnDrag={[1, 2]}
+        panActivationKeyCode="Space"
         panOnScroll
         zoomOnDoubleClick={false}
         fitView
@@ -667,11 +701,20 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             }}
           />
         )}
+        {/* Native multi-select toolbar: React Flow positions a <NodeToolbar>
+            bound to several node ids above the selection's bounding box. Replaces
+            the old custom SelectionToolbox. */}
+        <NodeToolbar nodeId={selectedIds} isVisible={selectedIds.length > 1} position={Position.Top} className="bio-node-toolbar">
+          <button type="button" title={t('canvas.group.create')} onClick={createGroupFromSelection}>▣</button>
+          <button type="button" title={t('canvas.menu.run')} onClick={() => onExecuteSelected?.(selectedIds)}>▶</button>
+          <button type="button" className="danger" title={t('canvas.menu.delete')} onClick={deleteSelected}>✕</button>
+        </NodeToolbar>
         <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />
         {IS_DEV && <Devtools />}
         <Panel position="top-left" className="canvas-hint">{t('canvas.dragToConnect', 'Drag from a port to connect')}</Panel>
       </ReactFlow>
       </div>
+    </MultiSelectContext.Provider>
     </BioEdgeActionsContext.Provider>
     </BioNodeActionsContext.Provider>
   );
