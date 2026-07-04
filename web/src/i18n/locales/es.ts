@@ -2003,6 +2003,16 @@ class MyToolNode(CommandNode):
     },
   },
   canvas: {
+    dragToConnect: 'Arrastra desde un puerto para conectar',
+    menu: {
+      run: 'Ejecutar nodo',
+      edit: 'Editar',
+      rename: 'Renombrar',
+      renamePrompt: 'Nuevo nombre del nodo',
+      duplicate: 'Duplicar',
+      collapse: 'Contraer / expandir',
+      delete: 'Eliminar',
+    },
     zoomIn: 'Acercar',
     zoomOut: 'Alejar',
     zoomReset: 'Restablecer zoom',

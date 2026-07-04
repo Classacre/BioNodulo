@@ -1,35 +1,18 @@
-// Custom React Flow node for the BioNodulo workflow canvas. Renders the node
-// "body" that the legacy Canvas2D implementation used to draw: header (title,
-// category, status/muted/bypassed state) plus input/output port rows whose
-// React Flow <Handle> ids are the port names, so edges map 1:1 to
-// WorkflowEdge.from.output / to.input. Interactive widgets, inline previews,
-// error badges and comment pins remain separate viewport-synced overlays
-// rendered by WorkflowCanvas (unchanged from the legacy DOM layer).
-import { memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+// Native React Flow custom node for the BioNodulo workflow canvas.
+//
+// Full-rewrite clean core: a header (colour swatch, title, run-status dot) plus
+// one row per input/output port, each carrying a native <Handle> whose id IS the
+// port name — so edges map 1:1 to WorkflowEdge.from.output / to.input. The on-
+// node action menu is React Flow's native <NodeToolbar>; it appears on hover and
+// while the node is selected. No custom overlays, widgets, previews, comments or
+// collab cursors — those were all removed in the rewrite.
+import { memo, useState } from 'react';
+import { Handle, Position, NodeToolbar, type NodeProps } from '@xyflow/react';
+import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
-import { NODE_HEADER_H, NODE_PIN_H, getInteractiveWidgetEntries } from '../../utils/nodeLayout';
+import { NODE_HEADER_H, NODE_PIN_H } from '../../utils/nodeLayout';
 import type { GraphNode } from './canvasModel';
-
-// Compact display of a node parameter value for the on-node summary rows (the
-// non-interactive params that have no widget). Mirrors the legacy Canvas2D
-// param formatter, including the localized array item count.
-function formatNodeParamValue(value: unknown, t: TFunction): string {
-  if (value === null || value === undefined || value === '') return '-';
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (typeof value === 'number') {
-    if (Number.isInteger(value)) return String(value);
-    // Round to 3 dp but don't strip via a trailing-zero regex — that turned
-    // sub-millidecimals like 0.0001 into an empty string ("0.000" → ""). Let
-    // Number re-parse handle the trimming instead.
-    return String(Number(value.toFixed(3)));
-  }
-  if (Array.isArray(value)) return t('canvas.itemCount', { count: value.length });
-  if (typeof value === 'object') return '{...}';
-  const text = String(value);
-  return text.length > 24 ? `${text.slice(0, 21)}...` : text;
-}
+import { BioNodeActionsContext } from './bioNodeActions';
 
 export interface BioNodeData extends Record<string, unknown> {
   g: GraphNode;
@@ -47,10 +30,13 @@ const STATUS_TINT: Record<string, string> = {
   pending: '#f59e0b',
 };
 
-function BioNodeComponent({ data, selected }: NodeProps) {
+function BioNodeComponent({ id, data, selected }: NodeProps) {
   const { t } = useTranslation();
+  const actions = useContext(BioNodeActionsContext);
+  const [hovered, setHovered] = useState(false);
   const { g, categoryLabel, missingDependency, running } = data as BioNodeData;
 
+  // Reroute: a bare pass-through dot with a single in/out handle.
   if (g.type === 'reroute') {
     return (
       <div
@@ -65,74 +51,7 @@ function BioNodeComponent({ data, selected }: NodeProps) {
   }
 
   const statusTint = g.status ? STATUS_TINT[g.status] : undefined;
-  const ioCount = Math.max(g.inputs.length, g.outputs.length);
-  const ioHeight = ioCount * NODE_PIN_H;
-
-  // Collapsed nodes shrink to just their header (height === NODE_HEADER_H), so
-  // the per-port IO rows are hidden. React Flow still anchors edges at each
-  // <Handle>'s DOM position, so we MUST keep a handle for every real port id
-  // (edges reference port names as source/targetHandle) — but pin them all to
-  // the header's vertical center so edges attach to the visible node instead of
-  // dangling below it (the pre-fix bug: handles positioned by index math at
-  // ≥43px, outside the 32px collapsed body and clipped by overflow:hidden).
-  if (g.collapsed) {
-    const handleTop = NODE_HEADER_H / 2;
-    return (
-      <div
-        className={[
-          'bio-node',
-          'bio-node-collapsed',
-          `bio-node-shape-${g.shape}`,
-          selected ? 'selected' : '',
-          g.muted ? 'muted' : '',
-          g.bypassed ? 'bypassed' : '',
-          missingDependency ? 'missing-dep' : '',
-          running ? 'running' : '',
-        ].filter(Boolean).join(' ')}
-        style={{ width: g.width, height: g.height, ['--bio-node-color' as string]: g.color }}
-        data-node-id={g.id}
-        data-status={g.status ?? ''}
-        data-category={categoryLabel}
-      >
-        <div className="bio-node-header" style={{ height: NODE_HEADER_H, background: statusTint ?? g.color }}>
-          <span className="bio-node-swatch" style={{ background: g.color }} />
-          <span className="bio-node-title" title={g.title}>{g.title}</span>
-          {g.pinned && <span className="bio-node-flag" aria-hidden>📌</span>}
-          {g.status && <span className="bio-node-status" data-status={g.status} title={g.status} />}
-        </div>
-        {g.inputs.map(input => (
-          <Handle
-            key={`in-${input.name}`}
-            type="target"
-            position={Position.Left}
-            id={input.name}
-            className={`bio-handle bio-handle-in ${input.connected ? 'connected' : ''}`}
-            style={{ top: handleTop }}
-          />
-        ))}
-        {g.outputs.map(output => (
-          <Handle
-            key={`out-${output.name}`}
-            type="source"
-            position={Position.Right}
-            id={output.name}
-            className={`bio-handle bio-handle-out ${output.connected ? 'connected' : ''}`}
-            style={{ top: handleTop }}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  // Non-interactive params (no widget) get a compact read-only summary row so
-  // key configuration stays visible on the node face, mirroring the legacy
-  // Canvas2D param summaries.
-  const widgetKeys = new Set(getInteractiveWidgetEntries(g.meta, g.params).map(entry => entry.key));
-  const summaryEntries = g.visualOnly
-    ? []
-    : Object.entries(g.params)
-      .filter(([key, value]) => !widgetKeys.has(key) && !key.startsWith('_') && value !== null && value !== undefined && value !== '')
-      .slice(0, 4);
+  const showToolbar = (selected || hovered) && g.type !== 'reroute';
 
   return (
     <div
@@ -144,41 +63,43 @@ function BioNodeComponent({ data, selected }: NodeProps) {
         g.bypassed ? 'bypassed' : '',
         missingDependency ? 'missing-dep' : '',
         running ? 'running' : '',
+        g.collapsed ? 'bio-node-collapsed' : '',
       ].filter(Boolean).join(' ')}
       style={{ width: g.width, height: g.height, ['--bio-node-color' as string]: g.color }}
       data-node-id={g.id}
       data-status={g.status ?? ''}
       data-category={categoryLabel}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <div
-        className="bio-node-header"
-        style={{ height: NODE_HEADER_H, background: statusTint ?? g.color }}
-      >
+      {/* Native React Flow toolbar — the "menu when clicking / hovering a node".
+          Portalled + viewport-synced by React Flow, so no custom overlay math. */}
+      <NodeToolbar isVisible={showToolbar} position={Position.Top} className="bio-node-toolbar">
+        <button type="button" title={t('canvas.menu.run')} onClick={() => actions?.run(id)}>▶</button>
+        <button type="button" title={t('canvas.menu.edit')} onClick={() => actions?.edit(id)}>✎</button>
+        <button type="button" title={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}>A</button>
+        <button type="button" title={t('canvas.menu.duplicate')} onClick={() => actions?.duplicate(id)}>⧉</button>
+        <button type="button" title={t('canvas.menu.collapse')} onClick={() => actions?.toggleCollapse(id)}>{g.collapsed ? '▸' : '▾'}</button>
+        <button type="button" className="danger" title={t('canvas.menu.delete')} onClick={() => actions?.remove(id)}>✕</button>
+      </NodeToolbar>
+
+      <div className="bio-node-header" style={{ height: NODE_HEADER_H, background: statusTint ?? g.color }}>
         <span className="bio-node-swatch" style={{ background: g.color }} />
         <span className="bio-node-title" title={g.title}>{g.title}</span>
         {g.pinned && <span className="bio-node-flag" aria-hidden>📌</span>}
         {g.status && <span className="bio-node-status" data-status={g.status} title={g.status} />}
       </div>
 
-      {g.visualOnly ? (
-        g.type === 'note' ? (
-          <div className="bio-node-note-body">{String(g.params?.text ?? '')}</div>
-        ) : null
-      ) : (
-        <div className="bio-node-io" style={{ minHeight: ioHeight }}>
+      {/* Note nodes are a text card; collapsed nodes hide their body. Every real
+          port still gets a <Handle> so edges stay anchored — collapsed handles
+          are pinned to the header centre via CSS. */}
+      {g.visualOnly && g.type === 'note' ? (
+        <div className="bio-node-note-body">{String(g.params?.text ?? '')}</div>
+      ) : !g.visualOnly && !g.collapsed ? (
+        <div className="bio-node-io">
           <div className="bio-node-inputs">
             {g.inputs.map(input => (
-              <div
-                className="bio-node-port bio-node-port-in"
-                key={`in-${input.name}`}
-                style={{ height: NODE_PIN_H }}
-              >
-                {/* No manual `top`: React Flow's default `.react-flow__handle-left`
-                    is top:50% of the containing block, so the handle centers in
-                    THIS port row — vertically aligned with the label text. The
-                    old absolute `top` was node-relative but the handle's
-                    containing block is the row (position:relative), so it pushed
-                    the handle off the node and out of view. */}
+              <div className="bio-node-port bio-node-port-in" key={`in-${input.name}`} style={{ height: NODE_PIN_H }}>
                 <Handle
                   type="target"
                   position={Position.Left}
@@ -191,11 +112,7 @@ function BioNodeComponent({ data, selected }: NodeProps) {
           </div>
           <div className="bio-node-outputs">
             {g.outputs.map(output => (
-              <div
-                className="bio-node-port bio-node-port-out"
-                key={`out-${output.name}`}
-                style={{ height: NODE_PIN_H }}
-              >
+              <div className="bio-node-port bio-node-port-out" key={`out-${output.name}`} style={{ height: NODE_PIN_H }}>
                 <span className="bio-node-port-label">{output.name}</span>
                 <Handle
                   type="source"
@@ -207,26 +124,38 @@ function BioNodeComponent({ data, selected }: NodeProps) {
             ))}
           </div>
         </div>
-      )}
-
-      {summaryEntries.length > 0 && (
-        <div className="bio-node-params">
-          {summaryEntries.map(([key, value]) => (
-            <div className="bio-node-param" key={`param-${key}`}>{`${key}: ${formatNodeParamValue(value, t)}`}</div>
+      ) : g.collapsed && !g.visualOnly ? (
+        // Collapsed: keep handles for every port, pinned to header centre.
+        <>
+          {g.inputs.map(input => (
+            <Handle
+              key={`in-${input.name}`}
+              type="target"
+              position={Position.Left}
+              id={input.name}
+              className={`bio-handle bio-handle-in ${input.connected ? 'connected' : ''}`}
+              style={{ top: NODE_HEADER_H / 2 }}
+            />
           ))}
-        </div>
-      )}
+          {g.outputs.map(output => (
+            <Handle
+              key={`out-${output.name}`}
+              type="source"
+              position={Position.Right}
+              id={output.name}
+              className={`bio-handle bio-handle-out ${output.connected ? 'connected' : ''}`}
+              style={{ top: NODE_HEADER_H / 2 }}
+            />
+          ))}
+        </>
+      ) : null}
     </div>
   );
 }
 
-// Custom comparator: React Flow re-supplies a fresh `data` object (with a fresh
-// GraphNode `g`) on every render, including every frame of a node drag — where
-// only x/y changed. The node BODY doesn't depend on x/y (React Flow moves the
-// node wrapper via a CSS transform), so a default shallow-compare would re-render
-// (and briefly remount the <Handle>s → edges flash) on every drag frame. Compare
-// only the fields that actually affect what this component paints, and ignore
-// position, so a pure move is a no-op re-render for the node subtree.
+// React Flow supplies a fresh `data` object every render (incl. every drag
+// frame, where only x/y changed). Compare only the fields that affect what this
+// node paints — never position (React Flow moves the wrapper via CSS transform).
 function bioNodePropsEqual(prev: NodeProps, next: NodeProps): boolean {
   if (prev.selected !== next.selected || prev.dragging !== next.dragging) return false;
   const a = prev.data as BioNodeData;
@@ -236,8 +165,6 @@ function bioNodePropsEqual(prev: NodeProps, next: NodeProps): boolean {
   const ga = a.g;
   const gb = b.g;
   if (ga === gb) return true;
-  // Structural fields that change the rendered node face. Deliberately EXCLUDES
-  // x/y (position is applied by React Flow, not re-rendered here).
   return (
     ga.width === gb.width &&
     ga.height === gb.height &&

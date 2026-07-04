@@ -1993,6 +1993,16 @@ class MyToolNode(CommandNode):
     },
   },
   canvas: {
+    dragToConnect: 'Drag from a port to connect',
+    menu: {
+      run: 'Run node',
+      edit: 'Edit',
+      rename: 'Rename',
+      renamePrompt: 'New node name',
+      duplicate: 'Duplicate',
+      collapse: 'Collapse / expand',
+      delete: 'Delete',
+    },
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
     zoomReset: 'Reset zoom',

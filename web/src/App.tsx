@@ -8,7 +8,6 @@ import BottomConsole from './components/layout/BottomConsole';
 import RunsDrawer from './components/layout/RunsDrawer';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/WorkflowCanvas';
-import WorkflowStatsOverlay from './components/canvas/WorkflowStatsOverlay';
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
 // localStorage key for persisted cloud-editor console logs (survive refresh).
 const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
@@ -78,7 +77,7 @@ import { makeConsoleActionCopy } from './utils/consoleActionCopy';
 import { makeAppFileActionCopy } from './utils/appFileActionCopy';
 import { promptWorkflowRunParameters } from './utils/workflowParameters';
 import { makeAppCollabCopy } from './collab/appCollabCopy';
-import { appPath, appWebSocketUrl } from './utils/appBase';
+import { appWebSocketUrl } from './utils/appBase';
 import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
@@ -107,7 +106,6 @@ import {
 import InviteDialog from './collab/InviteDialog';
 const OpenWorkflowModal = lazy(() => import('./components/modals/OpenWorkflowModal'));
 import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
-import { extractSubgraph, writeSubgraphBack, promoteWidget } from './utils/subgraph';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
 import {
@@ -141,9 +139,8 @@ import {
 } from './state/runAtoms';
 import { Modals } from './components/modals/Modals';
 import type { Workflow, WorkflowNode, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
-import type { AwarenessState, Comment, LivePresenceUser } from './collab';
+import type { Comment, LivePresenceUser } from './collab';
 
-const EMPTY_COLLAB_USERS: AwarenessState[] = [];
 const EMPTY_STRING_ARRAY: string[] = [];
 type OpenPanelTab = Exclude<RailTab, null | 'console'>;
 const CENTER_MENU_TABS = new Set<OpenPanelTab>(['settings', 'templates']);
@@ -190,28 +187,8 @@ function nodeTypeSignature(nodes: WorkflowNode[]): string {
   return JSON.stringify(nodes.map(node => [node.id, node.type]));
 }
 
-function edgeTopologySignature(edges: Workflow['edges']): string {
-  return JSON.stringify(edges.map(edge => [edge.from.node, edge.from.output, edge.to.node, edge.to.input]));
-}
-
 function nodeStatusSignature(statuses: NodeStatus[]): string {
   return JSON.stringify(statuses.map(status => [status.node_id, status.status]));
-}
-
-function previewsSignature(run: RunRecord | undefined): string {
-  if (!run) return '';
-  return JSON.stringify([run.run_id, Object.entries(run.previews ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
-}
-
-function commentsSignature(comments: Comment[]): string {
-  const visit = (items: Comment[]): unknown[] => items.map(comment => [
-    comment.id,
-    comment.node_id,
-    comment.parent_id,
-    comment.resolved,
-    visit(comment.replies ?? []),
-  ]);
-  return JSON.stringify(visit(comments));
 }
 
 function createWorkflowId(): string {
@@ -470,9 +447,6 @@ export default function App() {
     connected: collabConnected,
     connecting: collabConnecting,
     activeUsers: collabActiveUsers,
-    setCursor: setCollabCursor,
-    setSelection: setCollabSelection,
-    setViewport: setCollabViewport,
     claimDrag: claimCollabDrag,
     releaseDrag: releaseCollabDrag,
     isShared: collabIsShared,
@@ -545,6 +519,7 @@ export default function App() {
   const showComments = useAtomValue(showCommentsAtom);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const selectedNodeId = useAtomValue(selectedNodeIdAtom);
+  const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
   const [livePresenceUsers, setLivePresenceUsers] = useState<LivePresenceUser[]>([]);
   // Cross-workflow display names came from the (removed) comments REST feed; in
   // single-doc collab there is one workflow, so this stays empty and lookups
@@ -598,24 +573,6 @@ export default function App() {
       canvasRef.current?.setViewport(user.viewport);
     }
   }, [collabActiveUsers, followingUserId]);
-
-  const publishCollabViewport = useCallback((viewOffset: { x: number; y: number }, viewScale: number) => {
-    setCollabViewport({ ...viewOffset, scale: viewScale });
-  }, [setCollabViewport]);
-
-  const publishCollabNodeMove = useCallback((nodeId: string, position: [number, number]) => {
-    bridgeRef.current?.onNodeMoved(nodeId, position);
-  }, []);
-
-  const handleCollabDragStart = useCallback((nodeId: string) => {
-    bridgeRef.current?.onDragStart(nodeId);
-    claimCollabDrag(nodeId);
-  }, [claimCollabDrag]);
-
-  const handleCollabDragEnd = useCallback(() => {
-    bridgeRef.current?.onDragEnd();
-    releaseCollabDrag();
-  }, [releaseCollabDrag]);
 
   const publishCollabWorkflowSnapshot = useCallback(async (workflow: Workflow) => {
     if (!collabSessionActive || !workflow.id) return;
@@ -1203,11 +1160,6 @@ export default function App() {
   const isRunning = useAtomValue(isRunningAtom);
   const batchCount = useAtomValue(batchCountAtom);
   const setIsRunning = useSetAtom(isRunningAtom);
-  // Subgraph navigation: a breadcrumb of (parent workflow, subgraph node id)
-  // pairs. While the stack is non-empty the canvas renders the inner workflow
-  // of the topmost subgraph node; exiting writes the edits back to the parent.
-  type SubgraphFrame = { workflowId: string; parentWorkflow: Workflow; subgraphNodeId: string; subgraphName: string };
-  const [subgraphPath, setSubgraphPath] = useState<SubgraphFrame[]>([]);
   // Viewport-per-workflow-tab: switching tabs restores the pan/zoom you left
   // them in instead of always re-fitting. Keyed by workflow id; survives a
   // page reload via localStorage.
@@ -1408,7 +1360,6 @@ export default function App() {
 
   const autoSaveSetting = String(get('bionodulo.autoSave') || 'off');
   const cacheEnabled = getBool('bionodulo.cacheEnabled');
-  const collabPresenceEnabled = getBool('bionodulo.collab.presence');
   const hpcEnabled = getBool('bionodulo.hpc.enabled');
   const hpcBackend = ((get('bionodulo.hpc.backend') as string) || 'slurm') as HPCConfig['backend'];
   const hpcPartition = (get('bionodulo.hpc.partition') as string) || '';
@@ -1490,15 +1441,6 @@ export default function App() {
     pendingStateRef.current = { ...pendingStateRef.current, edges };
     setDirty(true);
     updateActive({ edges });
-  }, [updateActive]);
-
-  const handleGroupsChange = useCallback((groups: Workflow['groups']) => {
-    if (bridgeRef.current) {
-      bridgeRef.current.onGroupsChanged(groups);
-    }
-    pendingStateRef.current = { ...pendingStateRef.current, groups };
-    setDirty(true);
-    updateActive({ groups });
   }, [updateActive]);
 
   const handleWorkflowParametersChange = useCallback((parameters: Workflow['parameters']) => {
@@ -2030,141 +1972,7 @@ export default function App() {
     toast.success(t('snippets.insertedTitle'), { message: `${snippet.name}` });
   }, [activeWorkflow, activeIndex, t, updateWorkflow]);
 
-  const handleCreateSubgraph = useCallback(async (nodeIds: string[]) => {
-    if (nodeIds.length === 0) return;
-    // Compute a position for the new subgraph node — centred on the average
-    // position of the selection, so it lands where the nodes used to live.
-    const selectedNodes = activeWorkflow.nodes.filter(n => nodeIds.includes(n.id));
-    const avgX = selectedNodes.reduce((sum, n) => sum + n.position[0], 0) / Math.max(1, selectedNodes.length);
-    const avgY = selectedNodes.reduce((sum, n) => sum + n.position[1], 0) / Math.max(1, selectedNodes.length);
-    const subgraphName = t('canvas.subgraphBlockName', { name: activeWorkflow.name || t('common.untitled') });
-    const result = extractSubgraph(activeWorkflow, nodeIds, subgraphName, [Math.round(avgX), Math.round(avgY)]);
-    const nextParent: Workflow = {
-      ...activeWorkflow,
-      nodes: result.nodes,
-      edges: result.edges,
-      groups: result.outerGroups,
-    };
-    updateWorkflow(activeIndex, nextParent);
-    setRailTab(null);
-    toast.success(t('canvas.subgraphSelectionConverted'), { message: subgraphName });
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => canvasRef.current?.fitView());
-    });
-  }, [activeIndex, activeWorkflow, setRailTab, t, updateWorkflow]);
-
-  const handlePromoteWidgets = useCallback((innerNodeId: string) => {
-    if (subgraphPath.length === 0) {
-      toast.info(t('canvas.subgraphEnterFirst'));
-      return;
-    }
-    const innerNode = activeWorkflow.nodes.find(n => n.id === innerNodeId);
-    if (!innerNode) return;
-    const required = (innerNode.node_info?.input_types?.required || {}) as Record<string, unknown>;
-    const optional = (innerNode.node_info?.input_types?.optional || {}) as Record<string, unknown>;
-    const allSpecs = { ...required, ...optional };
-    const isInteractive = (spec: unknown): boolean => {
-      if (Array.isArray(spec)) {
-        const t = spec[0];
-        const config = (spec[1] && typeof spec[1] === 'object') ? spec[1] as Record<string, unknown> : {};
-        if (t === 'BOOLEAN') return true;
-        if (Array.isArray(t)) return true;
-        if (Array.isArray(config.options) && config.options.length) return true;
-        if (t === 'INT' || t === 'FLOAT') return true;
-        if (t === 'STRING' && !config.forceInput) return true;
-        return false;
-      }
-      if (spec && typeof spec === 'object') {
-        const s = spec as { type?: string; options?: unknown[]; forceInput?: boolean };
-        if (s.type === 'BOOLEAN') return true;
-        if (Array.isArray(s.options) && s.options.length) return true;
-        if (s.type === 'INT' || s.type === 'FLOAT') return true;
-        if (s.type === 'STRING' && !s.forceInput) return true;
-      }
-      return false;
-    };
-
-    setSubgraphPath(prev => {
-      if (prev.length === 0) return prev;
-      const top = prev[prev.length - 1];
-      // Write current inner edits back into the parent's subgraph node first,
-      // so promotions land on the same snapshot the user is editing.
-      let parent = writeSubgraphBack(top.parentWorkflow, top.subgraphNodeId, activeWorkflow);
-      let added = 0;
-      for (const [key, spec] of Object.entries(allSpecs)) {
-        if (!isInteractive(spec)) continue;
-        parent = promoteWidget(parent, top.subgraphNodeId, innerNodeId, key, spec);
-        added += 1;
-      }
-      if (added === 0) {
-        toast.info(t('canvas.subgraphNoPromotableWidgets', { name: innerNode.ui?.title || innerNode.type }));
-        return prev;
-      }
-      toast.success(t('canvas.subgraphPromotedWidgets', { count: added, name: top.subgraphName }));
-      const updatedFrames = prev.slice(0, -1).concat({ ...top, parentWorkflow: parent });
-      return updatedFrames;
-    });
-  }, [activeWorkflow, subgraphPath, t]);
-
-  const handleEnterSubgraph = useCallback((nodeId: string) => {
-    const node = activeWorkflow.nodes.find(n => n.id === nodeId);
-    if (!node || node.type !== 'subgraph') return;
-    const innerWorkflow = (node.params?.workflow as Workflow | undefined);
-    if (!innerWorkflow) {
-      toast.warning(t('canvas.subgraphMissingEmbeddedWorkflow'));
-      return;
-    }
-    // Push the parent snapshot onto the breadcrumb and swap the current tab's
-    // contents with the inner workflow. The tab id stays the same so the
-    // collab room / autosave keep tracking the parent workflow correctly.
-    setSubgraphPath(prev => [
-      ...prev,
-      {
-        workflowId: activeWorkflow.id || activeWorkflowId,
-        parentWorkflow: activeWorkflow,
-        subgraphNodeId: nodeId,
-        subgraphName: String(node.ui?.title || node.node_info?.display_name || t('canvas.subgraphFallbackName')),
-      },
-    ]);
-    const inner: Workflow = {
-      ...innerWorkflow,
-      id: activeWorkflow.id || activeWorkflowId,
-      name: String(node.ui?.title || innerWorkflow.name || t('canvas.subgraphFallbackName')),
-    };
-    setWorkflow(activeIndex, () => inner);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => canvasRef.current?.fitView());
-    });
-  }, [activeIndex, activeWorkflow, activeWorkflowId, setWorkflow, t]);
-
-  const handleExitSubgraph = useCallback((depth: number) => {
-    if (subgraphPath.length === 0) return;
-    setSubgraphPath(prev => {
-      let parent = prev[prev.length - 1]?.parentWorkflow;
-      let popped = prev.slice();
-      // Walk frames from the top down, writing the current inner workflow back
-      // into each parent's subgraph node as we unwind to the target depth.
-      let inner = activeWorkflow;
-      while (popped.length > depth) {
-        const frame = popped[popped.length - 1];
-        const updatedParent = writeSubgraphBack(frame.parentWorkflow, frame.subgraphNodeId, inner);
-        inner = updatedParent;
-        parent = updatedParent;
-        popped = popped.slice(0, -1);
-      }
-      if (parent) {
-        setWorkflow(activeIndex, () => parent!);
-      }
-      return popped;
-    });
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => canvasRef.current?.fitView());
-    });
-  }, [activeIndex, activeWorkflow, setWorkflow, subgraphPath]);
-
-  // Reset the subgraph navigation whenever the user switches to a different
-  // workflow tab — the breadcrumb is per-tab and would otherwise dangle.
-  // We also restore the saved viewport for the incoming tab here.
+  // Restore the saved viewport whenever the user switches workflow tabs.
   const prevActiveIndexRef = useRef(activeIndex);
   const workflowsRef = useRef(workflows);
   useEffect(() => { workflowsRef.current = workflows; }, [workflows]);
@@ -2175,7 +1983,6 @@ export default function App() {
     // workflows via ref instead.
     const prev = prevActiveIndexRef.current;
     if (prev === activeIndex) return;
-    setSubgraphPath([]);
     const wfs = workflowsRef.current;
     // Save the outgoing tab's viewport.
     const prevId = wfs[prev]?.id;
@@ -2490,14 +2297,6 @@ export default function App() {
         group: 'Workflow',
         groupLabelKey: 'commandPalette.groups.workflow',
         onSelect: () => canvasRef.current?.executeSelected(),
-      },
-      {
-        id: 'workflow.extractSelection',
-        label: t('commandPalette.commands.workflow.extractSelection'),
-        description: t('commandPalette.commands.workflow.extractSelectionDescription'),
-        group: 'Workflow',
-        groupLabelKey: 'commandPalette.groups.workflow',
-        onSelect: () => canvasRef.current?.createSubgraphFromSelection(),
       },
       {
         id: 'workflow.saveSnippet',
@@ -3088,7 +2887,6 @@ export default function App() {
   const workflowNamesKey = useMemo(() => workflowNameSignature(workflows), [workflows]);
   const tabNames = useMemo(() => workflows.map(w => w.name || t('common.untitled')), [workflowNamesKey, t]);
   const activeNodeTypeKey = useMemo(() => nodeTypeSignature(activeWorkflow.nodes), [activeWorkflow.nodes]);
-  const activeEdgeTopologyKey = useMemo(() => edgeTopologySignature(activeWorkflow.edges), [activeWorkflow.edges]);
   const missingTypesKey = useMemo(() => {
     const missingTypes = new Set<string>();
     for (const item of resolveReport?.missing_nodes ?? []) missingTypes.add(item.node_type);
@@ -3125,84 +2923,16 @@ export default function App() {
   useEffect(() => {
     setDismissedErrorNodeIds(new Set());
   }, [latestRunId]);
-  const latestPreviewsKey = useMemo(() => previewsSignature(runs[0]), [runs]);
   // A node renders an inline preview when it registered one under its own id
   // (image_preview, html_preview, table_preview, text_preview, and any
   // analysis node that self-registers a summary), branching by file extension.
   // For the wired image_preview/html_preview nodes we also fall back to the
   // upstream producer's auto-registered output for backward compatibility.
-  const isImagePreviewPath = (p: string) => /\.(png|jpe?g|gif|bmp|webp|svg)$/i.test(p);
-  const isHtmlPreviewPath = (p: string) => /\.html?$/i.test(p);
-  const nodePreviewsMap = useMemo(() => {
-    const latest = runs[0];
-    if (!latest) return undefined;
-    const previews = latest.previews ?? {};
-    const map = new Map<string, string>();
-    const toUrl = (nodeId: string, path: string) =>
-      appPath(`/api/previews/${latest.run_id}/${nodeId}?path=${encodeURIComponent(path)}`);
-    for (const node of activeWorkflow.nodes) {
-      const own = previews[node.id];
-      if (own && isImagePreviewPath(own)) {
-        map.set(node.id, toUrl(node.id, own));
-        continue;
-      }
-      if (node.type === 'image_preview') {
-        const incoming = activeWorkflow.edges.find(edge => edge.to.node === node.id);
-        const path = incoming ? previews[incoming.from.node] : undefined;
-        if (path && isImagePreviewPath(path)) {
-          map.set(node.id, toUrl(incoming!.from.node, path));
-        }
-      }
-    }
-    return map;
-  }, [activeEdgeTopologyKey, activeNodeTypeKey, latestPreviewsKey]);
-  const nodeHtmlPreviewsMap = useMemo(() => {
-    const latest = runs[0];
-    if (!latest) return undefined;
-    const previews = latest.previews ?? {};
-    const map = new Map<string, string>();
-    const toUrl = (nodeId: string, path: string) =>
-      appPath(`/api/previews/${latest.run_id}/${nodeId}?path=${encodeURIComponent(path)}`);
-    for (const node of activeWorkflow.nodes) {
-      const own = previews[node.id];
-      if (own && isHtmlPreviewPath(own)) {
-        map.set(node.id, toUrl(node.id, own));
-        continue;
-      }
-      if (node.type === 'html_preview') {
-        const incoming = activeWorkflow.edges.find(edge => edge.to.node === node.id);
-        const path = incoming ? previews[incoming.from.node] : undefined;
-        if (path && isHtmlPreviewPath(path)) {
-          map.set(node.id, toUrl(incoming!.from.node, path));
-        }
-      }
-    }
-    return map;
-  }, [activeEdgeTopologyKey, activeNodeTypeKey, latestPreviewsKey]);
-  const workflowCommentsKey = useMemo(() => commentsSignature(workflowComments), [workflowComments]);
-  const nodeCommentsMap = useMemo(() => {
-    const map = new Map<string, { count: number; unresolved: boolean }>();
-    const add = (comment: Comment) => {
-      if (!comment.node_id) return;
-      const previous = map.get(comment.node_id) ?? { count: 0, unresolved: false };
-      map.set(comment.node_id, {
-        count: previous.count + 1,
-        unresolved: previous.unresolved || !comment.resolved,
-      });
-      comment.replies?.forEach(add);
-    };
-    workflowComments.forEach(add);
-    return map;
-  }, [workflowCommentsKey]);
   const liveWorkflowNamesKey = useMemo(() => recordSignature(workflowNames), [workflowNames]);
   const knownWorkflowNames = useMemo(() => ({
     ...Object.fromEntries(workflows.filter(workflow => workflow.id).map(workflow => [workflow.id!, workflow.name || t('common.untitled')])),
     ...workflowNames,
   }), [liveWorkflowNamesKey, t, workflowNamesKey]);
-  const canvasCollabUsers = useMemo(
-    () => (collabSessionActive && collabPresenceEnabled ? collabActiveUsers : EMPTY_COLLAB_USERS),
-    [collabActiveUsers, collabPresenceEnabled, collabSessionActive],
-  );
   const appShellClassName = useMemo(() => ([
     'app-shell',
     showAI ? 'ai-open' : '',
@@ -3579,59 +3309,6 @@ export default function App() {
           }
         }}
       >
-        {subgraphPath.length > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 8,
-              left: 8,
-              right: 8,
-              zIndex: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '6px 10px',
-              borderRadius: 8,
-              background: 'color-mix(in srgb, var(--surface) 94%, transparent)',
-              border: '1px solid var(--border)',
-              boxShadow: 'var(--shadow)',
-              fontSize: 12,
-              color: 'var(--text)',
-            }}
-          >
-            <span style={{ color: 'var(--muted)' }}>{t('canvas.subgraphBreadcrumbLabel')}</span>
-            <button
-              type="button"
-              onClick={() => handleExitSubgraph(0)}
-              style={{
-                background: 'transparent', border: 'none', color: 'var(--text)',
-                cursor: 'pointer', padding: '2px 6px', borderRadius: 4,
-              }}
-              title={t('canvas.subgraphBackToTopLevel')}
-            >
-              {subgraphPath[0]?.parentWorkflow?.name || t('canvas.subgraphWorkflowFallbackName')}
-            </button>
-            {subgraphPath.map((frame, idx) => (
-              <span key={`${frame.subgraphNodeId}-${idx}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: 'var(--muted)' }}>›</span>
-                {idx < subgraphPath.length - 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => handleExitSubgraph(idx + 1)}
-                    style={{
-                      background: 'transparent', border: 'none', color: 'var(--text)',
-                      cursor: 'pointer', padding: '2px 6px', borderRadius: 4,
-                    }}
-                  >
-                    {frame.subgraphName}
-                  </button>
-                ) : (
-                  <span style={{ fontWeight: 600, padding: '2px 6px' }}>{frame.subgraphName}</span>
-                )}
-              </span>
-            ))}
-          </div>
-        )}
         {!cloudMode && !editorMode && hostStatus && !hostStatus.ready && hostStatus !== dismissedHostStatus && (
           <HostPrerequisitesBanner
             status={hostStatus}
@@ -3660,45 +3337,20 @@ export default function App() {
           ref={canvasRef}
           nodes={activeWorkflow.nodes}
           edges={activeWorkflow.edges}
-          groups={activeWorkflow.groups}
           objectInfo={objectInfo}
           workflowParameters={activeWorkflow.parameters ?? []}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
-          onGroupsChange={handleGroupsChange}
           onPushHistory={pushHistory}
           onUndo={undo}
           onRedo={redo}
           snapToGrid={getBool('bionodulo.snapToGrid')}
           showMinimap={getBool('bionodulo.showMinimap')}
-          viewportLocked={getBool('bionodulo.viewportLocked')}
-          linksHidden={getBool('bionodulo.linksHidden')}
-          onToggleMinimap={() => set('bionodulo.showMinimap', !getBool('bionodulo.showMinimap'))}
-          onToggleLinksHidden={() => set('bionodulo.linksHidden', !getBool('bionodulo.linksHidden'))}
           nodeStatusMap={nodeStatusMap}
           nodeErrorsMap={nodeErrorsMap}
           missingDependencyNodeIds={missingDependencyNodeIds}
-          nodeCommentsMap={nodeCommentsMap}
-          nodeComments={workflowComments}
-          collabWorkflowId={collabSessionActive ? activeWorkflowId : undefined}
-          currentCollabUser={authUser ? currentUser : undefined}
-          onAddComment={handleAddComment}
-          onResolveComment={handleResolveComment}
-          collabUsers={canvasCollabUsers}
-          nodePreviewsMap={nodePreviewsMap}
-          nodeHtmlPreviewsMap={nodeHtmlPreviewsMap}
-          onCollabCursor={collabSessionActive ? setCollabCursor : undefined}
-          onViewportChange={collabSessionActive ? publishCollabViewport : undefined}
-          onCollabSelection={(selection) => {
-            setCollabSelection(selection);
-          }}
-          onCollabNodeMove={collabSessionActive ? publishCollabNodeMove : undefined}
-          onCollabDragStart={collabSessionActive ? handleCollabDragStart : undefined}
-          onCollabDragEnd={collabSessionActive ? handleCollabDragEnd : undefined}
           onExecuteSelected={handleRunSelected}
-          onCreateSubgraph={handleCreateSubgraph}
-          onEnterSubgraph={handleEnterSubgraph}
-          onPromoteWidgets={handlePromoteWidgets}
+          onEditNode={(id) => { setSelectedNodeId(id); setRailTab('inspector'); }}
         />
 
         {/* Registered rail panels: docked panels stack from the left edge by
@@ -3798,7 +3450,6 @@ export default function App() {
           </Suspense>
         ))}
 
-        <WorkflowStatsOverlay workflow={activeWorkflow} hidden={focusMode} systemStats={hostFeaturesEnabled} />
         {focusMode && (
           <button
             type="button"

@@ -67,8 +67,6 @@ describe('App workflow command copy i18n', () => {
       'commandPalette.commands.workflow.currentWorkflow',
       'commandPalette.commands.workflow.runSelected',
       'commandPalette.commands.workflow.runSelectedDescription',
-      'commandPalette.commands.workflow.extractSelection',
-      'commandPalette.commands.workflow.extractSelectionDescription',
       'commandPalette.commands.workflow.doctor',
       'commandPalette.commands.workflow.doctorDescription',
       'commandPalette.groups.workflow',

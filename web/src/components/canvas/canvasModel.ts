@@ -1,25 +1,11 @@
 // Pure (JSX-free, i18n-free) canvas model helpers shared by the React Flow
-// WorkflowCanvas and its sub-components. Extracted from the legacy Canvas2D
-// implementation so the node geometry / colour / layout logic stays a single
-// source of truth during and after the React Flow migration.
-import type { WorkflowEdge, WorkflowGroup, NodeMetadata, NodeStatus } from '../../types';
+// WorkflowCanvas and the inspector/editor panels. Holds the node geometry /
+// colour / layout logic as a single source of truth.
+import type { WorkflowEdge, NodeMetadata, NodeStatus } from '../../types';
 import { NODE_HEADER_H, calcRegularNodeHeight } from '../../utils/nodeLayout';
 
 export const NODE_WIDTH = 220;
 export const NODE_NOTE_WIDTH = 260;
-
-// Inline preview body on terminal-visual tool nodes: a small toggle bar plus a
-// collapsible figure/report band, so the result renders on the producing node
-// instead of a separate preview sink.
-export const INLINE_PREVIEW_TOGGLE_H = 20;
-export const INLINE_PREVIEW_BAND_H = 150;
-
-export const PREVIEW_SINK_TYPES = new Set(['image_preview', 'html_preview', 'table_preview', 'text_preview']);
-
-export interface NodeCommentSummary {
-  count: number;
-  unresolved: boolean;
-}
 
 export interface GraphNode {
   id: string;
@@ -58,9 +44,8 @@ export interface WorkflowCanvasRef {
   getViewport: () => { x: number; y: number; scale: number };
   getSelectedNodeIds: () => string[];
   executeSelected: () => void;
-  createSubgraphFromSelection: () => void;
-  /** Topological auto-layout: lays out the selection (or all nodes if none
-   *  selected) in horizontal columns based on dependency depth. */
+  /** Topological auto-layout: lays out all nodes in horizontal columns based
+   *  on dependency depth. */
   autoLayout: () => void;
 }
 
@@ -186,21 +171,6 @@ export function calcNodeHeight(
   return base;
 }
 
-// Topmost group whose body contains the point, or null. Used by reroute
-// insertion so a reroute dropped inside a group inherits that group as its
-// parentId (so future select/move-by-group also picks up the reroute).
-export function groupContainingPoint(groups: WorkflowGroup[], x: number, y: number): WorkflowGroup | null {
-  for (let i = groups.length - 1; i >= 0; i -= 1) {
-    const g = groups[i];
-    if (!g) continue;
-    if (x >= g.position[0] && x <= g.position[0] + g.width
-      && y >= g.position[1] && y <= g.position[1] + g.height) {
-      return g;
-    }
-  }
-  return null;
-}
-
 export function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[]): Array<{ id: string; x: number; y: number }> {
   const adj = new Map<string, string[]>();
   const inDegree = new Map<string, number>();
@@ -309,21 +279,4 @@ export function arrangeNodesLayout(graphNodes: GraphNode[], edges: WorkflowEdge[
     result.push({ id: n.id, x: layerX.get(l) ?? 60, y });
   }
   return result;
-}
-
-export function createGroupFromNodes(nodes: GraphNode[], fallbackName: string): WorkflowGroup {
-  const minX = Math.min(...nodes.map(n => n.x));
-  const minY = Math.min(...nodes.map(n => n.y));
-  const maxX = Math.max(...nodes.map(n => n.x + n.width));
-  const maxY = Math.max(...nodes.map(n => n.y + n.height));
-  const padding = 20;
-  return {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `group_${Date.now()}`,
-    name: fallbackName,
-    position: [minX - padding, minY - padding] as [number, number],
-    width: maxX - minX + padding * 2,
-    height: maxY - minY + padding * 2,
-    color: '#6366f1',
-    collapsed: false,
-  };
 }

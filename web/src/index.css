@@ -1207,6 +1207,38 @@ body.is-dragging-panel {
 }
 .bio-node-reroute.selected { box-shadow: 0 0 0 2px var(--accent); }
 
+/* Native React Flow <NodeToolbar> — the per-node hover/selected action menu. */
+.bio-node-toolbar {
+  display: flex; gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+.bio-node-toolbar button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border: none; border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px; line-height: 1; cursor: pointer;
+}
+.bio-node-toolbar button:hover { background: var(--surface-2); }
+.bio-node-toolbar button.danger:hover { background: color-mix(in srgb, #ef4444 22%, transparent); color: #ef4444; }
+
+/* Hint chip rendered via a native <Panel>. */
+.canvas-hint {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* Palette-specific decorative backgrounds. The patterns sit behind the
    canvas's own paint so the lines from the grid renderer still appear on
    top. Each pattern uses currentColor-relative opacity so it adapts to
