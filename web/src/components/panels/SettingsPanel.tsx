@@ -356,6 +356,12 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('canvas.showGrid')} desc={st('canvas.showGridDescription')} keywords="grid dots background cuadricula puntos fondo">
             <div className={`toggle ${getBool('bionodulo.canvas.showGrid', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.showGrid', !getBool('bionodulo.canvas.showGrid', true))} />
           </SettingRow>
+          <SettingRow query={query} label={st('canvas.showComments')} desc={st('canvas.showCommentsDescription')} keywords="comments pins notes annotations comentarios notas">
+            <div className={`toggle ${getBool('bionodulo.canvas.showComments', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.showComments', !getBool('bionodulo.canvas.showComments', true))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.debugOverlay')} desc={st('canvas.debugOverlayDescription')} keywords="debug devtools inspector node info depuracion">
+            <div className={`toggle ${getBool('bionodulo.canvas.debugOverlay', false) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.debugOverlay', !getBool('bionodulo.canvas.debugOverlay', false))} />
+          </SettingRow>
           <SettingRow query={query} label={st('canvas.gridSize')} desc={st('canvas.gridSizeDescription')} keywords="grid size spacing cuadricula tamano espaciado snap">
             <input type="number" min={4} max={200} step={2} className="text-input" style={{ width: 70 }} value={getNumber('bionodulo.canvas.gridSize', 20)} onChange={e => set('bionodulo.canvas.gridSize', Math.min(200, Math.max(4, parseInt(e.target.value) || 20)))} />
           </SettingRow>

@@ -73,7 +73,6 @@ export type { GraphNode, WorkflowCanvasRef };
 const NODE_TYPES = { bio: BioNode, group: GroupNode };
 const GROUP_DEFAULT_COLOR = '#6366f1';
 const EDGE_TYPES = { bio: BioEdge };
-const IS_DEV = import.meta.env.DEV;
 
 // Stable prop references — React Flow re-processes when array/object/function
 // props change identity, so any that don't depend on state live at module scope
@@ -262,9 +261,11 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const tRef = useRef(t); tRef.current = t;
   const rf = useReactFlow();
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
-  const { getBool, getNumber } = useSettings();
+  const { getBool, getNumber, set } = useSettings();
   const showGrid = getBool('bionodulo.canvas.showGrid', true);
   const gridSize = Math.min(200, Math.max(4, getNumber('bionodulo.canvas.gridSize', 20)));
+  const showDebugOverlay = getBool('bionodulo.canvas.debugOverlay', false);
+  const showComments = getBool('bionodulo.canvas.showComments', true);
   const { colorMode, pattern } = useCanvasChrome();
   const bgVariant = pattern === 'grid' ? BackgroundVariant.Lines
     : pattern === 'mesh' ? BackgroundVariant.Cross
@@ -340,7 +341,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           ? { width: g.width, height: g.height }
           : { width: g.width };
         const node: RFNode = {
-          id: g.id, type: 'bio', position, selected, style,
+          // Set an explicit width (height stays auto-measured) so overlays that
+          // read node.width — e.g. comment pins at the top-right corner — have a
+          // stable value on the first render and don't jump once measured.
+          id: g.id, type: 'bio', position, selected, style, width: g.width,
           ariaLabel: g.status ? `${g.title} (${g.status})` : g.title,
           data: {
             g,
@@ -870,7 +874,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         {collabSessionActive && collabUsers && (
           <CollabCursors users={collabUsers} currentUserId={currentUserId} />
         )}
-        {onAddComment && onResolveComment && onDeleteComment && (
+        {showComments && onAddComment && onResolveComment && onDeleteComment && (
           <NodeComments
             comments={nodeComments ?? EMPTY_COMMENTS}
             currentUserId={currentUserId}
@@ -881,9 +885,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             onAddComment={onAddComment}
             onResolveComment={onResolveComment}
             onDeleteComment={onDeleteComment}
+            onHideComments={() => set('bionodulo.canvas.showComments', false)}
           />
         )}
-        {IS_DEV && <Devtools />}
+        {showDebugOverlay && <Devtools />}
         <Panel position="top-left" className="canvas-hint">{t('canvas.dragToConnect', 'Drag from a port to connect')}</Panel>
       </ReactFlow>
       </div>

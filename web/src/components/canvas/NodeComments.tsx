@@ -9,6 +9,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { ViewportPortal, useReactFlow } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
 import type { Comment } from '../../collab/types';
+import { NODE_WIDTH } from './canvasModel';
 
 interface NodeCommentsProps {
   comments: Comment[];
@@ -21,6 +22,8 @@ interface NodeCommentsProps {
   onAddComment: (content: string, nodeId: string | null, parentId: string | null) => void;
   onResolveComment: (id: string) => void;
   onDeleteComment: (id: string) => void;
+  /** Hide all comment pins on the canvas (persisted to a setting upstream). */
+  onHideComments: () => void;
 }
 
 interface NodeThread {
@@ -35,7 +38,7 @@ interface NodeThread {
 export default function NodeComments({
   comments, currentUserId, currentUserName, currentUserColor,
   openNodeId, onOpenChange,
-  onAddComment, onResolveComment, onDeleteComment,
+  onAddComment, onResolveComment, onDeleteComment, onHideComments,
 }: NodeCommentsProps) {
   const { t } = useTranslation();
   const rf = useReactFlow();
@@ -70,21 +73,23 @@ export default function NodeComments({
       {[...byNode.values()].map(entry => {
         const node = rf.getNode(entry.nodeId);
         if (!node) return null;
-        const w = node.measured?.width ?? node.width ?? 0;
-        const x = node.position.x + w - 6;
-        const y = node.position.y - 10;
+        // Stable width so the pin sits at the true top-right corner immediately
+        // (measured?.width is 0 for a frame, which would flash it to the left).
+        const w = node.width ?? node.measured?.width ?? NODE_WIDTH;
+        // Anchor at the node's top-right corner (the pin's own transform centres it).
+        const x = node.position.x + w;
+        const y = node.position.y;
         return (
           <button
             key={`pin-${entry.nodeId}`}
             type="button"
-            className={`collab-comment-pin nodrag nopan ${entry.unresolved ? 'unresolved' : ''}`}
+            className={`collab-comment-pin nodrag nopan ${entry.unresolved ? 'open' : 'resolved'}`}
             style={{ transform: `translate(${x}px, ${y}px)` }}
             title={t('canvas.comments.pinTitle', { count: entry.count })}
             aria-label={t('canvas.comments.pinTitle', { count: entry.count })}
             onClick={(e) => { e.stopPropagation(); onOpenChange(openNodeId === entry.nodeId ? null : entry.nodeId); setDraft(''); }}
           >
-            <span aria-hidden>💬</span>
-            <span className="collab-comment-count">{entry.count}</span>
+            {entry.count}
           </button>
         );
       })}
@@ -92,10 +97,13 @@ export default function NodeComments({
       {openNodeId && (() => {
         const node = rf.getNode(openNodeId);
         if (!node) return null;
-        const w = node.measured?.width ?? node.width ?? 0;
-        const x = node.position.x + w + 8;
-        const y = node.position.y - 10;
+        // Pinned to the node's TOP-RIGHT: anchor at the top-right corner and let
+        // the popover open downward/rightward from there (no left/right flipping).
+        const w = node.width ?? node.measured?.width ?? NODE_WIDTH;
+        const x = node.position.x + w + 10;
+        const y = node.position.y;
         const thread = byNode.get(openNodeId)?.thread ?? [];
+        const hasUnresolved = thread.some(c => !c.resolved);
         return (
           <div
             className="collab-comment-popover nodrag nopan"
@@ -104,7 +112,13 @@ export default function NodeComments({
           >
             <div className="collab-comment-popover-head">
               <span>{t('canvas.comments.title')}</span>
-              <button type="button" aria-label={t('common.close', 'Close')} onClick={() => onOpenChange(null)}><span aria-hidden>✕</span></button>
+              <span className="collab-comment-head-actions">
+                {hasUnresolved && (
+                  <button type="button" title={t('canvas.comments.closeAll')} aria-label={t('canvas.comments.closeAll')} onClick={() => thread.forEach(c => { if (!c.resolved) onResolveComment(c.id); })}>{t('canvas.comments.closeAll')}</button>
+                )}
+                <button type="button" title={t('canvas.comments.hide')} aria-label={t('canvas.comments.hide')} onClick={() => { onHideComments(); onOpenChange(null); }}>{t('canvas.comments.hide')}</button>
+                <button type="button" aria-label={t('common.close', 'Close')} onClick={() => onOpenChange(null)}><span aria-hidden>✕</span></button>
+              </span>
             </div>
             <div className="collab-comment-thread">
               {thread.length === 0 && <p className="collab-comment-empty">{t('canvas.comments.empty', 'No comments yet')}</p>}

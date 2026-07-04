@@ -1361,24 +1361,28 @@ body.is-dragging-panel {
   z-index: 5;
 }
 
-/* On-node comment pin (flow coords). */
+/* On-node comment pin (flow coords): an opaque coloured circle with the comment
+   count — amber while any comment is open, green once the thread is resolved.
+   Centred on the node's top-right corner. */
 .collab-comment-pin {
   position: absolute;
   top: 0; left: 0;
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: 1px 5px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 11px; line-height: 1; cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  transform-origin: center;
+  margin: -10px 0 0 -10px;           /* centre the 20px circle on the anchor point */
+  min-width: 20px; height: 20px;
+  padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 11px; font-weight: 800; line-height: 1; cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
   z-index: 7;
   /* .react-flow__viewport is pointer-events:none — opt interactive overlays back in. */
   pointer-events: all;
 }
-.collab-comment-pin.unresolved { border-color: #f59e0b; box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 30%, transparent); }
-.collab-comment-count { font-size: 10px; font-weight: 700; }
+.collab-comment-pin.open { background: #f59e0b; }
+.collab-comment-pin.resolved { background: #22c55e; }
 
 /* Comment thread popover (flow coords). */
 .collab-comment-popover {
@@ -1400,6 +1404,9 @@ body.is-dragging-panel {
   padding: 6px 10px; border-bottom: 1px solid var(--border); font-weight: 600;
 }
 .collab-comment-popover-head button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
+.collab-comment-head-actions { display: inline-flex; align-items: center; gap: 6px; }
+.collab-comment-head-actions button { font-size: 11px; font-weight: 500; padding: 1px 4px; border-radius: 4px; }
+.collab-comment-head-actions button:hover { background: var(--surface-2, var(--border)); color: var(--text); }
 .collab-comment-thread { max-height: 240px; overflow-y: auto; padding: 6px 10px; display: flex; flex-direction: column; gap: 8px; }
 .collab-comment-empty { color: var(--muted); margin: 4px 0; }
 .collab-comment.resolved { opacity: 0.55; }
