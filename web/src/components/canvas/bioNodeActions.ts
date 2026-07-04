@@ -20,6 +20,8 @@ export interface BioNodeActions {
   ungroup: (groupId: string) => void;
   /** Delete a group node AND its children. */
   deleteGroup: (groupId: string) => void;
+  /** Open the comment thread popover for a node. Undefined when collab is off. */
+  comment?: (id: string) => void;
 }
 
 export const BioNodeActionsContext = createContext<BioNodeActions | null>(null);

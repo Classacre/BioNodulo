@@ -1331,6 +1331,89 @@ body.is-dragging-panel {
   pointer-events: none;
 }
 
+/* Multiplayer cursors — positioned in flow coords via <ViewportPortal>, so the
+   translate() is world position and they pan/zoom with the graph. */
+.collab-cursor {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+  z-index: 6;
+  display: flex; align-items: flex-start; gap: 2px;
+  will-change: transform;
+}
+.collab-cursor-label {
+  margin-top: 12px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 10px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* Remote collaborator's node selection outline (flow coords). */
+.collab-selection-ring {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+  border: 2px solid var(--collab-sel-color, #6366f1);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--collab-sel-color, #6366f1) 40%, transparent);
+  z-index: 5;
+}
+
+/* On-node comment pin (flow coords). */
+.collab-comment-pin {
+  position: absolute;
+  top: 0; left: 0;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px; line-height: 1; cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  z-index: 7;
+  /* .react-flow__viewport is pointer-events:none — opt interactive overlays back in. */
+  pointer-events: all;
+}
+.collab-comment-pin.unresolved { border-color: #f59e0b; box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 30%, transparent); }
+.collab-comment-count { font-size: 10px; font-weight: 700; }
+
+/* Comment thread popover (flow coords). */
+.collab-comment-popover {
+  position: absolute;
+  top: 0; left: 0;
+  width: 260px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+  z-index: 8;
+  display: flex; flex-direction: column;
+  font-size: 12px; color: var(--text);
+  /* .react-flow__viewport is pointer-events:none — opt this interactive layer in. */
+  pointer-events: all;
+}
+.collab-comment-popover-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; border-bottom: 1px solid var(--border); font-weight: 600;
+}
+.collab-comment-popover-head button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
+.collab-comment-thread { max-height: 240px; overflow-y: auto; padding: 6px 10px; display: flex; flex-direction: column; gap: 8px; }
+.collab-comment-empty { color: var(--muted); margin: 4px 0; }
+.collab-comment.resolved { opacity: 0.55; }
+.collab-comment-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.collab-comment-author { font-weight: 600; }
+.collab-comment-actions { display: inline-flex; gap: 2px; }
+.collab-comment-actions button { background: none; border: none; cursor: pointer; font-size: 11px; color: var(--muted); padding: 1px 3px; border-radius: 4px; }
+.collab-comment-actions button.danger:hover { color: #ef4444; }
+.collab-comment-body { white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+.collab-comment-reply { margin: 4px 0 0 10px; padding-left: 8px; border-left: 2px solid var(--border); }
+.collab-comment-compose { display: flex; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--border); }
+.collab-comment-compose input { flex: 1 1 auto; min-width: 0; height: 24px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 12px; }
+.collab-comment-compose button { flex: 0 0 auto; padding: 2px 10px; border: none; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; cursor: pointer; }
+
 /* Hint chip rendered via a native <Panel>. */
 .canvas-hint {
   padding: 4px 10px;

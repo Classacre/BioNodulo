@@ -445,6 +445,8 @@ export default function App() {
     connected: collabConnected,
     connecting: collabConnecting,
     activeUsers: collabActiveUsers,
+    setCursor: setCollabCursor,
+    setSelection: setCollabSelection,
     claimDrag: claimCollabDrag,
     releaseDrag: releaseCollabDrag,
     isShared: collabIsShared,
@@ -3315,6 +3317,17 @@ export default function App() {
           nodeErrorsMap={nodeErrorsMap}
           missingDependencyNodeIds={missingDependencyNodeIds}
           onExecuteSelected={handleRunSelected}
+          collabSessionActive={collabSessionActive}
+          collabUsers={collabActiveUsers}
+          currentUserId={currentUser.id}
+          currentUserName={currentUser.name}
+          currentUserColor={currentUser.color}
+          onCollabCursor={collabSessionActive ? setCollabCursor : undefined}
+          onCollabSelection={collabSessionActive ? setCollabSelection : undefined}
+          nodeComments={workflowComments}
+          onAddComment={handleAddComment}
+          onResolveComment={handleResolveComment}
+          onDeleteComment={handleDeleteComment}
         />
 
         {/* Registered rail panels: docked panels stack from the left edge by

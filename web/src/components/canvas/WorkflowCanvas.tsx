@@ -40,6 +40,7 @@ import '@xyflow/react/dist/style.css';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { WorkflowNode, WorkflowEdge, ObjectInfo, NodeStatus, WorkflowParameter } from '../../types';
+import type { AwarenessState, Comment } from '../../collab/types';
 import { edgeColorForSource } from '../../utils';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
@@ -60,6 +61,8 @@ import BioNode from './BioNode';
 import BioEdge from './BioEdge';
 import GroupNode from './GroupNode';
 import Devtools from './Devtools';
+import CollabCursors from './CollabCursors';
+import NodeComments from './NodeComments';
 import HelperLines from './HelperLines';
 import { getHelperLines } from './helperLines';
 import { BioNodeActionsContext, MultiSelectContext, type BioNodeActions } from './bioNodeActions';
@@ -81,6 +84,7 @@ const PAN_ON_DRAG = [1, 2];
 const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.5 };
 const PRO_OPTIONS = { hideAttribution: true };
 const DEFAULT_EDGE_OPTIONS = { type: 'bio' };
+const EMPTY_COMMENTS: Comment[] = [];
 const MINIMAP_NODE_COLOR = (n: RFNode) => {
   const d = n.data as { g?: { color?: string }; color?: string } | undefined;
   return d?.g?.color ?? d?.color ?? '#64748b';
@@ -153,6 +157,20 @@ interface WorkflowCanvasProps {
   nodeErrorsMap?: Map<string, string>;
   missingDependencyNodeIds?: Set<string>;
   onExecuteSelected?: (nodeIds: string[]) => void;
+  // --- Collaboration (multiplayer + comments) ---
+  collabSessionActive?: boolean;
+  collabUsers?: AwarenessState[];
+  currentUserId?: string;
+  currentUserName?: string;
+  currentUserColor?: string;
+  /** Publish this client's cursor (world coords) to awareness. */
+  onCollabCursor?: (cursor: AwarenessState['cursor']) => void;
+  /** Publish this client's node selection to awareness. */
+  onCollabSelection?: (selection: AwarenessState['selection']) => void;
+  nodeComments?: Comment[];
+  onAddComment?: (content: string, nodeId: string | null, parentId: string | null) => void;
+  onResolveComment?: (id: string) => void;
+  onDeleteComment?: (id: string) => void;
 }
 
 // WorkflowNode -> GraphNode: resolve metadata, geometry, ports, colour. The
@@ -228,6 +246,17 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   snapToGrid, showMinimap,
   nodeStatusMap, missingDependencyNodeIds,
   onExecuteSelected,
+  collabSessionActive = false,
+  collabUsers,
+  currentUserId = '',
+  currentUserName = '',
+  currentUserColor = '#6366f1',
+  onCollabCursor,
+  onCollabSelection,
+  nodeComments,
+  onAddComment,
+  onResolveComment,
+  onDeleteComment,
 }, ref) {
   const { t } = useTranslation();
   const tRef = useRef(t); tRef.current = t;
@@ -254,6 +283,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // Reactive selection (for the multi-select toolbar); the ref mirror stays for
   // callbacks that need the latest value without re-binding.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [commentOpenNodeId, setCommentOpenNodeId] = useState<string | null>(null);
 
   // Precompute the connected input/output port keys once per edges change, so
   // the node reconcile is O(nodes) instead of scanning all edges per node.
@@ -526,13 +556,43 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     return { nodes: keptNodes, edges: delEdges };
   }, []);
 
+  const onCollabSelectionRef = useRef(onCollabSelection);
+  onCollabSelectionRef.current = onCollabSelection;
   const handleSelectionChange = useCallback((params: OnSelectionChangeParams) => {
     const idList = params.nodes.map(n => n.id);
     const ids = new Set(idList);
     selectedIdsRef.current = ids;
     setSelectedIds(idList);
     setSelectedNodeId(ids.size === 1 ? idList[0] : null);
+    // Broadcast selection to collaborators (awareness).
+    onCollabSelectionRef.current?.({ nodeIds: idList, box: null });
   }, [setSelectedNodeId]);
+
+  // Publish this client's cursor (in FLOW/world coords) to awareness, throttled
+  // to one update per animation frame so pointer-move doesn't flood the network.
+  const onCollabCursorRef = useRef(onCollabCursor);
+  onCollabCursorRef.current = onCollabCursor;
+  const cursorRafRef = useRef<number | null>(null);
+  const pendingCursorRef = useRef<{ x: number; y: number } | null>(null);
+  const onPaneMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!onCollabCursorRef.current) return;
+    pendingCursorRef.current = { x: e.clientX, y: e.clientY };
+    if (cursorRafRef.current != null) return;
+    cursorRafRef.current = requestAnimationFrame(() => {
+      cursorRafRef.current = null;
+      const p = pendingCursorRef.current;
+      if (!p) return;
+      const world = rf.screenToFlowPosition({ x: p.x, y: p.y });
+      onCollabCursorRef.current?.({ x: p.x, y: p.y, visible: true, worldX: world.x, worldY: world.y });
+    });
+  }, [rf]);
+  const onPaneMouseLeave = useCallback(() => {
+    if (cursorRafRef.current != null) { cancelAnimationFrame(cursorRafRef.current); cursorRafRef.current = null; }
+    onCollabCursorRef.current?.({ x: 0, y: 0, visible: false });
+  }, []);
+  useEffect(() => () => {
+    if (cursorRafRef.current != null) cancelAnimationFrame(cursorRafRef.current);
+  }, []);
 
   // Route React Flow's internal warnings/errors into the app log instead of the
   // bare console (e.g. missing-styles or invalid-parent warnings).
@@ -599,7 +659,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       onEdgesChange(edgesRef.current.filter(e => !childIds.has(e.from.node) && !childIds.has(e.to.node)));
       onPushHistory();
     },
-  }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory]);
+    comment: onAddComment ? (id) => setCommentOpenNodeId(prev => prev === id ? null : id) : undefined,
+  }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory, onAddComment]);
 
   const edgeActions = useMemo<BioEdgeActions>(() => ({
     removeEdge: (id) => {
@@ -753,6 +814,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
         onError={onError}
+        onPaneMouseMove={collabSessionActive ? onPaneMouseMove : undefined}
+        onPaneMouseLeave={collabSessionActive ? onPaneMouseLeave : undefined}
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         snapToGrid={snapToGrid}
         snapGrid={snapGridValue}
@@ -799,6 +862,24 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         </NodeToolbar>
         {(helperLines.horizontal !== undefined || helperLines.vertical !== undefined) && (
           <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />
+        )}
+        {/* Multiplayer: remote cursors + on-node comment pins/threads, both drawn
+            in flow coords via <ViewportPortal> so they pan/zoom with the graph. */}
+        {collabSessionActive && collabUsers && (
+          <CollabCursors users={collabUsers} currentUserId={currentUserId} />
+        )}
+        {onAddComment && onResolveComment && onDeleteComment && (
+          <NodeComments
+            comments={nodeComments ?? EMPTY_COMMENTS}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            currentUserColor={currentUserColor}
+            openNodeId={commentOpenNodeId}
+            onOpenChange={setCommentOpenNodeId}
+            onAddComment={onAddComment}
+            onResolveComment={onResolveComment}
+            onDeleteComment={onDeleteComment}
+          />
         )}
         {IS_DEV && <Devtools />}
         <Panel position="top-left" className="canvas-hint">{t('canvas.dragToConnect', 'Drag from a port to connect')}</Panel>

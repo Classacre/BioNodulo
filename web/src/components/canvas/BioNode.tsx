@@ -91,6 +91,9 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
         <button type="button" title={t('canvas.menu.rename')} aria-label={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}><span aria-hidden>A</span></button>
         <button type="button" title={t('canvas.menu.duplicate')} aria-label={t('canvas.menu.duplicate')} onClick={() => actions?.duplicate(id)}><span aria-hidden>⧉</span></button>
         <button type="button" title={t('canvas.menu.collapse')} aria-label={t('canvas.menu.collapse')} onClick={() => actions?.toggleCollapse(id)}><span aria-hidden>{g.collapsed ? '▸' : '▾'}</span></button>
+        {actions?.comment && (
+          <button type="button" title={t('canvas.menu.comment')} aria-label={t('canvas.menu.comment')} onClick={() => actions.comment?.(id)}><span aria-hidden>💬</span></button>
+        )}
         <button type="button" className="danger" title={t('canvas.menu.delete')} aria-label={t('canvas.menu.delete')} onClick={() => actions?.remove(id)}><span aria-hidden>✕</span></button>
       </NodeToolbar>
 
