@@ -65,7 +65,6 @@ interface WorkflowCanvasProps {
   nodeErrorsMap?: Map<string, string>;
   missingDependencyNodeIds?: Set<string>;
   onExecuteSelected?: (nodeIds: string[]) => void;
-  onEditNode?: (nodeId: string) => void;
 }
 
 // WorkflowNode -> GraphNode: resolve metadata, geometry, ports, colour. The
@@ -139,7 +138,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   onNodesChange, onEdgesChange, onPushHistory,
   snapToGrid, showMinimap,
   nodeStatusMap, missingDependencyNodeIds,
-  onExecuteSelected, onEditNode,
+  onExecuteSelected,
 }, ref) {
   const { t } = useTranslation();
   const tRef = useRef(t); tRef.current = t;
@@ -272,7 +271,6 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // ---- On-node toolbar actions (native <NodeToolbar> in BioNode) ----
   const actions = useMemo<BioNodeActions>(() => ({
     run: (id) => onExecuteSelected?.([id]),
-    edit: (id) => { onEditNode?.(id); },
     rename: async (id) => {
       const wn = nodesRef.current.find(n => n.id === id);
       if (!wn) return;
@@ -306,11 +304,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       onEdgesChange(edgesRef.current.filter(e => e.from.node !== id && e.to.node !== id));
       onPushHistory();
     },
-  }), [onExecuteSelected, onEditNode, onNodesChange, onEdgesChange, onPushHistory]);
-
-  const onNodeDoubleClick = useCallback((_e: React.MouseEvent, node: RFNode) => {
-    onEditNode?.(node.id);
-  }, [onEditNode]);
+  }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory]);
 
   // ---- Imperative ref API used across App ----
   const fitView = useCallback(() => { rf.fitView({ padding: 0.2, duration: 220 }); }, [rf]);
@@ -356,7 +350,6 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onNodesChange={handleNodesChange}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
-        onNodeDoubleClick={onNodeDoubleClick}
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         onNodesDelete={onNodesDelete}

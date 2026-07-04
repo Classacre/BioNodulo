@@ -41,15 +41,6 @@ describe('App inline history workflow parameters', () => {
     expect(appSource.match(/parameters: state\.parameters/g)).toHaveLength(2);
   });
 
-  it('wires Inspector workflow parameter edits into active workflow history', () => {
-    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
-
-    expect(appSource).toContain("const handleWorkflowParametersChange = useCallback((parameters: Workflow['parameters']) => {");
-    expect(appSource).toContain('pendingStateRef.current = { ...pendingStateRef.current, parameters };');
-    expect(appSource).toContain('updateActive({ parameters });');
-    expect(appSource).toContain('onWorkflowParametersChange={handleWorkflowParametersChange}');
-  });
-
   it('prompts for workflow parameter overrides before submitting runs', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 

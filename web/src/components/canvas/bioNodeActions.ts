@@ -6,7 +6,6 @@ import { createContext } from 'react';
 // of a drag just because a fresh callback identity landed in its props.
 export interface BioNodeActions {
   run: (id: string) => void;
-  edit: (id: string) => void;
   rename: (id: string) => void;
   duplicate: (id: string) => void;
   toggleCollapse: (id: string) => void;

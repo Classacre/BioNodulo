@@ -7,7 +7,7 @@ import { useKeybindings } from '../../hooks/ui';
 import { consoleVisibleAtom } from '../../state/uiAtoms';
 import { cloudConfigAtom } from '../../state/appAtoms';
 
-export type RailTab = 'data' | 'nodes' | 'inspector' | 'templates' | 'environments' | 'runtimeArtifacts' | 'help' | 'console' | 'settings' | 'hpc' | 'user' | 'compute' | string | null;
+export type RailTab = 'data' | 'nodes' | 'templates' | 'environments' | 'runtimeArtifacts' | 'help' | 'console' | 'settings' | 'hpc' | 'user' | 'compute' | string | null;
 
 interface LeftRailProps {
   active: RailTab;

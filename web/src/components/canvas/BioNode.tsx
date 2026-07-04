@@ -76,7 +76,6 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
           Portalled + viewport-synced by React Flow, so no custom overlay math. */}
       <NodeToolbar isVisible={showToolbar} position={Position.Top} className="bio-node-toolbar">
         <button type="button" title={t('canvas.menu.run')} onClick={() => actions?.run(id)}>▶</button>
-        <button type="button" title={t('canvas.menu.edit')} onClick={() => actions?.edit(id)}>✎</button>
         <button type="button" title={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}>A</button>
         <button type="button" title={t('canvas.menu.duplicate')} onClick={() => actions?.duplicate(id)}>⧉</button>
         <button type="button" title={t('canvas.menu.collapse')} onClick={() => actions?.toggleCollapse(id)}>{g.collapsed ? '▸' : '▾'}</button>

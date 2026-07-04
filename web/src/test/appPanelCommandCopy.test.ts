@@ -39,7 +39,6 @@ describe('App panel command copy i18n', () => {
     expect(i18n.t('commandPalette.groups.tools')).toBe('Herramientas');
     expect(i18n.t('commandPalette.commands.rail.workspace')).toBe('Abrir espacio de trabajo');
     expect(i18n.t('commandPalette.commands.rail.nodes')).toBe('Abrir nodos');
-    expect(i18n.t('commandPalette.commands.rail.inspector')).toBe('Abrir inspector');
     expect(i18n.t('commandPalette.commands.rail.templates')).toBe('Abrir plantillas');
     expect(i18n.t('commandPalette.commands.rail.environment')).toBe('Abrir entornos');
     expect(i18n.t('commandPalette.commands.rail.runtimeArtifacts')).toBe('Abrir artefactos de ejecucion');
@@ -61,7 +60,6 @@ describe('App panel command copy i18n', () => {
       'commandPalette.groups.tools',
       'commandPalette.commands.rail.workspace',
       'commandPalette.commands.rail.nodes',
-      'commandPalette.commands.rail.inspector',
       'commandPalette.commands.rail.templates',
       'commandPalette.commands.rail.environment',
       'commandPalette.commands.rail.runtimeArtifacts',
@@ -77,7 +75,6 @@ describe('App panel command copy i18n', () => {
     [
       "label: 'Open workspace'",
       "label: 'Open nodes'",
-      "label: 'Open inspector'",
       "label: 'Open templates'",
       "label: 'Open environments'",
       "label: 'Open runtime artifacts'",

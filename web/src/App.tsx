@@ -25,7 +25,6 @@ const RuntimeArtifactsPanel = lazy(() => import('./components/panels/RuntimeArti
 const HPCPanel = lazy(() => import('./components/panels/HPCPanel'));
 const NodeLibraryPanel = lazy(() => import('./components/panels/NodeLibraryPanel'));
 const WorkspacePanel = lazy(() => import('./components/panels/WorkspacePanel'));
-const InspectorPanel = lazy(() => import('./components/panels/InspectorPanel'));
 const UserPanel = lazy(() => import('./components/panels/UserPanel'));
 const ComputePanel = lazy(() => import('./components/panels/ComputePanel'));
 import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
@@ -148,7 +147,6 @@ const isCenterMenuTab = (tab: OpenPanelTab): boolean => CENTER_MENU_TABS.has(tab
 const PANEL_LABEL_KEYS: Partial<Record<OpenPanelTab, string>> = {
   data: 'panels.workspace',
   nodes: 'panels.nodes',
-  inspector: 'panels.inspector',
   templates: 'panels.templates',
   environments: 'panels.environment',
   runtimeArtifacts: 'panels.runtimeArtifacts',
@@ -519,7 +517,6 @@ export default function App() {
   const showComments = useAtomValue(showCommentsAtom);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const selectedNodeId = useAtomValue(selectedNodeIdAtom);
-  const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
   const [livePresenceUsers, setLivePresenceUsers] = useState<LivePresenceUser[]>([]);
   // Cross-workflow display names came from the (removed) comments REST feed; in
   // single-doc collab there is one workflow, so this stays empty and lookups
@@ -1441,12 +1438,6 @@ export default function App() {
     pendingStateRef.current = { ...pendingStateRef.current, edges };
     setDirty(true);
     updateActive({ edges });
-  }, [updateActive]);
-
-  const handleWorkflowParametersChange = useCallback((parameters: Workflow['parameters']) => {
-    pendingStateRef.current = { ...pendingStateRef.current, parameters };
-    setDirty(true);
-    updateActive({ parameters });
   }, [updateActive]);
 
   // Media paste: pasting a clipboard image / audio / generic file blob
@@ -2423,14 +2414,6 @@ export default function App() {
         onSelect: () => togglePanel('nodes'),
       },
       {
-        id: 'rail.inspector',
-        label: t('commandPalette.commands.rail.inspector'),
-        group: 'Panels',
-        groupLabelKey: 'commandPalette.groups.panels',
-        shortcut: getBinding('rail.inspector') ?? undefined,
-        onSelect: () => togglePanel('inspector'),
-      },
-      {
         id: 'rail.templates',
         label: t('commandPalette.commands.rail.templates'),
         group: 'Panels',
@@ -3067,28 +3050,6 @@ export default function App() {
         />
       ));
     }
-    if (tab === 'inspector') {
-      const selected = selectedNodeId
-        ? activeWorkflow.nodes.find(n => n.id === selectedNodeId) ?? null
-        : null;
-      return wrap('inspector', (
-        <InspectorPanel
-          selectedNode={selected}
-          objectInfo={objectInfo}
-          workflowParameters={activeWorkflow.parameters ?? []}
-          onWorkflowParametersChange={handleWorkflowParametersChange}
-          onParamChange={(nodeId, key, value) => {
-            handleNodesChange(activeWorkflow.nodes.map(node => (
-              node.id === nodeId
-                ? { ...node, params: { ...(node.params || {}), [key]: value } }
-                : node
-            )));
-            pushHistory();
-          }}
-          onClose={() => closePanel(tab)}
-        />
-      ));
-    }
     if (tab === 'data') {
       return wrap('data', (
         <WorkspacePanel
@@ -3350,7 +3311,6 @@ export default function App() {
           nodeErrorsMap={nodeErrorsMap}
           missingDependencyNodeIds={missingDependencyNodeIds}
           onExecuteSelected={handleRunSelected}
-          onEditNode={(id) => { setSelectedNodeId(id); setRailTab('inspector'); }}
         />
 
         {/* Registered rail panels: docked panels stack from the left edge by
