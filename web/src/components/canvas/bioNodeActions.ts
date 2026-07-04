@@ -10,6 +10,8 @@ export interface BioNodeActions {
   duplicate: (id: string) => void;
   toggleCollapse: (id: string) => void;
   remove: (id: string) => void;
+  /** Commit a native <NodeResizer> resize back to the workflow node's ui. */
+  resize: (id: string, width: number, height: number) => void;
 }
 
 export const BioNodeActionsContext = createContext<BioNodeActions | null>(null);

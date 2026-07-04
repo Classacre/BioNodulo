@@ -7,7 +7,7 @@
 // while the node is selected. No custom overlays, widgets, previews, comments or
 // collab cursors — those were all removed in the rewrite.
 import { memo, useState } from 'react';
-import { Handle, Position, NodeToolbar, type NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeToolbar, NodeResizer, type NodeProps } from '@xyflow/react';
 import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NODE_HEADER_H, NODE_PIN_H } from '../../utils/nodeLayout';
@@ -72,6 +72,17 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {/* Native drag-to-resize handles — only for real (non-note) nodes and only
+          while selected. Commit the final size back to the workflow on end. */}
+      {!g.visualOnly && (
+        <NodeResizer
+          isVisible={selected}
+          minWidth={140}
+          minHeight={56}
+          onResizeEnd={(_e, params) => actions?.resize(id, Math.round(params.width), Math.round(params.height))}
+        />
+      )}
+
       {/* Native React Flow toolbar — the "menu when clicking / hovering a node".
           Portalled + viewport-synced by React Flow, so no custom overlay math. */}
       <NodeToolbar isVisible={showToolbar} position={Position.Top} className="bio-node-toolbar">

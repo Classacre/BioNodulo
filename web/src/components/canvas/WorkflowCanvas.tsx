@@ -16,9 +16,13 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  ControlButton,
   MiniMap,
   Panel,
+  MarkerType,
+  ConnectionLineType,
   applyNodeChanges,
+  getOutgoers,
   useReactFlow,
   type Node as RFNode,
   type Edge as RFEdge,
@@ -48,6 +52,22 @@ import { BioNodeActionsContext, type BioNodeActions } from './bioNodeActions';
 export type { GraphNode, WorkflowCanvasRef };
 
 const NODE_TYPES = { bio: BioNode };
+
+// Loose type-compatibility for connection validation. Anything goes if either
+// side is unknown or generic (ANY/*). Otherwise the source output type must be
+// in the target input's accepted set (inputs may be a `A|B` union) OR share the
+// same type family — so BAM_INDEXED→BAM and FASTQ_PAIRED→FASTQ stay valid while
+// cross-family links (FASTQ→VCF) are rejected. Deliberately lenient: better to
+// allow an odd link than to block a real one the backend would accept.
+function typesCompatible(outType: string, inType: string): boolean {
+  if (!outType || !inType) return true;
+  const o = outType.toUpperCase();
+  if (o === 'ANY' || o === '*') return true;
+  const accepted = inType.toUpperCase().split(/[|,]/).map(s => s.trim()).filter(Boolean);
+  if (accepted.some(a => a === 'ANY' || a === '*' || a === o)) return true;
+  const oFamily = o.split('_')[0];
+  return accepted.some(a => a.split('_')[0] === oFamily);
+}
 
 interface WorkflowCanvasProps {
   nodes: WorkflowNode[];
@@ -201,15 +221,32 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     return map;
   }, [nodes, objectInfo]);
 
+  // Stable `${nodeId}:${inputName}` -> input type map, for connection validation.
+  const inTypeByNodeInput = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const wn of nodes) {
+      const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
+      if (!meta) continue;
+      const visible = getVisibleInputSpecs(meta, wn.params || {});
+      for (const [name, spec] of [...Object.entries(visible.required), ...Object.entries(visible.optional)]) {
+        map.set(`${wn.id}:${name}`, spec.type || '');
+      }
+    }
+    return map;
+  }, [nodes, objectInfo]);
+
   const rfEdges = useMemo<RFEdge[]>(() => edges.map(edge => {
     const outType = outTypeByNodeOutput.get(`${edge.from.node}:${edge.from.output}`) || '';
+    const stroke = edgeColorForSource(outType);
     return {
       id: edge.id,
       source: edge.from.node,
       target: edge.to.node,
       sourceHandle: edge.from.output,
       targetHandle: edge.to.input,
-      style: { stroke: edgeColorForSource(outType), strokeWidth: 2 },
+      style: { stroke, strokeWidth: 2 },
+      // Native arrowhead so data-flow direction is obvious, colour-matched.
+      markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 },
     } satisfies RFEdge;
   }), [edges, outTypeByNodeOutput]);
 
@@ -246,6 +283,45 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     // One connection per input slot: drop any edge already in that slot.
     const filtered = edgesRef.current.filter(e => !(e.to.node === connection.target && e.to.input === connection.targetHandle));
     onEdgesChange([...filtered, newEdge]);
+    onPushHistory();
+  }, [onEdgesChange, onPushHistory]);
+
+  // Native connection gate: React Flow calls this while the user drags a link
+  // and greys out ports it rejects. Block self-links, type-incompatible ports,
+  // and any connection that would create a cycle (workflows must stay a DAG).
+  const isValidConnection = useCallback((conn: Connection | RFEdge): boolean => {
+    const { source, target, sourceHandle, targetHandle } = conn;
+    if (!source || !target || source === target) return false;
+    const outType = outTypeByNodeOutput.get(`${source}:${sourceHandle}`) || '';
+    const inType = inTypeByNodeInput.get(`${target}:${targetHandle}`) || '';
+    if (!typesCompatible(outType, inType)) return false;
+    const rfN = rf.getNodes();
+    const rfE = rf.getEdges();
+    const targetNode = rfN.find(n => n.id === target);
+    if (!targetNode) return true;
+    const hasCycle = (node: RFNode, seen = new Set<string>()): boolean => {
+      if (seen.has(node.id)) return false;
+      seen.add(node.id);
+      for (const out of getOutgoers(node, rfN, rfE)) {
+        if (out.id === source) return true;
+        if (hasCycle(out, seen)) return true;
+      }
+      return false;
+    };
+    return !hasCycle(targetNode);
+  }, [rf, outTypeByNodeOutput, inTypeByNodeInput]);
+
+  // Native edge reconnection: drag an existing edge's end onto another port.
+  const onReconnect = useCallback((oldEdge: RFEdge, newConn: Connection) => {
+    if (!newConn.source || !newConn.target || !newConn.sourceHandle || !newConn.targetHandle) return;
+    const filtered = edgesRef.current.filter(e =>
+      e.id !== oldEdge.id && !(e.to.node === newConn.target && e.to.input === newConn.targetHandle));
+    filtered.push({
+      id: oldEdge.id,
+      from: { node: newConn.source, output: newConn.sourceHandle },
+      to: { node: newConn.target, input: newConn.targetHandle },
+    });
+    onEdgesChange(filtered);
     onPushHistory();
   }, [onEdgesChange, onPushHistory]);
 
@@ -304,6 +380,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       onEdgesChange(edgesRef.current.filter(e => e.from.node !== id && e.to.node !== id));
       onPushHistory();
     },
+    resize: (id, width, height) => {
+      onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, width, height } } : n));
+      onPushHistory();
+    },
   }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory]);
 
   // ---- Imperative ref API used across App ----
@@ -351,6 +431,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
+        onReconnect={onReconnect}
+        isValidConnection={isValidConnection}
         onEdgesDelete={onEdgesDelete}
         onNodesDelete={onNodesDelete}
         onSelectionChange={handleSelectionChange}
@@ -358,6 +440,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         snapGrid={[gridSize, gridSize]}
         deleteKeyCode={['Backspace', 'Delete']}
         multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
+        connectionLineType={ConnectionLineType.Bezier}
+        elevateEdgesOnSelect
+        elevateNodesOnSelect
+        onlyRenderVisibleElements
         selectionOnDrag
         panOnScroll
         fitView
@@ -367,7 +453,11 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         proOptions={{ hideAttribution: true }}
       >
         {showGrid && <Background variant={BackgroundVariant.Dots} gap={gridSize} size={1} />}
-        <Controls />
+        <Controls>
+          <ControlButton onClick={autoLayout} title={t('canvas.autoArrangeNodes')} aria-label={t('canvas.autoArrangeNodes')}>
+            <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>⤨</span>
+          </ControlButton>
+        </Controls>
         {showMinimap && (
           <MiniMap
             pannable
