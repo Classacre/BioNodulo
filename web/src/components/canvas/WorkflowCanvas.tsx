@@ -48,7 +48,7 @@ import {
   NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor,
   type GraphNode, type WorkflowCanvasRef,
 } from './canvasModel';
-import { NODE_HEADER_H } from '../../utils/nodeLayout';
+import { NODE_HEADER_H, isInteractiveWidgetSpec } from '../../utils/nodeLayout';
 import { dagreLayout } from '../../utils/dagreLayout';
 import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
@@ -161,14 +161,15 @@ function toGraphNode(
     y: wn.position[1],
     width: nodeWidth,
     height: nodeHeight,
+    // Ports are data-flow inputs only — interactive scalar params render as
+    // on-node widgets instead (see NodeWidgets), so exclude them here to avoid
+    // showing the same param as both a port and a widget.
     inputs: (meta && !visualOnly) ? [
-      ...Object.entries(visibleInputs.required).map(([name, spec]) => ({
-        name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
-      })),
-      ...Object.entries(visibleInputs.optional).map(([name, spec]) => ({
-        name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
-      })),
-    ] : [],
+      ...Object.entries(visibleInputs.required),
+      ...Object.entries(visibleInputs.optional),
+    ].filter(([, spec]) => !isInteractiveWidgetSpec(spec)).map(([name, spec]) => ({
+      name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
+    })) : [],
     outputs: (meta && !visualOnly) ? resolveNodeOutputs(meta, wn.params || {}).map(output => ({
       name: output.name, type: output.type,
       connected: edges.some(e => e.from.node === wn.id && e.from.output === output.name),

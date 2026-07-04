@@ -12,10 +12,12 @@ export interface WidgetEntry {
 export function isInteractiveWidgetSpec(spec: unknown): spec is InputSpec {
   const s = spec as InputSpec | null | undefined;
   if (!s) return false;
+  // forceInput/link params are always ports, never on-node widgets.
+  if (s.forceInput || s.link) return false;
   if (s.type === 'BOOLEAN') return true;
   if (Array.isArray(s.options) && s.options.length > 0) return true;
   if (s.type === 'INT' || s.type === 'FLOAT') return true;
-  if (s.type === 'STRING' && !s.forceInput) return true;
+  if (s.type === 'STRING') return true;
   return false;
 }
 
