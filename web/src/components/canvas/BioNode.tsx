@@ -167,25 +167,30 @@ function BioNodeComponent({ data, selected }: NodeProps) {
       ) : (
         <div className="bio-node-io" style={{ minHeight: ioHeight }}>
           <div className="bio-node-inputs">
-            {g.inputs.map((input, index) => (
+            {g.inputs.map(input => (
               <div
                 className="bio-node-port bio-node-port-in"
                 key={`in-${input.name}`}
                 style={{ height: NODE_PIN_H }}
               >
+                {/* No manual `top`: React Flow's default `.react-flow__handle-left`
+                    is top:50% of the containing block, so the handle centers in
+                    THIS port row — vertically aligned with the label text. The
+                    old absolute `top` was node-relative but the handle's
+                    containing block is the row (position:relative), so it pushed
+                    the handle off the node and out of view. */}
                 <Handle
                   type="target"
                   position={Position.Left}
                   id={input.name}
                   className={`bio-handle bio-handle-in ${input.connected ? 'connected' : ''}`}
-                  style={{ top: NODE_HEADER_H + NODE_PIN_H / 2 + index * NODE_PIN_H }}
                 />
                 <span className="bio-node-port-label">{input.name}</span>
               </div>
             ))}
           </div>
           <div className="bio-node-outputs">
-            {g.outputs.map((output, index) => (
+            {g.outputs.map(output => (
               <div
                 className="bio-node-port bio-node-port-out"
                 key={`out-${output.name}`}
@@ -197,7 +202,6 @@ function BioNodeComponent({ data, selected }: NodeProps) {
                   position={Position.Right}
                   id={output.name}
                   className={`bio-handle bio-handle-out ${output.connected ? 'connected' : ''}`}
-                  style={{ top: NODE_HEADER_H + NODE_PIN_H / 2 + index * NODE_PIN_H }}
                 />
               </div>
             ))}
@@ -216,5 +220,42 @@ function BioNodeComponent({ data, selected }: NodeProps) {
   );
 }
 
-const BioNode = memo(BioNodeComponent);
+// Custom comparator: React Flow re-supplies a fresh `data` object (with a fresh
+// GraphNode `g`) on every render, including every frame of a node drag — where
+// only x/y changed. The node BODY doesn't depend on x/y (React Flow moves the
+// node wrapper via a CSS transform), so a default shallow-compare would re-render
+// (and briefly remount the <Handle>s → edges flash) on every drag frame. Compare
+// only the fields that actually affect what this component paints, and ignore
+// position, so a pure move is a no-op re-render for the node subtree.
+function bioNodePropsEqual(prev: NodeProps, next: NodeProps): boolean {
+  if (prev.selected !== next.selected || prev.dragging !== next.dragging) return false;
+  const a = prev.data as BioNodeData;
+  const b = next.data as BioNodeData;
+  if (a === b) return true;
+  if (a.categoryLabel !== b.categoryLabel || a.missingDependency !== b.missingDependency || a.running !== b.running) return false;
+  const ga = a.g;
+  const gb = b.g;
+  if (ga === gb) return true;
+  // Structural fields that change the rendered node face. Deliberately EXCLUDES
+  // x/y (position is applied by React Flow, not re-rendered here).
+  return (
+    ga.width === gb.width &&
+    ga.height === gb.height &&
+    ga.color === gb.color &&
+    ga.title === gb.title &&
+    ga.status === gb.status &&
+    ga.collapsed === gb.collapsed &&
+    ga.muted === gb.muted &&
+    ga.bypassed === gb.bypassed &&
+    ga.pinned === gb.pinned &&
+    ga.shape === gb.shape &&
+    ga.visualOnly === gb.visualOnly &&
+    ga.inputs === gb.inputs &&
+    ga.outputs === gb.outputs &&
+    ga.params === gb.params &&
+    ga.meta === gb.meta
+  );
+}
+
+const BioNode = memo(BioNodeComponent, bioNodePropsEqual);
 export default BioNode;

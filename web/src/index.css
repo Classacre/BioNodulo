@@ -1151,15 +1151,14 @@ body.is-dragging-panel {
   border: 1px solid var(--border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   color: var(--text);
-  overflow: hidden;
+  /* overflow VISIBLE so the port handles, which straddle the node's left/right
+     border, are not clipped — otherwise the connection points are invisible. The
+     header clips its own colored background via its own border-radius. */
+  overflow: visible;
   font-size: 12px;
 }
 .bio-node.bio-node-shape-box { border-radius: 2px; }
 .bio-node.bio-node-shape-card { border-radius: 12px; }
-/* Collapsed nodes are header-only; their port handles are pinned to the header
-   center and sit at the node's left/right edge (-5px). Allow them to paint
-   outside the rounded body so edges visibly attach to the collapsed node. */
-.bio-node.bio-node-collapsed { overflow: visible; }
 .bio-node.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
 .bio-node.muted { opacity: 0.55; }
 .bio-node.bypassed { border-style: dashed; opacity: 0.7; }
@@ -1188,8 +1187,14 @@ body.is-dragging-panel {
 .bio-node-port { display: flex; align-items: center; position: relative; }
 .bio-node-port-out { justify-content: flex-end; }
 .bio-node-port-label { padding: 0 8px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bio-handle-in { left: -5px; }
-.bio-handle-out { right: -5px; }
+/* Handles straddle the node's left/right edge. React Flow's default rule sets
+   top:50% (centered in this port row); we only override the horizontal edge so
+   the anchor sits on the node border and stays visible (node is overflow:visible). */
+.bio-handle-in { left: -4px; }
+.bio-handle-out { right: -4px; }
+/* The node body is overflow:visible (so handles show), so the header's colored
+   fill must clip itself to the node's rounded top corners. */
+.bio-node-header { overflow: hidden; }
 
 .bio-node-params { padding: 2px 8px; color: var(--muted); font-size: 10px; }
 .bio-node-param { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

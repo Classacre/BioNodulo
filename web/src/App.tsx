@@ -2166,29 +2166,34 @@ export default function App() {
   // workflow tab — the breadcrumb is per-tab and would otherwise dangle.
   // We also restore the saved viewport for the incoming tab here.
   const prevActiveIndexRef = useRef(activeIndex);
+  const workflowsRef = useRef(workflows);
+  useEffect(() => { workflowsRef.current = workflows; }, [workflows]);
   useEffect(() => {
-    setSubgraphPath([]);
-    // Save the outgoing tab's viewport.
+    // Runs ONLY on a tab switch (activeIndex change). It must NOT depend on
+    // `workflows` — that changes on every node drag/edit, which would re-run this
+    // and snap the camera (setViewport/fitView) mid-interaction. Read the latest
+    // workflows via ref instead.
     const prev = prevActiveIndexRef.current;
-    if (prev !== activeIndex) {
-      const prevWorkflow = workflows[prev];
-      const prevId = prevWorkflow?.id;
-      if (prevId) {
-        const vp = canvasRef.current?.getViewport?.();
-        if (vp) {
-          viewportByWorkflowRef.current[prevId] = vp;
-          persistViewportStore();
-        }
+    if (prev === activeIndex) return;
+    setSubgraphPath([]);
+    const wfs = workflowsRef.current;
+    // Save the outgoing tab's viewport.
+    const prevId = wfs[prev]?.id;
+    if (prevId) {
+      const vp = canvasRef.current?.getViewport?.();
+      if (vp) {
+        viewportByWorkflowRef.current[prevId] = vp;
+        persistViewportStore();
       }
     }
     prevActiveIndexRef.current = activeIndex;
     // Restore the incoming tab's viewport, if any. Wait two RAFs so the
     // canvas has finished laying out the new workflow's nodes before we set
     // the viewport — otherwise fitView from elsewhere could clobber us.
-    const incomingId = workflows[activeIndex]?.id;
+    const incomingId = wfs[activeIndex]?.id;
     if (incomingId) {
       const saved = viewportByWorkflowRef.current[incomingId];
-      const incomingHasNodes = (workflows[activeIndex]?.nodes?.length ?? 0) > 0;
+      const incomingHasNodes = (wfs[activeIndex]?.nodes?.length ?? 0) > 0;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (saved) {
@@ -2202,7 +2207,7 @@ export default function App() {
         });
       });
     }
-  }, [activeIndex, persistViewportStore, workflows]);
+  }, [activeIndex, persistViewportStore]);
 
   const handleCancelRun = useCallback(async (run: RunRecord) => {
     const ok = await confirmDialog(consoleActionCopy.cancelRunDialog(run));
