@@ -25,6 +25,7 @@ import {
   ConnectionLineType,
   SelectionMode,
   applyNodeChanges,
+  applyEdgeChanges,
   getOutgoers,
   useReactFlow,
   useKeyPress,
@@ -32,6 +33,7 @@ import {
   type Edge as RFEdge,
   type NodeChange,
   type NodePositionChange,
+  type EdgeChange,
   type Connection,
   type OnSelectionChangeParams,
 } from '@xyflow/react';
@@ -70,6 +72,20 @@ const NODE_TYPES = { bio: BioNode, group: GroupNode };
 const GROUP_DEFAULT_COLOR = '#6366f1';
 const EDGE_TYPES = { bio: BioEdge };
 const IS_DEV = import.meta.env.DEV;
+
+// Stable prop references — React Flow re-processes when array/object/function
+// props change identity, so any that don't depend on state live at module scope
+// (React Flow performance guidance).
+const DELETE_KEYS = ['Backspace', 'Delete'];
+const MULTISELECT_KEYS = ['Shift', 'Meta', 'Control'];
+const PAN_ON_DRAG = [1, 2];
+const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.5 };
+const PRO_OPTIONS = { hideAttribution: true };
+const DEFAULT_EDGE_OPTIONS = { type: 'bio' };
+const MINIMAP_NODE_COLOR = (n: RFNode) => {
+  const d = n.data as { g?: { color?: string }; color?: string } | undefined;
+  return d?.g?.color ?? d?.color ?? '#64748b';
+};
 
 // React Flow's colorMode + the Background pattern, both driven off the app's
 // active palette (the .dark class / data-canvas-pattern attribute it writes on
@@ -131,7 +147,8 @@ interface WorkflowCanvasProps {
 // every field (unused-in-canvas ones default to false).
 function toGraphNode(
   wn: WorkflowNode,
-  edges: WorkflowEdge[],
+  connectedIn: Set<string>,
+  connectedOut: Set<string>,
   objectInfo: ObjectInfo,
   status: NodeStatus['status'] | undefined,
   t: (key: string, opts?: Record<string, unknown>) => string,
@@ -168,11 +185,11 @@ function toGraphNode(
       ...Object.entries(visibleInputs.required),
       ...Object.entries(visibleInputs.optional),
     ].filter(([, spec]) => !isInteractiveWidgetSpec(spec)).map(([name, spec]) => ({
-      name, type: spec.type || 'STRING', connected: edges.some(e => e.to.node === wn.id && e.to.input === name),
+      name, type: spec.type || 'STRING', connected: connectedIn.has(`${wn.id}:${name}`),
     })) : [],
     outputs: (meta && !visualOnly) ? resolveNodeOutputs(meta, wn.params || {}).map(output => ({
       name: output.name, type: output.type,
-      connected: edges.some(e => e.from.node === wn.id && e.from.output === output.name),
+      connected: connectedOut.has(`${wn.id}:${output.name}`),
     })) : [],
     params: wn.params || {},
     meta,
@@ -211,6 +228,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     : pattern === 'mesh' ? BackgroundVariant.Cross
     : BackgroundVariant.Dots;
   const showBackground = showGrid && pattern !== 'none';
+  const snapGridValue = useMemo<[number, number]>(() => [gridSize, gridSize], [gridSize]);
 
   // Latest props for callbacks that must read fresh values without re-binding.
   const nodesRef = useRef(nodes); nodesRef.current = nodes;
@@ -224,6 +242,18 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // Reactive selection (for the multi-select toolbar); the ref mirror stays for
   // callbacks that need the latest value without re-binding.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Precompute the connected input/output port keys once per edges change, so
+  // the node reconcile is O(nodes) instead of scanning all edges per node.
+  const connectedPorts = useMemo(() => {
+    const cin = new Set<string>();
+    const cout = new Set<string>();
+    for (const e of edges) {
+      cin.add(`${e.to.node}:${e.to.input}`);
+      cout.add(`${e.from.node}:${e.from.output}`);
+    }
+    return { cin, cout };
+  }, [edges]);
 
   // Reconcile React Flow node state from props. Skipped mid-drag so a status
   // tick or parent re-render never stomps the in-flight drag position (React
@@ -251,14 +281,16 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         if (wn.type === 'group') {
           const w = wn.ui?.width ?? 320;
           const h = wn.ui?.height ?? 200;
+          const title = wn.ui?.title ?? tRef.current('canvas.group.defaultName');
           return {
             id: wn.id, type: 'group', position, selected,
             width: w, height: h, style: { width: w, height: h },
-            data: { title: wn.ui?.title ?? tRef.current('canvas.group.defaultName'), color: wn.ui?.color ?? GROUP_DEFAULT_COLOR },
+            ariaLabel: title,
+            data: { title, color: wn.ui?.color ?? GROUP_DEFAULT_COLOR },
           } satisfies RFNode;
         }
 
-        const g = toGraphNode(wn, edges, objectInfo, nodeStatusMap?.get(wn.id), tRef.current);
+        const g = toGraphNode(wn, connectedPorts.cin, connectedPorts.cout, objectInfo, nodeStatusMap?.get(wn.id), tRef.current);
         g.selected = selected;
         // Fix the width; leave height to React Flow's DOM measurement unless the
         // node has an explicit (fixed/collapsed/reroute/resized) height (g.height > 0).
@@ -267,6 +299,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           : { width: g.width };
         const node: RFNode = {
           id: g.id, type: 'bio', position, selected, style,
+          ariaLabel: g.status ? `${g.title} (${g.status})` : g.title,
           data: {
             g,
             categoryLabel: nodeCategoryDisplayLabel(g.category, tRef.current, tRef.current('nodeLibrary.otherCategory')),
@@ -281,7 +314,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       built.sort((a, b) => (a.type === 'group' ? 0 : 1) - (b.type === 'group' ? 0 : 1));
       return built;
     });
-  }, [nodes, edges, objectInfo, nodeStatusMap, missingDependencyNodeIds]);
+  }, [nodes, connectedPorts, objectInfo, nodeStatusMap, missingDependencyNodeIds]);
 
   // Stable `${nodeId}:${outputName}` -> output type map for edge colour, keyed
   // on props (not node positions) so it does not churn during a drag.
@@ -311,40 +344,58 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     return map;
   }, [nodes, objectInfo]);
 
-  const rfEdges = useMemo<RFEdge[]>(() => edges.map(edge => {
-    const outType = outTypeByNodeOutput.get(`${edge.from.node}:${edge.from.output}`) || '';
-    const stroke = edgeColorForSource(outType);
-    return {
-      id: edge.id,
-      type: 'bio',
-      source: edge.from.node,
-      target: edge.to.node,
-      sourceHandle: edge.from.output,
-      targetHandle: edge.to.input,
-      style: { stroke, strokeWidth: 2 },
-      // Native arrowhead so data-flow direction is obvious, colour-matched.
-      markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 },
-    } satisfies RFEdge;
-  }), [edges, outTypeByNodeOutput]);
+  // Edges are local React Flow state (like nodes), reconciled from props but
+  // carrying their own `selected` flag — a controlled flow only surfaces edge
+  // select/remove via onEdgesChange, so a pure-derived array could never select
+  // (which would break the BioEdge delete button + elevateEdgesOnSelect).
+  const [rfEdges, setRfEdges] = useState<RFEdge[]>([]);
+  useEffect(() => {
+    setRfEdges(prev => {
+      const prevSel = new Map(prev.map(e => [e.id, e.selected]));
+      return edges.map(edge => {
+        const outType = outTypeByNodeOutput.get(`${edge.from.node}:${edge.from.output}`) || '';
+        const stroke = edgeColorForSource(outType);
+        return {
+          id: edge.id,
+          source: edge.from.node,
+          target: edge.to.node,
+          sourceHandle: edge.from.output,
+          targetHandle: edge.to.input,
+          selected: prevSel.get(edge.id) ?? false,
+          ariaLabel: `${edge.from.node} → ${edge.to.node}`,
+          style: { stroke, strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 },
+        } satisfies RFEdge;
+      });
+    });
+  }, [edges, outTypeByNodeOutput]);
+
+  const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
+    setRfEdges(prev => applyEdgeChanges(changes, prev));
+  }, []);
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     // Alignment helper lines: when a single node is being dragged (and grid-snap
     // is off), snap its position to the nearest other-node edge/center and show
-    // the guide line. Grid-snap and helper-lines are mutually exclusive.
-    setHelperLines({});
-    if (!snapToGrid) {
-      const posChanges = changes.filter(c => c.type === 'position' && c.dragging && c.position);
-      if (posChanges.length === 1) {
-        const change = posChanges[0] as NodePositionChange;
-        const lines = getHelperLines(change, rf.getNodes());
-        if (change.position) {
-          change.position.x = lines.snapPosition.x ?? change.position.x;
-          change.position.y = lines.snapPosition.y ?? change.position.y;
-        }
-        if (lines.horizontal !== undefined || lines.vertical !== undefined) {
-          setHelperLines({ horizontal: lines.horizontal, vertical: lines.vertical });
-        }
+    // the guide line. Grid-snap and helper-lines are mutually exclusive. Only
+    // touch helperLines state when a single node is actively dragging, so the
+    // guide layer doesn't churn on every pan/dimension/select change.
+    const dragChanges = changes.filter(c => c.type === 'position' && c.dragging && c.position);
+    if (!snapToGrid && dragChanges.length === 1) {
+      const change = dragChanges[0] as NodePositionChange;
+      const lines = getHelperLines(change, rf.getNodes());
+      if (change.position) {
+        change.position.x = lines.snapPosition.x ?? change.position.x;
+        change.position.y = lines.snapPosition.y ?? change.position.y;
       }
+      setHelperLines(prev => {
+        const h = lines.horizontal;
+        const v = lines.vertical;
+        if (prev.horizontal === h && prev.vertical === v) return prev;
+        return { horizontal: h, vertical: v };
+      });
+    } else {
+      setHelperLines(prev => (prev.horizontal === undefined && prev.vertical === undefined ? prev : {}));
     }
     setRfNodes(prev => applyNodeChanges(changes, prev));
   }, [snapToGrid, rf]);
@@ -678,6 +729,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
@@ -688,27 +740,27 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
         onError={onError}
+        defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         snapToGrid={snapToGrid}
-        snapGrid={[gridSize, gridSize]}
-        deleteKeyCode={['Backspace', 'Delete']}
-        multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
+        snapGrid={snapGridValue}
+        deleteKeyCode={DELETE_KEYS}
+        multiSelectionKeyCode={MULTISELECT_KEYS}
         connectionLineType={ConnectionLineType.Bezier}
         connectionRadius={28}
         elevateEdgesOnSelect
         elevateNodesOnSelect
-        onlyRenderVisibleElements
         selectionOnDrag
         selectionMode={SelectionMode.Partial}
-        panOnDrag={[1, 2]}
+        panOnDrag={PAN_ON_DRAG}
         panActivationKeyCode="Space"
         panOnScroll
         zoomOnDoubleClick={false}
         fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
+        fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={0.1}
         maxZoom={4}
         colorMode={colorMode}
-        proOptions={{ hideAttribution: true }}
+        proOptions={PRO_OPTIONS}
       >
         {showBackground && <Background variant={bgVariant} gap={bgVariant === BackgroundVariant.Dots ? gridSize : gridSize * 2} size={1} />}
         <Controls>
@@ -721,10 +773,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             className="bio-minimap"
             pannable
             zoomable
-            nodeColor={(n) => {
-              const d = n.data as { g?: { color?: string }; color?: string } | undefined;
-              return d?.g?.color ?? d?.color ?? '#64748b';
-            }}
+            nodeColor={MINIMAP_NODE_COLOR}
           />
         )}
         {/* Native multi-select toolbar: React Flow positions a <NodeToolbar>
@@ -735,7 +784,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           <button type="button" title={t('canvas.menu.run')} onClick={() => onExecuteSelected?.(selectedIds)}>▶</button>
           <button type="button" className="danger" title={t('canvas.menu.delete')} onClick={deleteSelected}>✕</button>
         </NodeToolbar>
-        <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />
+        {(helperLines.horizontal !== undefined || helperLines.vertical !== undefined) && (
+          <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />
+        )}
         {IS_DEV && <Devtools />}
         <Panel position="top-left" className="canvas-hint">{t('canvas.dragToConnect', 'Drag from a port to connect')}</Panel>
       </ReactFlow>

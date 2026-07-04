@@ -4,7 +4,7 @@
 // the canvas, and edits are written straight back to the node's params via the
 // BioNodeActions context. The node auto-sizes to fit these (React Flow measures
 // the DOM), so there's no height math here.
-import { memo, useContext } from 'react';
+import { memo, useContext, useEffect, useState } from 'react';
 import type { InputSpec, NodeMetadata } from '../../types';
 import { getInteractiveWidgetEntries, isColorParam, toHexColor } from '../../utils/nodeLayout';
 import { BioNodeActionsContext } from './bioNodeActions';
@@ -17,33 +17,41 @@ interface WidgetRowProps {
   onSet: (id: string, key: string, value: unknown, history?: boolean) => void;
 }
 
+// Continuous inputs (text/number/slider/colour) edit LOCAL state so a keystroke
+// or slider drag never rebuilds the whole workflow — the value is committed to
+// the node's params only on blur / pointer-up. Discrete inputs (checkbox/select)
+// commit immediately. This is React Flow's interactive-node pattern (local state
+// + commit) and keeps large graphs responsive.
 function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
   const label = spec.label || pKey;
-  const current = value ?? spec.default;
+  const external = value ?? spec.default;
+  const [local, setLocal] = useState<unknown>(external);
+  // Resync when the param changes from outside (undo/redo, collab, reset).
+  useEffect(() => { setLocal(external); }, [external]);
 
-  // Boolean -> toggle checkbox.
+  // Boolean -> toggle checkbox (commit immediately).
   if (spec.type === 'BOOLEAN') {
     return (
       <label className="bio-widget bio-widget-bool nodrag nopan" title={spec.tooltip || label}>
         <span className="bio-widget-label">{label}</span>
         <input
           type="checkbox"
-          checked={Boolean(current)}
-          onChange={(e) => onSet(nodeId, pKey, e.target.checked)}
+          checked={Boolean(external)}
+          onChange={(e) => onSet(nodeId, pKey, e.target.checked, true)}
         />
       </label>
     );
   }
 
-  // Enum / options -> select.
+  // Enum / options -> select (commit immediately).
   if (Array.isArray(spec.options) && spec.options.length > 0) {
     return (
       <label className="bio-widget nodrag nopan" title={spec.tooltip || label}>
         <span className="bio-widget-label">{label}</span>
         <select
           className="nodrag nopan"
-          value={String(current ?? '')}
-          onChange={(e) => onSet(nodeId, pKey, e.target.value)}
+          value={String(external ?? '')}
+          onChange={(e) => onSet(nodeId, pKey, e.target.value, true)}
         >
           {spec.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
         </select>
@@ -54,7 +62,8 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
   // Numeric -> slider (when display:'slider' with bounds) or number input.
   if (spec.type === 'INT' || spec.type === 'FLOAT') {
     const step = spec.step ?? (spec.type === 'INT' ? 1 : 0.1);
-    const num = typeof current === 'number' ? current : Number(current ?? 0);
+    const num = typeof local === 'number' ? local : Number(local ?? 0);
+    const shown = Number.isFinite(num) ? num : (spec.min ?? 0);
     const coerce = (v: string) => (spec.type === 'INT' ? Math.round(Number(v)) : Number(v));
     if (spec.display === 'slider' && typeof spec.min === 'number' && typeof spec.max === 'number') {
       return (
@@ -66,11 +75,11 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
             min={spec.min}
             max={spec.max}
             step={step}
-            value={Number.isFinite(num) ? num : spec.min}
-            onChange={(e) => onSet(nodeId, pKey, coerce(e.target.value), false)}
+            value={shown}
+            onChange={(e) => setLocal(coerce(e.target.value))}
             onPointerUp={(e) => onSet(nodeId, pKey, coerce((e.target as HTMLInputElement).value), true)}
           />
-          <output className="bio-widget-value">{Number.isFinite(num) ? num : spec.min}</output>
+          <output className="bio-widget-value">{shown}</output>
         </label>
       );
     }
@@ -84,39 +93,38 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
           max={spec.max}
           step={step}
           value={Number.isFinite(num) ? num : ''}
-          onChange={(e) => onSet(nodeId, pKey, coerce(e.target.value), false)}
+          onChange={(e) => setLocal(coerce(e.target.value))}
           onBlur={(e) => onSet(nodeId, pKey, coerce(e.target.value), true)}
         />
       </label>
     );
   }
 
-  // Colour string -> swatch picker + hex text.
+  // Colour string -> swatch picker (commit on blur).
   if (isColorParam(pKey, spec)) {
-    const hex = toHexColor(current);
     return (
       <label className="bio-widget bio-widget-color nodrag nopan" title={spec.tooltip || label}>
         <span className="bio-widget-label">{label}</span>
         <input
           type="color"
           className="nodrag nopan"
-          value={hex}
-          onChange={(e) => onSet(nodeId, pKey, e.target.value, false)}
+          value={toHexColor(local)}
+          onChange={(e) => setLocal(e.target.value)}
           onBlur={(e) => onSet(nodeId, pKey, e.target.value, true)}
         />
       </label>
     );
   }
 
-  // String -> text input.
+  // String -> text input (commit on blur).
   return (
     <label className="bio-widget nodrag nopan" title={spec.tooltip || label}>
       <span className="bio-widget-label">{label}</span>
       <input
         type="text"
         className="nodrag nopan"
-        value={String(current ?? '')}
-        onChange={(e) => onSet(nodeId, pKey, e.target.value, false)}
+        value={String(local ?? '')}
+        onChange={(e) => setLocal(e.target.value)}
         onBlur={(e) => onSet(nodeId, pKey, e.target.value, true)}
       />
     </label>
