@@ -122,7 +122,7 @@ export default function SettingsPanel({
   onLeaveCollabSession,
 }: SettingsPanelProps) {
   const { t, i18n } = useTranslation();
-  const { get, getBool, getNumber, set } = useSettings();
+  const { get, getBool, getNumber, getString, set } = useSettings();
   const { paletteId, palettes, setPalette, resetPalette } = usePaletteTheme();
   const [query, setQuery] = useState('');
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('appearance');
@@ -411,6 +411,57 @@ export default function SettingsPanel({
               <option value="gradient">{st('canvas.linkColorGradient')}</option>
               <option value="uniform">{st('canvas.linkColorUniform')}</option>
             </select>
+          </SettingRow>
+
+          {/* ---- Appearance: connections ---- */}
+          <SettingRow query={query} label={st('canvas.edgeType')} desc={st('canvas.edgeTypeDescription')} keywords="connection edge shape curve bezier smoothstep step straight equation forma conexion curva">
+            <select className="select-input" value={getString('bionodulo.canvas.edgeType', 'bezier')} onChange={e => set('bionodulo.canvas.edgeType', e.target.value)}>
+              <option value="bezier">{st('canvas.edgeBezier')}</option>
+              <option value="smoothstep">{st('canvas.edgeSmoothstep')}</option>
+              <option value="step">{st('canvas.edgeStep')}</option>
+              <option value="straight">{st('canvas.edgeStraight')}</option>
+            </select>
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.edgeArrows')} desc={st('canvas.edgeArrowsDescription')} keywords="arrow marker direction edge head flecha direccion">
+            <div className={`toggle ${getBool('bionodulo.canvas.edgeArrows', false) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.edgeArrows', !getBool('bionodulo.canvas.edgeArrows', false))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.edgeAnimated')} desc={st('canvas.edgeAnimatedDescription')} keywords="animated flowing dashes edge moving animado flujo">
+            <div className={`toggle ${getBool('bionodulo.canvas.edgeAnimated', false) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.edgeAnimated', !getBool('bionodulo.canvas.edgeAnimated', false))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.edgeWidth')} desc={st('canvas.edgeWidthDescription')} keywords="width thickness edge stroke grosor ancho">
+            <input type="range" min={1} max={8} step={1} value={getNumber('bionodulo.canvas.edgeWidth', 2)} onChange={e => set('bionodulo.canvas.edgeWidth', Math.min(8, Math.max(1, parseInt(e.target.value) || 2)))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.connectionRadius')} desc={st('canvas.connectionRadiusDescription')} keywords="connection snap radius grab port area radio conexion">
+            <input type="range" min={8} max={80} step={2} value={getNumber('bionodulo.canvas.connectionRadius', 28)} onChange={e => set('bionodulo.canvas.connectionRadius', Math.min(80, Math.max(8, parseInt(e.target.value) || 28)))} />
+          </SettingRow>
+
+          {/* ---- Appearance: nodes ---- */}
+          <SettingRow query={query} label={st('canvas.nodeShape')} desc={st('canvas.nodeShapeDescription')} keywords="node shape rounded box card corners forma nodo">
+            <select className="select-input" value={getString('bionodulo.canvas.nodeShape', 'round')} onChange={e => set('bionodulo.canvas.nodeShape', e.target.value)}>
+              <option value="round">{st('canvas.nodeShapeRound')}</option>
+              <option value="box">{st('canvas.nodeShapeBox')}</option>
+              <option value="card">{st('canvas.nodeShapeCard')}</option>
+            </select>
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.nodeRadius')} desc={st('canvas.nodeRadiusDescription')} keywords="corner radius rounded node esquina radio redondeo">
+            <input type="range" min={0} max={24} step={1} value={getNumber('bionodulo.canvas.nodeRadius', 8)} onChange={e => set('bionodulo.canvas.nodeRadius', Math.min(24, Math.max(0, parseInt(e.target.value) || 0)))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.nodeShadow')} desc={st('canvas.nodeShadowDescription')} keywords="node shadow depth flat sombra nodo">
+            <div className={`toggle ${getBool('bionodulo.canvas.nodeShadow', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.nodeShadow', !getBool('bionodulo.canvas.nodeShadow', true))} />
+          </SettingRow>
+
+          {/* ---- Appearance: canvas chrome ---- */}
+          <SettingRow query={query} label={st('canvas.backgroundPattern')} desc={st('canvas.backgroundPatternDescription')} keywords="background pattern dots lines cross grid mesh fondo patron puntos lineas">
+            <select className="select-input" value={getString('bionodulo.canvas.backgroundPattern', 'auto')} onChange={e => set('bionodulo.canvas.backgroundPattern', e.target.value)}>
+              <option value="auto">{st('canvas.backgroundAuto')}</option>
+              <option value="dots">{st('canvas.backgroundDots')}</option>
+              <option value="lines">{st('canvas.backgroundLines')}</option>
+              <option value="cross">{st('canvas.backgroundCross')}</option>
+              <option value="none">{st('canvas.backgroundNone')}</option>
+            </select>
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.showControls')} desc={st('canvas.showControlsDescription')} keywords="controls zoom buttons toolbar controles botones">
+            <div className={`toggle ${getBool('bionodulo.canvas.showControls', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.showControls', !getBool('bionodulo.canvas.showControls', true))} />
           </SettingRow>
         </SettingsGroup>
 

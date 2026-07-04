@@ -1171,6 +1171,8 @@ body.is-dragging-panel {
 }
 .bio-node.bio-node-shape-box { border-radius: 2px; }
 .bio-node.bio-node-shape-card { border-radius: 12px; }
+/* Node shadow toggle (canvas appearance setting). */
+.bio-no-node-shadow .bio-node { box-shadow: none; }
 .bio-node.muted { opacity: 0.55; }
 .bio-node.bypassed { border-style: dashed; opacity: 0.7; }
 

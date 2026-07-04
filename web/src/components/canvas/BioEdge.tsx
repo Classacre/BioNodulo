@@ -1,20 +1,28 @@
 // Custom edge built from native React Flow primitives (<BaseEdge> +
-// <EdgeLabelRenderer> + getBezierPath). Renders the same bezier link as the
-// default edge, plus a small ✕ delete button at its midpoint — shown only when
-// the edge is selected, so clicking a link gives you a one-tap delete.
+// <EdgeLabelRenderer>). Path shape follows the canvas "Connection shape" setting
+// (bezier / smoothstep / step / straight), read from the edge's data.pathType.
+// Adds a small ✕ delete button at the midpoint when the edge is selected.
 import { memo, useContext } from 'react';
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
+import {
+  BaseEdge, EdgeLabelRenderer,
+  getBezierPath, getSmoothStepPath, getStraightPath,
+  type EdgeProps,
+} from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
 import { BioEdgeActionsContext } from './bioEdgeActions';
 
 function BioEdgeComponent({
-  id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, selected,
+  id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, selected, data,
 }: EdgeProps) {
   const { t } = useTranslation();
   const actions = useContext(BioEdgeActionsContext);
-  const [path, labelX, labelY] = getBezierPath({
-    sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
-  });
+  const pathType = (data as { pathType?: string } | undefined)?.pathType ?? 'bezier';
+  const params = { sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition };
+  const [path, labelX, labelY] =
+    pathType === 'straight' ? getStraightPath({ sourceX, sourceY, targetX, targetY })
+    : pathType === 'step' ? getSmoothStepPath({ ...params, borderRadius: 0 })
+    : pathType === 'smoothstep' ? getSmoothStepPath(params)
+    : getBezierPath(params);
   return (
     <>
       <BaseEdge id={id} path={path} style={style} markerEnd={markerEnd} />

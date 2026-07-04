@@ -18,7 +18,6 @@ import {
   Controls,
   ControlButton,
   MiniMap,
-  Panel,
   NodeToolbar,
   Position,
   MarkerType,
@@ -181,6 +180,7 @@ function toGraphNode(
   connectedOut: Set<string>,
   objectInfo: ObjectInfo,
   status: NodeStatus['status'] | undefined,
+  defaultShape: string,
   t: (key: string, opts?: Record<string, unknown>) => string,
 ): GraphNode {
   const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
@@ -229,7 +229,7 @@ function toGraphNode(
     selected: false,
     collapsed,
     pinned: wn.ui?.pinned || false,
-    shape: wn.ui?.shape || (isNote ? 'card' : 'round'),
+    shape: wn.ui?.shape || (isNote ? 'card' : (defaultShape as GraphNode['shape'])),
     title: wn.ui?.title || meta?.display_name || wn.type || t('canvas.nodeFallbackTitle'),
     status,
     visualOnly,
@@ -261,17 +261,35 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const tRef = useRef(t); tRef.current = t;
   const rf = useReactFlow();
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
-  const { getBool, getNumber, set } = useSettings();
+  const { getBool, getNumber, getString, set } = useSettings();
   const showGrid = getBool('bionodulo.canvas.showGrid', true);
   const gridSize = Math.min(200, Math.max(4, getNumber('bionodulo.canvas.gridSize', 20)));
   const showDebugOverlay = getBool('bionodulo.canvas.debugOverlay', false);
   const showComments = getBool('bionodulo.canvas.showComments', true);
+  const showControls = getBool('bionodulo.canvas.showControls', true);
+  // Appearance settings (see SettingsPanel → Canvas appearance).
+  const edgeType = getString('bionodulo.canvas.edgeType', 'bezier');            // bezier|smoothstep|step|straight
+  const edgeAnimated = getBool('bionodulo.canvas.edgeAnimated', false);
+  const edgeWidth = Math.min(8, Math.max(1, getNumber('bionodulo.canvas.edgeWidth', 2)));
+  const edgeArrows = getBool('bionodulo.canvas.edgeArrows', false);
+  const defaultNodeShape = getString('bionodulo.canvas.nodeShape', 'round');     // round|box|card
+  const nodeRadius = Math.min(24, Math.max(0, getNumber('bionodulo.canvas.nodeRadius', 8)));
+  const nodeShadow = getBool('bionodulo.canvas.nodeShadow', true);
+  const connectionRadius = Math.min(80, Math.max(8, getNumber('bionodulo.canvas.connectionRadius', 28)));
+  const bgPatternSetting = getString('bionodulo.canvas.backgroundPattern', 'auto'); // auto|dots|lines|cross|none
   const { colorMode, pattern } = useCanvasChrome();
-  const bgVariant = pattern === 'grid' ? BackgroundVariant.Lines
-    : pattern === 'mesh' ? BackgroundVariant.Cross
+  const effectivePattern = bgPatternSetting === 'auto' ? pattern : bgPatternSetting;
+  const bgVariant = effectivePattern === 'lines' || effectivePattern === 'grid' ? BackgroundVariant.Lines
+    : effectivePattern === 'cross' || effectivePattern === 'mesh' ? BackgroundVariant.Cross
     : BackgroundVariant.Dots;
-  const showBackground = showGrid && pattern !== 'none';
+  const showBackground = showGrid && effectivePattern !== 'none';
+  const connectionLineType = edgeType === 'smoothstep' ? ConnectionLineType.SmoothStep
+    : edgeType === 'step' ? ConnectionLineType.Step
+    : edgeType === 'straight' ? ConnectionLineType.Straight
+    : ConnectionLineType.Bezier;
   const snapGridValue = useMemo<[number, number]>(() => [gridSize, gridSize], [gridSize]);
+  // Node appearance vars applied to the host so every node picks them up via CSS.
+  const hostStyle = useMemo(() => ({ ['--xy-node-border-radius-default' as string]: `${nodeRadius}px` }), [nodeRadius]);
 
   // Latest props for callbacks that must read fresh values without re-binding.
   const nodesRef = useRef(nodes); nodesRef.current = nodes;
@@ -333,7 +351,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           } satisfies RFNode;
         }
 
-        const g = toGraphNode(wn, connectedPorts.cin, connectedPorts.cout, objectInfo, nodeStatusMap?.get(wn.id), tRef.current);
+        const g = toGraphNode(wn, connectedPorts.cin, connectedPorts.cout, objectInfo, nodeStatusMap?.get(wn.id), defaultNodeShape, tRef.current);
         g.selected = selected;
         // Fix the width; leave height to React Flow's DOM measurement unless the
         // node has an explicit (fixed/collapsed/reroute/resized) height (g.height > 0).
@@ -360,7 +378,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       built.sort((a, b) => (a.type === 'group' ? 0 : 1) - (b.type === 'group' ? 0 : 1));
       return built;
     });
-  }, [nodes, connectedPorts, objectInfo, nodeStatusMap, missingDependencyNodeIds]);
+  }, [nodes, connectedPorts, objectInfo, nodeStatusMap, missingDependencyNodeIds, defaultNodeShape]);
 
   // Stable `${nodeId}:${outputName}` -> output type map for edge colour, keyed
   // on props (not node positions) so it does not churn during a drag.
@@ -408,13 +426,15 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           sourceHandle: edge.from.output,
           targetHandle: edge.to.input,
           selected: prevSel.get(edge.id) ?? false,
+          animated: edgeAnimated,
           ariaLabel: `${edge.from.node} → ${edge.to.node}`,
-          style: { stroke, strokeWidth: 2 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 },
+          style: { stroke, strokeWidth: edgeWidth },
+          data: { pathType: edgeType },
+          ...(edgeArrows ? { markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 } } : {}),
         } satisfies RFEdge;
       });
     });
-  }, [edges, outTypeByNodeOutput]);
+  }, [edges, outTypeByNodeOutput, edgeType, edgeAnimated, edgeWidth, edgeArrows]);
 
   const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
     setRfEdges(prev => applyEdgeChanges(changes, prev));
@@ -806,7 +826,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     <BioEdgeActionsContext.Provider value={edgeActions}>
     <MultiSelectContext.Provider value={selectedIds.length > 1}>
       <div
-        className="workflow-canvas-host"
+        className={`workflow-canvas-host ${nodeShadow ? '' : 'bio-no-node-shadow'}`}
+        style={hostStyle}
         onMouseMove={collabSessionActive ? onPaneMouseMove : undefined}
         onMouseLeave={collabSessionActive ? onPaneMouseLeave : undefined}
       >
@@ -831,8 +852,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         snapGrid={snapGridValue}
         deleteKeyCode={DELETE_KEYS}
         multiSelectionKeyCode={MULTISELECT_KEYS}
-        connectionLineType={ConnectionLineType.Bezier}
-        connectionRadius={28}
+        connectionLineType={connectionLineType}
+        connectionRadius={connectionRadius}
         elevateEdgesOnSelect
         elevateNodesOnSelect
         selectionOnDrag
@@ -849,11 +870,13 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         proOptions={PRO_OPTIONS}
       >
         {showBackground && <Background variant={bgVariant} gap={bgVariant === BackgroundVariant.Dots ? gridSize : gridSize * 2} size={1} />}
-        <Controls>
-          <ControlButton onClick={autoLayout} title={t('canvas.autoArrangeNodes')} aria-label={t('canvas.autoArrangeNodes')}>
-            <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>⤨</span>
-          </ControlButton>
-        </Controls>
+        {showControls && (
+          <Controls>
+            <ControlButton onClick={autoLayout} title={t('canvas.autoArrangeNodes')} aria-label={t('canvas.autoArrangeNodes')}>
+              <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>⤨</span>
+            </ControlButton>
+          </Controls>
+        )}
         {showMinimap && (
           <MiniMap
             className="bio-minimap"
@@ -893,7 +916,6 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           />
         )}
         {showDebugOverlay && <Devtools />}
-        <Panel position="top-left" className="canvas-hint">{t('canvas.dragToConnect', 'Drag from a port to connect')}</Panel>
       </ReactFlow>
       </div>
     </MultiSelectContext.Provider>
