@@ -87,6 +87,20 @@ const MINIMAP_NODE_COLOR = (n: RFNode) => {
   return d?.g?.color ?? d?.color ?? '#64748b';
 };
 
+// Fire an action once on the RISING edge of a React Flow useKeyPress combo (i.e.
+// on the initial press, not repeatedly while the key is held). Keeps the latest
+// action in a ref so the effect only re-runs when the key state flips.
+function useKeyPressAction(keyCode: string[], action: () => void) {
+  const pressed = useKeyPress(keyCode, { preventDefault: true });
+  const actionRef = useRef(action);
+  actionRef.current = action;
+  const wasPressed = useRef(false);
+  useEffect(() => {
+    if (pressed && !wasPressed.current) actionRef.current();
+    wasPressed.current = pressed;
+  }, [pressed]);
+}
+
 // React Flow's colorMode + the Background pattern, both driven off the app's
 // active palette (the .dark class / data-canvas-pattern attribute it writes on
 // <html>). Reactive via a MutationObserver so switching palette re-themes the
@@ -689,30 +703,23 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     onPushHistory();
   }, [onNodesChange, onEdgesChange, onPushHistory]);
 
-  // Native keyboard shortcuts (React Flow's useKeyPress). Cmd/Ctrl+G groups the
-  // selection; Cmd/Ctrl+Shift+G ungroups the selected group(s). Rising-edge
-  // guards so holding the combo fires the action only once.
-  const groupKey = useKeyPress(['Meta+g', 'Control+g'], { preventDefault: true });
-  const ungroupKey = useKeyPress(['Meta+Shift+g', 'Control+Shift+g'], { preventDefault: true });
-  const groupKeyRef = useRef(false);
-  const ungroupKeyRef = useRef(false);
-  useEffect(() => {
-    if (groupKey && !groupKeyRef.current) createGroupFromSelection();
-    groupKeyRef.current = groupKey;
-  }, [groupKey, createGroupFromSelection]);
-  useEffect(() => {
-    if (ungroupKey && !ungroupKeyRef.current) {
-      const groups = nodesRef.current.filter(n => n.type === 'group' && selectedIdsRef.current.has(n.id));
-      if (groups.length) {
-        const groupIds = new Set(groups.map(g => g.id));
-        onNodesChange(nodesRef.current
-          .filter(n => !groupIds.has(n.id))
-          .map(n => n.parentId && groupIds.has(n.parentId) ? { ...n, parentId: undefined } : n));
-        onPushHistory();
-      }
-    }
-    ungroupKeyRef.current = ungroupKey;
-  }, [ungroupKey, onNodesChange, onPushHistory]);
+  // Dissolve every selected group, keeping its children (clears their parentId).
+  const ungroupSelection = useCallback(() => {
+    const groupIds = new Set(
+      nodesRef.current.filter(n => n.type === 'group' && selectedIdsRef.current.has(n.id)).map(n => n.id),
+    );
+    if (!groupIds.size) return;
+    onNodesChange(nodesRef.current
+      .filter(n => !groupIds.has(n.id))
+      .map(n => n.parentId && groupIds.has(n.parentId) ? { ...n, parentId: undefined } : n));
+    onPushHistory();
+  }, [onNodesChange, onPushHistory]);
+
+  // Native keyboard shortcuts via React Flow's useKeyPress; the rising-edge fire
+  // (once per press, not held) is handled by useKeyPressAction below.
+  // Cmd/Ctrl+G groups the selection; Cmd/Ctrl+Shift+G ungroups selected groups.
+  useKeyPressAction(['Meta+g', 'Control+g'], createGroupFromSelection);
+  useKeyPressAction(['Meta+Shift+g', 'Control+Shift+g'], ungroupSelection);
 
   useImperativeHandle(ref, () => ({
     fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, createGroupFromSelection, autoLayout,

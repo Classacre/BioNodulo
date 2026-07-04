@@ -3,12 +3,11 @@
 // Full-rewrite clean core: a header (colour swatch, title, run-status dot) plus
 // one row per input/output port, each carrying a native <Handle> whose id IS the
 // port name — so edges map 1:1 to WorkflowEdge.from.output / to.input. The on-
-// node action menu is React Flow's native <NodeToolbar>; it appears on hover and
-// while the node is selected. No custom overlays, widgets, previews, comments or
-// collab cursors — those were all removed in the rewrite.
-import { memo, useState } from 'react';
+// node action menu is React Flow's native <NodeToolbar>, shown while the node is
+// selected. Interactive params render as on-node widgets (NodeWidgets). No custom
+// overlays, previews, comments or collab cursors — those were removed in the rewrite.
+import { memo, useContext } from 'react';
 import { Handle, Position, NodeToolbar, NodeResizer, type NodeProps } from '@xyflow/react';
-import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NODE_HEADER_H, NODE_PIN_H } from '../../utils/nodeLayout';
 import type { GraphNode } from './canvasModel';
@@ -35,7 +34,6 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
   const { t } = useTranslation();
   const actions = useContext(BioNodeActionsContext);
   const multiSelected = useContext(MultiSelectContext);
-  const [hovered, setHovered] = useState(false);
   const { g, categoryLabel, missingDependency, running } = data as BioNodeData;
 
   // Reroute: a bare pass-through dot with a single in/out handle.
@@ -53,10 +51,10 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
   }
 
   const statusTint = g.status ? STATUS_TINT[g.status] : undefined;
-  // Show on select OR hover (so moving the mouse onto the portalled toolbar to
-  // click a button keeps it up), but never during a multi-select — that stacks N
-  // toolbars, so the canvas-level multi-select toolbar handles that case.
-  const showToolbar = (selected || hovered) && !multiSelected && g.type !== 'reroute';
+  // React Flow's <NodeToolbar> shows on selection by default — no hover state
+  // (which would re-render the node on every mouse move). Suppressed during a
+  // multi-select, where the canvas-level shared toolbar takes over.
+  const showToolbar = selected && !multiSelected && g.type !== 'reroute';
 
   return (
     <div
@@ -74,8 +72,6 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
       data-node-id={g.id}
       data-status={g.status ?? ''}
       data-category={categoryLabel}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       {/* Native drag-to-resize handles — only for real (non-note) nodes and only
           while selected. Commit the final size back to the workflow on end. */}
