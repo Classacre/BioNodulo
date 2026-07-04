@@ -46,6 +46,7 @@ import {
 } from './canvasModel';
 import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
+import { getResolvedPaletteMode } from '../../state/palettes';
 import { selectedNodeIdAtom } from '../../state/uiAtoms';
 import BioNode, { type BioNodeData } from './BioNode';
 import BioEdge from './BioEdge';
@@ -60,6 +61,27 @@ export type { GraphNode, WorkflowCanvasRef };
 const NODE_TYPES = { bio: BioNode };
 const EDGE_TYPES = { bio: BioEdge };
 const IS_DEV = import.meta.env.DEV;
+
+// React Flow's colorMode + the Background pattern, both driven off the app's
+// active palette (the .dark class / data-canvas-pattern attribute it writes on
+// <html>). Reactive via a MutationObserver so switching palette re-themes the
+// canvas natively — no custom light/dark canvas CSS needed.
+function useCanvasChrome(): { colorMode: 'light' | 'dark'; pattern: string } {
+  const read = (): { colorMode: 'light' | 'dark'; pattern: string } => ({
+    colorMode: getResolvedPaletteMode(),
+    pattern: (typeof document !== 'undefined' ? document.documentElement.dataset.canvasPattern : '') || 'dots',
+  });
+  const [chrome, setChrome] = useState(read);
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => setChrome(read());
+    const obs = new MutationObserver(update);
+    obs.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme', 'data-canvas-pattern'] });
+    update();
+    return () => obs.disconnect();
+  }, []);
+  return chrome;
+}
 
 // Loose type-compatibility for connection validation. Anything goes if either
 // side is unknown or generic (ANY/*). Otherwise the source output type must be
@@ -175,6 +197,11 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const { getBool, getNumber } = useSettings();
   const showGrid = getBool('bionodulo.canvas.showGrid', true);
   const gridSize = Math.min(200, Math.max(4, getNumber('bionodulo.canvas.gridSize', 20)));
+  const { colorMode, pattern } = useCanvasChrome();
+  const bgVariant = pattern === 'grid' ? BackgroundVariant.Lines
+    : pattern === 'mesh' ? BackgroundVariant.Cross
+    : BackgroundVariant.Dots;
+  const showBackground = showGrid && pattern !== 'none';
 
   // Latest props for callbacks that must read fresh values without re-binding.
   const nodesRef = useRef(nodes); nodesRef.current = nodes;
@@ -501,10 +528,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         fitView
         minZoom={0.1}
         maxZoom={4}
-        colorMode="system"
+        colorMode={colorMode}
         proOptions={{ hideAttribution: true }}
       >
-        {showGrid && <Background variant={BackgroundVariant.Dots} gap={gridSize} size={1} />}
+        {showBackground && <Background variant={bgVariant} gap={bgVariant === BackgroundVariant.Dots ? gridSize : gridSize * 2} size={1} />}
         <Controls>
           <ControlButton onClick={autoLayout} title={t('canvas.autoArrangeNodes')} aria-label={t('canvas.autoArrangeNodes')}>
             <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>⤨</span>
@@ -515,8 +542,6 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             className="bio-minimap"
             pannable
             zoomable
-            nodeStrokeWidth={2}
-            maskColor="color-mix(in srgb, var(--canvas) 60%, transparent)"
             nodeColor={(n) => (n.data as BioNodeData | undefined)?.g?.color ?? '#64748b'}
           />
         )}

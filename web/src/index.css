@@ -1107,64 +1107,65 @@ body.is-dragging-panel {
 }
 .workflow-canvas-host canvas { display: block; position: relative; z-index: 1; }
 
-/* Group boxes (ViewportPortal): a translucent tinted rectangle behind the nodes
-   with a header label. `--bio-group-color` is the group's color. pointer-events
-   auto so the box is clickable for select/context-menu; it sits below nodes in
-   the portal so nodes stay interactive on top. */
-.bio-group {
-  box-sizing: border-box;
-  border: 1.5px solid var(--bio-group-color, #64748b);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bio-group-color, #64748b) 10%, transparent);
-  pointer-events: auto;
-  cursor: pointer;
-}
-.bio-group.selected {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bio-group-color, #64748b) 70%, transparent);
-}
-.bio-group-label {
-  position: absolute;
-  top: -18px; left: 2px;
-  font-size: 12px; font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
+/* React Flow theming (recommended approach): map React Flow's native --xy-*
+   variables onto the app's palette tokens, which already flip with the .dark
+   class. Every piece of canvas chrome — nodes, handles, edges, the connection
+   line, the selection box, Controls, MiniMap and Background — then follows the
+   active theme with no bespoke per-element CSS. */
+.workflow-canvas-host .react-flow {
+  --xy-background-color-default: var(--canvas);
+  --xy-background-pattern-dots-color-default: color-mix(in srgb, var(--muted) 45%, transparent);
+  --xy-background-pattern-lines-color-default: color-mix(in srgb, var(--muted) 30%, transparent);
+  --xy-background-pattern-cross-color-default: color-mix(in srgb, var(--muted) 40%, transparent);
+
+  --xy-node-background-color-default: var(--surface);
+  --xy-node-color-default: var(--text);
+  --xy-node-border-default: 1px solid var(--border);
+  --xy-node-border-radius-default: 8px;
+
+  --xy-handle-background-color-default: var(--surface);
+  --xy-handle-border-color-default: var(--muted);
+
+  --xy-edge-stroke-default: var(--muted);
+  --xy-edge-stroke-selected-default: var(--accent);
+  --xy-connectionline-stroke-default: var(--accent);
+
+  --xy-selection-background-color-default: color-mix(in srgb, var(--accent) 10%, transparent);
+  --xy-selection-border-default: 1px dotted var(--accent);
+
+  --xy-controls-button-background-color-default: var(--surface);
+  --xy-controls-button-background-color-hover-default: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  --xy-controls-button-color-default: var(--text);
+  --xy-controls-button-color-hover-default: var(--accent);
+  --xy-controls-button-border-color-default: var(--border);
+
+  --xy-minimap-background-color-default: var(--surface);
+  --xy-minimap-mask-background-color-default: color-mix(in srgb, var(--canvas) 60%, transparent);
+  --xy-minimap-node-background-color-default: var(--muted);
+
+  --xy-edge-label-background-color-default: var(--surface);
+  --xy-edge-label-color-default: var(--text);
+  --xy-resize-background-color-default: var(--accent);
 }
 
-/* React Flow migration: the node graph is now DOM/SVG rendered by @xyflow/react
-   inside .workflow-canvas-host. Keep the pane transparent so the palette
-   background patterns show through, and style the custom BioNode. */
-.workflow-canvas-host .react-flow { background: transparent; }
-.workflow-canvas-host .react-flow__attribution { display: none; }
-.workflow-canvas-host .react-flow__edge-path { stroke-width: 2; }
-.workflow-canvas-host .react-flow__handle {
-  width: 9px; height: 9px;
-  background: var(--surface-2);
-  border: 1.5px solid var(--muted);
-}
+/* Handles are themed by --xy-handle-* above; only the connected / connecting
+   states carry an accent highlight (pairs with isValidConnection). */
 .workflow-canvas-host .react-flow__handle.connected { background: var(--accent); border-color: var(--accent); }
-/* While dragging a connection, React Flow marks connectable target handles with
-   .connectionindicator and the origin with .connectingfrom — make valid targets
-   pop (pairs with isValidConnection, which greys out the rejected ones). */
 .workflow-canvas-host .react-flow__handle.connectionindicator {
-  background: var(--accent);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
-.workflow-canvas-host .react-flow__handle.connectingfrom {
-  background: var(--accent); border-color: var(--accent);
-}
+.workflow-canvas-host .react-flow__handle.connectingfrom { background: var(--accent); border-color: var(--accent); }
 
 .bio-node {
   box-sizing: border-box;
   width: 100%; height: 100%;
-  border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  border-radius: var(--xy-node-border-radius-default);
+  background: var(--xy-node-background-color-default);
+  border: var(--xy-node-border-default);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-  color: var(--text);
-  /* overflow VISIBLE so the port handles, which straddle the node's left/right
-     border, are not clipped — otherwise the connection points are invisible. The
-     header clips its own colored background via its own border-radius. */
+  color: var(--xy-node-color-default);
+  /* overflow VISIBLE so edge-straddling port handles are not clipped. */
   overflow: visible;
   font-size: 12px;
 }
@@ -1254,9 +1255,9 @@ body.is-dragging-panel {
 }
 .bio-edge-delete:hover { background: color-mix(in srgb, #ef4444 18%, var(--surface)); }
 
-/* Native <MiniMap> themed to the app surface. */
+/* Native <MiniMap> — background themed via --xy-minimap-*; only the frame is
+   custom (React Flow has no variable for the minimap border/radius). */
 .workflow-canvas-host .react-flow__minimap.bio-minimap {
-  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
@@ -1290,143 +1291,6 @@ body.is-dragging-panel {
   font-size: 11px;
   pointer-events: none;
   user-select: none;
-}
-
-/* Palette-specific decorative backgrounds. The patterns sit behind the
-   canvas's own paint so the lines from the grid renderer still appear on
-   top. Each pattern uses currentColor-relative opacity so it adapts to
-   light/dark modes automatically. */
-html[data-canvas-pattern="dots"] .workflow-canvas-host::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--muted) 18%, transparent) 1px, transparent 1px);
-  background-size: 32px 32px;
-  z-index: 0;
-}
-html[data-canvas-pattern="grid"] .workflow-canvas-host::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--muted) 10%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--muted) 10%, transparent) 1px, transparent 1px);
-  background-size: 80px 80px;
-  z-index: 0;
-}
-html[data-canvas-pattern="mesh"] .workflow-canvas-host::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 8%, transparent) 0 1px, transparent 1px 24px),
-    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--muted) 8%, transparent) 0 1px, transparent 1px 24px);
-  z-index: 0;
-}
-
-.node-dom-widget {
-  display: grid;
-  grid-template-columns: minmax(42px, 0.55fr) minmax(64px, 1fr);
-  align-items: center;
-  gap: 6px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-  color: var(--text);
-  font-size: 10px;
-  pointer-events: auto;
-}
-.node-dom-widget-layer {
-  contain: layout paint;
-}
-.node-dom-widget span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-}
-.node-dom-widget input,
-.node-dom-widget select {
-  min-width: 0;
-  width: 100%;
-  height: 18px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface-2);
-  color: var(--text);
-  font: inherit;
-  padding: 1px 4px;
-}
-.node-dom-widget-boolean {
-  grid-template-columns: 1fr auto;
-}
-.node-dom-widget-boolean input {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--accent);
-}
-.node-dom-widget-slider {
-  grid-template-columns: minmax(42px, 0.5fr) minmax(64px, 1fr) auto;
-}
-.node-dom-widget-slider output {
-  color: var(--text-2);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  min-width: 28px;
-  text-align: right;
-}
-.node-dom-color-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-.node-dom-color-controls input[type="color"] {
-  width: 22px;
-  flex: 0 0 22px;
-  height: 18px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface-2);
-  cursor: pointer;
-}
-.node-dom-color-controls input[type="text"] {
-  flex: 1 1 auto;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-/* Inline-preview toggle bar on terminal-visual tool nodes */
-.node-inline-preview-toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 6px;
-  box-sizing: border-box;
-  cursor: pointer;
-  pointer-events: auto;
-  user-select: none;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  color: var(--muted);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.node-inline-preview-toggle:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
-}
-.node-inline-preview-hint {
-  margin-left: auto;
-  font-weight: 400;
-  opacity: 0.7;
 }
 
 /* Color param in the node editor / inspector panel */
@@ -1500,42 +1364,10 @@ html[data-canvas-pattern="mesh"] .workflow-canvas-host::before {
 }
 
 /* Minimap */
-.minimap {
-  position: absolute; bottom: 52px;
-  right: calc(8px + var(--right-panel-inset, 0px));
-  width: 220px; height: 176px; border-radius: 8px;
-  background: var(--minimap-bg, rgba(0,0,0,0.7));
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  z-index: 25;
-  overflow: hidden;
-  transition: right 0.2s ease, bottom 0.2s ease;
-}
-.minimap-viewport {
-  position: absolute;
-  border: 2px solid var(--minimap-viewport-border, rgba(255,255,255,0.8));
-  background: rgba(255,255,255,0.12);
-  pointer-events: none;
-  border-radius: 2px;
-}
-.minimap-overlay {
-  position: absolute;
-  inset: 0;
-  cursor: grab;
-  touch-action: none;
-}
-.minimap-overlay:active {
-  cursor: grabbing;
-}
-
-/* Canvas Controls */
-.canvas-controls {
-  position: fixed; bottom: 8px;
-  right: calc(8px + var(--right-panel-inset, 0px));
-  display: flex; align-items: center; gap: 4px;
-  padding: 4px 8px; border-radius: 8px;
-  background: var(--surface); border: 1px solid var(--border);
-  box-shadow: var(--shadow); z-index: 100;
+/* Native React Flow <MiniMap> / <Controls> position themselves (bottom-right /
+   bottom-left). Only nudge the MiniMap left when a right-docked panel is open. */
+.workflow-canvas-host .react-flow__minimap {
+  right: calc(15px + var(--right-panel-inset, 0px));
   transition: right 0.2s ease, bottom 0.2s ease;
 }
 
@@ -2618,18 +2450,18 @@ kbd {
 }
 
 /* Shift floating canvas chrome away from side and bottom drawers. */
-.app-shell.ai-open .canvas-controls,
-.app-shell.ai-open .minimap {
+/* Keep the native MiniMap / Controls clear of the AI / comments drawers (right)
+   and the console drawer (bottom). */
+.app-shell.ai-open .react-flow__minimap {
   right: 388px;
 }
-.app-shell.comments-open:not(.ai-open) .canvas-controls,
-.app-shell.comments-open:not(.ai-open) .minimap {
+.app-shell.comments-open:not(.ai-open) .react-flow__minimap {
   right: 328px;
 }
-.app-shell.console-open .canvas-controls {
+.app-shell.console-open .react-flow__controls {
   bottom: 208px;
 }
-.app-shell.console-open .minimap {
+.app-shell.console-open .react-flow__minimap {
   bottom: 252px;
 }
 .ai-drawer-header {
