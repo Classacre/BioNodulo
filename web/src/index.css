@@ -1238,6 +1238,48 @@ body.is-dragging-panel {
 .bio-node-toolbar button:hover { background: var(--surface-2); }
 .bio-node-toolbar button.danger:hover { background: color-mix(in srgb, #ef4444 22%, transparent); color: #ef4444; }
 
+/* Delete button on a selected edge (native <EdgeLabelRenderer>). */
+.bio-edge-delete {
+  position: absolute;
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: #ef4444;
+  font-size: 10px; line-height: 1; cursor: pointer;
+  pointer-events: all;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.bio-edge-delete:hover { background: color-mix(in srgb, #ef4444 18%, var(--surface)); }
+
+/* Native <MiniMap> themed to the app surface. */
+.workflow-canvas-host .react-flow__minimap.bio-minimap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* Dev-only devtools overlay (import.meta.env.DEV). */
+.bio-devtools-node {
+  font-size: 9px; line-height: 1.2;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: ui-monospace, monospace;
+}
+.bio-devtools-viewport {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  pointer-events: none;
+}
+
 /* Hint chip rendered via a native <Panel>. */
 .canvas-hint {
   padding: 4px 10px;

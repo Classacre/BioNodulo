@@ -27,6 +27,7 @@ import {
   type Node as RFNode,
   type Edge as RFEdge,
   type NodeChange,
+  type NodePositionChange,
   type Connection,
   type OnSelectionChangeParams,
 } from '@xyflow/react';
@@ -47,11 +48,18 @@ import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
 import { selectedNodeIdAtom } from '../../state/uiAtoms';
 import BioNode, { type BioNodeData } from './BioNode';
+import BioEdge from './BioEdge';
+import Devtools from './Devtools';
+import HelperLines from './HelperLines';
+import { getHelperLines } from './helperLines';
 import { BioNodeActionsContext, type BioNodeActions } from './bioNodeActions';
+import { BioEdgeActionsContext, type BioEdgeActions } from './bioEdgeActions';
 
 export type { GraphNode, WorkflowCanvasRef };
 
 const NODE_TYPES = { bio: BioNode };
+const EDGE_TYPES = { bio: BioEdge };
+const IS_DEV = import.meta.env.DEV;
 
 // Loose type-compatibility for connection validation. Anything goes if either
 // side is unknown or generic (ANY/*). Otherwise the source output type must be
@@ -176,6 +184,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const selectedIdsRef = useRef<Set<string>>(new Set());
 
   const [rfNodes, setRfNodes] = useState<RFNode<BioNodeData>[]>([]);
+  const [helperLines, setHelperLines] = useState<{ horizontal?: number; vertical?: number }>({});
 
   // Reconcile React Flow node state from props. Skipped mid-drag so a status
   // tick or parent re-render never stomps the in-flight drag position (React
@@ -240,6 +249,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     const stroke = edgeColorForSource(outType);
     return {
       id: edge.id,
+      type: 'bio',
       source: edge.from.node,
       target: edge.to.node,
       sourceHandle: edge.from.output,
@@ -251,13 +261,32 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   }), [edges, outTypeByNodeOutput]);
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    // Alignment helper lines: when a single node is being dragged (and grid-snap
+    // is off), snap its position to the nearest other-node edge/center and show
+    // the guide line. Grid-snap and helper-lines are mutually exclusive.
+    setHelperLines({});
+    if (!snapToGrid) {
+      const posChanges = changes.filter(c => c.type === 'position' && c.dragging && c.position);
+      if (posChanges.length === 1) {
+        const change = posChanges[0] as NodePositionChange;
+        const lines = getHelperLines(change, rf.getNodes());
+        if (change.position) {
+          change.position.x = lines.snapPosition.x ?? change.position.x;
+          change.position.y = lines.snapPosition.y ?? change.position.y;
+        }
+        if (lines.horizontal !== undefined || lines.vertical !== undefined) {
+          setHelperLines({ horizontal: lines.horizontal, vertical: lines.vertical });
+        }
+      }
+    }
     setRfNodes(prev => applyNodeChanges(changes, prev) as RFNode<BioNodeData>[]);
-  }, []);
+  }, [snapToGrid, rf]);
 
   const onNodeDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
 
   const onNodeDragStop = useCallback(() => {
     isDraggingRef.current = false;
+    setHelperLines({});
     // Commit live React Flow positions (honouring snap) as a single history step.
     const rfPos = new Map(rf.getNodes().map(n => [n.id, n.position]));
     const updated = nodesRef.current.map(wn => {
@@ -397,6 +426,13 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     },
   }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory]);
 
+  const edgeActions = useMemo<BioEdgeActions>(() => ({
+    removeEdge: (id) => {
+      onEdgesChange(edgesRef.current.filter(e => e.id !== id));
+      onPushHistory();
+    },
+  }), [onEdgesChange, onPushHistory]);
+
   // ---- Imperative ref API used across App ----
   const fitView = useCallback(() => { rf.fitView({ padding: 0.2, duration: 220 }); }, [rf]);
   const focusNode = useCallback((nodeId: string) => {
@@ -433,11 +469,13 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
 
   return (
     <BioNodeActionsContext.Provider value={actions}>
+    <BioEdgeActionsContext.Provider value={edgeActions}>
       <div className="workflow-canvas-host">
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
         onNodesChange={handleNodesChange}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
@@ -474,14 +512,20 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         </Controls>
         {showMinimap && (
           <MiniMap
+            className="bio-minimap"
             pannable
             zoomable
+            nodeStrokeWidth={2}
+            maskColor="color-mix(in srgb, var(--canvas) 60%, transparent)"
             nodeColor={(n) => (n.data as BioNodeData | undefined)?.g?.color ?? '#64748b'}
           />
         )}
+        <HelperLines horizontal={helperLines.horizontal} vertical={helperLines.vertical} />
+        {IS_DEV && <Devtools />}
         <Panel position="top-left" className="canvas-hint">{t('canvas.dragToConnect', 'Drag from a port to connect')}</Panel>
       </ReactFlow>
       </div>
+    </BioEdgeActionsContext.Provider>
     </BioNodeActionsContext.Provider>
   );
 });
