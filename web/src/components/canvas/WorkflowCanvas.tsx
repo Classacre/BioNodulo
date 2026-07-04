@@ -650,6 +650,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         : n));
       if (history) onPushHistory();
     },
+    setColor: (id, color) => {
+      onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, color } } : n));
+      onPushHistory();
+    },
     ungroup: (groupId) => {
       onNodesChange(nodesRef.current
         .filter(n => n.id !== groupId)

@@ -2014,6 +2014,7 @@ class MyToolNode(CommandNode):
       duplicate: 'Duplicate',
       collapse: 'Collapse / expand',
       comment: 'Comment',
+      color: 'Change colour',
       delete: 'Delete',
     },
     comments: {

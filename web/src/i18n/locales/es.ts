@@ -2024,6 +2024,7 @@ class MyToolNode(CommandNode):
       duplicate: 'Duplicar',
       collapse: 'Contraer / expandir',
       comment: 'Comentar',
+      color: 'Cambiar color',
       delete: 'Eliminar',
     },
     comments: {

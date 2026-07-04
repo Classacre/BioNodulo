@@ -9,7 +9,7 @@
 import { memo, useContext } from 'react';
 import { Handle, Position, NodeToolbar, NodeResizer, type NodeProps } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
-import { NODE_HEADER_H, NODE_PIN_H } from '../../utils/nodeLayout';
+import { NODE_HEADER_H, NODE_PIN_H, toHexColor } from '../../utils/nodeLayout';
 import type { GraphNode } from './canvasModel';
 import { BioNodeActionsContext, MultiSelectContext } from './bioNodeActions';
 import NodeWidgets from './NodeWidgets';
@@ -20,15 +20,6 @@ export interface BioNodeData extends Record<string, unknown> {
   missingDependency: boolean;
   running: boolean;
 }
-
-const STATUS_TINT: Record<string, string> = {
-  running: '#3b82f6',
-  completed: '#22c55e',
-  cached: '#a855f7',
-  error: '#ef4444',
-  skipped: '#64748b',
-  pending: '#f59e0b',
-};
 
 function BioNodeComponent({ id, data, selected }: NodeProps) {
   const { t } = useTranslation();
@@ -50,7 +41,6 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
     );
   }
 
-  const statusTint = g.status ? STATUS_TINT[g.status] : undefined;
   // React Flow's <NodeToolbar> shows on selection by default — no hover state
   // (which would re-render the node on every mouse move). Suppressed during a
   // multi-select, where the canvas-level shared toolbar takes over.
@@ -94,14 +84,21 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
         {actions?.comment && (
           <button type="button" title={t('canvas.menu.comment')} aria-label={t('canvas.menu.comment')} onClick={() => actions.comment?.(id)}><span aria-hidden>💬</span></button>
         )}
+        {/* Node colour: the swatch IS a native colour input (opens the OS picker). */}
+        <label className="bio-node-color-swatch nodrag nopan" title={t('canvas.menu.color')} style={{ background: g.color }}>
+          <input
+            type="color"
+            aria-label={t('canvas.menu.color')}
+            value={toHexColor(g.color)}
+            onChange={(e) => actions?.setColor?.(id, e.target.value)}
+          />
+        </label>
         <button type="button" className="danger" title={t('canvas.menu.delete')} aria-label={t('canvas.menu.delete')} onClick={() => actions?.remove(id)}><span aria-hidden>✕</span></button>
       </NodeToolbar>
 
-      <div className="bio-node-header" style={{ height: NODE_HEADER_H, background: statusTint ?? g.color }}>
-        <span className="bio-node-swatch" style={{ background: g.color }} />
+      <div className="bio-node-header" style={{ height: NODE_HEADER_H, background: g.color }}>
         <span className="bio-node-title" title={g.title}>{g.title}</span>
         {g.pinned && <span className="bio-node-flag" aria-hidden>📌</span>}
-        {g.status && <span className="bio-node-status" data-status={g.status} title={g.status} />}
       </div>
 
       {/* Note nodes are a text card; collapsed nodes hide their body. Every real

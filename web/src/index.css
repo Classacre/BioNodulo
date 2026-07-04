@@ -1171,11 +1171,26 @@ body.is-dragging-panel {
 }
 .bio-node.bio-node-shape-box { border-radius: 2px; }
 .bio-node.bio-node-shape-card { border-radius: 12px; }
-.bio-node.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
 .bio-node.muted { opacity: 0.55; }
 .bio-node.bypassed { border-style: dashed; opacity: 0.7; }
-.bio-node.missing-dep { border-color: #ef4444; }
-.bio-node.running { box-shadow: 0 0 0 2px color-mix(in srgb, #3b82f6 60%, transparent); }
+
+/* State highlights (border + glow). Ordered so the most "active" state wins:
+   missing-dep (amber) < done/error (solid) < running (animated) < selected. */
+.bio-node.missing-dep { border-color: #f59e0b; box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 45%, transparent); }
+.bio-node[data-status="completed"],
+.bio-node[data-status="cached"] { border-color: #22c55e; box-shadow: 0 0 0 2px color-mix(in srgb, #22c55e 55%, transparent); }
+.bio-node[data-status="error"] { border-color: #ef4444; box-shadow: 0 0 0 2px color-mix(in srgb, #ef4444 55%, transparent); }
+.bio-node.running {
+  border-color: #22c55e;
+  animation: bioNodeRunning 1.2s ease-in-out infinite;
+}
+@keyframes bioNodeRunning {
+  0%,100% { box-shadow: 0 0 0 2px color-mix(in srgb, #22c55e 30%, transparent); }
+  50%     { box-shadow: 0 0 0 5px color-mix(in srgb, #22c55e 55%, transparent); }
+}
+/* Selection uses an OUTLINE (not border/box-shadow) so a node's state highlight
+   — missing-dep / running / done / error — stays visible while it's selected. */
+.bio-node.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .bio-node-header {
   display: flex; align-items: center; gap: 6px;
@@ -1184,14 +1199,21 @@ body.is-dragging-panel {
   font-weight: 600;
   border-radius: 7px 7px 0 0;
 }
-.bio-node-swatch { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4); }
 .bio-node-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bio-node-flag { font-size: 10px; }
-.bio-node-status { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: rgba(255, 255, 255, 0.8); }
-.bio-node-status[data-status="completed"] { background: #22c55e; }
-.bio-node-status[data-status="running"] { background: #3b82f6; }
-.bio-node-status[data-status="error"] { background: #ef4444; }
-.bio-node-status[data-status="cached"] { background: #a855f7; }
+
+/* Node colour picker in the toolbar: the swatch is a native <input type=color>. */
+.bio-node-color-swatch {
+  width: 22px; height: 22px; border-radius: 6px;
+  display: inline-flex; cursor: pointer;
+  border: 1px solid var(--border);
+  overflow: hidden; position: relative;
+}
+.bio-node-color-swatch input[type="color"] {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; border: none; padding: 0;
+}
 
 .bio-node-io { display: flex; justify-content: space-between; padding-top: 2px; }
 .bio-node-inputs, .bio-node-outputs { display: flex; flex-direction: column; }

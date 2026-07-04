@@ -16,6 +16,8 @@ export interface BioNodeActions {
    *  an undo entry — pass false for continuous input (slider drag) and true on
    *  release. */
   setParam: (id: string, key: string, value: unknown, history?: boolean) => void;
+  /** Set a node's display colour (ui.color) from the toolbar colour picker. */
+  setColor: (id: string, color: string) => void;
   /** Dissolve a group node, keeping its children (clears their parentId). */
   ungroup: (groupId: string) => void;
   /** Delete a group node AND its children. */
