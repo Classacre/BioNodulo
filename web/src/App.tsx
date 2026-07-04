@@ -3247,14 +3247,10 @@ export default function App() {
               toast.warning(appFileActionCopy.error.missingInputFileForDrop);
               return;
             }
-            const vp = canvasRef.current?.getViewport();
-            const target = e.currentTarget as HTMLElement;
-            const rect = target.getBoundingClientRect();
-            const cx = e.clientX - rect.left;
-            const cy = e.clientY - rect.top;
-            const world = vp
-              ? { x: (cx - vp.x) / vp.scale, y: (cy - vp.y) / vp.scale }
-              : { x: cx, y: cy };
+            // Native React Flow screen->flow projection places the node exactly
+            // under the drop point at any pan/zoom (no manual viewport math).
+            const world = canvasRef.current?.screenToFlowPosition(e.clientX, e.clientY)
+              ?? { x: e.clientX, y: e.clientY };
             const fileName = filePath.split(/[\\/]/).pop() || appFileActionCopy.fileTypeFallback;
             const newNode: WorkflowNode = {
               id: `input_file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,

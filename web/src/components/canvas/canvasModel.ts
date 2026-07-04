@@ -44,6 +44,10 @@ export interface WorkflowCanvasRef {
   getViewport: () => { x: number; y: number; scale: number };
   getSelectedNodeIds: () => string[];
   executeSelected: () => void;
+  /** Project a screen (client) coordinate to flow/world coordinates — native
+   *  React Flow projection, used e.g. by file-drop to place a node under the
+   *  cursor. */
+  screenToFlowPosition: (clientX: number, clientY: number) => { x: number; y: number };
   /** Topological auto-layout: lays out all nodes in horizontal columns based
    *  on dependency depth. */
   autoLayout: () => void;

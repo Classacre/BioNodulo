@@ -474,6 +474,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     return { x: vp.x, y: vp.y, scale: vp.zoom };
   }, [rf]);
   const getSelectedNodeIds = useCallback(() => Array.from(selectedIdsRef.current), []);
+  const screenToFlowPosition = useCallback((clientX: number, clientY: number) => {
+    const p = rf.screenToFlowPosition({ x: clientX, y: clientY });
+    return { x: p.x, y: p.y };
+  }, [rf]);
   const executeSelected = useCallback(() => {
     const ids = Array.from(selectedIdsRef.current);
     if (ids.length) onExecuteSelected?.(ids);
@@ -491,8 +495,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   }, [onNodesChange, onPushHistory, rf]);
 
   useImperativeHandle(ref, () => ({
-    fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, autoLayout,
-  }), [fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, autoLayout]);
+    fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, autoLayout,
+  }), [fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, autoLayout]);
 
   return (
     <BioNodeActionsContext.Provider value={actions}>
@@ -525,7 +529,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         selectionOnDrag
         panOnDrag={[1, 2]}
         panOnScroll
+        zoomOnDoubleClick={false}
         fitView
+        fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
         minZoom={0.1}
         maxZoom={4}
         colorMode={colorMode}
