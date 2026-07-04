@@ -15,7 +15,9 @@ interface CollabCursorsProps {
 // so it must re-render with the canvas as nodes move.
 export default function CollabCursors({ users, currentUserId }: CollabCursorsProps) {
   const rf = useReactFlow();
-  const others = users.filter(u => u.user.id !== currentUserId);
+  // Guard against partial awareness states: a peer can broadcast a cursor before
+  // its `user` identity has propagated, so `u.user` may be undefined.
+  const others = users.filter(u => u.user && u.user.id !== currentUserId);
   const cursors = others.filter(u =>
     u.cursor?.visible && Number.isFinite(u.cursor.worldX) && Number.isFinite(u.cursor.worldY),
   );

@@ -797,7 +797,11 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     <BioNodeActionsContext.Provider value={actions}>
     <BioEdgeActionsContext.Provider value={edgeActions}>
     <MultiSelectContext.Provider value={selectedIds.length > 1}>
-      <div className="workflow-canvas-host">
+      <div
+        className="workflow-canvas-host"
+        onMouseMove={collabSessionActive ? onPaneMouseMove : undefined}
+        onMouseLeave={collabSessionActive ? onPaneMouseLeave : undefined}
+      >
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -814,8 +818,6 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
         onError={onError}
-        onPaneMouseMove={collabSessionActive ? onPaneMouseMove : undefined}
-        onPaneMouseLeave={collabSessionActive ? onPaneMouseLeave : undefined}
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         snapToGrid={snapToGrid}
         snapGrid={snapGridValue}
