@@ -292,10 +292,14 @@ export function useWorkflow() {
     resume_checkpoint?: Record<string, unknown>;
     /** Cloud compute selection (preset or custom CPU/RAM) for the Batch run. */
     compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } };
+    /** Local "Run on Cloud": take the cloud submit path even when not in editor
+     *  mode (persist to the team DB + submit to Batch instead of the local host). */
+    forceCloud?: boolean;
   }) => {
-    // Cloud editor: persist the current definition, then submit to the cloud
-    // Batch runner. Dry-run previews still use the local editing backend.
-    if (editorMode && !options?.dry_run) {
+    // Cloud editor OR local "Run on Cloud": persist the current definition, then
+    // submit to the cloud Batch runner. Dry-run previews still use the local
+    // editing backend.
+    if ((editorMode || options?.forceCloud) && !options?.dry_run) {
       // Ensure the workflow exists in the DB (it normally does after load), then
       // persist the latest definition and submit to the cloud Batch runner.
       let id = wf.id;

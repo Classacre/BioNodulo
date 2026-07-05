@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { usePanelRegistry } from '../../state/panels';
 import { useKeybindings } from '../../hooks/ui';
 import { consoleVisibleAtom } from '../../state/uiAtoms';
-import { cloudConfigAtom } from '../../state/appAtoms';
+import { authUserAtom, cloudConfigAtom } from '../../state/appAtoms';
 
 export type RailTab = 'data' | 'nodes' | 'templates' | 'environments' | 'runtimeArtifacts' | 'help' | 'console' | 'settings' | 'hpc' | 'user' | 'compute' | string | null;
 
@@ -76,10 +76,12 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
   // environment manager, runtime artifacts and the HPC/SLURM panel all depend
   // on machine-local state the Lambda doesn't have. Hide them in editor mode.
   const cloudConfig = useAtomValue(cloudConfigAtom);
+  const authUser = useAtomValue(authUserAtom);
   const editorMode = cloudConfig?.editorMode ?? false;
-  // User + Cloud-compute menus only make sense when signed into a BioNodulo
-  // account (cloud editor, or the local app linked to an account).
-  const signedIn = Boolean(cloudConfig?.user);
+  // Signed in either by cloud-launch identity (/api/config) or a local Clerk
+  // sign-in (authUserAtom). Cloud-compute needs an account; the Account/user
+  // button is ALWAYS shown — it's the local sign-in entry point.
+  const signedIn = Boolean(cloudConfig?.user) || Boolean(authUser);
 
   return (
     <nav className="left-rail">
@@ -112,11 +114,10 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
       <RailButton active={active === 'console' || consoleVisible} icon="console" label={t('panels.console')} shortcut={getBinding('rail.console') ?? undefined} onClick={toggleConsole} />
       <div className="rail-sep" />
       {signedIn && (
-        <>
-          <RailButton active={active === 'compute'} icon="cpu" label={t('panels.compute', { defaultValue: 'Cloud compute' })} onClick={() => toggle('compute')} />
-          <RailButton active={active === 'user'} icon="user" label={t('panels.account', { defaultValue: 'Account' })} onClick={() => toggle('user')} />
-        </>
+        <RailButton active={active === 'compute'} icon="cpu" label={t('panels.compute', { defaultValue: 'Cloud compute' })} onClick={() => toggle('compute')} />
       )}
+      {/* Account is always available — it's the local sign-in entry point. */}
+      <RailButton active={active === 'user'} icon="user" label={t('panels.account', { defaultValue: 'Account' })} onClick={() => toggle('user')} />
       <RailButton active={active === 'settings'} icon="settings" label={t('panels.settings')} shortcut={getBinding('settings.toggle') ?? undefined} onClick={() => toggle('settings')} />
     </nav>
   );

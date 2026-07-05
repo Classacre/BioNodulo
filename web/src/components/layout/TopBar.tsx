@@ -31,6 +31,12 @@ interface TopBarProps {
   onResumeCheckpointClear?: () => void;
   onToggleQueue: () => void;
   /**
+   * Local mode only: submit the current workflow to BioNodulo Cloud instead of
+   * running it on this machine. When the user isn't signed in the handler opens
+   * sign-in. Undefined hides the option.
+   */
+  onRunOnCloud?: () => void;
+  /**
    * Cloud editor mode. Hides the run-options dropdown (dry-run preview, resume
    * checkpoint, local queue mode, batch sheet) — all of which are local-host
    * execution concepts. Cloud runs go straight to AWS Batch.
@@ -90,7 +96,7 @@ export default function TopBar({
   queueMode = 'manual', onQueueModeChange,
   dryRunPreview = false, onDryRunPreviewChange,
   resumeCheckpointLabel = null, onOpenRuntimeArtifacts, onResumeCheckpointClear,
-  onToggleQueue, collabControls, cloudAccount = null, clerkAccount = null,
+  onToggleQueue, onRunOnCloud, collabControls, cloudAccount = null, clerkAccount = null,
   editorMode = false,
 }: TopBarProps) {
   const isRunning = useAtomValue(isRunningAtom);
@@ -322,6 +328,20 @@ export default function TopBar({
 
           {!editorMode && runMenuOpen && (
             <div className="run-split-menu" role="menu" onKeyDown={handleRunMenuKeyDown}>
+              {onRunOnCloud && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="run-split-menu-item"
+                    onClick={() => { onRunOnCloud(); setRunMenuOpen(false); }}
+                    disabled={isRunning}
+                  >
+                    <Icon name="server" size={12} /> {t('topbar.runOnCloud', { defaultValue: 'Run on Cloud' })}
+                  </button>
+                  <div className="run-split-menu-divider" />
+                </>
+              )}
               <div className="run-split-menu-header">{t('topbar.batchCount')}</div>
               <div className="run-split-menu-batch">
                 <button

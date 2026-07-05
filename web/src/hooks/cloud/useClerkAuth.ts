@@ -47,6 +47,17 @@ export interface UseClerkAuthResult {
   clerkSignedIn: boolean;
   /** Open Clerk's hosted sign-in (modal). No-op until Clerk is ready. */
   openSignIn: () => void;
+  /**
+   * Open Clerk's hosted UserProfile modal. This is the single reuse surface for
+   * profile editing AND session/device management — its Security tab lists
+   * active sessions with revoke. No custom backend needed. No-op until ready.
+   */
+  openProfile: () => void;
+  /**
+   * Open Clerk's hosted OrganizationProfile modal (team members, roles,
+   * invitations). No-op until Clerk is ready or when no active organization.
+   */
+  openOrganization: () => void;
   /** Sign out of Clerk and clear the app token. */
   signOut: () => void;
 }
@@ -151,6 +162,19 @@ export function useClerkAuth(): UseClerkAuthResult {
     clerkRef.current?.openSignIn();
   };
 
+  const openProfile = () => {
+    clerkRef.current?.openUserProfile();
+  };
+
+  const openOrganization = () => {
+    const clerk = clerkRef.current;
+    if (!clerk) return;
+    // openOrganizationProfile needs an active org; fall back to the profile modal
+    // (Clerk lets the user pick/create an org there) when none is set.
+    if (clerk.organization) clerk.openOrganizationProfile();
+    else clerk.openUserProfile();
+  };
+
   const signOut = () => {
     const clerk = clerkRef.current;
     clearToken();
@@ -159,5 +183,5 @@ export function useClerkAuth(): UseClerkAuthResult {
     if (clerk) void clerk.signOut();
   };
 
-  return { clerkEnabled, clerkSignedIn, openSignIn, signOut };
+  return { clerkEnabled, clerkSignedIn, openSignIn, openProfile, openOrganization, signOut };
 }

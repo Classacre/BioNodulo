@@ -1843,6 +1843,61 @@ export default function App() {
     }
   }, [activeWorkflow, addLog, addRun, cacheEnabled, setRailTab, submitRun, t, validate]);
 
+  // Local "Run on Cloud": send the current workflow to BioNodulo Cloud (persist
+  // to the team DB + submit to the Batch runner) instead of running it on this
+  // machine. Requires a signed-in cloud account; otherwise opens sign-in. Phase 1
+  // handles workflows with no local-file inputs (file pre-flight upload lands in
+  // Phase 2, sharing the transfer engine).
+  const handleRunOnCloud = useCallback(async () => {
+    const signedIn = Boolean(authUser) || Boolean(cloudConfig?.user);
+    if (!signedIn) {
+      if (clerk.clerkEnabled) clerk.openSignIn();
+      else toast.info(t('console.actions.cloudSignInRequired', { defaultValue: 'Sign in to BioNodulo Cloud first.' }));
+      setRailTab('user');
+      return;
+    }
+    if (!editorMode && !cloudConfig?.accountUrl) {
+      toast.error(t('console.actions.cloudNotConfigured', { defaultValue: 'BioNodulo Cloud is not configured.' }));
+      return;
+    }
+    setIsRunning(true);
+    try {
+      await validate(activeWorkflow);
+      const result = await submitRun(activeWorkflow, {
+        forceCloud: true,
+        name: activeWorkflow.name,
+        compute: specToRunBody(computeSpec),
+      }) as RunRecord & { cloud?: boolean; dashboard_url?: string };
+      addLog({
+        run_id: result.run_id || 'cloud', node_id: 'engine', level: 'info',
+        message: t('console.actions.cloudRunSubmitted', { defaultValue: 'Run submitted to the cloud — streaming progress below.' }),
+        detail: result.dashboard_url || '', timestamp: new Date().toISOString(),
+      });
+      setConsoleVisible(true);
+      setRailTab('console');
+      if (result.run_id) {
+        addRun({
+          run_id: result.run_id, status: 'pending',
+          workflow_name: result.workflow_name || activeWorkflow.name,
+          node_statuses: [], node_outputs: {},
+          execution_plan: workflowExecutionPlan(activeWorkflow),
+          previews: {}, artifacts: {}, start_time: new Date().toISOString(),
+          options: { cloud: true, dashboard_url: result.dashboard_url },
+        });
+        pollCloudRun(result.run_id);
+        setRunsDrawerOpen(true);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(t('console.actions.cloudRunFailed', { defaultValue: 'Cloud run failed' }), { message: msg });
+      addLog({ run_id: 'cloud', node_id: 'engine', level: 'error', message: msg, timestamp: new Date().toISOString() });
+      setConsoleVisible(true);
+      setRailTab('console');
+    } finally {
+      setIsRunning(false);
+    }
+  }, [authUser, cloudConfig, clerk, editorMode, validate, activeWorkflow, submitRun, computeSpec, addLog, addRun, pollCloudRun, setConsoleVisible, setRailTab, setRunsDrawerOpen, setIsRunning, t]);
+
   const handleRunSelected = useCallback(async (nodeIds: string[]) => {
     if (nodeIds.length === 0) return;
     setIsRunning(true);
@@ -3115,6 +3170,7 @@ export default function App() {
         onQueueModeChange={setQueueMode}
         queueCount={queueCount}
         onToggleQueue={handleToggleQueue}
+        onRunOnCloud={editorMode ? undefined : handleRunOnCloud}
         dryRunPreview={dryRunPreview}
         onDryRunPreviewChange={setDryRunPreview}
         editorMode={editorMode}
