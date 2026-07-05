@@ -62,6 +62,9 @@ import GroupNode from './GroupNode';
 import Devtools from './Devtools';
 import CollabCursors from './CollabCursors';
 import NodeComments from './NodeComments';
+import ContextMenu, { type MenuItem } from './ContextMenu';
+import NodePropertiesDialog from './NodePropertiesDialog';
+import { captureCanvasThumbnail } from '../../utils/canvasThumbnail';
 import HelperLines from './HelperLines';
 import { getHelperLines } from './helperLines';
 import { BioNodeActionsContext, MultiSelectContext, type BioNodeActions } from './bioNodeActions';
@@ -155,6 +158,8 @@ interface WorkflowCanvasProps {
   nodeErrorsMap?: Map<string, string>;
   missingDependencyNodeIds?: Set<string>;
   onExecuteSelected?: (nodeIds: string[]) => void;
+  /** Open the node library (from the pane "Add node" context menu). */
+  onOpenNodeLibrary?: () => void;
   // --- Collaboration (multiplayer + comments) ---
   collabSessionActive?: boolean;
   collabUsers?: AwarenessState[];
@@ -245,6 +250,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   snapToGrid, showMinimap,
   nodeStatusMap, missingDependencyNodeIds,
   onExecuteSelected,
+  onOpenNodeLibrary,
   collabSessionActive = false,
   collabUsers,
   currentUserId = '',
@@ -277,6 +283,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const nodeShadow = getBool('bionodulo.canvas.nodeShadow', true);
   const connectionRadius = Math.min(80, Math.max(8, getNumber('bionodulo.canvas.connectionRadius', 28)));
   const bgPatternSetting = getString('bionodulo.canvas.backgroundPattern', 'auto'); // auto|dots|lines|cross|none
+  const panOnScroll = getBool('bionodulo.canvas.panOnScroll', true);
+  const zoomOnDoubleClick = getBool('bionodulo.canvas.zoomOnDoubleClick', false);
+  const nodeFontSize = Math.min(18, Math.max(9, getNumber('bionodulo.canvas.nodeFontSize', 12)));
   const { colorMode, pattern } = useCanvasChrome();
   const effectivePattern = bgPatternSetting === 'auto' ? pattern : bgPatternSetting;
   const bgVariant = effectivePattern === 'lines' || effectivePattern === 'grid' ? BackgroundVariant.Lines
@@ -289,7 +298,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     : ConnectionLineType.Bezier;
   const snapGridValue = useMemo<[number, number]>(() => [gridSize, gridSize], [gridSize]);
   // Node appearance vars applied to the host so every node picks them up via CSS.
-  const hostStyle = useMemo(() => ({ ['--xy-node-border-radius-default' as string]: `${nodeRadius}px` }), [nodeRadius]);
+  const hostStyle = useMemo(() => ({
+    ['--xy-node-border-radius-default' as string]: `${nodeRadius}px`,
+    ['--bio-node-font-size' as string]: `${nodeFontSize}px`,
+  }), [nodeRadius, nodeFontSize]);
 
   // Latest props for callbacks that must read fresh values without re-binding.
   const nodesRef = useRef(nodes); nodesRef.current = nodes;
@@ -303,6 +315,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // callbacks that need the latest value without re-binding.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [commentOpenNodeId, setCommentOpenNodeId] = useState<string | null>(null);
+  const [propsNodeId, setPropsNodeId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ kind: 'node' | 'pane'; x: number; y: number; nodeId?: string; flow: { x: number; y: number } } | null>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
 
   // Precompute the connected input/output port keys once per edges change, so
   // the node reconcile is O(nodes) instead of scanning all edges per node.
@@ -688,6 +703,13 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       onPushHistory();
     },
     comment: onAddComment ? (id) => setCommentOpenNodeId(prev => prev === id ? null : id) : undefined,
+    toggleFlag: (id, flag) => {
+      onNodesChange(nodesRef.current.map(n => n.id === id
+        ? { ...n, ui: { ...n.ui, [flag]: !(n.ui?.[flag] ?? false) } }
+        : n));
+      onPushHistory();
+    },
+    openProperties: (id) => setPropsNodeId(id),
   }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory, onAddComment]);
 
   const edgeActions = useMemo<BioEdgeActions>(() => ({
@@ -744,6 +766,44 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     onPushHistory();
     requestAnimationFrame(() => rf.fitView({ padding: 0.2, duration: 240 }));
   }, [rf, onNodesChange, onPushHistory]);
+
+  // --- Right-click context menus (node + pane) ---
+  const openNodeMenu = useCallback((e: React.MouseEvent, node: RFNode) => {
+    e.preventDefault();
+    setMenu({ kind: 'node', x: e.clientX, y: e.clientY, nodeId: node.id, flow: rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
+  }, [rf]);
+  const openPaneMenu = useCallback((e: React.MouseEvent | MouseEvent) => {
+    e.preventDefault();
+    setMenu({ kind: 'pane', x: e.clientX, y: e.clientY, flow: rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
+  }, [rf]);
+
+  const selectAll = useCallback(() => {
+    setRfNodes(ns => ns.map(n => (n.selectable === false ? n : { ...n, selected: true })));
+  }, []);
+
+  // Insert a lightweight reroute node at the given flow position.
+  const addRerouteAt = useCallback((flow: { x: number; y: number }) => {
+    const wn: WorkflowNode = {
+      id: `reroute_${Date.now()}`, type: 'reroute', params: {},
+      position: [flow.x, flow.y], ui: { title: '' },
+    };
+    onNodesChange([...nodesRef.current, wn]);
+    onPushHistory();
+  }, [onNodesChange, onPushHistory]);
+
+  const exportThumbnail = useCallback(async () => {
+    const host = hostRef.current;
+    if (!host) return;
+    try {
+      const url = await captureCanvasThumbnail(host, { pixelRatio: 2 });
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'workflow.png';
+      a.click();
+    } catch (err) {
+      console.error('thumbnail export failed', err);
+    }
+  }, []);
 
   // Wrap the current selection in a native group node. Children keep their
   // absolute positions in the workflow and gain a parentId; the group node is a
@@ -821,11 +881,52 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, createGroupFromSelection, autoLayout,
   }), [fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, createGroupFromSelection, autoLayout]);
 
+  // Build the right-click menu items lazily from the current target. Node items
+  // toggle ui flags / collapse / comments; pane items act on the whole canvas.
+  const buildMenuItems = useCallback((m: NonNullable<typeof menu>): MenuItem[] => {
+    if (m.kind === 'node' && m.nodeId) {
+      const wn = nodesRef.current.find(n => n.id === m.nodeId);
+      if (!wn) return [];
+      const ui = wn.ui ?? {};
+      const collapsed = Boolean(ui.collapsed);
+      const items: MenuItem[] = [
+        { key: 'info', label: t('canvas.menu.nodeInfo'), icon: 'ℹ', onClick: () => setPropsNodeId(m.nodeId!) },
+        { key: 'edit', label: t('canvas.menu.editProperties'), icon: '✎', onClick: () => setPropsNodeId(m.nodeId!) },
+      ];
+      if (onAddComment) items.push({ key: 'comment', label: t('canvas.menu.addComment'), icon: '💬', onClick: () => setCommentOpenNodeId(m.nodeId!) });
+      items.push({ key: 'sep1', separator: true });
+      items.push(
+        { key: 'mute', label: t('canvas.menu.muteNode'), icon: '🔇', checked: Boolean(ui.muted), onClick: () => actions.toggleFlag(m.nodeId!, 'muted') },
+        { key: 'bypass', label: t('canvas.menu.bypassNode'), icon: '⤳', checked: Boolean(ui.bypassed), onClick: () => actions.toggleFlag(m.nodeId!, 'bypassed') },
+        { key: 'pin', label: t('canvas.menu.pinNode'), icon: '📌', checked: Boolean(ui.pinned), onClick: () => actions.toggleFlag(m.nodeId!, 'pinned') },
+        { key: 'output', label: t('canvas.menu.setOutput'), icon: '◎', checked: Boolean(ui.output), onClick: () => actions.toggleFlag(m.nodeId!, 'output') },
+        { key: 'collapse', label: collapsed ? t('canvas.menu.expand') : t('canvas.menu.collapse'), icon: collapsed ? '▽' : '△', onClick: () => actions.toggleCollapse(m.nodeId!) },
+        { key: 'sep2', separator: true },
+        { key: 'delete', label: t('canvas.menu.delete'), icon: '🗑', danger: true, disabled: Boolean(ui.pinned), onClick: () => actions.remove(m.nodeId!) },
+      );
+      return items;
+    }
+    // Pane menu.
+    return [
+      ...(onOpenNodeLibrary ? [{ key: 'add', label: t('canvas.menu.addNode'), icon: '＋', onClick: onOpenNodeLibrary }] : []),
+      { key: 'reroute', label: t('canvas.menu.addReroute'), icon: '◦', onClick: () => addRerouteAt(m.flow) },
+      { key: 'sep1', separator: true },
+      { key: 'fit', label: t('canvas.menu.fitView'), icon: '⤢', onClick: fitView },
+      { key: 'selectAll', label: t('canvas.menu.selectAll'), icon: '▦', onClick: selectAll },
+      { key: 'arrange', label: t('canvas.menu.arrangeNodes'), icon: '⤨', onClick: autoLayout },
+      { key: 'sep2', separator: true },
+      { key: 'thumb', label: t('canvas.menu.exportThumbnail'), icon: '🖼', onClick: () => { void exportThumbnail(); } },
+    ];
+  }, [t, actions, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
+
+  const propsNode = propsNodeId ? nodesRef.current.find(n => n.id === propsNodeId) ?? null : null;
+
   return (
     <BioNodeActionsContext.Provider value={actions}>
     <BioEdgeActionsContext.Provider value={edgeActions}>
     <MultiSelectContext.Provider value={selectedIds.length > 1}>
       <div
+        ref={hostRef}
         className={`workflow-canvas-host ${nodeShadow ? '' : 'bio-no-node-shadow'}`}
         style={hostStyle}
         onMouseMove={collabSessionActive ? onPaneMouseMove : undefined}
@@ -846,6 +947,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onDelete={onDelete}
         onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
+        onNodeContextMenu={openNodeMenu}
+        onPaneContextMenu={openPaneMenu}
         onError={onError}
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         snapToGrid={snapToGrid}
@@ -860,8 +963,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         selectionMode={SelectionMode.Partial}
         panOnDrag={PAN_ON_DRAG}
         panActivationKeyCode="Space"
-        panOnScroll
-        zoomOnDoubleClick={false}
+        panOnScroll={panOnScroll}
+        zoomOnScroll={!panOnScroll}
+        zoomOnDoubleClick={zoomOnDoubleClick}
         fitView
         fitViewOptions={FIT_VIEW_OPTIONS}
         minZoom={0.1}
@@ -917,6 +1021,18 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         )}
         {showDebugOverlay && <Devtools />}
       </ReactFlow>
+      {menu && (
+        <ContextMenu x={menu.x} y={menu.y} items={buildMenuItems(menu)} onClose={() => setMenu(null)} />
+      )}
+      {propsNode && (
+        <NodePropertiesDialog
+          node={propsNode}
+          objectInfo={objectInfo}
+          onRename={(id, title) => { onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, title } } : n)); onPushHistory(); }}
+          onParamChange={(id, key, value) => actions.setParam(id, key, value)}
+          onClose={() => setPropsNodeId(null)}
+        />
+      )}
       </div>
     </MultiSelectContext.Provider>
     </BioEdgeActionsContext.Provider>

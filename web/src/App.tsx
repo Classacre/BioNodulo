@@ -3317,6 +3317,7 @@ export default function App() {
           nodeErrorsMap={nodeErrorsMap}
           missingDependencyNodeIds={missingDependencyNodeIds}
           onExecuteSelected={handleRunSelected}
+          onOpenNodeLibrary={() => setRailTab('nodes')}
           collabSessionActive={collabSessionActive}
           collabUsers={collabActiveUsers}
           currentUserId={currentUser.id}

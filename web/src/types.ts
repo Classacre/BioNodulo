@@ -114,6 +114,7 @@ export interface WorkflowNode {
     pinned?: boolean;
     muted?: boolean;
     bypassed?: boolean;
+    output?: boolean;
     width?: number;
     height?: number;
     validation?: {

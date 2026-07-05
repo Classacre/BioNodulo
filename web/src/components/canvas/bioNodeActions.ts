@@ -24,6 +24,10 @@ export interface BioNodeActions {
   deleteGroup: (groupId: string) => void;
   /** Open the comment thread popover for a node. Undefined when collab is off. */
   comment?: (id: string) => void;
+  /** Toggle a boolean ui flag (muted / bypassed / pinned / output). */
+  toggleFlag: (id: string, flag: 'muted' | 'bypassed' | 'pinned' | 'output') => void;
+  /** Open the node info / edit-properties dialog. */
+  openProperties: (id: string) => void;
 }
 
 export const BioNodeActionsContext = createContext<BioNodeActions | null>(null);

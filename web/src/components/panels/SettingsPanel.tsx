@@ -463,6 +463,17 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('canvas.showControls')} desc={st('canvas.showControlsDescription')} keywords="controls zoom buttons toolbar controles botones">
             <div className={`toggle ${getBool('bionodulo.canvas.showControls', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.showControls', !getBool('bionodulo.canvas.showControls', true))} />
           </SettingRow>
+          <SettingRow query={query} label={st('canvas.nodeFontSize')} desc={st('canvas.nodeFontSizeDescription')} keywords="font size text node label fuente texto tamano">
+            <input type="range" min={9} max={18} step={1} value={getNumber('bionodulo.canvas.nodeFontSize', 12)} onChange={e => set('bionodulo.canvas.nodeFontSize', Math.min(18, Math.max(9, parseInt(e.target.value) || 12)))} />
+          </SettingRow>
+
+          {/* ---- Appearance: interaction ---- */}
+          <SettingRow query={query} label={st('canvas.panOnScroll')} desc={st('canvas.panOnScrollDescription')} keywords="scroll pan zoom wheel mouse desplazar rueda">
+            <div className={`toggle ${getBool('bionodulo.canvas.panOnScroll', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.panOnScroll', !getBool('bionodulo.canvas.panOnScroll', true))} />
+          </SettingRow>
+          <SettingRow query={query} label={st('canvas.zoomOnDoubleClick')} desc={st('canvas.zoomOnDoubleClickDescription')} keywords="double click zoom doble clic acercar">
+            <div className={`toggle ${getBool('bionodulo.canvas.zoomOnDoubleClick', false) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.zoomOnDoubleClick', !getBool('bionodulo.canvas.zoomOnDoubleClick', false))} />
+          </SettingRow>
         </SettingsGroup>
 
         {/* Collaboration */}
