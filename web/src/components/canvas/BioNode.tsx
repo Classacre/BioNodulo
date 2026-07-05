@@ -158,6 +158,19 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
               style={{ top: NODE_HEADER_H / 2 }}
             />
           ))}
+          {/* Promoted param inputs (widget dots) live in the body, which is hidden
+              while collapsed — keep a header-pinned handle so their edges stay
+              anchored. */}
+          {g.promotedInputs.map(key => (
+            <Handle
+              key={`pin-${key}`}
+              type="target"
+              position={Position.Left}
+              id={key}
+              className="bio-handle bio-handle-in"
+              style={{ top: NODE_HEADER_H / 2 }}
+            />
+          ))}
         </>
       ) : null}
     </div>
@@ -219,8 +232,17 @@ function bioNodePropsEqual(prev: NodeProps, next: NodeProps): boolean {
     ga.meta === gb.meta &&
     portsEqual(ga.inputs, gb.inputs) &&
     portsEqual(ga.outputs, gb.outputs) &&
+    stringListEqual(ga.promotedInputs, gb.promotedInputs) &&
     paramsEqual(ga.params, gb.params)
   );
+}
+
+// Content-compare the promoted-input key list (fresh array each reconcile).
+function stringListEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 const BioNode = memo(BioNodeComponent, bioNodePropsEqual);

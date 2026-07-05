@@ -2069,7 +2069,7 @@ class MyToolNode(CommandNode):
       nodeInfo: 'Información del nodo',
       editProperties: 'Editar propiedades',
       addComment: 'Añadir comentario',
-      connectParam: 'Conectar a parámetro',
+      addInput: 'Añadir entrada',
       muteNode: 'Silenciar nodo',
       bypassNode: 'Omitir nodo',
       pinNode: 'Fijar / bloquear nodo',

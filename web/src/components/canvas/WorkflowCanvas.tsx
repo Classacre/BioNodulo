@@ -208,7 +208,6 @@ function toGraphNode(
   else nodeHeight = wn.ui?.height ?? 0;
   const visibleInputs = getVisibleInputSpecs(meta, wn.params || {});
   const promotedInputs = wn.ui?.promotedInputs ?? EMPTY_PROMOTED;
-  const promotedSet = promotedInputs.length ? new Set(promotedInputs) : null;
   return {
     id: wn.id,
     type: wn.type,
@@ -224,7 +223,7 @@ function toGraphNode(
     inputs: (meta && !visualOnly) ? [
       ...Object.entries(visibleInputs.required),
       ...Object.entries(visibleInputs.optional),
-    ].filter(([name, spec]) => !isInteractiveWidgetSpec(spec) || promotedSet?.has(name)).map(([name, spec]) => ({
+    ].filter(([, spec]) => !isInteractiveWidgetSpec(spec)).map(([name, spec]) => ({
       name, type: spec.type || 'STRING', connected: connectedIn.has(`${wn.id}:${name}`),
     })) : [],
     outputs: (meta && !visualOnly) ? resolveNodeOutputs(meta, wn.params || {}).map(output => ({
@@ -915,15 +914,15 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       ];
       if (onAddComment) items.push({ key: 'comment', label: t('canvas.menu.addComment'), icon: 'comment', onClick: () => setCommentOpenNodeId(m.nodeId!) });
 
-      // "Connect to parameter": promote a widget-param to a connectable input
-      // port (or demote it back). Submenu lists each promotable param, checked
-      // when it's currently a port.
+      // "Add input": give a widget-param a connectable input dot (or remove it).
+      // The widget stays; toggling only exposes/hides its input handle. Submenu
+      // lists each eligible param, checked when its input dot is showing.
       const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
       const promotable = getPromotableParamKeys(meta, wn.params || {});
       const promotedSet = new Set(ui.promotedInputs ?? []);
       if (promotable.length > 0) {
         items.push({
-          key: 'connectParam', label: t('canvas.menu.connectParam'), icon: 'link',
+          key: 'addInput', label: t('canvas.menu.addInput'), icon: 'link',
           children: promotable.map(key => {
             const spec = meta?.input_types?.required?.[key] || meta?.input_types?.optional?.[key];
             return {

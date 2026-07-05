@@ -76,24 +76,10 @@ describe('interactive widget entries', () => {
     ]);
   });
 
-  it('excludes promoted params (they render as input ports, not widgets)', () => {
-    const promoted = new Set(['min_size_bytes', 'fail_on_error']);
-    const widgets = getInteractiveWidgetEntries(validatorLikeMeta, {}, promoted);
-    expect(widgets.map(w => w.key)).toEqual([
-      'expected_format',
-      'max_size_bytes',
-      'required_fields',
-      'min_records',
-      'checksum_expected',
-    ]);
-    // Accepts a plain array too.
-    expect(getInteractiveWidgetEntries(validatorLikeMeta, {}, ['expected_format']).map(w => w.key))
-      .not.toContain('expected_format');
-  });
 });
 
 describe('promotable param keys', () => {
-  it('lists exactly the widget params (the connect-to-parameter candidates)', () => {
+  it('lists exactly the widget params (the add-input candidates)', () => {
     // `input` is an ANY data port (not an interactive widget) → not promotable.
     expect(getPromotableParamKeys(validatorLikeMeta, {})).toEqual([
       'expected_format',

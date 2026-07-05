@@ -1239,6 +1239,11 @@ body.is-dragging-panel {
 /* Interactive on-node widgets (toggles/sliders/selects/number/text/colour).
    The node auto-sizes to fit these — no fixed height. */
 .bio-node-widgets { display: flex; flex-direction: column; gap: 3px; padding: 2px 8px 8px; }
+/* A widget row that has an input dot ("Add input"): position-relative so the
+   target <Handle> anchors to it, pushed out to the node's left border (the
+   widgets container is inset 8px, dots straddle the edge like port handles). */
+.bio-widget-wrap { position: relative; }
+.bio-widget-handle { left: -12px; }
 .bio-widget {
   display: flex; align-items: center; gap: 6px;
   font-size: 10px; color: var(--muted); cursor: default;

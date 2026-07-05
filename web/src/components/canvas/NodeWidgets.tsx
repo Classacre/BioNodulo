@@ -5,9 +5,25 @@
 // BioNodeActions context. The node auto-sizes to fit these (React Flow measures
 // the DOM), so there's no height math here.
 import { memo, useContext, useEffect, useState } from 'react';
+import { Handle, Position, useNodeConnections } from '@xyflow/react';
 import type { InputSpec, NodeMetadata } from '../../types';
 import { getInteractiveWidgetEntries, isColorParam, toHexColor } from '../../utils/nodeLayout';
 import { BioNodeActionsContext } from './bioNodeActions';
+
+// Input dot beside a promoted widget: a native target <Handle> (id = param key)
+// so an edge can drive the widget's value. The widget itself stays rendered —
+// this only exposes a connection point. Fills in when an edge is attached.
+function WidgetHandle({ pKey }: { pKey: string }) {
+  const connections = useNodeConnections({ handleType: 'target', handleId: pKey });
+  return (
+    <Handle
+      type="target"
+      position={Position.Left}
+      id={pKey}
+      className={`bio-handle bio-handle-in bio-widget-handle ${connections.length ? 'connected' : ''}`}
+    />
+  );
+}
 
 interface WidgetRowProps {
   nodeId: string;
@@ -139,13 +155,20 @@ function NodeWidgetsComponent({ nodeId, meta, params, promoted }: {
   promoted?: readonly string[];
 }) {
   const actions = useContext(BioNodeActionsContext);
-  const entries = getInteractiveWidgetEntries(meta, params, promoted);
+  const entries = getInteractiveWidgetEntries(meta, params);
   if (entries.length === 0 || !actions) return null;
+  const promotedSet = promoted && promoted.length ? new Set(promoted) : null;
   return (
     <div className="bio-node-widgets">
-      {entries.map(({ key, spec }) => (
-        <WidgetRow key={key} nodeId={nodeId} pKey={key} spec={spec} value={params[key]} onSet={actions.setParam} />
-      ))}
+      {entries.map(({ key, spec }) => {
+        const isPromoted = promotedSet?.has(key) ?? false;
+        return (
+          <div className={`bio-widget-wrap ${isPromoted ? 'has-input' : ''}`} key={key}>
+            {isPromoted && <WidgetHandle pKey={key} />}
+            <WidgetRow nodeId={nodeId} pKey={key} spec={spec} value={params[key]} onSet={actions.setParam} />
+          </div>
+        );
+      })}
     </div>
   );
 }
