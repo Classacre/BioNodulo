@@ -1319,26 +1319,6 @@ body.is-dragging-panel {
 .bio-node-toolbar button.danger:hover { background: color-mix(in srgb, #ef4444 22%, transparent); color: #ef4444; }
 
 /* Delete button on a selected edge (native <EdgeLabelRenderer>). */
-.bio-edge-delete {
-  position: absolute;
-  width: 18px; height: 18px;
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface);
-  color: #ef4444;
-  font-size: 10px; line-height: 1; cursor: pointer;
-  pointer-events: all;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
-.bio-edge-delete:hover { background: color-mix(in srgb, #ef4444 18%, var(--surface)); }
-/* elevateEdgesOnSelect raises the selected edge's SVG layer to z-index:1000, which
-   otherwise stacks the edge's 20px invisible interaction path ON TOP of the ✕
-   delete button (rendered in the edge-label layer) and swallows its clicks. Lift
-   the label layer above the elevated edge so the button is actually reachable. */
-.workflow-canvas-host .react-flow__edgelabel-renderer { z-index: 1001; }
-
 /* Native <MiniMap> — background themed via --xy-minimap-*; only the frame is
    custom (React Flow has no variable for the minimap border/radius). */
 .workflow-canvas-host .react-flow__minimap.bio-minimap {
