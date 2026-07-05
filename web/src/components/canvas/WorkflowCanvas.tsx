@@ -890,32 +890,32 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       const ui = wn.ui ?? {};
       const collapsed = Boolean(ui.collapsed);
       const items: MenuItem[] = [
-        { key: 'info', label: t('canvas.menu.nodeInfo'), icon: 'ℹ', onClick: () => setPropsNodeId(m.nodeId!) },
-        { key: 'edit', label: t('canvas.menu.editProperties'), icon: '✎', onClick: () => setPropsNodeId(m.nodeId!) },
+        { key: 'info', label: t('canvas.menu.nodeInfo'), icon: 'info', onClick: () => setPropsNodeId(m.nodeId!) },
+        { key: 'edit', label: t('canvas.menu.editProperties'), icon: 'edit', onClick: () => setPropsNodeId(m.nodeId!) },
       ];
-      if (onAddComment) items.push({ key: 'comment', label: t('canvas.menu.addComment'), icon: '💬', onClick: () => setCommentOpenNodeId(m.nodeId!) });
+      if (onAddComment) items.push({ key: 'comment', label: t('canvas.menu.addComment'), icon: 'comment', onClick: () => setCommentOpenNodeId(m.nodeId!) });
       items.push({ key: 'sep1', separator: true });
       items.push(
-        { key: 'mute', label: t('canvas.menu.muteNode'), icon: '🔇', checked: Boolean(ui.muted), onClick: () => actions.toggleFlag(m.nodeId!, 'muted') },
-        { key: 'bypass', label: t('canvas.menu.bypassNode'), icon: '⤳', checked: Boolean(ui.bypassed), onClick: () => actions.toggleFlag(m.nodeId!, 'bypassed') },
-        { key: 'pin', label: t('canvas.menu.pinNode'), icon: '📌', checked: Boolean(ui.pinned), onClick: () => actions.toggleFlag(m.nodeId!, 'pinned') },
-        { key: 'output', label: t('canvas.menu.setOutput'), icon: '◎', checked: Boolean(ui.output), onClick: () => actions.toggleFlag(m.nodeId!, 'output') },
-        { key: 'collapse', label: collapsed ? t('canvas.menu.expand') : t('canvas.menu.collapse'), icon: collapsed ? '▽' : '△', onClick: () => actions.toggleCollapse(m.nodeId!) },
+        { key: 'mute', label: t('canvas.menu.muteNode'), icon: 'mute', checked: Boolean(ui.muted), onClick: () => actions.toggleFlag(m.nodeId!, 'muted') },
+        { key: 'bypass', label: t('canvas.menu.bypassNode'), icon: 'bypass', checked: Boolean(ui.bypassed), onClick: () => actions.toggleFlag(m.nodeId!, 'bypassed') },
+        { key: 'pin', label: t('canvas.menu.pinNode'), icon: 'lock', checked: Boolean(ui.pinned), onClick: () => actions.toggleFlag(m.nodeId!, 'pinned') },
+        { key: 'output', label: t('canvas.menu.setOutput'), icon: 'target', checked: Boolean(ui.output), onClick: () => actions.toggleFlag(m.nodeId!, 'output') },
+        { key: 'collapse', label: collapsed ? t('canvas.menu.expand') : t('canvas.menu.collapse'), icon: collapsed ? 'chevronDown' : 'chevronUp', onClick: () => actions.toggleCollapse(m.nodeId!) },
         { key: 'sep2', separator: true },
-        { key: 'delete', label: t('canvas.menu.delete'), icon: '🗑', danger: true, disabled: Boolean(ui.pinned), onClick: () => actions.remove(m.nodeId!) },
+        { key: 'delete', label: t('canvas.menu.delete'), icon: 'trash', danger: true, disabled: Boolean(ui.pinned), onClick: () => actions.remove(m.nodeId!) },
       );
       return items;
     }
     // Pane menu.
     return [
-      ...(onOpenNodeLibrary ? [{ key: 'add', label: t('canvas.menu.addNode'), icon: '＋', onClick: onOpenNodeLibrary }] : []),
-      { key: 'reroute', label: t('canvas.menu.addReroute'), icon: '◦', onClick: () => addRerouteAt(m.flow) },
+      ...(onOpenNodeLibrary ? [{ key: 'add', label: t('canvas.menu.addNode'), icon: 'plus', onClick: onOpenNodeLibrary }] : []),
+      { key: 'reroute', label: t('canvas.menu.addReroute'), icon: 'reroute', onClick: () => addRerouteAt(m.flow) },
       { key: 'sep1', separator: true },
-      { key: 'fit', label: t('canvas.menu.fitView'), icon: '⤢', onClick: fitView },
-      { key: 'selectAll', label: t('canvas.menu.selectAll'), icon: '▦', onClick: selectAll },
-      { key: 'arrange', label: t('canvas.menu.arrangeNodes'), icon: '⤨', onClick: autoLayout },
+      { key: 'fit', label: t('canvas.menu.fitView'), icon: 'fit', onClick: fitView },
+      { key: 'selectAll', label: t('canvas.menu.selectAll'), icon: 'grid', onClick: selectAll },
+      { key: 'arrange', label: t('canvas.menu.arrangeNodes'), icon: 'layout', onClick: autoLayout },
       { key: 'sep2', separator: true },
-      { key: 'thumb', label: t('canvas.menu.exportThumbnail'), icon: '🖼', onClick: () => { void exportThumbnail(); } },
+      { key: 'thumb', label: t('canvas.menu.exportThumbnail'), icon: 'image', onClick: () => { void exportThumbnail(); } },
     ];
   }, [t, actions, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
 

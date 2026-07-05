@@ -4325,7 +4325,9 @@ kbd {
 .bio-context-item:hover:not(:disabled) { background: var(--surface-2, var(--border)); }
 .bio-context-item:disabled { opacity: 0.4; cursor: default; }
 .bio-context-item.danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.14); color: #ef4444; }
-.bio-context-item-icon { flex: 0 0 auto; width: 16px; text-align: center; opacity: 0.85; }
+.bio-context-item-icon { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; opacity: 0.9; }
+.bio-context-item-icon svg { display: block; }
+.bio-context-item.danger .bio-context-item-icon { opacity: 1; }
 .bio-context-item-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bio-context-item-check { flex: 0 0 auto; color: var(--accent); font-weight: 700; }
 .bio-context-sep { height: 1px; margin: 4px 6px; background: var(--border); }

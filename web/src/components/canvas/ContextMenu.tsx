@@ -3,10 +3,12 @@
 // this menu at the cursor in screen space and close it on outside-click / Escape
 // / scroll. Items are plain data so both the node and pane menus reuse it.
 import { useEffect, useRef, useLayoutEffect, useState } from 'react';
+import Icon from '../ui/Icon';
 
 export interface MenuItem {
   key: string;
   label?: string;
+  /** Name of an SVG glyph in the shared Icon registry (see ui/Icon.tsx). */
   icon?: string;
   onClick?: () => void;
   danger?: boolean;
@@ -62,7 +64,7 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
           disabled={item.disabled}
           onClick={() => { item.onClick?.(); onClose(); }}
         >
-          <span className="bio-context-item-icon" aria-hidden>{item.icon ?? ''}</span>
+          <span className="bio-context-item-icon" aria-hidden>{item.icon ? <Icon name={item.icon} size={15} /> : null}</span>
           <span className="bio-context-item-label">{item.label}</span>
           {item.checked && <span className="bio-context-item-check" aria-hidden>✓</span>}
         </button>
