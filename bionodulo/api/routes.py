@@ -1363,6 +1363,156 @@ async def download_file(request: Request, path: str) -> FileResponse:
     return FileResponse(target, filename=target.name)
 
 
+# --- Cloud transfer relay -----------------------------------------------------
+# Browser origins can't PUT/GET directly to S3 (the bucket CORS only allows the
+# bionodulo.com origins, and the local app is a loopback origin). So the local
+# backend performs the S3 transfer server-side (no browser CORS) and exposes a
+# tiny progress registry the frontend polls. The presigned URL is minted by the
+# cloud (Clerk-authed) and passed in; we restrict it to real S3 hosts to avoid
+# turning this into an SSRF primitive.
+_CLOUD_TRANSFERS: dict[str, dict[str, Any]] = {}
+_CLOUD_TRANSFER_CHUNK = 1024 * 1024
+
+
+def _validate_s3_url(url: str) -> None:
+    from urllib.parse import urlparse
+    p = urlparse(url)
+    if p.scheme != "https":
+        raise HTTPException(status_code=400, detail="Only https S3 URLs are allowed")
+    host = (p.hostname or "").lower()
+    # <bucket>.s3.amazonaws.com, <bucket>.s3.<region>.amazonaws.com, or the
+    # path-style s3.<region>.amazonaws.com host. Reject anything else (SSRF).
+    ok = host.endswith(".amazonaws.com") and (".s3." in host or host.startswith("s3.") or ".s3-" in host)
+    if not ok:
+        raise HTTPException(status_code=400, detail="URL is not an S3 endpoint")
+
+
+def _sync_s3_put(tid: str, local_path: Path, url: str, content_type: str) -> None:
+    import httpx
+    info = _CLOUD_TRANSFERS[tid]
+    try:
+        size = local_path.stat().st_size
+        info["total"] = size
+
+        def gen() -> Any:
+            with open(local_path, "rb") as fh:
+                while True:
+                    chunk = fh.read(_CLOUD_TRANSFER_CHUNK)
+                    if not chunk:
+                        break
+                    info["loaded"] += len(chunk)
+                    yield chunk
+
+        with httpx.Client(timeout=None) as client:
+            resp = client.put(
+                url,
+                content=gen(),
+                headers={"Content-Type": content_type, "Content-Length": str(size)},
+            )
+        if resp.status_code // 100 == 2:
+            info["loaded"] = size
+            info["status"] = "done"
+        else:
+            info["status"] = "error"
+            info["error"] = f"S3 responded {resp.status_code}"
+    except Exception as exc:  # noqa: BLE001 - surfaced to the client via the registry
+        info["status"] = "error"
+        info["error"] = str(exc)
+
+
+def _sync_s3_get(tid: str, url: str, save_path: Path) -> None:
+    import httpx
+    info = _CLOUD_TRANSFERS[tid]
+    try:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        with httpx.Client(timeout=None, follow_redirects=True) as client:
+            with client.stream("GET", url) as resp:
+                if resp.status_code // 100 != 2:
+                    info["status"] = "error"
+                    info["error"] = f"S3 responded {resp.status_code}"
+                    return
+                info["total"] = int(resp.headers.get("content-length") or 0)
+                with open(save_path, "wb") as fh:
+                    for chunk in resp.iter_bytes(_CLOUD_TRANSFER_CHUNK):
+                        fh.write(chunk)
+                        info["loaded"] += len(chunk)
+        info["status"] = "done"
+    except Exception as exc:  # noqa: BLE001
+        info["status"] = "error"
+        info["error"] = str(exc)
+
+
+@router.post("/workspace/cloud-upload")
+async def cloud_upload(request: Request) -> dict[str, Any]:
+    """Relay a LOCAL workspace file up to S3 via a cloud-minted presigned PUT.
+
+    The browser presigns against the cloud (Clerk-authed) and hands us the URL;
+    we stream the local file's bytes to S3 server-side. Returns a transfer id the
+    client polls via /workspace/cloud-transfer/{id}.
+    """
+    settings = _get_settings(request)
+    body = await request.json()
+    path = str(body.get("path", ""))
+    url = str(body.get("url", ""))
+    content_type = str(body.get("content_type") or "application/octet-stream")
+    if not path or not url:
+        raise HTTPException(status_code=400, detail="path and url are required")
+    _validate_s3_url(url)
+    try:
+        target = _safe_path(path, settings.project_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail=f"File not found: '{path}'")
+
+    tid = uuid.uuid4().hex
+    _CLOUD_TRANSFERS[tid] = {
+        "direction": "upload", "name": target.name, "loaded": 0,
+        "total": target.stat().st_size, "status": "active", "error": None,
+    }
+    asyncio.create_task(asyncio.to_thread(_sync_s3_put, tid, target, url, content_type))
+    return {"transfer_id": tid, "total": _CLOUD_TRANSFERS[tid]["total"]}
+
+
+@router.post("/workspace/cloud-download")
+async def cloud_download(request: Request) -> dict[str, Any]:
+    """Relay a cloud file down to the local workspace via a presigned GET.
+
+    Saves under workspace/cloud-downloads/. Returns a transfer id + the relative
+    save path.
+    """
+    settings = _get_settings(request)
+    body = await request.json()
+    url = str(body.get("url", ""))
+    raw_name = str(body.get("name") or "download")
+    if not url:
+        raise HTTPException(status_code=400, detail="url is required")
+    _validate_s3_url(url)
+    # Sanitize the name so it cannot escape the downloads dir.
+    name = os.path.basename(raw_name).replace("..", "_").strip() or "download"
+    save_path = (settings.project_root / "cloud-downloads" / name).resolve()
+    # Defence in depth: the resolved path must stay under the workspace root.
+    if not str(save_path).startswith(str(settings.project_root.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid save path")
+
+    tid = uuid.uuid4().hex
+    _CLOUD_TRANSFERS[tid] = {
+        "direction": "download", "name": name, "loaded": 0,
+        "total": 0, "status": "active", "error": None,
+    }
+    asyncio.create_task(asyncio.to_thread(_sync_s3_get, tid, url, save_path))
+    return {"transfer_id": tid, "save_path": f"cloud-downloads/{name}"}
+
+
+@router.get("/workspace/cloud-transfer/{tid}")
+async def cloud_transfer_status(tid: str) -> dict[str, Any]:
+    """Poll a cloud transfer's progress (loaded/total/status)."""
+    info = _CLOUD_TRANSFERS.get(tid)
+    if not info:
+        raise HTTPException(status_code=404, detail="Unknown transfer")
+    return dict(info)
+
+
 @router.post("/workspace/upload")
 async def upload_file(
     request: Request,

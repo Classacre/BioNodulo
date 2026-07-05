@@ -1,14 +1,33 @@
-// Cloud file transfer engine. Uploads go presign -> S3 PUT via XMLHttpRequest
-// (fetch can't report upload progress); downloads stream the presigned GET url
-// with progress. Both drive the transfers store so the minimizable window shows
-// live progress + speed. Orchestrators return the object key (upload) or void.
+// Cloud file transfer engine — BACKEND RELAY variant.
+//
+// Browser origins can't PUT/GET directly to S3 (the uploads bucket's CORS only
+// allows the bionodulo.com origins, and the locally-run app is a loopback
+// origin). So the local backend performs the S3 transfer server-side and we
+// poll its progress registry. Uploads: presign against the cloud (Clerk-authed)
+// -> hand the URL + local path to the backend -> it streams the file to S3.
+// Downloads: hand the presigned GET URL to the backend -> it saves under
+// workspace/cloud-downloads/. Both feed the transfers store / minimizable window.
 import { presignCloudUpload, type CloudFile } from './website';
-import { apiRequest } from './client';
+import { apiGet, apiPost, apiRequest } from './client';
 import {
   addTransfer, updateTransfer, newTransferId, type Transfer,
 } from '../state/transfers';
 
-/** EMA-smoothed bytes/sec tracker for a single transfer. */
+interface BackendTransfer {
+  direction: 'upload' | 'download';
+  name: string;
+  loaded: number;
+  total: number;
+  status: 'active' | 'done' | 'error';
+  error?: string | null;
+}
+
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+/** EMA-smoothed bytes/sec tracker for the polled progress. */
 function makeSpeedMeter() {
   let lastLoaded = 0;
   let lastTime = performance.now();
@@ -16,7 +35,7 @@ function makeSpeedMeter() {
   return (loaded: number): number => {
     const now = performance.now();
     const dt = (now - lastTime) / 1000;
-    if (dt >= 0.15) {
+    if (dt >= 0.2) {
       const inst = (loaded - lastLoaded) / dt;
       ema = ema === 0 ? inst : ema * 0.7 + inst * 0.3;
       lastLoaded = loaded;
@@ -26,70 +45,28 @@ function makeSpeedMeter() {
   };
 }
 
-function errMsg(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
-
-/**
- * Upload a File to the team's cloud storage. Registers a transfer, presigns a
- * PUT, streams the bytes to S3 with progress, and returns the object key (or
- * null on failure/cancel — the transfer entry carries the error).
- */
-export async function startCloudUpload(file: File): Promise<string | null> {
-  const id = newTransferId();
-  const contentType = file.type || 'application/octet-stream';
-  const t: Transfer = { id, name: file.name, direction: 'upload', status: 'active', loaded: 0, total: file.size, speedBps: 0 };
-  addTransfer(t);
-
-  let presigned: { url: string; key: string };
-  try {
-    presigned = await presignCloudUpload(file.name, contentType, file.size);
-  } catch (e) {
-    updateTransfer(id, { status: 'error', error: errMsg(e) });
-    return null;
-  }
-
+/** Poll the backend transfer registry, mirroring progress into the store. */
+async function pollBackendTransfer(backendId: string, storeId: string, fallbackTotal: number): Promise<boolean> {
   const speed = makeSpeedMeter();
-  return await new Promise<string | null>((resolve) => {
-    const xhr = new XMLHttpRequest();
-    updateTransfer(id, { abort: () => xhr.abort() });
-    xhr.open('PUT', presigned.url, true);
-    xhr.setRequestHeader('Content-Type', contentType);
-    xhr.upload.onprogress = (ev) => {
-      if (!ev.lengthComputable) return;
-      updateTransfer(id, { loaded: ev.loaded, total: ev.total, speedBps: speed(ev.loaded) });
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        updateTransfer(id, { status: 'done', loaded: file.size, key: presigned.key, abort: undefined });
-        resolve(presigned.key);
-      } else {
-        updateTransfer(id, { status: 'error', error: `Upload failed (${xhr.status})`, abort: undefined });
-        resolve(null);
-      }
-    };
-    xhr.onerror = () => { updateTransfer(id, { status: 'error', error: 'Network error', abort: undefined }); resolve(null); };
-    xhr.onabort = () => { updateTransfer(id, { status: 'canceled', abort: undefined }); resolve(null); };
-    xhr.send(file);
-  });
+  for (;;) {
+    let p: BackendTransfer;
+    try {
+      p = await apiGet<BackendTransfer>(`/workspace/cloud-transfer/${backendId}`);
+    } catch (e) {
+      updateTransfer(storeId, { status: 'error', error: errMsg(e) });
+      return false;
+    }
+    const total = p.total || fallbackTotal;
+    updateTransfer(storeId, { loaded: p.loaded, total, speedBps: speed(p.loaded) });
+    if (p.status === 'done') { updateTransfer(storeId, { status: 'done', loaded: total || p.loaded }); return true; }
+    if (p.status === 'error') { updateTransfer(storeId, { status: 'error', error: p.error || 'Transfer failed' }); return false; }
+    await sleep(500);
+  }
 }
 
 /**
- * Read a LOCAL workspace file's raw bytes (via the local backend) and upload it
- * to cloud storage. Returns the object key, or null on failure. Shared by the
- * Workspace "Send to cloud" action and the Run-on-Cloud file pre-flight.
- */
-export async function uploadWorkspaceFileToCloud(path: string, name: string): Promise<string | null> {
-  const res = await apiRequest(`/workspace/download?path=${encodeURIComponent(path)}`);
-  if (!res.ok) throw new Error(`local read failed (${res.status})`);
-  const blob = await res.blob();
-  const f = new File([blob], name, { type: blob.type || 'application/octet-stream' });
-  return startCloudUpload(f);
-}
-
-/**
- * HEAD a local workspace file to get its size without downloading it — used by
- * the Run-on-Cloud pre-flight to decide whether to show the >50 MB prompt.
+ * HEAD a local workspace file to get its size (for the presign size check and
+ * the Run-on-Cloud >50 MB prompt) without downloading it.
  */
 export async function localFileSize(path: string): Promise<number> {
   try {
@@ -101,36 +78,42 @@ export async function localFileSize(path: string): Promise<number> {
 }
 
 /**
- * Download a cloud file to the user's computer. Streams the presigned GET url
- * with progress, then triggers a browser save. Resolves when saved (or failed).
+ * Upload a LOCAL workspace file to cloud storage via the backend relay. Presigns
+ * against the cloud, then the local backend streams the bytes to S3. Returns the
+ * object key, or null on failure. Shared by "Send to cloud" + Run-on-Cloud.
+ */
+export async function uploadWorkspaceFileToCloud(path: string, name: string): Promise<string | null> {
+  const id = newTransferId();
+  const t: Transfer = { id, name, direction: 'upload', status: 'active', loaded: 0, total: 0, speedBps: 0 };
+  addTransfer(t);
+  try {
+    const size = await localFileSize(path);
+    updateTransfer(id, { total: size });
+    const { url, key } = await presignCloudUpload(name, 'application/octet-stream', size);
+    const start = await apiPost<{ transfer_id: string; total: number }>('/workspace/cloud-upload', {
+      path, url, content_type: 'application/octet-stream',
+    });
+    const ok = await pollBackendTransfer(start.transfer_id, id, start.total || size);
+    return ok ? key : null;
+  } catch (e) {
+    updateTransfer(id, { status: 'error', error: errMsg(e) });
+    return null;
+  }
+}
+
+/**
+ * Download a cloud file to the local workspace (workspace/cloud-downloads/) via
+ * the backend relay. Resolves when saved (or failed).
  */
 export async function startCloudDownload(file: CloudFile): Promise<void> {
   const id = newTransferId();
   addTransfer({ id, name: file.name, direction: 'download', status: 'active', loaded: 0, total: file.size, speedBps: 0 });
-  const speed = makeSpeedMeter();
-  await new Promise<void>((resolve) => {
-    const xhr = new XMLHttpRequest();
-    updateTransfer(id, { abort: () => xhr.abort() });
-    xhr.open('GET', file.url, true);
-    xhr.responseType = 'blob';
-    xhr.onprogress = (ev) => {
-      if (!ev.lengthComputable) return;
-      updateTransfer(id, { loaded: ev.loaded, total: ev.total || file.size, speedBps: speed(ev.loaded) });
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const url = URL.createObjectURL(xhr.response as Blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = file.name; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        updateTransfer(id, { status: 'done', loaded: file.size, abort: undefined });
-      } else {
-        updateTransfer(id, { status: 'error', error: `Download failed (${xhr.status})`, abort: undefined });
-      }
-      resolve();
-    };
-    xhr.onerror = () => { updateTransfer(id, { status: 'error', error: 'Network error', abort: undefined }); resolve(); };
-    xhr.onabort = () => { updateTransfer(id, { status: 'canceled', abort: undefined }); resolve(); };
-    xhr.send();
-  });
+  try {
+    const start = await apiPost<{ transfer_id: string; save_path: string }>('/workspace/cloud-download', {
+      url: file.url, name: file.name,
+    });
+    await pollBackendTransfer(start.transfer_id, id, file.size);
+  } catch (e) {
+    updateTransfer(id, { status: 'error', error: errMsg(e) });
+  }
 }
