@@ -288,6 +288,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const edgeAnimated = getBool('bionodulo.canvas.edgeAnimated', false);
   const edgeWidth = Math.min(8, Math.max(1, getNumber('bionodulo.canvas.edgeWidth', 2)));
   const edgeArrows = getBool('bionodulo.canvas.edgeArrows', false);
+  // Let users drag an edge endpoint off its port; dropping on empty canvas
+  // deletes it. On by default.
+  const edgeReconnectable = getBool('bionodulo.canvas.edgeReconnectable', true);
   const defaultNodeShape = getString('bionodulo.canvas.nodeShape', 'round');     // round|box|card
   const nodeRadius = Math.min(24, Math.max(0, getNumber('bionodulo.canvas.nodeRadius', 8)));
   const nodeShadow = getBool('bionodulo.canvas.nodeShadow', true);
@@ -329,7 +332,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [commentOpenNodeId, setCommentOpenNodeId] = useState<string | null>(null);
   const [propsNodeId, setPropsNodeId] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ kind: 'node' | 'pane'; x: number; y: number; nodeId?: string; flow: { x: number; y: number } } | null>(null);
+  const [menu, setMenu] = useState<{ kind: 'node' | 'pane' | 'edge'; x: number; y: number; nodeId?: string; edgeId?: string; flow: { x: number; y: number } } | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
 
   // Precompute the connected input/output port keys once per edges change, so
@@ -572,8 +575,14 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   }, [adjacency, outTypeByNodeOutput, inTypeByNodeInput]);
 
   // Native edge reconnection: drag an existing edge's end onto another port.
+  // The ref tracks whether a drag actually landed on a valid handle — if it's
+  // dropped on empty canvas, onReconnectEnd deletes the edge (React Flow's
+  // "reconnect to nowhere = remove" pattern).
+  const edgeReconnectSuccessful = useRef(true);
+  const onReconnectStart = useCallback(() => { edgeReconnectSuccessful.current = false; }, []);
   const onReconnect = useCallback((oldEdge: RFEdge, newConn: Connection) => {
     if (!newConn.source || !newConn.target || !newConn.sourceHandle || !newConn.targetHandle) return;
+    edgeReconnectSuccessful.current = true;
     const filtered = edgesRef.current.filter(e =>
       e.id !== oldEdge.id && !(e.to.node === newConn.target && e.to.input === newConn.targetHandle));
     filtered.push({
@@ -584,6 +593,31 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     onEdgesChange(filtered);
     onPushHistory();
   }, [onEdgesChange, onPushHistory]);
+  const onReconnectEnd = useCallback((_evt: unknown, edge: RFEdge) => {
+    if (!edgeReconnectSuccessful.current) {
+      onEdgesChange(edgesRef.current.filter(e => e.id !== edge.id));
+      onPushHistory();
+    }
+    edgeReconnectSuccessful.current = true;
+  }, [onEdgesChange, onPushHistory]);
+
+  // Split an edge with a reroute node dropped at `flow`: source -> reroute ->
+  // target. Backs the edge context menu's "Insert reroute".
+  const insertRerouteOnEdge = useCallback((edgeId: string, flow: { x: number; y: number }) => {
+    const edge = edgesRef.current.find(e => e.id === edgeId);
+    if (!edge) return;
+    const rerouteId = `reroute_${Date.now()}`;
+    const reroute: WorkflowNode = {
+      id: rerouteId, type: 'reroute', params: {}, position: [flow.x, flow.y], ui: { title: '' },
+    };
+    onNodesChange([...nodesRef.current, reroute]);
+    onEdgesChange([
+      ...edgesRef.current.filter(e => e.id !== edgeId),
+      { id: `${edge.from.node}:${edge.from.output}->${rerouteId}:input`, from: edge.from, to: { node: rerouteId, input: 'input' } },
+      { id: `${rerouteId}:output->${edge.to.node}:${edge.to.input}`, from: { node: rerouteId, output: 'output' }, to: edge.to },
+    ]);
+    onPushHistory();
+  }, [onNodesChange, onEdgesChange, onPushHistory]);
 
   // Single native delete handler: React Flow passes the FULL cascade in one call
   // — the deleted nodes plus every edge removed as a consequence — so we commit
@@ -818,6 +852,10 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     e.preventDefault();
     setMenu({ kind: 'pane', x: e.clientX, y: e.clientY, flow: rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
   }, [rf]);
+  const openEdgeMenu = useCallback((e: React.MouseEvent, edge: RFEdge) => {
+    e.preventDefault();
+    setMenu({ kind: 'edge', x: e.clientX, y: e.clientY, edgeId: edge.id, flow: rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
+  }, [rf]);
 
   const selectAll = useCallback(() => {
     setRfNodes(ns => ns.map(n => (n.selectable === false ? n : { ...n, selected: true })));
@@ -926,6 +964,13 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // Build the right-click menu items lazily from the current target. Node items
   // toggle ui flags / collapse / comments; pane items act on the whole canvas.
   const buildMenuItems = useCallback((m: NonNullable<typeof menu>): MenuItem[] => {
+    if (m.kind === 'edge' && m.edgeId) {
+      return [
+        { key: 'reroute', label: t('canvas.menu.insertReroute'), icon: 'reroute', onClick: () => insertRerouteOnEdge(m.edgeId!, m.flow) },
+        { key: 'sep1', separator: true },
+        { key: 'delete', label: t('canvas.menu.deleteConnection'), icon: 'trash', danger: true, onClick: () => edgeActions.removeEdge(m.edgeId!) },
+      ];
+    }
     if (m.kind === 'node' && m.nodeId) {
       const wn = nodesRef.current.find(n => n.id === m.nodeId);
       if (!wn) return [];
@@ -993,7 +1038,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       { key: 'sep2', separator: true },
       { key: 'thumb', label: t('canvas.menu.exportThumbnail'), icon: 'image', onClick: () => { void exportThumbnail(); } },
     ];
-  }, [t, actions, objectInfo, allParamInputs, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
+  }, [t, actions, edgeActions, insertRerouteOnEdge, objectInfo, allParamInputs, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
 
   const propsNode = propsNodeId ? nodesRef.current.find(n => n.id === propsNodeId) ?? null : null;
 
@@ -1018,13 +1063,17 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
-        onReconnect={onReconnect}
+        edgesReconnectable={edgeReconnectable}
+        onReconnectStart={edgeReconnectable ? onReconnectStart : undefined}
+        onReconnect={edgeReconnectable ? onReconnect : undefined}
+        onReconnectEnd={edgeReconnectable ? onReconnectEnd : undefined}
         isValidConnection={isValidConnection}
         onDelete={onDelete}
         onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
         onNodeContextMenu={openNodeMenu}
         onPaneContextMenu={openPaneMenu}
+        onEdgeContextMenu={openEdgeMenu}
         onError={onError}
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         snapToGrid={snapToGrid}

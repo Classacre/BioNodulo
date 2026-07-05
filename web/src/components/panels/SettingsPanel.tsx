@@ -434,6 +434,9 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('canvas.connectionRadius')} desc={st('canvas.connectionRadiusDescription')} keywords="connection snap radius grab port area radio conexion">
             <input type="range" min={8} max={80} step={2} value={getNumber('bionodulo.canvas.connectionRadius', 28)} onChange={e => set('bionodulo.canvas.connectionRadius', Math.min(80, Math.max(8, parseInt(e.target.value) || 28)))} />
           </SettingRow>
+          <SettingRow query={query} label={st('canvas.edgeReconnectable')} desc={st('canvas.edgeReconnectableDescription')} keywords="reconnect drag connection edge endpoint detach delete mover reconectar arrastrar">
+            <div className={`toggle ${getBool('bionodulo.canvas.edgeReconnectable', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.edgeReconnectable', !getBool('bionodulo.canvas.edgeReconnectable', true))} />
+          </SettingRow>
 
           {/* ---- Appearance: nodes ---- */}
           <SettingRow query={query} label={st('canvas.nodeShape')} desc={st('canvas.nodeShapeDescription')} keywords="node shape rounded box card corners forma nodo">
