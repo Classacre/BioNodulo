@@ -58,10 +58,30 @@ const NAMED_COLORS: Record<string, string> = {
 export function getInteractiveWidgetEntries(
   meta: NodeMetadata | null | undefined,
   params: Record<string, unknown> = {},
+  promoted?: ReadonlySet<string> | readonly string[],
 ): WidgetEntry[] {
+  const promotedSet = promoted instanceof Set ? promoted
+    : promoted ? new Set(promoted) : null;
   const visibleInputs = getVisibleInputSpecs(meta, params);
   return Object.entries({ ...visibleInputs.required, ...visibleInputs.optional })
     .filter((entry): entry is [string, InputSpec] => isInteractiveWidgetSpec(entry[1]))
+    // A promoted param renders as an input port, not a widget.
+    .filter(([key]) => !promotedSet?.has(key))
     .map(([key, spec]) => ({ key, spec }));
+}
+
+/**
+ * Param keys that CAN be promoted to input ports ("Connect to parameter") — i.e.
+ * the scalar params that currently render as on-node widgets. `forceInput`/`link`
+ * params are already ports and never appear here.
+ */
+export function getPromotableParamKeys(
+  meta: NodeMetadata | null | undefined,
+  params: Record<string, unknown> = {},
+): string[] {
+  const visibleInputs = getVisibleInputSpecs(meta, params);
+  return Object.entries({ ...visibleInputs.required, ...visibleInputs.optional })
+    .filter((entry): entry is [string, InputSpec] => isInteractiveWidgetSpec(entry[1]))
+    .map(([key]) => key);
 }
 

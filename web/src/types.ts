@@ -115,6 +115,10 @@ export interface WorkflowNode {
     muted?: boolean;
     bypassed?: boolean;
     output?: boolean;
+    /** Param keys promoted from on-node widgets to connectable input ports
+     *  ("Connect to parameter"). A promoted key renders a <Handle> instead of
+     *  its widget so an edge can drive the value. */
+    promotedInputs?: string[];
     width?: number;
     height?: number;
     validation?: {

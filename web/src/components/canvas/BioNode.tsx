@@ -133,7 +133,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
             ))}
           </div>
         </div>
-        <NodeWidgets nodeId={id} meta={g.meta} params={g.params} />
+        <NodeWidgets nodeId={id} meta={g.meta} params={g.params} promoted={g.promotedInputs} />
         </>
       ) : g.collapsed && !g.visualOnly ? (
         // Collapsed: keep handles for every port, pinned to header centre.

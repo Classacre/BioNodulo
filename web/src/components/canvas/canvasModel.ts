@@ -18,6 +18,8 @@ export interface GraphNode {
   inputs: { name: string; type: string; connected: boolean }[];
   outputs: { name: string; type: string; connected: boolean }[];
   params: Record<string, unknown>;
+  // Param keys promoted from widgets to input ports (see WorkflowNode.ui).
+  promotedInputs: string[];
   meta: NodeMetadata | null;
   color: string;
   muted: boolean;

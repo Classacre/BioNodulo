@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { NodeMetadata } from '../types';
 import {
   getInteractiveWidgetEntries,
+  getPromotableParamKeys,
   isColorParam,
   toHexColor,
 } from '../utils/nodeLayout';
@@ -73,5 +74,39 @@ describe('interactive widget entries', () => {
       'checksum_expected',
       'fail_on_error',
     ]);
+  });
+
+  it('excludes promoted params (they render as input ports, not widgets)', () => {
+    const promoted = new Set(['min_size_bytes', 'fail_on_error']);
+    const widgets = getInteractiveWidgetEntries(validatorLikeMeta, {}, promoted);
+    expect(widgets.map(w => w.key)).toEqual([
+      'expected_format',
+      'max_size_bytes',
+      'required_fields',
+      'min_records',
+      'checksum_expected',
+    ]);
+    // Accepts a plain array too.
+    expect(getInteractiveWidgetEntries(validatorLikeMeta, {}, ['expected_format']).map(w => w.key))
+      .not.toContain('expected_format');
+  });
+});
+
+describe('promotable param keys', () => {
+  it('lists exactly the widget params (the connect-to-parameter candidates)', () => {
+    // `input` is an ANY data port (not an interactive widget) → not promotable.
+    expect(getPromotableParamKeys(validatorLikeMeta, {})).toEqual([
+      'expected_format',
+      'min_size_bytes',
+      'max_size_bytes',
+      'required_fields',
+      'min_records',
+      'checksum_expected',
+      'fail_on_error',
+    ]);
+  });
+
+  it('returns nothing for a null meta', () => {
+    expect(getPromotableParamKeys(null, {})).toEqual([]);
   });
 });

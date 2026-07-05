@@ -4330,7 +4330,10 @@ kbd {
 .bio-context-item.danger .bio-context-item-icon { opacity: 1; }
 .bio-context-item-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bio-context-item-check { flex: 0 0 auto; color: var(--accent); font-weight: 700; }
+.bio-context-item-arrow { flex: 0 0 auto; display: inline-flex; align-items: center; opacity: 0.6; margin-right: -2px; }
 .bio-context-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+.bio-context-row { position: relative; }
+.bio-context-submenu { position: fixed; max-height: 60vh; overflow-y: auto; }
 
 /* --- Node properties dialog --- */
 .bio-props-dialog { max-width: 480px; }

@@ -49,7 +49,7 @@ import {
   NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor,
   type GraphNode, type WorkflowCanvasRef,
 } from './canvasModel';
-import { NODE_HEADER_H, isInteractiveWidgetSpec } from '../../utils/nodeLayout';
+import { NODE_HEADER_H, isInteractiveWidgetSpec, getPromotableParamKeys } from '../../utils/nodeLayout';
 import { dagreLayout } from '../../utils/dagreLayout';
 import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
@@ -86,6 +86,9 @@ const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.5 };
 const PRO_OPTIONS = { hideAttribution: true };
 const DEFAULT_EDGE_OPTIONS = { type: 'bio' };
 const EMPTY_COMMENTS: Comment[] = [];
+// Stable empty array so nodes with no promoted params keep a value-stable
+// `promotedInputs` (a fresh `[]` each reconcile would defeat the BioNode memo).
+const EMPTY_PROMOTED: string[] = [];
 const MINIMAP_NODE_COLOR = (n: RFNode) => {
   const d = n.data as { g?: { color?: string }; color?: string } | undefined;
   return d?.g?.color ?? d?.color ?? '#64748b';
@@ -204,6 +207,8 @@ function toGraphNode(
   else if (collapsed) nodeHeight = NODE_HEADER_H;
   else nodeHeight = wn.ui?.height ?? 0;
   const visibleInputs = getVisibleInputSpecs(meta, wn.params || {});
+  const promotedInputs = wn.ui?.promotedInputs ?? EMPTY_PROMOTED;
+  const promotedSet = promotedInputs.length ? new Set(promotedInputs) : null;
   return {
     id: wn.id,
     type: wn.type,
@@ -219,7 +224,7 @@ function toGraphNode(
     inputs: (meta && !visualOnly) ? [
       ...Object.entries(visibleInputs.required),
       ...Object.entries(visibleInputs.optional),
-    ].filter(([, spec]) => !isInteractiveWidgetSpec(spec)).map(([name, spec]) => ({
+    ].filter(([name, spec]) => !isInteractiveWidgetSpec(spec) || promotedSet?.has(name)).map(([name, spec]) => ({
       name, type: spec.type || 'STRING', connected: connectedIn.has(`${wn.id}:${name}`),
     })) : [],
     outputs: (meta && !visualOnly) ? resolveNodeOutputs(meta, wn.params || {}).map(output => ({
@@ -227,6 +232,7 @@ function toGraphNode(
       connected: connectedOut.has(`${wn.id}:${output.name}`),
     })) : [],
     params: wn.params || {},
+    promotedInputs,
     meta,
     color: wn.ui?.color || nodeColor(meta),
     muted: wn.ui?.muted ?? false,
@@ -710,6 +716,20 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       onPushHistory();
     },
     openProperties: (id) => setPropsNodeId(id),
+    togglePromotedInput: (id, key) => {
+      const node = nodesRef.current.find(n => n.id === id);
+      const current = node?.ui?.promotedInputs ?? [];
+      const isPromoted = current.includes(key);
+      const next = isPromoted ? current.filter(k => k !== key) : [...current, key];
+      onNodesChange(nodesRef.current.map(n => n.id === id
+        ? { ...n, ui: { ...n.ui, promotedInputs: next.length ? next : undefined } }
+        : n));
+      // Demoting a connected input back to a widget: drop the dangling edge(s).
+      if (isPromoted) {
+        onEdgesChange(edgesRef.current.filter(e => !(e.to.node === id && e.to.input === key)));
+      }
+      onPushHistory();
+    },
   }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory, onAddComment]);
 
   const edgeActions = useMemo<BioEdgeActions>(() => ({
@@ -894,6 +914,27 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         { key: 'edit', label: t('canvas.menu.editProperties'), icon: 'edit', onClick: () => setPropsNodeId(m.nodeId!) },
       ];
       if (onAddComment) items.push({ key: 'comment', label: t('canvas.menu.addComment'), icon: 'comment', onClick: () => setCommentOpenNodeId(m.nodeId!) });
+
+      // "Connect to parameter": promote a widget-param to a connectable input
+      // port (or demote it back). Submenu lists each promotable param, checked
+      // when it's currently a port.
+      const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
+      const promotable = getPromotableParamKeys(meta, wn.params || {});
+      const promotedSet = new Set(ui.promotedInputs ?? []);
+      if (promotable.length > 0) {
+        items.push({
+          key: 'connectParam', label: t('canvas.menu.connectParam'), icon: 'link',
+          children: promotable.map(key => {
+            const spec = meta?.input_types?.required?.[key] || meta?.input_types?.optional?.[key];
+            return {
+              key: `promote:${key}`,
+              label: spec?.label || key,
+              checked: promotedSet.has(key),
+              onClick: () => actions.togglePromotedInput(m.nodeId!, key),
+            };
+          }),
+        });
+      }
       items.push({ key: 'sep1', separator: true });
       items.push(
         { key: 'mute', label: t('canvas.menu.muteNode'), icon: 'mute', checked: Boolean(ui.muted), onClick: () => actions.toggleFlag(m.nodeId!, 'muted') },
@@ -917,7 +958,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       { key: 'sep2', separator: true },
       { key: 'thumb', label: t('canvas.menu.exportThumbnail'), icon: 'image', onClick: () => { void exportThumbnail(); } },
     ];
-  }, [t, actions, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
+  }, [t, actions, objectInfo, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
 
   const propsNode = propsNodeId ? nodesRef.current.find(n => n.id === propsNodeId) ?? null : null;
 

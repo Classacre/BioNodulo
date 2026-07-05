@@ -131,13 +131,15 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
   );
 }
 
-function NodeWidgetsComponent({ nodeId, meta, params }: {
+function NodeWidgetsComponent({ nodeId, meta, params, promoted }: {
   nodeId: string;
   meta: NodeMetadata | null;
   params: Record<string, unknown>;
+  // Param keys promoted to input ports — rendered as handles, not widgets.
+  promoted?: readonly string[];
 }) {
   const actions = useContext(BioNodeActionsContext);
-  const entries = getInteractiveWidgetEntries(meta, params);
+  const entries = getInteractiveWidgetEntries(meta, params, promoted);
   if (entries.length === 0 || !actions) return null;
   return (
     <div className="bio-node-widgets">
