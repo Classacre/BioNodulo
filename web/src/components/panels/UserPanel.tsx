@@ -6,6 +6,7 @@ import { authUserAtom, cloudConfigAtom } from '../../state/appAtoms';
 import { showInviteDialogAtom } from '../../state/uiAtoms';
 import { getCloudCredits, getCurrentUser, type CloudUser } from '../../api/website';
 import { useClerkAuth } from '../../hooks/cloud/useClerkAuth';
+import { useDesktopAuth } from '../../hooks/cloud/useDesktopAuth';
 
 interface UserPanelProps {
   onClose: () => void;
@@ -26,6 +27,7 @@ export default function UserPanel({ onClose }: UserPanelProps) {
   const authUser = useAtomValue(authUserAtom);
   const openInvite = useSetAtom(showInviteDialogAtom);
   const { clerkEnabled, clerkSignedIn, openSignIn, openProfile, openOrganization, signOut } = useClerkAuth();
+  const { pending: desktopPending, signInViaBrowser, cancel: cancelDesktopSignIn } = useDesktopAuth();
 
   const configUser = cloudConfig?.user ?? null;
   const accountUrl = cloudConfig?.accountUrl ? cloudConfig.accountUrl.replace(/\/+$/, '') : null;
@@ -86,14 +88,25 @@ export default function UserPanel({ onClose }: UserPanelProps) {
               <Icon name="user" size={14} /> {t('account.signIn', { defaultValue: 'Sign in to BioNodulo Cloud' })}
             </button>
           ) : accountUrl ? (
-            <>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                {t('account.cloudNotConfigured', { defaultValue: 'Cloud sign-in is not configured for this local instance.' })}
-              </div>
-              <a className="btn" href={accountUrl} target="_blank" rel="noopener noreferrer">
-                <Icon name="link" size={14} /> {t('account.openCloud', { defaultValue: 'Open BioNodulo Cloud' })}
-              </a>
-            </>
+            desktopPending ? (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {t('account.waitingBrowser', { defaultValue: 'Waiting for sign-in in your browser…' })}
+                </div>
+                <button className="btn" onClick={cancelDesktopSignIn}>
+                  <Icon name="close" size={14} /> {t('common.cancel', { defaultValue: 'Cancel' })}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-primary" onClick={signInViaBrowser}>
+                  <Icon name="link" size={14} /> {t('account.signInBrowser', { defaultValue: 'Sign in with browser' })}
+                </button>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {t('account.signInBrowserHint', { defaultValue: 'Opens BioNodulo Cloud to sign in, then returns here.' })}
+                </div>
+              </>
+            )
           ) : (
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
               {t('account.cloudUnavailable', { defaultValue: 'BioNodulo Cloud is not available in this build.' })}

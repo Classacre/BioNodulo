@@ -15,12 +15,13 @@ import shutil
 import subprocess
 import tempfile
 import uuid
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 
 from bionodulo.api.app_state import app_state, setting_literal
 from bionodulo.api.auth_dependencies import require_auth_payload as _require_auth_payload
@@ -1511,6 +1512,52 @@ async def cloud_transfer_status(tid: str) -> dict[str, Any]:
     if not info:
         raise HTTPException(status_code=404, detail="Unknown transfer")
     return dict(info)
+
+
+# --- Desktop loopback sign-in bridge -----------------------------------------
+# The locally-run app can't load Clerk (domain-locked to bionodulo.com), so it
+# opens the system browser to cloud.bionodulo.com/desktop-auth, which mints a
+# Clerk JWT and redirects the browser here on loopback with ?token=&state=. We
+# stash the token keyed by the app-generated state; the app then polls
+# /api/desktop/session?state= to pick it up (one-time). Tokens live only in
+# memory and expire fast.
+_DESKTOP_AUTH: dict[str, dict[str, Any]] = {}
+_DESKTOP_AUTH_TTL = 300  # seconds
+
+
+def _prune_desktop_auth() -> None:
+    now = time.time()
+    for st in [s for s, e in _DESKTOP_AUTH.items() if now - e["ts"] > _DESKTOP_AUTH_TTL]:
+        _DESKTOP_AUTH.pop(st, None)
+
+
+@router.get("/desktop/callback")
+async def desktop_auth_callback(token: str = "", state: str = "") -> HTMLResponse:
+    """Loopback redirect target from the cloud desktop-auth page. Stashes the
+    token by state, then shows a close-me page."""
+    _prune_desktop_auth()
+    if token and state:
+        _DESKTOP_AUTH[state] = {"token": token, "ts": time.time()}
+    body = (
+        "<!doctype html><html><head><meta charset='utf-8'><title>BioNodulo</title></head>"
+        "<body style='font-family:system-ui,sans-serif;text-align:center;padding:48px;color:#334155'>"
+        "<h2 style='color:#0f172a'>Signed in to BioNodulo</h2>"
+        "<p>You can close this tab and return to the app.</p>"
+        "<script>setTimeout(function(){window.close();},1200);</script>"
+        "</body></html>"
+    )
+    status = 200 if (token and state) else 400
+    return HTMLResponse(body, status_code=status)
+
+
+@router.get("/desktop/session")
+async def desktop_auth_session(state: str) -> dict[str, Any]:
+    """The app polls this with its state to retrieve the captured token (once)."""
+    _prune_desktop_auth()
+    entry = _DESKTOP_AUTH.pop(state, None)
+    if not entry or time.time() - entry["ts"] > _DESKTOP_AUTH_TTL:
+        return {"token": None}
+    return {"token": entry["token"]}
 
 
 @router.post("/workspace/upload")
