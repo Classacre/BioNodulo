@@ -474,6 +474,9 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('canvas.zoomOnDoubleClick')} desc={st('canvas.zoomOnDoubleClickDescription')} keywords="double click zoom doble clic acercar">
             <div className={`toggle ${getBool('bionodulo.canvas.zoomOnDoubleClick', false) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.zoomOnDoubleClick', !getBool('bionodulo.canvas.zoomOnDoubleClick', false))} />
           </SettingRow>
+          <SettingRow query={query} label={st('canvas.allParamInputs')} desc={st('canvas.allParamInputsDescription')} keywords="parameter input dot widget connect port all entrada parametro conector todos">
+            <div className={`toggle ${getBool('bionodulo.canvas.allParamInputs', false) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.allParamInputs', !getBool('bionodulo.canvas.allParamInputs', false))} />
+          </SettingRow>
         </SettingsGroup>
 
         {/* Collaboration */}

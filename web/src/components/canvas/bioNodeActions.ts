@@ -28,9 +28,12 @@ export interface BioNodeActions {
   toggleFlag: (id: string, flag: 'muted' | 'bypassed' | 'pinned' | 'output') => void;
   /** Open the node info / edit-properties dialog. */
   openProperties: (id: string) => void;
-  /** Promote/demote a param between an on-node widget and a connectable input
-   *  port ("Connect to parameter"). Demoting also drops any edge into it. */
+  /** Show/hide a param's input dot ("Add input"). Hiding also drops any edge
+   *  feeding it. The widget itself always stays. */
   togglePromotedInput: (id: string, key: string) => void;
+  /** Set the exact set of params showing an input dot (the "All" toggle).
+   *  Passing [] clears them; keys removed here also lose their feeding edges. */
+  setPromotedInputs: (id: string, keys: string[]) => void;
 }
 
 export const BioNodeActionsContext = createContext<BioNodeActions | null>(null);

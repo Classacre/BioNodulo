@@ -189,6 +189,7 @@ function toGraphNode(
   objectInfo: ObjectInfo,
   status: NodeStatus['status'] | undefined,
   defaultShape: string,
+  allParamInputs: boolean,
   t: (key: string, opts?: Record<string, unknown>) => string,
 ): GraphNode {
   const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
@@ -207,7 +208,11 @@ function toGraphNode(
   else if (collapsed) nodeHeight = NODE_HEADER_H;
   else nodeHeight = wn.ui?.height ?? 0;
   const visibleInputs = getVisibleInputSpecs(meta, wn.params || {});
-  const promotedInputs = wn.ui?.promotedInputs ?? EMPTY_PROMOTED;
+  // Effective input dots: the "enable all by default" setting shows a dot on
+  // every widget param; otherwise only the per-node promoted keys.
+  const promotedInputs = allParamInputs
+    ? getPromotableParamKeys(meta, wn.params || {})
+    : (wn.ui?.promotedInputs ?? EMPTY_PROMOTED);
   return {
     id: wn.id,
     type: wn.type,
@@ -291,6 +296,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const panOnScroll = getBool('bionodulo.canvas.panOnScroll', true);
   const zoomOnDoubleClick = getBool('bionodulo.canvas.zoomOnDoubleClick', false);
   const nodeFontSize = Math.min(18, Math.max(9, getNumber('bionodulo.canvas.nodeFontSize', 12)));
+  // When on, every widget param shows an input dot by default (still off unless
+  // the user opts in). Per-node "Add input" toggles layer on top.
+  const allParamInputs = getBool('bionodulo.canvas.allParamInputs', false);
   const { colorMode, pattern } = useCanvasChrome();
   const effectivePattern = bgPatternSetting === 'auto' ? pattern : bgPatternSetting;
   const bgVariant = effectivePattern === 'lines' || effectivePattern === 'grid' ? BackgroundVariant.Lines
@@ -371,7 +379,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           } satisfies RFNode;
         }
 
-        const g = toGraphNode(wn, connectedPorts.cin, connectedPorts.cout, objectInfo, nodeStatusMap?.get(wn.id), defaultNodeShape, tRef.current);
+        const g = toGraphNode(wn, connectedPorts.cin, connectedPorts.cout, objectInfo, nodeStatusMap?.get(wn.id), defaultNodeShape, allParamInputs, tRef.current);
         g.selected = selected;
         // Fix the width; leave height to React Flow's DOM measurement unless the
         // node has an explicit (fixed/collapsed/reroute/resized) height (g.height > 0).
@@ -398,7 +406,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       built.sort((a, b) => (a.type === 'group' ? 0 : 1) - (b.type === 'group' ? 0 : 1));
       return built;
     });
-  }, [nodes, connectedPorts, objectInfo, nodeStatusMap, missingDependencyNodeIds, defaultNodeShape]);
+  }, [nodes, connectedPorts, objectInfo, nodeStatusMap, missingDependencyNodeIds, defaultNodeShape, allParamInputs]);
 
   // Stable `${nodeId}:${outputName}` -> output type map for edge colour, keyed
   // on props (not node positions) so it does not churn during a drag.
@@ -723,9 +731,24 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       onNodesChange(nodesRef.current.map(n => n.id === id
         ? { ...n, ui: { ...n.ui, promotedInputs: next.length ? next : undefined } }
         : n));
-      // Demoting a connected input back to a widget: drop the dangling edge(s).
+      // Removing an input dot: drop any edge that was feeding it.
       if (isPromoted) {
         onEdgesChange(edgesRef.current.filter(e => !(e.to.node === id && e.to.input === key)));
+      }
+      onPushHistory();
+    },
+    setPromotedInputs: (id, keys) => {
+      const node = nodesRef.current.find(n => n.id === id);
+      const prev = node?.ui?.promotedInputs ?? [];
+      const nextSet = new Set(keys);
+      onNodesChange(nodesRef.current.map(n => n.id === id
+        ? { ...n, ui: { ...n.ui, promotedInputs: keys.length ? keys : undefined } }
+        : n));
+      // Drop edges feeding any input dot that was removed.
+      const removed = prev.filter(k => !nextSet.has(k));
+      if (removed.length) {
+        const removedSet = new Set(removed);
+        onEdgesChange(edgesRef.current.filter(e => !(e.to.node === id && removedSet.has(e.to.input))));
       }
       onPushHistory();
     },
@@ -921,17 +944,30 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       const promotable = getPromotableParamKeys(meta, wn.params || {});
       const promotedSet = new Set(ui.promotedInputs ?? []);
       if (promotable.length > 0) {
+        const storedAll = promotable.every(k => promotedSet.has(k));
         items.push({
           key: 'addInput', label: t('canvas.menu.addInput'), icon: 'link',
-          children: promotable.map(key => {
-            const spec = meta?.input_types?.required?.[key] || meta?.input_types?.optional?.[key];
-            return {
-              key: `promote:${key}`,
-              label: spec?.label || key,
-              checked: promotedSet.has(key),
-              onClick: () => actions.togglePromotedInput(m.nodeId!, key),
-            };
-          }),
+          children: [
+            {
+              // "All": toggle every param's input dot at once.
+              key: 'promote:__all__',
+              label: t('canvas.menu.addInputAll'),
+              checked: allParamInputs || storedAll,
+              disabled: allParamInputs,
+              onClick: () => actions.setPromotedInputs(m.nodeId!, storedAll ? [] : promotable),
+            },
+            { key: 'promote:__sep__', separator: true },
+            ...promotable.map(key => {
+              const spec = meta?.input_types?.required?.[key] || meta?.input_types?.optional?.[key];
+              return {
+                key: `promote:${key}`,
+                label: spec?.label || key,
+                checked: allParamInputs || promotedSet.has(key),
+                disabled: allParamInputs,
+                onClick: () => actions.togglePromotedInput(m.nodeId!, key),
+              };
+            }),
+          ],
         });
       }
       items.push({ key: 'sep1', separator: true });
@@ -957,7 +993,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       { key: 'sep2', separator: true },
       { key: 'thumb', label: t('canvas.menu.exportThumbnail'), icon: 'image', onClick: () => { void exportThumbnail(); } },
     ];
-  }, [t, actions, objectInfo, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
+  }, [t, actions, objectInfo, allParamInputs, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
 
   const propsNode = propsNodeId ? nodesRef.current.find(n => n.id === propsNodeId) ?? null : null;
 

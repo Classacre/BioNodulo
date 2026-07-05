@@ -126,7 +126,7 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
       if (hasJoinLink) {
         return { color: '#0d9488', text: t('collab.badgeJoin'), label: t('collab.badgeLinkReady') };
       }
-      return { color: '#64748b', text: t('collab.badgeOffline'), label: t('collab.badgeDisabled') };
+      return { color: '#64748b', text: t('collab.badgeLocal'), label: t('collab.badgeDisabled') };
     }
     if (offline && !connected) {
       return { color: '#6366f1', text: t('collab.badgeLocal'), label: t('collab.badgeLocalChangesSaved') };
