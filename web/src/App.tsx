@@ -3184,12 +3184,6 @@ export default function App() {
           creditsRemaining: cloudConfig.credits?.remaining ?? null,
           accountUrl: cloudConfig.accountUrl,
         } : null}
-        clerkAccount={clerk.clerkEnabled ? {
-          signedIn: clerk.clerkSignedIn,
-          userName: authUser?.name ?? null,
-          onSignIn: clerk.openSignIn,
-          onSignOut: clerk.signOut,
-        } : null}
         collabControls={(
           <CollabBadge
             enabled={collabEnabled}
