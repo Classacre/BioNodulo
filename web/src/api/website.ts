@@ -120,10 +120,11 @@ export function saveCloudWorkflow(wf: Workflow): Promise<WorkflowRow> {
 export function submitCloudRun(
   workflowId: string,
   compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } },
+  inputs?: Record<string, unknown>,
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
   return call('/runs', {
     method: 'POST',
-    body: JSON.stringify({ workflowId, ...(compute ?? {}) }),
+    body: JSON.stringify({ workflowId, ...(compute ?? {}), ...(inputs ? { inputs } : {}) }),
   });
 }
 
@@ -222,6 +223,32 @@ export async function getCloudCredits(): Promise<CloudCredits | null> {
   } catch {
     return null;
   }
+}
+
+export interface CloudFile {
+  key: string;
+  name: string;
+  size: number;
+  updatedAt: string;
+  /** Short-lived presigned GET url for download. */
+  url: string;
+}
+
+/** List the team's uploaded cloud files (with presigned download urls). */
+export function listCloudFiles(): Promise<CloudFile[]> {
+  return call<CloudFile[]>('/files');
+}
+
+/** Ask the cloud for a presigned S3 PUT url to upload a file under the team. */
+export function presignCloudUpload(
+  filename: string,
+  contentType: string,
+  size: number,
+): Promise<{ url: string; key: string; method: string }> {
+  return call<{ url: string; key: string; method: string }>('/files/presign', {
+    method: 'POST',
+    body: JSON.stringify({ filename, contentType, size }),
+  });
 }
 
 function rowToWorkflow(row: WorkflowRow): Workflow {

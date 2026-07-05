@@ -1346,6 +1346,23 @@ async def read_file(request: Request, path: str) -> Any:
     return PlainTextResponse(content)
 
 
+@router.get("/workspace/download")
+async def download_file(request: Request, path: str) -> FileResponse:
+    """Stream a workspace file's raw bytes (any size), path-validated.
+
+    Unlike /workspace/file (10MB, text/JSON only), this serves the raw binary so
+    the browser can read a local file to send it to cloud storage.
+    """
+    settings = _get_settings(request)
+    try:
+        target = _safe_path(path, settings.project_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail=f"File not found: '{path}'")
+    return FileResponse(target, filename=target.name)
+
+
 @router.post("/workspace/upload")
 async def upload_file(
     request: Request,

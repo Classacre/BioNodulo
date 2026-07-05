@@ -4367,3 +4367,58 @@ kbd {
 .account-strong { font-weight: 600; }
 .account-action { justify-content: flex-start; gap: 8px; width: 100%; text-decoration: none; }
 .account-signout { color: #ef4444; }
+
+/* --- Cloud transfer window (uploads/downloads) --- */
+.bio-xfer-window {
+  position: fixed; right: 16px; bottom: 16px; z-index: 880;
+  width: 340px; max-height: 60vh; display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface); color: var(--text);
+  box-shadow: var(--shadow-lg); overflow: hidden;
+  animation: bioXferIn 140ms ease;
+}
+@keyframes bioXferIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.bio-xfer-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.bio-xfer-title { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.bio-xfer-count { background: var(--accent); color: #05221c; border-radius: 999px; font-size: 10px; padding: 0 6px; font-weight: 700; }
+.bio-xfer-head-actions { display: inline-flex; gap: 2px; }
+.bio-xfer-head-actions button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 3px; border-radius: 5px; display: inline-flex; }
+.bio-xfer-head-actions button:hover { background: var(--surface-2, var(--border)); color: var(--text); }
+.bio-xfer-list { overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.bio-xfer-row { display: flex; align-items: center; gap: 8px; padding: 6px 6px; border-radius: 7px; }
+.bio-xfer-row:hover { background: var(--surface-2, var(--border)); }
+.bio-xfer-dir { flex: 0 0 auto; color: var(--muted); display: inline-flex; }
+.bio-xfer-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.bio-xfer-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bio-xfer-bar { height: 4px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.bio-xfer-fill { height: 100%; background: var(--accent); transition: width 140ms ease; }
+.bio-xfer-done .bio-xfer-fill { background: #22c55e; }
+.bio-xfer-error .bio-xfer-fill { background: #ef4444; }
+.bio-xfer-canceled .bio-xfer-fill { background: var(--muted); }
+.bio-xfer-meta { font-size: 10px; color: var(--muted); }
+.bio-xfer-err { color: #ef4444; }
+.bio-xfer-x { flex: 0 0 auto; background: none; border: none; color: var(--muted); cursor: pointer; padding: 3px; border-radius: 5px; display: inline-flex; }
+.bio-xfer-x:hover { background: var(--border); color: var(--text); }
+.bio-xfer-pill {
+  position: fixed; right: 16px; bottom: 16px; z-index: 880;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text); cursor: pointer;
+  box-shadow: var(--shadow-lg); font-size: 12px;
+}
+.bio-xfer-pill:hover { background: var(--surface-2, var(--border)); }
+.bio-xfer-pill-bar { width: 60px; height: 4px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.bio-xfer-pill-fill { display: block; height: 100%; background: var(--accent); }
+
+/* --- Workspace Local/Cloud tabs --- */
+.workspace-tabs { display: flex; gap: 4px; padding: 8px 8px 0; }
+.workspace-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border: 1px solid var(--border); border-bottom: none;
+  border-radius: 7px 7px 0 0; background: var(--surface-2, var(--border));
+  color: var(--muted); font-size: 12px; cursor: pointer;
+}
+.workspace-tab.active { background: var(--surface); color: var(--text); font-weight: 600; }
+.workspace-cloud { display: flex; flex-direction: column; min-height: 0; }
+.workspace-cloud-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px; }
+.workspace-cloud-hint { font-size: 11px; color: var(--muted); }

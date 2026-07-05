@@ -1,12 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAtomValue } from 'jotai';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { alertDialog } from '../ui';
 import Dialog from '../ui/Dialog';
+import ContextMenu, { type MenuItem } from '../canvas/ContextMenu';
 import { apiGet, apiGetText, apiPost, ApiError } from '../../api/client';
 import { logError } from '../../state/logging';
 import { useSettings } from '../../hooks/settings';
+import { authUserAtom, cloudConfigAtom } from '../../state/appAtoms';
+import { listCloudFiles, type CloudFile } from '../../api/website';
+import { startCloudDownload, uploadWorkspaceFileToCloud } from '../../api/cloudFiles';
 
 interface FileEntry {
   name: string;
@@ -40,6 +45,61 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
   const [previewLoading, setPreviewLoading] = useState(false);
   const fileListRef = useRef<HTMLDivElement>(null);
   const lastSelectedRef = useRef<string | null>(null);
+
+  // Cloud tab: only offered when signed into a BioNodulo account.
+  const authUser = useAtomValue(authUserAtom);
+  const cloudConfig = useAtomValue(cloudConfigAtom);
+  const cloudAvailable = Boolean(authUser) || Boolean(cloudConfig?.user);
+  const [tab, setTab] = useState<'local' | 'cloud'>('local');
+  const [cloudFiles, setCloudFiles] = useState<CloudFile[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudError, setCloudError] = useState('');
+  // Right-click menu over a local or cloud file row.
+  const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+
+  const loadCloudFiles = useCallback(async () => {
+    setCloudLoading(true); setCloudError('');
+    try {
+      setCloudFiles(await listCloudFiles());
+    } catch (err) {
+      logError('workspace.cloud.list', err);
+      setCloudError(t('workspace.cloudListError', { defaultValue: 'Could not list cloud files.' }));
+      setCloudFiles([]);
+    }
+    setCloudLoading(false);
+  }, [t]);
+
+  useEffect(() => {
+    if (tab === 'cloud' && cloudAvailable) loadCloudFiles();
+  }, [tab, cloudAvailable, loadCloudFiles]);
+  // Fall back to local if the account signs out while on the cloud tab.
+  useEffect(() => { if (!cloudAvailable && tab === 'cloud') setTab('local'); }, [cloudAvailable, tab]);
+
+  // Read a local workspace file's raw bytes and upload it to cloud storage.
+  const sendToCloud = useCallback(async (file: FileEntry) => {
+    try {
+      await uploadWorkspaceFileToCloud(file.path, file.name);
+      if (tab === 'cloud') loadCloudFiles();
+    } catch (err) {
+      logError('workspace.sendToCloud', err);
+      await alertDialog(t('workspace.sendToCloudError', { defaultValue: 'Could not send this file to the cloud.' }));
+    }
+  }, [t, tab, loadCloudFiles]);
+
+  const openLocalMenu = useCallback((e: React.MouseEvent, file: FileEntry) => {
+    if (file.type !== 'file' || !cloudAvailable) return;
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, items: [
+      { key: 'send', label: t('workspace.sendToCloud', { defaultValue: 'Send to cloud' }), icon: 'export', onClick: () => sendToCloud(file) },
+    ] });
+  }, [cloudAvailable, t, sendToCloud]);
+
+  const openCloudMenu = useCallback((e: React.MouseEvent, file: CloudFile) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, items: [
+      { key: 'download', label: t('workspace.download', { defaultValue: 'Download' }), icon: 'download', onClick: () => { void startCloudDownload(file); } },
+    ] });
+  }, [t]);
 
   const loadRoot = useCallback(async () => {
     try {
@@ -198,6 +258,48 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
       </div>
 
       <div className="rail-panel-body">
+        {cloudAvailable && (
+          <div className="workspace-tabs" role="tablist">
+            <button role="tab" aria-selected={tab === 'local'} className={`workspace-tab ${tab === 'local' ? 'active' : ''}`} onClick={() => setTab('local')}>
+              <Icon name="folder" size={13} /> {t('workspace.tabLocal', { defaultValue: 'Local' })}
+            </button>
+            <button role="tab" aria-selected={tab === 'cloud'} className={`workspace-tab ${tab === 'cloud' ? 'active' : ''}`} onClick={() => setTab('cloud')}>
+              <Icon name="server" size={13} /> {t('workspace.tabCloud', { defaultValue: 'Cloud' })}
+            </button>
+          </div>
+        )}
+
+        {tab === 'cloud' && cloudAvailable ? (
+          <div className="workspace-cloud">
+            <div className="workspace-cloud-toolbar">
+              <span className="workspace-cloud-hint">{t('workspace.cloudHint', { defaultValue: 'Right-click a file to download.' })}</span>
+              <button className="btn btn-icon btn-sm" onClick={loadCloudFiles} title={t('common.refresh', { defaultValue: 'Refresh' })}><Icon name="activity" size={13} /></button>
+            </div>
+            {cloudError && <div className="workspace-root-error">{cloudError}</div>}
+            {cloudLoading ? (
+              <div className="workspace-loading">{t('common.loading')}</div>
+            ) : cloudFiles.length === 0 ? (
+              <div className="workspace-empty">{t('workspace.cloudEmpty', { defaultValue: 'No cloud files yet.' })}</div>
+            ) : (
+              <div className="workspace-file-list">
+                {cloudFiles.map(f => (
+                  <div
+                    key={f.key}
+                    className="workspace-file-row"
+                    onContextMenu={(e) => openCloudMenu(e, f)}
+                    onDoubleClick={() => { void startCloudDownload(f); }}
+                    title={t('workspace.download', { defaultValue: 'Download' })}
+                  >
+                    <span className="workspace-file-icon">☁️</span>
+                    <span className="workspace-file-name">{f.name}</span>
+                    <span className="workspace-file-size">{formatFileSize(f.size)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+        <>
         {/* Root controls */}
         <div className="workspace-root-controls">
           <div className="workspace-root-label">{t('workspace.rootLabel')}</div>
@@ -260,6 +362,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
                   className={`workspace-file-row ${isSelected ? 'selected' : ''}`}
                   onClick={(e) => handleSelect(e, file)}
                   onDoubleClick={() => handleDoubleClick(file)}
+                  onContextMenu={(e) => openLocalMenu(e, file)}
                   draggable={file.type === 'file'}
                   onDragStart={(e) => handleDragStart(e, file)}
                   title={fileTitle(file)}
@@ -283,7 +386,11 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
             })}
           </div>
         )}
+        </>
+        )}
       </div>
+
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
 
       {/* Preview modal */}
       {previewFile && (

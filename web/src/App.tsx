@@ -31,6 +31,9 @@ import type { SampleSheetRun } from './components/modals/BatchSampleSheetModal';
 import MissingDependenciesBanner from './components/layout/MissingDependenciesBanner';
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
 import Icon from './components/ui/Icon';
+import TransferWindow from './components/cloud/TransferWindow';
+import { collectLocalFilePaths, baseName } from './utils/workflowFiles';
+import { localFileSize, uploadWorkspaceFileToCloud } from './api/cloudFiles';
 import {
   CommandPaletteHost,
   ConfirmDialogHost,
@@ -1863,10 +1866,32 @@ export default function App() {
     setIsRunning(true);
     try {
       await validate(activeWorkflow);
+      // Pre-flight: upload any referenced LOCAL workspace files to the cloud so
+      // the run can reach them. Files <50 MB upload silently; if any is >=50 MB
+      // the user confirms first. The uploaded key map rides along as run inputs.
+      let inputs: Record<string, unknown> | undefined;
+      const localPaths = collectLocalFilePaths(activeWorkflow);
+      if (localPaths.length > 0) {
+        const sizes = await Promise.all(localPaths.map(async p => ({ path: p, size: await localFileSize(p) })));
+        const big = sizes.filter(s => s.size >= 50 * 1024 * 1024);
+        if (big.length > 0) {
+          const ok = await confirmDialog(t('console.actions.cloudLargeFilesConfirm', {
+            defaultValue: 'Files over 50 MB will be uploaded to the cloud before running the workflow. Continue?',
+          }));
+          if (!ok) { setIsRunning(false); return; }
+        }
+        const fileKeys: Record<string, string> = {};
+        for (const { path } of sizes) {
+          const key = await uploadWorkspaceFileToCloud(path, baseName(path)).catch(() => null);
+          if (key) fileKeys[path] = key;
+        }
+        if (Object.keys(fileKeys).length > 0) inputs = { files: fileKeys };
+      }
       const result = await submitRun(activeWorkflow, {
         forceCloud: true,
         name: activeWorkflow.name,
         compute: specToRunBody(computeSpec),
+        inputs,
       }) as RunRecord & { cloud?: boolean; dashboard_url?: string };
       addLog({
         run_id: result.run_id || 'cloud', node_id: 'engine', level: 'info',
@@ -3145,6 +3170,7 @@ export default function App() {
       <NotificationHost />
       <ConfirmDialogHost />
       <CommandPaletteHost />
+      <TransferWindow />
       <KeyboardShortcutsModal open={showShortcuts} onOpenChange={setShowShortcuts} />
 
       {draggingPanelTab && (

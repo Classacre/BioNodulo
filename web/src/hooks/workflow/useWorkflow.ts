@@ -295,6 +295,8 @@ export function useWorkflow() {
     /** Local "Run on Cloud": take the cloud submit path even when not in editor
      *  mode (persist to the team DB + submit to Batch instead of the local host). */
     forceCloud?: boolean;
+    /** Cloud run inputs (e.g. uploaded-file key map from the pre-flight). */
+    inputs?: Record<string, unknown>;
   }) => {
     // Cloud editor OR local "Run on Cloud": persist the current definition, then
     // submit to the cloud Batch runner. Dry-run previews still use the local
@@ -310,7 +312,7 @@ export function useWorkflow() {
       } catch (err) {
         logError('cloud.run.save', err);
       }
-      const res = await submitCloudRun(id, options?.compute);
+      const res = await submitCloudRun(id, options?.compute, options?.inputs);
       return {
         run_id: res.runId,
         status: 'submitted',
