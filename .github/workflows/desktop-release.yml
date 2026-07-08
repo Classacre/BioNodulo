@@ -85,17 +85,14 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing (required for createUpdaterArtifacts).
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS signing + notarization (optional; unsigned build if unset)
-          APPLE_CERTIFICATE: ${{ secrets.CSC_LINK }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows Authenticode (optional)
-          WINDOWS_CERTIFICATE: ${{ secrets.CSC_LINK }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # OS code-signing is intentionally NOT wired here yet: passing empty
+          # APPLE_CERTIFICATE/WINDOWS_CERTIFICATE makes tauri-action try to import
+          # an empty cert and fail. Builds are unsigned (mac "unidentified
+          # developer" / Windows SmartScreen). To enable, add the APPLE_* /
+          # WINDOWS_CERTIFICATE secrets AND re-add the matching env vars here.
         with:
           projectPath: desktop
           tagName: ${{ github.ref_name }}

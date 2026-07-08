@@ -8,7 +8,7 @@
 // into a per-user venv via uv (keeps the installer ~thin, ComfyUI pattern).
 //
 // Run this once per build machine before electron-builder. Idempotent.
-import { mkdir, rm, chmod, rename, readdir } from "node:fs/promises";
+import { mkdir, rm, chmod, copyFile, readdir } from "node:fs/promises";
 import { existsSync, createWriteStream } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
@@ -116,7 +116,9 @@ async function prepareUv() {
   const found = await findFile(extractDir, bin);
   if (!found) throw new Error(`uv binary not found after extracting ${url}`);
   await mkdir(destDir, { recursive: true });
-  await rename(found, path.join(destDir, bin));
+  // copyFile (not rename): on Windows runners tmp is on C: and the workspace on
+  // D:, so a cross-device rename throws EXDEV.
+  await copyFile(found, path.join(destDir, bin));
   if (process.platform !== "win32") await chmod(path.join(destDir, bin), 0o755);
   await rm(tmp, { force: true });
   await rm(extractDir, { recursive: true, force: true });
