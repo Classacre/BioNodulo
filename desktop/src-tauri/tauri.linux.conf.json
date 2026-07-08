@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "../assets/python-embedded/linux": "python-embedded",
+      "../assets/uv/linux": "uv"
+    }
+  }
+}

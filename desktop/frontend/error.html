@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BioNodulo — Error</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+        background: radial-gradient(1200px 800px at 50% -10%, #2a1620 0%, #0b1020 60%);
+        color: #e7ecf5;
+      }
+      .card {
+        width: min(620px, 92vw); background: #1a1320; border: 1px solid #4a2436;
+        border-radius: 16px; padding: 32px 36px;
+      }
+      h1 { margin: 0 0 8px; font-size: 22px; color: #f87171; }
+      pre {
+        background: #0a0f1d; border: 1px solid #2a1d2d; border-radius: 10px; padding: 12px;
+        color: #f3b6b6; font-size: 12px; white-space: pre-wrap; max-height: 220px; overflow: auto;
+      }
+      .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+      button {
+        background: #3b82f6; color: white; border: 0; border-radius: 10px; padding: 10px 16px;
+        font-size: 14px; font-weight: 600; cursor: pointer;
+      }
+      button.secondary { background: #25324f; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>BioNodulo failed to start</h1>
+      <p>The local backend could not be launched. Details below:</p>
+      <pre id="message">Unknown error.</pre>
+      <div class="actions">
+        <button id="logs" class="secondary" type="button">Open logs</button>
+        <button id="restart" type="button">Retry</button>
+      </div>
+    </div>
+    <script src="error.js"></script>
+  </body>
+</html>

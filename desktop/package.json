@@ -1,0 +1,20 @@
+{
+  "name": "@bionodulo/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BioNodulo Desktop — Node-based bioinformatics workflows (Tauri shell)",
+  "author": "BioNodulo",
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "prepare:backend": "node scripts/prepare-backend.mjs",
+    "prepare:python": "node scripts/prepare-python.mjs",
+    "prepare:assets": "npm run prepare:backend && npm run prepare:python && node scripts/copy-icons.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "cross-env BIONODULO_DEV=1 tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "cross-env": "^7.0.3"
+  }
+}

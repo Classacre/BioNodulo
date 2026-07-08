@@ -1,0 +1,83 @@
+# Builds the Tauri desktop app (macOS/Windows/Linux) and publishes the installers
+# as a GitHub Release in THIS repo — matching the updater endpoint in
+# desktop/src-tauri/tauri.conf.json (Classacre/BioNodulo).
+#
+# Trigger: push a tag like `desktop-v0.1.0-alpha.1`, or run manually.
+name: desktop-release
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, args: "--target aarch64-apple-darwin" }
+          - { os: macos-latest, args: "--target x86_64-apple-darwin" }
+          - { os: ubuntu-22.04, args: "" }
+          - { os: windows-latest, args: "" }
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Linux webview deps
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "desktop/src-tauri -> target"
+
+      # Build the SPA the backend serves (web/dist is gitignored).
+      - name: Build web SPA
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install desktop tooling
+        working-directory: desktop
+        run: npm install
+
+      - name: Stage backend + python + uv + icons
+        working-directory: desktop
+        env:
+          BIONODULO_BACKEND_SRC: ${{ github.workspace }}
+        run: npm run prepare:assets
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS signing + notarization (optional; unsigned build if unset)
+          APPLE_CERTIFICATE: ${{ secrets.CSC_LINK }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows Authenticode (optional)
+          WINDOWS_CERTIFICATE: ${{ secrets.CSC_LINK }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "BioNodulo Desktop ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
