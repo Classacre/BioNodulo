@@ -21,6 +21,65 @@ LOG_BATCH_LINES = 50
 # timed-out process group.
 TERMINATE_GRACE_SECONDS = 5.0
 
+# H2 (audit): environment variables that must NEVER be exposed to untrusted tool
+# subprocesses. Matching is case-insensitive against the whole name (exact) or as
+# a substring/suffix via the pattern sets below. A workflow node that legitimately
+# needs one of these can still pass it explicitly via the `env` argument.
+_SENSITIVE_ENV_EXACT = frozenset({
+    "DATABASE_URL",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+})
+# Substrings — if any appears in the (upper-cased) var name, it is stripped.
+_SENSITIVE_ENV_SUBSTRINGS = (
+    "SECRET",
+    "PASSWORD",
+    "API_KEY",
+    "APIKEY",
+    "TOKEN",
+    "PRIVATE_KEY",
+    "CREDENTIAL",
+)
+# Prefixes for whole families of provider/platform credentials.
+_SENSITIVE_ENV_PREFIXES = (
+    "AWS_",
+    "OPENAI_",
+    "ANTHROPIC_",
+    "NCBI_",
+    "CLERK_",
+    "STRIPE_",
+    "BIONODULO_PROXY",
+    "BIONODULO_SESSION",
+)
+
+
+def _is_sensitive_env_name(name: str) -> bool:
+    """True if an env var name should be withheld from tool subprocesses (H2)."""
+    upper = name.upper()
+    if upper in _SENSITIVE_ENV_EXACT:
+        return True
+    if any(sub in upper for sub in _SENSITIVE_ENV_SUBSTRINGS):
+        return True
+    if any(upper.startswith(pre) for pre in _SENSITIVE_ENV_PREFIXES):
+        return True
+    return False
+
+
+def _sanitized_parent_env() -> dict[str, str]:
+    """A copy of ``os.environ`` with sensitive credentials removed (audit H2).
+
+    Preserves everything a tool legitimately needs (PATH, HOME, LANG, TMPDIR,
+    conda/pixi/locale vars, etc.) while stripping shared LLM keys, cloud
+    credentials, DB URLs, and internal proxy/session secrets so an untrusted
+    workflow command cannot read them out of its environment and exfiltrate them.
+    """
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not _is_sensitive_env_name(key)
+    }
+
 
 class CommandCancelledError(Exception):
     """Raised when a subprocess is killed because its run was cancelled.
@@ -192,9 +251,14 @@ async def run_subprocess(
     if stderr_path:
         stderr_path.parent.mkdir(parents=True, exist_ok=True)
 
-    merged_env = None
-    if env:
-        merged_env = {**dict(os.environ), **env}
+    # H2 (audit): tool subprocesses run untrusted workflow commands, so they must
+    # NOT inherit the platform's sensitive environment (shared LLM keys, AWS
+    # task-role creds, DB URL, etc.). Previously a None env inherited the FULL
+    # parent environment, and an explicit env still merged all of os.environ.
+    # Always start from a SANITIZED copy of the parent env; any var the node
+    # explicitly declares (env) is layered on top (a node can still opt a
+    # specific credential in intentionally).
+    merged_env = {**_sanitized_parent_env(), **(env or {})}
 
     cmd_str = cmd if isinstance(cmd, str) else " ".join(cmd)
 
