@@ -1,0 +1,14 @@
+# gitleaks configuration (audit remediation 2026-07).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders and non-secret sample values"
+paths = [
+  '''\.env\.example$''',
+  '''(^|/)tests?/''',
+  '''(^|/)examples?/''',
+]
+regexes = [
+  '''=\s*(<redacted>|placeholder|changeme|your-[a-z-]+|xxx+)''',
+]

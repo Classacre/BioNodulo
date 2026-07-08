@@ -1636,7 +1636,16 @@ async def upload_file(
     """
     settings = _get_settings(request)
     safe_subdir = subdir.strip().strip('/').replace('..', '_') or 'uploads'
-    target_dir = settings.project_root / safe_subdir
+    # C2 (audit): resolve + contain the target so a crafted subdir can never land
+    # a file inside custom_nodes_dir (an uploaded .py there becomes loadable code
+    # via /manager/reload -> exec_module) or otherwise escape the workspace.
+    try:
+        target_dir = ensure_within(Path(safe_subdir), settings.project_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid upload subdir") from exc
+    custom_nodes_root = settings.custom_nodes_dir.resolve()
+    if target_dir == custom_nodes_root or custom_nodes_root in target_dir.parents:
+        raise HTTPException(status_code=403, detail="Uploads into custom_nodes are not allowed")
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:

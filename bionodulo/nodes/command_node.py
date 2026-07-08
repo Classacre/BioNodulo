@@ -21,18 +21,31 @@ logger = logging.getLogger(__name__)
 # Shell metacharacters that must NOT be quoted when building a shell command string.
 _SHELL_METACHARS = {">", ">>", "|", "||", "&&", ";", "<", "<<", "$(", "${", "`", "&"}
 _FD_REDIRECT_RE = re.compile(r"^\d*(?:<>|>>|>|<|>&|<&|&>)[^\s]*$")
+# Process substitution ( <(...) / >(...) ) is emitted by node templates with any
+# embedded user value already shlex-quoted inside, so the whole construct must
+# stay bare for bash to interpret it.
+_PROCESS_SUB_RE = re.compile(r"^[<>]\(.*\)$")
 
 
 def _shell_join(cmd: list[str]) -> str:
     """Join a command list into a shell-safe string.
 
-    Arguments containing whitespace or special characters are quoted with
-    ``shlex.quote()``, but shell metacharacters (``>``, ``|``, etc.) are
-    left bare so the shell interprets them as operators.
+    Every token is quoted with ``shlex.quote()`` EXCEPT the exact operator
+    tokens the node's own template emits: a token that is precisely a known shell
+    metacharacter, matches the strict FD-redirect pattern (e.g. ``2>``, ``>>``),
+    or is a full process-substitution construct (``<(...)`` / ``>(...)``).
+    Previously any token merely *starting* with a metacharacter was left bare
+    (audit LOW), which would pass e.g. ``>foo;bar`` through unquoted. Anchoring to
+    exact/whole-construct matches keeps the intended operators working while
+    ensuring nothing else escapes quoting.
     """
     parts: list[str] = []
     for token in cmd:
-        if token in _SHELL_METACHARS or token.startswith((">", "<", "|", "&", ";")) or _FD_REDIRECT_RE.match(token):
+        if (
+            token in _SHELL_METACHARS
+            or _FD_REDIRECT_RE.match(token)
+            or _PROCESS_SUB_RE.match(token)
+        ):
             parts.append(token)
         else:
             parts.append(shlex.quote(token))

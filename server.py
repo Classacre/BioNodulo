@@ -12,6 +12,7 @@ from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -107,22 +108,87 @@ class SessionTokenMiddleware:
         self.token = token
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
+        # M8 (audit): gate HTTP *and* WebSocket. Collab sockets carry the same
+        # X-Bionodulo-Session header on the upgrade request, so an ungated WS
+        # scope would let a direct connection bypass the proxy gate.
+        if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
         path = str(scope.get("path", ""))
-        if path == "/api/health":
+        if scope["type"] == "http" and path == "/api/health":
             await self.app(scope, receive, send)
             return
 
         headers = dict(scope.get("headers") or [])
         provided = headers.get(b"x-bionodulo-session", b"").decode("latin-1")
         if not secrets.compare_digest(provided, self.token):
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+                return
             response = PlainTextResponse("Unauthorized", status_code=401)
             await response(scope, receive, send)
             return
 
+        await self.app(scope, receive, send)
+
+
+# C2 (audit): in shared-editor mode the app is a stateless, multi-tenant
+# backend that must NEVER load or mutate code. These request path prefixes reach
+# routes that upload/reload/install/remove custom nodes (ultimately
+# registry.load_custom_nodes -> exec_module) or run/queue jobs, so they are
+# hard-blocked at the ASGI layer regardless of any router wiring. Paths are the
+# normalised, /api-prefixed form (this runs after ProxyPrefixMiddleware).
+_EDITOR_FORBIDDEN_PREFIXES = (
+    "/api/workspace/upload",
+    "/api/workspace/delete",
+    "/api/workspace/file-operation",
+    "/api/manager/reload",
+    "/api/manager/install-git",
+    "/api/manager/update",
+    "/api/manager/remove",
+    "/api/cache/clear",
+    "/api/hpc",
+)
+
+
+def _is_editor_forbidden(path: str) -> bool:
+    for prefix in _EDITOR_FORBIDDEN_PREFIXES:
+        if path == prefix or path.startswith(prefix + "/"):
+            return True
+    return False
+
+
+class EditorLockdownMiddleware:
+    """Block code-loading / mutating routes in shared-editor mode (audit C2).
+
+    The main API router (with /workspace/upload, /manager/reload, /manager/*,
+    /workspace/delete, /cache/clear, /hpc/*) is mounted unconditionally, but in
+    editor mode the process is shared and multi-tenant: reaching any of those
+    routes is an authenticated RCE (upload -> reload -> exec_module) or lets one
+    tenant mutate shared state. Rather than rewire every router, we reject the
+    forbidden prefixes here with 403. Added only when editor_mode is true.
+
+    Sits inside ProxyPrefixMiddleware (added before it) so it reads the
+    normalised path and can't be bypassed with a proxy prefix.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] in {"http", "websocket"} and _is_editor_forbidden(
+            str(scope.get("path", ""))
+        ):
+            if scope["type"] == "websocket":
+                # Reject the handshake outright.
+                await send({"type": "websocket.close", "code": 1008})
+                return
+            response = PlainTextResponse(
+                "This endpoint is disabled in editor mode", status_code=403
+            )
+            await response(scope, receive, send)
+            return
         await self.app(scope, receive, send)
 
 
@@ -141,16 +207,22 @@ class ProxySecretMiddleware:
         self.secret = secret
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
+        # M8 (audit): gate HTTP *and* WebSocket. Collab/Yjs sockets present the
+        # proxy secret on the upgrade request; an ungated WS scope would let a
+        # direct connection to the task bypass the shared-editor gate.
+        if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
         path = str(scope.get("path", ""))
-        if path in ("/api/health", "/api/config"):
+        if scope["type"] == "http" and path in ("/api/health", "/api/config"):
             await self.app(scope, receive, send)
             return
         headers = dict(scope.get("headers") or [])
         provided = headers.get(b"x-bionodulo-session", b"").decode("latin-1")
         if not secrets.compare_digest(provided, self.secret):
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+                return
             response = PlainTextResponse("Unauthorized", status_code=401)
             await response(scope, receive, send)
             return
@@ -275,6 +347,12 @@ def create_app() -> FastAPI:
         app.add_middleware(
             SessionTokenMiddleware, token=cloud_settings.session_token
         )
+    # C2 (audit): hard-block code-loading / mutating routes in editor mode. Added
+    # after the request gate (so it runs before it) and before
+    # ProxyPrefixMiddleware (so it runs on the normalised path). Forbidden paths
+    # are 403'd whether or not the proxy secret is present — fail-closed.
+    if editor_mode:
+        app.add_middleware(EditorLockdownMiddleware)
     app.add_middleware(ProxyPrefixMiddleware)
 
     # CORS. A wildcard origin with credentials lets any website drive the API
@@ -307,6 +385,46 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # H7 (audit): OPT-IN Host-header allowlist to defeat DNS-rebinding. The local
+    # desktop backend binds 127.0.0.1 but, without a Host check, a malicious web
+    # page can rebind a hostname it controls to 127.0.0.1:<port> and drive this
+    # unauthenticated API from the victim's browser (submitting a workflow ==
+    # local code execution).
+    #
+    # This is OPT-IN (default: no check) because the collab-tunnel feature
+    # deliberately serves the app on an ARBITRARY public hostname assigned by the
+    # tunnel provider (Cloudflare/ngrok), which a static allowlist cannot know in
+    # advance. Enforcing by default would break that feature.
+    #
+    # Set BIONODULO_ALLOWED_HOSTS to enable:
+    #   - a comma-separated host list  -> enforce that allowlist
+    #   - the literal "localhost"      -> shorthand for the loopback set below
+    #     (recommended for a local desktop install that does NOT use tunnels;
+    #     the Electron shell can export this when it spawns the backend)
+    # Leave unset (or "*") to allow any Host (current behaviour; required for
+    # tunnels / reverse-proxied deployments that terminate Host upstream).
+    allowed_hosts_env = os.environ.get("BIONODULO_ALLOWED_HOSTS", "").strip()
+    if allowed_hosts_env and allowed_hosts_env != "*":
+        if allowed_hosts_env.lower() == "localhost":
+            _host = os.environ.get("BIONODULO_HOST", "127.0.0.1")
+            _port = os.environ.get("BIONODULO_PORT", "8000")
+            allowed_hosts = [
+                "localhost",
+                "127.0.0.1",
+                "[::1]",
+                f"localhost:{_port}",
+                f"127.0.0.1:{_port}",
+                f"{_host}:{_port}",
+                _host,
+                "testserver",  # Starlette TestClient default Host
+            ]
+        else:
+            allowed_hosts = [
+                h.strip() for h in allowed_hosts_env.split(",") if h.strip()
+            ]
+        allowed_hosts = list(dict.fromkeys(allowed_hosts))  # de-dup, keep order
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     # Load settings
     settings = Settings.from_env()

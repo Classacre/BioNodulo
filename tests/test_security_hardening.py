@@ -373,3 +373,113 @@ def test_git_clone_input_validator_rejects_dangerous_transports_and_refs() -> No
             )
     # A plain sub-directory is accepted.
     _validate_git_clone_inputs("https://github.com/org/repo.git", None, None, "my-nodes")
+
+
+# ---------------------------------------------------------------------------
+# Audit remediation 2026-07 regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_editor_mode_blocks_code_loading_routes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """C2: in shared-editor mode the upload/reload/manager/hpc routes must be
+    403'd at the ASGI layer (the upload->reload->exec_module RCE path)."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.setenv("BIONODULO_PROXY_SECRET", "test-proxy-secret-value")
+    hdr = {"X-Bionodulo-Session": "test-proxy-secret-value"}
+
+    with TestClient(create_app()) as client:
+        # Even WITH the valid proxy secret, these routes are hard-blocked (403),
+        # not merely gated — editor mode must never load/mutate code.
+        assert client.post("/api/manager/reload", headers=hdr).status_code == 403
+        assert (
+            client.post("/api/workspace/upload", headers=hdr).status_code == 403
+        )
+        assert (
+            client.post(
+                "/api/manager/install-git", json={}, headers=hdr
+            ).status_code
+            == 403
+        )
+
+
+def test_editor_mode_disables_anonymous_token(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """M9: anonymous editor-JWT minting is denied in editor mode unless opted in."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.setenv("BIONODULO_PROXY_SECRET", "test-proxy-secret-value")
+    hdr = {"X-Bionodulo-Session": "test-proxy-secret-value"}
+
+    with TestClient(create_app()) as client:
+        resp = client.post("/api/auth/token", json={"name": "x"}, headers=hdr)
+        assert resp.status_code == 403
+
+
+def test_local_mode_allows_anonymous_token(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """M9: single-user local mode keeps the existing anonymous-token behaviour."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.delenv("BIONODULO_EDITOR_MODE", raising=False)
+
+    with TestClient(create_app()) as client:
+        resp = client.post("/api/auth/token", json={"name": "x"})
+        assert resp.status_code == 200
+        assert resp.json().get("token")
+
+
+def test_subprocess_env_strips_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """H2: sensitive vars are removed from the tool subprocess environment."""
+    from bionodulo.execution.subprocess_runner import (
+        _is_sensitive_env_name,
+        _sanitized_parent_env,
+    )
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-secret")
+    monkeypatch.setenv("DATABASE_URL", "postgres://x")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_x")
+    monkeypatch.setenv("PATH", "/usr/bin")  # must survive
+
+    env = _sanitized_parent_env()
+    assert "OPENAI_API_KEY" not in env
+    assert "AWS_SECRET_ACCESS_KEY" not in env
+    assert "DATABASE_URL" not in env
+    assert "STRIPE_WEBHOOK_SECRET" not in env
+    assert env.get("PATH") == "/usr/bin"
+    assert _is_sensitive_env_name("MY_API_KEY")
+    assert _is_sensitive_env_name("SOME_TOKEN")
+    assert not _is_sensitive_env_name("PATH")
+
+
+def test_preview_endpoint_blocks_path_traversal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """M3: the preview endpoint must not serve files outside the project root."""
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.delenv("BIONODULO_EDITOR_MODE", raising=False)
+
+    with TestClient(create_app()) as client:
+        # Absolute path outside the root -> 403/404, never the file contents.
+        resp = client.get(
+            "/api/previews/run1/node1", params={"path": "/etc/passwd"}
+        )
+        assert resp.status_code in (403, 404)
+        # Traversal escape -> 403.
+        resp2 = client.get(
+            "/api/previews/run1/node1",
+            params={"path": "../../../../etc/passwd"},
+        )
+        assert resp2.status_code in (403, 404)
