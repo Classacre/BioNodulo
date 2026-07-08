@@ -10,7 +10,29 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The web SPA (web/dist) is platform-independent, so build it ONCE here where
+  # the Linux-generated web/package-lock.json is in sync with `npm ci`. The
+  # per-OS jobs download it — avoids the cross-platform `npm ci` optional-dep
+  # drift (utf-8-validate) and rebuilding the SPA four times.
+  build-web:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build web SPA
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
   build:
+    needs: build-web
     strategy:
       fail-fast: false
       matrix:
@@ -43,12 +65,12 @@ jobs:
         with:
           workspaces: "desktop/src-tauri -> target"
 
-      # Build the SPA the backend serves (web/dist is gitignored).
-      - name: Build web SPA
-        working-directory: web
-        run: |
-          npm ci
-          npm run build
+      # Restore the prebuilt SPA into web/dist so prepare-backend bundles it.
+      - name: Download prebuilt web SPA
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
 
       - name: Install desktop tooling
         working-directory: desktop
