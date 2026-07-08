@@ -1,12 +1,11 @@
-// Ensures the Tauri icon set exists at src-tauri/icons.
+// Validates the Tauri icon set at src-tauri/icons.
 //
-// Tauri's bundler expects a specific icon set (32x32.png, 128x128.png,
-// 128x128@2x.png, icon.icns, icon.ico). The canonical way to produce it is
-// `pnpm tauri icon <source.png>`, which generates every platform variant from a
-// single high-res PNG. This script copies any already-generated icons from
-// assets/icons into src-tauri/icons and, if the required set is incomplete,
-// prints the one command needed to generate it.
-import { existsSync, mkdirSync, readdirSync, copyFileSync } from "node:fs";
+// The set (32x32.png, 128x128.png, 128x128@2x.png, icon.icns, icon.ico, ...) is
+// generated ONCE from a high-res source via `npm run tauri -- icon <src.png>`
+// and committed. This script is a no-op when that set is present. It deliberately
+// does NOT copy assets/icons/* over the committed set — doing so would clobber the
+// generated icon.png with the raw 1024 source and dirty git on every prepare run.
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,18 +18,6 @@ const REQUIRED = ["32x32.png", "128x128.png", "128x128@2x.png", "icon.icns", "ic
 
 mkdirSync(dstIcons, { recursive: true });
 
-if (existsSync(srcIcons)) {
-  for (const f of readdirSync(srcIcons)) {
-    const from = join(srcIcons, f);
-    const to = join(dstIcons, f);
-    try {
-      copyFileSync(from, to);
-    } catch {
-      /* skip directories / unreadable entries */
-    }
-  }
-}
-
 const missing = REQUIRED.filter((f) => !existsSync(join(dstIcons, f)));
 if (missing.length > 0) {
   const source = existsSync(join(srcIcons, "icon.png"))
@@ -39,8 +26,8 @@ if (missing.length > 0) {
   console.warn(
     `[copy-icons] Missing Tauri icons: ${missing.join(", ")}.\n` +
       `[copy-icons] Generate the full set once with:\n` +
-      `    pnpm --filter @bionodulo/desktop tauri icon ${source}\n` +
-      `[copy-icons] then commit apps/desktop/src-tauri/icons/.`
+      `    npm run tauri -- icon ${source}\n` +
+      `[copy-icons] then commit desktop/src-tauri/icons/.`
   );
 } else {
   console.log("[copy-icons] Tauri icon set present.");
