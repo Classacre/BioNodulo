@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BioNodulo</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+        background: radial-gradient(1200px 800px at 50% -10%, #16203c 0%, #0b1020 60%);
+        color: #e7ecf5; gap: 22px;
+      }
+      .spinner {
+        width: 46px; height: 46px; border-radius: 50%;
+        border: 4px solid #243456; border-top-color: #3b82f6; animation: spin 1s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      h1 { margin: 0; font-size: 20px; font-weight: 600; }
+      .status { color: #9fb0d0; font-size: 13px; min-height: 18px; }
+      .log {
+        position: fixed; bottom: 0; left: 0; right: 0; height: 120px; overflow: auto;
+        background: rgba(8,12,24,.85); border-top: 1px solid #1d2a47; padding: 8px 14px;
+        font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #6f86b0; white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="spinner"></div>
+    <h1>Starting BioNodulo…</h1>
+    <div id="status" class="status">Launching local backend</div>
+    <div id="log" class="log" aria-live="polite"></div>
+    <script src="loading.js"></script>
+  </body>
+</html>

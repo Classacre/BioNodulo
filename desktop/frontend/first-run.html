@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BioNodulo — Setup</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+        background: radial-gradient(1200px 800px at 50% -10%, #16203c 0%, #0b1020 60%);
+        color: #e7ecf5;
+      }
+      .card {
+        width: min(640px, 92vw); background: #121a30; border: 1px solid #243456;
+        border-radius: 16px; padding: 36px 40px; box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      }
+      h1 { margin: 0 0 4px; font-size: 24px; }
+      p.sub { margin: 0 0 24px; color: #9fb0d0; }
+      .step { display: none; }
+      .step.active { display: block; }
+      label { display: block; font-size: 13px; color: #9fb0d0; margin: 18px 0 6px; }
+      .row { display: flex; gap: 10px; }
+      input[type=text] {
+        flex: 1; background: #0d1424; border: 1px solid #2a3a60; color: #e7ecf5;
+        border-radius: 10px; padding: 11px 12px; font-size: 14px;
+      }
+      button {
+        background: #3b82f6; color: white; border: 0; border-radius: 10px;
+        padding: 11px 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+      }
+      button.secondary { background: #25324f; }
+      button:disabled { opacity: .5; cursor: default; }
+      .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 28px; }
+      .progress-wrap { background: #0d1424; border-radius: 999px; height: 10px; overflow: hidden; margin-top: 18px; border: 1px solid #2a3a60; }
+      .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg,#3b82f6,#22d3ee); transition: width .3s ease; }
+      .log {
+        margin-top: 16px; height: 160px; overflow: auto; background: #0a0f1d; border: 1px solid #1d2a47;
+        border-radius: 10px; padding: 10px 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 12px; color: #8aa0c8; white-space: pre-wrap;
+      }
+      .msg { margin-top: 14px; font-size: 13px; color: #9fb0d0; }
+      .error { color: #f87171; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <!-- Step 1: welcome + data dir -->
+      <section id="step-welcome" class="step active">
+        <h1>Welcome to BioNodulo</h1>
+        <p class="sub">Visual bioinformatics workflows, node by node. Let's set up your local environment.</p>
+        <label for="dataDir">Data directory</label>
+        <div class="row">
+          <input id="dataDir" type="text" readonly />
+          <button id="browse" class="secondary" type="button">Browse…</button>
+        </div>
+        <div class="actions">
+          <button id="start" type="button">Install &amp; Continue</button>
+        </div>
+      </section>
+
+      <!-- Step 2: installing -->
+      <section id="step-install" class="step">
+        <h1>Setting up Python environment</h1>
+        <p class="sub">Creating an isolated environment and installing dependencies with uv. This runs once.</p>
+        <div class="progress-wrap"><div id="bar" class="progress-bar"></div></div>
+        <div id="phase" class="msg">Preparing…</div>
+        <div id="log" class="log" aria-live="polite"></div>
+      </section>
+
+      <!-- Step 3: done / error -->
+      <section id="step-done" class="step">
+        <h1 id="doneTitle">Setup complete</h1>
+        <p id="doneMsg" class="sub">BioNodulo is ready to launch.</p>
+        <div class="actions">
+          <button id="retry" class="secondary" type="button" style="display:none">Retry</button>
+          <button id="launch" type="button">Launch BioNodulo</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="first-run.js"></script>
+  </body>
+</html>

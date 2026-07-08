@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BioNodulo",
+  "version": "0.1.0",
+  "identifier": "com.bionodulo.desktop",
+  "build": {
+    "frontendDist": "../frontend"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "app", "dmg", "appimage", "deb"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
+    "resources": {
+      "../assets/bionodulo-backend": "bionodulo-backend"
+    },
+    "macOS": {
+      "entitlements": "../build/entitlements.mac.plist",
+      "hardenedRuntime": true
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["bionodulo"]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhDMjIwRTYyQkU3QTFFQUIKUldTckhucStZZzRpakowYXRWNUtNc0dHTndTRURaaTlpWS9GOFBKSWxIMWdsS0JYRVkvdlpNSVoK",
+      "endpoints": [
+        "https://github.com/Classacre/BioNodulo/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

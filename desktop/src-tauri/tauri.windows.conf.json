@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "../assets/python-embedded/windows": "python-embedded",
+      "../assets/uv/windows": "uv"
+    }
+  }
+}

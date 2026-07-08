@@ -1,0 +1,23 @@
+# Build output
+dist/
+release/
+
+# Bundled assets fetched/staged at build time (large; produced by scripts/prepare-*)
+assets/bionodulo-backend/
+assets/python-embedded/
+assets/uv/
+
+# Dependencies
+node_modules/
+
+# Logs / OS cruft
+*.log
+.DS_Store
+
+# Re-include build resources (root .gitignore ignores build/ globally).
+# These NSIS / entitlement / icon files MUST be tracked for packaging.
+!build/
+!build/**
+!assets/icons/
+!assets/icons/**
+!assets/README.md

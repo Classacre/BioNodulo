@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "IPC surface for the LOCAL wizard pages only. `local: true` means these permissions apply only while the window shows tauri:// content; once the main window navigates to the remote loopback backend, none of this applies, so the backend SPA cannot invoke Rust. Only `core:default` is granted — every plugin (opener/dialog/store) is used exclusively from guarded Rust commands, so we deliberately do NOT expose those plugin commands to the webview (that would let a page bypass the command-level allowlist checks).",
+  "local": true,
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
