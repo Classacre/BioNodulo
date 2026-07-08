@@ -7,6 +7,7 @@ import { showInviteDialogAtom } from '../../state/uiAtoms';
 import { getCloudCredits, getCurrentUser, type CloudUser } from '../../api/website';
 import { useClerkAuth } from '../../hooks/cloud/useClerkAuth';
 import { useDesktopAuth } from '../../hooks/cloud/useDesktopAuth';
+import { signOutOAuth } from '../../hooks/cloud/desktopOAuth';
 
 interface UserPanelProps {
   onClose: () => void;
@@ -27,7 +28,7 @@ export default function UserPanel({ onClose }: UserPanelProps) {
   const authUser = useAtomValue(authUserAtom);
   const openInvite = useSetAtom(showInviteDialogAtom);
   const { clerkEnabled, clerkSignedIn, openSignIn, openProfile, openOrganization, signOut } = useClerkAuth();
-  const { pending: desktopPending, signInViaBrowser, cancel: cancelDesktopSignIn } = useDesktopAuth();
+  const { pending: desktopPending, available: oauthAvailable, signInViaBrowser, cancel: cancelDesktopSignIn } = useDesktopAuth();
 
   const configUser = cloudConfig?.user ?? null;
   const accountUrl = cloudConfig?.accountUrl ? cloudConfig.accountUrl.replace(/\/+$/, '') : null;
@@ -87,7 +88,7 @@ export default function UserPanel({ onClose }: UserPanelProps) {
             <button className="btn btn-primary" onClick={openSignIn}>
               <Icon name="user" size={14} /> {t('account.signIn', { defaultValue: 'Sign in to BioNodulo Cloud' })}
             </button>
-          ) : accountUrl ? (
+          ) : oauthAvailable ? (
             desktopPending ? (
               <>
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -185,11 +186,12 @@ export default function UserPanel({ onClose }: UserPanelProps) {
               <Icon name="user" size={13} /> {t('account.editProfile', { defaultValue: 'Edit profile' })}
             </button>
           )}
-          {clerkEnabled && (
-            <button className="btn btn-sm account-action account-signout" onClick={signOut}>
-              <Icon name="export" size={13} /> {t('account.signOut', { defaultValue: 'Sign out' })}
-            </button>
-          )}
+          <button
+            className="btn btn-sm account-action account-signout"
+            onClick={() => { if (clerkEnabled) signOut(); else signOutOAuth(); }}
+          >
+            <Icon name="export" size={13} /> {t('account.signOut', { defaultValue: 'Sign out' })}
+          </button>
         </section>
       </div>
     </div>

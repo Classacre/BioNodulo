@@ -19,6 +19,9 @@ export interface CloudConfig {
   credits: { remaining: number | null; total: number | null } | null;
   accountUrl: string | null;
   clerkPublishableKey: string | null;
+  /** Clerk OAuth application (public client) for desktop Authorization Code +
+   *  PKCE sign-in. Null when the local instance isn't configured for it. */
+  oauth: { clientId: string; authorizeUrl: string; tokenUrl: string } | null;
 }
 
 /** null = not yet fetched. Populated once on boot by useCloudConfig. */

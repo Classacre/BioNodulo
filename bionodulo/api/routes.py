@@ -1514,13 +1514,16 @@ async def cloud_transfer_status(tid: str) -> dict[str, Any]:
     return dict(info)
 
 
-# --- Desktop loopback sign-in bridge -----------------------------------------
-# The locally-run app can't load Clerk (domain-locked to bionodulo.com), so it
-# opens the system browser to cloud.bionodulo.com/desktop-auth, which mints a
-# Clerk JWT and redirects the browser here on loopback with ?token=&state=. We
-# stash the token keyed by the app-generated state; the app then polls
-# /api/desktop/session?state= to pick it up (one-time). Tokens live only in
-# memory and expire fast.
+# --- Desktop OAuth 2.0 loopback sign-in (Authorization Code + PKCE) -----------
+# The locally-run app can't embed Clerk (domain-locked), so it authenticates via
+# a standard OAuth 2.0 Authorization Code + PKCE flow against Clerk's OAuth
+# provider (RFC 8252 native-app pattern). The app opens the system browser to
+# Clerk's /oauth/authorize; after sign-in + consent Clerk redirects to THIS
+# loopback callback with ?code=&state=. The app polls /api/desktop/session to
+# pick up the code, then exchanges it (with its PKCE verifier) through
+# /api/desktop/token — the local backend proxies the token request to Clerk so
+# the browser never needs cross-origin access to the token endpoint. Refresh
+# grants flow through the same proxy. Codes live in memory, short-lived.
 _DESKTOP_AUTH: dict[str, dict[str, Any]] = {}
 _DESKTOP_AUTH_TTL = 300  # seconds
 
@@ -1531,33 +1534,92 @@ def _prune_desktop_auth() -> None:
         _DESKTOP_AUTH.pop(st, None)
 
 
+def _validate_clerk_url(url: str) -> None:
+    """Only allow proxying to a Clerk-hosted token endpoint (SSRF guard)."""
+    from urllib.parse import urlparse
+    p = urlparse(url)
+    host = (p.hostname or "").lower()
+    ok = p.scheme == "https" and (
+        host.endswith(".clerk.accounts.dev")
+        or host.endswith(".clerk.com")
+        or host.startswith("clerk.")  # custom prod FAPI, e.g. clerk.bionodulo.com
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail="URL is not a Clerk endpoint")
+
+
 @router.get("/desktop/callback")
-async def desktop_auth_callback(token: str = "", state: str = "") -> HTMLResponse:
-    """Loopback redirect target from the cloud desktop-auth page. Stashes the
-    token by state, then shows a close-me page."""
+async def desktop_auth_callback(
+    code: str = "", state: str = "", error: str = "", error_description: str = ""
+) -> HTMLResponse:
+    """OAuth loopback redirect target. Stashes the authorization code by state,
+    then shows a close-me page."""
     _prune_desktop_auth()
-    if token and state:
-        _DESKTOP_AUTH[state] = {"token": token, "ts": time.time()}
+    if state and (code or error):
+        _DESKTOP_AUTH[state] = {
+            "code": code or None, "error": error or None,
+            "error_description": error_description or None, "ts": time.time(),
+        }
+    ok = bool(state and code and not error)
+    heading = "Signed in to BioNodulo" if ok else "Sign-in was not completed"
     body = (
         "<!doctype html><html><head><meta charset='utf-8'><title>BioNodulo</title></head>"
         "<body style='font-family:system-ui,sans-serif;text-align:center;padding:48px;color:#334155'>"
-        "<h2 style='color:#0f172a'>Signed in to BioNodulo</h2>"
+        f"<h2 style='color:#0f172a'>{heading}</h2>"
         "<p>You can close this tab and return to the app.</p>"
         "<script>setTimeout(function(){window.close();},1200);</script>"
         "</body></html>"
     )
-    status = 200 if (token and state) else 400
-    return HTMLResponse(body, status_code=status)
+    return HTMLResponse(body, status_code=200 if ok else 400)
 
 
 @router.get("/desktop/session")
 async def desktop_auth_session(state: str) -> dict[str, Any]:
-    """The app polls this with its state to retrieve the captured token (once)."""
+    """The app polls this with its state to retrieve the captured auth code (once)."""
     _prune_desktop_auth()
     entry = _DESKTOP_AUTH.pop(state, None)
     if not entry or time.time() - entry["ts"] > _DESKTOP_AUTH_TTL:
-        return {"token": None}
-    return {"token": entry["token"]}
+        return {"code": None, "error": None}
+    return {"code": entry.get("code"), "error": entry.get("error"), "error_description": entry.get("error_description")}
+
+
+@router.post("/desktop/token")
+async def desktop_auth_token(request: Request) -> Any:
+    """Proxy an OAuth token request (authorization_code or refresh_token) to
+    Clerk's token endpoint, so the browser doesn't need cross-origin access. The
+    body carries the standard OAuth params; we forward them form-encoded."""
+    import httpx
+    body = await request.json()
+    token_url = str(body.get("token_url", ""))
+    grant_type = str(body.get("grant_type", ""))
+    client_id = str(body.get("client_id", ""))
+    if not token_url or not client_id or grant_type not in ("authorization_code", "refresh_token"):
+        raise HTTPException(status_code=400, detail="token_url, client_id and a valid grant_type are required")
+    _validate_clerk_url(token_url)
+
+    form: dict[str, str] = {"grant_type": grant_type, "client_id": client_id}
+    if grant_type == "authorization_code":
+        for k in ("code", "redirect_uri", "code_verifier"):
+            v = body.get(k)
+            if not v:
+                raise HTTPException(status_code=400, detail=f"{k} is required")
+            form[k] = str(v)
+    else:  # refresh_token
+        rt = body.get("refresh_token")
+        if not rt:
+            raise HTTPException(status_code=400, detail="refresh_token is required")
+        form["refresh_token"] = str(rt)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            token_url, data=form,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+    try:
+        payload = resp.json()
+    except Exception:
+        payload = {"error": "invalid_response"}
+    return JSONResponse(payload, status_code=resp.status_code)
 
 
 @router.post("/workspace/upload")

@@ -15,6 +15,7 @@ import { setAuthUser } from '../../collab/authStorage';
 import { configureWebsiteApi, getCurrentUser } from '../../api/website';
 import { authUserAtom, cloudConfigAtom, type CloudConfig } from '../../state/appAtoms';
 import { setSettingsEditorMode } from '../settings/useSettings';
+import { initDesktopOAuth } from './desktopOAuth';
 import { logError } from '../../state/logging';
 
 export interface UseCloudConfigResult {
@@ -36,6 +37,9 @@ export function useCloudConfig(): UseCloudConfigResult {
       .then(cfg => {
         if (cancelled || !cfg) return;
         setCloudConfig(cfg);
+        // Desktop OAuth: if we hold a stored refresh token, restore the session
+        // (and keep the access token fresh) without re-opening the browser.
+        if (cfg.oauth?.clientId) void initDesktopOAuth(cfg.oauth);
         // Confirm settings persistence mode now that runtime config is known.
         setSettingsEditorMode(Boolean(cfg.editorMode));
         // Local/self-host app talking to the cloud account: point website API
@@ -80,6 +84,7 @@ export function useCloudConfig(): UseCloudConfigResult {
             credits: null,
             accountUrl: null,
             clerkPublishableKey: null,
+            oauth: null,
           });
         }
       });

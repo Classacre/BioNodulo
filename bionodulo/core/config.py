@@ -63,6 +63,12 @@ class CloudSettings:
     credits_remaining: int | None = None
     credits_total: int | None = None
     clerk_publishable_key: str = ""
+    # Clerk OAuth application (public client) for the desktop Authorization Code
+    # + PKCE sign-in. client_id is non-secret; authorize/token URLs are the Clerk
+    # OAuth provider endpoints for this instance.
+    oauth_client_id: str = ""
+    oauth_authorize_url: str = ""
+    oauth_token_url: str = ""
 
     @classmethod
     def from_env(cls) -> CloudSettings:
@@ -99,6 +105,9 @@ class CloudSettings:
             clerk_publishable_key=os.environ.get(
                 "BIONODULO_CLERK_PUBLISHABLE_KEY", ""
             ).strip(),
+            oauth_client_id=os.environ.get("BIONODULO_OAUTH_CLIENT_ID", "").strip(),
+            oauth_authorize_url=os.environ.get("BIONODULO_OAUTH_AUTHORIZE_URL", "").strip(),
+            oauth_token_url=os.environ.get("BIONODULO_OAUTH_TOKEN_URL", "").strip(),
         )
 
     def public_config(self) -> dict[str, Any]:
@@ -126,6 +135,15 @@ class CloudSettings:
             "credits": credits,
             "accountUrl": self.account_url or None,
             "clerkPublishableKey": self.clerk_publishable_key or None,
+            "oauth": (
+                {
+                    "clientId": self.oauth_client_id,
+                    "authorizeUrl": self.oauth_authorize_url,
+                    "tokenUrl": self.oauth_token_url,
+                }
+                if self.oauth_client_id and self.oauth_authorize_url and self.oauth_token_url
+                else None
+            ),
         }
 
 

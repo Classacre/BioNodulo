@@ -1,52 +1,36 @@
-// Desktop / locally-run app sign-in via loopback OAuth.
+// Desktop / locally-run app sign-in via OAuth 2.0 Authorization Code + PKCE.
 //
-// The local app runs on http://127.0.0.1:PORT where Clerk's production keys
-// won't load (domain-locked). So we open the cloud's /desktop-auth page in a
-// browser window (an allowed origin, where Clerk works). After the user signs
-// in, that page mints a Clerk JWT and redirects the browser to our local
-// backend's /api/desktop/callback?token=&state=, which stashes it. We poll
-// /api/desktop/session?state= to pick the token up, then store it like any other
-// bearer so api/client.ts + api/website.ts send it to the cloud.
+// The local app runs on http://127.0.0.1:PORT where Clerk's SDK won't load
+// (domain-locked). So it authenticates as a public OAuth client (RFC 8252):
+// open the system browser to Clerk's /oauth/authorize with a PKCE challenge;
+// after sign-in + consent Clerk redirects to the app's loopback callback with an
+// authorization code; the local backend captures it; we poll for it, then
+// exchange it (with the PKCE verifier) for access + refresh tokens via the
+// backend proxy. Tokens are stored + auto-refreshed by desktopOAuth.ts.
 import { useCallback, useRef, useState } from 'react';
-import { useAtomValue, useSetAtom } from 'jotai';
-import { getUserColor } from '../../collab';
-import { setToken, setAuthUser } from '../../collab/authStorage';
-import { authUserAtom, cloudConfigAtom } from '../../state/appAtoms';
+import { useAtomValue } from 'jotai';
+import { cloudConfigAtom } from '../../state/appAtoms';
 import { apiGet } from '../../api/client';
 import { logError } from '../../state/logging';
+import {
+  genState, genVerifier, challengeFor, redirectUri, exchangeCode, applyTokens,
+  OAUTH_SCOPES, type OAuthConfig,
+} from './desktopOAuth';
 
 const POLL_MS = 1500;
 const TIMEOUT_MS = 5 * 60_000;
 
-/** Decode a JWT payload without verifying (id/name only, for display). */
-function decodeJwt(token: string): { sub?: string; name?: string; email?: string } {
-  try {
-    const part = token.split('.')[1];
-    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
-    return JSON.parse(json);
-  } catch {
-    return {};
-  }
-}
-
-function randomState(): string {
-  const a = new Uint8Array(16);
-  crypto.getRandomValues(a);
-  return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
-}
-
 export interface UseDesktopAuthResult {
-  /** True while waiting for the browser sign-in to complete. */
   pending: boolean;
-  /** Open the cloud sign-in in a browser window and adopt the returned token. */
+  /** Whether the local instance is configured for OAuth sign-in. */
+  available: boolean;
   signInViaBrowser: () => void;
-  /** Cancel an in-progress wait. */
   cancel: () => void;
 }
 
 export function useDesktopAuth(): UseDesktopAuthResult {
   const cloudConfig = useAtomValue(cloudConfigAtom);
-  const setAuthUserAtom = useSetAtom(authUserAtom);
+  const oauth = cloudConfig?.oauth ?? null;
   const [pending, setPending] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const deadlineRef = useRef(0);
@@ -56,38 +40,46 @@ export function useDesktopAuth(): UseDesktopAuthResult {
     setPending(false);
   }, []);
 
-  const adopt = useCallback((token: string) => {
-    const claims = decodeJwt(token);
-    const id = claims.sub || 'me';
-    const user = { id, name: claims.name || claims.email || id, color: getUserColor(id) };
-    setToken(token);
-    setAuthUser(user);
-    setAuthUserAtom(user);
-  }, [setAuthUserAtom]);
-
   const signInViaBrowser = useCallback(() => {
-    const accountUrl = cloudConfig?.accountUrl?.replace(/\/+$/, '');
-    if (!accountUrl) return;
-    const state = randomState();
-    const host = window.location.hostname === 'localhost' ? 'localhost' : '127.0.0.1';
-    const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-    const url = `${accountUrl}/desktop-auth?host=${host}&port=${encodeURIComponent(port)}&state=${state}`;
-    // A blank tab / Electron child window on the cloud origin (Clerk works there).
-    window.open(url, '_blank', 'noopener,noreferrer');
-
+    if (!oauth?.clientId || !oauth.authorizeUrl || !oauth.tokenUrl) return;
+    const cfg: OAuthConfig = oauth;
     setPending(true);
-    deadlineRef.current = Date.now() + TIMEOUT_MS;
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(async () => {
-      if (Date.now() > deadlineRef.current) { stop(); return; }
-      try {
-        const res = await apiGet<{ token: string | null }>(`/desktop/session?state=${state}`, { anonymous: true });
-        if (res.token) { adopt(res.token); stop(); }
-      } catch (err) {
-        logError('desktop.auth.poll', err);
-      }
-    }, POLL_MS);
-  }, [cloudConfig, adopt, stop]);
+    (async () => {
+      const state = genState();
+      const verifier = genVerifier();
+      const challenge = await challengeFor(verifier);
+      const authorize = new URL(cfg.authorizeUrl);
+      authorize.searchParams.set('response_type', 'code');
+      authorize.searchParams.set('client_id', cfg.clientId);
+      authorize.searchParams.set('redirect_uri', redirectUri());
+      authorize.searchParams.set('scope', OAUTH_SCOPES);
+      authorize.searchParams.set('state', state);
+      authorize.searchParams.set('code_challenge', challenge);
+      authorize.searchParams.set('code_challenge_method', 'S256');
+      // A browser tab / Electron child window on the Clerk origin (SDK works there).
+      window.open(authorize.toString(), '_blank', 'noopener,noreferrer');
 
-  return { pending, signInViaBrowser, cancel: stop };
+      deadlineRef.current = Date.now() + TIMEOUT_MS;
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(async () => {
+        if (Date.now() > deadlineRef.current) { stop(); return; }
+        try {
+          const res = await apiGet<{ code: string | null; error: string | null }>(
+            `/desktop/session?state=${state}`, { anonymous: true });
+          if (res.error) { logError('desktop.oauth', new Error(res.error)); stop(); return; }
+          if (res.code) {
+            stop();
+            const tokens = await exchangeCode(cfg, res.code, verifier);
+            if (!applyTokens(cfg, tokens)) {
+              logError('desktop.oauth.exchange', new Error(tokens.error || 'no access_token'));
+            }
+          }
+        } catch (err) {
+          logError('desktop.oauth.poll', err);
+        }
+      }, POLL_MS);
+    })();
+  }, [oauth, stop]);
+
+  return { pending, available: Boolean(oauth?.clientId), signInViaBrowser, cancel: stop };
 }
