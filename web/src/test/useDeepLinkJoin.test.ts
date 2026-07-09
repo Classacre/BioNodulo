@@ -30,6 +30,10 @@ describe('isValidRemoteBase', () => {
   it('rejects non-trycloudflare hosts', () => {
     expect(isValidRemoteBase('https://evil.com')).toBe(false);
     expect(isValidRemoteBase('https://trycloudflare.com.evil.com')).toBe(false);
+    // Fragment/path that merely contains the allowed domain must not fool the check —
+    // the parsed hostname is evil.com, not trycloudflare.com.
+    expect(isValidRemoteBase('https://evil.com/#.trycloudflare.com')).toBe(false);
+    expect(isValidRemoteBase('https://x.trycloudflare.com.evil.com')).toBe(false);
   });
 
   it('rejects null', () => {
