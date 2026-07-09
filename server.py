@@ -378,12 +378,17 @@ def create_app() -> FastAPI:
             "http://127.0.0.1:5173",
         ]
         cors_allow_credentials = True
+    loopback_env = os.environ.get("BIONODULO_CORS_ALLOW_LOOPBACK", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    cors_allow_origin_regex = r"^http://(127\.0\.0\.1|localhost)(:\d+)?$" if loopback_env else None
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
         allow_credentials=cors_allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
+        allow_origin_regex=cors_allow_origin_regex,
     )
 
     # H7 (audit): OPT-IN Host-header allowlist to defeat DNS-rebinding. The local
