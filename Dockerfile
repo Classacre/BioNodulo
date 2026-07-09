@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-# BioNodulo v2 — Multi-stage container image with pixi
-# Stage 1 builds the frontend. Stage 2 installs pixi environments.
+# BioNodulo v2 — Multi-stage container image
+# Stage 1 builds the frontend. Stage 2 installs the Python app into a venv (pip).
 # Stage 3 is the minimal runtime image with non-root user.
 
 # ------------------------------------------------------------------------------
@@ -15,22 +15,27 @@ COPY web/ ./
 RUN npm run build
 
 # ------------------------------------------------------------------------------
-# Stage 2: Pixi environment setup
+# Stage 2: Python dependency build
+# Installs the bionodulo package + its dependencies into an isolated venv using
+# pip against pyproject.toml (same source of truth as CI: `pip install -e .`).
 # ------------------------------------------------------------------------------
-FROM python:3.11-slim-bookworm AS pixi-envs
+FROM python:3.11-slim-bookworm AS deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl ca-certificates build-essential \
-    r-base r-base-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pixi
-RUN curl -fsSL https://pixi.sh/install.sh | bash
-ENV PATH="/root/.pixi/bin:$PATH"
-
 WORKDIR /app
-COPY pixi.toml pyproject.toml ./
-RUN --mount=type=cache,target=/root/.cache/rattler \
-    pixi install
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Files hatchling needs to build the wheel metadata (readme + license) plus the
+# package source. Root entrypoints (main.py/server.py/lambda_handler.py) are not
+# installed — they run from the working dir at runtime.
+COPY pyproject.toml README.md LICENSE ./
+COPY bionodulo ./bionodulo
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m venv /opt/venv \
+    && pip install --upgrade pip \
+    && pip install .
 
 # ------------------------------------------------------------------------------
 # Stage 3: Runtime
@@ -44,10 +49,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy pixi binary and environments from deps stage
-COPY --from=pixi-envs /root/.pixi/bin/pixi /usr/local/bin/pixi
-COPY --from=pixi-envs /app/.pixi ./.pixi
-ENV PATH="/app/.pixi/envs/default/bin:/usr/local/bin:$PATH"
+# Copy the pre-built virtualenv from the deps stage
+COPY --from=deps /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY . .
