@@ -50,3 +50,4 @@ output/
 # Playwright run artifacts
 web/test-results/
 web/playwright-report/
+nohup.out

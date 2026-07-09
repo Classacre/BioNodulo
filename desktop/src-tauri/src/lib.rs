@@ -23,6 +23,20 @@ static PENDING_DEEP_LINK: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebKitGTK white-screen workaround (Linux only). WebKitGTK's hardware
+    // (DMABUF) rendering path paints nothing on many Intel/NVIDIA + Wayland
+    // setups — the window chrome shows but the web content stays blank. This is
+    // a WebKitGTK/driver bug (WebView2 on Windows and WKWebView on macOS are
+    // unaffected), so we force the software-fallback renderer at process start,
+    // before any GTK/WebKit initialization. Users can override by exporting the
+    // vars themselves. See https://github.com/tauri-apps/tauri/issues/9304.
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+
     let mut builder = tauri::Builder::default();
 
     #[cfg(desktop)]
