@@ -79,7 +79,7 @@ export function applyTokens(oauth: OAuthConfig, tokens: TokenResponse): boolean 
   if (tokens.id_token) {
     const claims = decodeJwt(tokens.id_token);
     const id = claims.sub || 'me';
-    const user = { id, name: claims.name || claims.email || id, color: getUserColor(id) };
+    const user = { id, name: claims.name || claims.email || id, color: getUserColor(id), kind: 'account' as const };
     setAuthUser(user);
     store.set(authUserAtom, user);
   }

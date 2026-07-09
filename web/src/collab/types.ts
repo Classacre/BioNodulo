@@ -25,6 +25,7 @@ export interface AuthUser {
   id: string;
   name: string;
   color: string;
+  kind?: 'guest' | 'account';
 }
 
 export interface AwarenessState {

@@ -56,6 +56,7 @@ export async function fetchToken(name: string): Promise<AuthSession> {
       id: data.user_id,
       name: data.name || name,
       color: getUserColor(data.user_id),
+      kind: 'guest',
     },
   };
 }

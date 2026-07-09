@@ -153,7 +153,7 @@ describe('collab/auth', () => {
       token: jwtWithExp(Math.floor(Date.now() / 1000) + 60),
       user: { id: 'user-1', name: 'Mika', color: '#123456' },
     });
-    expect(getAuthUser()).toEqual({ id: 'user-1', name: 'Mika', color: '#123456' });
+    expect(getAuthUser()).toEqual({ id: 'user-1', name: 'Mika', color: '#123456', kind: 'guest' });
     vi.mocked(apiGet).mockRejectedValueOnce(new ApiError('unauthorized', 401, 'Unauthorized', 'invalid'));
 
     await expect(initAuth()).resolves.toBe(false);
@@ -166,11 +166,11 @@ describe('collab/auth', () => {
       token: jwtWithExp(Math.floor(Date.now() / 1000) + 60),
       user: { id: 'user-1', name: 'Mika', color: '#123456' },
     });
-    expect(getAuthUser()).toEqual({ id: 'user-1', name: 'Mika', color: '#123456' });
+    expect(getAuthUser()).toEqual({ id: 'user-1', name: 'Mika', color: '#123456', kind: 'guest' });
     vi.mocked(apiGet).mockRejectedValueOnce(new TypeError('network down'));
 
     await expect(initAuth()).resolves.toBe(true);
 
-    expect(getAuthUser()).toEqual({ id: 'user-1', name: 'Mika', color: '#123456' });
+    expect(getAuthUser()).toEqual({ id: 'user-1', name: 'Mika', color: '#123456', kind: 'guest' });
   });
 });

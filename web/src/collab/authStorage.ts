@@ -89,8 +89,13 @@ export function getAuthUser(): AuthUser | null {
       id: String(parsed.id),
       name: String(parsed.name),
       color: String(parsed.color || getUserColor(String(parsed.id))),
+      kind: parsed.kind === 'account' ? 'account' : 'guest',
     };
   } catch {
     return null;
   }
+}
+
+export function isGuestUser(user: { kind?: 'guest' | 'account' } | null): boolean {
+  return !!user && user.kind !== 'account';
 }

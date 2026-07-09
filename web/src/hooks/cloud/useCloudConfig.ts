@@ -54,6 +54,7 @@ export function useCloudConfig(): UseCloudConfigResult {
             id: cfg.user.id,
             name: cfg.user.name || cfg.user.email || cfg.user.id,
             color: getUserColor(cfg.user.id),
+            kind: 'account' as const,
           };
           setAuthUser(user);
           setAuthUserAtom(user);
@@ -64,7 +65,7 @@ export function useCloudConfig(): UseCloudConfigResult {
           getCurrentUser()
             .then(u => {
               if (cancelled || !u?.id) return;
-              const user = { id: u.id, name: u.name || u.email || u.id, color: getUserColor(u.id) };
+              const user = { id: u.id, name: u.name || u.email || u.id, color: getUserColor(u.id), kind: 'account' as const };
               setAuthUser(user);
               setAuthUserAtom(user);
             })
