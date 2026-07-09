@@ -1,7 +1,7 @@
 // web/src/test/UserPanel.test.tsx
 import { render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { authUserAtom, cloudConfigAtom, showAuthDialogAtom } from '../state/appAtoms';
+import { authUserAtom, cloudConfigAtom } from '../state/appAtoms';
 import UserPanel from '../components/panels/UserPanel';
 
 vi.mock('../hooks/cloud/useClerkAuth', () => ({
