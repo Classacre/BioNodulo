@@ -55,6 +55,7 @@ import { useHPC } from './hooks/useHPC';
 import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages, useDependencyInstall, installProgressMessage } from './hooks/workflow';
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
 import { useAuth, useCollabPolling } from './hooks/collab';
+import { useDeepLinkJoin } from './hooks/collab/useDeepLinkJoin';
 import { useCloudConfig, useClerkAuth } from './hooks/cloud';
 import { useGlobalShortcut, useKeybindings, useRegisteredCommands } from './hooks/ui';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
@@ -794,6 +795,8 @@ export default function App() {
       void handleJoinCollabSession(action.target);
     }
   }, [authReady, authUser, handleCreateCollabSession, handleJoinCollabSession, pendingCollabAction]);
+
+  useDeepLinkJoin({ onJoin: handleJoinCollabSession });
 
   const handleLeaveCollabSession = useCallback(() => {
     set('bionodulo.collab.enabled', false);
