@@ -84,6 +84,8 @@ import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
   buildCollabRoomUrl,
+  buildCloudLandingUrl,
+  CLOUD_HOST,
   clearCollabLinkParams,
   parseCollabLinkTarget,
   readCollabLinkTarget,
@@ -656,23 +658,38 @@ export default function App() {
         role: string;
         public_url?: string | null;
       }>('/api/collab/rooms', { workflow_id: activeWorkflowId, role: 'editor' });
-      publicBaseUrl = room.public_url || publicBaseUrl;
-      setCollabPublicBaseUrl(publicBaseUrl || null);
+      let tunnelBase: string | null = room.public_url || publicBaseUrl || null;
+      if (!tunnelBase) {
+        try {
+          const tun = await apiPost<{ public_url?: string | null }>('/api/collab/tunnel');
+          tunnelBase = tun?.public_url || null;
+        } catch {
+          tunnelBase = null;
+        }
+      }
+      if (tunnelBase) {
+        setCollabPublicBaseUrl(tunnelBase);
+        publicBaseUrl = tunnelBase;
+      } else {
+        setCollabPublicBaseUrl(publicBaseUrl || null);
+      }
       setCollabInvite({ workflowId: room.workflow_id, inviteToken: room.invite_token });
       await apiPost(`/api/collab/workflows/${encodeURIComponent(room.workflow_id)}/snapshot`, {
         workflow: workflowForRoom,
       });
       setCollabRoomActive(true);
-      const url = buildCollabRoomUrl(room.workflow_id, room.invite_token, publicBaseUrl);
+      const url = tunnelBase
+        ? buildCloudLandingUrl({ cloudHost: CLOUD_HOST, tunnelBase, workflowId: room.workflow_id, inviteToken: room.invite_token })
+        : buildCollabRoomUrl(room.workflow_id, room.invite_token, publicBaseUrl);
       try {
         if (!navigator.clipboard) throw new Error('Clipboard unavailable');
         await navigator.clipboard.writeText(url);
         toast.success(appCollabCopy.toast.linkCopied, {
-          message: appCollabCopy.createLinkCopiedMessage(Boolean(publicBaseUrl)),
+          message: appCollabCopy.createLinkCopiedMessage(Boolean(tunnelBase)),
         });
       } catch {
         toast.success(appCollabCopy.toast.linkReady, {
-          message: appCollabCopy.createLinkReadyMessage(Boolean(publicBaseUrl)),
+          message: appCollabCopy.createLinkReadyMessage(Boolean(tunnelBase)),
         });
       }
       setShowShareDialog(true);

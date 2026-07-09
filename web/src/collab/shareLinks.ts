@@ -3,6 +3,19 @@ export interface CollabLinkTarget {
   inviteToken?: string | null;
 }
 
+export const CLOUD_HOST = (import.meta.env.VITE_CLOUD_HOST || 'https://cloud.bionodulo.com').replace(/\/+$/, '');
+
+export interface CloudLandingUrlOptions {
+  cloudHost?: string;
+  tunnelBase: string;
+  workflowId: string;
+  inviteToken: string;
+}
+
+export function buildCloudLandingUrl({ cloudHost = CLOUD_HOST, tunnelBase, workflowId, inviteToken }: CloudLandingUrlOptions): string {
+  return `${cloudHost}/j#h=${encodeURIComponent(tunnelBase)}&w=${encodeURIComponent(workflowId)}&i=${encodeURIComponent(inviteToken)}`;
+}
+
 const WORKFLOW_ID_RE = /^[a-zA-Z0-9._:-]{1,160}$/;
 
 export function buildCollabRoomUrl(workflowId: string, inviteToken?: string | null, baseUrl?: string | null): string {
