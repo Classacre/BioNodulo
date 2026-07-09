@@ -387,7 +387,7 @@ wheels = [
 
 [[package]]
 name = "bionodulo"
-version = "2.0.0"
+version = "0.1.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -415,7 +415,7 @@ dependencies = [
     { name = "slowapi" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
-    { name = "uvloop" },
+    { name = "uvloop", marker = "sys_platform != 'win32'" },
     { name = "websockets" },
 ]
 
@@ -466,7 +466,7 @@ requires-dist = [
     { name = "slowapi", specifier = ">=0.1.9" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
-    { name = "uvloop", specifier = ">=0.19.0" },
+    { name = "uvloop", marker = "sys_platform != 'win32'", specifier = ">=0.19.0" },
     { name = "websockets", specifier = ">=12.0" },
 ]
 provides-extras = ["dev", "collab"]
