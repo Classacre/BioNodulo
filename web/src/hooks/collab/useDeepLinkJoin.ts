@@ -52,10 +52,12 @@ export function useDeepLinkJoin(opts: { onJoin: (target: CollabLinkTarget) => vo
       if (!result) return;
       const { remoteBase, target } = result;
       // Only adopt the tunnel host as the collab transport when it passes the
-      // https + *.trycloudflare.com allowlist. onJoin still fires either way:
-      // with no valid remote base the join runs same-origin (and the workflow
-      // id is re-validated server-side against the invite), so a crafted link
-      // can't redirect collab traffic to an attacker host.
+      // https + *.trycloudflare.com allowlist; a link with any other base joins
+      // same-origin instead. Note this proves the base IS a trycloudflare quick
+      // tunnel, not that it's the *legitimate* host — trycloudflare tunnels are
+      // open to anyone, so opening an untrusted bionodulo://open link is a trust
+      // decision (matching trycloudflare's ephemeral-tunnel model). onJoin fires
+      // regardless; the workflow id is re-validated server-side against the invite.
       if (isValidRemoteBase(remoteBase)) {
         setCollabRemoteBase(remoteBase);
       }

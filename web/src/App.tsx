@@ -97,6 +97,7 @@ import {
   getUserColor, getToken, clearToken, AuthDialog,
 } from './collab';
 import { recoverAndReprompt } from './collab/collabAuthRecovery';
+import { setCollabRemoteBase } from './collab/remoteBase';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { getCloudRun, getCloudCredits } from './api/website';
@@ -803,6 +804,9 @@ export default function App() {
     setRequestedWorkflowId(null);
     setPendingCollabAction(null);
     clearCollabLinkParams();
+    // Drop any cross-machine tunnel base so a subsequent LOCAL room routes its
+    // collab REST/WS to loopback again (a joined tunnel is dead once we leave).
+    setCollabRemoteBase(null);
     toast.info(appCollabCopy.toast.stopped, { message: appCollabCopy.toast.offlineModeRestored });
   }, [appCollabCopy, set, setCollabRoomActive, setRequestedWorkflowId]);
 
