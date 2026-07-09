@@ -13,6 +13,7 @@
 
 import { getToken } from '../collab/authStorage';
 import { appPath } from '../utils/appBase';
+import { resolveCollabUrl } from '../collab/remoteBase';
 
 export interface ApiRequestInit extends Omit<RequestInit, 'body' | 'headers'> {
   /** Plain JSON body — automatically stringified and Content-Type'd. */
@@ -95,6 +96,12 @@ function buildUrl(path: string, basePath = DEFAULT_BASE): string {
         ? cleanPath
         : `${cleanBase}/${cleanPath}`;
     return `${EDITOR_API_BASE}/${apiPrefixed}`;
+  }
+
+  // When no shared-editor override is active, collab paths may target a remote
+  // Cloudflare tunnel host (cross-machine rooms). Non-collab paths stay local.
+  if (!EDITOR_API_BASE && cleanPath.startsWith('api/collab/')) {
+    return resolveCollabUrl(`/${cleanPath}`);
   }
 
   if (cleanPath.startsWith(`${cleanBase}/`) || cleanPath === cleanBase || cleanPath.startsWith('ws/')) {

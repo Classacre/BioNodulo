@@ -10,6 +10,7 @@ import { apiGet, apiPost } from '../api/client';
 import { getCollabClientToken } from '../api/website';
 import { logError } from '../state/logging';
 import { appWebSocketUrl } from '../utils/appBase';
+import { getCollabRemoteBase } from './remoteBase';
 import type { CollabUser, AwarenessState } from './types';
 
 const AUTH_CLOSE_CODES = new Set([4401, 4403]);
@@ -41,6 +42,12 @@ interface UseCollabReturn {
 }
 
 function wsServerUrl(): string {
+  const base = getCollabRemoteBase();
+  if (base) {
+    const url = new URL(base);
+    const wsProto = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProto}//${url.host}/ws/collab`;
+  }
   return appWebSocketUrl('/ws/collab');
 }
 
