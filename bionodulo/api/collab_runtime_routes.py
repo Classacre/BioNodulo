@@ -102,13 +102,20 @@ def _local_tunnel_target(request: Request) -> str:
     return f"http://127.0.0.1:{port}"
 
 
+def _resolve_cloudflared() -> str | None:
+    env = os.environ.get("BIONODULO_CLOUDFLARED", "").strip()
+    if env and os.path.isfile(env) and os.access(env, os.X_OK):
+        return env
+    return shutil.which("cloudflared")
+
+
 async def _start_cloudflare_tunnel(request: Request) -> str | None:
     existing_url = getattr(request.app.state, "collab_public_url", None)
     existing_process = getattr(request.app.state, "collab_tunnel_process", None)
     if existing_url and existing_process and existing_process.returncode is None:
         return str(existing_url)
 
-    cloudflared = shutil.which("cloudflared")
+    cloudflared = _resolve_cloudflared()
     if not cloudflared:
         return None
 
