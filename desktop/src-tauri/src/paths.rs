@@ -97,6 +97,23 @@ pub fn uv_exe(app: &AppHandle) -> PathBuf {
     })
 }
 
+fn cloudflared_bin_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "cloudflared.exe"
+    } else {
+        "cloudflared"
+    }
+}
+
+pub fn cloudflared_path(app: &AppHandle) -> PathBuf {
+    let dir = if is_dev() {
+        dev_assets_root().join("cloudflared").join(os_key())
+    } else {
+        resources_root(app).join("cloudflared")
+    };
+    dir.join(cloudflared_bin_name())
+}
+
 pub fn venv_path(app: &AppHandle) -> PathBuf {
     data_root(app).join("venv")
 }
@@ -134,5 +151,15 @@ mod tests {
         let dir = Path::new("/nonexistent-embedded-dir");
         let exe = embedded_python_exe(dir);
         assert!(exe.starts_with(dir));
+    }
+
+    #[test]
+    fn cloudflared_path_layout() {
+        let name = cloudflared_bin_name();
+        if cfg!(target_os = "windows") {
+            assert_eq!(name, "cloudflared.exe");
+        } else {
+            assert_eq!(name, "cloudflared");
+        }
     }
 }

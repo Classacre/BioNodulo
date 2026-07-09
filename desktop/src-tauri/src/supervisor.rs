@@ -134,6 +134,8 @@ impl Supervisor {
         let _ = std::fs::create_dir_all(&workspace);
         let _ = std::fs::create_dir_all(&logs);
 
+        let cors_origins = format!("{},https://cloud.bionodulo.com", url);
+        let cf = crate::paths::cloudflared_path(app);
         let mut cmd = Command::new(&python);
         cmd.arg(&main_script)
             .arg("--host")
@@ -148,7 +150,8 @@ impl Supervisor {
             .env("VIRTUAL_ENV", &venv)
             .env("BIONODULO_HOST", "127.0.0.1")
             .env("BIONODULO_PORT", free.to_string())
-            .env("BIONODULO_CORS_ORIGINS", &url)
+            .env("BIONODULO_CORS_ORIGINS", &cors_origins)
+            .env("BIONODULO_CORS_ALLOW_LOOPBACK", "1")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(false);
@@ -157,6 +160,9 @@ impl Supervisor {
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        if cf.exists() {
+            cmd.env("BIONODULO_CLOUDFLARED", cf.to_string_lossy().to_string());
         }
 
         let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn backend: {e}"))?;
