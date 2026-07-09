@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
-import { authUserAtom, cloudConfigAtom } from '../../state/appAtoms';
+import { authUserAtom, cloudConfigAtom, showAuthDialogAtom } from '../../state/appAtoms';
 import { showInviteDialogAtom } from '../../state/uiAtoms';
 import { getCloudCredits, getCurrentUser, type CloudUser } from '../../api/website';
 import { useClerkAuth } from '../../hooks/cloud/useClerkAuth';
 import { useDesktopAuth } from '../../hooks/cloud/useDesktopAuth';
 import { signOutOAuth } from '../../hooks/cloud/desktopOAuth';
+import { isGuestUser } from '../../collab/authStorage';
 
 interface UserPanelProps {
   onClose: () => void;
@@ -30,19 +31,21 @@ export default function UserPanel({ onClose }: UserPanelProps) {
   const { clerkEnabled, clerkSignedIn, openSignIn, openProfile, openOrganization, signOut } = useClerkAuth();
   const { pending: desktopPending, available: oauthAvailable, signInViaBrowser, cancel: cancelDesktopSignIn } = useDesktopAuth();
 
+  const setShowAuthDialog = useSetAtom(showAuthDialogAtom);
   const configUser = cloudConfig?.user ?? null;
   const accountUrl = cloudConfig?.accountUrl ? cloudConfig.accountUrl.replace(/\/+$/, '') : null;
-  const signedIn = Boolean(configUser) || Boolean(authUser) || clerkSignedIn;
+  const guest = isGuestUser(authUser) && !configUser && !clerkSignedIn;
+  const hasCloudAccount = Boolean(configUser) || clerkSignedIn || (Boolean(authUser) && !isGuestUser(authUser));
 
   // /api/me fills in email + team for a local Clerk sign-in (where /api/config
   // has no injected identity). Best-effort; the panel renders without it.
   const [me, setMe] = useState<CloudUser | null>(null);
   useEffect(() => {
-    if (!signedIn) { setMe(null); return; }
+    if (!hasCloudAccount) { setMe(null); return; }
     let active = true;
     getCurrentUser().then(u => { if (active) setMe(u); }).catch(() => { /* degrade */ });
     return () => { active = false; };
-  }, [signedIn]);
+  }, [hasCloudAccount]);
 
   const [credits, setCredits] = useState<{ remaining: number; total: number } | null>(
     cloudConfig?.credits && cloudConfig.credits.remaining != null
@@ -50,11 +53,11 @@ export default function UserPanel({ onClose }: UserPanelProps) {
       : null,
   );
   useEffect(() => {
-    if (!signedIn) { setCredits(null); return; }
+    if (!hasCloudAccount) { setCredits(null); return; }
     let active = true;
     getCloudCredits().then(c => { if (active && c) setCredits({ remaining: c.remaining, total: c.monthlyCredits }); }).catch(() => { /* keep seeded */ });
     return () => { active = false; };
-  }, [signedIn]);
+  }, [hasCloudAccount]);
 
   const name = configUser?.name || me?.name || authUser?.name || null;
   const email = configUser?.email || me?.email || null;
@@ -72,7 +75,7 @@ export default function UserPanel({ onClose }: UserPanelProps) {
   );
 
   // ---- Signed-out ---------------------------------------------------------
-  if (!signedIn) {
+  if (!hasCloudAccount && !guest) {
     return (
       <div className="rail-panel">
         {header}
@@ -84,6 +87,9 @@ export default function UserPanel({ onClose }: UserPanelProps) {
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('account.signedOutHint', { defaultValue: 'Sign in to run on the cloud and sync files.' })}</div>
             </div>
           </div>
+          <button className="btn btn-primary" onClick={() => setShowAuthDialog(true)}>
+            <Icon name="user" size={14} /> {t('account.setNameAction', { defaultValue: 'Set a display name' })}
+          </button>
           {clerkEnabled ? (
             <button className="btn btn-primary" onClick={openSignIn}>
               <Icon name="user" size={14} /> {t('account.signIn', { defaultValue: 'Sign in to BioNodulo Cloud' })}
@@ -113,6 +119,39 @@ export default function UserPanel({ onClose }: UserPanelProps) {
               {t('account.cloudUnavailable', { defaultValue: 'BioNodulo Cloud is not available in this build.' })}
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Guest --------------------------------------------------------------
+  if (guest) {
+    return (
+      <div className="rail-panel">
+        {header}
+        <div className="rail-panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="account-avatar">{(authUser?.name || '?').charAt(0).toUpperCase()}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600 }}>{t('account.guestTitle', { defaultValue: 'Signed in as guest' })}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{authUser?.name}</div>
+            </div>
+          </div>
+          {clerkEnabled ? (
+            <button className="btn btn-primary" onClick={openSignIn}>
+              <Icon name="user" size={14} /> {t('account.signIn', { defaultValue: 'Sign in to BioNodulo Cloud' })}
+            </button>
+          ) : oauthAvailable ? (
+            <button className="btn btn-primary" onClick={signInViaBrowser}>
+              <Icon name="link" size={14} /> {t('account.signInBrowser', { defaultValue: 'Sign in with browser' })}
+            </button>
+          ) : null}
+          <button className="btn" onClick={() => setShowAuthDialog(true)}>
+            <Icon name="edit" size={14} /> {t('account.changeName', { defaultValue: 'Change name' })}
+          </button>
+          <button className="btn account-signout" onClick={() => signOutOAuth()}>
+            <Icon name="export" size={14} /> {t('account.signOut', { defaultValue: 'Sign out' })}
+          </button>
         </div>
       </div>
     );

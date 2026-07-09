@@ -718,6 +718,9 @@ const en = {
     cloudFiles: 'Cloud files',
     editProfile: 'Edit profile',
     signOut: 'Sign out',
+    setNameAction: 'Set a display name',
+    guestTitle: 'Signed in as guest',
+    changeName: 'Change name',
   },
   panels: {
     nodeLibrary: 'Node library',

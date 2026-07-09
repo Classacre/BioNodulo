@@ -722,6 +722,9 @@ const es = {
     cloudFiles: 'Archivos en la nube',
     editProfile: 'Editar perfil',
     signOut: 'Cerrar sesión',
+    setNameAction: 'Definir un nombre visible',
+    guestTitle: 'Sesión de invitado',
+    changeName: 'Cambiar nombre',
   },
   panels: {
     nodeLibrary: 'Biblioteca de nodos',
