@@ -92,8 +92,9 @@ import {
 import {
   WorkflowYjsBridge, useCollab, workflowToDoc, docToWorkflow,
   CollabBadge,
-  getUserColor, getToken, AuthDialog,
+  getUserColor, getToken, clearToken, AuthDialog,
 } from './collab';
+import { recoverAndReprompt } from './collab/collabAuthRecovery';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { getCloudRun, getCloudCredits } from './api/website';
@@ -113,6 +114,7 @@ import { getLocalTemplateWorkflow } from './localTemplates';
 import {
   requestedWorkflowIdAtom,
   computeSpecAtom,
+  authUserAtom,
 } from './state/appAtoms';
 import { specToRunBody } from './utils/computeSpec';
 import {
@@ -367,6 +369,7 @@ export default function App() {
     // session (seeded into authUser via /api/me), so treat it like cloudMode for
     // auth — mark ready, never show the guest dialog, never null authUser.
   } = useAuth({ collabEnabled, settingsReady, cloudMode: cloudMode || editorMode });
+  const setAuthUser = useSetAtom(authUserAtom);
   const setShowShareDialog = useSetAtom(showShareDialogAtom);
   const setShowInviteDialog = useSetAtom(showInviteDialogAtom);
   const setShowOpenWorkflow = useSetAtom(showOpenWorkflowAtom);
@@ -674,6 +677,10 @@ export default function App() {
       }
       setShowShareDialog(true);
     } catch (err) {
+      if (recoverAndReprompt(err, { clearToken, setAuthUser: (u) => setAuthUser(u), requestCollabAuth, action: { type: 'create' } })) {
+        set('bionodulo.collab.enabled', false);
+        return;
+      }
       set('bionodulo.collab.enabled', false);
       setCollabRoomActive(false);
       toast.error(appCollabCopy.error.createLinkFailed, { message: err instanceof Error ? err.message : String(err) });
@@ -691,6 +698,7 @@ export default function App() {
     setCollabRoomActive,
     requestCollabAuth,
     set,
+    setAuthUser,
     setShowShareDialog,
     setShowInviteDialog,
     t,
@@ -736,6 +744,10 @@ export default function App() {
       setCollabRoomActive(true);
       toast.success(appCollabCopy.toast.joined, { message: appCollabCopy.connectedAsRole(joined.role) });
     } catch (err) {
+      if (recoverAndReprompt(err, { clearToken, setAuthUser: (u) => setAuthUser(u), requestCollabAuth, action: { type: 'join', target: joinTarget! } })) {
+        set('bionodulo.collab.enabled', false);
+        return;
+      }
       set('bionodulo.collab.enabled', false);
       setCollabRoomActive(false);
       toast.error(appCollabCopy.error.joinFailed, { message: err instanceof Error ? err.message : String(err) });
@@ -748,6 +760,7 @@ export default function App() {
     authUser,
     requestCollabAuth,
     set,
+    setAuthUser,
     setCollabRoomActive,
     setRequestedWorkflowId,
     t,
