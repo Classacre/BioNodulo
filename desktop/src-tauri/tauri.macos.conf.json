@@ -3,7 +3,8 @@
   "bundle": {
     "resources": {
       "../assets/python-embedded/macos": "python-embedded",
-      "../assets/uv/macos": "uv"
+      "../assets/uv/macos": "uv",
+      "../assets/cloudflared/macos": "cloudflared"
     }
   }
 }

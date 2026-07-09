@@ -8,7 +8,7 @@
   "scripts": {
     "prepare:backend": "node scripts/prepare-backend.mjs",
     "prepare:python": "node scripts/prepare-python.mjs",
-    "prepare:assets": "npm run prepare:backend && npm run prepare:python && node scripts/copy-icons.mjs",
+    "prepare:assets": "npm run prepare:backend && npm run prepare:python && node scripts/prepare-cloudflared.mjs && node scripts/copy-icons.mjs",
     "tauri": "tauri",
     "tauri:dev": "cross-env BIONODULO_DEV=1 tauri dev",
     "tauri:build": "tauri build"
