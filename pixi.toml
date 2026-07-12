@@ -4,11 +4,11 @@ version = "0.1.5"
 description = "Visual bioinformatics pipelines, node by node."
 authors = ["BioNodulo Team <team@bionodulo.org>"]
 channels = ["conda-forge", "bioconda"]
-platforms = ["linux-64"]
+platforms = ["linux-64", "linux-aarch64"]
 
 # Core Python runtime
 [dependencies]
-python = ">=3.11"
+python = ">=3.12,<3.13"
 
 # Python application dependencies from PyPI
 [pypi-dependencies]
