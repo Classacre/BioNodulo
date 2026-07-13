@@ -22,3 +22,16 @@ examples/
 *.fna
 *.fasta
 r_plot/
+
+# --- worker image slimming: exclude non-engine dirs (worker runs `bionodulo/`) ---
+desktop/
+web/
+tests/
+docs/
+templates/
+.superpowers/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.md
+uv.lock

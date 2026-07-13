@@ -6,7 +6,7 @@ import json
 import hashlib
 import re
 from pathlib import Path
-from typing import Any, ClassVar, Union
+from typing import Any, ClassVar, Optional, Union
 
 from bionodulo.nodes.types import file_extension_for
 
@@ -78,6 +78,18 @@ class BaseNode(abc.ABC):
         """Return a hash representing current input state for cache invalidation."""
         serialized = cls._serialize_inputs(inputs)
         return hashlib.sha256(serialized.encode()).hexdigest()[:16]
+
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        """Opt-in shared reference-data cache (perf §15 #3).
+
+        Override in nodes that BUILD a large reusable reference (STAR/kraken/
+        cellranger indexes) to return a content-addressed id. When the cache is
+        enabled (REFERENCE_CACHE_BUCKET set), CommandNode.run stages a pre-built
+        artifact from the shared store instead of rebuilding, and publishes a
+        freshly-built one for later runs. Default None = node builds normally.
+        """
+        return None
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:

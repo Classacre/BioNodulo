@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import shlex
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, ClassVar, Optional, Union
@@ -282,6 +283,43 @@ class CommandNode(BaseNode):
         kwargs["output"] = str(node_out)
         kwargs["output_dir"] = str(node_out)
 
+        # --- Shared reference-data cache (perf §15 #3) ---------------------------
+        # Index-building nodes (STAR/kraken/cellranger) override reference_cache_id
+        # to opt in. On a cache HIT we populate node_out from the shared store and
+        # SKIP the (30+ min) build; on a miss we build normally then publish the
+        # result for every later run (any user). No-op unless the cache is
+        # configured (REFERENCE_CACHE_BUCKET) and the node opts in.
+        ref_id: str | None = None
+        staged_from_cache = False
+        try:
+            ref_id = self.__class__.reference_cache_id(kwargs)
+        except Exception:  # noqa: BLE001 — never let a cache-id error break a run
+            ref_id = None
+        if ref_id:
+            try:
+                from bionodulo.execution import reference_cache as _refcache
+
+                if _refcache.cache_enabled():
+                    staged = _refcache.stage(ref_id)
+                    if staged is not None:
+                        # Populate node_out with the staged reference contents.
+                        node_out.mkdir(parents=True, exist_ok=True)
+                        for item in Path(staged).iterdir():
+                            dst = node_out / item.name
+                            if not dst.exists():
+                                if item.is_dir():
+                                    shutil.copytree(item, dst)
+                                else:
+                                    shutil.copy2(item, dst)
+                        staged_from_cache = True
+                        logger.info(
+                            "[%s] reference cache HIT %s — skipping build",
+                            self.__class__.NODE_ID, ref_id,
+                        )
+            except Exception as exc:  # noqa: BLE001 — miss/error → build normally
+                logger.info("[%s] reference cache stage skipped: %s",
+                            self.__class__.NODE_ID, exc)
+
         try:
             # Validate inputs
             validation = self.__class__.VALIDATE_INPUTS(kwargs)
@@ -302,31 +340,49 @@ class CommandNode(BaseNode):
             if getattr(self.__class__, "SHELL", False) and isinstance(cmd, list):
                 cmd = _shell_join(cmd)
 
-            logger.info("[%s] Executing: %s", self.__class__.NODE_ID, cmd if isinstance(cmd, str) else " ".join(cmd))
-
-            # Execute via context if available
-            if context is not None and hasattr(context, "run_command"):
-                result = await context.run_command(
-                    cmd,
-                    env=self.__class__.ENV_VARS or None,
-                    cwd=self.__class__.WORKING_DIR or output_dir,
-                )
+            if staged_from_cache:
+                # Reference restored from the shared cache — skip the build.
+                logger.info("[%s] using cached reference; skipping command",
+                            self.__class__.NODE_ID)
+                result = {"returncode": 0, "stdout": "", "stderr": ""}
             else:
-                # Fallback: direct subprocess execution via run_subprocess
-                # for consistency and proper shell handling.
-                from bionodulo.execution.subprocess_runner import run_subprocess
-                result = await run_subprocess(
-                    cmd,
-                    cwd=output_dir,
-                    stdout_path=Path(output_dir) / "stdout.log" if output_dir else None,
-                    stderr_path=Path(output_dir) / "stderr.log" if output_dir else None,
-                )
+                logger.info("[%s] Executing: %s", self.__class__.NODE_ID, cmd if isinstance(cmd, str) else " ".join(cmd))
+
+                # Execute via context if available
+                if context is not None and hasattr(context, "run_command"):
+                    result = await context.run_command(
+                        cmd,
+                        env=self.__class__.ENV_VARS or None,
+                        cwd=self.__class__.WORKING_DIR or output_dir,
+                    )
+                else:
+                    # Fallback: direct subprocess execution via run_subprocess
+                    # for consistency and proper shell handling.
+                    from bionodulo.execution.subprocess_runner import run_subprocess
+                    result = await run_subprocess(
+                        cmd,
+                        cwd=output_dir,
+                        stdout_path=Path(output_dir) / "stdout.log" if output_dir else None,
+                        stderr_path=Path(output_dir) / "stderr.log" if output_dir else None,
+                    )
 
             if result.get("returncode", 0) != 0:
                 stderr = result.get("stderr", "")
                 raise RuntimeError(
                     f"Command failed (exit {result.get('returncode')}): {stderr[:500]}"
                 )
+
+            # Publish a freshly-built reference to the shared cache so every later
+            # run (any user) stages it instead of rebuilding. Best-effort.
+            if ref_id and not staged_from_cache:
+                try:
+                    from bionodulo.execution import reference_cache as _refcache
+
+                    if _refcache.cache_enabled():
+                        _refcache.publish(ref_id, node_out)
+                except Exception as exc:  # noqa: BLE001 — publish is best-effort
+                    logger.info("[%s] reference cache publish skipped: %s",
+                                self.__class__.NODE_ID, exc)
 
             missing_outputs = [path for path in outputs if not path.exists()]
             if missing_outputs:
