@@ -4,13 +4,14 @@ import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import { cloudConfigAtom, computeSpecAtom } from '../../state/appAtoms';
 import {
-  PRESETS,
+  QUICK_SIZES,
   capsForPlanName,
   specCreditsPerHour,
   specLabel,
+  specDims,
   customComputeRate,
+  sizeAllowed,
   MIN_GB_PER_VCPU,
-  type ResourceProfile,
 } from '../../utils/computeSpec';
 
 interface ComputePanelProps {
@@ -21,10 +22,11 @@ const VCPU_STEPS = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64];
 
 /**
  * Cloud compute selector embedded in the editor's left rail (signed-in only).
- * Free plans pick from Micro/Small presets; paid plans unlock the larger presets
- * plus arbitrary CPU/RAM sliders, priced live by the same formula the server
- * bills at (see utils/computeSpec — mirror of the website's resource-profiles).
- * The selection persists to computeSpecAtom and is sent with the next run.
+ * Users choose ANY CPU/RAM with the sliders (or a quick-size shortcut); Free is
+ * capped at 4 vCPU / 16 GB, paid plans are unlimited. Priced live by the same
+ * formula the server bills at (utils/computeSpec — mirror of the website's
+ * resource-profiles). The selection persists to computeSpecAtom and is sent with
+ * the next run as a custom { vcpu, ramGb } spec.
  */
 export default function ComputePanel({ onClose }: ComputePanelProps) {
   const { t } = useTranslation();
@@ -35,26 +37,24 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
 
   const caps = useMemo(() => capsForPlanName(plan), [plan]);
   const creditsPerHour = specCreditsPerHour(spec);
-
-  const custom = spec.kind === 'custom'
-    ? spec
-    : (() => {
-        const p = PRESETS.find(x => x.profile === spec.profile) ?? PRESETS[1];
-        return { kind: 'custom' as const, vcpu: p.vcpu, ramGb: p.ramGb };
-      })();
+  const current = specDims(spec);
 
   const vcpuChoices = VCPU_STEPS.filter(v => v <= caps.maxVcpu);
   const upgradeUrl = accountUrl ? `${accountUrl.replace(/\/+$/, '')}/pricing` : null;
+  const isFree = !plan || plan === 'free';
 
   const setCustom = (vcpu: number, ramGb: number) => {
-    const clampedRam = Math.min(caps.maxRamGb, Math.max(vcpu * MIN_GB_PER_VCPU, ramGb));
-    setSpec({ kind: 'custom', vcpu, ramGb: clampedRam });
+    const clampedVcpu = Math.min(caps.maxVcpu, Math.max(1, vcpu));
+    const clampedRam = Math.min(
+      caps.maxRamGb,
+      Math.max(clampedVcpu * MIN_GB_PER_VCPU, ramGb),
+    );
+    setSpec({ kind: 'custom', vcpu: clampedVcpu, ramGb: clampedRam });
   };
 
-  const pickPreset = (profile: ResourceProfile) => setSpec({ kind: 'profile', profile });
-
-  const isActivePreset = (profile: ResourceProfile) =>
-    spec.kind === 'profile' && spec.profile === profile;
+  const pickSize = (vcpu: number, ramGb: number) => setCustom(vcpu, ramGb);
+  const isActiveSize = (vcpu: number, ramGb: number) =>
+    current.vcpu === vcpu && current.ramGb === ramGb;
 
   return (
     <div className="rail-panel">
@@ -81,77 +81,75 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
           </div>
         </div>
 
-        {/* Preset chips */}
+        {/* Quick-size shortcuts (each just sets a custom spec) */}
         <div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>{t('compute.presets', { defaultValue: 'Presets' })}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>{t('compute.quickSizes', { defaultValue: 'Quick sizes' })}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {PRESETS.map(p => {
-              const allowed = caps.allowedProfiles.includes(p.profile);
+            {QUICK_SIZES.map(q => {
+              const allowed = sizeAllowed(caps, q.vcpu, q.ramGb);
               return (
                 <button
-                  key={p.profile}
-                  className={`btn btn-sm ${isActivePreset(p.profile) ? 'btn-primary' : ''}`}
+                  key={q.label}
+                  className={`btn btn-sm ${isActiveSize(q.vcpu, q.ramGb) ? 'btn-primary' : ''}`}
                   disabled={!allowed}
                   title={allowed
-                    ? `${p.vcpu} vCPU / ${p.ramGb} GB · ${Math.round(p.creditPerSecond * 3600)} cr/hr`
-                    : t('compute.lockedPreset', { defaultValue: 'Upgrade your plan to use this size' })}
-                  onClick={() => pickPreset(p.profile)}
+                    ? `${q.vcpu} vCPU / ${q.ramGb} GB · ${Math.round(customComputeRate(q.vcpu, q.ramGb) * 3600)} cr/hr`
+                    : t('compute.lockedSize', { defaultValue: 'Upgrade your plan to use this size' })}
+                  onClick={() => pickSize(q.vcpu, q.ramGb)}
                 >
-                  {p.label}
+                  {q.label}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Custom sliders (paid only) */}
+        {/* Custom sliders — available to everyone (Free capped at 4 vCPU / 16 GB) */}
         <div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-            {t('compute.custom', { defaultValue: 'Custom' })}
+            {t('compute.custom', { defaultValue: 'Choose CPU & RAM' })}
           </div>
-          {caps.allowsCustom ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{t('compute.vcpu', { defaultValue: 'vCPU' })}</span>
-                  <strong>{custom.vcpu}</strong>
-                </span>
-                <input
-                  type="range" min={0} max={vcpuChoices.length - 1} step={1}
-                  value={Math.max(0, vcpuChoices.indexOf(custom.vcpu))}
-                  onChange={e => {
-                    const vcpu = vcpuChoices[Number(e.target.value)] ?? vcpuChoices[0];
-                    setCustom(vcpu, custom.ramGb);
-                  }}
-                />
-              </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{t('compute.ram', { defaultValue: 'RAM (GB)' })}</span>
-                  <strong>{custom.ramGb}</strong>
-                </span>
-                <input
-                  type="range"
-                  min={custom.vcpu * MIN_GB_PER_VCPU}
-                  max={caps.maxRamGb}
-                  step={4}
-                  value={custom.ramGb}
-                  onChange={e => setCustom(custom.vcpu, Number(e.target.value))}
-                />
-              </label>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                {t('compute.estimate', {
-                  defaultValue: `≈ ${Math.round(customComputeRate(custom.vcpu, custom.ramGb) * 3600).toLocaleString()} credits/hr`,
-                  credits: Math.round(customComputeRate(custom.vcpu, custom.ramGb) * 3600).toLocaleString(),
-                })}
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+              <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{t('compute.vcpu', { defaultValue: 'vCPU' })}</span>
+                <strong>{current.vcpu}</strong>
+              </span>
+              <input
+                type="range" min={0} max={Math.max(0, vcpuChoices.length - 1)} step={1}
+                value={Math.max(0, vcpuChoices.indexOf(current.vcpu))}
+                onChange={e => {
+                  const vcpu = vcpuChoices[Number(e.target.value)] ?? vcpuChoices[0];
+                  setCustom(vcpu, current.ramGb);
+                }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+              <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{t('compute.ram', { defaultValue: 'RAM (GB)' })}</span>
+                <strong>{current.ramGb}</strong>
+              </span>
+              <input
+                type="range"
+                min={current.vcpu * MIN_GB_PER_VCPU}
+                max={caps.maxRamGb}
+                step={4}
+                value={current.ramGb}
+                onChange={e => setCustom(current.vcpu, Number(e.target.value))}
+              />
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              ≈ {Math.round(customComputeRate(current.vcpu, current.ramGb) * 3600).toLocaleString()} {t('compute.creditsPerHour', { defaultValue: 'credits / hr' })}
             </div>
-          ) : (
+          </div>
+
+          {isFree && (
             <div style={{
+              marginTop: 12,
               border: '1px dashed var(--border, rgba(127,127,127,0.3))', borderRadius: 8, padding: 12,
               fontSize: 13, color: 'var(--muted)',
             }}>
-              {t('compute.freeLocked', { defaultValue: 'Custom compute is a paid feature. Upgrade to choose any CPU/RAM.' })}
+              {t('compute.freeCap', { defaultValue: 'Free plan is capped at 4 vCPU / 16 GB. Upgrade to choose any size.' })}
               {upgradeUrl && (
                 <div style={{ marginTop: 8 }}>
                   <a className="btn btn-sm btn-primary" href={upgradeUrl} target="_blank" rel="noopener noreferrer">

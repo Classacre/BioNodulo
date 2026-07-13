@@ -28,8 +28,9 @@ export interface CloudConfig {
 export const cloudConfigAtom = atom<CloudConfig | null>(null);
 
 // Selected cloud compute spec for the next run (set in the Compute panel).
-// Persisted to localStorage so it survives reloads. Defaults to the Small
-// preset; the Compute panel coerces Free-plan users to micro/small.
+// Persisted to localStorage so it survives reloads. Defaults to a small custom
+// size (2 vCPU / 16 GB) within the Free-plan cap; the Compute panel clamps to
+// the plan's limits.
 const COMPUTE_SPEC_KEY = 'bionodulo.cloud.computeSpec';
 
 function loadComputeSpec(): ComputeSpec {
@@ -40,7 +41,7 @@ function loadComputeSpec(): ComputeSpec {
       if (parsed && (parsed.kind === 'profile' || parsed.kind === 'custom')) return parsed;
     }
   } catch { /* ignore */ }
-  return { kind: 'profile', profile: 'small' };
+  return { kind: 'custom', vcpu: 2, ramGb: 16 };
 }
 
 const baseComputeSpecAtom = atom<ComputeSpec>(loadComputeSpec());

@@ -1,61 +1,74 @@
 import { describe, it, expect } from 'vitest';
 import {
-  PRESETS,
+  QUICK_SIZES,
   customComputeRate,
   specCreditsPerHour,
   specLabel,
   capsForPlanName,
   computeCapsForPlan,
+  sizeAllowed,
   specToRunBody,
 } from '../utils/computeSpec';
 
-describe('customComputeRate reproduces presets', () => {
-  it.each(['small', 'medium', 'large', 'xlarge', 'extreme'] as const)('%s', (name) => {
-    const p = PRESETS.find(x => x.profile === name)!;
-    expect(customComputeRate(p.vcpu, p.ramGb)).toBeCloseTo(p.creditPerSecond, 6);
+describe('customComputeRate (mirror of server sell-rates)', () => {
+  it('8 vCPU / 64 GB is vCPU-bound', () => {
+    expect(customComputeRate(8, 64)).toBeCloseTo(0.00808, 6);
+  });
+  it('4 vCPU / 128 GB is RAM-bound', () => {
+    expect(customComputeRate(4, 128)).toBeCloseTo(0.0100736, 7);
   });
 });
 
 describe('specCreditsPerHour / specLabel', () => {
-  it('preset hourly cost', () => {
-    expect(specCreditsPerHour({ kind: 'profile', profile: 'medium' })).toBe(1152);
-    expect(specLabel({ kind: 'profile', profile: 'medium' })).toBe('Medium');
-  });
   it('custom hourly cost + label', () => {
-    expect(specCreditsPerHour({ kind: 'custom', vcpu: 12, ramGb: 96 })).toBe(1728);
+    // 12 vCPU / 96 GB → max(12*0.00101, 96*0.0000787)=0.01212 → 44 cr/hr
+    expect(specCreditsPerHour({ kind: 'custom', vcpu: 12, ramGb: 96 })).toBe(44);
     expect(specLabel({ kind: 'custom', vcpu: 12, ramGb: 96 })).toBe('12 vCPU / 96 GB');
   });
+  it('legacy profile maps to a size + labels by dims', () => {
+    expect(specLabel({ kind: 'profile', profile: 'medium' })).toBe('8 vCPU / 64 GB');
+  });
 });
 
-describe('capsForPlanName', () => {
-  it('free locks to micro/small, no custom', () => {
+describe('capsForPlanName (§33 preset-free)', () => {
+  it('free allows custom but caps at 4 vCPU / 16 GB', () => {
     const caps = capsForPlanName('free');
-    expect(caps.allowsCustom).toBe(false);
-    expect(caps.allowedProfiles).toEqual(['micro', 'small']);
+    expect(caps.allowsCustom).toBe(true);
+    expect(caps.maxVcpu).toBe(4);
+    expect(caps.maxRamGb).toBe(16);
   });
-  it('professional unlocks custom up to 128 GB', () => {
+  it('paid plans are unlimited', () => {
     const caps = capsForPlanName('professional');
     expect(caps.allowsCustom).toBe(true);
-    expect(caps.maxRamGb).toBe(128);
-    expect(caps.maxVcpu).toBe(32);
-    expect(caps.allowedProfiles).not.toContain('xlarge');
+    expect(caps.maxRamGb).toBeGreaterThanOrEqual(4096);
   });
-  it('null plan treated as free', () => {
-    expect(capsForPlanName(null).allowsCustom).toBe(false);
-  });
-});
-
-describe('computeCapsForPlan unlimited (enterprise)', () => {
-  it('treats 0 RAM as 1024 cap', () => {
-    expect(computeCapsForPlan('enterprise', 0).maxRamGb).toBe(1024);
+  it('null plan treated as free (still allows custom, capped)', () => {
+    expect(capsForPlanName(null).allowsCustom).toBe(true);
+    expect(capsForPlanName(null).maxVcpu).toBe(4);
   });
 });
 
-describe('specToRunBody', () => {
-  it('preset -> resourceProfile', () => {
-    expect(specToRunBody({ kind: 'profile', profile: 'large' })).toEqual({ resourceProfile: 'large' });
+describe('sizeAllowed', () => {
+  it('gates a quick size against the plan cap', () => {
+    const free = capsForPlanName('free');
+    expect(sizeAllowed(free, 2, 16)).toBe(true);
+    expect(sizeAllowed(free, 8, 64)).toBe(false);
+    expect(sizeAllowed(capsForPlanName('professional'), 32, 256)).toBe(true);
   });
-  it('custom -> compute', () => {
+});
+
+describe('computeCapsForPlan unlimited (paid)', () => {
+  it('treats 0 RAM as a high cap', () => {
+    expect(computeCapsForPlan('enterprise', 0).maxRamGb).toBeGreaterThanOrEqual(4096);
+  });
+});
+
+describe('QUICK_SIZES + specToRunBody', () => {
+  it('quick sizes cover XS..XXL', () => {
+    expect(QUICK_SIZES.map(q => q.label)).toEqual(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
+  });
+  it('always serializes to a custom compute body', () => {
     expect(specToRunBody({ kind: 'custom', vcpu: 8, ramGb: 64 })).toEqual({ compute: { vcpu: 8, ramGb: 64 } });
+    expect(specToRunBody({ kind: 'profile', profile: 'large' })).toEqual({ compute: { vcpu: 16, ramGb: 128 } });
   });
 });
