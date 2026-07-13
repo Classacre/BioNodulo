@@ -31,7 +31,9 @@ def _redis_dsn() -> str:
 def _load_worker_executor(workspace_dir: str | None, cache_dir: str | None) -> WorkflowExecutor:
     settings = Settings.from_env()
     registry = NodeRegistry()
-    registry.load_builtin_nodes()
+    # §44: lazy — the executor resolves node types via registry.get(), which
+    # imports only the modules a workflow touches. Custom nodes (no index) are
+    # still loaded eagerly.
     registry.load_custom_nodes(settings.custom_nodes_dir)
     return WorkflowExecutor(
         workspace_dir=Path(workspace_dir) if workspace_dir else settings.project_root,
