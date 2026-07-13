@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from bionodulo.nodes.command_node import CommandNode
 
@@ -78,6 +78,18 @@ class BWAIndexNode(CommandNode):
             },
             "hidden": {},
         }
+
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        """Content-addressed id for this BWA index (perf §15 #3 / §40) — shared
+        platform-wide; keys on the FASTA identity + bwa version + algorithm."""
+        from bionodulo.execution import reference_cache as _rc
+
+        return _rc.compute_ref_id("bwa", [
+            _rc.file_identity(inputs.get("reference", "")),
+            f"bwa-{cls.VERSION}",
+            str(inputs.get("algorithm", "bwtsw")),
+        ])
 
 
 class BWAMemNode(CommandNode):
@@ -210,6 +222,21 @@ class Bowtie2BuildNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        """Content-addressed id for this Bowtie2 index (perf §15 #3 / §40).
+
+        Same-genome bowtie2 indexes are shared platform-wide via the reference
+        cache — the first build publishes it, later runs (any user) stage it
+        instead of rebuilding. Keys on the FASTA identity + bowtie2 version.
+        """
+        from bionodulo.execution import reference_cache as _rc
+
+        return _rc.compute_ref_id("bowtie2", [
+            _rc.file_identity(inputs.get("reference", "")),
+            f"bowtie2-{cls.VERSION}",
+        ])
 
 
 class Bowtie2AlignNode(CommandNode):
@@ -420,6 +447,17 @@ class HISAT2BuildNode(CommandNode):
             },
         }
 
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        """Content-addressed id for this HISAT2 index (perf §15 #3 / §40) —
+        shared platform-wide; keys on the FASTA identity + hisat2 version."""
+        from bionodulo.execution import reference_cache as _rc
+
+        return _rc.compute_ref_id("hisat2", [
+            _rc.file_identity(inputs.get("reference", "")),
+            f"hisat2-{cls.VERSION}",
+        ])
+
 
 class HISAT2AlignNode(CommandNode):
     """Align RNA-seq reads with HISAT2."""
@@ -517,6 +555,27 @@ class STARIndexNode(CommandNode):
         if inputs.get("sjdb_overhang"):
             cmd.extend(["--sjdbOverhang", str(inputs["sjdb_overhang"])])
         return cmd
+
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        """Content-addressed id for this STAR index (perf §15 #3).
+
+        Building a human STAR index is ~33 min / 35 GB RAM (measured §16.2).
+        When REFERENCE_CACHE_BUCKET is set, CommandNode.run stages a pre-built
+        index from the shared cache (~5 min download) instead of rebuilding, and
+        publishes a freshly-built one for every later run (any user). The id
+        keys on the FASTA + GTF identity, STAR version, and index params — so the
+        same genome+annotation shares one cached index platform-wide.
+        """
+        from bionodulo.execution import reference_cache as _rc
+
+        return _rc.compute_ref_id("star", [
+            _rc.file_identity(inputs.get("reference", "")),
+            _rc.file_identity(inputs.get("gtf", "")),
+            f"STAR{cls.VERSION}",
+            f"sa{inputs.get('genome_sa_index_nbases', 14)}",
+            f"oh{inputs.get('sjdb_overhang', 100)}",
+        ])
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

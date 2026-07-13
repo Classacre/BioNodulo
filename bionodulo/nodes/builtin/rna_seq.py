@@ -5,7 +5,7 @@ StringTie) used in RNA-seq differential expression workflows.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from bionodulo.nodes.command_node import CommandNode
 
@@ -44,6 +44,19 @@ class SalmonIndexNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        """Content-addressed id for this Salmon index (perf §15 #3 / §40) —
+        shared platform-wide; keys on the transcriptome identity + salmon
+        version + k-mer size."""
+        from bionodulo.execution import reference_cache as _rc
+
+        return _rc.compute_ref_id("salmon", [
+            _rc.file_identity(inputs.get("transcripts", "")),
+            f"salmon-{cls.VERSION}",
+            f"k{inputs.get('kmer', 31)}",
+        ])
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -163,6 +176,18 @@ class KallistoIndexNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        """Content-addressed id for this Kallisto index (perf §15 #3 / §40) —
+        shared platform-wide; keys on transcriptome identity + version + k-mer."""
+        from bionodulo.execution import reference_cache as _rc
+
+        return _rc.compute_ref_id("kallisto", [
+            _rc.file_identity(inputs.get("transcripts", "")),
+            f"kallisto-{cls.VERSION}",
+            f"k{inputs.get('kmer', 31)}",
+        ])
 
 
 class KallistoQuantNode(CommandNode):

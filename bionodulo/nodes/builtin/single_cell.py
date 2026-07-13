@@ -5,7 +5,7 @@ Provides nodes for 10x Genomics Cell Ranger count and reference building.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from bionodulo.nodes.command_node import CommandNode
 
@@ -127,3 +127,16 @@ class CellRangerMkrefNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        """Content-addressed id for this Cell Ranger reference (perf §15 #3 /
+        §40). mkref is minutes + memory-heavy; the same FASTA+GTF is shared
+        platform-wide. Keys on the FASTA + GTF identity + cellranger version."""
+        from bionodulo.execution import reference_cache as _rc
+
+        return _rc.compute_ref_id("cellranger", [
+            _rc.file_identity(inputs.get("fasta", "")),
+            _rc.file_identity(inputs.get("gtf", "")),
+            f"cellranger-{cls.VERSION}",
+        ])
