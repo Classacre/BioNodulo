@@ -17,7 +17,6 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 import httpx
-from Bio import Phylo
 
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
@@ -262,6 +261,10 @@ def _validate_ebi_clustalo_result(text: str, label: str) -> None:
 
 
 def _canonical_newick(path: Path) -> str:
+    # Lazy import — biopython is a runtime dep (REQUIRED_CONDA_PACKAGES), not in
+    # the slim worker base image, so keep node-module import light (§38).
+    from Bio import Phylo
+
     tree = Phylo.read(str(path), "newick")
     handle = StringIO()
     Phylo.write(tree, handle, "newick")

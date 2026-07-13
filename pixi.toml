@@ -10,22 +10,36 @@ platforms = ["linux-64", "linux-aarch64"]
 [dependencies]
 python = ">=3.12,<3.13"
 
-# Python application dependencies from PyPI
+# -----------------------------------------------------------------------------
+# Base app dependencies — the LIGHT set the cloud WORKER's eager import path
+# actually needs (bionodulo.execution/nodes + registry walk). Heavy bio/ML libs
+# (scanpy, transformers, pysam, litellm, …) are NOT here: nodes install them at
+# runtime via REQUIRED_CONDA_PACKAGES / embedded command scripts. The server/
+# collab/LLM/auth/DB/queue stack lives in the `server` feature below so the
+# worker image can exclude it (§38 image slim: 301MB → target <150MB).
+# -----------------------------------------------------------------------------
 [pypi-dependencies]
+pyyaml = ">=6.0.1"
+httpx = ">=0.27.0"
+diskcache = ">=5.6.3"
+
+# -----------------------------------------------------------------------------
+# Server-only stack: the editor/API server, live collaboration, LLM
+# orchestration, auth, DB, and the ARQ queue. The cloud worker does NOT import
+# any of these (verified §38) — it drives WorkflowExecutor directly.
+# -----------------------------------------------------------------------------
+[feature.server.pypi-dependencies]
 fastapi = ">=0.110.0"
 uvicorn = { version = ">=0.27.0", extras = ["standard"] }
 pydantic = ">=2.6.0"
+biopython = ">=1.83"
 python-multipart = ">=0.0.9"
 websockets = ">=12.0"
 aiofiles = ">=23.0"
-pyyaml = ">=6.0.1"
-httpx = ">=0.27.0"
 psutil = ">=5.9.0"
-biopython = ">=1.83"
 uvloop = ">=0.19.0"
 pycrdt = ">=0.12.0"
 pyjwt = ">=2.8.0"
-diskcache = ">=5.6.3"
 slowapi = ">=0.1.9"
 casbin = ">=1.36.0"
 pycrdt-websocket = ">=0.16.1"
@@ -47,4 +61,8 @@ ruff = ">=0.2.0"
 mypy = ">=1.8.0"
 
 [environments]
-default = { features = ["dev"] }
+# default: the full app (server + dev) — used by the editor/server build + local
+# dev. Unchanged behaviour for everything except the cloud worker image.
+default = { features = ["server", "dev"] }
+# worker: the SLIM cloud-worker env — base deps only, no server/collab/LLM/dev.
+worker = { features = [] }
