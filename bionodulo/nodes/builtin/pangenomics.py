@@ -894,10 +894,10 @@ class PGGBNode(CommandNode):
             "-G",
             str(inputs.get("graph_poas", 2)),
         ]
-        if inputs.get("do_viz"):
-            cmd.append("--do-viz")
-        if inputs.get("do_layout"):
-            cmd.append("--do-layout")
+        # NOTE: `--do-viz` / `--do-layout` are NOT valid pggb options (pggb aborts
+        # with "unrecognized option"). pggb emits its 1D/2D visualisations as part
+        # of the default pipeline, so no flag is needed. Kept the input toggles for
+        # backward compatibility but they no longer inject bogus flags.
         if inputs.get("consensus_spec"):
             cmd.extend(["-C", str(inputs["consensus_spec"])])
         return cmd

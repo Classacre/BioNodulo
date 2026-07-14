@@ -193,7 +193,7 @@ def test_squidpy_qc_writes_script_and_renders_command(tmp_path: Path) -> None:
     assert "import squidpy as sq" in script
     assert "import scanpy as sc" in script
     assert "matplotlib.use('Agg')" in script
-    assert "adata = sc.read_visium('/data/spaceranger/outs')" in script
+    assert "adata = sc.read_visium('/data/spaceranger/outs', load_images=False)" in script
     assert "sc.pp.filter_cells(adata, min_counts=750)" in script
     assert "sc.pp.filter_genes(adata, min_cells=5)" in script
     assert 'adata = adata[adata.obs["pct_counts_mt"] < 15.5]' in script

@@ -345,8 +345,6 @@ def test_sage_renders_configured_search_command(tmp_path: Path) -> None:
         "proteome.fa",
         "-o",
         str(output_dir),
-        "--threads",
-        "12",
         "--write-pin",
         "--parquet",
         "run1.mzML",
@@ -386,8 +384,6 @@ def test_sage_accepts_single_spectrum_and_omits_optional_flags(tmp_path: Path) -
         "proteome.fa",
         "-o",
         str(output_dir),
-        "--threads",
-        "4",
         "run1.mzML",
     ]
     config_text = (output_dir / "sage_config.json").read_text(encoding="utf-8")

@@ -1786,8 +1786,6 @@ def test_pggb_renders_build_command_with_optional_flags() -> None:
         "29",
         "-G",
         "3",
-        "--do-viz",
-        "--do-layout",
         "-C",
         "100,1000,10000",
     ]

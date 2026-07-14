@@ -314,9 +314,11 @@ class SageSearchNode(CommandNode):
             fasta_db,
             "-o",
             str(out_dir),
-            "--threads",
-            str(inputs.get("threads", 4)),
         ]
+        # NOTE: sage has NO `--threads` option (it auto-parallelises across all
+        # cores); passing it makes sage abort with "unexpected argument
+        # '--threads'" (exit 2). Concurrency is controlled by the config's
+        # `batch_size` / the runtime, not a CLI flag.
         if inputs.get("write_pin", True):
             cmd.append("--write-pin")
         if inputs.get("parquet"):

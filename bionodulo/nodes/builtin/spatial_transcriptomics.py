@@ -120,7 +120,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-adata = sc.read_visium('{visium_path}')
+adata = sc.read_visium('{visium_path}', load_images=False)  # QC/clustering: skip tissue images (demo Visium data omits spatial/tissue_hires_image.png)
 adata.var_names_make_unique()
 adata.var["mt"] = adata.var_names.str.startswith("MT-")
 sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], inplace=True)
@@ -213,7 +213,7 @@ class ScanpySpatialNode(CommandNode):
             # Real Space Ranger outs/: read the .h5 and DERIVE the count matrix +
             # coordinate CSVs from it (real data), then continue the same pipeline.
             load = f"""
-adata = sc.read_visium('{visium_path}')
+adata = sc.read_visium('{visium_path}', load_images=False)  # QC/clustering: skip tissue images (demo Visium data omits spatial/tissue_hires_image.png)
 adata.var_names_make_unique()
 adata.obs['sample'] = '{sample_name}'
 adata.to_df().T.to_csv('{out_dir}/counts.csv')

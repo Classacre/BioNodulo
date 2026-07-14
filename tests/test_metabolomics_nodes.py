@@ -34,11 +34,12 @@ def test_xcms_peak_detection_is_registered_for_frontend_discovery() -> None:
     assert node_info["required_conda_packages"] == [
         "r-base",
         "bioconductor-xcms",
+        "bioconductor-msexperiment",
         "bioconductor-biocparallel",
         "r-jsonlite",
         "r-readr",
     ]
-    assert node_info["required_r_packages"] == ["xcms", "jsonlite", "readr", "BiocParallel"]
+    assert node_info["required_r_packages"] == ["xcms", "MsExperiment", "jsonlite", "readr", "BiocParallel"]
     assert "metabolomics" in node_info["search_aliases"]
     assert "centwave" in node_info["search_aliases"]
     assert "lc-ms" in node_info["search_aliases"]

@@ -306,37 +306,39 @@ class MAFFTNode(CommandNode):
         }
 
     @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        strategy = inputs.get("strategy", "auto")
-        cmd = ["mafft", "--thread", str(inputs.get("threads", 4))]
-        flag = f"--{strategy}" if not strategy.startswith("--") else strategy
-        cmd.append(flag)
-        cmd.append(str(inputs.get("input", "")))
-        return cmd
-
-    async def run(self, **kwargs: Any) -> Any:
-        """Run MAFFT and capture stdout to the output file."""
-        import shutil
-        from pathlib import Path
-
-        context = kwargs.get("context")
-        output_dir = kwargs.get("output_dir")
-        if output_dir is None and context is not None:
-            output_dir = getattr(context, "node_dir", ".")
-
-        # Run the command (stdout is captured to stdout.log by subprocess_runner)
-        result = await super().run(**kwargs)
-
-        # Copy stdout.log to the expected output path
-        if output_dir:
-            stdout_log = Path(output_dir) / "stdout.log"
-            outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_dir)
-            if stdout_log.exists() and outputs:
-                target = outputs[0]
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(str(stdout_log), str(target))
-
-        return result
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        # MAFFT writes the alignment to STDOUT (it has no output-file flag). The
+        # previous approach ran a bare arg list and tried to copy stdout.log to
+        # the output in a run() override — but CommandNode.run() validates the
+        # expected output and RAISES before that override's copy could run, so
+        # the file was never produced ("did not create expected output"). Emit a
+        # shell command that redirects stdout straight into the planned output
+        # file; run_subprocess runs a str command via the shell, so `>` works and
+        # CommandNode's output check then passes.
+        strategy = str(inputs.get("strategy", "auto")).strip().lower()
+        # linsi/ginsi/einsi are wrapper names, NOT `--flags` — map them to the
+        # equivalent mafft options. `auto` and any explicit `--flag` pass through.
+        strategy_flags = {
+            "auto": ["--auto"],
+            "linsi": ["--localpair", "--maxiterate", "1000"],
+            "ginsi": ["--globalpair", "--maxiterate", "1000"],
+            "einsi": ["--genafpair", "--maxiterate", "1000"],
+            "": ["--auto"],
+        }
+        if strategy.startswith("--"):
+            flags = [strategy]
+        else:
+            flags = strategy_flags.get(strategy, ["--auto"])
+        out_dir = str(inputs.get("output", "."))
+        out_file = f"{out_dir}/alignment.aln.fasta"
+        parts = [
+            "mafft",
+            "--thread", str(inputs.get("threads", 4)),
+            *flags,
+            shlex.quote(str(inputs.get("input", ""))),
+            ">", shlex.quote(out_file),
+        ]
+        return " ".join(parts)
 
 
 class ClustalONode(CommandNode):

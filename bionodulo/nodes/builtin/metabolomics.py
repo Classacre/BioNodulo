@@ -55,8 +55,8 @@ class XCMSPeakDetectionNode(CommandNode):
     RETURN_TYPES = ("TSV", "FILE", "JSON")
     RETURN_NAMES = ("feature_table", "xcms_object", "summary")
     REQUIRED_EXECUTABLES = ["Rscript"]
-    REQUIRED_CONDA_PACKAGES = ["r-base", "bioconductor-xcms", "bioconductor-biocparallel", "r-jsonlite", "r-readr"]
-    REQUIRED_R_PACKAGES = ["xcms", "jsonlite", "readr", "BiocParallel"]
+    REQUIRED_CONDA_PACKAGES = ["r-base", "bioconductor-xcms", "bioconductor-msexperiment", "bioconductor-biocparallel", "r-jsonlite", "r-readr"]
+    REQUIRED_R_PACKAGES = ["xcms", "MsExperiment", "jsonlite", "readr", "BiocParallel"]
     DOCUMENTATION_URL = "https://bioconductor.org/packages/xcms/"
     VERSION = "3.20"
     SHELL = True
@@ -75,10 +75,12 @@ class XCMSPeakDetectionNode(CommandNode):
 
         script = textwrap.dedent(f"""\
             if (!requireNamespace("xcms", quietly = TRUE)) stop("Package 'xcms' is required but not installed.")
+            if (!requireNamespace("MsExperiment", quietly = TRUE)) stop("Package 'MsExperiment' is required but not installed.")
             if (!requireNamespace("jsonlite", quietly = TRUE)) stop("Package 'jsonlite' is required but not installed.")
             if (!requireNamespace("readr", quietly = TRUE)) stop("Package 'readr' is required but not installed.")
             if (!requireNamespace("BiocParallel", quietly = TRUE)) stop("Package 'BiocParallel' is required but not installed.")
             library("xcms")
+            library("MsExperiment")
             library("jsonlite")
             library("readr")
             library("BiocParallel")
@@ -88,7 +90,10 @@ class XCMSPeakDetectionNode(CommandNode):
             missing <- files[!file.exists(files)]
             if (length(missing) > 0) stop(paste("Input file(s) not found:", paste(missing, collapse = ", ")))
 
-            raw_data <- readMSData(files, mode = "onDisk")
+            # xcms 4.x removed the MSnbase-based readMSData(); the current reader
+            # is MsExperiment::readMsExperiment (spectra-backed). findChromPeaks
+            # operates on the returned MsExperiment directly.
+            raw_data <- readMsExperiment(spectraFiles = files)
             param <- CentWaveParam(
                 ppm = {inputs.get("ppm", 25)},
                 peakwidth = c({inputs.get("peakwidth_min", 20)}, {inputs.get("peakwidth_max", 50)}),
@@ -97,6 +102,9 @@ class XCMSPeakDetectionNode(CommandNode):
                 noise = {inputs.get("noise", 0)}
             )
             xdata <- findChromPeaks(raw_data, param = param, BPPARAM = MulticoreParam(workers = {inputs.get("threads", 1)}))
+            # featureValues() requires correspondence (peak grouping) first; group
+            # across samples with the density method before extracting the matrix.
+            xdata <- groupChromPeaks(xdata, param = PeakDensityParam(sampleGroups = rep(1, length(files))))
             feature_values <- featureValues(xdata, value = "into")
             chrom_peaks <- as.data.frame(chromPeaks(xdata))
             peak_count <- nrow(chrom_peaks)
