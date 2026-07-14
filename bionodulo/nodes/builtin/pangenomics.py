@@ -906,15 +906,19 @@ class PGGBNode(CommandNode):
         # the stable name the node contract exposes (`smooth_gfa.gfa`); pggb's GFA
         # embeds the consensus paths, so also expose it as `consensus_fasta.fa`'s
         # source when no separate consensus FASTA is produced.
-        gfa_glob = shlex.quote(f"{out_dir}/*.smooth.final.gfa")
-        smooth_gfa = shlex.quote(f"{out_dir}/smooth_gfa.gfa")
-        consensus_fa = shlex.quote(f"{out_dir}/consensus_fasta.fa")
+        # Quote the DIRECTORY but leave the `*` unquoted so the shell expands the
+        # glob (shlex.quote'ing the whole pattern makes `ls` receive a literal
+        # star → matches nothing → smooth_gfa.gfa never created).
+        out_q = shlex.quote(out_dir)
+        gfa_glob = f"{out_q}/*.smooth.final.gfa"
+        smooth_gfa = f"{out_q}/smooth_gfa.gfa"
+        consensus_fa = f"{out_q}/consensus_fasta.fa"
         normalise = (
             f'g=$(ls {gfa_glob} 2>/dev/null | head -1); '
             f'if [ -n "$g" ]; then cp "$g" {smooth_gfa}; fi; '
             # pggb only emits a separate consensus FASTA with -C. When absent,
             # derive one from the smoothed GFA's segment (S-line) sequences so the
-            # node's second output always exists (name<TAB>len annotated headers).
+            # node's second output always exists.
             f'if [ ! -s {consensus_fa} ] && [ -s {smooth_gfa} ]; then '
             f"awk '/^S/{{print \">seg\"$2\"\\n\"$3}}' {smooth_gfa} > {consensus_fa}; fi"
         )
