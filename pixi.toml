@@ -28,6 +28,10 @@ diskcache = ">=5.6.3"
 # so it must live in the worker's own env. Kept minimal — heavy tools (BWA,
 # GATK, STAR, scanpy, …) still install on demand per workflow.
 biopython = ">=1.83"
+# matplotlib: same rationale — several in-process viz nodes (bp_msa_view and
+# other BaseNode renderers) import it directly to emit PNGs. Small, foundational
+# plotting lib; belongs in the worker base env so those nodes don't ImportError.
+matplotlib = ">=3.8"
 
 # -----------------------------------------------------------------------------
 # Server-only stack: the editor/API server, live collaboration, LLM
