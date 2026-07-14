@@ -94,6 +94,13 @@ class XCMSPeakDetectionNode(CommandNode):
             # is MsExperiment::readMsExperiment (spectra-backed). findChromPeaks
             # operates on the returned MsExperiment directly.
             raw_data <- readMsExperiment(spectraFiles = files)
+            # xcms/CentWave requires spectra ordered by retention time within each
+            # file (else: "Spectra are not ordered by retention time"). Reorder the
+            # backing Spectra by (file, rtime) to guarantee it for demo/synthetic
+            # mzML that may not be pre-sorted.
+            sp <- spectra(raw_data)
+            ord <- order(fromFile(sp), rtime(sp))
+            spectra(raw_data) <- sp[ord]
             param <- CentWaveParam(
                 ppm = {inputs.get("ppm", 25)},
                 peakwidth = c({inputs.get("peakwidth_min", 20)}, {inputs.get("peakwidth_max", 50)}),

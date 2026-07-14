@@ -297,11 +297,17 @@ class SageSearchNode(CommandNode):
         config_file = out_dir / "sage_config.json"
         fasta_db = str(inputs.get("fasta_db", ""))
 
+        # Sage expects mass tolerances as a [low, high] RANGE, not a scalar
+        # (a bare `{"ppm": 20}` fails: "invalid type: integer `20`, expected
+        # tuple variant Tolerance::Ppm"). Express the symmetric window as
+        # [-tol, +tol].
+        prec_ppm = inputs.get("precursor_tol_ppm", 20)
+        frag_da = inputs.get("fragment_tol_da", 0.05)
         config = {
             "database": {"fasta": fasta_db},
             "mzml_paths": spectra_files,
-            "precursor_tol": {"ppm": inputs.get("precursor_tol_ppm", 20)},
-            "fragment_tol": {"da": inputs.get("fragment_tol_da", 0.05)},
+            "precursor_tol": {"ppm": [-abs(prec_ppm), abs(prec_ppm)]},
+            "fragment_tol": {"da": [-abs(frag_da), abs(frag_da)]},
             "enzyme": _sage_enzyme_config(inputs),
             "output_paths": {"results": "results.sage.tsv"},
         }

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import shlex
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
@@ -868,39 +869,37 @@ class PGGBNode(CommandNode):
     RETURN_TYPES = ("GFA", "FASTA")
     RETURN_NAMES = ("smooth_gfa", "consensus_fasta")
     REQUIRED_EXECUTABLES = ["pggb"]
-    REQUIRED_CONDA_PACKAGES = ["pggb"]
+    REQUIRED_CONDA_PACKAGES = ["pggb", "samtools"]
     DOCUMENTATION_URL = "https://github.com/pangenome/pggb"
     VERSION = "0.7.3"
     SHELL = True
 
     @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        cmd = [
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        # pggb requires a samtools .fai index of the input FASTA (it aborts with
+        # "index for <fa> does not exist"). Build it first, in the same shell
+        # command (SHELL = True), then run pggb. The remaining flags are unchanged.
+        input_fasta = str(inputs.get("input_fasta", ""))
+        pggb_args = [
             "pggb",
-            "-i",
-            str(inputs.get("input_fasta", "")),
-            "-o",
-            str(inputs.get("output", ".")),
-            "-n",
-            str(inputs.get("num_haplotypes", 2)),
-            "-t",
-            str(inputs.get("threads", 16)),
-            "-p",
-            str(inputs.get("map_pct_id", 90)),
-            "-s",
-            str(inputs.get("segment_length", 5000)),
-            "-k",
-            str(inputs.get("min_match_length", 19)),
-            "-G",
-            str(inputs.get("graph_poas", 2)),
+            "-i", input_fasta,
+            "-o", str(inputs.get("output", ".")),
+            "-n", str(inputs.get("num_haplotypes", 2)),
+            "-t", str(inputs.get("threads", 16)),
+            "-p", str(inputs.get("map_pct_id", 90)),
+            "-s", str(inputs.get("segment_length", 5000)),
+            "-k", str(inputs.get("min_match_length", 19)),
+            "-G", str(inputs.get("graph_poas", 2)),
         ]
         # NOTE: `--do-viz` / `--do-layout` are NOT valid pggb options (pggb aborts
         # with "unrecognized option"). pggb emits its 1D/2D visualisations as part
         # of the default pipeline, so no flag is needed. Kept the input toggles for
         # backward compatibility but they no longer inject bogus flags.
         if inputs.get("consensus_spec"):
-            cmd.extend(["-C", str(inputs["consensus_spec"])])
-        return cmd
+            pggb_args.extend(["-C", str(inputs["consensus_spec"])])
+        faidx = " ".join(["samtools", "faidx", shlex.quote(input_fasta)])
+        run = " ".join(shlex.quote(a) if (" " in a) else a for a in pggb_args)
+        return f"{faidx} && {run}"
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:

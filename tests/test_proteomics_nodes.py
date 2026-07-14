@@ -354,8 +354,8 @@ def test_sage_renders_configured_search_command(tmp_path: Path) -> None:
         "{\n"
         '  "database": {"fasta": "proteome.fa"},\n'
         '  "mzml_paths": ["run1.mzML", "run2.mzML"],\n'
-        '  "precursor_tol": {"ppm": 10},\n'
-        '  "fragment_tol": {"da": 0.02},\n'
+        '  "precursor_tol": {"ppm": [-10, 10]},\n'
+        '  "fragment_tol": {"da": [-0.02, 0.02]},\n'
         '  "enzyme": {"missed_cleavages": 2, "min_len": 7, "max_len": 40, "cleave_at": "KR", "restrict": "P"},\n'
         '  "output_paths": {"results": "results.sage.tsv"}\n'
         "}\n"
@@ -388,8 +388,8 @@ def test_sage_accepts_single_spectrum_and_omits_optional_flags(tmp_path: Path) -
     ]
     config_text = (output_dir / "sage_config.json").read_text(encoding="utf-8")
     assert '"mzml_paths": ["run1.mzML"]' in config_text
-    assert '"precursor_tol": {"ppm": 20}' in config_text
-    assert '"fragment_tol": {"da": 0.05}' in config_text
+    assert '"precursor_tol": {"ppm": [-20, 20]}' in config_text
+    assert '"fragment_tol": {"da": [-0.05, 0.05]}' in config_text
 
 
 def test_sage_plans_outputs() -> None:

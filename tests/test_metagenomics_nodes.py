@@ -137,7 +137,10 @@ def test_bracken_exposes_bionodulo_builtin_aligned_metadata_inputs_and_outputs()
     assert "Kraken-style Bracken report" in info["search_aliases"]
 
     assert info["input"]["required"]["report"][0] == "TSV"
-    assert info["input"]["required"]["kmer_distr"][0] == "FILE"
+    # kmer_distr moved to optional: the node derives it from the `db` input, and
+    # its VALIDATE_INPUTS enforces the real (conditional) requirement.
+    assert info["input"]["optional"]["kmer_distr"][0] == "FILE"
+    assert "kmer_distr" not in info["input"]["required"]
     assert info["input"]["optional"]["level"][1]["options"] == ["S2", "S1", "S", "G", "F", "O", "C", "P", "D"]
     assert info["input"]["optional"]["threshold"][1]["default"] == 10
     assert info["input"]["optional"]["out_report"][1]["default"] is False
