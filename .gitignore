@@ -51,3 +51,6 @@ output/
 web/test-results/
 web/playwright-report/
 nohup.out
+
+# Isolated implementation worktrees
+.worktrees/
