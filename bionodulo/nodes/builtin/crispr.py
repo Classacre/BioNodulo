@@ -106,7 +106,11 @@ class CRISPRESSONode(CommandNode):
         if inputs.get("guide_seq"):
             cmd.extend(["-g", str(inputs["guide_seq"])])
         if inputs.get("quant_window_center"):
-            cmd.extend(["-qc", str(inputs["quant_window_center"])])
+            # CRISPResso's quantification-window-center flag is `-wc` (there is no
+            # `-qc`). With `-qc`, argparse splits it as bundled short flags `-q c`,
+            # so `-q/--min_average_read_quality` gets the value "c" and aborts:
+            # "invalid int value: 'c'". Use the correct `-wc`.
+            cmd.extend(["-wc", str(inputs["quant_window_center"])])
         if inputs.get("quant_window_size"):
             cmd.extend(["-w", str(inputs["quant_window_size"])])
         return cmd

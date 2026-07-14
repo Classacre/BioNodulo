@@ -74,7 +74,7 @@ def test_crispresso2_renders_paired_end_command_with_quantification_options() ->
         "sample_R2.fastq.gz",
         "-g",
         "GATTACAGATTACAGATTAC",
-        "-qc",
+        "-wc",
         "-3",
         "-w",
         "5",
