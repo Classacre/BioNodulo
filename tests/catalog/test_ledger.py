@@ -265,6 +265,47 @@ def test_extract_nodes_rejects_other_class_namespace_node_id_bindings(binding: s
         extract_nodes(source, "pkg.module")
 
 
+@pytest.mark.parametrize(
+    "definition",
+    [
+        "@(NODE_ID := decorator)\ndef method(self):\n    pass",
+        'def method(self, value=(NODE_ID := "default")):\n    pass',
+        'def method(self, *, value=(NODE_ID := "kw_default")):\n    pass',
+        "def method(self, value: (NODE_ID := annotation)):\n    pass",
+        "def method(self) -> (NODE_ID := annotation):\n    pass",
+        "class Nested((NODE_ID := Base)):\n    pass",
+        "class Nested(metaclass=(NODE_ID := Meta)):\n    pass",
+        "@(NODE_ID := decorator)\nclass Nested:\n    pass",
+        'factory = lambda value=(NODE_ID := "lambda_default"): value',
+    ]
+    + (
+        [
+            "def method[T: (NODE_ID := Bound)](self):\n    pass",
+            "class Nested[T: (NODE_ID := Bound)]:\n    pass",
+        ]
+        if sys.version_info >= (3, 12)
+        else []
+    )
+    + (
+        [
+            "def method[T = (NODE_ID := Default)](self):\n    pass",
+            "class Nested[T = (NODE_ID := Default)]:\n    pass",
+        ]
+        if sys.version_info >= (3, 13)
+        else []
+    ),
+)
+def test_extract_nodes_rejects_node_id_effects_in_definition_headers(definition: str) -> None:
+    indented = "\n".join(f"    {line}" for line in definition.splitlines())
+    source = f'class Outer:\n    NODE_ID = "stable"\n{indented}\n'
+
+    with pytest.raises(
+        ledger_builder.ReconciliationError,
+        match=r"pkg\.module\.Outer has unsupported NODE_ID class-scope binding",
+    ):
+        extract_nodes(source, "pkg.module")
+
+
 def test_ast_hash_uses_a_version_neutral_golden_schema() -> None:
     found, _anomalies = extract_nodes('class A:\n    NODE_ID = "alpha"\n', "pkg.module")
 

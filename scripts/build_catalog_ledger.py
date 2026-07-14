@@ -412,6 +412,34 @@ def _direct_node_id_declarations(
     return tuple(declarations)
 
 
+def _argument_header_expressions(arguments: ast.arguments) -> tuple[ast.AST, ...]:
+    expressions: list[ast.AST] = [*arguments.defaults]
+    expressions.extend(value for value in arguments.kw_defaults if value is not None)
+    annotated = [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs]
+    if arguments.vararg is not None:
+        annotated.append(arguments.vararg)
+    if arguments.kwarg is not None:
+        annotated.append(arguments.kwarg)
+    expressions.extend(argument.annotation for argument in annotated if argument.annotation is not None)
+    return tuple(expressions)
+
+
+def _definition_header_expressions(
+    node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+) -> tuple[ast.AST, ...]:
+    if isinstance(node, ast.ClassDef):
+        expressions: list[ast.AST] = [*node.decorator_list, *node.bases]
+        expressions.extend(keyword.value for keyword in node.keywords)
+    else:
+        expressions = list(_argument_header_expressions(node.args))
+        if not isinstance(node, ast.Lambda):
+            expressions[:0] = node.decorator_list
+            if node.returns is not None:
+                expressions.append(node.returns)
+    expressions.extend(getattr(node, "type_params", ()))
+    return tuple(expressions)
+
+
 def _node_id_effect_lines(node: ast.AST) -> tuple[int, ...]:
     lines: set[int] = set()
 
@@ -419,8 +447,12 @@ def _node_id_effect_lines(node: ast.AST) -> tuple[int, ...]:
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             if node.name == "NODE_ID":
                 lines.add(node.lineno)
+            for expression in _definition_header_expressions(node):
+                collect(expression)
             return
         if isinstance(node, ast.Lambda):
+            for expression in _definition_header_expressions(node):
+                collect(expression)
             return
         matched = False
         if isinstance(node, ast.Assign) and any(
@@ -489,8 +521,7 @@ def _unsupported_direct_node_id_lines(class_node: ast.ClassDef) -> tuple[int, ..
     lines: set[int] = set()
     for statement in class_node.body:
         if isinstance(statement, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            if statement.name == "NODE_ID":
-                lines.add(statement.lineno)
+            lines.update(_node_id_effect_lines(statement))
             continue
         if isinstance(statement, _CLASS_CONTROL_FLOW):
             if isinstance(statement, (ast.For, ast.AsyncFor)) and _target_binds_node_id(
