@@ -555,7 +555,7 @@
       },
       "to": {
         "node": "filter_001",
-        "input": "vcf"
+        "input": "input_file"
       }
     },
     {

@@ -446,9 +446,12 @@ class BrackenNode(CommandNode):
         return {
             "required": {
                 "report": ("TSV", {"description": "Kraken report file"}),
-                "kmer_distr": ("FILE", {"description": "Bracken k-mer distribution file"}),
             },
             "optional": {
+                "kmer_distr": (
+                    "FILE",
+                    {"default": "", "description": "Bracken k-mer distribution file (required unless 'db' is provided, from which it is derived)"},
+                ),
                 "db": (
                     "DIRECTORY",
                     {"default": "", "description": "Legacy Kraken database directory used to derive database{read_length}mers.kmer_distrib"},

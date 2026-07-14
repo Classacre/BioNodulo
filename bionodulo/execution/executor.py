@@ -3173,7 +3173,21 @@ class WorkflowExecutor:
             for pname, pval in node.get("params", {}).items():
                 inputs[pname] = self._bind_workflow_parameters(pval, workflow_parameters)
 
-        # Override with upstream connections
+        # Override with upstream connections.
+        #
+        # Multiple edges may target the SAME input port (fan-in), e.g. several
+        # QC nodes feeding MultiQC's `reports`. For a LIST-typed port that
+        # receives 2+ edges we ACCUMULATE the upstream values into a flat list;
+        # the previous code did `inputs[tgt_port] = value` unconditionally, so
+        # the last edge silently overwrote the rest (MultiQC then received only
+        # one report and produced "No analysis results found"). A port with a
+        # single edge is assigned its value directly — unchanged behaviour, so
+        # this only affects genuine fan-in and can't perturb existing runs.
+        list_ports = self._list_input_ports(node)
+        edge_count: dict[str, int] = {}
+        for edge in edge_map.get(node_id, []):
+            edge_count[edge_target_port(edge)] = edge_count.get(edge_target_port(edge), 0) + 1
+        collected_list: dict[str, list[Any]] = {}
         for edge in edge_map.get(node_id, []):
             src = edge_source(edge)
             src_port = edge_source_port(edge)
@@ -3182,11 +3196,49 @@ class WorkflowExecutor:
             if src in node_outputs:
                 upstream_out = node_outputs[src]
                 if src_port in upstream_out:
-                    inputs[tgt_port] = upstream_out[src_port]
+                    value = upstream_out[src_port]
                 elif "default" in upstream_out:
-                    inputs[tgt_port] = upstream_out["default"]
+                    value = upstream_out["default"]
+                else:
+                    continue
+                if tgt_port in list_ports and edge_count.get(tgt_port, 0) > 1:
+                    bucket = collected_list.setdefault(tgt_port, [])
+                    if isinstance(value, (list, tuple)):
+                        bucket.extend(value)
+                    else:
+                        bucket.append(value)
+                else:
+                    inputs[tgt_port] = value
+
+        for port, values in collected_list.items():
+            inputs[port] = values
 
         return inputs
+
+    def _list_input_ports(self, node: dict[str, Any]) -> set[str]:
+        """Names of this node's inputs whose declared type is a LIST type.
+
+        Read from the node class's INPUT_TYPES via the registry; a port counts
+        as a list when its type token contains 'LIST' (e.g. FILE_LIST,
+        FASTQ_LIST). Returns an empty set when the class/registry is unavailable
+        so behaviour is unchanged for unknown nodes.
+        """
+        node_class = node.get("_node_class")
+        if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
+            node_class = self.registry.get(str(node.get("type", "")))
+        if node_class is None or not hasattr(node_class, "INPUT_TYPES"):
+            return set()
+        try:
+            spec = node_class.INPUT_TYPES()
+        except Exception:
+            return set()
+        ports: set[str] = set()
+        for section in ("required", "optional"):
+            for name, decl in (spec.get(section, {}) or {}).items():
+                type_token = decl[0] if isinstance(decl, (list, tuple)) and decl else decl
+                if isinstance(type_token, str) and "LIST" in type_token.upper():
+                    ports.add(name)
+        return ports
 
     def _with_defaults(
         self,

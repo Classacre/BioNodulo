@@ -115,6 +115,28 @@ class MultiQCNode(CommandNode):
         reports = inputs.get("reports", "")
         if isinstance(reports, str):
             reports = [reports]
+        # MultiQC parses tool *data* files (fastp's report.json, FastQC's
+        # `<sample>_fastqc` data), NOT the rendered HTML. Upstream nodes often
+        # expose only their pretty `.html` (e.g. fastp's `report` output is
+        # report.html, with report.json written alongside it). Pointing MultiQC
+        # at that single .html yields "No analysis results found". So for any
+        # report entry that is a FILE, search its CONTAINING DIRECTORY instead —
+        # MultiQC then recursively discovers the sibling .json / _fastqc data.
+        # Directory entries (e.g. FastQC's report_dir) are passed through as-is.
+        # Order-preserving dedup so we don't scan the same dir twice.
+        search_paths: list[str] = []
+        seen: set[str] = set()
+        for entry in reports:
+            raw = str(entry).strip()
+            if not raw:
+                continue
+            p = Path(raw)
+            target = str(p if p.is_dir() else p.parent)
+            if target and target not in seen:
+                seen.add(target)
+                search_paths.append(target)
+        if not search_paths:
+            search_paths = [str(r) for r in reports if str(r).strip()]
         # Strip a trailing `.html` from --filename so MultiQC doesn't end up
         # producing `name.html.html` (it auto-appends the extension itself).
         filename_param = str(inputs.get("filename") or "report")
@@ -122,7 +144,7 @@ class MultiQCNode(CommandNode):
             filename_param = filename_param[:-5]
         cmd = [
             "multiqc",
-            *reports,
+            *search_paths,
             "--outdir", str(inputs.get("output", inputs.get("output_dir", "."))),
             "--filename", filename_param,
         ]
