@@ -246,15 +246,25 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 {load}
-sc.pp.filter_cells(adata, min_genes={inputs.get("min_genes", 200)})
-sc.pp.filter_genes(adata, min_cells={inputs.get("min_cells", 3)})
+# Clamp QC/dimensionality params to the actual data size. Fixed defaults
+# (min_genes=200, 2000 HVGs, 15 PCs) wipe out small/synthetic demo datasets
+# ("Found array with 0 sample(s)"). Guard each step so the pipeline degrades
+# gracefully on tiny inputs while staying unchanged on real Visium data.
+_min_genes = min({inputs.get("min_genes", 200)}, max(1, adata.n_vars // 4))
+_min_cells = min({inputs.get("min_cells", 3)}, max(1, adata.n_obs // 4))
+sc.pp.filter_cells(adata, min_genes=_min_genes)
+sc.pp.filter_genes(adata, min_cells=_min_cells)
+if adata.n_obs < 2 or adata.n_vars < 2:
+    raise SystemExit("Too few cells/genes after filtering for spatial clustering.")
 sc.pp.normalize_total(adata, target_sum=1e4)
 sc.pp.log1p(adata)
-sc.pp.highly_variable_genes(adata, n_top_genes={inputs.get("n_hvg", 2000)})
+_n_hvg = min({inputs.get("n_hvg", 2000)}, adata.n_vars)
+sc.pp.highly_variable_genes(adata, n_top_genes=_n_hvg)
 adata = adata[:, adata.var['highly_variable']]
 sc.pp.scale(adata, max_value=10)
-sc.pp.pca(adata, n_comps={inputs.get("n_pcs", 15)})
-sc.pp.neighbors(adata)
+_n_pcs = min({inputs.get("n_pcs", 15)}, adata.n_obs - 1, adata.n_vars - 1)
+sc.pp.pca(adata, n_comps=max(1, _n_pcs))
+sc.pp.neighbors(adata, n_neighbors=min(15, max(2, adata.n_obs - 1)))
 sc.tl.leiden(adata, resolution={inputs.get("resolution", 0.8)})
 sc.tl.umap(adata)
 

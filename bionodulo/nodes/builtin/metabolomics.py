@@ -95,11 +95,12 @@ class XCMSPeakDetectionNode(CommandNode):
             # operates on the returned MsExperiment directly.
             raw_data <- readMsExperiment(spectraFiles = files)
             # xcms/CentWave requires spectra ordered by retention time within each
-            # file (else: "Spectra are not ordered by retention time"). Reorder the
-            # backing Spectra by (file, rtime) to guarantee it for demo/synthetic
-            # mzML that may not be pre-sorted.
+            # file (else: "Spectra are not ordered by retention time"). Order the
+            # backing Spectra by (file-of-origin, rtime). Spectra exposes the
+            # source file via dataOrigin() (fromFile() is an MSnbase/OnDiskMSnExp
+            # method that does NOT exist on a Spectra object).
             sp <- spectra(raw_data)
-            ord <- order(fromFile(sp), rtime(sp))
+            ord <- order(dataOrigin(sp), rtime(sp))
             spectra(raw_data) <- sp[ord]
             param <- CentWaveParam(
                 ppm = {inputs.get("ppm", 25)},

@@ -272,10 +272,14 @@ def test_scanpy_spatial_writes_script_and_renders_command(tmp_path: Path) -> Non
     assert "counts = pd.read_csv('/data/counts.tsv', sep='\\t', index_col=0)" in script
     assert "coordinates = pd.read_csv('/data/spatial.csv')" in script
     assert "adata = sc.AnnData(counts.T)" in script
-    assert "sc.pp.filter_cells(adata, min_genes=250)" in script
-    assert "sc.pp.filter_genes(adata, min_cells=4)" in script
-    assert "sc.pp.highly_variable_genes(adata, n_top_genes=1200)" in script
-    assert "sc.pp.pca(adata, n_comps=18)" in script
+    assert "sc.pp.filter_cells(adata, min_genes=_min_genes)" in script
+    assert "sc.pp.filter_genes(adata, min_cells=_min_cells)" in script
+    assert "_min_genes = min(250, max(1, adata.n_vars // 4))" in script
+    assert "_min_cells = min(4, max(1, adata.n_obs // 4))" in script
+    assert "sc.pp.highly_variable_genes(adata, n_top_genes=_n_hvg)" in script
+    assert "_n_hvg = min(1200, adata.n_vars)" in script
+    assert "sc.pp.pca(adata, n_comps=max(1, _n_pcs))" in script
+    assert "_n_pcs = min(18, adata.n_obs - 1, adata.n_vars - 1)" in script
     assert "sc.tl.leiden(adata, resolution=0.7)" in script
     assert f"adata.obs[['sample', 'leiden']].to_csv('{output_dir}/clusters.csv')" in script
     assert f"plt.savefig('{output_dir}/umap.png', dpi=150)" in script

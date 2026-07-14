@@ -899,7 +899,12 @@ class PGGBNode(CommandNode):
             pggb_args.extend(["-C", str(inputs["consensus_spec"])])
         faidx = " ".join(["samtools", "faidx", shlex.quote(input_fasta)])
         run = " ".join(shlex.quote(a) if (" " in a) else a for a in pggb_args)
-        return f"{faidx} && {run}"
+        # The whole compound must run INSIDE the pixi env. CommandNode wraps the
+        # command as `pixi run -- <cmd>`, and pixi's `--` consumes only the first
+        # program — a bare `samtools faidx ... && pggb ...` runs pggb in the OUTER
+        # shell (→ "pggb: command not found", exit 127). Wrap in `bash -c` so both
+        # run under the activated env.
+        return "bash -c " + shlex.quote(f"{faidx} && {run}")
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:

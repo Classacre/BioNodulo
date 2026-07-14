@@ -1769,9 +1769,9 @@ def test_pggb_renders_build_command_with_optional_flags() -> None:
     })
 
     assert cmd == (
-        "samtools faidx haplotypes.fa && "
+        "bash -c 'samtools faidx haplotypes.fa && "
         "pggb -i haplotypes.fa -o /tmp/run/pggb -n 6 -t 32 -p 95 "
-        "-s 10000 -k 29 -G 3 -C 100,1000,10000"
+        "-s 10000 -k 29 -G 3 -C 100,1000,10000'"
     )
 
 
@@ -1796,8 +1796,8 @@ def test_pggb_omits_empty_optional_flags() -> None:
     assert "--do-layout" not in cmd
     assert "-C" not in cmd
     assert cmd == (
-        "samtools faidx haplotypes.fa && "
-        "pggb -i haplotypes.fa -o /tmp/run/pggb -n 2 -t 16 -p 90 -s 5000 -k 19 -G 2"
+        "bash -c 'samtools faidx haplotypes.fa && "
+        "pggb -i haplotypes.fa -o /tmp/run/pggb -n 2 -t 16 -p 90 -s 5000 -k 19 -G 2'"
     )
 
 

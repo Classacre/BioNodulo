@@ -533,10 +533,17 @@ class IQTREENode(CommandNode):
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        # IQ-TREE hard-errors ("You have specified more threads than CPU cores
+        # available") when -nt exceeds the machine's cores. Runs land on
+        # variable-size spot VMs, so a fixed thread count from the template can
+        # exceed the box. Use `-nt AUTO -ntmax <n>`: iqtree auto-picks an optimal
+        # thread count, capped at the requested value, and never overcommits.
+        threads = str(inputs.get("threads", 4))
         cmd = [
             "iqtree",
             "-s", str(inputs.get("alignment", "")),
-            "-nt", str(inputs.get("threads", 4)),
+            "-nt", "AUTO",
+            "-ntmax", threads,
             "-pre", f"{inputs.get('output', '.')}/tree",
             "-m", str(inputs.get("model", "MFP")),
         ]
