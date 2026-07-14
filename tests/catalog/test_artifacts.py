@@ -402,6 +402,81 @@ def test_artifact_registry_is_a_strict_frozen_value_object() -> None:
         first.types = ()
 
 
+def test_equal_registries_cannot_diverge_through_cache_reassignment() -> None:
+    artifact_types = (
+        ArtifactType(type_id="artifact.file", container=ArtifactContainer.FILE),
+        ArtifactType(
+            type_id="file.text",
+            container=ArtifactContainer.FILE,
+            parents=("artifact.file",),
+        ),
+        ArtifactType(
+            type_id="report.html",
+            container=ArtifactContainer.FILE,
+            parents=("file.text",),
+        ),
+    )
+    first = ArtifactRegistry(types=artifact_types)
+    second = ArtifactRegistry(types=artifact_types)
+    original_hash = hash(first)
+
+    with pytest.raises((AttributeError, ValidationError)):
+        first._type_index = {}
+    with pytest.raises((AttributeError, ValidationError)):
+        first._ancestor_closure = {}
+
+    assert first == second
+    assert hash(first) == original_hash == hash(second)
+    for source, target, expected in (
+        ("report.html", "artifact.file", True),
+        ("artifact.file", "report.html", False),
+        ("file.text", "file.text", True),
+    ):
+        assert first.is_type_compatible(source, target) is expected
+        assert second.is_type_compatible(source, target) is expected
+
+    with pytest.raises(TypeError):
+        first._type_index["injected"] = artifact_types[0]
+    with pytest.raises(TypeError):
+        first._ancestor_closure["report.html"] = frozenset()
+
+
+def test_validated_registry_replacement_uses_only_its_replacement_graph() -> None:
+    original = ArtifactRegistry(
+        types=(
+            ArtifactType(
+                type_id="artifact.file",
+                container=ArtifactContainer.FILE,
+            ),
+            ArtifactType(
+                type_id="file.text",
+                container=ArtifactContainer.FILE,
+                parents=("artifact.file",),
+            ),
+        )
+    )
+    replacement_types = (
+        ArtifactType(type_id="value.string", container=None),
+        ArtifactType(
+            type_id="value.label",
+            container=None,
+            parents=("value.string",),
+        ),
+    )
+
+    replacement = original.model_copy(update={"types": replacement_types})
+    equal_replacement = original.model_copy(update={"types": replacement_types})
+
+    assert replacement == equal_replacement
+    assert hash(replacement) == hash(equal_replacement)
+    assert replacement.is_type_compatible("value.label", "value.string")
+    assert original.is_type_compatible("file.text", "artifact.file")
+    with pytest.raises(UnknownArtifactTypeError):
+        replacement.is_type_compatible("file.text", "artifact.file")
+    with pytest.raises(UnknownArtifactTypeError):
+        original.is_type_compatible("value.label", "value.string")
+
+
 def test_registry_rejects_duplicate_type_ids() -> None:
     duplicate = ArtifactType(
         type_id="artifact.file",
@@ -785,6 +860,7 @@ def test_registry_serialization_contains_only_declared_type_state() -> None:
 
     assert tuple(dumped) == ("types",)
     assert len(dumped["types"]) == 5
+    assert tuple(ArtifactRegistry.model_json_schema()["properties"]) == ("types",)
 
 
 def test_contract_package_reexports_artifact_symbols() -> None:

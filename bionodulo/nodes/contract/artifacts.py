@@ -2,6 +2,7 @@ import re
 from collections.abc import Mapping
 from copy import deepcopy
 from enum import StrEnum
+from functools import cache
 from types import MappingProxyType
 from typing import Annotated, Any, Final, Self
 
@@ -9,7 +10,6 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
-    PrivateAttr,
     StringConstraints,
     model_validator,
 )
@@ -125,10 +125,39 @@ class ArtifactPort(_StrictFrozenModel):
     cardinality: Cardinality
 
 
+@cache
+def _derive_registry_graph(
+    types: tuple[ArtifactType, ...],
+) -> tuple[
+    Mapping[str, ArtifactType],
+    Mapping[str, frozenset[str]],
+]:
+    types_by_id = MappingProxyType(
+        {artifact_type.type_id: artifact_type for artifact_type in types}
+    )
+    ancestor_closure: dict[str, frozenset[str]] = {}
+    for type_id in types_by_id:
+        ancestors: set[str] = set()
+        pending = list(types_by_id[type_id].parents)
+        while pending:
+            parent_id = pending.pop()
+            if parent_id not in ancestors:
+                ancestors.add(parent_id)
+                pending.extend(types_by_id[parent_id].parents)
+        ancestor_closure[type_id] = frozenset(ancestors)
+    return types_by_id, MappingProxyType(ancestor_closure)
+
+
 class ArtifactRegistry(_StrictFrozenModel):
     types: tuple[ArtifactType, ...]
-    _type_index: Mapping[str, ArtifactType] = PrivateAttr()
-    _ancestor_closure: Mapping[str, frozenset[str]] = PrivateAttr()
+
+    @property
+    def _type_index(self) -> Mapping[str, ArtifactType]:
+        return _derive_registry_graph(self.types)[0]
+
+    @property
+    def _ancestor_closure(self) -> Mapping[str, frozenset[str]]:
+        return _derive_registry_graph(self.types)[1]
 
     def is_type_compatible(
         self,
@@ -197,28 +226,7 @@ class ArtifactRegistry(_StrictFrozenModel):
             self._validate_direct_references(artifact_type, types_by_id)
 
         self._validate_parent_graph_is_acyclic(types_by_id)
-        self._type_index = MappingProxyType(dict(types_by_id))
-        self._ancestor_closure = MappingProxyType(
-            {
-                type_id: self._collect_ancestors(type_id, types_by_id)
-                for type_id in types_by_id
-            }
-        )
         return self
-
-    @staticmethod
-    def _collect_ancestors(
-        type_id: str,
-        types_by_id: Mapping[str, ArtifactType],
-    ) -> frozenset[str]:
-        ancestors: set[str] = set()
-        pending = list(types_by_id[type_id].parents)
-        while pending:
-            parent_id = pending.pop()
-            if parent_id not in ancestors:
-                ancestors.add(parent_id)
-                pending.extend(types_by_id[parent_id].parents)
-        return frozenset(ancestors)
 
     @staticmethod
     def _validate_direct_references(
