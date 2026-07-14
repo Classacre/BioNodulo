@@ -1,4 +1,10 @@
 import importlib
+import json
+import os
+import subprocess
+import sys
+import warnings
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -10,7 +16,24 @@ from bionodulo.nodes.contract.artifacts import (
     ArtifactRegistry,
     ArtifactType,
     Cardinality,
+    UnknownArtifactTypeError,
 )
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def run_fresh_python(source: str) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    return subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=REPOSITORY_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def test_artifact_enum_values_are_exact() -> None:
@@ -151,6 +174,161 @@ def test_artifact_models_reject_coercion_and_mutable_collections() -> None:
             artifact_type="file.text",
             cardinality="one",
         )
+
+
+@pytest.mark.parametrize(
+    "update",
+    (
+        {"type_id": "BAD"},
+        {"parents": ["artifact.file"]},
+        {"accepted_sources": ["value.string"]},
+        {"extensions": [".txt"]},
+        {"container": ArtifactContainer.DIRECTORY, "extensions": (".txt",)},
+    ),
+)
+def test_artifact_type_copy_revalidates_updates(update: dict[str, object]) -> None:
+    artifact_type = ArtifactType(
+        type_id="file.text",
+        container=ArtifactContainer.FILE,
+    )
+
+    with pytest.raises(ValidationError):
+        artifact_type.model_copy(update=update)
+
+
+@pytest.mark.parametrize(
+    "update",
+    (
+        {"port_id": "BAD"},
+        {"artifact_type": "file/text"},
+        {"cardinality": "many"},
+    ),
+)
+def test_artifact_port_copy_revalidates_updates(update: dict[str, object]) -> None:
+    port = ArtifactPort(
+        port_id="input",
+        artifact_type="file.text",
+        cardinality=Cardinality.ONE,
+    )
+
+    with pytest.raises(ValidationError):
+        port.model_copy(update=update)
+
+
+def test_artifact_registry_copy_rejects_mutable_and_invalid_graph_updates() -> None:
+    root = ArtifactType(
+        type_id="artifact.file",
+        container=ArtifactContainer.FILE,
+    )
+    registry = ArtifactRegistry(types=(root,))
+    missing_parent = ArtifactType(
+        type_id="file.text",
+        container=ArtifactContainer.FILE,
+        parents=("artifact.missing",),
+    )
+    self_cycle = ArtifactType(
+        type_id="cycle.self",
+        container=ArtifactContainer.FILE,
+        parents=("cycle.self",),
+    )
+    multi_cycle = (
+        ArtifactType(
+            type_id="cycle.a",
+            container=ArtifactContainer.FILE,
+            parents=("cycle.b",),
+        ),
+        ArtifactType(
+            type_id="cycle.b",
+            container=ArtifactContainer.FILE,
+            parents=("cycle.a",),
+        ),
+    )
+
+    with pytest.raises(ValidationError):
+        registry.model_copy(update={"types": [root]})
+    with pytest.raises(ValidationError, match="missing parent"):
+        registry.model_copy(update={"types": (missing_parent,)})
+    with pytest.raises(ValidationError, match="cannot parent itself"):
+        registry.model_copy(update={"types": (self_cycle,)})
+    with pytest.raises(ValidationError, match="parent cycle detected"):
+        registry.model_copy(update={"types": multi_cycle})
+
+
+def test_nested_constructed_artifact_is_revalidated_by_registry() -> None:
+    invalid = ArtifactType.model_construct(
+        type_id="BAD",
+        container=ArtifactContainer.FILE,
+        parents=[],
+        accepted_sources=(),
+        extensions=(),
+    )
+
+    with pytest.raises(ValidationError):
+        ArtifactRegistry(types=(invalid,))
+
+    constructed_registry = ArtifactRegistry.model_construct(types=(invalid,))
+    with pytest.raises(ValidationError):
+        ArtifactRegistry.model_validate(constructed_registry)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        with pytest.raises(ValidationError):
+            invalid.model_copy()
+    assert caught == []
+
+
+def test_validated_copies_preserve_values_subclasses_and_fresh_registry_state() -> None:
+    class SpecializedArtifactType(ArtifactType):
+        label: str
+
+    specialized = SpecializedArtifactType(
+        type_id="file.text",
+        container=ArtifactContainer.FILE,
+        label="Text",
+    )
+    updated_type = specialized.model_copy(
+        update={"type_id": "file.plain", "label": "Plain text"}
+    )
+    port = ArtifactPort(
+        port_id="input",
+        artifact_type="file.text",
+        cardinality=Cardinality.ONE,
+    )
+    updated_port = port.model_copy(update={"cardinality": Cardinality.MANY})
+    original_registry = ArtifactRegistry(
+        types=(
+            ArtifactType(
+                type_id="artifact.file",
+                container=ArtifactContainer.FILE,
+            ),
+            ArtifactType(
+                type_id="file.text",
+                container=ArtifactContainer.FILE,
+                parents=("artifact.file",),
+            ),
+        )
+    )
+    replacement_types = (
+        ArtifactType(type_id="value.string", container=None),
+        ArtifactType(
+            type_id="value.label",
+            container=None,
+            parents=("value.string",),
+        ),
+    )
+    updated_registry = original_registry.model_copy(
+        update={"types": replacement_types}
+    )
+
+    assert isinstance(updated_type, SpecializedArtifactType)
+    assert updated_type.type_id == "file.plain"
+    assert updated_type.label == "Plain text"
+    assert updated_port.cardinality is Cardinality.MANY
+    assert updated_registry.is_type_compatible("value.label", "value.string")
+    with pytest.raises(UnknownArtifactTypeError):
+        updated_registry.is_type_compatible("file.text", "artifact.file")
+    assert original_registry.is_type_compatible("file.text", "artifact.file")
+    assert original_registry.model_copy() == original_registry
+    assert original_registry.model_copy(deep=True) == original_registry
 
 
 @pytest.mark.parametrize(
@@ -457,8 +635,11 @@ def test_type_compatibility_fails_closed_for_unknown_ids(
     target_type: str,
     message: str,
 ) -> None:
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(UnknownArtifactTypeError) as caught:
         compatibility_registry().is_type_compatible(source_type, target_type)
+
+    assert type(caught.value) is UnknownArtifactTypeError
+    assert str(caught.value) == message
 
 
 CARDINALITY_CASES = (
@@ -523,8 +704,10 @@ def test_can_connect_fails_closed_for_an_unknown_port_type() -> None:
     source = artifact_port("missing.source")
     target = artifact_port("artifact.file")
 
-    with pytest.raises(ValueError, match="unknown source artifact type ID"):
+    with pytest.raises(UnknownArtifactTypeError) as caught:
         compatibility_registry().can_connect(source, target)
+
+    assert str(caught.value) == "unknown source artifact type ID: missing.source"
 
 
 def test_seed_catalog_contains_exactly_five_explicit_types() -> None:
@@ -566,6 +749,44 @@ def test_seed_catalog_has_no_implicit_legacy_or_wildcard_types() -> None:
     assert all(artifact.accepted_sources == () for artifact in ARTIFACT_TYPES)
 
 
+@pytest.mark.parametrize(
+    "model",
+    (
+        ArtifactType(
+            type_id="file.text",
+            container=ArtifactContainer.FILE,
+            parents=("artifact.file",),
+            extensions=(".txt",),
+        ),
+        ArtifactPort(
+            port_id="input",
+            artifact_type="file.text",
+            cardinality=Cardinality.NONEMPTY_MANY,
+        ),
+        ARTIFACT_REGISTRY,
+    ),
+    ids=("artifact-type", "artifact-port", "artifact-registry"),
+)
+def test_strict_python_payloads_reject_json_forms_but_json_roundtrips(model: object) -> None:
+    model_type = type(model)
+    json_payload = model.model_dump_json()
+    python_payload = json.loads(json_payload)
+
+    with pytest.raises(ValidationError):
+        model_type.model_validate(python_payload)
+
+    assert model_type.model_validate_json(json_payload) == model
+
+
+def test_registry_serialization_contains_only_declared_type_state() -> None:
+    assert ARTIFACT_REGISTRY.is_type_compatible("report.html", "artifact.file")
+
+    dumped = ARTIFACT_REGISTRY.model_dump(mode="python")
+
+    assert tuple(dumped) == ("types",)
+    assert len(dumped["types"]) == 5
+
+
 def test_contract_package_reexports_artifact_symbols() -> None:
     contract = importlib.import_module("bionodulo.nodes.contract")
 
@@ -581,3 +802,74 @@ def test_catalog_artifacts_imports_without_a_catalog_initializer() -> None:
 
     assert catalog_artifacts.ARTIFACT_TYPES is ARTIFACT_TYPES
     assert catalog_artifacts.ARTIFACT_REGISTRY is ARTIFACT_REGISTRY
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    (
+        "bionodulo.nodes.contract.artifacts",
+        "bionodulo.nodes.catalog.artifacts",
+    ),
+)
+def test_artifact_imports_do_not_load_or_register_legacy_nodes(
+    module_name: str,
+) -> None:
+    result = run_fresh_python(
+        f"""
+import importlib
+import sys
+
+legacy_modules = (
+    "bionodulo.nodes.base",
+    "bionodulo.nodes.command_node",
+    "bionodulo.nodes.registry",
+    "bionodulo.nodes.schema_api",
+)
+importlib.import_module({module_name!r})
+loaded = tuple(name for name in legacy_modules if name in sys.modules)
+assert loaded == (), loaded
+
+from bionodulo.nodes.base import BaseNode
+
+assert BaseNode._SUBCLASSES == [], BaseNode._SUBCLASSES
+"""
+    )
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+
+def test_legacy_node_package_exports_resolve_lazily_on_demand() -> None:
+    result = run_fresh_python(
+        """
+import sys
+
+import bionodulo.nodes as nodes
+
+legacy_modules = (
+    "bionodulo.nodes.base",
+    "bionodulo.nodes.command_node",
+    "bionodulo.nodes.registry",
+    "bionodulo.nodes.schema_api",
+)
+assert tuple(name for name in legacy_modules if name in sys.modules) == ()
+assert nodes.__all__ == ["BaseNode", "CommandNode", "NodeRegistry", "io", "ui"]
+assert not hasattr(nodes, "ArtifactType")
+
+from bionodulo.nodes import BaseNode, CommandNode, NodeRegistry, io, ui
+
+assert BaseNode.__module__ == "bionodulo.nodes.base"
+assert CommandNode.__module__ == "bionodulo.nodes.command_node"
+assert NodeRegistry.__module__ == "bionodulo.nodes.registry"
+assert io.__module__ == "bionodulo.nodes.schema_api"
+assert ui.__module__ == "bionodulo.nodes.schema_api"
+assert CommandNode in BaseNode._SUBCLASSES
+assert all(name in sys.modules for name in legacy_modules)
+assert nodes.BaseNode is BaseNode
+assert nodes.CommandNode is CommandNode
+assert nodes.NodeRegistry is NodeRegistry
+assert nodes.io is io
+assert nodes.ui is ui
+"""
+    )
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"

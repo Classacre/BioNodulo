@@ -1,13 +1,15 @@
 import re
 from collections.abc import Mapping
+from copy import deepcopy
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Annotated, Final, Self
+from typing import Annotated, Any, Final, Self
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
+    PrivateAttr,
     StringConstraints,
     model_validator,
 )
@@ -21,6 +23,7 @@ _EXTENSION_RE = re.compile(
 _STRICT_MODEL_CONFIG = ConfigDict(
     extra="forbid",
     frozen=True,
+    revalidate_instances="always",
     strict=True,
     validate_default=True,
 )
@@ -37,6 +40,26 @@ ArtifactId = Annotated[
     StringConstraints(pattern=ARTIFACT_ID_PATTERN),
     AfterValidator(_require_full_artifact_id_match),
 ]
+
+
+class _StrictFrozenModel(BaseModel):
+    """Strict value model; ``model_construct`` remains a trusted-only escape hatch."""
+
+    model_config = _STRICT_MODEL_CONFIG
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Any] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        validated = type(self).model_validate(self)
+        values = validated.model_dump(mode="python", round_trip=True)
+        if deep:
+            values = deepcopy(values)
+        if update is not None:
+            values.update(update)
+        return type(self).model_validate(values)
 
 
 class ArtifactContainer(StrEnum):
@@ -79,9 +102,7 @@ class UnknownArtifactTypeError(ValueError):
     """Raised when compatibility is requested for an unregistered type."""
 
 
-class ArtifactType(BaseModel):
-    model_config = _STRICT_MODEL_CONFIG
-
+class ArtifactType(_StrictFrozenModel):
     type_id: ArtifactId
     container: ArtifactContainer | None
     parents: tuple[ArtifactId, ...] = ()
@@ -98,34 +119,31 @@ class ArtifactType(BaseModel):
         return self
 
 
-class ArtifactPort(BaseModel):
-    model_config = _STRICT_MODEL_CONFIG
-
+class ArtifactPort(_StrictFrozenModel):
     port_id: ArtifactId
     artifact_type: ArtifactId
     cardinality: Cardinality
 
 
-class ArtifactRegistry(BaseModel):
-    model_config = _STRICT_MODEL_CONFIG
-
+class ArtifactRegistry(_StrictFrozenModel):
     types: tuple[ArtifactType, ...]
+    _type_index: Mapping[str, ArtifactType] = PrivateAttr()
+    _ancestor_closure: Mapping[str, frozenset[str]] = PrivateAttr()
 
     def is_type_compatible(
         self,
         source_type_id: ArtifactId,
         target_type_id: ArtifactId,
     ) -> bool:
-        types_by_id = {artifact.type_id: artifact for artifact in self.types}
         source = self._require_registered_type(
             source_type_id,
             role="source",
-            types_by_id=types_by_id,
+            types_by_id=self._type_index,
         )
         target = self._require_registered_type(
             target_type_id,
             role="target",
-            types_by_id=types_by_id,
+            types_by_id=self._type_index,
         )
 
         if source.type_id == target.type_id:
@@ -133,16 +151,7 @@ class ArtifactRegistry(BaseModel):
         if source.type_id in target.accepted_sources:
             return True
 
-        pending = list(source.parents)
-        visited: set[str] = set()
-        while pending:
-            parent_id = pending.pop()
-            if parent_id == target.type_id:
-                return True
-            if parent_id not in visited:
-                visited.add(parent_id)
-                pending.extend(types_by_id[parent_id].parents)
-        return False
+        return target.type_id in self._ancestor_closure[source.type_id]
 
     @staticmethod
     def is_cardinality_compatible(
@@ -165,7 +174,7 @@ class ArtifactRegistry(BaseModel):
         type_id: str,
         *,
         role: str,
-        types_by_id: dict[str, ArtifactType],
+        types_by_id: Mapping[str, ArtifactType],
     ) -> ArtifactType:
         try:
             return types_by_id[type_id]
@@ -188,12 +197,33 @@ class ArtifactRegistry(BaseModel):
             self._validate_direct_references(artifact_type, types_by_id)
 
         self._validate_parent_graph_is_acyclic(types_by_id)
+        self._type_index = MappingProxyType(dict(types_by_id))
+        self._ancestor_closure = MappingProxyType(
+            {
+                type_id: self._collect_ancestors(type_id, types_by_id)
+                for type_id in types_by_id
+            }
+        )
         return self
+
+    @staticmethod
+    def _collect_ancestors(
+        type_id: str,
+        types_by_id: Mapping[str, ArtifactType],
+    ) -> frozenset[str]:
+        ancestors: set[str] = set()
+        pending = list(types_by_id[type_id].parents)
+        while pending:
+            parent_id = pending.pop()
+            if parent_id not in ancestors:
+                ancestors.add(parent_id)
+                pending.extend(types_by_id[parent_id].parents)
+        return frozenset(ancestors)
 
     @staticmethod
     def _validate_direct_references(
         artifact_type: ArtifactType,
-        types_by_id: dict[str, ArtifactType],
+        types_by_id: Mapping[str, ArtifactType],
     ) -> None:
         duplicate_parent = _first_duplicate(artifact_type.parents)
         if duplicate_parent is not None:
@@ -235,7 +265,7 @@ class ArtifactRegistry(BaseModel):
 
     @staticmethod
     def _validate_parent_graph_is_acyclic(
-        types_by_id: dict[str, ArtifactType],
+        types_by_id: Mapping[str, ArtifactType],
     ) -> None:
         states: dict[str, int] = {}
         path: list[str] = []
