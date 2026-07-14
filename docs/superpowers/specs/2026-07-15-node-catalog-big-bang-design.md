@@ -22,7 +22,7 @@ The rebuild must:
 
 ## 2. Why the current tree is not a migration base
 
-The current split is not a semantic decomposition. `scripts/extract_nodes.py` groups on the first `NODE_ID`, uses one flat `CATEGORY`, copies the monolith preamble into generated files, and cannot reproduce the manually maintained facade and compatibility behavior. It created duplicated helpers and state, large pseudo-single-node modules, eager import fan-out, broken relative resource paths, missing sibling symbols, and metadata that can retain deleted nodes.
+There were two mechanical splits, neither a semantic decomposition. Commit `44c247986f3bcfe8f8d93d0d719a53e4853d0437` contains the true `galaxy_parity.py` monolith: 78,776 lines holding 551 of today's 943 IDs; the other 392 IDs already lived in native modules. Commit `a346ded79659d5a10e3056d7cf8ea2bf482606a7` distributed those 551 classes unchanged into 15 arbitrary `wrapped_*` batches whose names mix many unrelated categories. The later `scripts/extract_nodes.py` split groups on the first `NODE_ID`, uses one flat `CATEGORY`, copies the module preamble into generated files, and cannot reproduce the manually maintained facade and compatibility behavior. It created duplicated helpers and state, large pseudo-single-node modules, eager import fan-out, broken relative resource paths, missing sibling symbols, and metadata that can retain deleted nodes.
 
 More importantly, the node contract currently has several independent interpretations:
 
@@ -48,11 +48,13 @@ The catalog and cloud foundation may be implemented in parallel, but catalog rel
 
 ## 4. Immutable reconciliation ledger
 
-Before implementation changes, generate a baseline ledger from three independent sources:
+Before implementation changes, generate a baseline ledger from these independent sources:
 
-- Last pre-split monolith or closest authoritative pre-extraction revision.
-- Committed split work-in-progress.
-- Current dirty repair tree, which exposes 943 IDs.
+- Original Galaxy-parity monolith commit `44c247986f3bcfe8f8d93d0d719a53e4853d0437`, which supplies origin/blame provenance for 551 IDs.
+- Immediate category split commit `a346ded79659d5a10e3056d7cf8ea2bf482606a7`.
+- Latest pre-one-tool behavior snapshot `4092ad63a8f60e5b8080711a66428ba191bdc7b7`, which exposes all 943 nonempty IDs after later fixes.
+- Committed one-tool split work-in-progress `ce54d30e4fd07cf26809d99d25bdb267d121e525`.
+- Current dirty repair tree, whose class ASTs match the committed split but whose import/index repairs restore discovery of all 943 IDs.
 
 The ledger is generated from source AST and git objects, not from existing generated metadata. Each row contains:
 
@@ -396,7 +398,11 @@ The catalog compiler emits all consumer artifacts in one deterministic operation
 
 The compiler starts empty and treats every warning as a failure. Generated artifacts are never manually edited.
 
-The catalog digest becomes part of an immutable BioNodulo release bundle. The editor SPA, editor Lambda, website validator, workflow/template bundle, and worker image must advertise the same digest. Run submission and worker startup reject mismatches instead of relying on whichever `main` revision was built most recently.
+The catalog compiler emits a canonical pre-build `contract.json`. Its `contract_id` is the SHA-256 of app/website source identities, protocol versions, catalog, compatibility, templates, evidence ledger, fixture set, and exact per-platform environment-lock digests. Every built artifact embeds this contract ID.
+
+After artifacts are built, the release orchestrator emits a signed `bundle.json`. Its `bundle_id` is the SHA-256 of the contract ID plus exact SPA, Lambda, worker-platform, dispatch-package, Vercel-artifact, SBOM, and provenance digests. This two-stage identity avoids circular hashing: images embed the contract ID, while the post-build bundle records image digests. Promotion always moves the already-built bundle and never rebuilds artifacts.
+
+The editor SPA, editor Lambda, website validator, workflow/template bundle, and worker image must advertise the same contract ID. Run submission and worker startup reject mismatches instead of relying on whichever `main` revision was built most recently.
 
 ## 13. Template reconstruction
 
