@@ -553,6 +553,16 @@ class IQTREENode(CommandNode):
             cmd.extend(["-alrt", str(inputs["alrt"])])
         return cmd
 
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        # IQ-TREE writes the ML tree as `<prefix>.treefile` (we pass
+        # `-pre <node_out>/tree`), NOT `tree.nwk` that the default PLAN_OUTPUTS
+        # would derive from the PHYLOGENY_TREE return type. Point at the real file
+        # so the output check passes and downstream nodes get a valid Newick tree.
+        node_out = Path(output_dir) / cls.NODE_ID
+        node_out.mkdir(parents=True, exist_ok=True)
+        return [node_out / "tree.treefile"]
+
 
 class FastTreeNode(CommandNode):
     """Fast phylogenetic tree inference with FastTree."""

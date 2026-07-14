@@ -899,12 +899,31 @@ class PGGBNode(CommandNode):
             pggb_args.extend(["-C", str(inputs["consensus_spec"])])
         faidx = " ".join(["samtools", "faidx", shlex.quote(input_fasta)])
         run = " ".join(shlex.quote(a) if (" " in a) else a for a in pggb_args)
+        out_dir = str(inputs.get("output", "."))
+        # pggb names its outputs with input-derived hashes + a timestamp
+        # (e.g. `<input>.<hash>.<hash>.<hash>.smooth.final.gfa`), which we can't
+        # predict for PLAN_OUTPUTS. After the run, normalise the primary graph to
+        # the stable name the node contract exposes (`smooth_gfa.gfa`); pggb's GFA
+        # embeds the consensus paths, so also expose it as `consensus_fasta.fa`'s
+        # source when no separate consensus FASTA is produced.
+        gfa_glob = shlex.quote(f"{out_dir}/*.smooth.final.gfa")
+        smooth_gfa = shlex.quote(f"{out_dir}/smooth_gfa.gfa")
+        consensus_fa = shlex.quote(f"{out_dir}/consensus_fasta.fa")
+        normalise = (
+            f'g=$(ls {gfa_glob} 2>/dev/null | head -1); '
+            f'if [ -n "$g" ]; then cp "$g" {smooth_gfa}; fi; '
+            # pggb only emits a separate consensus FASTA with -C. When absent,
+            # derive one from the smoothed GFA's segment (S-line) sequences so the
+            # node's second output always exists (name<TAB>len annotated headers).
+            f'if [ ! -s {consensus_fa} ] && [ -s {smooth_gfa} ]; then '
+            f"awk '/^S/{{print \">seg\"$2\"\\n\"$3}}' {smooth_gfa} > {consensus_fa}; fi"
+        )
         # The whole compound must run INSIDE the pixi env. CommandNode wraps the
         # command as `pixi run -- <cmd>`, and pixi's `--` consumes only the first
         # program — a bare `samtools faidx ... && pggb ...` runs pggb in the OUTER
-        # shell (→ "pggb: command not found", exit 127). Wrap in `bash -c` so both
-        # run under the activated env.
-        return "bash -c " + shlex.quote(f"{faidx} && {run}")
+        # shell (→ "pggb: command not found", exit 127). Wrap in `bash -c` so all
+        # steps run under the activated env.
+        return "bash -c " + shlex.quote(f"{faidx} && {run} && {normalise}")
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:

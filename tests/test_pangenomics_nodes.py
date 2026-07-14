@@ -1768,11 +1768,16 @@ def test_pggb_renders_build_command_with_optional_flags() -> None:
         "output": "/tmp/run/pggb",
     })
 
-    assert cmd == (
-        "bash -c 'samtools faidx haplotypes.fa && "
+    # Runs inside the pixi env (bash -c), builds the samtools index first, then
+    # pggb, then normalises the hash-named outputs to the stable node names.
+    assert cmd.startswith("bash -c ")
+    assert "samtools faidx haplotypes.fa &&" in cmd
+    assert (
         "pggb -i haplotypes.fa -o /tmp/run/pggb -n 6 -t 32 -p 95 "
-        "-s 10000 -k 29 -G 3 -C 100,1000,10000'"
-    )
+        "-s 10000 -k 29 -G 3 -C 100,1000,10000"
+    ) in cmd
+    assert "smooth.final.gfa" in cmd
+    assert "smooth_gfa.gfa" in cmd
 
 
 def test_pggb_omits_empty_optional_flags() -> None:
@@ -1794,11 +1799,12 @@ def test_pggb_omits_empty_optional_flags() -> None:
 
     assert "--do-viz" not in cmd
     assert "--do-layout" not in cmd
-    assert "-C" not in cmd
-    assert cmd == (
-        "bash -c 'samtools faidx haplotypes.fa && "
-        "pggb -i haplotypes.fa -o /tmp/run/pggb -n 2 -t 16 -p 90 -s 5000 -k 19 -G 2'"
-    )
+    assert " -C " not in cmd
+    assert cmd.startswith("bash -c ")
+    assert "samtools faidx haplotypes.fa &&" in cmd
+    assert (
+        "pggb -i haplotypes.fa -o /tmp/run/pggb -n 2 -t 16 -p 90 -s 5000 -k 19 -G 2"
+    ) in cmd
 
 
 def test_pggb_plans_outputs() -> None:
