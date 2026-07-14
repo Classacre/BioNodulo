@@ -7,14 +7,17 @@ import argparse
 import ast
 import hashlib
 import json
+import math
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Mapping, Sequence
 
 
@@ -33,13 +36,15 @@ FORENSIC_RAW_AST_DIGEST = "1b9b2abbd518dc8ed22e53e333a74f37b93fb156266e7a1262495
 AST_GOLDEN_SHA256 = "e56fe5584149ad41156fd05ffe79dc51a63bf5fe84ba63ad94a6e2aa501ac700"
 _AST_GOLDEN_SOURCE = 'class A:\n    NODE_ID = "alpha"\n'
 _BUILTIN_PATH = "bionodulo/nodes/builtin"
-_ALIAS_METADATA_FIELDS = {
-    "CATEGORY",
-    "DESCRIPTION",
-    "DISPLAY_NAME",
-    "NODE_ID",
-    "SEARCH_ALIASES",
-}
+_ALIAS_METADATA_FIELDS = frozenset(
+    {
+        "CATEGORY",
+        "DESCRIPTION",
+        "DISPLAY_NAME",
+        "NODE_ID",
+        "SEARCH_ALIASES",
+    }
+)
 _BLAME_HEADER = re.compile(r"\^?([0-9a-f]{40}) \d+ (\d+) (\d+)")
 _DEEPTOOLS_COLLISION = frozenset(
     {
@@ -53,35 +58,41 @@ _DEEPTOOLS_COLLISION = frozenset(
         ),
     }
 )
-_ALLOWED_HISTORICAL_COLLISIONS = {"deeptools_bamcoverage": _DEEPTOOLS_COLLISION}
-_CURRENT_PATH_REPAIRS = {
-    "break_continue": (
-        "bionodulo/nodes/builtin/flow_control/break.py",
-        "bionodulo/nodes/builtin/flow_control/break_.py",
-    ),
-    "if_condition": (
-        "bionodulo/nodes/builtin/flow_control/if.py",
-        "bionodulo/nodes/builtin/flow_control/if_.py",
-    ),
-    "try_catch": (
-        "bionodulo/nodes/builtin/flow_control/try.py",
-        "bionodulo/nodes/builtin/flow_control/try_.py",
-    ),
-    "type_cast": (
-        "bionodulo/nodes/builtin/utils/dev/type.py",
-        "bionodulo/nodes/builtin/utils/dev/type_.py",
-    ),
-    "while_loop": (
-        "bionodulo/nodes/builtin/flow_control/while.py",
-        "bionodulo/nodes/builtin/flow_control/while_.py",
-    ),
-}
-_CURRENT_EMPTY_ANOMALY = {
-    "class_name": "FeatureCountsNode",
-    "kind": "empty_node_id",
-    "module": "bionodulo.nodes.builtin.rna_seq.featurecountsnode",
-    "path": "bionodulo/nodes/builtin/rna_seq/featurecountsnode.py",
-}
+_ALLOWED_HISTORICAL_COLLISIONS = MappingProxyType(
+    {"deeptools_bamcoverage": _DEEPTOOLS_COLLISION}
+)
+_CURRENT_PATH_REPAIRS = MappingProxyType(
+    {
+        "break_continue": (
+            "bionodulo/nodes/builtin/flow_control/break.py",
+            "bionodulo/nodes/builtin/flow_control/break_.py",
+        ),
+        "if_condition": (
+            "bionodulo/nodes/builtin/flow_control/if.py",
+            "bionodulo/nodes/builtin/flow_control/if_.py",
+        ),
+        "try_catch": (
+            "bionodulo/nodes/builtin/flow_control/try.py",
+            "bionodulo/nodes/builtin/flow_control/try_.py",
+        ),
+        "type_cast": (
+            "bionodulo/nodes/builtin/utils/dev/type.py",
+            "bionodulo/nodes/builtin/utils/dev/type_.py",
+        ),
+        "while_loop": (
+            "bionodulo/nodes/builtin/flow_control/while.py",
+            "bionodulo/nodes/builtin/flow_control/while_.py",
+        ),
+    }
+)
+_CURRENT_EMPTY_ANOMALY = MappingProxyType(
+    {
+        "class_name": "FeatureCountsNode",
+        "kind": "empty_node_id",
+        "module": "bionodulo.nodes.builtin.rna_seq.featurecountsnode",
+        "path": "bionodulo/nodes/builtin/rna_seq/featurecountsnode.py",
+    }
+)
 
 
 class LedgerError(RuntimeError):
@@ -303,7 +314,7 @@ class Reconciliation:
     added_ids: tuple[str, ...] = ()
     source_drift_ids: tuple[str, ...] = ()
     entries: tuple[LedgerEntry, ...] = ()
-    anomalies: tuple[dict[str, Any], ...] = ()
+    anomalies: tuple[Mapping[str, Any], ...] = ()
     origin_collisions: tuple[OriginCollision, ...] = ()
     current_snapshot: CurrentSnapshot | None = None
     origin_ref: str = ""
@@ -325,8 +336,16 @@ class Reconciliation:
 class _RefInventory:
     ref: str
     declarations: tuple[SourceNode, ...]
-    anomalies: tuple[dict[str, Any], ...]
+    anomalies: tuple[Mapping[str, Any], ...]
     module_sources: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class _ResolvedRefs:
+    origin: str
+    split: str
+    behavior: str
+    comparison: str
 
 
 @dataclass(frozen=True)
@@ -350,25 +369,217 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _literal_node_id(class_node: ast.ClassDef) -> tuple[str | None, int]:
-    value: str | None = None
-    value_line = 0
+def _target_binds_node_id(target: ast.AST) -> bool:
+    return any(
+        isinstance(node, ast.Name)
+        and node.id == "NODE_ID"
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        for node in ast.walk(target)
+    )
+
+
+_CLASS_CONTROL_FLOW = (
+    ast.If,
+    ast.For,
+    ast.AsyncFor,
+    ast.While,
+    ast.With,
+    ast.AsyncWith,
+    ast.Try,
+    ast.TryStar,
+    ast.Match,
+)
+
+
+def _direct_node_id_declarations(
+    class_node: ast.ClassDef,
+) -> tuple[tuple[ast.stmt, ast.expr | None], ...]:
+    declarations: list[tuple[ast.stmt, ast.expr | None]] = []
     for statement in class_node.body:
-        expression: ast.expr | None = None
-        if isinstance(statement, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == "NODE_ID" for target in statement.targets
+        if (
+            isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+            and statement.targets[0].id == "NODE_ID"
         ):
-            expression = statement.value
+            declarations.append((statement, statement.value))
         elif (
             isinstance(statement, ast.AnnAssign)
             and isinstance(statement.target, ast.Name)
             and statement.target.id == "NODE_ID"
         ):
-            expression = statement.value
-        if isinstance(expression, ast.Constant) and isinstance(expression.value, str):
-            value = expression.value
-            value_line = statement.lineno
-    return value, value_line
+            declarations.append((statement, statement.value))
+    return tuple(declarations)
+
+
+def _node_id_effect_lines(node: ast.AST) -> tuple[int, ...]:
+    lines: set[int] = set()
+
+    def collect(node: ast.AST) -> None:
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name == "NODE_ID":
+                lines.add(node.lineno)
+            return
+        if isinstance(node, ast.Lambda):
+            return
+        matched = False
+        if isinstance(node, ast.Assign) and any(
+            _target_binds_node_id(target) for target in node.targets
+        ):
+            lines.add(node.lineno)
+            matched = True
+        if isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)) and _target_binds_node_id(
+            node.target
+        ):
+            lines.add(node.lineno)
+            matched = True
+        if isinstance(node, ast.Delete) and any(
+            _target_binds_node_id(target) for target in node.targets
+        ):
+            lines.add(node.lineno)
+            matched = True
+        if isinstance(node, (ast.For, ast.AsyncFor)) and _target_binds_node_id(node.target):
+            lines.add(node.lineno)
+            matched = True
+        if isinstance(node, (ast.With, ast.AsyncWith)) and any(
+            item.optional_vars is not None and _target_binds_node_id(item.optional_vars)
+            for item in node.items
+        ):
+            lines.add(node.lineno)
+            matched = True
+        if isinstance(node, ast.ExceptHandler) and node.name == "NODE_ID":
+            lines.add(node.lineno)
+            matched = True
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                bound_name = alias.asname or alias.name.split(".", 1)[0]
+                if bound_name == "NODE_ID":
+                    lines.add(node.lineno)
+                    matched = True
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if (alias.asname or alias.name) == "NODE_ID":
+                    lines.add(node.lineno)
+                    matched = True
+        if isinstance(node, (ast.Global, ast.Nonlocal)) and "NODE_ID" in node.names:
+            lines.add(node.lineno)
+            matched = True
+        if isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name == "NODE_ID":
+            lines.add(node.lineno)
+            matched = True
+        if isinstance(node, ast.MatchMapping) and node.rest == "NODE_ID":
+            lines.add(node.lineno)
+            matched = True
+        type_alias = getattr(ast, "TypeAlias", None)
+        if type_alias is not None and isinstance(node, type_alias) and _target_binds_node_id(
+            node.name
+        ):
+            lines.add(node.lineno)
+            matched = True
+        if matched:
+            return
+        for child in ast.iter_child_nodes(node):
+            collect(child)
+
+    collect(node)
+    return tuple(sorted(lines))
+
+
+def _unsupported_direct_node_id_lines(class_node: ast.ClassDef) -> tuple[int, ...]:
+    lines: set[int] = set()
+    for statement in class_node.body:
+        if isinstance(statement, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            if statement.name == "NODE_ID":
+                lines.add(statement.lineno)
+            continue
+        if isinstance(statement, _CLASS_CONTROL_FLOW):
+            if isinstance(statement, (ast.For, ast.AsyncFor)) and _target_binds_node_id(
+                statement.target
+            ):
+                lines.add(statement.lineno)
+            if isinstance(statement, (ast.With, ast.AsyncWith)) and any(
+                item.optional_vars is not None and _target_binds_node_id(item.optional_vars)
+                for item in statement.items
+            ):
+                lines.add(statement.lineno)
+            continue
+        if isinstance(statement, ast.Assign):
+            supported = (
+                len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Name)
+                and statement.targets[0].id == "NODE_ID"
+            )
+            if supported:
+                lines.update(_node_id_effect_lines(statement.value))
+                continue
+        elif isinstance(statement, ast.AnnAssign):
+            supported = isinstance(statement.target, ast.Name) and statement.target.id == "NODE_ID"
+            if supported:
+                if statement.value is not None:
+                    lines.update(_node_id_effect_lines(statement.value))
+                continue
+        lines.update(_node_id_effect_lines(statement))
+    return tuple(sorted(lines))
+
+
+def _conditional_node_id_lines(class_node: ast.ClassDef) -> tuple[int, ...]:
+    lines: set[int] = set()
+    for statement in class_node.body:
+        if isinstance(statement, _CLASS_CONTROL_FLOW):
+            lines.update(_node_id_effect_lines(statement))
+    return tuple(sorted(lines))
+
+
+def _find_unsupported_node_id_class(
+    node: ast.AST,
+    parents: tuple[str, ...] = (),
+) -> tuple[ast.ClassDef, tuple[str, ...]] | None:
+    if isinstance(node, ast.ClassDef):
+        class_parents = (*parents, node.name)
+        if (
+            _direct_node_id_declarations(node)
+            or _unsupported_direct_node_id_lines(node)
+            or _conditional_node_id_lines(node)
+        ):
+            return node, class_parents
+        parents = class_parents
+    for child in ast.iter_child_nodes(node):
+        found = _find_unsupported_node_id_class(child, parents)
+        if found is not None:
+            return found
+    return None
+
+
+def _literal_node_id(class_node: ast.ClassDef, qualified_class: str) -> tuple[str | None, int]:
+    declarations = _direct_node_id_declarations(class_node)
+    if len(declarations) > 1:
+        lines = ", ".join(str(statement.lineno) for statement, _expression in declarations)
+        raise ReconciliationError(
+            f"{qualified_class} has multiple NODE_ID declarations at lines {lines}"
+        )
+    unsupported_lines = _unsupported_direct_node_id_lines(class_node)
+    if unsupported_lines:
+        lines = ", ".join(str(line) for line in unsupported_lines)
+        raise ReconciliationError(
+            f"{qualified_class} has unsupported NODE_ID class-scope binding at "
+            f"line{'' if len(unsupported_lines) == 1 else 's'} {lines}"
+        )
+    conditional_lines = _conditional_node_id_lines(class_node)
+    if conditional_lines:
+        lines = ", ".join(str(line) for line in conditional_lines)
+        raise ReconciliationError(
+            f"{qualified_class} has conditional NODE_ID declaration at line{'' if len(conditional_lines) == 1 else 's'} "
+            f"{lines}"
+        )
+    if not declarations:
+        return None, 0
+    statement, expression = declarations[0]
+    if not isinstance(expression, ast.Constant) or not isinstance(expression.value, str):
+        raise ReconciliationError(
+            f"{qualified_class} NODE_ID declaration at line {statement.lineno} "
+            "must be a literal string"
+        )
+    return expression.value, statement.lineno
 
 
 def _assignment_names(statement: ast.Assign | ast.AnnAssign) -> set[str] | None:
@@ -454,19 +665,31 @@ def extract_nodes(
     *,
     source_path: str = "",
     git_blob: str = "",
-) -> tuple[tuple[SourceNode, ...], tuple[dict[str, Any], ...]]:
+) -> tuple[tuple[SourceNode, ...], tuple[Mapping[str, Any], ...]]:
     """Extract only literal class-level node IDs without importing the source."""
 
     tree = ast.parse(source, filename=source_path or module)
     found: list[SourceNode] = []
-    anomalies: list[dict[str, Any]] = []
+    anomalies: list[Mapping[str, Any]] = []
 
     def visit_classes(body: Sequence[ast.stmt], parents: tuple[str, ...] = ()) -> None:
         for statement in body:
             if not isinstance(statement, ast.ClassDef):
+                unsupported = _find_unsupported_node_id_class(statement, parents)
+                if unsupported is not None:
+                    class_node, class_parents = unsupported
+                    kind = (
+                        "local"
+                        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        else "conditional"
+                    )
+                    raise ReconciliationError(
+                        f"unsupported {kind} class {module}.{'.'.join(class_parents)} "
+                        f"declaring NODE_ID at line {class_node.lineno}"
+                    )
                 continue
             qualified_name = ".".join((*parents, statement.name))
-            node_id, node_id_line = _literal_node_id(statement)
+            node_id, node_id_line = _literal_node_id(statement, f"{module}.{qualified_name}")
             if node_id is not None:
                 if node_id:
                     raw_segment = _class_source_segment(source, statement)
@@ -507,7 +730,7 @@ def extract_nodes(
     visit_classes(tree.body)
     found.sort(key=lambda item: (item.line, item.qualified_name, item.node_id))
     anomalies.sort(key=lambda item: (str(item.get("path", "")), int(item.get("line", 0))))
-    return tuple(found), tuple(anomalies)
+    return tuple(found), tuple(MappingProxyType(dict(anomaly)) for anomaly in anomalies)
 
 
 def _module_name(source_path: str) -> str:
@@ -519,7 +742,7 @@ def _module_name(source_path: str) -> str:
 
 def _git(repo: Path, *arguments: str) -> bytes:
     process = subprocess.run(
-        ["git", "-C", os.fspath(repo), *arguments],
+        ["git", "--no-replace-objects", "-C", os.fspath(repo), *arguments],
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -528,6 +751,175 @@ def _git(repo: Path, *arguments: str) -> bytes:
         stderr = process.stderr.decode("utf-8", errors="replace").strip()
         raise GitCommandError(f"git {' '.join(arguments)} failed: {stderr}")
     return process.stdout
+
+
+class _GitBatchReader:
+    """Read immutable Git blobs through one explicitly managed batch process."""
+
+    def __init__(self, repo: Path) -> None:
+        try:
+            process = subprocess.Popen(
+                [
+                    "git",
+                    "--no-replace-objects",
+                    "-C",
+                    os.fspath(repo),
+                    "cat-file",
+                    "--batch",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except OSError as error:
+            raise GitCommandError(f"could not start git cat-file --batch: {error}") from error
+        if process.stdin is None or process.stdout is None or process.stderr is None:
+            process.kill()
+            process.wait()
+            raise GitCommandError("git cat-file --batch did not expose all required pipes")
+        self._process = process
+        self._stdin = process.stdin
+        self._stdout = process.stdout
+        self._stderr = process.stderr
+        self._closed = False
+
+    def __enter__(self) -> _GitBatchReader:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+        try:
+            self.close()
+        except GitCommandError:
+            if exc_type is None:
+                raise
+        return False
+
+    def _read_exactly(self, size: int) -> bytes:
+        chunks: list[bytes] = []
+        remaining = size
+        while remaining:
+            chunk = self._stdout.read(remaining)
+            if not chunk:
+                received = size - remaining
+                raise GitCommandError(
+                    "git cat-file --batch truncated blob content: "
+                    f"expected {size} bytes, received {received}"
+                )
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+    def read_blob(self, object_id: str) -> bytes:
+        if self._closed:
+            raise GitCommandError("git cat-file --batch reader is closed")
+        if re.fullmatch(r"[0-9a-f]{40}", object_id) is None:
+            raise GitCommandError(f"invalid Git blob object ID {object_id!r}")
+        try:
+            self._stdin.write(f"{object_id}\n".encode("ascii"))
+            self._stdin.flush()
+            header = self._stdout.readline()
+        except OSError as error:
+            raise GitCommandError(f"git cat-file --batch I/O failed: {error}") from error
+        if not header:
+            raise GitCommandError("git cat-file --batch ended before returning a blob header")
+        fields = header.rstrip(b"\n").split()
+        if len(fields) == 2 and fields[1] == b"missing":
+            raise GitCommandError(f"git cat-file --batch could not find object {object_id}")
+        if len(fields) != 3:
+            raise GitCommandError(f"git cat-file --batch returned malformed header {header!r}")
+        returned_id, object_type, size_text = fields
+        if returned_id.decode("ascii", errors="replace") != object_id:
+            raise GitCommandError(
+                "git cat-file --batch returned the wrong object: "
+                f"requested {object_id}, received {returned_id!r}"
+            )
+        if object_type != b"blob":
+            raise GitCommandError(
+                f"git cat-file --batch object {object_id} has type {object_type!r}, not blob"
+            )
+        try:
+            size = int(size_text)
+        except ValueError as error:
+            raise GitCommandError(
+                f"git cat-file --batch returned invalid blob size {size_text!r}"
+            ) from error
+        if size < 0:
+            raise GitCommandError(
+                f"git cat-file --batch returned invalid blob size {size_text!r}"
+            )
+        content = self._read_exactly(size)
+        if self._stdout.read(1) != b"\n":
+            raise GitCommandError(
+                f"git cat-file --batch omitted the delimiter after object {object_id}"
+            )
+        return content
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        close_error: OSError | None = None
+        try:
+            self._stdin.close()
+        except OSError as error:
+            close_error = error
+        self._process.stdin = None
+        tail, stderr = self._process.communicate()
+        self._stdout.close()
+        self._stderr.close()
+        failures: list[str] = []
+        if close_error is not None:
+            failures.append(f"stdin close failed: {close_error}")
+        if tail:
+            failures.append(f"unexpected trailing stdout: {tail!r}")
+        if self._process.returncode:
+            detail = stderr.decode("utf-8", errors="replace").strip()
+            failures.append(f"exit {self._process.returncode}: {detail}")
+        if failures:
+            raise GitCommandError("git cat-file --batch close failed: " + "; ".join(failures))
+
+
+def _resolve_required_commit(repo: Path, ref: str, label: str) -> str:
+    try:
+        output = _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}")
+    except GitCommandError as error:
+        try:
+            shallow = _git(repo, "rev-parse", "--is-shallow-repository").strip() == b"true"
+        except GitCommandError:
+            shallow = False
+        if shallow:
+            recovery = (
+                "repository history is shallow; configure actions/checkout with fetch-depth: 0 "
+                "and run 'git fetch --unshallow --tags' locally"
+            )
+        else:
+            recovery = (
+                "required history is missing; fetch the commit explicitly or run "
+                "'git fetch --all --tags'"
+            )
+        raise GitCommandError(f"required {label} ref {ref!r} is unavailable: {recovery}") from error
+    commit = output.decode("ascii").strip()
+    if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise GitCommandError(
+            f"required {label} ref {ref!r} resolved to invalid commit object {commit!r}"
+        )
+    return commit
+
+
+def _resolve_repository_refs(
+    repo: Path,
+    *,
+    origin_ref: str,
+    split_ref: str,
+    behavior_ref: str,
+    comparison_ref: str,
+) -> _ResolvedRefs:
+    return _ResolvedRefs(
+        origin=_resolve_required_commit(repo, origin_ref, "origin"),
+        split=_resolve_required_commit(repo, split_ref, "immediate split"),
+        behavior=_resolve_required_commit(repo, behavior_ref, "behavior"),
+        comparison=_resolve_required_commit(repo, comparison_ref, "comparison"),
+    )
 
 
 def _tree_blobs(repo: Path, ref: str, *paths: str) -> dict[str, str]:
@@ -541,14 +933,14 @@ def _tree_blobs(repo: Path, ref: str, *paths: str) -> dict[str, str]:
     return dict(sorted(blobs.items()))
 
 
-def _load_ref_inventory(repo: Path, ref: str) -> _RefInventory:
+def _load_ref_inventory(repo: Path, ref: str, batch: _GitBatchReader) -> _RefInventory:
     declarations: list[SourceNode] = []
-    anomalies: list[dict[str, Any]] = []
+    anomalies: list[Mapping[str, Any]] = []
     module_sources: dict[str, str] = {}
     for source_path, git_blob in _tree_blobs(repo, ref, _BUILTIN_PATH).items():
         if not source_path.endswith(".py"):
             continue
-        source = _git(repo, "show", f"{ref}:{source_path}").decode("utf-8")
+        source = batch.read_blob(git_blob).decode("utf-8")
         module = _module_name(source_path)
         nodes, module_anomalies = extract_nodes(
             source,
@@ -565,7 +957,7 @@ def _load_ref_inventory(repo: Path, ref: str) -> _RefInventory:
         ref=ref,
         declarations=tuple(declarations),
         anomalies=tuple(anomalies),
-        module_sources=module_sources,
+        module_sources=MappingProxyType(dict(module_sources)),
     )
 
 
@@ -647,12 +1039,14 @@ def _project_current_sources(
     return current, snapshot
 
 
-def _load_worktree_inventory(repo: Path) -> tuple[tuple[SourceNode, ...], tuple[dict[str, Any], ...]]:
+def _load_worktree_inventory(
+    repo: Path,
+) -> tuple[tuple[SourceNode, ...], tuple[Mapping[str, Any], ...]]:
     builtin_root = repo / _BUILTIN_PATH
     if not builtin_root.is_dir():
         raise ReconciliationError(f"current source root is missing: {builtin_root}")
     declarations: list[SourceNode] = []
-    anomalies: list[dict[str, Any]] = []
+    anomalies: list[Mapping[str, Any]] = []
     for local_path in sorted(builtin_root.rglob("*.py")):
         source_path = local_path.relative_to(repo).as_posix()
         raw = local_path.read_bytes()
@@ -750,7 +1144,7 @@ def _module_analysis(module: str, source: str, known_modules: set[str]) -> _Modu
             if not isinstance(statement, ast.ClassDef):
                 continue
             qualified_name = ".".join((*parents, statement.name))
-            node_id, _line = _literal_node_id(statement)
+            node_id, _line = _literal_node_id(statement, f"{module}.{qualified_name}")
             classes[qualified_name] = _ClassSymbol(
                 module=module,
                 class_name=statement.name,
@@ -779,9 +1173,9 @@ def _module_analysis(module: str, source: str, known_modules: set[str]) -> _Modu
                 else:
                     imported_symbols[local_name] = (target_module, name.name)
     return _ModuleAnalysis(
-        classes=classes,
-        imported_symbols=imported_symbols,
-        imported_modules=imported_modules,
+        classes=MappingProxyType(dict(classes)),
+        imported_symbols=MappingProxyType(dict(imported_symbols)),
+        imported_modules=MappingProxyType(dict(imported_modules)),
     )
 
 
@@ -1087,10 +1481,43 @@ def extract_workflow_references(
     }, len(edges)
 
 
+def _strict_json_loads(raw: bytes, *, source_path: str) -> Any:
+    def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        document: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in document:
+                raise ReconciliationError(
+                    f"workflow {source_path} contains duplicate JSON object key {key!r}"
+                )
+            document[key] = value
+        return document
+
+    def reject_non_finite(constant: str) -> Any:
+        raise ReconciliationError(
+            f"workflow {source_path} contains non-finite JSON constant {constant}"
+        )
+
+    def parse_finite_float(number: str) -> float:
+        value = float(number)
+        if not math.isfinite(value):
+            raise ReconciliationError(
+                f"workflow {source_path} contains non-finite JSON number {number}"
+            )
+        return value
+
+    return json.loads(
+        raw,
+        object_pairs_hook=reject_duplicate_keys,
+        parse_constant=reject_non_finite,
+        parse_float=parse_finite_float,
+    )
+
+
 def _template_references(
     repo: Path,
     ref: str,
     valid_node_ids: set[str],
+    batch: _GitBatchReader,
 ) -> tuple[dict[str, tuple[TemplateReference, ...]], int, int, int, int]:
     blobs = _tree_blobs(repo, ref, "templates", "examples/workflows")
     template_paths = sorted(
@@ -1105,8 +1532,8 @@ def _template_references(
     edge_count = 0
     for kind, paths in (("template", template_paths), ("example", example_paths)):
         for source_path in paths:
-            raw = _git(repo, "show", f"{ref}:{source_path}")
-            document = json.loads(raw)
+            raw = batch.read_blob(blobs[source_path])
+            document = _strict_json_loads(raw, source_path=source_path)
             if not isinstance(document, dict):
                 raise ReconciliationError(f"workflow {source_path} must contain a JSON object")
             workflow_references, workflow_edge_count = extract_workflow_references(
@@ -1149,20 +1576,36 @@ def reconcile_repository(
     """Build and strictly reconcile all Git, AST, alias, and workflow evidence."""
 
     repo_path = Path(repo).resolve()
-    origin_inventory = _load_ref_inventory(repo_path, origin_ref)
-    split_inventory = _load_ref_inventory(repo_path, split_ref)
-    behavior_inventory = _load_ref_inventory(repo_path, behavior_ref)
-    comparison_inventory = _load_ref_inventory(repo_path, comparison_ref)
+    resolved = _resolve_repository_refs(
+        repo_path,
+        origin_ref=origin_ref,
+        split_ref=split_ref,
+        behavior_ref=behavior_ref,
+        comparison_ref=comparison_ref,
+    )
+    with _GitBatchReader(repo_path) as batch:
+        origin_inventory = _load_ref_inventory(repo_path, resolved.origin, batch)
+        split_inventory = _load_ref_inventory(repo_path, resolved.split, batch)
+        behavior_inventory = _load_ref_inventory(repo_path, resolved.behavior, batch)
+        comparison_inventory = _load_ref_inventory(repo_path, resolved.comparison, batch)
 
-    result = reconcile(behavior_inventory.declarations, comparison_inventory.declarations)
-    _raise_reconciliation_differences(result)
-    behavior_index = _unique_index(behavior_inventory.declarations, "behavior baseline")
-    if len(behavior_index) != EXPECTED_NODE_COUNT:
-        raise ReconciliationError(
-            f"behavior baseline must contain exactly {EXPECTED_NODE_COUNT} unique nonempty IDs; "
-            f"found {len(behavior_index)}"
+        result = reconcile(behavior_inventory.declarations, comparison_inventory.declarations)
+        _raise_reconciliation_differences(result)
+        behavior_index = _unique_index(behavior_inventory.declarations, "behavior baseline")
+        if len(behavior_index) != EXPECTED_NODE_COUNT:
+            raise ReconciliationError(
+                f"behavior baseline must contain exactly {EXPECTED_NODE_COUNT} unique nonempty IDs; "
+                f"found {len(behavior_index)}"
+            )
+        behavior_ids = set(behavior_index)
+        template_references, template_count, example_count, instance_count, edge_count = (
+            _template_references(
+                repo_path,
+                resolved.behavior,
+                behavior_ids,
+                batch,
+            )
         )
-    behavior_ids = set(behavior_index)
     _validate_duplicate_allowlist(
         origin_inventory.declarations,
         "origin",
@@ -1186,7 +1629,7 @@ def reconcile_repository(
 
     origin_declarations = _add_origin_provenance(
         repo_path,
-        origin_ref,
+        resolved.origin,
         origin_inventory.declarations,
     )
     origin_groups = _group_declarations(origin_declarations)
@@ -1195,11 +1638,11 @@ def reconcile_repository(
     base_builtin_tree = _git(
         repo_path,
         "rev-parse",
-        f"{comparison_ref}:{_BUILTIN_PATH}",
+        f"{resolved.comparison}:{_BUILTIN_PATH}",
     ).decode("ascii").strip()
     current_by_id, current_snapshot = _project_current_sources(
         comparison_inventory.declarations,
-        comparison_ref=comparison_ref,
+        comparison_ref=resolved.comparison,
         base_builtin_tree=base_builtin_tree,
     )
     origin_collisions = tuple(
@@ -1220,11 +1663,6 @@ def reconcile_repository(
     ):
         raise ReconciliationError("feature_counts must remain unresolved with featurecounts as a semantic candidate")
 
-    template_references, template_count, example_count, instance_count, edge_count = _template_references(
-        repo_path,
-        behavior_ref,
-        behavior_ids,
-    )
     expected_counts = (
         EXPECTED_TEMPLATE_COUNT,
         EXPECTED_EXAMPLE_COUNT,
@@ -1272,10 +1710,10 @@ def reconcile_repository(
         anomalies=behavior_inventory.anomalies,
         origin_collisions=origin_collisions,
         current_snapshot=current_snapshot,
-        origin_ref=origin_ref,
-        split_ref=split_ref,
-        behavior_ref=behavior_ref,
-        comparison_ref=comparison_ref,
+        origin_ref=resolved.origin,
+        split_ref=resolved.split,
+        behavior_ref=resolved.behavior,
+        comparison_ref=resolved.comparison,
         template_count=template_count,
         example_workflow_count=example_count,
         template_instance_count=instance_count,
@@ -1326,7 +1764,7 @@ def ledger_document(result: Reconciliation) -> dict[str, Any]:
     native_count = sum(entry.origin.provenance == "native" for entry in result.entries)
     proven_aliases = sum(entry.alias_of is not None for entry in result.entries)
     document: dict[str, Any] = {
-        "anomalies": list(result.anomalies),
+        "anomalies": [dict(anomaly) for anomaly in result.anomalies],
         "canonicalizer": {
             "ast_normalization": "canonical JSON AST; empty sequences omitted",
             "json_encoding": "sort_keys,compact,ascii,newline",
@@ -1383,6 +1821,10 @@ def write_or_check(output: Path, expected: bytes, *, check: bool) -> bool:
     if check:
         return output.is_file() and output.read_bytes() == expected
     output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        output_mode = stat.S_IMODE(output.stat().st_mode)
+    except FileNotFoundError:
+        output_mode = 0o644
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -1391,11 +1833,17 @@ def write_or_check(output: Path, expected: bytes, *, check: bool) -> bool:
             prefix=f".{output.name}.",
             delete=False,
         ) as temporary:
+            temporary_path = Path(temporary.name)
+            os.fchmod(temporary.fileno(), output_mode)
             temporary.write(expected)
             temporary.flush()
             os.fsync(temporary.fileno())
-            temporary_path = Path(temporary.name)
         os.replace(temporary_path, output)
+        directory_fd = os.open(output.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     finally:
         if temporary_path is not None and temporary_path.exists():
             temporary_path.unlink()
