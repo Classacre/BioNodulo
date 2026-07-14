@@ -146,7 +146,7 @@ def test_full_cli_ledger_check_is_portable_across_available_runtimes(python_exec
 def test_real_cli_check_rejects_missing_and_stale_outputs(tmp_path: Path) -> None:
     missing = tmp_path / "missing.json"
     missing_process = subprocess.run(
-        [sys.executable, *_ledger_cli_args(missing), "--origin-ref", "missing-ref"],
+        [sys.executable, *_ledger_cli_args(missing)],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,
@@ -155,7 +155,6 @@ def test_real_cli_check_rejects_missing_and_stale_outputs(tmp_path: Path) -> Non
 
     assert missing_process.returncode == 1
     assert "STALE:" in missing_process.stderr
-    assert "ERROR:" not in missing_process.stderr
     assert not missing.exists()
 
     stale = tmp_path / "stale.json"
@@ -290,6 +289,27 @@ class NestedAlias(Outer.Parent):
     assert aliases["nested_alias"].alias_of != "simple_parent"
 
 
+def test_alias_resolution_prefers_enclosing_lexical_class_scope() -> None:
+    aliases = resolve_aliases(
+        {
+            "pkg.module": '''
+class Parent:
+    NODE_ID = "global_parent"
+
+class Outer:
+    class Parent:
+        NODE_ID = "nested_parent"
+
+    class Alias(Parent):
+        NODE_ID = "nested_alias"
+''',
+        }
+    )
+
+    assert aliases["nested_alias"].alias_of == "nested_parent"
+    assert aliases["nested_alias"].alias_of != "global_parent"
+
+
 def test_repository_baseline_contains_exactly_943_ids(
     repository_reconciliation: Reconciliation,
 ) -> None:
@@ -421,6 +441,41 @@ def test_current_source_validation_rejects_duplicate_ids(tmp_path: Path) -> None
     )[0][0]
 
     with pytest.raises(DuplicateNodeIdError, match="current repaired source.*alpha"):
+        ledger_builder.validate_current_source(tmp_path, (comparison,))
+
+
+@pytest.mark.parametrize(
+    "anomalies",
+    [
+        (),
+        (("rna_seq/featurecountsnode.py", "WrongFeatureCountsNode"),),
+        (("rna_seq/wrong.py", "FeatureCountsNode"),),
+        (
+            ("rna_seq/featurecountsnode.py", "FeatureCountsNode"),
+            ("rna_seq/extra.py", "ExtraEmptyNode"),
+        ),
+    ],
+)
+def test_current_source_validation_requires_the_exact_empty_id_anomaly(
+    tmp_path: Path,
+    anomalies: tuple[tuple[str, str], ...],
+) -> None:
+    builtin = tmp_path / "bionodulo" / "nodes" / "builtin"
+    builtin.mkdir(parents=True)
+    source = 'class A:\n    NODE_ID = "alpha"\n'
+    (builtin / "one.py").write_text(source)
+    for relative_path, class_name in anomalies:
+        anomaly_path = builtin / relative_path
+        anomaly_path.parent.mkdir(parents=True, exist_ok=True)
+        anomaly_path.write_text(f'class {class_name}:\n    NODE_ID = ""\n')
+    comparison = extract_nodes(
+        source,
+        "bionodulo.nodes.builtin.one",
+        source_path="bionodulo/nodes/builtin/one.py",
+        git_blob="a" * 40,
+    )[0][0]
+
+    with pytest.raises(ledger_builder.ReconciliationError, match="current source anomalies"):
         ledger_builder.validate_current_source(tmp_path, (comparison,))
 
 
@@ -607,6 +662,30 @@ def test_cli_check_reports_current_bytes_and_validation(
     assert "current repair projection validated" in captured.out
     assert captured.err == ""
     assert validated == [current_root]
+
+
+def test_cli_missing_check_reconciles_before_reporting_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output = tmp_path / "missing.json"
+    calls: list[Path] = []
+
+    def reconcile_call(repo: Path, **_kwargs: object) -> Reconciliation:
+        calls.append(repo)
+        return Reconciliation()
+
+    monkeypatch.setattr(ledger_builder, "reconcile_repository", reconcile_call)
+    monkeypatch.setattr(ledger_builder, "ledger_bytes", lambda _result: b'{"canonical":true}\n')
+
+    exit_code = ledger_builder.main(["--repo", str(tmp_path), "--output", str(output), "--check"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert calls == [tmp_path.resolve()]
+    assert "STALE:" in captured.err
+    assert not output.exists()
 
 
 def test_cli_current_source_validation_fails_closed(

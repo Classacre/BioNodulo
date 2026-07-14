@@ -76,6 +76,12 @@ _CURRENT_PATH_REPAIRS = {
         "bionodulo/nodes/builtin/flow_control/while_.py",
     ),
 }
+_CURRENT_EMPTY_ANOMALY = {
+    "class_name": "FeatureCountsNode",
+    "kind": "empty_node_id",
+    "module": "bionodulo.nodes.builtin.rna_seq.featurecountsnode",
+    "path": "bionodulo/nodes/builtin/rna_seq/featurecountsnode.py",
+}
 
 
 class LedgerError(RuntimeError):
@@ -670,12 +676,17 @@ def validate_current_source(
 
     declarations, anomalies = _load_worktree_inventory(Path(repo).resolve())
     actual_index = _unique_index(declarations, "current repaired source")
-    if anomalies and not (
-        len(anomalies) == 1
-        and anomalies[0].get("kind") == "empty_node_id"
-        and anomalies[0].get("class_name") == "FeatureCountsNode"
-    ):
-        raise ReconciliationError(f"unexpected current source anomalies: {anomalies}")
+    anomaly_identities = tuple(
+        {
+            "class_name": anomaly.get("class_name"),
+            "kind": anomaly.get("kind"),
+            "module": anomaly.get("module"),
+            "path": anomaly.get("path"),
+        }
+        for anomaly in anomalies
+    )
+    if anomaly_identities != (_CURRENT_EMPTY_ANOMALY,):
+        raise ReconciliationError(f"unexpected current source anomalies: {anomaly_identities}")
 
     expected_by_id = {item.node_id: item for item in expected}
     if len(expected_by_id) != len(expected):
@@ -776,10 +787,16 @@ def _module_analysis(module: str, source: str, known_modules: set[str]) -> _Modu
 
 def _resolve_base_symbol(
     module: str,
+    qualified_name: str,
     base_symbol: str,
     analyses: Mapping[str, _ModuleAnalysis],
 ) -> tuple[str, str] | None:
     analysis = analyses[module]
+    enclosing_scope = qualified_name.split(".")[:-1]
+    for depth in range(len(enclosing_scope), 0, -1):
+        lexical_candidate = ".".join((*enclosing_scope[:depth], base_symbol))
+        if lexical_candidate in analysis.classes:
+            return module, lexical_candidate
     if base_symbol in analysis.classes:
         return module, base_symbol
     if "." not in base_symbol:
@@ -822,7 +839,12 @@ def resolve_aliases(module_sources: Mapping[str, str]) -> dict[str, AliasResolut
         resolution = AliasResolution(node_id=symbol.node_id)
         if symbol.metadata_only:
             for base_symbol in symbol.base_symbols:
-                target_key = _resolve_base_symbol(module, base_symbol, analyses)
+                target_key = _resolve_base_symbol(
+                    module,
+                    symbol.qualified_name,
+                    base_symbol,
+                    analyses,
+                )
                 target = symbols.get(target_key) if target_key is not None else None
                 if target is None:
                     continue
@@ -1410,9 +1432,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     repo = args.repo.resolve()
     output = args.output if args.output.is_absolute() else repo / args.output
-    if args.check and not output.is_file():
-        print(f"STALE: {output} does not exist", file=sys.stderr)
-        return 1
     current_validated = False
     try:
         result = reconcile_repository(
