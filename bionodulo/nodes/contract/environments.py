@@ -105,6 +105,7 @@ Sha256Digest = Annotated[
 ]
 ExactVersion = Annotated[str, StringConstraints(min_length=1, max_length=128)]
 ProbeArgument = Annotated[str, StringConstraints(max_length=4096)]
+VersionLinePrefix = Annotated[str, StringConstraints(min_length=1, max_length=256)]
 
 
 def _validate_exact_version(value: str) -> str:
@@ -163,11 +164,9 @@ def _validate_https_url(value: str, *, require_path: bool) -> str:
 
 
 def _validate_locator(value: str) -> str:
-    if "\x00" in value or "\\" in value or "/" not in value or value.endswith("/"):
-        raise ValueError("locator must be an exact POSIX path, not a PATH lookup name")
+    if "\x00" in value or "\\" in value or "/" not in value or value.startswith("/") or value.endswith("/"):
+        raise ValueError("locator must be an environment-root-relative POSIX path, not a PATH lookup name")
     segments = value.split("/")
-    if value.startswith("/"):
-        segments = segments[1:]
     if not segments or any(segment in ("", ".", "..") for segment in segments):
         raise ValueError("locator must be a canonical traversal-free POSIX path")
     if any(any(ord(character) < 32 or ord(character) == 127 for character in segment) for segment in segments):
@@ -348,6 +347,7 @@ class PlatformLock(_StrictFrozenModel):
     platform: ExecutionPlatform
     resolver_platform: Annotated[str, StringConstraints(min_length=1, max_length=64)]
     resolver: ResolverIdentity
+    lockfile_sha256: Sha256Digest
     artifacts: Annotated[tuple[LockedArtifact, ...], Field(min_length=1, max_length=4096)]
 
     @field_validator("resolver_platform")
@@ -364,17 +364,40 @@ class PlatformLock(_StrictFrozenModel):
             raise ValueError("locked artifact names must be unique")
         if names != tuple(sorted(names)):
             raise ValueError("locked artifacts must be canonically ordered by name")
+        for label, identities in (
+            ("urls", tuple(artifact.url for artifact in self.artifacts)),
+            ("filenames", tuple(artifact.filename for artifact in self.artifacts)),
+            ("sha256 identities", tuple(artifact.sha256 for artifact in self.artifacts)),
+        ):
+            if len(set(identities)) != len(identities):
+                raise ValueError(f"locked artifact {label} must be unique")
         return self
 
     def lock_digest(self) -> str:
         return _canonical_digest(self)
 
 
+def _validate_runtime_artifacts(
+    locks: tuple[PlatformLock, ...],
+    *,
+    runtime_name: str,
+    request: VersionRequest,
+) -> None:
+    for lock in locks:
+        runtime = next((artifact for artifact in lock.artifacts if artifact.name == runtime_name), None)
+        if runtime is None or not _version_satisfies(runtime.version, request.constraint):
+            raise ValueError(
+                f"lock for {lock.platform.value} must contain exactly one {runtime_name} runtime artifact "
+                f"satisfying {request.constraint}"
+            )
+
+
 class ExecutableProbe(_StrictFrozenModel):
     probe_id: ArtifactId
     locator: Annotated[str, StringConstraints(min_length=1, max_length=1024)]
     version_arguments: Annotated[tuple[ProbeArgument, ...], Field(min_length=1, max_length=16)]
-    expected_version_pattern: Annotated[str, StringConstraints(min_length=1, max_length=1024)]
+    version_line_prefix: VersionLinePrefix
+    expected_version: ExactVersion
     fingerprint: Sha256Digest | None = None
 
     @field_validator("locator")
@@ -392,14 +415,21 @@ class ExecutableProbe(_StrictFrozenModel):
             raise ValueError("probe arguments must not contain control characters")
         return value
 
-    @field_validator("expected_version_pattern")
+    @field_validator("version_line_prefix")
     @classmethod
-    def _validate_expected_version_pattern(cls, value: str) -> str:
+    def _validate_version_line_prefix(cls, value: str) -> str:
         try:
-            re.compile(value)
-        except re.error as error:
-            raise ValueError("expected version pattern must be a valid regular expression") from error
+            value.encode("ascii")
+        except UnicodeEncodeError as error:
+            raise ValueError("version line prefix must use literal ASCII") from error
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("version line prefix must not contain control characters")
         return value
+
+    @field_validator("expected_version")
+    @classmethod
+    def _validate_expected_version(cls, value: str) -> str:
+        return _validate_exact_version(value)
 
 
 class ImportProbe(_StrictFrozenModel):
@@ -441,6 +471,7 @@ class RPackageProbe(_StrictFrozenModel):
 class ContainerImageLock(_StrictFrozenModel):
     platform: ExecutionPlatform
     resolver_platform: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    index_image: Annotated[str, StringConstraints(min_length=1, max_length=512)]
     image: Annotated[str, StringConstraints(min_length=1, max_length=512)]
 
     @field_validator("resolver_platform")
@@ -450,7 +481,7 @@ class ContainerImageLock(_StrictFrozenModel):
             raise ValueError("resolver platform must be canonical lowercase ASCII")
         return value
 
-    @field_validator("image")
+    @field_validator("index_image", "image")
     @classmethod
     def _validate_image(cls, value: str) -> str:
         return _validate_oci_reference(value)
@@ -563,6 +594,7 @@ class PythonEnvironment(_LockedPackageEnvironment):
             label="import probe IDs",
         )
         _validate_probe_namespace(self.executable_probes, self.import_probes)
+        _validate_runtime_artifacts(self.locks, runtime_name="python", request=self.python_version)
         return self
 
 
@@ -598,6 +630,7 @@ class REnvironment(_LockedPackageEnvironment):
             label="R package probe IDs",
         )
         _validate_probe_namespace(self.executable_probes, self.package_probes)
+        _validate_runtime_artifacts(self.locks, runtime_name="r-base", request=self.r_version)
         return self
 
 
@@ -618,6 +651,8 @@ class ContainerEnvironment(_EnvironmentBase):
         declared = set(self.platforms)
         if any(lock.platform not in declared for lock in self.image_locks):
             raise ValueError("image locks may cover only declared platforms")
+        if any(lock.index_image != self.image for lock in self.image_locks):
+            raise ValueError("image lock index_image must exactly equal the declared image index")
         repository = self.image.rsplit("@", 1)[0]
         if any(lock.image.rsplit("@", 1)[0] != repository for lock in self.image_locks):
             raise ValueError("image locks must use the declared image repository")

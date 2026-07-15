@@ -11,6 +11,8 @@ import bionodulo.nodes.contract.environments as env
 
 SHA_A = "sha256:" + "a" * 64
 SHA_B = "sha256:" + "b" * 64
+SHA_C = "sha256:" + "c" * 64
+SHA_D = "sha256:" + "d" * 64
 
 
 def test_package_requirement_accepts_only_small_explicit_constraint_language() -> None:
@@ -129,6 +131,7 @@ def test_oci_references_reject_mutable_or_ambiguous_images(image: str) -> None:
         env.ContainerImageLock(
             platform=env.ExecutionPlatform.LINUX_AMD64,
             resolver_platform="linux-64",
+            index_image="registry.example.org/tools/samtools@" + SHA_A,
             image=image,
         )
 
@@ -137,6 +140,7 @@ def test_oci_reference_accepts_registry_ports_and_lowercase_digest() -> None:
     lock = env.ContainerImageLock(
         platform=env.ExecutionPlatform.LINUX_AMD64,
         resolver_platform="linux-64",
+        index_image="registry.example.org:5000/team/tool@" + SHA_A,
         image="registry.example.org:5000/team/tool@" + SHA_A,
     )
 
@@ -158,6 +162,7 @@ def test_oci_reference_accepts_explicit_canonical_local_and_ipv4_registries(
     lock = env.ContainerImageLock(
         platform=env.ExecutionPlatform.LINUX_AMD64,
         resolver_platform="linux-64",
+        index_image=image,
         image=image,
     )
 
@@ -173,6 +178,7 @@ def test_container_environment_roundtrips_canonical_ipv4_repository() -> None:
             env.ContainerImageLock(
                 platform=env.ExecutionPlatform.LINUX_AMD64,
                 resolver_platform="linux-64",
+                index_image=image,
                 image=platform_image,
             ),
         ),
@@ -195,13 +201,16 @@ def artifact(
     version: str = "1.20",
     build: str = "h50ea8bc_0",
     digest: str = SHA_B,
+    filename: str | None = None,
+    url: str | None = None,
 ) -> env.LockedArtifact:
+    locked_filename = filename or f"{name}-{version}-{build}.conda"
     return env.LockedArtifact(
         name=name,
         version=version,
         build=build,
-        filename=f"{name}-{version}-{build}.conda",
-        url=f"https://packages.example.org/linux-64/{name}-{version}-{build}.conda",
+        filename=locked_filename,
+        url=url or f"https://packages.example.org/linux-64/{locked_filename}",
         sha256=digest,
         size_bytes=1234,
     )
@@ -214,6 +223,7 @@ def platform_lock(
         platform=platform,
         resolver_platform="linux-64" if platform is env.ExecutionPlatform.LINUX_AMD64 else "linux-aarch64",
         resolver=resolver(),
+        lockfile_sha256=SHA_C,
         artifacts=(artifact(),),
     )
 
@@ -223,7 +233,8 @@ def executable_probe(probe_id: str = "samtools") -> env.ExecutableProbe:
         probe_id=probe_id,
         locator="bin/samtools",
         version_arguments=("--version",),
-        expected_version_pattern=r"^samtools 1\.20(?:\n|$)",
+        version_line_prefix="samtools ",
+        expected_version="1.20",
     )
 
 
@@ -236,6 +247,28 @@ def test_platform_lock_contains_exact_resolver_and_artifact_identity() -> None:
     assert lock.artifacts[0].sha256 == SHA_B
     assert re.fullmatch(r"sha256:[0-9a-f]{64}", lock.lock_digest())
     assert lock.lock_digest() == rebuilt.lock_digest()
+
+
+def test_platform_lock_attests_resolver_output_and_transitive_artifact_closure() -> None:
+    lock = env.PlatformLock(
+        platform=env.ExecutionPlatform.LINUX_AMD64,
+        resolver_platform="linux-64",
+        resolver=resolver(),
+        lockfile_sha256=SHA_C,
+        artifacts=(artifact(),),
+    )
+    changed_closure = lock.model_copy(update={"lockfile_sha256": SHA_D})
+
+    assert lock.lockfile_sha256 == SHA_C
+    assert lock.model_dump(mode="json")["lockfile_sha256"] == SHA_C
+    assert lock.lock_digest() != changed_closure.lock_digest()
+    with pytest.raises(ValidationError, match="lockfile_sha256"):
+        env.PlatformLock(
+            platform=env.ExecutionPlatform.LINUX_AMD64,
+            resolver_platform="linux-64",
+            resolver=resolver(),
+            artifacts=(artifact(),),
+        )
 
 
 @pytest.mark.parametrize(
@@ -307,6 +340,7 @@ def test_platform_lock_rejects_duplicate_or_noncanonical_artifacts() -> None:
             platform=env.ExecutionPlatform.LINUX_AMD64,
             resolver_platform="linux-64",
             resolver=resolver(),
+            lockfile_sha256=SHA_C,
             artifacts=(zeta, alpha),
         )
     with pytest.raises(ValidationError, match="unique"):
@@ -314,7 +348,42 @@ def test_platform_lock_rejects_duplicate_or_noncanonical_artifacts() -> None:
             platform=env.ExecutionPlatform.LINUX_AMD64,
             resolver_platform="linux-64",
             resolver=resolver(),
+            lockfile_sha256=SHA_C,
             artifacts=(alpha, alpha),
+        )
+
+
+@pytest.mark.parametrize("identity", ("filename", "url", "sha256"))
+def test_platform_lock_rejects_artifact_identity_aliases(identity: str) -> None:
+    first = artifact("alpha", version="1.0", build="h0", digest=SHA_A)
+    if identity == "filename":
+        second = artifact(
+            "beta",
+            version="2.0",
+            build="h1",
+            digest=SHA_B,
+            filename=first.filename,
+            url=f"https://mirror.example.org/linux-64/{first.filename}",
+        )
+    elif identity == "url":
+        second = artifact(
+            "beta",
+            version="2.0",
+            build="h1",
+            digest=SHA_B,
+            filename=first.filename,
+            url=first.url,
+        )
+    else:
+        second = artifact("beta", version="2.0", build="h1", digest=first.sha256)
+
+    with pytest.raises(ValidationError, match=identity):
+        env.PlatformLock(
+            platform=env.ExecutionPlatform.LINUX_AMD64,
+            resolver_platform="linux-64",
+            resolver=resolver(),
+            lockfile_sha256=SHA_C,
+            artifacts=(first, second),
         )
 
 
@@ -350,10 +419,36 @@ def test_executable_probe_binds_a_locator_not_a_path_lookup_name() -> None:
     assert hash(probe)
 
 
+def test_executable_probe_uses_a_bounded_literal_exact_version_matcher() -> None:
+    probe = env.ExecutableProbe(
+        probe_id="samtools",
+        locator="bin/samtools",
+        version_arguments=("--version",),
+        version_line_prefix="samtools ",
+        expected_version="1.20",
+    )
+
+    assert probe.version_line_prefix + probe.expected_version == "samtools 1.20"
+    assert "expected_version_pattern" not in probe.model_dump()
+
+
+@pytest.mark.parametrize("pattern", (".*", "(a+)+$", "^$"))
+def test_executable_probe_rejects_legacy_regex_matchers(pattern: str) -> None:
+    with pytest.raises(ValidationError):
+        env.ExecutableProbe(
+            probe_id="samtools",
+            locator="bin/samtools",
+            version_arguments=("--version",),
+            expected_version_pattern=pattern,
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     (
         ("locator", "samtools"),
+        ("locator", "/bin/samtools"),
+        ("locator", "/usr/bin/python"),
         ("locator", "../bin/samtools"),
         ("locator", "bin\\samtools"),
         ("locator", "bin//samtools"),
@@ -361,8 +456,10 @@ def test_executable_probe_binds_a_locator_not_a_path_lookup_name() -> None:
         ("version_arguments", ()),
         ("version_arguments", ["--version"]),
         ("version_arguments", ("--version\x00",)),
-        ("expected_version_pattern", ""),
-        ("expected_version_pattern", "["),
+        ("version_line_prefix", ""),
+        ("version_line_prefix", "samtools\n"),
+        ("expected_version", ""),
+        ("expected_version", "latest"),
     ),
 )
 def test_executable_probe_rejects_path_fallback_and_unbounded_probe_data(
@@ -470,6 +567,7 @@ def container_environment(**updates: object) -> env.ContainerEnvironment:
             env.ContainerImageLock(
                 platform=env.ExecutionPlatform.LINUX_AMD64,
                 resolver_platform="linux-64",
+                index_image="registry.example.org/tools/samtools@" + SHA_A,
                 image="registry.example.org/tools/samtools@" + SHA_B,
             ),
         ),
@@ -635,6 +733,90 @@ def test_locks_may_be_absent_or_partial_without_claiming_full_resolution() -> No
 
 
 @pytest.mark.parametrize(
+    ("factory", "package_name", "package_version"),
+    (
+        (python_environment, "numpy", "1.26.4"),
+        (r_environment, "deseq2", "1.42.0"),
+    ),
+)
+def test_present_language_locks_require_the_canonical_runtime_artifact(
+    factory: object,
+    package_name: str,
+    package_version: str,
+) -> None:
+    lock = env.PlatformLock(
+        platform=env.ExecutionPlatform.LINUX_AMD64,
+        resolver_platform="linux-64",
+        resolver=resolver(),
+        lockfile_sha256=SHA_A,
+        artifacts=(artifact(package_name, version=package_version, build="h0"),),
+    )
+
+    with pytest.raises(ValidationError, match="runtime"):
+        factory(locks=(lock,))
+
+
+@pytest.mark.parametrize(
+    ("factory", "runtime_name", "runtime_version", "package_name", "package_version"),
+    (
+        (python_environment, "python", "3.10.14", "numpy", "1.26.4"),
+        (r_environment, "r-base", "4.2.3", "deseq2", "1.42.0"),
+    ),
+)
+def test_language_runtime_artifact_must_satisfy_the_declared_version(
+    factory: object,
+    runtime_name: str,
+    runtime_version: str,
+    package_name: str,
+    package_version: str,
+) -> None:
+    artifacts = tuple(
+        sorted(
+            (
+                artifact(package_name, version=package_version, build="h0", digest=SHA_C),
+                artifact(runtime_name, version=runtime_version, build="h1", digest=SHA_D),
+            ),
+            key=lambda item: item.name,
+        )
+    )
+    lock = env.PlatformLock(
+        platform=env.ExecutionPlatform.LINUX_AMD64,
+        resolver_platform="linux-64",
+        resolver=resolver(),
+        lockfile_sha256=SHA_A,
+        artifacts=artifacts,
+    )
+
+    with pytest.raises(ValidationError, match="runtime"):
+        factory(locks=(lock,))
+
+
+def test_python_runtime_lock_attests_closure_without_claiming_missing_platforms() -> None:
+    artifacts = (
+        artifact("numpy", version="1.26.4", build="h0", digest=SHA_C),
+        artifact("python", version="3.11.9", build="h1", digest=SHA_D),
+    )
+    lock = env.PlatformLock(
+        platform=env.ExecutionPlatform.LINUX_AMD64,
+        resolver_platform="linux-64",
+        resolver=resolver(),
+        lockfile_sha256=SHA_A,
+        artifacts=artifacts,
+    )
+    partial = python_environment(
+        platforms=(env.ExecutionPlatform.LINUX_AMD64, env.ExecutionPlatform.LINUX_ARM64),
+        locks=(lock,),
+    )
+
+    assert partial.is_fully_locked is False
+    assert partial.locks[0].lockfile_sha256 == SHA_A
+    assert (
+        partial.environment_digest()
+        == env.PythonEnvironment.model_validate_json(partial.model_dump_json()).environment_digest()
+    )
+
+
+@pytest.mark.parametrize(
     ("name", "version", "build"),
     (
         ("unrelated", "1.0", "h0"),
@@ -651,6 +833,7 @@ def test_lock_inventory_must_resolve_every_direct_package_request(
         platform=env.ExecutionPlatform.LINUX_AMD64,
         resolver_platform="linux-64",
         resolver=resolver(),
+        lockfile_sha256=SHA_A,
         artifacts=(locked_artifact,),
     )
 
@@ -680,10 +863,43 @@ def test_container_platform_image_locks_have_the_same_full_lock_semantics() -> N
         container_environment(image_locks=(full.image_locks[0], full.image_locks[0]))
 
 
+def test_container_image_lock_records_index_to_platform_child_binding() -> None:
+    lock = env.ContainerImageLock(
+        platform=env.ExecutionPlatform.LINUX_AMD64,
+        resolver_platform="linux-64",
+        index_image="registry.example.org/tools/samtools@" + SHA_A,
+        image="registry.example.org/tools/samtools@" + SHA_B,
+    )
+    environment = container_environment(image_locks=(lock,))
+
+    assert lock.index_image == environment.image
+    assert env.ContainerEnvironment.model_validate_json(environment.model_dump_json()) == environment
+
+
+@pytest.mark.parametrize(
+    "index_image",
+    (
+        "registry.example.org/tools/samtools@" + SHA_B,
+        "registry.example.org/other/tool@" + SHA_A,
+    ),
+)
+def test_container_image_lock_parent_must_exactly_match_declared_index(index_image: str) -> None:
+    lock = env.ContainerImageLock(
+        platform=env.ExecutionPlatform.LINUX_AMD64,
+        resolver_platform="linux-64",
+        index_image=index_image,
+        image="registry.example.org/tools/samtools@" + SHA_B,
+    )
+
+    with pytest.raises(ValidationError, match="index"):
+        container_environment(image_locks=(lock,))
+
+
 def test_container_image_locks_must_use_the_declared_image_repository() -> None:
     unrelated = env.ContainerImageLock(
         platform=env.ExecutionPlatform.LINUX_AMD64,
         resolver_platform="linux-64",
+        index_image="registry.example.org/tools/samtools@" + SHA_A,
         image="registry.example.org/other/tool@" + SHA_B,
     )
 
@@ -745,7 +961,8 @@ def test_environment_copy_and_construct_revalidate_nested_instances() -> None:
         probe_id="samtools",
         locator="samtools",
         version_arguments=("--version",),
-        expected_version_pattern="^1.20$",
+        version_line_prefix="samtools ",
+        expected_version="1.20",
         fingerprint=None,
     )
     valid = pixi_environment()

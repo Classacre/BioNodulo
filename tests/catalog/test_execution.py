@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import json
 import math
 import re
 from pathlib import Path
@@ -424,6 +425,45 @@ def test_retry_policy_delays_and_attempts_are_internally_consistent() -> None:
         execution.RetryPolicy(exit_codes=(1,))
 
 
+def test_negative_zero_retry_fields_are_canonical_in_models_dumps_and_digests() -> None:
+    negative_retry = execution.RetryPolicy(
+        initial_backoff_seconds=-0.0,
+        maximum_backoff_seconds=-0.0,
+        jitter_seconds=-0.0,
+    )
+    canonical_retry = execution.RetryPolicy(
+        initial_backoff_seconds=0.0,
+        maximum_backoff_seconds=0.0,
+        jitter_seconds=0.0,
+    )
+    negative_plan = argv_plan(retry=negative_retry)
+    canonical_plan = argv_plan(retry=canonical_retry)
+
+    assert negative_plan == canonical_plan
+    assert negative_plan.model_dump(mode="json") == canonical_plan.model_dump(mode="json")
+    assert negative_plan.model_dump_json() == canonical_plan.model_dump_json()
+    assert negative_plan.plan_digest() == canonical_plan.plan_digest()
+    assert all(
+        math.copysign(1.0, value) == 1.0
+        for value in (
+            negative_plan.retry.initial_backoff_seconds,
+            negative_plan.retry.maximum_backoff_seconds,
+            negative_plan.retry.jitter_seconds,
+        )
+    )
+
+
+def test_negative_zero_remains_invalid_for_positive_only_float_fields() -> None:
+    with pytest.raises(ValidationError):
+        resources(memory_gib=-0.0)
+    with pytest.raises(ValidationError):
+        resources(scratch_disk_gib=-0.0)
+    with pytest.raises(ValidationError):
+        execution.RetryPolicy(multiplier=-0.0)
+    with pytest.raises(ValidationError):
+        execution.RateLimitPolicy(max_requests=10, per_seconds=-0.0)
+
+
 def test_checkpoint_policy_defaults_to_explicit_disabled_state() -> None:
     policy = execution.CheckpointPolicy()
 
@@ -611,7 +651,7 @@ def script_plan(**updates: object) -> execution.ScriptPlan:
 def python_plan(**updates: object) -> execution.PythonPlan:
     values: dict[str, object] = {
         "callable_ref": "bionodulo.nodes.catalog.alignment:run_alignment",
-        "arguments": ("sample", 3, 0.25, True, None),
+        "arguments": ("sample", 3, 0.25, None),
         "keywords": (
             execution.PythonKeyword(name="output_name", value="result.bam"),
             execution.PythonKeyword(name="threads", value=2),
@@ -708,6 +748,84 @@ def test_python_plan_accepts_only_frozen_scalar_bindings() -> None:
     assert hash(rebuilt)
 
 
+def test_negative_zero_python_scalars_are_canonical_in_models_dumps_and_digests() -> None:
+    negative_plan = python_plan(
+        arguments=(-0.0,),
+        keywords=(execution.PythonKeyword(name="threshold", value=-0.0),),
+    )
+    canonical_plan = python_plan(
+        arguments=(0.0,),
+        keywords=(execution.PythonKeyword(name="threshold", value=0.0),),
+    )
+
+    assert negative_plan == canonical_plan
+    assert negative_plan.model_dump(mode="json") == canonical_plan.model_dump(mode="json")
+    assert negative_plan.model_dump_json() == canonical_plan.model_dump_json()
+    assert negative_plan.plan_digest() == canonical_plan.plan_digest()
+    assert math.copysign(1.0, negative_plan.arguments[0]) == 1.0
+    assert math.copysign(1.0, negative_plan.keywords[0].value) == 1.0
+
+
+@pytest.mark.parametrize("placement", ("argument", "keyword"))
+def test_python_signed_int64_rejects_bool_and_out_of_range_values(placement: str) -> None:
+    for value in (True, -(2**63) - 1, 2**63):
+        with pytest.raises(ValidationError):
+            if placement == "argument":
+                python_plan(arguments=(value,))
+            else:
+                execution.PythonKeyword(name="value", value=value)
+
+
+@pytest.mark.parametrize("placement", ("argument", "keyword"))
+def test_python_signed_int64_copies_revalidate_bool_and_bounds(placement: str) -> None:
+    plan = python_plan(arguments=(0,))
+    keyword = execution.PythonKeyword(name="value", value=0)
+
+    for value in (True, -(2**63) - 1, 2**63):
+        with pytest.raises(ValidationError):
+            if placement == "argument":
+                plan.model_copy(update={"arguments": (value,)})
+            else:
+                keyword.model_copy(update={"value": value})
+
+
+@pytest.mark.parametrize("placement", ("argument", "keyword"))
+def test_python_signed_int64_json_revalidates_bool_and_bounds(placement: str) -> None:
+    plan = python_plan(
+        arguments=(0,),
+        keywords=(execution.PythonKeyword(name="value", value=0),),
+    )
+
+    for value in (True, -(2**63) - 1, 2**63):
+        payload = plan.model_dump(mode="json")
+        if placement == "argument":
+            payload["arguments"] = [value]
+        else:
+            payload["keywords"][0]["value"] = value
+        with pytest.raises(ValidationError):
+            execution.PythonPlan.model_validate_json(json.dumps(payload))
+
+
+def test_python_signed_int64_boundaries_roundtrip_and_digest() -> None:
+    lower = -(2**63)
+    upper = 2**63 - 1
+    plan = python_plan(
+        arguments=(lower, upper),
+        keywords=(
+            execution.PythonKeyword(name="lower", value=lower),
+            execution.PythonKeyword(name="upper", value=upper),
+        ),
+    )
+    rebuilt = execution.PythonPlan.model_validate_json(plan.model_dump_json())
+    copied = plan.model_copy()
+
+    assert rebuilt == plan
+    assert copied == plan
+    assert rebuilt.plan_digest() == plan.plan_digest()
+    assert copied.plan_digest() == plan.plan_digest()
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", plan.plan_digest())
+
+
 @pytest.mark.parametrize(
     "callable_ref",
     (
@@ -737,6 +855,19 @@ def test_python_plan_accepts_only_frozen_scalar_bindings() -> None:
     ),
 )
 def test_python_callable_reference_rejects_traversal_or_dynamic_names(callable_ref: str) -> None:
+    with pytest.raises(ValidationError):
+        python_plan(callable_ref=callable_ref)
+
+
+@pytest.mark.parametrize(
+    "callable_ref",
+    (
+        "bionodulo.nodes.catalog.tool:subprocess.run",
+        "bionodulo.nodes.catalog.tool:os.system",
+        "bionodulo.nodes.catalog.tool:pickle.loads",
+    ),
+)
+def test_python_callable_reference_rejects_trusted_nested_attributes(callable_ref: str) -> None:
     with pytest.raises(ValidationError):
         python_plan(callable_ref=callable_ref)
 
@@ -896,6 +1027,37 @@ def test_nonsecret_key_substrings_remain_http_query_keys(name: str) -> None:
     plan = http_plan(url=f"https://api.example.org/v1/jobs?{name}=public")
 
     assert plan.url.endswith(f"?{name}=public")
+
+
+@pytest.mark.parametrize("name", ("SIG", "SIGS", "SIGNATURE", "SIGNATURES"))
+def test_signature_secret_environment_names_require_references(name: str) -> None:
+    with pytest.raises(ValidationError, match="secret reference"):
+        execution.LiteralEnvironmentVariable(name=name, value="literal-secret")
+
+    assert execution.SecretEnvironmentVariable(name=name, secret_id="service-secret").name == name
+
+
+@pytest.mark.parametrize("name", ("x-amz-signature", "x-goog-signature"))
+def test_signature_secret_http_headers_require_references(name: str) -> None:
+    with pytest.raises(ValidationError, match="secret reference"):
+        execution.LiteralHttpHeader(name=name, value="literal-secret")
+
+    assert execution.SecretHttpHeader(name=name, secret_id="service-secret").name == name
+
+
+def test_signature_secret_http_query_keys_are_rejected() -> None:
+    with pytest.raises(ValidationError, match="secret-bearing"):
+        http_plan(url="https://api.example.org/v1/jobs?service_signature=literal-secret")
+
+
+def test_design_names_remain_nonsecret_in_literal_contexts() -> None:
+    environment = execution.LiteralEnvironmentVariable(name="DESIGN", value="public")
+    header = execution.LiteralHttpHeader(name="design", value="public")
+    plan = http_plan(url="https://api.example.org/v1/jobs?design=public")
+
+    assert environment.name == "DESIGN"
+    assert header.name == "design"
+    assert plan.url.endswith("?design=public")
 
 
 def test_http_headers_are_unique_ordered_and_control_free() -> None:

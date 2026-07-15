@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Annotated, Literal, Self, TypeAlias
 from urllib.parse import parse_qsl, urlsplit
 
-from pydantic import Field, StringConstraints, field_validator, model_validator
+from pydantic import BeforeValidator, Field, StringConstraints, field_validator, model_validator
 
 from bionodulo.nodes.contract.artifacts import ArtifactId, _StrictFrozenModel
 from bionodulo.nodes.contract.environments import ExecutionPlatform, Sha256Digest
@@ -24,7 +24,7 @@ _GPU_TYPE_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 _ENVIRONMENT_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]{0,127}$")
 _CALLABLE_RE = re.compile(
     r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*:"
-    r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
+    r"[A-Za-z_][A-Za-z0-9_]*$"
 )
 _TRUSTED_CALLABLE_PREFIX = "bionodulo.nodes.catalog."
 _KEYWORD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
@@ -45,6 +45,10 @@ _SECRET_NAME_TOKENS = frozenset(
         "passwords",
         "secret",
         "secrets",
+        "sig",
+        "sigs",
+        "signature",
+        "signatures",
         "token",
         "tokens",
     }
@@ -138,7 +142,7 @@ def _validate_exact_float(value: object) -> object:
         raise ValueError("value must be an exact float")
     if not math.isfinite(value):
         raise ValueError("value must be finite")
-    return value
+    return 0.0 if value == 0.0 else value
 
 
 def _validate_safe_relative_path(value: str) -> str:
@@ -483,18 +487,36 @@ class ScriptPlan(_ExecutionPlanBase):
         return "sha256:" + hashlib.sha256(self.script.encode("utf-8")).hexdigest()
 
 
-ScalarValue: TypeAlias = (
-    Annotated[bool, Field(strict=True)]
-    | Annotated[int, Field(strict=True)]
-    | Annotated[float, Field(strict=True, allow_inf_nan=False)]
-    | Annotated[str, StringConstraints(max_length=4096)]
-    | None
-)
+_PYTHON_INTEGER_MIN = -(2**63)
+_PYTHON_INTEGER_MAX = 2**63 - 1
+
+
+def _validate_python_scalar_input(value: object) -> object:
+    if type(value) is bool:
+        raise ValueError("Python scalar bool values are not supported")
+    if type(value) is int and not _PYTHON_INTEGER_MIN <= value <= _PYTHON_INTEGER_MAX:
+        raise ValueError("Python scalar integers must fit signed 64-bit range")
+    return value
+
+
+PythonIntegerScalar: TypeAlias = Annotated[
+    int,
+    Field(strict=True, ge=_PYTHON_INTEGER_MIN, le=_PYTHON_INTEGER_MAX),
+]
+ScalarValue: TypeAlias = Annotated[
+    (
+        PythonIntegerScalar
+        | Annotated[float, Field(strict=True, allow_inf_nan=False)]
+        | Annotated[str, StringConstraints(max_length=4096)]
+        | None
+    ),
+    BeforeValidator(_validate_python_scalar_input),
+]
 
 
 def _validate_scalar(value: object) -> object:
-    if type(value) is float and not math.isfinite(value):
-        raise ValueError("scalar float must be finite")
+    if type(value) is float:
+        return _validate_exact_float(value)
     if type(value) is str and "\x00" in value:
         raise ValueError("scalar string must not contain NUL")
     return value
@@ -539,9 +561,7 @@ class PythonPlan(_ExecutionPlanBase):
     @field_validator("arguments")
     @classmethod
     def _validate_arguments(cls, value: tuple[object, ...]) -> tuple[object, ...]:
-        for item in value:
-            _validate_scalar(item)
-        return value
+        return tuple(_validate_scalar(item) for item in value)
 
     @model_validator(mode="after")
     def _validate_python_policy(self) -> Self:
