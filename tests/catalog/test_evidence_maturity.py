@@ -42,6 +42,7 @@ def source(kind: evidence.SourceKind, **updates: object) -> evidence.EvidenceSou
         values.update(
             url=(f"https://github.com/bioconda/bioconda-recipes/blob/{COMMIT_A}/recipes/samtools/meta.yaml"),
             recipe_revision=COMMIT_A,
+            recipe_path="recipes/samtools/meta.yaml",
         )
     elif kind is evidence.SourceKind.UPSTREAM_SOURCE:
         values.update(
@@ -192,6 +193,7 @@ def test_each_source_kind_has_a_valid_minimal_immutable_json_roundtrip(
         (evidence.SourceKind.OFFICIAL_API_SCHEMA, "version_locator"),
         (evidence.SourceKind.PACKAGE_RECIPE, "url"),
         (evidence.SourceKind.PACKAGE_RECIPE, "recipe_revision"),
+        (evidence.SourceKind.PACKAGE_RECIPE, "recipe_path"),
         (evidence.SourceKind.UPSTREAM_SOURCE, "url"),
         (evidence.SourceKind.UPSTREAM_SOURCE, "commit"),
         (evidence.SourceKind.UPSTREAM_SOURCE, "source_path"),
@@ -280,21 +282,34 @@ def test_sources_and_records_require_exact_tool_versions(version: str) -> None:
         evidence_record().model_copy(update={"tool_version": version})
 
 
-@pytest.mark.parametrize("revision", (COMMIT_A, COMMIT_B, "samtools-1.23.1-0"))
+@pytest.mark.parametrize("revision", (COMMIT_A, COMMIT_B, "1.2.3", "samtools-1.23.1-0"))
 def test_package_recipe_revision_is_an_exact_bounded_identity(revision: str) -> None:
-    updates = {"recipe_revision": revision}
-    if re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", revision):
-        updates["url"] = f"https://github.com/bioconda/bioconda-recipes/blob/{revision}/recipes/samtools/meta.yaml"
+    updates = {
+        "recipe_revision": revision,
+        "url": f"https://github.com/bioconda/bioconda-recipes/blob/{revision}/recipes/samtools/meta.yaml",
+    }
     recipe = source(evidence.SourceKind.PACKAGE_RECIPE).model_copy(update=updates)
 
     assert recipe.recipe_revision == revision
 
 
-def test_package_recipe_git_revision_must_be_bound_in_its_url() -> None:
+@pytest.mark.parametrize(
+    "updates",
+    (
+        {"url": "https://github.com/bioconda/bioconda-recipes/blob/main/recipes/samtools/meta.yaml"},
+        {"url": (f"https://github.com/bioconda/bioconda-recipes/blob/{COMMIT_A}/recipes/bcftools/meta.yaml")},
+        {"recipe_path": "recipes/bcftools/meta.yaml"},
+        {
+            "recipe_revision": "1.2.3",
+            "url": "https://github.com/bioconda/bioconda-recipes/blob/main/recipes/samtools/meta.yaml",
+        },
+    ),
+)
+def test_package_recipe_revision_and_path_must_be_bound_in_its_url(
+    updates: dict[str, object],
+) -> None:
     with pytest.raises(ValidationError, match="revision"):
-        source(evidence.SourceKind.PACKAGE_RECIPE).model_copy(
-            update={"url": "https://github.com/bioconda/bioconda-recipes/blob/main/recipes/samtools/meta.yaml"}
-        )
+        source(evidence.SourceKind.PACKAGE_RECIPE).model_copy(update=updates)
 
 
 @pytest.mark.parametrize(
@@ -389,7 +404,7 @@ def test_upstream_symbol_locator_rejects_ambiguous_forms(symbol: str) -> None:
         source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(update={"symbol_locator": symbol})
 
 
-@pytest.mark.parametrize("argv", (("--help",), ("help",), ("--help", "--format=json")))
+@pytest.mark.parametrize("argv", (("--help",), ("help",), ("view", "--help")))
 def test_installed_help_retains_literal_immutable_argv(argv: tuple[str, ...]) -> None:
     captured = source(evidence.SourceKind.INSTALLED_HELP).model_copy(update={"argv": argv})
 
@@ -410,6 +425,12 @@ def test_installed_help_retains_literal_immutable_argv(argv: tuple[str, ...]) ->
         ("`id`",),
         ("--token=secret",),
         ("view", "input.bam"),
+        ("input.bam", "--help"),
+        ("--help", "input.bam"),
+        ("--help", "view"),
+        ("view", "input.bam", "--help"),
+        ("view", "--help", "input.bam"),
+        ("--help", "--format=json"),
         ("/usr/bin/samtools", "--help"),
         ("--config=/tmp/config",),
         ("--help\n",),

@@ -33,6 +33,7 @@ _SECRET_ASSIGNMENT_RE = re.compile(
 )
 _REDACTED_SECRET_RE = re.compile(r"(?i)^(?:<[A-Z][A-Z0-9_-]*>|\$\{[A-Z][A-Z0-9_-]*\}|\[REDACTED\]|REDACTED|\*{3,})$")
 _HELP_TOKENS = frozenset({"--help", "-h", "-help", "help"})
+_HELP_SUBCOMMAND_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _MAX_ID_LENGTH = 128
 _MAX_POINTER_DEPTH = 64
 
@@ -145,6 +146,7 @@ class EvidenceSource(_StrictFrozenModel):
     url: Annotated[str, StringConstraints(min_length=1, max_length=2048)] | None = None
     version_locator: VersionLocator | None = None
     recipe_revision: RecipeRevision | None = None
+    recipe_path: RepositoryPath | None = None
     commit: Annotated[str, StringConstraints(min_length=40, max_length=64)] | None = None
     source_path: RepositoryPath | None = None
     symbol_locator: SymbolLocator | None = None
@@ -194,7 +196,7 @@ class EvidenceSource(_StrictFrozenModel):
             raise ValueError("commit must be an exact lowercase 40- or 64-hex Git object ID")
         return value
 
-    @field_validator("source_path")
+    @field_validator("recipe_path", "source_path")
     @classmethod
     def _validate_source_path(cls, value: str | None) -> str | None:
         return None if value is None else _validate_repository_path(value)
@@ -229,20 +231,25 @@ class EvidenceSource(_StrictFrozenModel):
                 raise ValueError("installed-help argv must not contain absolute host paths")
             if _SECRET_ASSIGNMENT_RE.search(argument) is not None:
                 raise ValueError("installed-help argv must not retain secret values")
-        if not any(argument in _HELP_TOKENS for argument in value):
-            raise ValueError("installed-help argv must contain an explicit help token")
+        help_positions = tuple(index for index, argument in enumerate(value) if argument in _HELP_TOKENS)
+        if len(help_positions) != 1 or len(value) > 2:
+            raise ValueError("installed-help argv must be a help token with at most one subcommand")
+        if len(value) == 2:
+            if help_positions[0] != 1 or _HELP_SUBCOMMAND_RE.fullmatch(value[0]) is None:
+                raise ValueError("installed-help argv operand must be a canonical subcommand")
         return value
 
     @model_validator(mode="after")
     def _validate_kind_specific_capture(self) -> Self:
         documentation_fields = ("url", "version_locator")
-        package_fields = ("url", "recipe_revision")
+        package_fields = ("url", "recipe_revision", "recipe_path")
         upstream_fields = ("url", "commit", "source_path")
         installed_fields = ("environment_digest", "executable_probe_id", "argv", "output_sha256")
         all_specific_fields = {
             "url",
             "version_locator",
             "recipe_revision",
+            "recipe_path",
             "commit",
             "source_path",
             "symbol_locator",
@@ -278,11 +285,10 @@ class EvidenceSource(_StrictFrozenModel):
             if not urlsplit(self.url).path.endswith(pinned_suffix):
                 raise ValueError("upstream URL must bind the exact commit and source path")
         elif self.kind is SourceKind.PACKAGE_RECIPE:
-            assert self.url is not None and self.recipe_revision is not None
-            if _GIT_COMMIT_RE.fullmatch(self.recipe_revision) is not None:
-                url_segments = urlsplit(self.url).path.split("/")
-                if self.recipe_revision not in url_segments:
-                    raise ValueError("package recipe URL must bind its exact Git revision")
+            assert self.url is not None and self.recipe_revision is not None and self.recipe_path is not None
+            pinned_suffix = f"/{self.recipe_revision}/{self.recipe_path}"
+            if not urlsplit(self.url).path.endswith(pinned_suffix):
+                raise ValueError("package recipe URL must bind its exact revision and recipe path")
         elif self.kind is SourceKind.INSTALLED_HELP and self.output_sha256 != self.content_sha256:
             raise ValueError("installed-help output digest must equal the captured content digest")
         return self
