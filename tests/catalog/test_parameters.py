@@ -35,6 +35,13 @@ def assert_no_mutable_json(value: object) -> None:
             assert_no_mutable_json(nested)
 
 
+def nested_json(container: str, depth: int) -> object:
+    value: object = 0
+    for _ in range(depth):
+        value = [value] if container == "array" else {"value": value}
+    return value
+
+
 def test_value_kind_wire_values_are_exact() -> None:
     assert tuple(ValueKind) == (
         ValueKind.STRING,
@@ -392,6 +399,53 @@ def test_json_rejects_cyclic_arrays_as_non_json_values() -> None:
         parameter(ValueKind.JSON, has_default=True, default=cyclic)
 
 
+@pytest.mark.parametrize("entrypoint", ("construction", "copy", "validation"))
+@pytest.mark.parametrize("field", ("default", "choices"))
+@pytest.mark.parametrize("container", ("array", "object"))
+def test_overdeep_json_fails_as_validation_error_at_every_entrypoint(
+    entrypoint: str,
+    field: str,
+    container: str,
+) -> None:
+    value = nested_json(container, 500)
+    updates: dict[str, object]
+    if field == "default":
+        updates = {"has_default": True, "default": value}
+    else:
+        updates = {"choices": (value,)}
+
+    with pytest.raises(ValidationError, match="nesting depth"):
+        if entrypoint == "construction":
+            parameter(ValueKind.JSON, **updates)
+        elif entrypoint == "copy":
+            parameter(ValueKind.JSON).model_copy(update=updates)
+        else:
+            ParameterSpec.model_validate(
+                {
+                    "parameter_id": "body",
+                    "kind": ValueKind.JSON,
+                    **updates,
+                }
+            )
+
+
+@pytest.mark.parametrize("container", ("array", "object"))
+def test_json_accepts_128_nested_containers_across_recursive_operations(
+    container: str,
+) -> None:
+    value = nested_json(container, 128)
+    spec = parameter(
+        ValueKind.JSON,
+        has_default=True,
+        default=value,
+        choices=(value,),
+    )
+
+    assert hash(spec)
+    assert spec.model_copy() == spec
+    assert ParameterSpec.model_validate_json(spec.model_dump_json()) == spec
+
+
 def test_json_serialized_object_text_remains_a_string_value() -> None:
     spec = parameter(ValueKind.JSON, has_default=True, default="{}")
 
@@ -470,10 +524,15 @@ def test_forged_frozen_json_objects_cannot_bypass_validation(forged: object) -> 
 
 
 @pytest.mark.parametrize("entrypoint", ("construction", "copy", "validation"))
+@pytest.mark.parametrize(
+    "malformed",
+    (_FrozenJsonObject(None), object.__new__(_FrozenJsonObject)),
+    ids=("noniterable-storage", "missing-storage"),
+)
 def test_malformed_frozen_json_object_storage_fails_as_validation_error(
     entrypoint: str,
+    malformed: _FrozenJsonObject,
 ) -> None:
-    malformed = _FrozenJsonObject(None)
     valid = parameter(ValueKind.JSON, has_default=True, default={})
 
     with pytest.raises(ValidationError, match="object storage"):

@@ -2,7 +2,7 @@ import math
 import re
 from collections.abc import Iterator, Mapping
 from enum import StrEnum
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Final, Self
 
 from pydantic import (
     AfterValidator,
@@ -17,6 +17,8 @@ from bionodulo.nodes.contract.artifacts import ArtifactId, _StrictFrozenModel
 
 _ENVIRONMENT_VARIABLE_PATTERN = r"^[A-Z_][A-Z0-9_]*$"
 _ENVIRONMENT_VARIABLE_RE = re.compile(_ENVIRONMENT_VARIABLE_PATTERN)
+# Bounds every later recursive operation, including dump, equality, and hashing.
+_MAX_JSON_NESTING: Final = 128
 
 
 def _require_full_environment_variable_match(value: str) -> str:
@@ -89,6 +91,7 @@ def _freeze_json(
     *,
     path: str = "$",
     _active_containers: set[int] | None = None,
+    _depth: int = 0,
 ) -> Any:
     if value is None or type(value) in (bool, int, str):
         return value
@@ -97,6 +100,8 @@ def _freeze_json(
             raise ValueError(f"{path} must contain only finite numbers")
         return value
     if type(value) in (list, dict, _FrozenJsonArray, _FrozenJsonObject):
+        if _depth >= _MAX_JSON_NESTING:
+            raise ValueError(f"{path} exceeds maximum JSON nesting depth of {_MAX_JSON_NESTING}")
         active_containers = set() if _active_containers is None else _active_containers
         container_id = id(value)
         if container_id in active_containers:
@@ -109,12 +114,15 @@ def _freeze_json(
                         item,
                         path=f"{path}[{index}]",
                         _active_containers=active_containers,
+                        _depth=_depth + 1,
                     )
                     for index, item in enumerate(value)
                 )
             if type(value) is dict:
                 raw_items = value.items()
             else:
+                if not hasattr(value, "_items"):
+                    raise ValueError(f"{path} object storage must be present")
                 raw_items = value._items
                 if type(raw_items) not in (list, tuple):
                     raise ValueError(f"{path} object storage must be a list or tuple")
@@ -136,6 +144,7 @@ def _freeze_json(
                             item,
                             path=f"{path}.{key}",
                             _active_containers=active_containers,
+                            _depth=_depth + 1,
                         ),
                     )
                 )
