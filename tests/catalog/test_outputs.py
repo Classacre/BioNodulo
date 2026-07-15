@@ -1,5 +1,7 @@
+import errno
 import json
 import os
+import stat
 from collections.abc import Callable
 from pathlib import Path
 
@@ -517,6 +519,7 @@ def test_stdout_never_overwrites_preexisting_objects(
     else:
         (tmp_path / "original.txt").write_text("original", encoding="utf-8")
         target.symlink_to("original.txt")
+    original_identity = target.lstat()
     spec = output_spec(StdoutCollector(relative_path="stdout.txt", maximum_bytes=64))
 
     with pytest.raises(OutputCollectionError, match=r"output.*stdout\.txt.*exists"):
@@ -529,6 +532,10 @@ def test_stdout_never_overwrites_preexisting_objects(
 
     preserved = tmp_path / "original.txt" if preexisting_kind == "symlink" else target
     assert preserved.read_text(encoding="utf-8") == "original"
+    assert target.lstat().st_ino == original_identity.st_ino
+    if preexisting_kind == "symlink":
+        assert stat.S_ISLNK(target.lstat().st_mode)
+        assert os.readlink(target) == "original.txt"
 
 
 @pytest.mark.parametrize("preexisting_kind", ("directory", "fifo"))
@@ -541,6 +548,7 @@ def test_stdout_never_opens_or_overwrites_preexisting_special_targets(
         target.mkdir()
     else:
         os.mkfifo(target)
+    original_identity = target.lstat()
     spec = output_spec(StdoutCollector(relative_path="stdout.txt", maximum_bytes=64))
 
     with pytest.raises(OutputCollectionError, match=r"output.*stdout\.txt.*exists"):
@@ -551,7 +559,11 @@ def test_stdout_never_opens_or_overwrites_preexisting_special_targets(
             stdout_truncated=False,
         )
 
-    assert target.is_dir() if preexisting_kind == "directory" else target.exists()
+    assert target.lstat().st_ino == original_identity.st_ino
+    if preexisting_kind == "directory":
+        assert stat.S_ISDIR(target.lstat().st_mode)
+    else:
+        assert stat.S_ISFIFO(target.lstat().st_mode)
 
 
 def test_stdout_rejects_truncated_or_unmarked_capture_without_writing(
@@ -712,7 +724,39 @@ def test_stdout_validation_failure_never_unlinks_a_racing_replacement(
         assert target.read_text(encoding="utf-8") == '{"replacement":true}'
 
 
-def test_multiple_active_stdout_collectors_fail_before_publication(tmp_path: Path) -> None:
+def test_stdout_post_link_replacement_is_detected_and_never_rolled_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "stdout.txt"
+    replacement = tmp_path / "replacement.txt"
+    replacement.write_bytes(b"other")
+    replacement_identity = replacement.lstat()
+    spec = output_spec(StdoutCollector(relative_path="stdout.txt", maximum_bytes=64))
+    real_link = output_contract._link_anonymous_file
+
+    def link_then_replace(source_fd: int, parent_fd: int, name: str) -> None:
+        real_link(source_fd, parent_fd, name)
+        replacement.replace(target)
+
+    monkeypatch.setattr(output_contract, "_link_anonymous_file", link_then_replace)
+
+    with pytest.raises(OutputCollectionError, match=r"output.*stdout\.txt.*changed"):
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout="first",
+            stdout_truncated=False,
+        )
+
+    assert target.read_bytes() == b"other"
+    assert target.lstat().st_ino == replacement_identity.st_ino
+
+
+def test_multiple_active_stdout_collectors_fail_before_any_filesystem_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     specs = (
         output_spec(
             StdoutCollector(relative_path="first.txt", maximum_bytes=64),
@@ -724,7 +768,16 @@ def test_multiple_active_stdout_collectors_fail_before_publication(tmp_path: Pat
         ),
     )
 
-    with pytest.raises(OutputCollectionError, match="multiple active stdout"):
+    filesystem_calls: list[str] = []
+
+    def unexpected_filesystem_call(*_args: object, **_kwargs: object) -> object:
+        filesystem_calls.append("called")
+        raise AssertionError("filesystem I/O occurred before stdout preflight")
+
+    monkeypatch.setattr(output_contract, "_open_root", unexpected_filesystem_call)
+    monkeypatch.setattr(output_contract, "_create_stdout_artifact", unexpected_filesystem_call)
+
+    with pytest.raises(OutputCollectionError) as caught:
         collect_outputs(
             specs,
             tmp_path,
@@ -732,8 +785,132 @@ def test_multiple_active_stdout_collectors_fail_before_publication(tmp_path: Pat
             stdout_truncated=False,
         )
 
+    assert str(caught.value) == (
+        "multiple active stdout collectors conflict: port 'first' path 'first.txt'; port 'second' path 'second.txt'"
+    )
+    assert str(tmp_path) not in str(caught.value)
+    assert filesystem_calls == []
     assert not (tmp_path / "first.txt").exists()
     assert not (tmp_path / "second.txt").exists()
+
+
+def test_inactive_conditional_stdout_does_not_count_as_a_conflict(tmp_path: Path) -> None:
+    specs = (
+        output_spec(
+            StdoutCollector(relative_path="active.txt", maximum_bytes=64),
+            port_id="active",
+        ),
+        output_spec(
+            ConditionalCollector(
+                condition_key="emit_second",
+                expected_value=True,
+                collector=StdoutCollector(
+                    relative_path="inactive.txt",
+                    maximum_bytes=64,
+                ),
+            ),
+            port_id="inactive",
+            cardinality=Cardinality.OPTIONAL_ONE,
+        ),
+    )
+
+    result = collect_outputs(
+        specs,
+        tmp_path,
+        stdout="value",
+        stdout_truncated=False,
+        conditions={"emit_second": False},
+    )
+
+    assert isinstance(result["active"], CollectedArtifact)
+    assert result["inactive"] is None
+    assert (tmp_path / "active.txt").read_text(encoding="utf-8") == "value"
+    assert not (tmp_path / "inactive.txt").exists()
+
+
+@pytest.mark.parametrize("staging_failure", ("missing", "failed"))
+def test_stdout_unsupported_anonymous_staging_fails_closed_without_leaks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    staging_failure: str,
+) -> None:
+    target = tmp_path / "stdout.txt"
+    spec = output_spec(
+        StdoutCollector(relative_path="stdout.txt", maximum_bytes=64),
+        port_id="captured_stdout",
+    )
+    tmpfile_flag = output_contract.os.O_TMPFILE
+    if staging_failure == "missing":
+        monkeypatch.delattr(output_contract.os, "O_TMPFILE")
+    else:
+        real_open = output_contract.os.open
+
+        def fail_anonymous_open(
+            path: object,
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            if path == "." and flags & tmpfile_flag:
+                raise OSError(errno.EOPNOTSUPP, "unsupported")
+            return real_open(path, flags, mode, dir_fd=dir_fd)
+
+        monkeypatch.setattr(output_contract, "_require_descriptor_primitives", lambda: None)
+        monkeypatch.setattr(output_contract.os, "open", fail_anonymous_open)
+    before = open_descriptor_count()
+
+    with pytest.raises(
+        OutputCollectionError,
+        match=r"captured_stdout.*stdout\.txt.*support",
+    ) as caught:
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout="value",
+            stdout_truncated=False,
+        )
+
+    assert str(tmp_path) not in str(caught.value)
+    assert not target.exists()
+    assert open_descriptor_count() == before
+
+
+@pytest.mark.parametrize(
+    "error_number",
+    (errno.ENOSYS, errno.EOPNOTSUPP, errno.EPERM, errno.EINVAL),
+)
+def test_stdout_unsupported_linkat_fails_closed_without_leaks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error_number: int,
+) -> None:
+    target = tmp_path / "stdout.txt"
+    spec = output_spec(
+        StdoutCollector(relative_path="stdout.txt", maximum_bytes=64),
+        port_id="captured_stdout",
+    )
+    monkeypatch.setattr(
+        output_contract,
+        "_link_anonymous_file",
+        lambda *_args: (_ for _ in ()).throw(OSError(error_number, "unsupported")),
+    )
+    before = open_descriptor_count()
+
+    with pytest.raises(
+        OutputCollectionError,
+        match=r"captured_stdout.*stdout\.txt.*support",
+    ) as caught:
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout="value",
+            stdout_truncated=False,
+        )
+
+    assert str(tmp_path) not in str(caught.value)
+    assert not target.exists()
+    assert open_descriptor_count() == before
 
 
 def test_utf8_text_validator_accepts_bounded_text(tmp_path: Path) -> None:
@@ -1251,7 +1428,7 @@ def test_output_model_copy_revalidates_hard_bounds(
 
 
 @pytest.mark.parametrize(
-    ("factory", "maximum"),
+    ("factory", "minimum", "maximum"),
     (
         (
             lambda value: GlobCollector(
@@ -1259,10 +1436,12 @@ def test_output_model_copy_revalidates_hard_bounds(
                 minimum=value,
                 maximum=MAX_GLOB_MATCHES,
             ),
+            0,
             MAX_GLOB_MATCHES,
         ),
         (
             lambda value: GlobCollector(pattern="*.txt", minimum=0, maximum=value),
+            0,
             MAX_GLOB_MATCHES,
         ),
         (
@@ -1272,30 +1451,41 @@ def test_output_model_copy_revalidates_hard_bounds(
                 maximum=1,
                 maximum_directory_entries=value,
             ),
+            0,
             MAX_DIRECTORY_ENTRIES,
         ),
         (
             lambda value: StdoutCollector(relative_path="stdout.txt", maximum_bytes=value),
+            1,
             MAX_STDOUT_BYTES,
         ),
         (
             lambda value: Utf8TextValidator(maximum_bytes=value),
+            1,
             MAX_CONTENT_VALIDATOR_BYTES,
         ),
         (
             lambda value: JsonValidator(maximum_bytes=value),
+            1,
             MAX_CONTENT_VALIDATOR_BYTES,
         ),
         (
             lambda value: DirectoryCollector(relative_path="tree", maximum_entries=value),
+            0,
             MAX_DIRECTORY_ENTRIES,
         ),
     ),
 )
-def test_bounded_integer_fields_accept_maximum_and_reject_overflow_or_bool(
+def test_bounded_integer_fields_enforce_exact_lower_and_upper_limits(
     factory: Callable[[object], object],
+    minimum: int,
     maximum: int,
 ) -> None:
+    factory(minimum)
+    with pytest.raises(ValidationError):
+        factory(minimum - 1)
+    with pytest.raises(ValidationError):
+        factory(False)
     factory(maximum)
     with pytest.raises(ValidationError):
         factory(maximum + 1)

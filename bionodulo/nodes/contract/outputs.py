@@ -1216,7 +1216,10 @@ def _prepare_stdout(
     if not stdout_specs:
         return None
     if len(stdout_specs) > 1:
-        raise OutputCollectionError("multiple active stdout collectors cannot be published atomically")
+        conflicts = "; ".join(
+            f"port '{spec.port_id}' path '{collector.relative_path}'" for spec, collector in stdout_specs
+        )
+        raise OutputCollectionError(f"multiple active stdout collectors conflict: {conflicts}")
     first_spec = stdout_specs[0][0]
     if stdout_truncated is True:
         raise _path_error(
