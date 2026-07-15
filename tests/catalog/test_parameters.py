@@ -469,6 +469,29 @@ def test_forged_frozen_json_objects_cannot_bypass_validation(forged: object) -> 
         parameter(ValueKind.JSON, has_default=True, default=forged)
 
 
+@pytest.mark.parametrize("entrypoint", ("construction", "copy", "validation"))
+def test_malformed_frozen_json_object_storage_fails_as_validation_error(
+    entrypoint: str,
+) -> None:
+    malformed = _FrozenJsonObject(None)
+    valid = parameter(ValueKind.JSON, has_default=True, default={})
+
+    with pytest.raises(ValidationError, match="object storage"):
+        if entrypoint == "construction":
+            parameter(ValueKind.JSON, has_default=True, default=malformed)
+        elif entrypoint == "copy":
+            valid.model_copy(update={"default": malformed})
+        else:
+            ParameterSpec.model_validate(
+                {
+                    "parameter_id": "body",
+                    "kind": ValueKind.JSON,
+                    "has_default": True,
+                    "default": malformed,
+                }
+            )
+
+
 def test_json_decoded_payloads_are_frozen_and_dump_back_as_json_shapes() -> None:
     payload = """
     {

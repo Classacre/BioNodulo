@@ -112,7 +112,12 @@ def _freeze_json(
                     )
                     for index, item in enumerate(value)
                 )
-            raw_items = value.items() if type(value) is dict else value._items
+            if type(value) is dict:
+                raw_items = value.items()
+            else:
+                raw_items = value._items
+                if type(raw_items) not in (list, tuple):
+                    raise ValueError(f"{path} object storage must be a list or tuple")
             canonical_items: list[tuple[str, Any]] = []
             seen_keys: set[str] = set()
             for entry in raw_items:
