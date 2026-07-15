@@ -838,6 +838,161 @@ def test_inactive_conditional_stdout_does_not_count_as_a_conflict(tmp_path: Path
     assert not (tmp_path / "inactive.txt").exists()
 
 
+@pytest.mark.parametrize(
+    ("overlap_kind", "stdout_path", "other_port", "other_label"),
+    (
+        ("exact", "result.txt", "optional_exact", "result.txt"),
+        ("file_glob", "results/value.txt", "file_glob", "results/*.txt"),
+        ("directory", "reports/value.txt", "directory", "reports"),
+        ("directory_glob", "runs/sample/value.txt", "directory_glob", "runs/*"),
+    ),
+)
+def test_stdout_overlap_rejected_before_root_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    overlap_kind: str,
+    stdout_path: str,
+    other_port: str,
+    other_label: str,
+) -> None:
+    if overlap_kind == "exact":
+        other = OutputSpec(
+            port_id=other_port,
+            artifact_type="artifact.file",
+            cardinality=Cardinality.OPTIONAL_ONE,
+            collector=ExactCollector(relative_path=other_label),
+        )
+    elif overlap_kind == "file_glob":
+        other = OutputSpec(
+            port_id=other_port,
+            artifact_type="artifact.file",
+            cardinality=Cardinality.MANY,
+            collector=GlobCollector(pattern=other_label, minimum=0, maximum=5),
+        )
+    elif overlap_kind == "directory":
+        other = OutputSpec(
+            port_id=other_port,
+            artifact_type="artifact.directory",
+            collector=DirectoryCollector(relative_path=other_label),
+        )
+    else:
+        other = OutputSpec(
+            port_id=other_port,
+            artifact_type="artifact.directory",
+            cardinality=Cardinality.MANY,
+            collector=GlobCollector(
+                pattern=other_label,
+                minimum=0,
+                maximum=5,
+                container=ArtifactContainer.DIRECTORY,
+            ),
+        )
+    stdout_spec = output_spec(
+        StdoutCollector(relative_path=stdout_path, maximum_bytes=64),
+        port_id="stdout",
+    )
+    root_calls: list[str] = []
+
+    def unexpected_root_open(*_args: object, **_kwargs: object) -> int:
+        root_calls.append("called")
+        raise AssertionError("root opened before stdout overlap preflight")
+
+    monkeypatch.setattr(output_contract, "_open_root", unexpected_root_open)
+
+    with pytest.raises(OutputCollectionError) as caught:
+        collect_outputs(
+            (stdout_spec, other),
+            tmp_path,
+            stdout="value",
+            stdout_truncated=False,
+        )
+
+    message = str(caught.value)
+    assert "stdout" in message
+    assert stdout_path in message
+    assert other_port in message
+    assert other_label in message
+    assert str(tmp_path) not in message
+    assert root_calls == []
+
+
+def test_active_conditional_stdout_and_exact_conflict_before_root_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs = (
+        output_spec(
+            ConditionalCollector(
+                condition_key="emit_stdout",
+                expected_value=True,
+                collector=StdoutCollector(
+                    relative_path="result.txt",
+                    maximum_bytes=64,
+                ),
+            ),
+            port_id="stdout",
+            cardinality=Cardinality.OPTIONAL_ONE,
+        ),
+        output_spec(
+            ConditionalCollector(
+                condition_key="emit_exact",
+                expected_value=True,
+                collector=ExactCollector(relative_path="result.txt"),
+            ),
+            port_id="exact",
+            cardinality=Cardinality.OPTIONAL_ONE,
+        ),
+    )
+    root_calls: list[str] = []
+
+    def unexpected_root_open(*_args: object, **_kwargs: object) -> int:
+        root_calls.append("called")
+        raise AssertionError("root opened before stdout overlap preflight")
+
+    monkeypatch.setattr(output_contract, "_open_root", unexpected_root_open)
+
+    with pytest.raises(OutputCollectionError, match=r"stdout.*result\.txt.*exact"):
+        collect_outputs(
+            specs,
+            tmp_path,
+            stdout="value",
+            stdout_truncated=False,
+            conditions={"emit_stdout": True, "emit_exact": True},
+        )
+
+    assert root_calls == []
+
+
+def test_inactive_conditional_exact_does_not_conflict_with_stdout(tmp_path: Path) -> None:
+    specs = (
+        output_spec(
+            StdoutCollector(relative_path="result.txt", maximum_bytes=64),
+            port_id="stdout",
+        ),
+        output_spec(
+            ConditionalCollector(
+                condition_key="emit_exact",
+                expected_value=True,
+                collector=ExactCollector(relative_path="result.txt"),
+            ),
+            port_id="exact",
+            cardinality=Cardinality.OPTIONAL_ONE,
+        ),
+    )
+
+    result = collect_outputs(
+        specs,
+        tmp_path,
+        stdout="value",
+        stdout_truncated=False,
+        conditions={"emit_exact": False},
+    )
+
+    assert isinstance(result["stdout"], CollectedArtifact)
+    assert result["exact"] is None
+    assert (tmp_path / "result.txt").read_text(encoding="utf-8") == "value"
+
+
 @pytest.mark.parametrize("staging_failure", ("missing", "failed"))
 def test_stdout_unsupported_anonymous_staging_fails_closed_without_leaks(
     tmp_path: Path,
@@ -1618,6 +1773,46 @@ def test_verified_open_detects_in_context_rewrite_on_exit(tmp_path: Path) -> Non
             path.write_bytes(b"other")
 
 
+def test_verified_open_normalizes_caller_closed_handle_without_leaks(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "result.txt").write_bytes(b"value")
+    artifact = collect_outputs(
+        (output_spec(ExactCollector(relative_path="result.txt")),),
+        tmp_path,
+        stdout=None,
+    )["output"]
+    assert isinstance(artifact, CollectedArtifact)
+    before = open_descriptor_count()
+
+    with pytest.raises(OutputIdentityError, match="changed"):
+        with artifact.open_verified(tmp_path) as opened:
+            opened.close()
+
+    assert opened.closed
+    assert open_descriptor_count() == before
+
+
+def test_verified_open_preserves_exception_after_caller_closes_handle(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "result.txt").write_bytes(b"value")
+    artifact = collect_outputs(
+        (output_spec(ExactCollector(relative_path="result.txt")),),
+        tmp_path,
+        stdout=None,
+    )["output"]
+    assert isinstance(artifact, CollectedArtifact)
+    before = open_descriptor_count()
+
+    with pytest.raises(RuntimeError, match="caller failed"):
+        with artifact.open_verified(tmp_path) as opened:
+            opened.close()
+            raise RuntimeError("caller failed")
+
+    assert open_descriptor_count() == before
+
+
 def test_verified_read_detects_rewrite_during_read(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1752,6 +1947,78 @@ def test_directory_iteration_stops_at_entry_cap_plus_one(
         collect_outputs((spec,), tmp_path, stdout=None)
 
     assert len(observed) == 3
+
+
+def test_directory_scan_detects_top_level_mutation_without_descriptor_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "original.txt").write_text("value", encoding="utf-8")
+    tree_inode = tree.lstat().st_ino
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    real_directory_names = output_contract._directory_names
+    mutated = False
+
+    def mutate_after_names(directory_fd: int, **kwargs: object) -> tuple[str, ...]:
+        nonlocal mutated
+        names = real_directory_names(directory_fd, **kwargs)
+        if not mutated and os.fstat(directory_fd).st_ino == tree_inode:
+            mutated = True
+            (tree / "added.txt").write_text("added", encoding="utf-8")
+        return names
+
+    monkeypatch.setattr(output_contract, "_directory_names", mutate_after_names)
+    before = open_descriptor_count()
+
+    with pytest.raises(OutputCollectionError, match=r"directory.*tree.*changed"):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+    assert mutated
+    assert open_descriptor_count() == before
+
+
+def test_directory_scan_detects_nested_mutation_without_descriptor_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    nested = tree / "nested"
+    nested.mkdir(parents=True)
+    original = nested / "original.txt"
+    original.write_text("value", encoding="utf-8")
+    nested_inode = nested.lstat().st_ino
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    real_directory_names = output_contract._directory_names
+    mutated = False
+
+    def mutate_after_names(directory_fd: int, **kwargs: object) -> tuple[str, ...]:
+        nonlocal mutated
+        names = real_directory_names(directory_fd, **kwargs)
+        if not mutated and os.fstat(directory_fd).st_ino == nested_inode:
+            mutated = True
+            temporary = nested / "temporary.txt"
+            original.rename(temporary)
+            temporary.rename(original)
+        return names
+
+    monkeypatch.setattr(output_contract, "_directory_names", mutate_after_names)
+    before = open_descriptor_count()
+
+    with pytest.raises(OutputCollectionError, match=r"directory.*tree/nested.*changed"):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+    assert mutated
+    assert open_descriptor_count() == before
 
 
 @pytest.mark.parametrize("unsafe_kind", ("symlink", "fifo"))

@@ -325,7 +325,7 @@ class CollectedArtifact(_StrictFrozenModel):
             yield opened
             try:
                 final_identity = _identity_from_stat(os.fstat(opened.fileno()))
-            except OSError as error:
+            except (OSError, ValueError) as error:
                 raise OutputIdentityError(f"output path '{self.relative_path}' changed") from error
             if final_identity != self.identity:
                 raise OutputIdentityError(f"output path '{self.relative_path}' changed")
@@ -632,6 +632,10 @@ def _scan_directory_tree(
     collected: list[CollectedTreeEntry] = []
 
     def visit(current_fd: int, prefix: str, depth: int) -> None:
+        try:
+            identity_before = _identity_from_stat(os.fstat(current_fd))
+        except OSError as error:
+            raise _path_error(port_id, prefix, "directory changed before collection") from error
         remaining = maximum_entries - len(collected)
         names = _directory_names(
             current_fd,
@@ -682,6 +686,12 @@ def _scan_directory_tree(
                     visit(child_fd, child_path, depth + 1)
             finally:
                 os.close(child_fd)
+        try:
+            identity_after = _identity_from_stat(os.fstat(current_fd))
+        except OSError as error:
+            raise _path_error(port_id, prefix, "directory changed during collection") from error
+        if identity_after != identity_before:
+            raise _path_error(port_id, prefix, "directory changed during collection")
 
     visit(directory_fd, relative_path, 0)
     return tuple(sorted(collected, key=lambda entry: entry.relative_path))
@@ -1126,6 +1136,38 @@ def _collector_relative_path(collector: OutputCollector) -> str:
     return _collector_label(collector)
 
 
+def _path_matches_glob_pattern(relative_path: str, pattern: str) -> bool:
+    path_components = relative_path.split("/")
+    pattern_components = pattern.split("/")
+    return len(path_components) == len(pattern_components) and all(
+        fnmatch.fnmatchcase(path_component, pattern_component)
+        for path_component, pattern_component in zip(
+            path_components,
+            pattern_components,
+            strict=True,
+        )
+    )
+
+
+def _stdout_overlaps_collector(
+    stdout: StdoutCollector,
+    collector: NonConditionalOutputCollector,
+) -> bool:
+    if isinstance(collector, ExactCollector):
+        return stdout.relative_path == collector.relative_path
+    if isinstance(collector, DirectoryCollector):
+        return stdout.relative_path.startswith(f"{collector.relative_path}/")
+    if isinstance(collector, GlobCollector):
+        if collector.container is ArtifactContainer.FILE:
+            return _path_matches_glob_pattern(stdout.relative_path, collector.pattern)
+        components = stdout.relative_path.split("/")
+        return any(
+            _path_matches_glob_pattern("/".join(components[:index]), collector.pattern)
+            for index in range(1, len(components))
+        )
+    return False
+
+
 def _collect_concrete(
     root_fd: int,
     collector: NonConditionalOutputCollector,
@@ -1220,6 +1262,18 @@ def _prepare_stdout(
             f"port '{spec.port_id}' path '{collector.relative_path}'" for spec, collector in stdout_specs
         )
         raise OutputCollectionError(f"multiple active stdout collectors conflict: {conflicts}")
+    for stdout_spec, stdout_collector in stdout_specs:
+        for other_spec, other_collector in zip(specs, active, strict=True):
+            if other_spec.port_id == stdout_spec.port_id or other_collector is None:
+                continue
+            if _stdout_overlaps_collector(stdout_collector, other_collector):
+                label_kind = "pattern" if isinstance(other_collector, GlobCollector) else "path"
+                raise OutputCollectionError(
+                    f"stdout output port '{stdout_spec.port_id}' path "
+                    f"'{stdout_collector.relative_path}' overlaps output port "
+                    f"'{other_spec.port_id}' {label_kind} "
+                    f"'{_collector_label(other_collector)}'"
+                )
     first_spec = stdout_specs[0][0]
     if stdout_truncated is True:
         raise _path_error(
