@@ -601,8 +601,18 @@ def test_active_required_stdout_without_payload_is_missing(
         )
 
 
-def test_active_stdout_rejects_truncated_capture_without_payload(tmp_path: Path) -> None:
-    spec = output_spec(StdoutCollector(relative_path="stdout.txt", maximum_bytes=64))
+@pytest.mark.parametrize(
+    "cardinality",
+    (Cardinality.ONE, Cardinality.OPTIONAL_ONE),
+)
+def test_active_stdout_rejects_truncated_capture_without_payload(
+    tmp_path: Path,
+    cardinality: Cardinality,
+) -> None:
+    spec = output_spec(
+        StdoutCollector(relative_path="stdout.txt", maximum_bytes=64),
+        cardinality=cardinality,
+    )
 
     with pytest.raises(OutputCollectionError, match=r"output.*truncated"):
         collect_outputs(
