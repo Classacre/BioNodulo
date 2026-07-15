@@ -626,16 +626,24 @@ def _scan_directory_tree(
     directory_fd: int,
     relative_path: str,
     *,
+    expected_identity: ObjectIdentity,
     maximum_entries: int,
     port_id: str,
 ) -> tuple[CollectedTreeEntry, ...]:
     collected: list[CollectedTreeEntry] = []
 
-    def visit(current_fd: int, prefix: str, depth: int) -> None:
+    def visit(
+        current_fd: int,
+        prefix: str,
+        depth: int,
+        expected_identity: ObjectIdentity,
+    ) -> None:
         try:
             identity_before = _identity_from_stat(os.fstat(current_fd))
         except OSError as error:
             raise _path_error(port_id, prefix, "directory changed before collection") from error
+        if identity_before != expected_identity:
+            raise _path_error(port_id, prefix, "directory changed before collection")
         remaining = maximum_entries - len(collected)
         names = _directory_names(
             current_fd,
@@ -683,7 +691,12 @@ def _scan_directory_tree(
                 if container is ArtifactContainer.DIRECTORY:
                     if depth >= _MAX_DIRECTORY_DEPTH:
                         raise _path_error(port_id, child_path, "directory tree exceeds safe depth")
-                    visit(child_fd, child_path, depth + 1)
+                    visit(
+                        child_fd,
+                        child_path,
+                        depth + 1,
+                        _identity_from_stat(child_stat),
+                    )
             finally:
                 os.close(child_fd)
         try:
@@ -693,7 +706,7 @@ def _scan_directory_tree(
         if identity_after != identity_before:
             raise _path_error(port_id, prefix, "directory changed during collection")
 
-    visit(directory_fd, relative_path, 0)
+    visit(directory_fd, relative_path, 0, expected_identity)
     return tuple(sorted(collected, key=lambda entry: entry.relative_path))
 
 
@@ -742,6 +755,7 @@ def _open_existing_artifact(
             entries = _scan_directory_tree(
                 artifact_fd,
                 relative_path,
+                expected_identity=_identity_from_stat(artifact_stat),
                 maximum_entries=directory_limit,
                 port_id=port_id,
             )
@@ -1156,14 +1170,16 @@ def _stdout_overlaps_collector(
     if isinstance(collector, ExactCollector):
         return stdout.relative_path == collector.relative_path
     if isinstance(collector, DirectoryCollector):
-        return stdout.relative_path.startswith(f"{collector.relative_path}/")
+        return stdout.relative_path == collector.relative_path or stdout.relative_path.startswith(
+            f"{collector.relative_path}/"
+        )
     if isinstance(collector, GlobCollector):
         if collector.container is ArtifactContainer.FILE:
             return _path_matches_glob_pattern(stdout.relative_path, collector.pattern)
         components = stdout.relative_path.split("/")
         return any(
             _path_matches_glob_pattern("/".join(components[:index]), collector.pattern)
-            for index in range(1, len(components))
+            for index in range(1, len(components) + 1)
         )
     return False
 

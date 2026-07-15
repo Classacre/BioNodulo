@@ -844,7 +844,10 @@ def test_inactive_conditional_stdout_does_not_count_as_a_conflict(tmp_path: Path
         ("exact", "result.txt", "optional_exact", "result.txt"),
         ("file_glob", "results/value.txt", "file_glob", "results/*.txt"),
         ("directory", "reports/value.txt", "directory", "reports"),
+        ("directory_equal_optional", "reports", "directory_optional", "reports"),
+        ("directory_equal_many", "reports", "directory_many", "reports"),
         ("directory_glob", "runs/sample/value.txt", "directory_glob", "runs/*"),
+        ("directory_glob", "runs/sample", "directory_glob_equal", "runs/*"),
     ),
 )
 def test_stdout_overlap_rejected_before_root_io(
@@ -869,10 +872,21 @@ def test_stdout_overlap_rejected_before_root_io(
             cardinality=Cardinality.MANY,
             collector=GlobCollector(pattern=other_label, minimum=0, maximum=5),
         )
-    elif overlap_kind == "directory":
+    elif overlap_kind in (
+        "directory",
+        "directory_equal_optional",
+        "directory_equal_many",
+    ):
+        if overlap_kind == "directory_equal_optional":
+            cardinality = Cardinality.OPTIONAL_ONE
+        elif overlap_kind == "directory_equal_many":
+            cardinality = Cardinality.MANY
+        else:
+            cardinality = Cardinality.ONE
         other = OutputSpec(
             port_id=other_port,
             artifact_type="artifact.directory",
+            cardinality=cardinality,
             collector=DirectoryCollector(relative_path=other_label),
         )
     else:
@@ -1947,6 +1961,101 @@ def test_directory_iteration_stops_at_entry_cap_plus_one(
         collect_outputs((spec,), tmp_path, stdout=None)
 
     assert len(observed) == 3
+
+
+def test_directory_scan_detects_top_level_mutation_after_open_without_descriptor_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "original.txt").write_text("value", encoding="utf-8")
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    real_open_child = output_contract._open_child
+    mutated = False
+
+    def mutate_after_open(
+        parent_fd: int,
+        name: str,
+        *,
+        port_id: str,
+        relative_path: str,
+    ) -> tuple[int, os.stat_result] | None:
+        nonlocal mutated
+        opened = real_open_child(
+            parent_fd,
+            name,
+            port_id=port_id,
+            relative_path=relative_path,
+        )
+        if opened is not None and not mutated and relative_path == "tree":
+            mutated = True
+            (tree / "added.txt").write_text("added", encoding="utf-8")
+        return opened
+
+    monkeypatch.setattr(output_contract, "_open_child", mutate_after_open)
+    before = open_descriptor_count()
+
+    with pytest.raises(
+        OutputCollectionError,
+        match=r"output port 'directory' path 'tree': directory changed before collection",
+    ):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+    assert mutated
+    assert open_descriptor_count() == before
+
+
+def test_directory_scan_detects_nested_mutation_after_open_without_descriptor_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    nested = tree / "nested"
+    nested.mkdir(parents=True)
+    (nested / "original.txt").write_text("value", encoding="utf-8")
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    real_open_child = output_contract._open_child
+    mutated = False
+
+    def mutate_after_open(
+        parent_fd: int,
+        name: str,
+        *,
+        port_id: str,
+        relative_path: str,
+    ) -> tuple[int, os.stat_result] | None:
+        nonlocal mutated
+        opened = real_open_child(
+            parent_fd,
+            name,
+            port_id=port_id,
+            relative_path=relative_path,
+        )
+        if opened is not None and not mutated and relative_path == "tree/nested":
+            mutated = True
+            (nested / "added.txt").write_text("added", encoding="utf-8")
+        return opened
+
+    monkeypatch.setattr(output_contract, "_open_child", mutate_after_open)
+    before = open_descriptor_count()
+
+    with pytest.raises(
+        OutputCollectionError,
+        match=r"output port 'directory' path 'tree/nested': directory changed before collection",
+    ):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+    assert mutated
+    assert open_descriptor_count() == before
 
 
 def test_directory_scan_detects_top_level_mutation_without_descriptor_leak(
