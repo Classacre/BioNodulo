@@ -766,9 +766,26 @@ def test_negative_zero_python_scalars_are_canonical_in_models_dumps_and_digests(
     assert math.copysign(1.0, negative_plan.keywords[0].value) == 1.0
 
 
+@pytest.mark.parametrize("value", (True, False))
+def test_python_bool_scalars_roundtrip_copy_and_digest(value: bool) -> None:
+    plan = python_plan(
+        arguments=(value,),
+        keywords=(execution.PythonKeyword(name="enabled", value=value),),
+    )
+    rebuilt = execution.PythonPlan.model_validate_json(plan.model_dump_json())
+    copied = plan.model_copy()
+
+    assert rebuilt == plan
+    assert copied == plan
+    assert type(rebuilt.arguments[0]) is bool
+    assert type(rebuilt.keywords[0].value) is bool
+    assert rebuilt.plan_digest() == plan.plan_digest()
+    assert copied.plan_digest() == plan.plan_digest()
+
+
 @pytest.mark.parametrize("placement", ("argument", "keyword"))
-def test_python_signed_int64_rejects_bool_and_out_of_range_values(placement: str) -> None:
-    for value in (True, -(2**63) - 1, 2**63):
+def test_python_signed_int64_rejects_out_of_range_values(placement: str) -> None:
+    for value in (-(2**63) - 1, 2**63):
         with pytest.raises(ValidationError):
             if placement == "argument":
                 python_plan(arguments=(value,))
@@ -777,11 +794,11 @@ def test_python_signed_int64_rejects_bool_and_out_of_range_values(placement: str
 
 
 @pytest.mark.parametrize("placement", ("argument", "keyword"))
-def test_python_signed_int64_copies_revalidate_bool_and_bounds(placement: str) -> None:
+def test_python_signed_int64_copies_revalidate_bounds(placement: str) -> None:
     plan = python_plan(arguments=(0,))
     keyword = execution.PythonKeyword(name="value", value=0)
 
-    for value in (True, -(2**63) - 1, 2**63):
+    for value in (-(2**63) - 1, 2**63):
         with pytest.raises(ValidationError):
             if placement == "argument":
                 plan.model_copy(update={"arguments": (value,)})
@@ -790,13 +807,13 @@ def test_python_signed_int64_copies_revalidate_bool_and_bounds(placement: str) -
 
 
 @pytest.mark.parametrize("placement", ("argument", "keyword"))
-def test_python_signed_int64_json_revalidates_bool_and_bounds(placement: str) -> None:
+def test_python_signed_int64_json_revalidates_bounds(placement: str) -> None:
     plan = python_plan(
         arguments=(0,),
         keywords=(execution.PythonKeyword(name="value", value=0),),
     )
 
-    for value in (True, -(2**63) - 1, 2**63):
+    for value in (-(2**63) - 1, 2**63):
         payload = plan.model_dump(mode="json")
         if placement == "argument":
             payload["arguments"] = [value]
@@ -1029,25 +1046,42 @@ def test_nonsecret_key_substrings_remain_http_query_keys(name: str) -> None:
     assert plan.url.endswith(f"?{name}=public")
 
 
-@pytest.mark.parametrize("name", ("SIG", "SIGS", "SIGNATURE", "SIGNATURES"))
-def test_signature_secret_environment_names_require_references(name: str) -> None:
-    with pytest.raises(ValidationError, match="secret reference"):
-        execution.LiteralEnvironmentVariable(name=name, value="literal-secret")
-
-    assert execution.SecretEnvironmentVariable(name=name, secret_id="service-secret").name == name
-
-
-@pytest.mark.parametrize("name", ("x-amz-signature", "x-goog-signature"))
-def test_signature_secret_http_headers_require_references(name: str) -> None:
-    with pytest.raises(ValidationError, match="secret reference"):
-        execution.LiteralHttpHeader(name=name, value="literal-secret")
-
-    assert execution.SecretHttpHeader(name=name, secret_id="service-secret").name == name
-
-
-def test_signature_secret_http_query_keys_are_rejected() -> None:
+@pytest.mark.parametrize(
+    "name",
+    (
+        "sig",
+        "signature",
+        "service_signature",
+        "x-amz-signature",
+        "x-goog-signature",
+        "serviceSignature",
+        "xAmzSignature",
+        "accessToken",
+        "clientSecret",
+    ),
+)
+def test_signature_and_camel_case_query_credentials_are_rejected(name: str) -> None:
     with pytest.raises(ValidationError, match="secret-bearing"):
-        http_plan(url="https://api.example.org/v1/jobs?service_signature=literal-secret")
+        http_plan(url=f"https://api.example.org/v1/jobs?{name}=literal-secret")
+
+
+def test_signature_algorithm_environment_metadata_remains_literal() -> None:
+    binding = execution.LiteralEnvironmentVariable(name="SIGNATURE_ALGORITHM", value="ed25519")
+
+    assert binding.value == "ed25519"
+
+
+def test_signature_input_header_metadata_remains_literal() -> None:
+    header = execution.LiteralHttpHeader(name="signature-input", value='sig1=("@method")')
+
+    assert header.value == 'sig1=("@method")'
+
+
+@pytest.mark.parametrize("name", ("signature_algorithm", "signature_input"))
+def test_signature_query_metadata_controls_remain_literal(name: str) -> None:
+    plan = http_plan(url=f"https://api.example.org/v1/jobs?{name}=public")
+
+    assert plan.url.endswith(f"?{name}=public")
 
 
 def test_design_names_remain_nonsecret_in_literal_contexts() -> None:

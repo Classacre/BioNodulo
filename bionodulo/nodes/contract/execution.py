@@ -45,10 +45,6 @@ _SECRET_NAME_TOKENS = frozenset(
         "passwords",
         "secret",
         "secrets",
-        "sig",
-        "sigs",
-        "signature",
-        "signatures",
         "token",
         "tokens",
     }
@@ -110,13 +106,40 @@ _SECRET_QUERY_KEYS = frozenset(
         "tokens",
     }
 )
+_QUERY_SIGNATURE_TOKENS = frozenset({"sig", "sigs", "signature", "signatures"})
+_SAFE_SIGNATURE_QUERY_KEYS = frozenset(
+    {
+        "sig_algorithm",
+        "sig_input",
+        "signature_algorithm",
+        "signature_input",
+    }
+)
+
+
+def _name_tokens(value: str) -> tuple[str, ...]:
+    separated = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", value)
+    separated = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", separated)
+    return tuple(token for token in re.split(r"[^a-z0-9]+", separated.lower()) if token)
 
 
 def _name_looks_secret(value: str) -> bool:
-    tokens = tuple(token for token in re.split(r"[^a-z0-9]+", value.lower()) if token)
+    tokens = _name_tokens(value)
     if any(token in _SECRET_NAME_TOKENS for token in tokens):
         return True
     return any(pair in _SECRET_NAME_PAIRS for pair in zip(tokens, tokens[1:]))
+
+
+def _query_key_looks_secret(value: str) -> bool:
+    normalized = value.lower().replace("-", "_")
+    if normalized in _SAFE_SIGNATURE_QUERY_KEYS:
+        return False
+    tokens = _name_tokens(value)
+    return (
+        normalized in _SECRET_QUERY_KEYS
+        or any(token in _QUERY_SIGNATURE_TOKENS for token in tokens)
+        or _name_looks_secret(value)
+    )
 
 
 def _canonical_digest(value: _StrictFrozenModel) -> str:
@@ -492,8 +515,6 @@ _PYTHON_INTEGER_MAX = 2**63 - 1
 
 
 def _validate_python_scalar_input(value: object) -> object:
-    if type(value) is bool:
-        raise ValueError("Python scalar bool values are not supported")
     if type(value) is int and not _PYTHON_INTEGER_MIN <= value <= _PYTHON_INTEGER_MAX:
         raise ValueError("Python scalar integers must fit signed 64-bit range")
     return value
@@ -505,7 +526,8 @@ PythonIntegerScalar: TypeAlias = Annotated[
 ]
 ScalarValue: TypeAlias = Annotated[
     (
-        PythonIntegerScalar
+        Annotated[bool, Field(strict=True)]
+        | PythonIntegerScalar
         | Annotated[float, Field(strict=True, allow_inf_nan=False)]
         | Annotated[str, StringConstraints(max_length=4096)]
         | None
@@ -744,8 +766,7 @@ def _validate_http_url(value: str) -> str:
     if tuple(query_pairs) != tuple(sorted(query_pairs)):
         raise ValueError("HTTP query pairs must be canonically ordered")
     for key, item in query_pairs:
-        normalized_key = key.lower().replace("-", "_")
-        if normalized_key in _SECRET_QUERY_KEYS or _name_looks_secret(normalized_key):
+        if _query_key_looks_secret(key):
             raise ValueError("HTTP query must not contain secret-bearing keys")
         if any(ord(character) < 32 or ord(character) == 127 for character in key + item):
             raise ValueError("HTTP query must not contain control characters")
