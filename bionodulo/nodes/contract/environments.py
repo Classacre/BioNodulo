@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import re
 from enum import StrEnum
@@ -30,7 +31,7 @@ _HOST_RE = re.compile(
 )
 _MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 _R_PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9.]{0,127}$")
-_PACKAGE_REQUEST_RE = re.compile(r"^(?P<name>[a-z0-9][a-z0-9._-]{0,127})(?P<constraint>==|>=).+$")
+_PACKAGE_REQUEST_RE = re.compile(r"^(?P<name>[a-z0-9][a-z0-9._-]{0,127})(?P<constraint>==|>=|>).+$")
 _OCI_REFERENCE_RE = re.compile(
     r"^(?P<registry>[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::[0-9]{1,5})?)/"
     r"(?P<path>[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*)"
@@ -50,7 +51,14 @@ def _canonical_digest(value: _StrictFrozenModel) -> str:
 
 
 def _numeric_version(value: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in value.split("."))
+    components = tuple(int(part) for part in value.split("."))
+    while len(components) > 1 and components[-1] == 0:
+        components = components[:-1]
+    return components
+
+
+def _format_numeric_version(value: tuple[int, ...]) -> str:
+    return ".".join(str(component) for component in value)
 
 
 def _version_satisfies(version: str, constraint: str) -> bool:
@@ -83,7 +91,10 @@ def _validate_constraint(value: str) -> str:
     width = max(len(lower), len(upper))
     if lower + (0,) * (width - len(lower)) >= upper + (0,) * (width - len(upper)):
         raise ValueError("constraint range must have a lower bound below its upper bound")
-    return value
+    return (
+        f"{match.group('lower_op')}{_format_numeric_version(lower)},"
+        f"{match.group('upper_op')}{_format_numeric_version(upper)}"
+    )
 
 
 CanonicalPackageName = Annotated[str, StringConstraints(min_length=1, max_length=128)]
@@ -109,6 +120,10 @@ def _validate_https_url(value: str, *, require_path: bool) -> str:
         raise ValueError("URL must use canonical ASCII spelling") from error
     if "%" in value or "\\" in value or any(ord(character) <= 32 or ord(character) == 127 for character in value):
         raise ValueError("URL must use canonical ASCII spelling without escapes")
+    if not value.startswith("https://"):
+        raise ValueError("URL must start with literal lowercase https://")
+    if "?" in value or "#" in value:
+        raise ValueError("URL must not contain query or fragment delimiters")
     try:
         parsed = urlsplit(value)
         port = parsed.port
@@ -118,8 +133,6 @@ def _validate_https_url(value: str, *, require_path: bool) -> str:
         raise ValueError("URL must use HTTPS with an explicit hostname")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("URL must not contain user information")
-    if parsed.query or parsed.fragment:
-        raise ValueError("URL must not contain a query or fragment")
     raw_host = parsed.netloc.rsplit(":", 1)[0] if port is not None else parsed.netloc
     if raw_host != parsed.hostname or _HOST_RE.fullmatch(raw_host) is None:
         raise ValueError("URL hostname must be canonical lowercase DNS")
@@ -127,14 +140,25 @@ def _validate_https_url(value: str, *, require_path: bool) -> str:
         raise ValueError("URL port must be between 1 and 65535")
     if port == 443:
         raise ValueError("URL must omit the default HTTPS port")
-    if require_path and (not parsed.path or parsed.path == "/"):
+    canonical_netloc = parsed.hostname
+    if port is not None:
+        raw_port = parsed.netloc.rsplit(":", 1)[1]
+        if raw_port != str(port):
+            raise ValueError("URL port must use canonical decimal spelling")
+        canonical_netloc = f"{canonical_netloc}:{port}"
+    if parsed.netloc != canonical_netloc:
+        raise ValueError("URL netloc must use canonical spelling")
+    if not parsed.path:
+        raise ValueError("URL must declare an explicit canonical path; use / for root")
+    if require_path and parsed.path == "/":
         raise ValueError("URL must have an immutable resource path")
-    decoded_path = unquote(parsed.path)
-    segments = decoded_path.split("/")
+    segments = parsed.path.split("/")
     if "" in segments[1:-1] or any(segment in (".", "..") for segment in segments):
         raise ValueError("URL path must be canonical and traversal-free")
-    if any(ord(character) < 32 or ord(character) == 127 for character in decoded_path):
+    if any(ord(character) < 32 or ord(character) == 127 for character in parsed.path):
         raise ValueError("URL path must not contain control characters")
+    if value != f"https://{canonical_netloc}{parsed.path}":
+        raise ValueError("URL must use its single canonical raw spelling")
     return value
 
 
@@ -157,12 +181,20 @@ def _validate_oci_reference(value: str) -> str:
         raise ValueError("image must be an explicit registry reference with @sha256 digest")
     registry = match.group("registry")
     registry_host = registry.rsplit(":", 1)[0] if ":" in registry else registry
-    if "." not in registry_host and ":" not in registry and registry_host != "localhost":
-        raise ValueError("image registry must be explicit; default-registry inference is forbidden")
+    if registry_host != "localhost":
+        try:
+            address = ipaddress.ip_address(registry_host)
+        except ValueError:
+            if _HOST_RE.fullmatch(registry_host) is None:
+                raise ValueError("image registry must be explicit canonical DNS, localhost, or IPv4")
+        else:
+            if not isinstance(address, ipaddress.IPv4Address) or str(address) != registry_host:
+                raise ValueError("image registry IPv4 address must use canonical dotted-decimal spelling")
     if ":" in registry:
-        port = int(registry.rsplit(":", 1)[1])
-        if not 1 <= port <= 65535:
-            raise ValueError("registry port must be between 1 and 65535")
+        raw_port = registry.rsplit(":", 1)[1]
+        port = int(raw_port)
+        if not 1 <= port <= 65535 or raw_port != str(port):
+            raise ValueError("registry port must use canonical decimal spelling between 1 and 65535")
     return value
 
 

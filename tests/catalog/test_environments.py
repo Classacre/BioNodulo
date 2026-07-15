@@ -22,6 +22,44 @@ def test_package_requirement_accepts_only_small_explicit_constraint_language() -
     assert hash(exact)
 
 
+def test_bounded_constraints_normalize_numeric_aliases_before_digesting() -> None:
+    aliases = (
+        ">=01,<02",
+        ">=1,<2",
+        ">=1.0,<2.0",
+        ">=1.0.0,<2.0.0",
+        ">=0001.000,<0002.000",
+    )
+    requirements = tuple(env.PackageRequirement(name="numpy", constraint=value) for value in aliases)
+    environments = tuple(python_environment(packages=(f"numpy{value}",), locks=()) for value in aliases)
+
+    assert {requirement.constraint for requirement in requirements} == {">=1,<2"}
+    assert len({hash(requirement) for requirement in requirements}) == 1
+    assert len({environment.environment_digest() for environment in environments}) == 1
+
+
+def test_exact_pins_preserve_upstream_version_spelling() -> None:
+    requirement = env.PackageRequirement(name="tool", constraint="==01.0")
+
+    assert requirement.constraint == "==01.0"
+
+
+def test_package_string_parser_accepts_exclusive_lower_bound() -> None:
+    environment = python_environment(packages=("numpy>1,<2",), locks=())
+
+    assert environment.packages[0].constraint == ">1,<2"
+
+
+def test_normalized_range_uses_the_same_lock_comparator_representation() -> None:
+    environment = pixi_environment(
+        packages=("samtools>=01.0,<02.0",),
+        locks=(platform_lock(),),
+    )
+
+    assert environment.packages[0].constraint == ">=1,<2"
+    assert environment.is_fully_locked is False
+
+
 @pytest.mark.parametrize(
     "constraint",
     (
@@ -73,6 +111,14 @@ def test_environment_platform_wire_values_are_unambiguous() -> None:
         "example.org/tools/samtools@sha256:abc",
         "ubuntu@" + SHA_A,
         "library/ubuntu@" + SHA_A,
+        "registry..example.org/team/tool@" + SHA_A,
+        "registry.-example.org/team/tool@" + SHA_A,
+        "registry.example-.org/team/tool@" + SHA_A,
+        "Registry.example.org/team/tool@" + SHA_A,
+        "registry.example.org:05000/team/tool@" + SHA_A,
+        "registry.example.org:0/team/tool@" + SHA_A,
+        "registry.example.org:65536/team/tool@" + SHA_A,
+        "127.000.0.1:5000/team/tool@" + SHA_A,
         "https://example.org/tools/samtools@" + SHA_A,
         "example.org/tools/../samtools@" + SHA_A,
         "example.org/tools/samtools@" + SHA_A + "?x=1",
@@ -96,6 +142,43 @@ def test_oci_reference_accepts_registry_ports_and_lowercase_digest() -> None:
 
     assert lock.image.endswith(SHA_A)
     assert re.fullmatch(r"sha256:[0-9a-f]{64}", lock.lock_digest())
+
+
+@pytest.mark.parametrize(
+    "image",
+    (
+        "localhost/team/tool@" + SHA_A,
+        "localhost:5000/team/tool@" + SHA_A,
+        "127.0.0.1:5000/team/tool@" + SHA_A,
+    ),
+)
+def test_oci_reference_accepts_explicit_canonical_local_and_ipv4_registries(
+    image: str,
+) -> None:
+    lock = env.ContainerImageLock(
+        platform=env.ExecutionPlatform.LINUX_AMD64,
+        resolver_platform="linux-64",
+        image=image,
+    )
+
+    assert lock.image == image
+
+
+def test_container_environment_roundtrips_canonical_ipv4_repository() -> None:
+    image = "127.0.0.1:5000/team/tool@" + SHA_A
+    platform_image = "127.0.0.1:5000/team/tool@" + SHA_B
+    environment = container_environment(
+        image=image,
+        image_locks=(
+            env.ContainerImageLock(
+                platform=env.ExecutionPlatform.LINUX_AMD64,
+                resolver_platform="linux-64",
+                image=platform_image,
+            ),
+        ),
+    )
+
+    assert env.ContainerEnvironment.model_validate_json(environment.model_dump_json()) == environment
 
 
 def resolver() -> env.ResolverIdentity:
@@ -159,11 +242,16 @@ def test_platform_lock_contains_exact_resolver_and_artifact_identity() -> None:
     "url",
     (
         "http://packages.example.org/linux-64/samtools-1.20-h0.conda",
+        "HTTPS://packages.example.org/linux-64/samtools-1.20-h0.conda",
+        "Https://packages.example.org/linux-64/samtools-1.20-h0.conda",
         "https://user:secret@packages.example.org/linux-64/samtools-1.20-h0.conda",
         "https://packages.example.org/linux-64/samtools-1.20-h0.conda?token=secret",
+        "https://packages.example.org/linux-64/samtools-1.20-h0.conda?",
         "https://packages.example.org/linux-64/samtools-1.20-h0.conda#fragment",
+        "https://packages.example.org/linux-64/samtools-1.20-h0.conda#",
         "https://PACKAGES.example.org/linux-64/samtools-1.20-h0.conda",
         "https://packages.example.org:443/linux-64/samtools-1.20-h0.conda",
+        "https://packages.example.org:08443/linux-64/samtools-1.20-h0.conda",
         "https://packages.example.org/linux-64/%73amtools-1.20-h0.conda",
         "https://packages.example.org/linux-64/latest.conda",
         "https://packages.example.org/linux-64/../samtools-1.20-h0.conda",
@@ -477,18 +565,62 @@ def test_environment_variants_reject_ambiguous_or_duplicate_declarations(
     "url",
     (
         "http://pypi.org/simple",
+        "HTTPS://pypi.org/simple",
+        "Https://pypi.org/simple",
         "https://user:secret@pypi.org/simple",
         "https://pypi.org/simple?token=secret",
+        "https://pypi.org/simple?",
         "https://pypi.org/simple#fragment",
+        "https://pypi.org/simple#",
         "https://PYPI.org/simple",
         "https://pypi.org:443/simple",
+        "https://pypi.org:08443/simple",
         "https://pypi.org/%73imple",
         "https://pypi.org/simple path",
+        "https://pypi.org",
+        "https://pypi.org//simple",
     ),
 )
 def test_package_repository_urls_are_https_and_credential_free(url: str) -> None:
     with pytest.raises(ValidationError):
         python_environment(indexes=(url,))
+
+
+@pytest.mark.parametrize(
+    ("factory", "field"),
+    (
+        (pixi_environment, "channels"),
+        (python_environment, "indexes"),
+        (r_environment, "repositories"),
+    ),
+)
+def test_package_environment_variants_share_canonical_url_rules(
+    factory: object,
+    field: str,
+) -> None:
+    canonical = factory(**{field: ("https://repo.example.org:8443/",)})
+
+    assert (
+        canonical.environment_digest()
+        == type(canonical).model_validate_json(canonical.model_dump_json()).environment_digest()
+    )
+    for alias in (
+        "HTTPS://repo.example.org:8443/",
+        "https://repo.example.org:08443/",
+        "https://repo.example.org:8443",
+        "https://repo.example.org:8443/?",
+        "https://repo.example.org:8443/#",
+    ):
+        with pytest.raises(ValidationError):
+            factory(**{field: (alias,)})
+
+
+def test_locked_artifact_accepts_canonical_nondefault_port_url() -> None:
+    locked = artifact().model_copy(
+        update={"url": "https://packages.example.org:8443/linux-64/samtools-1.20-h50ea8bc_0.conda"}
+    )
+
+    assert locked.url.startswith("https://packages.example.org:8443/")
 
 
 def test_locks_may_be_absent_or_partial_without_claiming_full_resolution() -> None:

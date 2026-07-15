@@ -8,7 +8,7 @@ import math
 import re
 from enum import StrEnum
 from typing import Annotated, Literal, Self, TypeAlias
-from urllib.parse import parse_qsl, unquote, urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import Field, StringConstraints, field_validator, model_validator
 
@@ -26,34 +26,93 @@ _CALLABLE_RE = re.compile(
     r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*:"
     r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
 )
+_TRUSTED_CALLABLE_PREFIX = "bionodulo.nodes.catalog."
 _KEYWORD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 _HEADER_NAME_RE = re.compile(r"^[a-z0-9!#$%&'*+.^_`|~-]{1,128}$")
 _MEDIA_TYPE_RE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$")
 _PROBE_ID_RE = re.compile(r"^[a-z][a-z0-9_.-]*$")
-_SENSITIVE_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization"})
+_SECRET_NAME_TOKENS = frozenset(
+    {
+        "auth",
+        "authorization",
+        "cookie",
+        "cookies",
+        "credential",
+        "credentials",
+        "key",
+        "keys",
+        "password",
+        "passwords",
+        "secret",
+        "secrets",
+        "token",
+        "tokens",
+    }
+)
+_SECRET_NAME_PAIRS = frozenset(
+    {
+        ("access", "key"),
+        ("api", "key"),
+        ("client", "secret"),
+        ("private", "key"),
+    }
+)
+_SENSITIVE_HEADERS = frozenset(
+    {
+        "access-key",
+        "api-key",
+        "auth",
+        "authorization",
+        "client-secret",
+        "cookie",
+        "cookies",
+        "credential",
+        "credentials",
+        "key",
+        "keys",
+        "password",
+        "passwords",
+        "private-key",
+        "proxy-authorization",
+        "secret",
+        "secrets",
+        "token",
+        "tokens",
+    }
+)
 _SECRET_QUERY_KEYS = frozenset(
     {
+        "access_key",
         "access_token",
         "api_key",
         "apikey",
         "auth",
         "authorization",
+        "client_secret",
+        "cookie",
+        "cookies",
+        "credential",
+        "credentials",
         "key",
+        "keys",
         "password",
+        "passwords",
+        "private_key",
         "secret",
+        "secrets",
         "sig",
         "signature",
         "token",
+        "tokens",
     }
 )
 
 
 def _name_looks_secret(value: str) -> bool:
     tokens = tuple(token for token in re.split(r"[^a-z0-9]+", value.lower()) if token)
-    if any(token in {"credential", "credentials", "password", "passwd", "secret", "token"} for token in tokens):
+    if any(token in _SECRET_NAME_TOKENS for token in tokens):
         return True
-    sensitive_pairs = {("access", "key"), ("api", "key"), ("client", "secret"), ("private", "key")}
-    return any(pair in sensitive_pairs for pair in zip(tokens, tokens[1:]))
+    return any(pair in _SECRET_NAME_PAIRS for pair in zip(tokens, tokens[1:]))
 
 
 def _canonical_digest(value: _StrictFrozenModel) -> str:
@@ -467,8 +526,14 @@ class PythonPlan(_ExecutionPlanBase):
     @field_validator("callable_ref")
     @classmethod
     def _validate_callable(cls, value: str) -> str:
-        if _CALLABLE_RE.fullmatch(value) is None or "<locals>" in value:
+        if _CALLABLE_RE.fullmatch(value) is None:
             raise ValueError("callable reference must be an absolute module:symbol name")
+        module, symbol = value.split(":", 1)
+        components = (*module.split("."), *symbol.split("."))
+        if not module.startswith(_TRUSTED_CALLABLE_PREFIX) or any(
+            component.startswith("__") or component.endswith("__") for component in components
+        ):
+            raise ValueError("callable reference must use a trusted packaged catalog module and non-dunder symbol")
         return value
 
     @field_validator("arguments")
@@ -611,6 +676,13 @@ def _validate_http_url(value: str) -> str:
         raise ValueError("HTTP URL must use canonical ASCII spelling") from error
     if "%" in value or "\\" in value or any(ord(character) <= 32 or ord(character) == 127 for character in value):
         raise ValueError("HTTP URL must use canonical ASCII spelling without escapes")
+    if not value.startswith("https://"):
+        raise ValueError("HTTP URL must start with literal lowercase https://")
+    if "#" in value:
+        raise ValueError("HTTP URL must not contain a fragment delimiter")
+    _, query_separator, raw_query = value.partition("?")
+    if query_separator and (not raw_query or "?" in raw_query):
+        raise ValueError("HTTP URL query delimiter must introduce one nonempty canonical query")
     try:
         parsed = urlsplit(value)
         port = parsed.port
@@ -620,8 +692,6 @@ def _validate_http_url(value: str) -> str:
         raise ValueError("HTTP plan URL must use HTTPS with an explicit hostname")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("HTTP plan URL must not contain user information")
-    if parsed.fragment:
-        raise ValueError("HTTP plan URL must not contain a fragment")
     raw_host = parsed.netloc.rsplit(":", 1)[0] if port is not None else parsed.netloc
     if raw_host != parsed.hostname or _HOST_RE.fullmatch(raw_host) is None:
         raise ValueError("HTTP plan URL hostname must be canonical lowercase DNS")
@@ -629,8 +699,17 @@ def _validate_http_url(value: str) -> str:
         raise ValueError("HTTP plan URL port must be between 1 and 65535")
     if port == 443:
         raise ValueError("HTTP plan URL must omit the default HTTPS port")
-    decoded_path = unquote(parsed.path)
-    segments = decoded_path.split("/")
+    canonical_netloc = parsed.hostname
+    if port is not None:
+        raw_port = parsed.netloc.rsplit(":", 1)[1]
+        if raw_port != str(port):
+            raise ValueError("HTTP URL port must use canonical decimal spelling")
+        canonical_netloc = f"{canonical_netloc}:{port}"
+    if parsed.netloc != canonical_netloc:
+        raise ValueError("HTTP URL netloc must use canonical spelling")
+    if not parsed.path:
+        raise ValueError("HTTP URL must declare an explicit canonical path; use / for root")
+    segments = parsed.path.split("/")
     if "" in segments[1:-1] or any(segment in (".", "..") for segment in segments):
         raise ValueError("HTTP URL path must be canonical and traversal-free")
     try:
@@ -650,6 +729,12 @@ def _validate_http_url(value: str) -> str:
             raise ValueError("HTTP query must not contain secret-bearing keys")
         if any(ord(character) < 32 or ord(character) == 127 for character in key + item):
             raise ValueError("HTTP query must not contain control characters")
+    canonical_query = "&".join(f"{key}={item}" for key, item in query_pairs)
+    canonical_url = f"https://{canonical_netloc}{parsed.path}"
+    if canonical_query:
+        canonical_url += f"?{canonical_query}"
+    if value != canonical_url:
+        raise ValueError("HTTP URL must use its single canonical raw spelling")
     return value
 
 

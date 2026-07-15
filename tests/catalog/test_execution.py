@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import math
 import re
@@ -10,6 +11,181 @@ from pydantic import TypeAdapter, ValidationError
 
 import bionodulo.nodes.contract.execution as execution
 from bionodulo.nodes.contract.environments import ExecutionPlatform
+
+
+SECRET_BASE_NAMES = (
+    "AUTH",
+    "AUTHORIZATION",
+    "COOKIE",
+    "COOKIES",
+    "CREDENTIAL",
+    "CREDENTIALS",
+    "PASSWORD",
+    "PASSWORDS",
+    "SECRET",
+    "SECRETS",
+    "TOKEN",
+    "TOKENS",
+    "KEY",
+    "KEYS",
+    "ACCESS_KEY",
+    "API_KEY",
+    "CLIENT_SECRET",
+    "PRIVATE_KEY",
+)
+SECRET_ENVIRONMENT_NAMES = (*SECRET_BASE_NAMES, *(f"SERVICE_{name}" for name in SECRET_BASE_NAMES))
+SECRET_HEADER_NAMES = tuple(
+    (
+        name.lower().replace("_", "-"),
+        f"x-{name.lower().replace('_', '-')}",
+    )
+    for name in SECRET_BASE_NAMES
+)
+SECRET_HEADER_NAMES = tuple(name for pair in SECRET_HEADER_NAMES for name in pair)
+SECRET_QUERY_NAMES = (
+    *tuple(name.lower() for name in SECRET_BASE_NAMES),
+    *(f"filter_{name.lower()}" for name in SECRET_BASE_NAMES),
+)
+NON_SECRET_NAMES = ("MONKEY", "HOCKEY", "TURKEY", "KEYSTONE")
+
+_ALLOWED_CONTRACT_IMPORT_MODULES = frozenset(
+    {
+        "__future__",
+        "bionodulo.nodes.contract.artifacts",
+        "bionodulo.nodes.contract.environments",
+        "enum",
+        "hashlib",
+        "ipaddress",
+        "json",
+        "math",
+        "pydantic",
+        "re",
+        "typing",
+        "urllib.parse",
+    }
+)
+_PROHIBITED_CALLS = frozenset(
+    {
+        "__import__",
+        "builtins.__import__",
+        "importlib.import_module",
+        "os.popen",
+        "os.system",
+        "shlex.join",
+    }
+)
+_PROHIBITED_MODULE_PREFIXES = (
+    "aiohttp",
+    "aiodocker",
+    "apptainer",
+    "bionodulo.execution",
+    "bionodulo.environments",
+    "bionodulo.manager.runtime_installer",
+    "bionodulo.nodes.base",
+    "bionodulo.nodes.builtin",
+    "bionodulo.nodes.command_node",
+    "bionodulo.nodes.legacy",
+    "bionodulo.nodes.registry",
+    "bionodulo.nodes.types",
+    "containerd",
+    "curl_cffi",
+    "docker",
+    "http.client",
+    "httpcore",
+    "httplib2",
+    "httpx",
+    "kubernetes",
+    "legacy",
+    "podman",
+    "pycurl",
+    "requests",
+    "shlex",
+    "singularity",
+    "spython",
+    "subprocess",
+    "urllib.request",
+    "urllib3",
+)
+
+
+def _dotted_ast_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = _dotted_ast_name(node.value)
+        if parent is not None:
+            return f"{parent}.{node.attr}"
+    return None
+
+
+def _expand_ast_binding(value: str, bindings: dict[str, str]) -> str:
+    first, separator, remainder = value.partition(".")
+    seen: set[str] = set()
+    while first in bindings and first not in seen:
+        seen.add(first)
+        replacement = bindings[first]
+        value = replacement + (f".{remainder}" if separator else "")
+        first, separator, remainder = value.partition(".")
+    return value
+
+
+def _is_prohibited_reference(value: str) -> bool:
+    return (
+        value in _PROHIBITED_CALLS
+        or value == "_shell_join"
+        or value.endswith("._shell_join")
+        or any(value == prefix or value.startswith(prefix + ".") for prefix in _PROHIBITED_MODULE_PREFIXES)
+    )
+
+
+def _contract_ast_violations(source: str, *, filename: str) -> tuple[str, ...]:
+    tree = ast.parse(source, filename=filename)
+    bindings: dict[str, str] = {}
+    violations: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name not in _ALLOWED_CONTRACT_IMPORT_MODULES:
+                    violations.add(f"{filename}:{node.lineno}: prohibited import {alias.name}")
+                local_name = alias.asname or alias.name.split(".", 1)[0]
+                bindings[local_name] = alias.name if alias.asname else local_name
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if node.level or module not in _ALLOWED_CONTRACT_IMPORT_MODULES:
+                violations.add(f"{filename}:{node.lineno}: prohibited import {module or '<relative>'}")
+            for alias in node.names:
+                if alias.name == "*":
+                    violations.add(f"{filename}:{node.lineno}: wildcard import")
+                    continue
+                bindings[alias.asname or alias.name] = f"{module}.{alias.name}"
+
+    assignments = sorted(
+        (node for node in ast.walk(tree) if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))),
+        key=lambda node: (node.lineno, node.col_offset),
+    )
+    for node in assignments:
+        dotted = _dotted_ast_name(node.value)
+        if dotted is None:
+            continue
+        resolved = _expand_ast_binding(dotted, bindings)
+        targets = node.targets if isinstance(node, ast.Assign) else (node.target,)
+        for target in targets:
+            if isinstance(target, ast.Name):
+                bindings[target.id] = resolved
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "_shell_join":
+            violations.add(f"{filename}:{node.lineno}: prohibited helper _shell_join")
+        if isinstance(node, ast.Call):
+            dotted = _dotted_ast_name(node.func)
+            if dotted is None:
+                continue
+            resolved = _expand_ast_binding(dotted, bindings)
+            if _is_prohibited_reference(resolved):
+                violations.add(f"{filename}:{node.lineno}: prohibited call {resolved}")
+
+    return tuple(sorted(violations))
 
 
 def resources(**updates: object) -> execution.ResourceSpec:
@@ -356,6 +532,19 @@ def test_environment_bindings_are_typed_sorted_and_unique() -> None:
     assert execution.LiteralEnvironmentVariable(name="MONKEY", value="public").value == "public"
 
 
+@pytest.mark.parametrize("name", SECRET_ENVIRONMENT_NAMES)
+def test_secret_named_environment_variables_require_references(name: str) -> None:
+    with pytest.raises(ValidationError, match="secret reference"):
+        execution.LiteralEnvironmentVariable(name=name, value="literal-secret")
+
+    assert execution.SecretEnvironmentVariable(name=name, secret_id="service-secret").name == name
+
+
+@pytest.mark.parametrize("name", NON_SECRET_NAMES)
+def test_nonsecret_key_substrings_remain_literal_environment_values(name: str) -> None:
+    assert execution.LiteralEnvironmentVariable(name=name, value="public").value == "public"
+
+
 def test_pipeline_is_structural_and_serializes_to_token_arrays() -> None:
     plan = pipeline_plan()
     rebuilt = execution.PipelinePlan.model_validate_json(plan.model_dump_json())
@@ -421,7 +610,7 @@ def script_plan(**updates: object) -> execution.ScriptPlan:
 
 def python_plan(**updates: object) -> execution.PythonPlan:
     values: dict[str, object] = {
-        "callable_ref": "bionodulo.tasks.alignment:run_alignment",
+        "callable_ref": "bionodulo.nodes.catalog.alignment:run_alignment",
         "arguments": ("sample", 3, 0.25, True, None),
         "keywords": (
             execution.PythonKeyword(name="output_name", value="result.bam"),
@@ -531,6 +720,20 @@ def test_python_plan_accepts_only_frozen_scalar_bindings() -> None:
         "module:symbol..child",
         "module: symbol",
         "module:symbol\n",
+        "builtins:eval",
+        "builtins:exec",
+        "builtins:__import__",
+        "os:system",
+        "subprocess:run",
+        "pickle:load",
+        "pickle:loads",
+        "_pickle:loads",
+        "bionodulo.nodes.catalog:run",
+        "bionodulo.nodes.catalogue.tool:run",
+        "bionodulo.nodes.catalog.__private__:run",
+        "bionodulo.nodes.catalog.tool:__import__",
+        "bionodulo.nodes.catalog.tool:Runner.__dict__",
+        "bionodulo.nodes.catalog.tool:run.__call__",
     ),
 )
 def test_python_callable_reference_rejects_traversal_or_dynamic_names(callable_ref: str) -> None:
@@ -604,6 +807,8 @@ def test_http_plan_requires_exact_https_network_allowance() -> None:
     "url",
     (
         "http://api.example.org/v1/jobs",
+        "HTTPS://api.example.org/v1/jobs",
+        "Https://api.example.org/v1/jobs",
         "https://user:secret@api.example.org/v1/jobs",
         "https://API.example.org/v1/jobs",
         "https://api.example.org:0/v1/jobs",
@@ -611,7 +816,10 @@ def test_http_plan_requires_exact_https_network_allowance() -> None:
         "https://api.example.org/v1/%6aobs",
         "https://api.example.org/v1/jobs%0aextra",
         "https://api.example.org/v1/../jobs",
+        "https://api.example.org//v1/jobs",
         "https://api.example.org/v1/jobs#fragment",
+        "https://api.example.org/v1/jobs#",
+        "https://api.example.org/v1/jobs?",
         "https://api.example.org/v1/jobs?token=secret",
         "https://api.example.org/v1/jobs?access_token=secret",
         "https://api.example.org/v1/jobs?api_key=secret",
@@ -627,6 +835,31 @@ def test_http_url_rejects_ambiguous_or_secret_bearing_forms(url: str) -> None:
         http_plan(url=url)
 
 
+@pytest.mark.parametrize("port", ("080", "08443", "065535"))
+def test_http_url_rejects_noncanonical_decimal_ports(port: str) -> None:
+    numeric_port = int(port)
+
+    with pytest.raises(ValidationError, match="canonical"):
+        http_plan(
+            url=f"https://api.example.org:{port}/v1/jobs",
+            network=http_network(port=numeric_port),
+        )
+
+
+def test_http_root_and_nondefault_port_urls_have_one_canonical_spelling() -> None:
+    root = http_plan(url="https://api.example.org/")
+    nondefault = http_plan(
+        url="https://api.example.org:8443/v1/jobs",
+        network=http_network(port=8443),
+    )
+
+    assert root.url == "https://api.example.org/"
+    assert nondefault.url == "https://api.example.org:8443/v1/jobs"
+    assert execution.HttpPlan.model_validate_json(root.model_dump_json()).plan_digest() == root.plan_digest()
+    with pytest.raises(ValidationError, match="path"):
+        http_plan(url="https://api.example.org")
+
+
 @pytest.mark.parametrize(
     "name",
     ("authorization", "cookie", "proxy-authorization", "x-api-key"),
@@ -637,6 +870,32 @@ def test_http_sensitive_headers_require_secret_references(name: str) -> None:
 
     header = execution.SecretHttpHeader(name=name, secret_id="service-token")
     assert header.secret_id == "service-token"
+
+
+@pytest.mark.parametrize("name", SECRET_HEADER_NAMES)
+def test_tokenized_secret_http_headers_require_references(name: str) -> None:
+    with pytest.raises(ValidationError, match="secret reference"):
+        execution.LiteralHttpHeader(name=name, value="literal-secret")
+
+    assert execution.SecretHttpHeader(name=name, secret_id="service-secret").name == name
+
+
+@pytest.mark.parametrize("name", tuple(name.lower() for name in NON_SECRET_NAMES))
+def test_nonsecret_key_substrings_remain_literal_http_headers(name: str) -> None:
+    assert execution.LiteralHttpHeader(name=name, value="public").value == "public"
+
+
+@pytest.mark.parametrize("name", SECRET_QUERY_NAMES)
+def test_tokenized_secret_http_query_keys_are_rejected(name: str) -> None:
+    with pytest.raises(ValidationError, match="secret-bearing"):
+        http_plan(url=f"https://api.example.org/v1/jobs?{name}=literal-secret")
+
+
+@pytest.mark.parametrize("name", tuple(name.lower() for name in NON_SECRET_NAMES))
+def test_nonsecret_key_substrings_remain_http_query_keys(name: str) -> None:
+    plan = http_plan(url=f"https://api.example.org/v1/jobs?{name}=public")
+
+    assert plan.url.endswith(f"?{name}=public")
 
 
 def test_http_headers_are_unique_ordered_and_control_free() -> None:
@@ -867,16 +1126,31 @@ def test_plan_digest_distinguishes_token_boundaries_and_semantic_fields() -> Non
     assert execution.ArgvPlan.model_validate_json(first.model_dump_json()).plan_digest() == first.plan_digest()
 
 
-def test_contract_modules_do_not_import_or_call_shell_execution_helpers() -> None:
-    environment_source = Path(Path(execution.__file__).with_name("environments.py")).read_text(encoding="utf-8")
-    execution_source = Path(execution.__file__).read_text(encoding="utf-8")
-    combined = environment_source + execution_source
+@pytest.mark.parametrize(
+    "source",
+    (
+        "import subprocess as process\nprocess.run(('tool',))\n",
+        "from os import system as launch\nlaunch('tool')\n",
+        "import os as operating\nrunner = operating.popen\nrunner('tool')\n",
+        "from shlex import join as render\nrender(('tool',))\n",
+        "from urllib import request as web\nweb.urlopen('https://example.org')\n",
+        "import httpx as client\nclient.get('https://example.org')\n",
+        "import docker as runtime\nruntime.from_env()\n",
+        "from bionodulo.nodes.legacy import executor\nexecutor.run()\n",
+        "def _shell_join(tokens):\n    return ' '.join(tokens)\n_shell_join(('tool',))\n",
+        "loader = __import__\nloader('subprocess')\n",
+    ),
+)
+def test_ast_isolation_rejects_prohibited_aliases(source: str) -> None:
+    assert _contract_ast_violations(source, filename="synthetic.py")
 
-    for forbidden in (
-        "_shell_join",
-        "subprocess",
-        "os.system",
-        "shlex.join",
-        "legacy.executor",
-    ):
-        assert forbidden not in combined
+
+def test_contract_modules_pass_ast_execution_isolation() -> None:
+    paths = (
+        Path(execution.__file__).with_name("environments.py"),
+        Path(execution.__file__),
+    )
+
+    for path in paths:
+        source = path.read_text(encoding="utf-8")
+        assert _contract_ast_violations(source, filename=str(path)) == ()
