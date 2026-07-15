@@ -26,6 +26,7 @@ CAPTURE_DATE = date(2026, 7, 15)
 def source(kind: evidence.SourceKind, **updates: object) -> evidence.EvidenceSource:
     values: dict[str, object] = {
         "source_id": f"samtools-{kind.value.replace('_', '-')}",
+        "tool_id": "samtools",
         "kind": kind,
         "tool_version": "1.23.1",
         "retrieved_at": CAPTURE_DATE,
@@ -138,6 +139,42 @@ def passed_prefix(length: int) -> tuple[maturity.GateAssessment, ...]:
     return tuple(assessment(gate) for gate in tuple(maturity.Gate)[:length])
 
 
+_RETAINED_TEXT_FIELDS = (
+    "source_title",
+    "source_description",
+    "source_version_locator",
+    "claim_locator",
+    "claim_statement",
+    "verification_summary",
+    "assessment_summary",
+    "assessment_reason",
+)
+
+
+def retained_text(field: str, value: str) -> str:
+    if field == "source_title":
+        return source(evidence.SourceKind.OFFICIAL_MANUAL, title=value).title
+    if field == "source_description":
+        return source(evidence.SourceKind.OFFICIAL_MANUAL, description=value).description
+    if field == "source_version_locator":
+        captured = source(evidence.SourceKind.OFFICIAL_MANUAL, version_locator=value)
+        assert captured.version_locator is not None
+        return captured.version_locator
+    if field == "claim_locator":
+        return claim(locator=value).locator
+    if field == "claim_statement":
+        return claim(statement=value).statement
+    if field == "verification_summary":
+        return verification(summary=value).summary
+    if field == "assessment_summary":
+        return assessment(maturity.Gate.INVENTORIED, summary=value).summary
+    if field == "assessment_reason":
+        failed = assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED, reason=value)
+        assert failed.reason is not None
+        return failed.reason
+    raise AssertionError(f"unknown retained-text field {field}")
+
+
 def test_source_kind_wire_values_are_exact_and_authoritative_only() -> None:
     assert tuple(kind.value for kind in evidence.SourceKind) == (
         "official_manual",
@@ -172,6 +209,120 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
     assert tuple(result.value for result in maturity.GateResult) == ("passed", "failed")
 
 
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "Résumé — 測試 🧬",
+        "أداة موثوقة",
+        "Use access_token=<TOKEN>.",
+        'Set client_secret="${TOKEN}".',
+        "https://service.invalid/run?password=[REDACTED]&mode=test",
+        "Authorization: Bearer REDACTED.",
+        "Authorization=Basic ***",
+        'Authorization: "Bearer <TOKEN>"',
+        'Authorization: "Basic [REDACTED]"',
+        'Authorization: "Bearer" <TOKEN>',
+        "Defaults: output=/tmp/default, stream=/dev/stdout, tool=/usr/bin/tool.",
+        "Captured from /home/<USER>/work.",
+        "Captured from /Users/<USER>/work.",
+        r"Captured from C:\Users\<USER>\work.",
+        "Captured from /home/<USER>.",
+        r"Captured from C:\Users\<USER>.",
+        "Captured from </home/<USER>/work>.",
+        "See https://docs.example.org/home/user for documented behavior.",
+        "Database metadata: foreign_key_id=42.",
+    ),
+)
+def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths(
+    field: str,
+    value: str,
+) -> None:
+    assert retained_text(field, value) == value
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "access_token=live-value",
+        "access-token: live-value",
+        'CLIENT_SECRET="live-value"',
+        "OPENAI_API_KEY=sk-live-value",
+        "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+        "api-key=live-value",
+        "refresh_token=live-value",
+        "refresh_key=live-value",
+        "auth_token=live-value",
+        "auth-key=live-value",
+        "license_key=live-value",
+        "license-key=live-value",
+        "https://service.invalid/run?password=hunter2&mode=test",
+        "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9",
+        "Authorization=Basic dXNlcjpwYXNz",
+        "token=<TOKEN>-suffix",
+        'client_secret="<TOKEN> live-secret"',
+        'client_secret="<TOKEN>"live-secret',
+        'Authorization: "Bearer <TOKEN> live-secret"',
+        'Authorization: "Bearer <TOKEN>"live-secret',
+        'Authorization: "Bearer" live-secret',
+        'Authorization: "Basic" dXNlcjpwYXNz',
+        "api_key=<API_KEY>",
+    ),
+)
+def test_retained_text_rejects_unredacted_secret_assignments(
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(ValidationError, match="secret"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "Captured from /home/user/project/help.txt",
+        "Captured from /Users/user/project/help.txt",
+        "Captured from /root/.cache/tool/help.txt",
+        r"Captured from C:\Users\user\AppData\Local\Temp\help.txt",
+        "Captured from D:/Documents and Settings/user/work/help.txt",
+        "Captured from /mnt/c/Users/user/work/help.txt",
+        "Captured from /home/<USER>evil/work/help.txt",
+        r"Captured from C:\Users\<USER>evil\work\help.txt",
+        "Captured from </home/alice/work/help.txt>",
+        r"Captured from <C:\Users\alice\work\help.txt>",
+        "Captured from,/home/alice/work/help.txt",
+        "Captured from /tmp/pytest-of-user/pytest-3/test_help0/output.txt",
+        "Captured from /private/var/folders/aa/bb/T/pytest-of-user/pytest-3/test_help0/output.txt",
+    ),
+)
+def test_retained_text_rejects_capture_host_paths(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match="host path"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "line\u2028separator",
+        "paragraph\u2029separator",
+        "right-to-left\u202eoverride",
+        "zero\u200bwidth",
+        "next\x85line",
+        "byte-order\ufeffmark",
+        "private\ue000use",
+    ),
+)
+def test_retained_text_rejects_unicode_separators_formats_and_controls(
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(ValidationError, match="printable"):
+        retained_text(field, value)
+
+
 @pytest.mark.parametrize("kind", tuple(evidence.SourceKind))
 def test_each_source_kind_has_a_valid_minimal_immutable_json_roundtrip(
     kind: evidence.SourceKind,
@@ -182,6 +333,7 @@ def test_each_source_kind_has_a_valid_minimal_immutable_json_roundtrip(
     assert rebuilt == captured
     assert hash(rebuilt) == hash(captured)
     assert rebuilt.kind is kind
+    assert rebuilt.tool_id == "samtools"
 
 
 @pytest.mark.parametrize(
@@ -282,8 +434,8 @@ def test_sources_and_records_require_exact_tool_versions(version: str) -> None:
         evidence_record().model_copy(update={"tool_version": version})
 
 
-@pytest.mark.parametrize("revision", (COMMIT_A, COMMIT_B, "1.2.3", "samtools-1.23.1-0"))
-def test_package_recipe_revision_is_an_exact_bounded_identity(revision: str) -> None:
+@pytest.mark.parametrize("revision", (COMMIT_A, COMMIT_B))
+def test_package_recipe_revision_is_a_full_lowercase_git_object_id(revision: str) -> None:
     updates = {
         "recipe_revision": revision,
         "url": f"https://github.com/bioconda/bioconda-recipes/blob/{revision}/recipes/samtools/meta.yaml",
@@ -313,10 +465,59 @@ def test_package_recipe_revision_and_path_must_be_bound_in_its_url(
 
 
 @pytest.mark.parametrize(
-    "revision",
-    ("", "latest", "main", "master", "1.*", "revision with spaces", "v1.2?token=secret", "v1.2\n"),
+    "pointer",
+    (
+        "/environment/packages",
+        "/environment/packages/0",
+        "/environment/packages/0/constraint",
+    ),
 )
-def test_package_recipe_rejects_moving_or_unsafe_revisions(revision: str) -> None:
+def test_package_recipe_claims_are_scoped_to_environment_packages(pointer: str) -> None:
+    recipe = source(evidence.SourceKind.PACKAGE_RECIPE)
+    asserted = claim(source_id=recipe.source_id, contract_pointer=pointer)
+
+    record = evidence_record(sources=(recipe,), claims=(asserted,))
+
+    assert record.claims == (asserted,)
+
+
+@pytest.mark.parametrize(
+    "pointer",
+    (
+        "/environment",
+        "/environment/locks/0",
+        "/outputs/0",
+        "/environment/packages_evil/0",
+        "/environment/packages~1evil/0",
+        "/environment~1packages/0",
+    ),
+)
+def test_package_recipe_claims_reject_non_package_contract_pointers(pointer: str) -> None:
+    recipe = source(evidence.SourceKind.PACKAGE_RECIPE)
+    asserted = claim(source_id=recipe.source_id, contract_pointer=pointer)
+
+    with pytest.raises(ValidationError, match="package"):
+        evidence_record(sources=(recipe,), claims=(asserted,))
+
+
+@pytest.mark.parametrize(
+    "revision",
+    (
+        "",
+        "latest",
+        "main",
+        "master",
+        "1.2.3",
+        "samtools-1.23.1-0",
+        "1" * 12,
+        "1" * 39,
+        "1" * 41,
+        "A" * 40,
+        "g" * 40,
+        "1" * 40 + "\n",
+    ),
+)
+def test_package_recipe_rejects_non_git_or_noncanonical_revisions(revision: str) -> None:
     with pytest.raises(ValidationError):
         source(evidence.SourceKind.PACKAGE_RECIPE).model_copy(update={"recipe_revision": revision})
 
@@ -404,7 +605,19 @@ def test_upstream_symbol_locator_rejects_ambiguous_forms(symbol: str) -> None:
         source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(update={"symbol_locator": symbol})
 
 
-@pytest.mark.parametrize("argv", (("--help",), ("help",), ("view", "--help")))
+@pytest.mark.parametrize(
+    "argv",
+    (
+        ("--help",),
+        ("-h",),
+        ("-help",),
+        ("help",),
+        ("view", "--help"),
+        ("view", "-h"),
+        ("view", "-help"),
+        ("help", "view"),
+    ),
+)
 def test_installed_help_retains_literal_immutable_argv(argv: tuple[str, ...]) -> None:
     captured = source(evidence.SourceKind.INSTALLED_HELP).model_copy(update={"argv": argv})
 
@@ -428,6 +641,11 @@ def test_installed_help_retains_literal_immutable_argv(argv: tuple[str, ...]) ->
         ("input.bam", "--help"),
         ("--help", "input.bam"),
         ("--help", "view"),
+        ("-h", "view"),
+        ("-help", "view"),
+        ("view", "help"),
+        ("help", "help"),
+        ("help", "View"),
         ("view", "input.bam", "--help"),
         ("view", "--help", "input.bam"),
         ("--help", "--format=json"),
@@ -451,6 +669,13 @@ def test_claim_accepts_canonical_json_pointers(pointer: str) -> None:
     asserted = claim(contract_pointer=pointer)
 
     assert asserted.contract_pointer == pointer
+
+
+def test_claim_pointer_allows_printable_unicode_but_rejects_format_characters() -> None:
+    assert claim(contract_pointer="/outputs/測試").contract_pointer == "/outputs/測試"
+
+    with pytest.raises(ValidationError, match="printable"):
+        claim(contract_pointer="/outputs/safe\u202eunsafe")
 
 
 @pytest.mark.parametrize(
@@ -514,6 +739,25 @@ def test_evidence_record_binds_claims_to_known_source_content() -> None:
         evidence_record(claims=(claim(source_content_sha256=SHA_D),))
 
 
+@pytest.mark.parametrize(
+    "kind",
+    (
+        evidence.SourceKind.OFFICIAL_MANUAL,
+        evidence.SourceKind.OFFICIAL_API_SCHEMA,
+        evidence.SourceKind.UPSTREAM_SOURCE,
+        evidence.SourceKind.INSTALLED_HELP,
+        evidence.SourceKind.PACKAGE_RECIPE,
+    ),
+)
+def test_evidence_record_rejects_sources_for_a_different_tool(kind: evidence.SourceKind) -> None:
+    captured = source(kind, tool_id="bcftools")
+    pointer = "/environment/packages/0/version" if kind is evidence.SourceKind.PACKAGE_RECIPE else "/outputs/0"
+    asserted = claim(source_id=captured.source_id, contract_pointer=pointer)
+
+    with pytest.raises(ValidationError, match="tool ID"):
+        evidence_record(sources=(captured,), claims=(asserted,))
+
+
 @pytest.mark.parametrize("field", ("sources", "claims"))
 def test_evidence_verified_record_requires_sources_and_claims(field: str) -> None:
     with pytest.raises(ValidationError):
@@ -551,6 +795,56 @@ def test_evidence_sources_claims_and_verifications_are_unique_and_canonically_or
             evidence_record(**updates)
 
 
+def test_sources_use_authoritative_kind_precedence_then_source_id_order() -> None:
+    manual = source(evidence.SourceKind.OFFICIAL_MANUAL, source_id="z-manual")
+    api = source(evidence.SourceKind.OFFICIAL_API_SCHEMA, source_id="a-api")
+    manual_claim = claim(source_id=manual.source_id)
+
+    precedence_ordered = evidence_record(sources=(manual, api), claims=(manual_claim,))
+
+    assert precedence_ordered.sources == (manual, api)
+    with pytest.raises(ValidationError, match="source captures"):
+        evidence_record(sources=(api, manual), claims=(manual_claim,))
+
+    first_manual = source(
+        evidence.SourceKind.OFFICIAL_MANUAL,
+        source_id="a-manual",
+        url="https://docs.example.org/samtools/1.23.1/a-reference.html",
+    )
+    second_manual = source(
+        evidence.SourceKind.OFFICIAL_MANUAL,
+        source_id="z-manual",
+        url="https://docs.example.org/samtools/1.23.1/z-reference.html",
+        content_sha256=SHA_D,
+    )
+    first_claim = claim(source_id=first_manual.source_id)
+
+    same_kind_ordered = evidence_record(sources=(first_manual, second_manual), claims=(first_claim,))
+
+    assert same_kind_ordered.sources == (first_manual, second_manual)
+    with pytest.raises(ValidationError, match="source captures"):
+        evidence_record(sources=(second_manual, first_manual), claims=(first_claim,))
+
+
+def test_source_provenance_rejects_duplicate_and_conflicting_captures_under_new_ids() -> None:
+    original = source(evidence.SourceKind.OFFICIAL_MANUAL, source_id="a-manual")
+    alias = source(
+        evidence.SourceKind.OFFICIAL_MANUAL,
+        source_id="z-manual",
+        title="Renamed retained manual",
+        description="A later description for the same authoritative source capture.",
+        retrieved_at=date(2026, 7, 16),
+    )
+    original_claim = claim(source_id=original.source_id)
+
+    with pytest.raises(ValidationError, match="duplicate source capture"):
+        evidence_record(sources=(original, alias), claims=(original_claim,))
+
+    conflicting = alias.model_copy(update={"content_sha256": SHA_D})
+    with pytest.raises(ValidationError, match="conflicting source capture"):
+        evidence_record(sources=(original, conflicting), claims=(original_claim,))
+
+
 def test_same_pointer_may_have_independent_claims_only_from_distinct_sources() -> None:
     manual = source(evidence.SourceKind.OFFICIAL_MANUAL)
     upstream = source(evidence.SourceKind.UPSTREAM_SOURCE)
@@ -572,6 +866,21 @@ def test_same_pointer_may_have_independent_claims_only_from_distinct_sources() -
         evidence_record(claims=(claim(), same_source))
 
 
+def test_same_pointer_claims_from_distinct_sources_must_agree_on_contract_value() -> None:
+    manual = source(evidence.SourceKind.OFFICIAL_MANUAL)
+    upstream = source(evidence.SourceKind.UPSTREAM_SOURCE)
+    manual_claim = claim()
+    conflicting = claim(
+        claim_id="upstream-output-collector",
+        source_id=upstream.source_id,
+        excerpt_sha256=SHA_D,
+        contract_value_sha256=SHA_D,
+    )
+
+    with pytest.raises(ValidationError, match="conflicting contract values"):
+        evidence_record(sources=(manual, upstream), claims=(manual_claim, conflicting))
+
+
 def test_duplicate_exact_claim_bindings_are_rejected_even_with_new_claim_ids() -> None:
     duplicate = claim(claim_id="same-binding-new-id")
 
@@ -590,6 +899,22 @@ def test_verification_fixture_identity_is_all_or_nothing_and_digest_stable() -> 
         verification(fixture_id=None)
     with pytest.raises(ValidationError):
         verification(fixture_sha256=None)
+
+
+def test_verification_provenance_rejects_duplicate_and_conflicting_results_under_new_ids() -> None:
+    original = verification("a-smoke")
+    alias = verification(
+        "z-smoke",
+        verified_at=date(2026, 7, 16),
+        summary="A later description for the same retained verification capture.",
+    )
+
+    with pytest.raises(ValidationError, match="duplicate verification capture"):
+        evidence_record(verifications=(original, alias))
+
+    conflicting = alias.model_copy(update={"result_sha256": SHA_C})
+    with pytest.raises(ValidationError, match="conflicting verification capture"):
+        evidence_record(verifications=(original, conflicting))
 
 
 def test_evidence_digest_is_canonical_and_sensitive_to_every_claim_binding() -> None:

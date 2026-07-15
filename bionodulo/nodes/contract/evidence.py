@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from datetime import date
 from enum import StrEnum
 from typing import Annotated, Self
@@ -22,17 +23,41 @@ from bionodulo.nodes.contract.environments import (
 
 
 _GIT_COMMIT_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
-_RECIPE_REVISION_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$")
 _SOURCE_PATH_SEGMENT_RE = re.compile(r"^[0-9A-Za-z._+-]+$")
 _SYMBOL_LOCATOR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.:-]{0,255}$")
-_MOVING_REVISIONS = frozenset({"current", "head", "latest", "main", "master", "stable"})
 _SHELL_META_RE = re.compile(r"[;&|`$<>]")
-_ABSOLUTE_PATH_RE = re.compile(r"(?:^|=)(?:/|[A-Za-z]:[\\/])")
-_SECRET_ASSIGNMENT_RE = re.compile(
-    r"(?i)(?:^|[\s,;])(?:--)?(?:api[_-]?key|license[_-]?key|password|secret|token)\s*[:=]\s*(?P<value>\S+)"
+_SECRET_ASSIGNMENT_HEAD_RE = re.compile(
+    r"(?i)(?<![0-9A-Za-z_.-])(?:--)?(?P<quote>[\"']?)(?P<key>[A-Za-z][A-Za-z0-9_.-]{0,127})"
+    r"(?P=quote)\s*[:=]\s*"
 )
-_REDACTED_SECRET_RE = re.compile(r"(?i)^(?:<[A-Z][A-Z0-9_-]*>|\$\{[A-Z][A-Z0-9_-]*\}|\[REDACTED\]|REDACTED|\*{3,})$")
-_HELP_TOKENS = frozenset({"--help", "-h", "-help", "help"})
+_REDACTED_SECRET_VALUES = frozenset({"<TOKEN>", "${TOKEN}", "[REDACTED]", "REDACTED", "***"})
+_REDACTION_TRAILING_PUNCTUATION = ".,;:!?)]}"
+_CAPTURE_PATH_BOUNDARY = r"(?<![0-9A-Za-z._~/\\-])"
+_CAPTURE_HOST_PATH_RES = (
+    re.compile(
+        _CAPTURE_PATH_BOUNDARY + r"(?:file://)?/(?:home|Users)/[^/\\\s\"'`]+",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        _CAPTURE_PATH_BOUNDARY + r"(?:file://)?/root(?=$|[/\\\s.,;:!?\"'`)\]}])",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        _CAPTURE_PATH_BOUNDARY
+        + r"(?:(?:file:///)?[A-Za-z]:[\\/]|/mnt/[A-Za-z]/)(?:Users|Documents and Settings)[\\/]"
+        + r"[^/\\\s\"'`]+",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        _CAPTURE_PATH_BOUNDARY
+        + r"(?:(?:file://)?/|[A-Za-z]:[\\/])[^\s\"'`]*?[\\/]pytest-of-[^/\\\s\"'`]+[\\/]"
+        + r"pytest-[0-9]+(?=$|[/\\\s.,;:!?\"'`)\]}])",
+        re.IGNORECASE,
+    ),
+)
+_HELP_FLAG_TOKENS = frozenset({"--help", "-h", "-help"})
+_HELP_WORD_TOKEN = "help"
+_HELP_TOKENS = frozenset({*_HELP_FLAG_TOKENS, _HELP_WORD_TOKEN})
 _HELP_SUBCOMMAND_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _MAX_ID_LENGTH = 128
 _MAX_POINTER_DEPTH = 64
@@ -68,16 +93,104 @@ def _validate_bounded_id(value: str, *, label: str) -> str:
     return value
 
 
-def _validate_text(value: str, *, label: str) -> str:
+def _validate_printable_unicode(value: str, *, label: str) -> str:
+    for character in value:
+        category = unicodedata.category(character)
+        if category.startswith("C") or category in ("Zl", "Zp"):
+            raise ValueError(f"{label} must contain only printable Unicode characters")
+    return value
+
+
+def _is_secret_assignment_key(value: str) -> bool:
+    compact = value.casefold().replace("_", "").replace("-", "").replace(".", "")
+    return compact == "authorization" or compact.endswith(
+        (
+            "token",
+            "secret",
+            "password",
+            "passwd",
+            "pwd",
+            "apikey",
+            "authkey",
+            "refreshkey",
+            "licensekey",
+            "accesskey",
+            "accesskeyid",
+        )
+    )
+
+
+def _assignment_value(value: str, start: int) -> tuple[str, bool, str]:
+    if start >= len(value):
+        return "", False, ""
+    if value[start] in ('"', "'"):
+        quote = value[start]
+        end = value.find(quote, start + 1)
+        if end < 0:
+            return value[start:], True, ""
+        suffix_end = end + 1
+        while suffix_end < len(value) and not value[suffix_end].isspace() and value[suffix_end] not in "&,;#":
+            suffix_end += 1
+        remainder_start = suffix_end
+        while remainder_start < len(value) and value[remainder_start].isspace():
+            remainder_start += 1
+        remainder_end = remainder_start
+        while remainder_end < len(value) and value[remainder_end] not in "&,;#":
+            remainder_end += 1
+        return (
+            value[start + 1 : end] + value[end + 1 : suffix_end],
+            True,
+            value[remainder_start:remainder_end].strip(),
+        )
+    end = start
+    while end < len(value) and value[end] not in "&,;#":
+        end += 1
+    return value[start:end].strip(), False, ""
+
+
+def _is_redacted_secret(value: str) -> bool:
+    candidate = value.strip()
+    if candidate in _REDACTED_SECRET_VALUES:
+        return True
+    return any(
+        candidate.startswith(redaction)
+        and candidate[len(redaction) :]
+        and all(character in _REDACTION_TRAILING_PUNCTUATION for character in candidate[len(redaction) :])
+        for redaction in _REDACTED_SECRET_VALUES
+    )
+
+
+def _validate_retained_secrets(value: str, *, label: str) -> None:
+    for match in _SECRET_ASSIGNMENT_HEAD_RE.finditer(value):
+        key = match.group("key")
+        if not _is_secret_assignment_key(key):
+            continue
+        retained, quoted, remainder = _assignment_value(value, match.end())
+        if key.casefold().replace("_", "").replace("-", "").replace(".", "") == "authorization":
+            parts = retained.split()
+            if parts and parts[0].casefold() in ("bearer", "basic"):
+                if quoted:
+                    retained = " ".join((*parts[1:], remainder)).strip()
+                else:
+                    retained = parts[1] if len(parts) > 1 else ""
+            elif parts:
+                retained = " ".join((retained, remainder)).strip() if quoted else parts[0]
+        elif not quoted:
+            retained = retained.split(maxsplit=1)[0] if retained else ""
+        if retained and not _is_redacted_secret(retained):
+            raise ValueError(f"{label} must not retain secret values")
+
+
+def _validate_retained_text(value: str, *, label: str) -> str:
     if value != value.strip():
         raise ValueError(f"{label} must not have outer whitespace")
-    if any(ord(character) < 32 or ord(character) == 127 for character in value):
-        raise ValueError(f"{label} must be a single printable line")
-    for match in _SECRET_ASSIGNMENT_RE.finditer(value):
-        if _REDACTED_SECRET_RE.fullmatch(match.group("value")) is None:
-            raise ValueError(f"{label} must not retain secret values")
-    if _ABSOLUTE_PATH_RE.search(value) is not None:
-        raise ValueError(f"{label} must not retain absolute host paths")
+    _validate_printable_unicode(value, label=label)
+    _validate_retained_secrets(value, label=label)
+    for pattern in _CAPTURE_HOST_PATH_RES:
+        for match in pattern.finditer(value):
+            captured_path = match.group(0).replace("\\", "/").rstrip(_REDACTION_TRAILING_PUNCTUATION)
+            if not captured_path.endswith("/<USER>"):
+                raise ValueError(f"{label} must not retain capture host paths")
     return value
 
 
@@ -94,7 +207,12 @@ def _validate_repository_path(value: str) -> str:
     return value
 
 
+def _decode_json_pointer(value: str) -> tuple[str, ...]:
+    return tuple(segment.replace("~1", "/").replace("~0", "~") for segment in value[1:].split("/"))
+
+
 def _validate_json_pointer(value: str) -> str:
+    _validate_printable_unicode(value, label="contract pointer")
     if not value.startswith("/"):
         raise ValueError("contract pointer must start with /")
     segments = value[1:].split("/")
@@ -106,8 +224,6 @@ def _validate_json_pointer(value: str) -> str:
         index = 0
         while index < len(segment):
             character = segment[index]
-            if ord(character) < 32 or ord(character) == 127:
-                raise ValueError("contract pointer must not contain control characters")
             if character == "~":
                 if index + 1 >= len(segment) or segment[index + 1] not in "01":
                     raise ValueError("contract pointer must use only canonical ~0 and ~1 escapes")
@@ -135,8 +251,12 @@ class SourceKind(StrEnum):
     PACKAGE_RECIPE = "package_recipe"
 
 
+_SOURCE_KIND_PRECEDENCE = {kind: index for index, kind in enumerate(SourceKind)}
+
+
 class EvidenceSource(_StrictFrozenModel):
     source_id: ArtifactId
+    tool_id: ArtifactId
     kind: SourceKind
     tool_version: ExactVersion
     retrieved_at: date
@@ -155,10 +275,11 @@ class EvidenceSource(_StrictFrozenModel):
     argv: Annotated[tuple[HelpArgument, ...], Field(min_length=1, max_length=16)] | None = None
     output_sha256: Sha256Digest | None = None
 
-    @field_validator("source_id")
+    @field_validator("source_id", "tool_id")
     @classmethod
-    def _validate_source_id(cls, value: str) -> str:
-        return _validate_bounded_id(value, label="source ID")
+    def _validate_source_identity(cls, value: str, info: object) -> str:
+        label = getattr(info, "field_name", "source ID").replace("_", " ")
+        return _validate_bounded_id(value, label=label)
 
     @field_validator("tool_version")
     @classmethod
@@ -171,7 +292,7 @@ class EvidenceSource(_StrictFrozenModel):
         if value is None:
             return None
         label = getattr(info, "field_name", "text").replace("_", " ")
-        return _validate_text(value, label=label)
+        return _validate_retained_text(value, label=label)
 
     @field_validator("url")
     @classmethod
@@ -185,8 +306,8 @@ class EvidenceSource(_StrictFrozenModel):
     def _validate_recipe_revision(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        if _RECIPE_REVISION_RE.fullmatch(value) is None or value.lower() in _MOVING_REVISIONS:
-            raise ValueError("recipe revision must be an exact immutable revision")
+        if _GIT_COMMIT_RE.fullmatch(value) is None:
+            raise ValueError("recipe revision must be an exact lowercase 40- or 64-hex Git object ID")
         return value
 
     @field_validator("commit")
@@ -221,22 +342,30 @@ class EvidenceSource(_StrictFrozenModel):
         if value is None:
             return None
         for argument in value:
+            _validate_retained_text(argument, label="installed-help argv")
             if argument != argument.strip() or any(character.isspace() for character in argument):
                 raise ValueError("installed-help argv entries must be exact single arguments")
-            if any(ord(character) < 32 or ord(character) == 127 for character in argument):
-                raise ValueError("installed-help argv must not contain control characters")
             if _SHELL_META_RE.search(argument) is not None:
                 raise ValueError("installed-help argv must not contain shell syntax")
-            if _ABSOLUTE_PATH_RE.search(argument) is not None:
-                raise ValueError("installed-help argv must not contain absolute host paths")
-            if _SECRET_ASSIGNMENT_RE.search(argument) is not None:
-                raise ValueError("installed-help argv must not retain secret values")
-        help_positions = tuple(index for index, argument in enumerate(value) if argument in _HELP_TOKENS)
-        if len(help_positions) != 1 or len(value) > 2:
+        if len(value) == 1:
+            if value[0] not in _HELP_TOKENS:
+                raise ValueError("installed-help argv must use a canonical help form")
+            return value
+        if len(value) != 2:
             raise ValueError("installed-help argv must be a help token with at most one subcommand")
-        if len(value) == 2:
-            if help_positions[0] != 1 or _HELP_SUBCOMMAND_RE.fullmatch(value[0]) is None:
-                raise ValueError("installed-help argv operand must be a canonical subcommand")
+        first, second = value
+        flag_form = (
+            first not in _HELP_TOKENS
+            and _HELP_SUBCOMMAND_RE.fullmatch(first) is not None
+            and second in _HELP_FLAG_TOKENS
+        )
+        word_form = (
+            first == _HELP_WORD_TOKEN
+            and second not in _HELP_TOKENS
+            and _HELP_SUBCOMMAND_RE.fullmatch(second) is not None
+        )
+        if not flag_form and not word_form:
+            raise ValueError("installed-help argv must use canonical help token ordering")
         return value
 
     @model_validator(mode="after")
@@ -294,6 +423,24 @@ class EvidenceSource(_StrictFrozenModel):
         return self
 
 
+def _source_provenance(captured: EvidenceSource) -> tuple[object, ...]:
+    return (
+        captured.tool_id,
+        captured.kind,
+        captured.tool_version,
+        captured.url,
+        captured.version_locator,
+        captured.recipe_revision,
+        captured.recipe_path,
+        captured.commit,
+        captured.source_path,
+        captured.symbol_locator,
+        captured.environment_digest,
+        captured.executable_probe_id,
+        captured.argv,
+    )
+
+
 class EvidenceClaim(_StrictFrozenModel):
     claim_id: ArtifactId
     contract_pointer: JsonPointer
@@ -319,7 +466,7 @@ class EvidenceClaim(_StrictFrozenModel):
     @classmethod
     def _validate_claim_text(cls, value: str, info: object) -> str:
         label = getattr(info, "field_name", "claim text").replace("_", " ")
-        return _validate_text(value, label=label)
+        return _validate_retained_text(value, label=label)
 
 
 class VerificationEvidence(_StrictFrozenModel):
@@ -347,7 +494,7 @@ class VerificationEvidence(_StrictFrozenModel):
     @field_validator("summary")
     @classmethod
     def _validate_summary(cls, value: str) -> str:
-        return _validate_text(value, label="verification summary")
+        return _validate_retained_text(value, label="verification summary")
 
     @model_validator(mode="after")
     def _validate_fixture_identity(self) -> Self:
@@ -357,6 +504,19 @@ class VerificationEvidence(_StrictFrozenModel):
 
     def verification_digest(self) -> str:
         return _canonical_digest(self)
+
+
+def _verification_provenance(captured: VerificationEvidence) -> tuple[object, ...]:
+    return (
+        captured.kind,
+        captured.test_id,
+        captured.fixture_id,
+        captured.fixture_sha256,
+        captured.environment_sha256,
+        captured.catalog_sha256,
+        captured.platform_sha256,
+        captured.release_sha256,
+    )
 
 
 class EvidenceRecord(_StrictFrozenModel):
@@ -381,23 +541,54 @@ class EvidenceRecord(_StrictFrozenModel):
         source_ids = tuple(item.source_id for item in self.sources)
         claim_ids = tuple(item.claim_id for item in self.claims)
         verification_ids = tuple(item.evidence_id for item in self.verifications)
-        _validate_unique_ordered(source_ids, label="source IDs")
+        if len(set(source_ids)) != len(source_ids):
+            raise ValueError("source IDs must be unique")
+        source_order = tuple((_SOURCE_KIND_PRECEDENCE[item.kind], item.source_id) for item in self.sources)
+        if source_order != tuple(sorted(source_order)):
+            raise ValueError("source captures must use authoritative kind precedence then source ID")
         _validate_unique_ordered(claim_ids, label="claim IDs")
         _validate_unique_ordered(verification_ids, label="verification evidence IDs")
 
         sources_by_id = {item.source_id: item for item in self.sources}
+        source_contents: dict[tuple[object, ...], str] = {}
         for captured in self.sources:
+            if captured.tool_id != self.tool_id:
+                raise ValueError("source tool ID must equal the evidence record tool ID")
             if captured.tool_version != self.tool_version:
                 raise ValueError("source tool version must equal the evidence record tool version")
+            provenance = _source_provenance(captured)
+            if provenance in source_contents:
+                if source_contents[provenance] == captured.content_sha256:
+                    raise ValueError("duplicate source capture provenance")
+                raise ValueError("conflicting source capture content for one provenance")
+            source_contents[provenance] = captured.content_sha256
+
+        verification_results: dict[tuple[object, ...], str] = {}
+        for captured in self.verifications:
+            provenance = _verification_provenance(captured)
+            if provenance in verification_results:
+                if verification_results[provenance] == captured.result_sha256:
+                    raise ValueError("duplicate verification capture provenance")
+                raise ValueError("conflicting verification capture result for one provenance")
+            verification_results[provenance] = captured.result_sha256
 
         bindings: set[tuple[str, ...]] = set()
         pointer_sources: set[tuple[str, str]] = set()
+        pointer_values: dict[str, str] = {}
         for asserted in self.claims:
             captured = sources_by_id.get(asserted.source_id)
             if captured is None:
                 raise ValueError(f"claim {asserted.claim_id} references missing source {asserted.source_id}")
             if asserted.source_content_sha256 != captured.content_sha256:
                 raise ValueError(f"claim {asserted.claim_id} source content digest does not match its source")
+            if captured.kind is SourceKind.PACKAGE_RECIPE:
+                pointer_segments = _decode_json_pointer(asserted.contract_pointer)
+                if pointer_segments[:2] != ("environment", "packages"):
+                    raise ValueError("package recipe claims must target /environment/packages")
+            prior_value = pointer_values.get(asserted.contract_pointer)
+            if prior_value is not None and prior_value != asserted.contract_value_sha256:
+                raise ValueError("claims for one contract pointer have conflicting contract values")
+            pointer_values[asserted.contract_pointer] = asserted.contract_value_sha256
             binding = (
                 asserted.contract_pointer,
                 asserted.source_id,

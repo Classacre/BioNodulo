@@ -12,6 +12,7 @@ from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from bionodulo.nodes.contract.artifacts import ArtifactId, _StrictFrozenModel
 from bionodulo.nodes.contract.environments import ExactVersion, Sha256Digest, _validate_exact_version
+from bionodulo.nodes.contract.evidence import _validate_retained_text
 
 
 _MAX_ID_LENGTH = 128
@@ -34,14 +35,6 @@ def _canonical_digest(value: _StrictFrozenModel) -> str:
 def _validate_bounded_id(value: str, *, label: str) -> str:
     if len(value) > _MAX_ID_LENGTH:
         raise ValueError(f"{label} must be at most {_MAX_ID_LENGTH} characters")
-    return value
-
-
-def _validate_text(value: str, *, label: str) -> str:
-    if value != value.strip():
-        raise ValueError(f"{label} must not have outer whitespace")
-    if any(ord(character) < 32 or ord(character) == 127 for character in value):
-        raise ValueError(f"{label} must be a single printable line")
     return value
 
 
@@ -97,7 +90,7 @@ class GateAssessment(_StrictFrozenModel):
         if value is None:
             return None
         label = getattr(info, "field_name", "assessment text").replace("_", " ")
-        return _validate_text(value, label=label)
+        return _validate_retained_text(value, label=label)
 
     @model_validator(mode="after")
     def _validate_result_evidence(self) -> Self:
