@@ -1,10 +1,12 @@
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
+import bionodulo.nodes.contract.outputs as output_contract
 from bionodulo.nodes.contract.artifacts import ArtifactContainer, Cardinality
 from bionodulo.nodes.contract.outputs import (
     CollectedArtifact,
@@ -14,6 +16,10 @@ from bionodulo.nodes.contract.outputs import (
     ExactCollector,
     GlobCollector,
     JsonValidator,
+    MAX_CONTENT_VALIDATOR_BYTES,
+    MAX_DIRECTORY_ENTRIES,
+    MAX_GLOB_MATCHES,
+    MAX_STDOUT_BYTES,
     OutputCollectionError,
     OutputCollector,
     OutputIdentityError,
@@ -47,6 +53,43 @@ def output_spec(
 
 def relative_paths(value: tuple[CollectedArtifact, ...]) -> tuple[str, ...]:
     return tuple(artifact.relative_path for artifact in value)
+
+
+def open_descriptor_count() -> int:
+    descriptor_directory = Path("/proc/self/fd")
+    if not descriptor_directory.is_dir():
+        pytest.skip("descriptor counting requires Linux /proc/self/fd")
+    return len(os.listdir(descriptor_directory))
+
+
+def instrument_scandir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[str]:
+    real_scandir = output_contract.os.scandir
+    observed: list[str] = []
+
+    class CountingScandir:
+        def __init__(self, directory: object) -> None:
+            self._entries = real_scandir(directory)
+
+        def __enter__(self) -> "CountingScandir":
+            self._entries.__enter__()
+            return self
+
+        def __exit__(self, *args: object) -> object:
+            return self._entries.__exit__(*args)
+
+        def __iter__(self) -> "CountingScandir":
+            return self
+
+        def __next__(self) -> os.DirEntry[str]:
+            entry = next(self._entries)
+            observed.append(entry.name)
+            return entry
+
+    monkeypatch.setattr(output_contract, "_require_descriptor_primitives", lambda: None)
+    monkeypatch.setattr(output_contract.os, "scandir", CountingScandir)
+    return observed
 
 
 def test_glob_collects_before_validating_the_logical_port(tmp_path: Path) -> None:
@@ -248,6 +291,35 @@ def test_glob_stops_at_maximum_plus_one(tmp_path: Path) -> None:
         collect_outputs((spec,), tmp_path, stdout=None)
 
 
+def test_glob_iteration_stops_at_maximum_plus_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for index in range(8):
+        (tmp_path / f"result-{index}.txt").write_text("value", encoding="utf-8")
+    observed = instrument_scandir(monkeypatch)
+    spec = output_spec(
+        GlobCollector(pattern="*.txt", minimum=0, maximum=2),
+        cardinality=Cardinality.MANY,
+    )
+
+    with pytest.raises(OutputCollectionError, match="maximum"):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+    assert len(observed) == 3
+
+
+def test_glob_enforces_declared_minimum(tmp_path: Path) -> None:
+    (tmp_path / "only.txt").write_text("value", encoding="utf-8")
+    spec = output_spec(
+        GlobCollector(pattern="*.txt", minimum=2, maximum=3),
+        cardinality=Cardinality.MANY,
+    )
+
+    with pytest.raises(OutputCollectionError, match=r"minimum.*2"):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+
 @pytest.mark.parametrize(
     "relative_path",
     (
@@ -326,6 +398,35 @@ def test_output_root_rejects_symlink(tmp_path: Path) -> None:
 
     with pytest.raises(OutputRootError, match="symlink"):
         collect_outputs((spec,), linked_root, stdout=None)
+
+
+def test_invalid_encoding_root_is_normalized_without_descriptor_leaks() -> None:
+    before = open_descriptor_count()
+
+    for _ in range(32):
+        with pytest.raises(OutputRootError) as caught:
+            collect_outputs((), "/\ud800", stdout=None)
+        assert "\ud800" not in str(caught.value)
+
+    assert open_descriptor_count() == before
+
+
+def test_symlinked_root_ancestor_is_rejected_without_descriptor_leaks(
+    tmp_path: Path,
+) -> None:
+    actual = tmp_path / "actual"
+    (actual / "root").mkdir(parents=True)
+    linked = tmp_path / "linked"
+    linked.symlink_to(actual, target_is_directory=True)
+    unsafe_root = linked / "root"
+    before = open_descriptor_count()
+
+    for _ in range(32):
+        with pytest.raises(OutputRootError) as caught:
+            collect_outputs((), unsafe_root, stdout=None)
+        assert str(unsafe_root) not in str(caught.value)
+
+    assert open_descriptor_count() == before
 
 
 def test_exact_rejects_symlink_leaf_without_leaking_root(tmp_path: Path) -> None:
@@ -430,6 +531,29 @@ def test_stdout_never_overwrites_preexisting_objects(
     assert preserved.read_text(encoding="utf-8") == "original"
 
 
+@pytest.mark.parametrize("preexisting_kind", ("directory", "fifo"))
+def test_stdout_never_opens_or_overwrites_preexisting_special_targets(
+    tmp_path: Path,
+    preexisting_kind: str,
+) -> None:
+    target = tmp_path / "stdout.txt"
+    if preexisting_kind == "directory":
+        target.mkdir()
+    else:
+        os.mkfifo(target)
+    spec = output_spec(StdoutCollector(relative_path="stdout.txt", maximum_bytes=64))
+
+    with pytest.raises(OutputCollectionError, match=r"output.*stdout\.txt.*exists"):
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout="replacement",
+            stdout_truncated=False,
+        )
+
+    assert target.is_dir() if preexisting_kind == "directory" else target.exists()
+
+
 def test_stdout_rejects_truncated_or_unmarked_capture_without_writing(
     tmp_path: Path,
 ) -> None:
@@ -446,6 +570,36 @@ def test_stdout_rejects_truncated_or_unmarked_capture_without_writing(
 
     with pytest.raises(OutputCollectionError, match=r"output.*truncation metadata"):
         collect_outputs((spec,), tmp_path, stdout="complete")
+    assert not (tmp_path / "stdout.txt").exists()
+
+
+@pytest.mark.parametrize("stdout_truncated", (None, False))
+def test_active_required_stdout_without_payload_is_missing(
+    tmp_path: Path,
+    stdout_truncated: bool | None,
+) -> None:
+    spec = output_spec(StdoutCollector(relative_path="stdout.txt", maximum_bytes=64))
+
+    with pytest.raises(FileNotFoundError, match="output"):
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout=None,
+            stdout_truncated=stdout_truncated,
+        )
+
+
+def test_active_stdout_rejects_truncated_capture_without_payload(tmp_path: Path) -> None:
+    spec = output_spec(StdoutCollector(relative_path="stdout.txt", maximum_bytes=64))
+
+    with pytest.raises(OutputCollectionError, match=r"output.*truncated"):
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout=None,
+            stdout_truncated=True,
+        )
+
     assert not (tmp_path / "stdout.txt").exists()
 
 
@@ -488,6 +642,98 @@ def test_stdout_removes_only_its_new_file_when_validation_fails(
         )
 
     assert not (tmp_path / "stdout.txt").exists()
+
+
+def test_stdout_target_remains_hidden_until_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "stdout.json"
+    spec = output_spec(
+        StdoutCollector(relative_path="stdout.json", maximum_bytes=64),
+        validators=(JsonValidator(maximum_bytes=64),),
+    )
+    real_validate = output_contract._validate_content
+    validation_observed = False
+
+    def validate_while_hidden(*args: object) -> None:
+        nonlocal validation_observed
+        validation_observed = True
+        assert not target.exists()
+        real_validate(*args)
+
+    monkeypatch.setattr(output_contract, "_validate_content", validate_while_hidden)
+
+    collect_outputs(
+        (spec,),
+        tmp_path,
+        stdout='{"ok":true}',
+        stdout_truncated=False,
+    )
+
+    assert validation_observed
+    assert target.read_text(encoding="utf-8") == '{"ok":true}'
+
+
+def test_stdout_validation_failure_never_unlinks_a_racing_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "stdout.json"
+    replacement = tmp_path / "replacement.json"
+    spec = output_spec(
+        StdoutCollector(relative_path="stdout.json", maximum_bytes=64),
+        validators=(JsonValidator(maximum_bytes=64),),
+    )
+    real_stat_entry = output_contract._stat_entry
+    race_triggered = False
+
+    def replace_after_stat(parent_fd: int, path: str) -> os.stat_result | None:
+        nonlocal race_triggered
+        captured_stat = real_stat_entry(parent_fd, path)
+        if path == "stdout.json" and captured_stat is not None:
+            race_triggered = True
+            replacement.write_text('{"replacement":true}', encoding="utf-8")
+            replacement.replace(target)
+        return captured_stat
+
+    monkeypatch.setattr(output_contract, "_stat_entry", replace_after_stat)
+
+    with pytest.raises(OutputCollectionError, match="JSON"):
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout="{broken",
+            stdout_truncated=False,
+        )
+
+    assert not race_triggered
+    if target.exists():
+        assert target.read_text(encoding="utf-8") == '{"replacement":true}'
+
+
+def test_multiple_active_stdout_collectors_fail_before_publication(tmp_path: Path) -> None:
+    specs = (
+        output_spec(
+            StdoutCollector(relative_path="first.txt", maximum_bytes=64),
+            port_id="first",
+        ),
+        output_spec(
+            StdoutCollector(relative_path="second.txt", maximum_bytes=64),
+            port_id="second",
+        ),
+    )
+
+    with pytest.raises(OutputCollectionError, match="multiple active stdout"):
+        collect_outputs(
+            specs,
+            tmp_path,
+            stdout="value",
+            stdout_truncated=False,
+        )
+
+    assert not (tmp_path / "first.txt").exists()
+    assert not (tmp_path / "second.txt").exists()
 
 
 def test_utf8_text_validator_accepts_bounded_text(tmp_path: Path) -> None:
@@ -557,6 +803,31 @@ def test_json_validator_rejects_bounded_or_malformed_content(
     )
 
     with pytest.raises(OutputCollectionError, match=message):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        b"1e9999",
+        b"-1e9999",
+        b"NaN",
+        b"Infinity",
+        b"-Infinity",
+        b"{} trailing",
+    ),
+)
+def test_json_validator_rejects_every_nonfinite_or_trailing_form(
+    tmp_path: Path,
+    payload: bytes,
+) -> None:
+    (tmp_path / "data.json").write_bytes(payload)
+    spec = output_spec(
+        ExactCollector(relative_path="data.json"),
+        validators=(JsonValidator(maximum_bytes=32),),
+    )
+
+    with pytest.raises(OutputCollectionError, match=r"output.*data\.json.*JSON"):
         collect_outputs((spec,), tmp_path, stdout=None)
 
 
@@ -668,6 +939,106 @@ def test_conditional_comparison_is_type_exact(tmp_path: Path) -> None:
     )["output"]
 
     assert value is None
+
+
+def test_inactive_conditional_exact_ignores_missing_and_symlink_paths(
+    tmp_path: Path,
+) -> None:
+    spec = conditional_spec()
+
+    assert (
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout=None,
+            conditions={"emit": False},
+        )["output"]
+        is None
+    )
+
+    (tmp_path / "target.txt").write_text("value", encoding="utf-8")
+    (tmp_path / "result.txt").symlink_to("target.txt")
+    assert (
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout=None,
+            conditions={"emit": False},
+        )["output"]
+        is None
+    )
+    with pytest.raises(OutputCollectionError, match="symlink"):
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout=None,
+            conditions={"emit": True},
+        )
+
+
+def test_inactive_conditional_glob_skips_minimum_enforcement(tmp_path: Path) -> None:
+    spec = output_spec(
+        ConditionalCollector(
+            condition_key="emit",
+            expected_value=True,
+            collector=GlobCollector(pattern="*.txt", minimum=1, maximum=2),
+        ),
+        cardinality=Cardinality.MANY,
+    )
+
+    assert (
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout=None,
+            conditions={"emit": False},
+        )["output"]
+        == ()
+    )
+    with pytest.raises(OutputCollectionError, match="minimum"):
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout=None,
+            conditions={"emit": True},
+        )
+
+
+def test_inactive_conditional_stdout_ignores_payload_and_target(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "stdout.txt"
+    (tmp_path / "existing.txt").write_text("existing", encoding="utf-8")
+    target.symlink_to("existing.txt")
+    spec = output_spec(
+        ConditionalCollector(
+            condition_key="emit",
+            expected_value=True,
+            collector=StdoutCollector(relative_path="stdout.txt", maximum_bytes=64),
+        ),
+        cardinality=Cardinality.OPTIONAL_ONE,
+    )
+
+    assert (
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout="ignored",
+            conditions={"emit": False},
+        )["output"]
+        is None
+    )
+    assert target.is_symlink()
+    assert target.read_text(encoding="utf-8") == "existing"
+
+    with pytest.raises(OutputCollectionError, match="exists"):
+        collect_outputs(
+            (spec,),
+            tmp_path,
+            stdout="active",
+            stdout_truncated=False,
+            conditions={"emit": True},
+        )
 
 
 @pytest.mark.parametrize(
@@ -879,6 +1250,59 @@ def test_output_model_copy_revalidates_hard_bounds(
         instance.model_copy(update=update)
 
 
+@pytest.mark.parametrize(
+    ("factory", "maximum"),
+    (
+        (
+            lambda value: GlobCollector(
+                pattern="*.txt",
+                minimum=value,
+                maximum=MAX_GLOB_MATCHES,
+            ),
+            MAX_GLOB_MATCHES,
+        ),
+        (
+            lambda value: GlobCollector(pattern="*.txt", minimum=0, maximum=value),
+            MAX_GLOB_MATCHES,
+        ),
+        (
+            lambda value: GlobCollector(
+                pattern="*.txt",
+                minimum=0,
+                maximum=1,
+                maximum_directory_entries=value,
+            ),
+            MAX_DIRECTORY_ENTRIES,
+        ),
+        (
+            lambda value: StdoutCollector(relative_path="stdout.txt", maximum_bytes=value),
+            MAX_STDOUT_BYTES,
+        ),
+        (
+            lambda value: Utf8TextValidator(maximum_bytes=value),
+            MAX_CONTENT_VALIDATOR_BYTES,
+        ),
+        (
+            lambda value: JsonValidator(maximum_bytes=value),
+            MAX_CONTENT_VALIDATOR_BYTES,
+        ),
+        (
+            lambda value: DirectoryCollector(relative_path="tree", maximum_entries=value),
+            MAX_DIRECTORY_ENTRIES,
+        ),
+    ),
+)
+def test_bounded_integer_fields_accept_maximum_and_reject_overflow_or_bool(
+    factory: Callable[[object], object],
+    maximum: int,
+) -> None:
+    factory(maximum)
+    with pytest.raises(ValidationError):
+        factory(maximum + 1)
+    with pytest.raises(ValidationError):
+        factory(True)
+
+
 def test_constructed_collectors_and_specs_are_revalidated(tmp_path: Path) -> None:
     invalid_collector = GlobCollector.model_construct(
         kind="glob",
@@ -904,6 +1328,36 @@ def test_constructed_collectors_and_specs_are_revalidated(tmp_path: Path) -> Non
         collect_outputs((invalid_spec,), tmp_path, stdout=None)
     with pytest.raises(ValidationError):
         invalid_spec.model_copy()
+
+
+def test_constructed_missing_and_wrong_nested_models_fail_cleanly(tmp_path: Path) -> None:
+    missing_path = ExactCollector.model_construct(kind="exact")
+    malformed_validator = JsonValidator.model_construct(
+        kind="json",
+        maximum_bytes="64",
+    )
+
+    with pytest.raises(ValidationError):
+        output_spec(missing_path)
+    with pytest.raises(ValidationError):
+        missing_path.model_copy()
+    with pytest.raises(ValidationError):
+        output_spec(
+            ExactCollector(relative_path="result.json"),
+            validators=(malformed_validator,),
+        )
+
+    wrong_nested = OutputSpec.model_construct(
+        port_id="output",
+        artifact_type="artifact.file",
+        cardinality=Cardinality.ONE,
+        collector=Utf8TextValidator(maximum_bytes=64),
+        require_nonempty=False,
+        allowed_extensions=(),
+        validators=(),
+    )
+    with pytest.raises(ValidationError):
+        collect_outputs((wrong_nested,), tmp_path, stdout=None)
 
 
 def test_collected_identity_detects_leaf_replacement(tmp_path: Path) -> None:
@@ -946,6 +1400,80 @@ def test_collected_identity_detects_same_inode_same_size_rewrite(tmp_path: Path)
     assert path.stat().st_size == artifact.identity.size
     with pytest.raises(OutputIdentityError, match="changed"):
         artifact.read_bytes_verified(tmp_path)
+
+
+def test_verified_open_detects_in_context_rewrite_on_exit(tmp_path: Path) -> None:
+    path = tmp_path / "result.txt"
+    path.write_bytes(b"first")
+    artifact = collect_outputs(
+        (output_spec(ExactCollector(relative_path="result.txt")),),
+        tmp_path,
+        stdout=None,
+    )["output"]
+    assert isinstance(artifact, CollectedArtifact)
+
+    with pytest.raises(OutputIdentityError, match="changed"):
+        with artifact.open_verified(tmp_path) as opened:
+            assert opened.read() == b"first"
+            path.write_bytes(b"other")
+
+
+def test_verified_read_detects_rewrite_during_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "result.txt"
+    path.write_bytes(b"first")
+    artifact = collect_outputs(
+        (output_spec(ExactCollector(relative_path="result.txt")),),
+        tmp_path,
+        stdout=None,
+    )["output"]
+    assert isinstance(artifact, CollectedArtifact)
+    real_fdopen = output_contract.os.fdopen
+
+    class RewritingReader:
+        def __init__(self, descriptor: int) -> None:
+            self._opened = real_fdopen(descriptor, "rb", closefd=True)
+
+        def read(self, size: int = -1) -> bytes:
+            path.write_bytes(b"other")
+            return self._opened.read(size)
+
+        def fileno(self) -> int:
+            return self._opened.fileno()
+
+        def close(self) -> None:
+            self._opened.close()
+
+        @property
+        def closed(self) -> bool:
+            return self._opened.closed
+
+    monkeypatch.setattr(
+        output_contract.os,
+        "fdopen",
+        lambda descriptor, _mode, *, closefd: RewritingReader(descriptor),
+    )
+
+    with pytest.raises(OutputIdentityError, match="changed"):
+        artifact.read_bytes_verified(tmp_path)
+
+
+def test_verified_open_preserves_caller_exception_during_rewrite(tmp_path: Path) -> None:
+    path = tmp_path / "result.txt"
+    path.write_bytes(b"first")
+    artifact = collect_outputs(
+        (output_spec(ExactCollector(relative_path="result.txt")),),
+        tmp_path,
+        stdout=None,
+    )["output"]
+    assert isinstance(artifact, CollectedArtifact)
+
+    with pytest.raises(RuntimeError, match="caller failed"):
+        with artifact.open_verified(tmp_path):
+            path.write_bytes(b"other")
+            raise RuntimeError("caller failed")
 
 
 def test_collected_directory_identity_detects_descendant_replacement(
@@ -1005,6 +1533,27 @@ def test_directory_tree_is_deterministic_and_bounded(tmp_path: Path) -> None:
         collect_outputs((too_small,), tmp_path, stdout=None)
 
 
+def test_directory_iteration_stops_at_entry_cap_plus_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    for index in range(8):
+        (tree / f"entry-{index}.txt").write_text("value", encoding="utf-8")
+    observed = instrument_scandir(monkeypatch)
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=2),
+    )
+
+    with pytest.raises(OutputCollectionError, match="maximum"):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+    assert len(observed) == 3
+
+
 @pytest.mark.parametrize("unsafe_kind", ("symlink", "fifo"))
 def test_directory_tree_rejects_unsafe_descendants(
     tmp_path: Path,
@@ -1061,3 +1610,27 @@ def test_verified_open_context_closes_its_descriptor(tmp_path: Path) -> None:
         assert opened.read() == b"value"
 
     assert opened.closed
+
+
+def test_collection_success_and_failure_paths_do_not_leak_descriptors(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "result.txt").write_text("value", encoding="utf-8")
+    exact = output_spec(ExactCollector(relative_path="result.txt"))
+    invalid_stdout = output_spec(
+        StdoutCollector(relative_path="stdout.json", maximum_bytes=64),
+        validators=(JsonValidator(maximum_bytes=64),),
+    )
+    before = open_descriptor_count()
+
+    for _ in range(16):
+        collect_outputs((exact,), tmp_path, stdout=None)
+        with pytest.raises(OutputCollectionError, match="JSON"):
+            collect_outputs(
+                (invalid_stdout,),
+                tmp_path,
+                stdout="{broken",
+                stdout_truncated=False,
+            )
+
+    assert open_descriptor_count() == before

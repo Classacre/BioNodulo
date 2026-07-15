@@ -1,3 +1,4 @@
+import ctypes
 import errno
 import fnmatch
 import json
@@ -33,6 +34,7 @@ _DEFAULT_DIRECTORY_ENTRIES: Final = 10_000
 _MAX_RELATIVE_PATH_BYTES: Final = 4_096
 _MAX_PATH_COMPONENTS: Final = 256
 _MAX_DIRECTORY_DEPTH: Final = 256
+_AT_EMPTY_PATH: Final = 0x1000
 _EXTENSION_RE = re.compile(r"^\.[A-Za-z0-9][A-Za-z0-9_+-]*(?:\.[A-Za-z0-9][A-Za-z0-9_+-]*)*$")
 _WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
 
@@ -302,6 +304,7 @@ class CollectedArtifact(_StrictFrozenModel):
         root_fd = _open_root(root)
         captured: _CapturedObject | None = None
         opened: BinaryIO | None = None
+        primary_error = False
         try:
             if not _same_root_identity(_identity_from_stat(os.fstat(root_fd)), self.root_identity):
                 raise OutputIdentityError("collected output root changed")
@@ -320,12 +323,33 @@ class CollectedArtifact(_StrictFrozenModel):
             opened = cast(BinaryIO, os.fdopen(captured.fd, "rb", closefd=True))
             captured = None
             yield opened
+            try:
+                final_identity = _identity_from_stat(os.fstat(opened.fileno()))
+            except OSError as error:
+                raise OutputIdentityError(f"output path '{self.relative_path}' changed") from error
+            if final_identity != self.identity:
+                raise OutputIdentityError(f"output path '{self.relative_path}' changed")
+        except BaseException:
+            primary_error = True
+            raise
         finally:
+            cleanup_error: BaseException | None = None
             if opened is not None:
-                opened.close()
+                try:
+                    opened.close()
+                except BaseException as error:
+                    cleanup_error = error
             if captured is not None:
-                os.close(captured.fd)
-            os.close(root_fd)
+                try:
+                    os.close(captured.fd)
+                except BaseException as error:
+                    cleanup_error = cleanup_error or error
+            try:
+                os.close(root_fd)
+            except BaseException as error:
+                cleanup_error = cleanup_error or error
+            if cleanup_error is not None and not primary_error:
+                raise cleanup_error
 
     def read_bytes_verified(
         self,
@@ -410,12 +434,7 @@ def _require_descriptor_primitives() -> None:
     required_flags = ("O_CLOEXEC", "O_DIRECTORY", "O_EXCL", "O_NOFOLLOW", "O_NONBLOCK")
     if any(not hasattr(os, flag) for flag in required_flags):
         raise OutputRootError("platform lacks required no-follow descriptor support")
-    if (
-        os.open not in os.supports_dir_fd
-        or os.stat not in os.supports_dir_fd
-        or os.unlink not in os.supports_dir_fd
-        or os.scandir not in os.supports_fd
-    ):
+    if os.open not in os.supports_dir_fd or os.stat not in os.supports_dir_fd or os.scandir not in os.supports_fd:
         raise OutputRootError("platform lacks required descriptor-relative operations")
 
 
@@ -444,7 +463,7 @@ def _open_root(root: str | os.PathLike[str]) -> int:
             root_fd = next_fd
         if not stat.S_ISDIR(os.fstat(root_fd).st_mode):
             raise OutputRootError("output root must be an existing absolute non-symlink directory")
-    except (OSError, OutputRootError) as error:
+    except (OSError, UnicodeError, TypeError, ValueError) as error:
         os.close(root_fd)
         if isinstance(error, OutputRootError):
             raise
@@ -862,30 +881,6 @@ def _collect_glob(
     return sorted(captured, key=lambda artifact: artifact.relative_path)
 
 
-def _unlink_if_same(
-    root_fd: int,
-    relative_path: str,
-    identity: ObjectIdentity,
-) -> None:
-    try:
-        parent = _open_parent(root_fd, relative_path, port_id="cleanup")
-    except (OSError, OutputCollectionError):
-        return
-    if parent is None:
-        return
-    parent_fd, name = parent
-    try:
-        current = _stat_entry(parent_fd, name)
-        if current is None:
-            return
-        if current.st_dev == identity.device and current.st_ino == identity.inode:
-            os.unlink(name, dir_fd=parent_fd)
-    except OSError:
-        return
-    finally:
-        os.close(parent_fd)
-
-
 def _create_stdout_artifact(
     root_fd: int,
     collector: StdoutCollector,
@@ -896,17 +891,24 @@ def _create_stdout_artifact(
     parent = _open_parent(root_fd, collector.relative_path, port_id=port_id)
     if parent is None:
         raise _path_error(port_id, collector.relative_path, "parent directory is missing")
-    parent_fd, name = parent
+    parent_fd, _ = parent
     artifact_fd = -1
-    identity: ObjectIdentity | None = None
     try:
-        flags = os.O_RDWR | os.O_CLOEXEC | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+        if not hasattr(os, "O_TMPFILE"):
+            raise _path_error(
+                port_id,
+                collector.relative_path,
+                "platform does not support safe anonymous stdout staging",
+            )
+        flags = os.O_RDWR | os.O_CLOEXEC | os.O_TMPFILE
         try:
-            artifact_fd = os.open(name, flags, 0o600, dir_fd=parent_fd)
-        except FileExistsError as error:
-            raise _path_error(port_id, collector.relative_path, "target already exists") from error
+            artifact_fd = os.open(".", flags, 0o600, dir_fd=parent_fd)
         except OSError as error:
-            raise _path_error(port_id, collector.relative_path, "target could not be created safely") from error
+            raise _path_error(
+                port_id,
+                collector.relative_path,
+                "filesystem does not support safe anonymous stdout staging",
+            ) from error
 
         position = 0
         while position < len(payload):
@@ -925,22 +927,90 @@ def _create_stdout_artifact(
         )
     except BaseException:
         if artifact_fd >= 0:
-            if identity is None:
-                try:
-                    identity = _identity_from_stat(os.fstat(artifact_fd))
-                except OSError:
-                    identity = None
             os.close(artifact_fd)
-        if identity is not None:
-            try:
-                current = _stat_entry(parent_fd, name)
-                if current is not None and current.st_dev == identity.device and current.st_ino == identity.inode:
-                    os.unlink(name, dir_fd=parent_fd)
-            except OSError:
-                pass
         raise
     finally:
         os.close(parent_fd)
+
+
+def _link_anonymous_file(source_fd: int, parent_fd: int, name: str) -> None:
+    try:
+        library = ctypes.CDLL(None, use_errno=True)
+        linkat = library.linkat
+    except (AttributeError, OSError) as error:
+        raise OSError(errno.ENOSYS, "linkat is unavailable") from error
+    linkat.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+    )
+    linkat.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = linkat(
+        source_fd,
+        b"",
+        parent_fd,
+        os.fsencode(name),
+        _AT_EMPTY_PATH,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number))
+
+
+def _publish_stdout_artifact(
+    root_fd: int,
+    artifact: _CapturedObject,
+    *,
+    port_id: str,
+) -> _CapturedObject:
+    parent = _open_parent(root_fd, artifact.relative_path, port_id=port_id)
+    if parent is None:
+        raise _path_error(port_id, artifact.relative_path, "parent directory is missing")
+    parent_fd, name = parent
+    try:
+        try:
+            _link_anonymous_file(artifact.fd, parent_fd, name)
+        except OSError as error:
+            if error.errno == errno.EEXIST:
+                detail = "target already exists"
+            elif error.errno in (
+                errno.EINVAL,
+                errno.ENOSYS,
+                errno.EOPNOTSUPP,
+                errno.EPERM,
+            ):
+                detail = "platform does not support safe stdout publication"
+            else:
+                detail = "target could not be published safely"
+            raise _path_error(port_id, artifact.relative_path, detail) from error
+    finally:
+        os.close(parent_fd)
+
+    published_identity = _identity_from_stat(os.fstat(artifact.fd))
+    verified = _open_existing_artifact(
+        root_fd,
+        artifact.relative_path,
+        ArtifactContainer.FILE,
+        port_id=port_id,
+        directory_limit=0,
+    )
+    if verified is None:
+        raise _path_error(port_id, artifact.relative_path, "published target changed")
+    try:
+        if verified.identity != published_identity:
+            raise _path_error(port_id, artifact.relative_path, "published target changed")
+    finally:
+        os.close(verified.fd)
+    return _CapturedObject(
+        relative_path=artifact.relative_path,
+        container=artifact.container,
+        identity=published_identity,
+        entries=artifact.entries,
+        fd=artifact.fd,
+    )
 
 
 def _read_bounded(fd: int, maximum_bytes: int) -> bytes:
@@ -958,6 +1028,13 @@ def _read_bounded(fd: int, maximum_bytes: int) -> bytes:
 
 def _reject_json_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON number: {value}")
+
+
+def _parse_finite_json_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"non-finite JSON number: {value}")
+    return parsed
 
 
 def _validate_content(
@@ -984,7 +1061,11 @@ def _validate_content(
         raise _path_error(spec.port_id, artifact.relative_path, "content is not valid UTF-8") from error
     if isinstance(validator, JsonValidator):
         try:
-            json.loads(text, parse_constant=_reject_json_constant)
+            json.loads(
+                text,
+                parse_constant=_reject_json_constant,
+                parse_float=_parse_finite_json_float,
+            )
         except (ValueError, RecursionError, MemoryError) as error:
             raise _path_error(spec.port_id, artifact.relative_path, "content is not valid bounded JSON") from error
 
@@ -1132,20 +1213,24 @@ def _prepare_stdout(
         for spec, collector in zip(specs, active, strict=True)
         if isinstance(collector, StdoutCollector)
     ]
-    if not stdout_specs or stdout is None:
+    if not stdout_specs:
         return None
+    if len(stdout_specs) > 1:
+        raise OutputCollectionError("multiple active stdout collectors cannot be published atomically")
     first_spec = stdout_specs[0][0]
+    if stdout_truncated is True:
+        raise _path_error(
+            first_spec.port_id,
+            _collector_label(first_spec.collector),
+            "captured stdout is truncated",
+        )
+    if stdout is None:
+        return None
     if type(stdout_truncated) is not bool:
         raise _path_error(
             first_spec.port_id,
             _collector_label(first_spec.collector),
             "explicit stdout truncation metadata is required",
-        )
-    if stdout_truncated:
-        raise _path_error(
-            first_spec.port_id,
-            _collector_label(first_spec.collector),
-            "captured stdout is truncated",
         )
     if type(stdout) is str:
         try:
@@ -1194,7 +1279,6 @@ def collect_outputs(
     )
     root_fd = _open_root(root)
     all_captured: list[list[_CapturedObject]] = []
-    created: list[_CapturedObject] = []
     try:
         for spec, collector in zip(validated_specs, active, strict=True):
             artifacts = (
@@ -1208,10 +1292,7 @@ def collect_outputs(
                 )
             )
             all_captured.append(artifacts)
-            created.extend(artifact for artifact in artifacts if artifact.created)
 
-        root_identity = _identity_from_stat(os.fstat(root_fd))
-        collected_outputs: list[CollectedOutput] = []
         for spec, collector, artifacts in zip(
             validated_specs,
             active,
@@ -1220,6 +1301,16 @@ def collect_outputs(
         ):
             _validate_count(spec, artifacts, collector_active=collector is not None)
             _validate_artifacts(spec, artifacts)
+
+        for index, (spec, artifacts) in enumerate(zip(validated_specs, all_captured, strict=True)):
+            all_captured[index] = [
+                _publish_stdout_artifact(root_fd, artifact, port_id=spec.port_id) if artifact.created else artifact
+                for artifact in artifacts
+            ]
+
+        root_identity = _identity_from_stat(os.fstat(root_fd))
+        collected_outputs: list[CollectedOutput] = []
+        for spec, artifacts in zip(validated_specs, all_captured, strict=True):
             collected_outputs.append(
                 CollectedOutput(
                     port_id=spec.port_id,
@@ -1246,8 +1337,6 @@ def collect_outputs(
                 except OSError:
                     pass
         all_captured.clear()
-        for artifact in created:
-            _unlink_if_same(root_fd, artifact.relative_path, artifact.identity)
         raise
     finally:
         for artifacts in all_captured:
