@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 from datetime import date
 from pathlib import Path
@@ -9,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 import bionodulo.nodes.contract as contract
+import bionodulo.nodes.contract.evidence as evidence_module
 from bionodulo.nodes.contract.artifacts import ArtifactPort, Cardinality
 from bionodulo.nodes.contract.environments import (
     ContainerEnvironment,
@@ -25,11 +27,22 @@ from bionodulo.nodes.contract.environments import (
     ResolverIdentity,
 )
 from bionodulo.nodes.contract.evidence import (
+    ByteRangeLocator,
+    ContentLocatorKind,
+    DocumentationProofKind,
+    DocumentationVersionProof,
     EvidenceClaim,
     EvidenceRecord,
     EvidenceSource,
+    FailureCode,
+    RetainedText,
+    RetainedTextOrigin,
+    RetainedTextProvenance,
+    SourceContentFormat,
     SourceKind,
     VerificationEvidence,
+    VerificationKind,
+    VerificationOutcome,
 )
 from bionodulo.nodes.contract.maturity import (
     AccessClass,
@@ -67,6 +80,7 @@ SHA_D = "sha256:" + "d" * 64
 CAPTURE_DATE = date(2026, 7, 16)
 PLATFORM = ExecutionPlatform.LINUX_AMD64
 CONTAINER_IMAGE = "registry.example.org/tools/samtools@" + SHA_A
+CATALOG_PATH = "bionodulo/nodes/catalog/tools/samtools/evidence.authoring.json"
 
 
 def locked_artifact(
@@ -181,12 +195,33 @@ def container_environment(*, locked: bool = True) -> ContainerEnvironment:
     )
 
 
+def authored(value: str, pointer: str) -> RetainedText:
+    return RetainedText(
+        value=value,
+        provenance=RetainedTextProvenance(
+            origin=RetainedTextOrigin.CATALOG_AUTHOR,
+            catalog_path=CATALOG_PATH,
+            catalog_content_sha256=SHA_D,
+            field_pointer=pointer,
+        ),
+    )
+
+
+def byte_locator(start: int, end: int) -> ByteRangeLocator:
+    return ByteRangeLocator(
+        kind=ContentLocatorKind.BYTE_RANGE,
+        start_byte=start,
+        end_byte_exclusive=end,
+    )
+
+
 def evidence_record(
     *,
     tool_id: str = "samtools",
     tool_version: str = "1.20",
     verifications: tuple[VerificationEvidence, ...] = (),
 ) -> EvidenceRecord:
+    source_url = f"https://docs.example.org/{tool_id}/{tool_version}/reference.html"
     source = EvidenceSource(
         source_id=f"{tool_id}-manual",
         tool_id=tool_id,
@@ -194,57 +229,172 @@ def evidence_record(
         tool_version=tool_version,
         retrieved_at=CAPTURE_DATE,
         content_sha256=SHA_A,
-        title=f"{tool_id} {tool_version} manual",
-        description="Authoritative behavior reference for the pinned tool release.",
-        url=f"https://docs.example.org/{tool_id}/{tool_version}/reference.html",
-        version_locator=f"{tool_id} {tool_version} reference",
+        content_format=SourceContentFormat.TEXT,
+        title=authored(f"{tool_id} {tool_version} manual", "/sources/manual/title"),
+        description=authored(
+            "Authoritative behavior reference for the pinned tool release.",
+            "/sources/manual/description",
+        ),
+        url=source_url,
+        documentation_proof=DocumentationVersionProof(
+            proof_kind=DocumentationProofKind.DECLARED_METADATA,
+            tool_id=tool_id,
+            tool_version=tool_version,
+            source_url=source_url,
+            source_content_sha256=SHA_A,
+            locator=byte_locator(0, 1),
+            proof_content_sha256=SHA_B,
+        ),
     )
     claim = EvidenceClaim(
         claim_id="output-contract",
-        contract_pointer="/outputs/result",
+        contract_pointer="/outputs/result/collector",
         source_id=source.source_id,
-        locator="OUTPUT FILES",
-        statement="The command writes the declared result file.",
+        locator=byte_locator(1, 2),
+        statement=authored(
+            "The command writes the declared result file.",
+            "/claims/output-contract/statement",
+        ),
         source_content_sha256=SHA_A,
         excerpt_sha256=SHA_B,
         contract_value_sha256=SHA_C,
     )
     return EvidenceRecord(
+        schema_version=2,
         tool_id=tool_id,
         tool_version=tool_version,
         sources=(source,),
         claims=(claim,),
-        verifications=verifications,
+        verifications=tuple(sorted(verifications, key=lambda item: item.evidence_id)),
     )
 
 
-def verification_evidence(environment: object) -> VerificationEvidence:
+_GATE_VERIFICATION_KINDS = dict(zip(Gate, VerificationKind, strict=True))
+_VERIFICATION_FAILURE_CODES = {
+    VerificationKind.INVENTORY: FailureCode.INVENTORY_MISSING,
+    VerificationKind.EVIDENCE_COVERAGE: FailureCode.EVIDENCE_MISSING,
+    VerificationKind.CONTRACT_COMPILE: FailureCode.CONTRACT_INVALID,
+    VerificationKind.COMMAND_FIXTURE: FailureCode.COMMAND_FIXTURE_FAILED,
+    VerificationKind.ENVIRONMENT_PROBE: FailureCode.ENVIRONMENT_RESOLUTION_FAILED,
+    VerificationKind.TOOL_SMOKE: FailureCode.TOOL_SMOKE_FAILED,
+    VerificationKind.CLOUD_RUN: FailureCode.CLOUD_RUN_FAILED,
+    VerificationKind.WORKFLOW_RUN: FailureCode.WORKFLOW_RUN_FAILED,
+}
+_GATE_FAILURE_CODES = dict(zip(Gate, _VERIFICATION_FAILURE_CODES.values(), strict=True))
+
+
+def verification_evidence(
+    environment: object,
+    *,
+    kind: VerificationKind = VerificationKind.TOOL_SMOKE,
+    outcome: VerificationOutcome = VerificationOutcome.PASSED,
+    failure_code: FailureCode | None = None,
+    evidence_id: str | None = None,
+    test_id: str | None = None,
+    tool_id: str = "samtools",
+    tool_version: str = "1.20",
+    verifier_id: str = "catalog-verifier",
+    verifier_version: str = "1.0.0",
+    environment_sha256: str | None = None,
+) -> VerificationEvidence:
     assert isinstance(
         environment,
         (PixiEnvironment, PythonEnvironment, REnvironment, ContainerEnvironment),
     )
+    context: dict[str, object] = {
+        "fixture_id": None,
+        "fixture_sha256": None,
+        "environment_sha256": None,
+        "catalog_sha256": SHA_A,
+        "platform_sha256": None,
+        "release_sha256": None,
+    }
+    if kind in (
+        VerificationKind.COMMAND_FIXTURE,
+        VerificationKind.TOOL_SMOKE,
+        VerificationKind.CLOUD_RUN,
+        VerificationKind.WORKFLOW_RUN,
+    ):
+        context.update(fixture_id="tiny-bam-v1", fixture_sha256=SHA_C)
+    if kind in (
+        VerificationKind.COMMAND_FIXTURE,
+        VerificationKind.ENVIRONMENT_PROBE,
+        VerificationKind.TOOL_SMOKE,
+        VerificationKind.CLOUD_RUN,
+        VerificationKind.WORKFLOW_RUN,
+    ):
+        context["environment_sha256"] = environment.environment_digest()
+    if kind in (
+        VerificationKind.ENVIRONMENT_PROBE,
+        VerificationKind.TOOL_SMOKE,
+        VerificationKind.CLOUD_RUN,
+        VerificationKind.WORKFLOW_RUN,
+    ):
+        context["platform_sha256"] = SHA_B
+    if kind in (VerificationKind.CLOUD_RUN, VerificationKind.WORKFLOW_RUN):
+        context["release_sha256"] = SHA_D
+    if environment_sha256 is not None:
+        context["environment_sha256"] = environment_sha256
+    if outcome is VerificationOutcome.FAILED and failure_code is None:
+        failure_code = _VERIFICATION_FAILURE_CODES[kind]
     return VerificationEvidence(
-        evidence_id="samtools-smoke-linux-amd64",
-        kind="tool-smoke",
-        test_id="samtools-sort-tiny-bam-v1",
+        evidence_id=evidence_id or f"{kind.value}-{outcome.value}-linux-amd64",
+        tool_id=tool_id,
+        tool_version=tool_version,
+        kind=kind,
+        outcome=outcome,
+        failure_code=failure_code,
+        test_id=test_id or f"{kind.value}-fixture-v1",
         result_sha256=SHA_D,
-        fixture_id="tiny-bam-v1",
-        fixture_sha256=SHA_C,
-        environment_sha256=environment.environment_digest(),
         verified_at=CAPTURE_DATE,
-        summary="Pinned samtools completed the retained tiny BAM fixture.",
+        verifier_id=verifier_id,
+        verifier_version=verifier_version,
+        **context,
     )
 
 
-def gate_assessment(gate: Gate, *digests: str) -> GateAssessment:
+def verification_for_gate(
+    gate: Gate,
+    environment: object,
+    **updates: object,
+) -> VerificationEvidence:
+    return verification_evidence(
+        environment,
+        kind=_GATE_VERIFICATION_KINDS[gate],
+        **updates,
+    )
+
+
+def gate_assessment(
+    gate: Gate,
+    *digests: str,
+    result: GateResult = GateResult.PASSED,
+    failure_code: FailureCode | None = None,
+    verifier_id: str = "catalog-verifier",
+    verifier_version: str = "1.0.0",
+) -> GateAssessment:
+    if result is GateResult.FAILED and failure_code is None:
+        failure_code = _GATE_FAILURE_CODES[gate]
     return GateAssessment(
         gate=gate,
-        result=GateResult.PASSED,
-        evidence_digests=tuple(sorted(digests)),
+        result=result,
+        verification_digests=tuple(sorted(digests)),
         verified_at=CAPTURE_DATE,
-        verifier_id="catalog-verifier",
-        verifier_version="1.0.0",
-        summary=f"Retained assessment for {gate.value}.",
+        verifier_id=verifier_id,
+        verifier_version=verifier_version,
+        failure_code=failure_code,
+    )
+
+
+def maturity_record(
+    *,
+    access_classes: tuple[AccessClass, ...] = (AccessClass.PUBLIC,),
+    assessments: tuple[GateAssessment, ...] = (),
+) -> MaturityRecord:
+    return MaturityRecord(
+        schema_version=2,
+        access_classes=access_classes,
+        assessments=assessments,
     )
 
 
@@ -394,7 +544,7 @@ def external_spec(**updates: object) -> NodeSpec:
         "runtime_binding": None,
         "evidence": evidence_record(),
         "retained_evidence": None,
-        "maturity": MaturityRecord(access=AccessClass.PUBLIC),
+        "maturity": maturity_record(),
     }
     values.update(updates)
     if "runtime_binding" not in updates:
@@ -447,7 +597,7 @@ def core_spec(**updates: object) -> NodeSpec:
         "runtime_binding": None,
         "evidence": None,
         "retained_evidence": None,
-        "maturity": MaturityRecord(access=AccessClass.PUBLIC),
+        "maturity": maturity_record(),
     }
     values.update(updates)
     return NodeSpec(**values)
@@ -1025,6 +1175,105 @@ def test_conditional_output_accepts_an_exact_reachable_parameter_value(
 
 
 @pytest.mark.parametrize(
+    "kind",
+    (ValueKind.STRING, ValueKind.INTEGER, ValueKind.NUMBER, ValueKind.BOOLEAN),
+)
+def test_conditional_output_accepts_none_as_absence_for_optional_non_json_without_default(
+    kind: ValueKind,
+) -> None:
+    parameter = ParameterSpec(parameter_id="condition", kind=kind)
+
+    spec = external_spec(
+        parameters=(parameter,),
+        outputs=(conditional_output(parameter.parameter_id, None),),
+    )
+
+    assert spec.outputs[0].collector.expected_value is None
+
+
+@pytest.mark.parametrize(
+    "kind",
+    (ValueKind.STRING, ValueKind.INTEGER, ValueKind.NUMBER, ValueKind.BOOLEAN),
+)
+def test_conditional_output_rejects_none_for_required_non_json(kind: ValueKind) -> None:
+    parameter = ParameterSpec(parameter_id="condition", kind=kind, required=True)
+
+    with pytest.raises(ValidationError, match="conditional output"):
+        external_spec(
+            parameters=(parameter,),
+            outputs=(conditional_output(parameter.parameter_id, None),),
+        )
+
+
+@pytest.mark.parametrize(
+    ("kind", "default"),
+    (
+        (ValueKind.STRING, "value"),
+        (ValueKind.INTEGER, 1),
+        (ValueKind.NUMBER, 1.5),
+        (ValueKind.BOOLEAN, True),
+    ),
+)
+def test_conditional_output_rejects_none_when_optional_non_json_has_concrete_default(
+    kind: ValueKind,
+    default: object,
+) -> None:
+    parameter = ParameterSpec(
+        parameter_id="condition",
+        kind=kind,
+        has_default=True,
+        default=default,
+    )
+
+    with pytest.raises(ValidationError, match="conditional output"):
+        external_spec(
+            parameters=(parameter,),
+            outputs=(conditional_output(parameter.parameter_id, None),),
+        )
+
+
+def test_conditional_output_accepts_required_json_null_when_allowed_by_choices() -> None:
+    parameter = ParameterSpec(
+        parameter_id="condition",
+        kind=ValueKind.JSON,
+        required=True,
+        choices=(None, {"state": "set"}),
+    )
+
+    spec = external_spec(
+        parameters=(parameter,),
+        outputs=(conditional_output(parameter.parameter_id, None),),
+    )
+
+    assert spec.outputs[0].collector.expected_value is None
+
+
+def test_conditional_output_required_json_null_still_obeys_choices() -> None:
+    parameter = ParameterSpec(
+        parameter_id="condition",
+        kind=ValueKind.JSON,
+        required=True,
+        choices=({"state": "set"},),
+    )
+
+    with pytest.raises(ValidationError, match="conditional output"):
+        external_spec(
+            parameters=(parameter,),
+            outputs=(conditional_output(parameter.parameter_id, None),),
+        )
+
+
+def test_conditional_output_rejects_ambiguous_optional_json_null() -> None:
+    parameter = ParameterSpec(parameter_id="condition", kind=ValueKind.JSON)
+
+    with pytest.raises(ValidationError, match="ambiguous"):
+        external_spec(
+            parameters=(parameter,),
+            outputs=(conditional_output(parameter.parameter_id, None),),
+        )
+
+
+@pytest.mark.parametrize(
     "path",
     (
         "bionodulo.nodes.catalog.tools.samtools.sort.build_plan",
@@ -1237,9 +1486,34 @@ def test_only_canonical_core_python_may_omit_runtime_binding() -> None:
         external_spec(runtime_binding=None)
 
 
+def retained_spec_with_assessments(
+    reports: tuple[VerificationEvidence, ...],
+    assessments: tuple[GateAssessment, ...],
+    *,
+    access_classes: tuple[AccessClass, ...] = (AccessClass.PUBLIC,),
+) -> NodeSpec:
+    identity = external_identity()
+    environment = pixi_environment()
+    retained_evidence = evidence_record(verifications=reports)
+    inventory = retained_inventory(
+        identity=identity,
+        environment=environment,
+        evidence=retained_evidence,
+    )
+    return external_spec(
+        identity=identity,
+        environment=environment,
+        evidence=retained_evidence,
+        retained_evidence=inventory,
+        maturity=maturity_record(
+            access_classes=access_classes,
+            assessments=assessments,
+        ),
+    )
+
+
 def test_gate_assessment_digests_must_resolve_to_retained_artifacts() -> None:
-    maturity = MaturityRecord(
-        access=AccessClass.PUBLIC,
+    maturity = maturity_record(
         assessments=tuple(gate_assessment(gate, SHA_A) for gate in Gate),
     )
 
@@ -1249,8 +1523,7 @@ def test_gate_assessment_digests_must_resolve_to_retained_artifacts() -> None:
 
 
 def test_passing_evidence_gate_requires_a_bound_evidence_record() -> None:
-    maturity = MaturityRecord(
-        access=AccessClass.PUBLIC,
+    maturity = maturity_record(
         assessments=(
             gate_assessment(Gate.INVENTORIED, SHA_A),
             gate_assessment(Gate.EVIDENCE_VERIFIED, SHA_A),
@@ -1262,38 +1535,170 @@ def test_passing_evidence_gate_requires_a_bound_evidence_record() -> None:
 
 
 def test_release_resolves_evidence_verification_environment_and_contract_artifacts() -> None:
-    identity = external_identity()
     environment = pixi_environment()
-    verification = verification_evidence(environment)
-    evidence = evidence_record(verifications=(verification,))
-    inventory = retained_inventory(
-        identity=identity,
-        environment=environment,
-        evidence=evidence,
-    )
-    digest_by_kind = {artifact.kind: artifact.sha256 for artifact in inventory.artifacts}
-    assessments = (
-        gate_assessment(Gate.INVENTORIED, digest_by_kind[contract.RetainedArtifactKind.CONTRACT]),
-        gate_assessment(Gate.EVIDENCE_VERIFIED, evidence.evidence_digest()),
-        gate_assessment(Gate.CONTRACT_VERIFIED, digest_by_kind[contract.RetainedArtifactKind.CONTRACT]),
-        gate_assessment(Gate.COMMAND_VERIFIED, verification.verification_digest()),
-        gate_assessment(Gate.ENVIRONMENT_VERIFIED, environment.environment_digest()),
-        gate_assessment(Gate.TOOL_SMOKE_VERIFIED, verification.verification_digest()),
-        gate_assessment(Gate.CLOUD_VERIFIED, verification.verification_digest()),
-        gate_assessment(Gate.WORKFLOW_VERIFIED, verification.verification_digest()),
+    reports = tuple(verification_for_gate(gate, environment) for gate in Gate)
+    assessments = tuple(
+        gate_assessment(gate, report.verification_digest()) for gate, report in zip(Gate, reports, strict=True)
     )
 
-    spec = external_spec(
-        identity=identity,
-        environment=environment,
-        evidence=evidence,
-        retained_evidence=inventory,
-        maturity=MaturityRecord(access=AccessClass.PUBLIC, assessments=assessments),
-        runtime_binding=runtime_binding(),
-    )
+    spec = retained_spec_with_assessments(reports, assessments)
 
     assert spec.maturity is not None
     assert spec.maturity.released is True
+
+
+def test_gate_assessment_resolves_only_evidence_verification_digests() -> None:
+    environment = pixi_environment()
+    report = verification_for_gate(Gate.INVENTORIED, environment)
+    identity = external_identity()
+    retained_evidence = evidence_record(verifications=(report,))
+    inventory = retained_inventory(
+        identity=identity,
+        environment=environment,
+        evidence=retained_evidence,
+    )
+    contract_digest = next(
+        artifact.sha256 for artifact in inventory.artifacts if artifact.kind is contract.RetainedArtifactKind.CONTRACT
+    )
+
+    with pytest.raises(ValidationError, match="verification"):
+        external_spec(
+            identity=identity,
+            environment=environment,
+            evidence=retained_evidence,
+            retained_evidence=inventory,
+            maturity=maturity_record(
+                assessments=(gate_assessment(Gate.INVENTORIED, contract_digest),),
+            ),
+        )
+
+
+def test_tool_smoke_report_cannot_be_replayed_for_an_unrelated_gate() -> None:
+    environment = pixi_environment()
+    smoke = verification_for_gate(Gate.TOOL_SMOKE_VERIFIED, environment)
+
+    with pytest.raises(ValidationError, match="verification kind"):
+        retained_spec_with_assessments(
+            (smoke,),
+            (gate_assessment(Gate.INVENTORIED, smoke.verification_digest()),),
+        )
+
+
+def test_gate_assessment_requires_matching_verification_outcome() -> None:
+    environment = pixi_environment()
+    failed = verification_for_gate(
+        Gate.INVENTORIED,
+        environment,
+        outcome=VerificationOutcome.FAILED,
+    )
+
+    with pytest.raises(ValidationError, match="outcome"):
+        retained_spec_with_assessments(
+            (failed,),
+            (gate_assessment(Gate.INVENTORIED, failed.verification_digest()),),
+        )
+
+
+def test_gate_assessment_requires_exact_matching_failure_code() -> None:
+    environment = pixi_environment()
+    inventoried = verification_for_gate(Gate.INVENTORIED, environment)
+    failed_coverage = verification_for_gate(
+        Gate.EVIDENCE_VERIFIED,
+        environment,
+        outcome=VerificationOutcome.FAILED,
+        failure_code=FailureCode.EVIDENCE_CONFLICT,
+    )
+    assessments = (
+        gate_assessment(Gate.INVENTORIED, inventoried.verification_digest()),
+        gate_assessment(
+            Gate.EVIDENCE_VERIFIED,
+            failed_coverage.verification_digest(),
+            result=GateResult.FAILED,
+            failure_code=FailureCode.EVIDENCE_MISSING,
+        ),
+    )
+
+    with pytest.raises(ValidationError, match="failure code"):
+        retained_spec_with_assessments((inventoried, failed_coverage), assessments)
+
+
+@pytest.mark.parametrize(
+    ("assessment_updates", "message"),
+    (
+        ({"verifier_id": "other-verifier"}, "verifier ID"),
+        ({"verifier_version": "2.0.0"}, "verifier version"),
+    ),
+)
+def test_gate_assessment_requires_matching_verifier_identity(
+    assessment_updates: dict[str, str],
+    message: str,
+) -> None:
+    environment = pixi_environment()
+    report = verification_for_gate(Gate.INVENTORIED, environment)
+
+    with pytest.raises(ValidationError, match=message):
+        retained_spec_with_assessments(
+            (report,),
+            (
+                gate_assessment(
+                    Gate.INVENTORIED,
+                    report.verification_digest(),
+                    **assessment_updates,
+                ),
+            ),
+        )
+
+
+def test_multiple_same_kind_reports_all_must_agree_with_the_gate() -> None:
+    environment = pixi_environment()
+    first = verification_for_gate(
+        Gate.INVENTORIED,
+        environment,
+        evidence_id="inventory-a",
+        test_id="inventory-a-v1",
+    )
+    second = verification_for_gate(
+        Gate.INVENTORIED,
+        environment,
+        evidence_id="inventory-b",
+        test_id="inventory-b-v1",
+    )
+    assessment = gate_assessment(
+        Gate.INVENTORIED,
+        first.verification_digest(),
+        second.verification_digest(),
+    )
+
+    assert retained_spec_with_assessments((first, second), (assessment,)).maturity is not None
+
+    failed_second = second.model_copy(
+        update={
+            "outcome": VerificationOutcome.FAILED,
+            "failure_code": FailureCode.INVENTORY_MISSING,
+        }
+    )
+    with pytest.raises(ValidationError, match="outcome"):
+        retained_spec_with_assessments(
+            (first, failed_second),
+            (
+                gate_assessment(
+                    Gate.INVENTORIED,
+                    first.verification_digest(),
+                    failed_second.verification_digest(),
+                ),
+            ),
+        )
+
+
+def test_verification_without_environment_context_does_not_require_an_environment_digest() -> None:
+    environment = pixi_environment()
+    report = verification_for_gate(Gate.INVENTORIED, environment)
+
+    assert report.environment_sha256 is None
+    assert retained_spec_with_assessments(
+        (report,),
+        (gate_assessment(Gate.INVENTORIED, report.verification_digest()),),
+    )
 
 
 def test_retained_inventory_is_canonical_and_bound_to_actual_node_artifacts() -> None:
@@ -1328,14 +1733,13 @@ def test_assessment_rejects_an_uninventoried_digest_even_when_the_inventory_is_v
     identity = external_identity()
     inventory = retained_inventory(identity=identity, environment=environment, evidence=evidence)
 
-    with pytest.raises(ValidationError, match="assessment evidence digest"):
+    with pytest.raises(ValidationError, match="verification"):
         external_spec(
             identity=identity,
             environment=environment,
             evidence=evidence,
             retained_evidence=inventory,
-            maturity=MaturityRecord(
-                access=AccessClass.PUBLIC,
+            maturity=maturity_record(
                 assessments=(gate_assessment(Gate.INVENTORIED, SHA_A),),
             ),
         )
@@ -1386,6 +1790,184 @@ def test_retained_contract_artifact_digest_is_derived_from_authoritative_node_st
     assert retained.contract_digest() != core_spec(maturity=None).contract_digest()
 
 
+def projection_spec(*, reverse: bool = False, **updates: object) -> NodeSpec:
+    collections: dict[str, tuple[object, ...]] = {
+        "artifact_inputs": (
+            ArtifactPort(
+                port_id="a_artifact",
+                artifact_type="alignment.bam",
+                cardinality=Cardinality.ONE,
+            ),
+            ArtifactPort(
+                port_id="z_artifact",
+                artifact_type="sequence.fastq",
+                cardinality=Cardinality.MANY,
+            ),
+        ),
+        "value_inputs": (
+            ValuePort(port_id="a_value", kind=ValueKind.STRING, description="First value."),
+            ValuePort(port_id="z_value", kind=ValueKind.INTEGER, description="Last value."),
+        ),
+        "parameters": (
+            ParameterSpec(parameter_id="a_parameter", kind=ValueKind.BOOLEAN, description="First parameter."),
+            ParameterSpec(parameter_id="z_parameter", kind=ValueKind.STRING, description="Last parameter."),
+        ),
+        "secrets": (
+            SecretSpec(
+                secret_id="a_secret",
+                environment_variable="A_SECRET",
+                required=False,
+                description="First secret.",
+            ),
+            SecretSpec(
+                secret_id="z_secret",
+                environment_variable="Z_SECRET",
+                required=False,
+                description="Last secret.",
+            ),
+        ),
+        "outputs": (
+            OutputSpec(
+                port_id="a_output",
+                artifact_type="alignment.bam",
+                collector=ExactCollector(relative_path="a.bam"),
+            ),
+            OutputSpec(
+                port_id="z_output",
+                artifact_type="sequence.fastq",
+                collector=ExactCollector(relative_path="z.fastq"),
+            ),
+        ),
+    }
+    if reverse:
+        collections = {name: tuple(reversed(items)) for name, items in collections.items()}
+    collections.update(updates)
+    return external_spec(
+        **collections,
+        maturity=maturity_record(access_classes=(AccessClass.PUBLIC_RATE_LIMITED,)),
+    )
+
+
+def test_contract_projection_has_exact_evidence_free_top_level_shape() -> None:
+    projection = projection_spec().contract_projection()
+
+    assert tuple(projection) == (
+        "identity",
+        "presentation",
+        "artifact_inputs",
+        "value_inputs",
+        "parameters",
+        "secrets",
+        "outputs",
+        "environment",
+        "execution_kind",
+        "execution_factory",
+        "runtime_binding",
+    )
+    assert not {"evidence", "retained_evidence", "maturity"} & projection.keys()
+
+
+def test_contract_projection_uses_sorted_id_keyed_complete_collections() -> None:
+    spec = projection_spec(reverse=True)
+    projection = spec.contract_projection()
+    collections = (
+        ("artifact_inputs", spec.artifact_inputs, "port_id"),
+        ("value_inputs", spec.value_inputs, "port_id"),
+        ("parameters", spec.parameters, "parameter_id"),
+        ("secrets", spec.secrets, "secret_id"),
+        ("outputs", spec.outputs, "port_id"),
+    )
+
+    for field, items, id_field in collections:
+        projected = projection[field]
+        assert isinstance(projected, dict)
+        expected_ids = tuple(sorted(getattr(item, id_field) for item in items))
+        assert tuple(projected) == expected_ids
+        for item in items:
+            item_id = getattr(item, id_field)
+            assert projected[item_id] == item.model_dump(mode="json", round_trip=True)
+
+
+def test_contract_projection_keeps_stable_output_id_pointer_shape() -> None:
+    index = OutputSpec(
+        port_id="index",
+        artifact_type="alignment.bai",
+        cardinality=Cardinality.OPTIONAL_ONE,
+        collector=ExactCollector(relative_path="result.bai"),
+    )
+
+    projection = external_spec(outputs=(index,)).contract_projection()
+
+    assert projection["outputs"]["index"]["collector"] == {
+        "kind": "exact",
+        "relative_path": "result.bai",
+    }
+
+
+def test_contract_projection_bytes_and_digest_ignore_collection_insertion_order() -> None:
+    first = projection_spec()
+    second = projection_spec(reverse=True)
+    first_projection = first.contract_projection()
+    second_projection = second.contract_projection()
+    first_bytes = evidence_module._canonical_json_bytes(first_projection, label="node contract projection")
+    second_bytes = evidence_module._canonical_json_bytes(second_projection, label="node contract projection")
+
+    assert first_projection == second_projection
+    assert first_bytes == second_bytes
+    assert first.contract_digest() == second.contract_digest()
+    assert first.contract_digest() == "sha256:" + hashlib.sha256(first_bytes).hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("field", "changed_item"),
+    (
+        (
+            "artifact_inputs",
+            ArtifactPort(
+                port_id="a_artifact",
+                artifact_type="alignment.cram",
+                cardinality=Cardinality.ONE,
+            ),
+        ),
+        (
+            "value_inputs",
+            ValuePort(port_id="a_value", kind=ValueKind.STRING, description="Changed value."),
+        ),
+        (
+            "parameters",
+            ParameterSpec(parameter_id="a_parameter", kind=ValueKind.BOOLEAN, description="Changed parameter."),
+        ),
+        (
+            "secrets",
+            SecretSpec(
+                secret_id="a_secret",
+                environment_variable="A_SECRET",
+                required=False,
+                description="Changed secret.",
+            ),
+        ),
+        (
+            "outputs",
+            OutputSpec(
+                port_id="a_output",
+                artifact_type="alignment.bam",
+                collector=ExactCollector(relative_path="a.bam"),
+                require_nonempty=True,
+            ),
+        ),
+    ),
+)
+def test_contract_digest_changes_when_any_complete_collection_item_field_changes(
+    field: str,
+    changed_item: object,
+) -> None:
+    base = projection_spec()
+    items = getattr(base, field)
+    changed = tuple(changed_item if item == items[0] else item for item in items)
+
+    assert projection_spec(**{field: changed}).contract_digest() != base.contract_digest()
+
+
 def test_retained_verification_environment_digest_matches_the_declared_environment() -> None:
     environment = pixi_environment()
     verification = verification_evidence(environment).model_copy(update={"environment_sha256": SHA_A})
@@ -1407,34 +1989,65 @@ def test_retained_verification_environment_digest_matches_the_declared_environme
         )
 
 
-@pytest.mark.parametrize(
-    "access",
-    tuple(access for access in AccessClass if access is not AccessClass.SECRET_REQUIRED),
-)
-def test_required_secrets_require_the_secret_required_access_class(access: AccessClass) -> None:
-    with pytest.raises(ValidationError, match="required secret"):
-        external_spec(
-            secrets=(SecretSpec(secret_id="api_token", environment_variable="API_TOKEN", required=True),),
-            maturity=MaturityRecord(access=access),
-        )
-
-
-def test_required_secrets_reject_missing_maturity_and_secret_access_requires_one() -> None:
+def test_any_secret_requires_explicit_secret_capable_maturity() -> None:
     required = SecretSpec(secret_id="api_token", environment_variable="API_TOKEN", required=True)
     optional = required.model_copy(update={"required": False})
 
-    with pytest.raises(ValidationError, match="required secret"):
-        external_spec(secrets=(required,), maturity=None)
-    with pytest.raises(ValidationError, match="secret_required"):
-        external_spec(maturity=MaturityRecord(access=AccessClass.SECRET_REQUIRED))
-    with pytest.raises(ValidationError, match="secret_required"):
-        external_spec(
-            secrets=(optional,),
-            maturity=MaturityRecord(access=AccessClass.SECRET_REQUIRED),
-        )
+    for secret in (optional, required):
+        with pytest.raises(ValidationError, match="secret-capable"):
+            external_spec(secrets=(secret,), maturity=None)
+        with pytest.raises(ValidationError, match="secret-capable"):
+            external_spec(secrets=(secret,), maturity=maturity_record())
 
-    assert external_spec(secrets=(required,), maturity=MaturityRecord(access=AccessClass.SECRET_REQUIRED))
-    assert external_spec(secrets=(optional,), maturity=MaturityRecord(access=AccessClass.PUBLIC))
+
+def test_public_rate_limited_allows_only_optional_secrets() -> None:
+    required = SecretSpec(secret_id="api_token", environment_variable="API_TOKEN", required=True)
+    optional = required.model_copy(update={"required": False})
+    maturity = maturity_record(access_classes=(AccessClass.PUBLIC_RATE_LIMITED,))
+
+    assert external_spec(secrets=(optional,), maturity=maturity)
+    with pytest.raises(ValidationError, match="required secret"):
+        external_spec(secrets=(required,), maturity=maturity)
+
+
+@pytest.mark.parametrize(
+    "access_classes",
+    (
+        (AccessClass.SECRET_REQUIRED,),
+        (AccessClass.BYOL,),
+        (AccessClass.SERVICE_LICENSE,),
+        (AccessClass.SECRET_REQUIRED, AccessClass.BYOL),
+    ),
+)
+def test_required_secret_capable_access_classes_allow_required_credentials(
+    access_classes: tuple[AccessClass, ...],
+) -> None:
+    required = SecretSpec(secret_id="api_token", environment_variable="API_TOKEN", required=True)
+
+    spec = external_spec(
+        secrets=(required,),
+        maturity=maturity_record(access_classes=access_classes),
+    )
+
+    assert spec.secrets == (required,)
+    if {AccessClass.BYOL, AccessClass.SERVICE_LICENSE} & set(access_classes):
+        assert spec.maturity is not None
+        assert spec.maturity.quarantined is True
+        assert spec.maturity.released is False
+
+
+def test_secret_required_access_class_mandates_at_least_one_required_secret() -> None:
+    optional = SecretSpec(
+        secret_id="api_token",
+        environment_variable="API_TOKEN",
+        required=False,
+    )
+    maturity = maturity_record(access_classes=(AccessClass.SECRET_REQUIRED,))
+
+    with pytest.raises(ValidationError, match="required secret"):
+        external_spec(maturity=maturity)
+    with pytest.raises(ValidationError, match="required secret"):
+        external_spec(secrets=(optional,), maturity=maturity)
     assert external_spec(maturity=None)
 
 

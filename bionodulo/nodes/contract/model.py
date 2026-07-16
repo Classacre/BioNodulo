@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from enum import StrEnum
 from typing import Annotated, Self
@@ -25,10 +24,10 @@ from bionodulo.nodes.contract.environments import (
     _validate_exact_version,
     _validate_oci_reference,
 )
-from bionodulo.nodes.contract.evidence import EvidenceRecord
-from bionodulo.nodes.contract.maturity import AccessClass, Gate, GateResult, MaturityRecord
+from bionodulo.nodes.contract.evidence import EvidenceRecord, VerificationOutcome, _canonical_json_bytes
+from bionodulo.nodes.contract.maturity import Gate, GateResult, MaturityRecord
 from bionodulo.nodes.contract.outputs import ConditionalCollector, OutputSpec
-from bionodulo.nodes.contract.parameters import ParameterSpec, SecretSpec, ValuePort
+from bionodulo.nodes.contract.parameters import ParameterSpec, SecretSpec, ValueKind, ValuePort
 
 
 MACHINE_ID_PATTERN = r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
@@ -52,20 +51,6 @@ _FACTORY_RE = re.compile(
 _MAX_ID_LENGTH = 128
 _MAX_TEXT_LENGTH = 2_048
 _CORE_FACTORY_PREFIX = "bionodulo.nodes.catalog.core."
-_CONTRACT_DIGEST_FIELDS = {
-    "identity",
-    "presentation",
-    "artifact_inputs",
-    "value_inputs",
-    "parameters",
-    "secrets",
-    "outputs",
-    "environment",
-    "execution_kind",
-    "execution_factory",
-    "runtime_binding",
-}
-
 StableId = Annotated[str, StringConstraints(min_length=1, max_length=_MAX_ID_LENGTH)]
 MachineId = Annotated[str, StringConstraints(min_length=1, max_length=_MAX_ID_LENGTH)]
 SemVer = Annotated[str, StringConstraints(min_length=5, max_length=_MAX_ID_LENGTH)]
@@ -358,18 +343,42 @@ class NodeSpec(_StrictFrozenModel):
         self._validate_secret_access()
         return self
 
-    def contract_digest(self) -> str:
-        payload = json.dumps(
-            self.model_dump(
-                mode="json",
-                include=_CONTRACT_DIGEST_FIELDS,
-                round_trip=True,
+    def contract_projection(self) -> dict[str, object]:
+        return {
+            "identity": self.identity.model_dump(mode="json", round_trip=True),
+            "presentation": self.presentation.model_dump(mode="json", round_trip=True),
+            "artifact_inputs": {
+                item.port_id: item.model_dump(mode="json", round_trip=True)
+                for item in sorted(self.artifact_inputs, key=lambda item: item.port_id)
+            },
+            "value_inputs": {
+                item.port_id: item.model_dump(mode="json", round_trip=True)
+                for item in sorted(self.value_inputs, key=lambda item: item.port_id)
+            },
+            "parameters": {
+                item.parameter_id: item.model_dump(mode="json", round_trip=True)
+                for item in sorted(self.parameters, key=lambda item: item.parameter_id)
+            },
+            "secrets": {
+                item.secret_id: item.model_dump(mode="json", round_trip=True)
+                for item in sorted(self.secrets, key=lambda item: item.secret_id)
+            },
+            "outputs": {
+                item.port_id: item.model_dump(mode="json", round_trip=True)
+                for item in sorted(self.outputs, key=lambda item: item.port_id)
+            },
+            "environment": (
+                None if self.environment is None else self.environment.model_dump(mode="json", round_trip=True)
             ),
-            ensure_ascii=True,
-            allow_nan=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("ascii")
+            "execution_kind": self.execution_kind.value,
+            "execution_factory": self.execution_factory,
+            "runtime_binding": (
+                None if self.runtime_binding is None else self.runtime_binding.model_dump(mode="json", round_trip=True)
+            ),
+        }
+
+    def contract_digest(self) -> str:
+        payload = _canonical_json_bytes(self.contract_projection(), label="node contract projection")
         return "sha256:" + hashlib.sha256(payload).hexdigest()
 
     def _validate_input_and_output_ids(self) -> None:
@@ -404,6 +413,15 @@ class NodeSpec(_StrictFrozenModel):
                     f"conditional output {output.port_id} references missing parameter {collector.condition_key}"
                 )
             parameter = parameters_by_id[collector.condition_key]
+            if collector.expected_value is None:
+                if parameter.kind is ValueKind.JSON:
+                    if not parameter.required:
+                        raise ValueError(
+                            f"conditional output {output.port_id} has ambiguous null expectation for optional JSON "
+                            f"parameter {collector.condition_key}"
+                        )
+                elif not parameter.required and not parameter.has_default:
+                    continue
             try:
                 parameter.model_copy(
                     update={
@@ -607,6 +625,7 @@ class NodeSpec(_StrictFrozenModel):
         artifacts_by_kind: dict[RetainedArtifactKind, tuple[RetainedArtifact, ...]] = {
             kind: tuple(item for item in inventory.artifacts if item.kind is kind) for kind in RetainedArtifactKind
         }
+        verifications_by_digest = {}
         if self.evidence is None:
             if (
                 artifacts_by_kind[RetainedArtifactKind.EVIDENCE_RECORD]
@@ -633,10 +652,16 @@ class NodeSpec(_StrictFrozenModel):
             )
             if artifacts_by_kind[RetainedArtifactKind.VERIFICATION] != expected_verifications:
                 raise ValueError("retained evidence inventory is not bound to evidence verifications")
+            verifications_by_digest = {item.verification_digest(): item for item in self.evidence.verifications}
 
         if self.environment is None:
             if artifacts_by_kind[RetainedArtifactKind.ENVIRONMENT]:
                 raise ValueError("retained evidence inventory references an absent environment")
+            if any(
+                verification.environment_sha256 is not None
+                for verification in (() if self.evidence is None else self.evidence.verifications)
+            ):
+                raise ValueError("retained verification environment digest requires a declared environment")
         else:
             expected_environment = (
                 RetainedArtifact(
@@ -648,7 +673,10 @@ class NodeSpec(_StrictFrozenModel):
             if artifacts_by_kind[RetainedArtifactKind.ENVIRONMENT] != expected_environment:
                 raise ValueError("retained evidence inventory is not bound to the execution environment")
             for verification in () if self.evidence is None else self.evidence.verifications:
-                if verification.environment_sha256 != self.environment.environment_digest():
+                if (
+                    verification.environment_sha256 is not None
+                    and verification.environment_sha256 != self.environment.environment_digest()
+                ):
                     raise ValueError("retained verification environment digest must match the declared environment")
 
         expected_contract = (
@@ -664,14 +692,30 @@ class NodeSpec(_StrictFrozenModel):
         available = {artifact.sha256: artifact.kind for artifact in inventory.artifacts}
         if maturity is not None:
             for assessment in maturity.assessments:
-                for digest in assessment.evidence_digests:
-                    if digest not in available:
-                        raise ValueError(f"assessment evidence digest {digest} is not in retained evidence inventory")
-
-            if evidence_assessment is not None and evidence_assessment.result is GateResult.PASSED:
-                assert self.evidence is not None
-                if self.evidence.evidence_digest() not in evidence_assessment.evidence_digests:
-                    raise ValueError("evidence_verified assessment must reference the evidence record digest")
+                expected_outcome = VerificationOutcome(assessment.result.value)
+                for digest in assessment.verification_digests:
+                    verification = verifications_by_digest.get(digest)
+                    if verification is None:
+                        raise ValueError(
+                            f"assessment verification digest {digest} does not resolve to retained verification evidence"
+                        )
+                    if verification.kind is not assessment.verification_kind:
+                        raise ValueError("assessment verification kind must match its maturity gate")
+                    if verification.outcome is not expected_outcome:
+                        raise ValueError("assessment verification outcome must match its gate result")
+                    if verification.failure_code is not assessment.failure_code:
+                        raise ValueError("assessment verification failure code must match its gate failure code")
+                    if verification.verifier_id != assessment.verifier_id:
+                        raise ValueError("assessment verification verifier ID must match the gate verifier ID")
+                    if verification.verifier_version != assessment.verifier_version:
+                        raise ValueError(
+                            "assessment verification verifier version must match the gate verifier version"
+                        )
+                    if (
+                        verification.tool_id != self.identity.tool_id
+                        or verification.tool_version != self.identity.tool_version
+                    ):
+                        raise ValueError("assessment verification tool ID and version must match the node identity")
 
             if maturity.released:
                 required_kinds = set(RetainedArtifactKind)
@@ -682,17 +726,18 @@ class NodeSpec(_StrictFrozenModel):
                     raise ValueError(f"released maturity requires retained evidence artifacts: {names}")
 
     def _validate_secret_access(self) -> None:
+        maturity = self.maturity
         required_secret = any(secret.required for secret in self.secrets)
-        if self.maturity is None:
-            if required_secret:
-                raise ValueError("required secret declarations require explicit secret_required maturity")
-            return
-        if self.maturity.access is AccessClass.SECRET_REQUIRED:
-            if not required_secret:
+        if not self.secrets:
+            if maturity is not None and maturity.requires_secret:
                 raise ValueError("secret_required maturity requires at least one required secret")
             return
-        if required_secret:
-            raise ValueError("required secret declarations require secret_required maturity")
+        if maturity is None or not maturity.permits_secrets:
+            raise ValueError("secret declarations require explicit secret-capable maturity")
+        if required_secret and not maturity.permits_required_secrets:
+            raise ValueError("required secret declarations require a required-secret-capable access class")
+        if maturity.requires_secret and not required_secret:
+            raise ValueError("secret_required maturity requires at least one required secret")
 
 
 def _first_duplicate(values: tuple[str, ...]) -> str | None:
