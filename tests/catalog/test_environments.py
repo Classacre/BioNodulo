@@ -190,7 +190,7 @@ def test_container_environment_roundtrips_canonical_ipv4_repository() -> None:
 def resolver() -> env.ResolverIdentity:
     return env.ResolverIdentity(
         name="pixi",
-        version="0.24.2",
+        version="0.68.1",
         config_digest=SHA_A,
     )
 
@@ -203,9 +203,10 @@ def artifact(
     digest: str = SHA_B,
     filename: str | None = None,
     url: str | None = None,
-) -> env.LockedArtifact:
+) -> env.CondaLockedArtifact:
     locked_filename = filename or f"{name}-{version}-{build}.conda"
-    return env.LockedArtifact(
+    return env.CondaLockedArtifact(
+        kind="conda",
         name=name,
         version=version,
         build=build,
@@ -221,10 +222,31 @@ def platform_lock(
 ) -> env.PlatformLock:
     return env.PlatformLock(
         platform=platform,
+        environment_name="alignment-tools",
         resolver_platform="linux-64" if platform is env.ExecutionPlatform.LINUX_AMD64 else "linux-aarch64",
         resolver=resolver(),
-        lockfile_sha256=SHA_C,
+        native_lock_sha256=SHA_C,
         artifacts=(artifact(),),
+    )
+
+
+def pypi_artifact(
+    name: str = "numpy",
+    *,
+    version: str = "1.26.4",
+    digest: str = SHA_D,
+    filename: str | None = None,
+    url: str | None = None,
+) -> env.PypiLockedArtifact:
+    locked_filename = filename or f"{name}-{version}-cp311-cp311-manylinux_2_17_x86_64.whl"
+    return env.PypiLockedArtifact(
+        kind="pypi",
+        name=name,
+        version=version,
+        filename=locked_filename,
+        url=url or f"https://files.pythonhosted.org/packages/{locked_filename}",
+        sha256=digest,
+        size_bytes=5678,
     )
 
 
@@ -249,22 +271,147 @@ def test_platform_lock_contains_exact_resolver_and_artifact_identity() -> None:
     assert lock.lock_digest() == rebuilt.lock_digest()
 
 
+def test_locked_artifact_union_roundtrips_by_explicit_kind() -> None:
+    adapter = TypeAdapter(env.LockedArtifact)
+    artifacts = (artifact(), pypi_artifact())
+
+    rebuilt = tuple(adapter.validate_json(item.model_dump_json()) for item in artifacts)
+
+    assert tuple(type(item) for item in rebuilt) == (
+        env.CondaLockedArtifact,
+        env.PypiLockedArtifact,
+    )
+    assert {item.kind for item in rebuilt} == {"conda", "pypi"}
+    assert adapter.json_schema()["discriminator"]["propertyName"] == "kind"
+
+
+@pytest.mark.parametrize("suffix", (".zip", ".whl", ".tar.gz"))
+def test_conda_locked_artifact_accepts_only_conda_binary_suffixes(suffix: str) -> None:
+    filename = "samtools-1.20-h50ea8bc_0" + suffix
+
+    with pytest.raises(ValidationError, match="conda"):
+        artifact(filename=filename, url=f"https://packages.example.org/linux-64/{filename}")
+
+
+def test_conda_locked_artifact_accepts_legacy_tar_bz2_binary() -> None:
+    filename = "samtools-1.20-h50ea8bc_0.tar.bz2"
+
+    locked = artifact(filename=filename, url=f"https://packages.example.org/linux-64/{filename}")
+
+    assert locked.filename == filename
+
+
+@pytest.mark.parametrize(
+    ("filename", "message"),
+    (
+        ("numpy-1.26.4.tar.gz", "wheel"),
+        ("pandas-1.26.4-cp311-cp311-manylinux_2_17_x86_64.whl", "name"),
+        ("numpy-1.25.0-cp311-cp311-manylinux_2_17_x86_64.whl", "version"),
+        ("not-a-wheel.whl", "wheel"),
+    ),
+)
+def test_pypi_locked_artifact_requires_matching_wheel_identity(filename: str, message: str) -> None:
+    with pytest.raises(ValidationError, match=message):
+        pypi_artifact(
+            filename=filename,
+            url=f"https://files.pythonhosted.org/packages/{filename}",
+        )
+
+
+def test_pypi_locked_artifact_rejects_invalid_normalized_project_name() -> None:
+    filename = "foo_-1.0-py3-none-any.whl"
+
+    with pytest.raises(ValidationError, match="valid Python project name"):
+        pypi_artifact(
+            name="foo-",
+            version="1.0",
+            filename=filename,
+            url=f"https://files.pythonhosted.org/packages/{filename}",
+        )
+
+
+def test_pypi_locked_artifact_uses_pep440_wheel_version_parsing() -> None:
+    filename = "epoch_pkg-1!2.0-py3-none-any.whl"
+
+    locked = pypi_artifact(
+        name="epoch-pkg",
+        version="1!2.0",
+        filename=filename,
+        url=f"https://files.pythonhosted.org/packages/{filename}",
+    )
+
+    assert locked.name == "epoch-pkg"
+    assert locked.version == "1!2.0"
+
+
+@pytest.mark.parametrize("version", ("v1.26.4", " 1.26.4 ", "01.26.4", "1.26.4.0"))
+def test_pypi_locked_artifact_requires_exact_canonical_pep440_version(version: str) -> None:
+    filename = "numpy-1.26.4-py3-none-any.whl"
+
+    with pytest.raises(ValidationError, match="canonical|version"):
+        pypi_artifact(
+            version=version,
+            filename=filename,
+            url=f"https://files.pythonhosted.org/packages/{filename}",
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "git+https://example.org/repo@abc/numpy-1.26.4-py3-none-any.whl",
+        "file:///tmp/numpy-1.26.4-py3-none-any.whl",
+        "../numpy-1.26.4-py3-none-any.whl",
+        "https://files.pythonhosted.org/packages/numpy-1.26.4-py3-none-any.whl?download=1",
+        "https://files.pythonhosted.org/packages/numpy-1.26.4-py3-none-any.whl#sha256=abc",
+    ),
+)
+def test_pypi_locked_artifact_rejects_mutable_or_noncanonical_sources(url: str) -> None:
+    with pytest.raises(ValidationError):
+        pypi_artifact(
+            filename="numpy-1.26.4-py3-none-any.whl",
+            url=url,
+        )
+
+
+def test_platform_lock_digest_binds_exact_environment_name() -> None:
+    lock = platform_lock()
+    renamed = lock.model_copy(update={"environment_name": "other-environment"})
+
+    assert lock.environment_name == "alignment-tools"
+    assert lock.lock_digest() != renamed.lock_digest()
+    with pytest.raises(ValidationError, match="environment_name"):
+        env.PlatformLock.model_validate(
+            {key: value for key, value in lock.model_dump(mode="python").items() if key != "environment_name"}
+        )
+
+
+def test_platform_lock_rejects_legacy_lockfile_digest_wire_name() -> None:
+    values = platform_lock().model_dump(mode="python")
+    values["lockfile_sha256"] = values.pop("native_lock_sha256")
+
+    with pytest.raises(ValidationError, match="native_lock_sha256|lockfile_sha256"):
+        env.PlatformLock.model_validate(values)
+
+
 def test_platform_lock_attests_resolver_output_and_transitive_artifact_closure() -> None:
     lock = env.PlatformLock(
         platform=env.ExecutionPlatform.LINUX_AMD64,
+        environment_name="alignment-tools",
         resolver_platform="linux-64",
         resolver=resolver(),
-        lockfile_sha256=SHA_C,
+        native_lock_sha256=SHA_C,
         artifacts=(artifact(),),
     )
-    changed_closure = lock.model_copy(update={"lockfile_sha256": SHA_D})
+    changed_closure = lock.model_copy(update={"native_lock_sha256": SHA_D})
 
-    assert lock.lockfile_sha256 == SHA_C
-    assert lock.model_dump(mode="json")["lockfile_sha256"] == SHA_C
+    assert lock.native_lock_sha256 == SHA_C
+    assert lock.model_dump(mode="json")["native_lock_sha256"] == SHA_C
     assert lock.lock_digest() != changed_closure.lock_digest()
-    with pytest.raises(ValidationError, match="lockfile_sha256"):
+    with pytest.raises(ValidationError, match="native_lock_sha256"):
         env.PlatformLock(
             platform=env.ExecutionPlatform.LINUX_AMD64,
+            environment_name="alignment-tools",
             resolver_platform="linux-64",
             resolver=resolver(),
             artifacts=(artifact(),),
@@ -292,7 +439,8 @@ def test_platform_lock_attests_resolver_output_and_transitive_artifact_closure()
 )
 def test_locked_artifact_rejects_nonimmutable_or_credential_bearing_urls(url: str) -> None:
     with pytest.raises(ValidationError):
-        env.LockedArtifact(
+        env.CondaLockedArtifact(
+            kind="conda",
             name="samtools",
             version="1.20",
             build="h0",
@@ -321,7 +469,7 @@ def test_locked_artifact_fields_are_exact_and_strict(field: str, value: object) 
     values[field] = value
 
     with pytest.raises(ValidationError):
-        env.LockedArtifact.model_validate(values)
+        env.CondaLockedArtifact.model_validate(values)
 
 
 def test_locked_artifact_url_basename_must_equal_explicit_filename() -> None:
@@ -338,51 +486,34 @@ def test_platform_lock_rejects_duplicate_or_noncanonical_artifacts() -> None:
     with pytest.raises(ValidationError, match="canonically ordered"):
         env.PlatformLock(
             platform=env.ExecutionPlatform.LINUX_AMD64,
+            environment_name="alignment-tools",
             resolver_platform="linux-64",
             resolver=resolver(),
-            lockfile_sha256=SHA_C,
+            native_lock_sha256=SHA_C,
             artifacts=(zeta, alpha),
         )
     with pytest.raises(ValidationError, match="unique"):
         env.PlatformLock(
             platform=env.ExecutionPlatform.LINUX_AMD64,
+            environment_name="alignment-tools",
             resolver_platform="linux-64",
             resolver=resolver(),
-            lockfile_sha256=SHA_C,
+            native_lock_sha256=SHA_C,
             artifacts=(alpha, alpha),
         )
 
 
-@pytest.mark.parametrize("identity", ("filename", "url", "sha256"))
-def test_platform_lock_rejects_artifact_identity_aliases(identity: str) -> None:
+def test_platform_lock_rejects_artifact_digest_identity_aliases() -> None:
     first = artifact("alpha", version="1.0", build="h0", digest=SHA_A)
-    if identity == "filename":
-        second = artifact(
-            "beta",
-            version="2.0",
-            build="h1",
-            digest=SHA_B,
-            filename=first.filename,
-            url=f"https://mirror.example.org/linux-64/{first.filename}",
-        )
-    elif identity == "url":
-        second = artifact(
-            "beta",
-            version="2.0",
-            build="h1",
-            digest=SHA_B,
-            filename=first.filename,
-            url=first.url,
-        )
-    else:
-        second = artifact("beta", version="2.0", build="h1", digest=first.sha256)
+    second = artifact("beta", version="2.0", build="h1", digest=first.sha256)
 
-    with pytest.raises(ValidationError, match=identity):
+    with pytest.raises(ValidationError, match="sha256"):
         env.PlatformLock(
             platform=env.ExecutionPlatform.LINUX_AMD64,
+            environment_name="alignment-tools",
             resolver_platform="linux-64",
             resolver=resolver(),
-            lockfile_sha256=SHA_C,
+            native_lock_sha256=SHA_C,
             artifacts=(first, second),
         )
 
@@ -769,9 +900,10 @@ def test_present_language_locks_require_the_canonical_runtime_artifact(
 ) -> None:
     lock = env.PlatformLock(
         platform=env.ExecutionPlatform.LINUX_AMD64,
+        environment_name="python-analysis",
         resolver_platform="linux-64",
         resolver=resolver(),
-        lockfile_sha256=SHA_A,
+        native_lock_sha256=SHA_A,
         artifacts=(artifact(package_name, version=package_version, build="h0"),),
     )
 
@@ -804,9 +936,10 @@ def test_language_runtime_artifact_must_satisfy_the_declared_version(
     )
     lock = env.PlatformLock(
         platform=env.ExecutionPlatform.LINUX_AMD64,
+        environment_name="python-analysis" if runtime_name == "python" else "r-analysis",
         resolver_platform="linux-64",
         resolver=resolver(),
-        lockfile_sha256=SHA_A,
+        native_lock_sha256=SHA_A,
         artifacts=artifacts,
     )
 
@@ -821,9 +954,10 @@ def test_python_runtime_lock_attests_closure_without_claiming_missing_platforms(
     )
     lock = env.PlatformLock(
         platform=env.ExecutionPlatform.LINUX_AMD64,
+        environment_name="python-analysis",
         resolver_platform="linux-64",
         resolver=resolver(),
-        lockfile_sha256=SHA_A,
+        native_lock_sha256=SHA_A,
         artifacts=artifacts,
     )
     partial = python_environment(
@@ -832,7 +966,7 @@ def test_python_runtime_lock_attests_closure_without_claiming_missing_platforms(
     )
 
     assert partial.is_fully_locked is False
-    assert partial.locks[0].lockfile_sha256 == SHA_A
+    assert partial.locks[0].native_lock_sha256 == SHA_A
     assert (
         partial.environment_digest()
         == env.PythonEnvironment.model_validate_json(partial.model_dump_json()).environment_digest()
@@ -854,9 +988,10 @@ def test_lock_inventory_must_resolve_every_direct_package_request(
     locked_artifact = artifact(name, version=version, build=build)
     incomplete = env.PlatformLock(
         platform=env.ExecutionPlatform.LINUX_AMD64,
+        environment_name="alignment-tools",
         resolver_platform="linux-64",
         resolver=resolver(),
-        lockfile_sha256=SHA_A,
+        native_lock_sha256=SHA_A,
         artifacts=(locked_artifact,),
     )
 
@@ -946,7 +1081,8 @@ def test_probe_ids_share_one_namespace_within_an_environment() -> None:
     (
         "PackageRequirement",
         "ResolverIdentity",
-        "LockedArtifact",
+        "CondaLockedArtifact",
+        "PypiLockedArtifact",
         "PlatformLock",
         "ContainerImageLock",
         "ExecutableProbe",

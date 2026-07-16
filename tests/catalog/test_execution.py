@@ -52,6 +52,7 @@ NON_SECRET_NAMES = ("MONKEY", "HOCKEY", "TURKEY", "KEYSTONE")
 _ALLOWED_CONTRACT_IMPORT_MODULES = frozenset(
     {
         "__future__",
+        "bionodulo.nodes.contract._package_identity",
         "bionodulo.nodes.contract.artifacts",
         "bionodulo.nodes.contract.environments",
         "enum",
