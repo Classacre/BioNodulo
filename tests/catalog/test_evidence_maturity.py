@@ -157,9 +157,10 @@ def retained_text(field: str, value: str) -> str:
     if field == "source_description":
         return source(evidence.SourceKind.OFFICIAL_MANUAL, description=value).description
     if field == "source_version_locator":
-        captured = source(evidence.SourceKind.OFFICIAL_MANUAL, version_locator=value)
+        locator = f"1.23.1 {value}"
+        captured = source(evidence.SourceKind.OFFICIAL_MANUAL, version_locator=locator)
         assert captured.version_locator is not None
-        return captured.version_locator
+        return captured.version_locator.removeprefix("1.23.1 ")
     if field == "claim_locator":
         return claim(locator=value).locator
     if field == "claim_statement":
@@ -215,11 +216,14 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
     (
         "Résumé — 測試 🧬",
         "أداة موثوقة",
-        "Use access_token=<TOKEN>.",
+        "The access_token parameter is <TOKEN>.",
+        "access_token=<TOKEN>",
         'Set client_secret="${TOKEN}".',
         "https://service.invalid/run?password=[REDACTED]&mode=test",
         "Authorization: Bearer REDACTED.",
         "Authorization=Basic ***",
+        "Authorization Bearer <TOKEN>",
+        "Authorization Basic [REDACTED]",
         'Authorization: "Bearer <TOKEN>"',
         'Authorization: "Basic [REDACTED]"',
         'Authorization: "Bearer" <TOKEN>',
@@ -230,6 +234,7 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "Captured from /home/<USER>.",
         r"Captured from C:\Users\<USER>.",
         "Captured from </home/<USER>/work>.",
+        "Captured from file://localhost/home/<USER>/work.",
         "See https://docs.example.org/home/user for documented behavior.",
         "Database metadata: foreign_key_id=42.",
     ),
@@ -260,6 +265,13 @@ def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths
         "https://service.invalid/run?password=hunter2&mode=test",
         "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9",
         "Authorization=Basic dXNlcjpwYXNz",
+        "client_secret=<TOKEN> live-secret",
+        'client_secret="<TOKEN>" live-secret',
+        "Authorization: <TOKEN> live-secret",
+        "token=<TOKEN> extra",
+        "Authorization Bearer live-secret",
+        "Authorization Basic dXNlcjpwYXNz",
+        "Authorization Bearer <TOKEN> extra",
         "token=<TOKEN>-suffix",
         'client_secret="<TOKEN> live-secret"',
         'client_secret="<TOKEN>"live-secret',
@@ -293,13 +305,24 @@ def test_retained_text_rejects_unredacted_secret_assignments(
         "Captured from </home/alice/work/help.txt>",
         r"Captured from <C:\Users\alice\work\help.txt>",
         "Captured from,/home/alice/work/help.txt",
+        "Captured from file://localhost/home/alice/work/help.txt",
+        "Captured from file://localhost/Users/alice/work/help.txt",
+        r"Captured from \\server\Users\alice\work\help.txt",
         "Captured from /tmp/pytest-of-user/pytest-3/test_help0/output.txt",
+        "Captured from /tmp/pytest-of-user/pytest-current/out",
         "Captured from /private/var/folders/aa/bb/T/pytest-of-user/pytest-3/test_help0/output.txt",
     ),
 )
 def test_retained_text_rejects_capture_host_paths(field: str, value: str) -> None:
     with pytest.raises(ValidationError, match="host path"):
         retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+def test_retained_text_rejects_url_userinfo_credentials(field: str) -> None:
+    for scheme in ("http", "https", "ftp"):
+        with pytest.raises(ValidationError, match="userinfo"):
+            retained_text(field, f"See {scheme}://user:pass@example.com/docs for details.")
 
 
 @pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
@@ -424,6 +447,92 @@ def test_canonical_nondefault_https_port_is_retained() -> None:
     )
 
     assert captured.url == "https://api.example.org:8443/schema/1.23.1.json"
+
+
+@pytest.mark.parametrize("kind", (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA))
+@pytest.mark.parametrize(
+    "segment",
+    ("latest", "stable", "current", "main", "master", "head", "develop", "release", "trunk"),
+)
+def test_official_documentation_rejects_moving_url_segments(
+    kind: evidence.SourceKind,
+    segment: str,
+) -> None:
+    with pytest.raises(ValidationError, match="moving"):
+        source(kind).model_copy(update={"url": f"https://docs.example.org/samtools/{segment}/reference.html"})
+
+
+@pytest.mark.parametrize("kind", (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA))
+@pytest.mark.parametrize("locator", ("latest reference", "stable schema", "current docs", "main branch"))
+def test_official_documentation_rejects_moving_version_locators(
+    kind: evidence.SourceKind,
+    locator: str,
+) -> None:
+    with pytest.raises(ValidationError, match="moving"):
+        source(kind).model_copy(update={"version_locator": locator})
+
+
+@pytest.mark.parametrize("kind", (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA))
+def test_official_documentation_must_bind_exact_tool_version_without_url_mismatch(
+    kind: evidence.SourceKind,
+) -> None:
+    path_bound = source(kind).model_copy(
+        update={
+            "url": "https://docs.example.org/samtools/1.23.1/reference.html",
+            "version_locator": "reference",
+        }
+    )
+    locator_bound = source(kind).model_copy(
+        update={
+            "url": "https://docs.example.org/samtools/reference.html",
+            "version_locator": "1.23.1 reference",
+        }
+    )
+
+    assert path_bound.url is not None and locator_bound.version_locator == "1.23.1 reference"
+
+    with pytest.raises(ValidationError, match="tool version"):
+        source(kind).model_copy(
+            update={
+                "url": "https://docs.example.org/samtools/1.20/reference.html",
+                "version_locator": "1.23.1 reference",
+            }
+        )
+    with pytest.raises(ValidationError, match="tool version"):
+        source(kind).model_copy(
+            update={
+                "url": "https://docs.example.org/samtools/reference.html",
+                "version_locator": "reference",
+            }
+        )
+
+
+def test_official_documentation_accepts_a_matching_suffix_bearing_tool_version() -> None:
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+        update={
+            "tool_version": "1.23.1-beta",
+            "url": "https://docs.example.org/samtools/1.23.1-beta/reference.html",
+            "version_locator": "1.23.1-beta reference",
+        }
+    )
+
+    assert captured.tool_version == "1.23.1-beta"
+
+
+@pytest.mark.parametrize("locator", ("1.23.1-beta docs", "1.23.1+build docs", "1.23.1.post1 docs"))
+def test_official_documentation_rejects_suffixes_when_tool_version_is_core(locator: str) -> None:
+    with pytest.raises(ValidationError, match="tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"version_locator": locator})
+
+
+def test_official_documentation_rejects_suffix_bearing_url_when_tool_version_is_core() -> None:
+    with pytest.raises(ValidationError, match="tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+            update={
+                "url": "https://docs.example.org/samtools/1.23.1-beta/reference.html",
+                "version_locator": "1.23.1 reference",
+            }
+        )
 
 
 @pytest.mark.parametrize("version", ("", "latest", "main", "1.*", ">=1.2", " 1.2", "1.2 ", "1.2\n"))
@@ -710,9 +819,11 @@ def test_claim_rejects_dotted_empty_traversing_overdeep_or_noncanonical_pointers
 
 
 def test_claim_locator_is_bounded_single_line_and_statement_is_nonempty() -> None:
-    redacted = claim(statement="Use --token=<TOKEN> only when the official service requires authentication.")
+    redacted = claim(
+        statement="Use the token parameter <TOKEN> only when the official service requires authentication."
+    )
 
-    assert redacted.statement.startswith("Use --token=<TOKEN>")
+    assert redacted.statement.startswith("Use the token parameter <TOKEN>")
     with pytest.raises(ValidationError):
         claim(locator="")
     with pytest.raises(ValidationError):

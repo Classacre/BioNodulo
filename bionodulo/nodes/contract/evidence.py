@@ -30,10 +30,16 @@ _SECRET_ASSIGNMENT_HEAD_RE = re.compile(
     r"(?i)(?<![0-9A-Za-z_.-])(?:--)?(?P<quote>[\"']?)(?P<key>[A-Za-z][A-Za-z0-9_.-]{0,127})"
     r"(?P=quote)\s*[:=]\s*"
 )
+_AUTHORIZATION_SCHEME_RE = re.compile(r"(?i)(?<![0-9A-Za-z._~/\\-])authorization\s+(?:bearer|basic)\s+")
+_URL_USERINFO_RE = re.compile(r"(?i)(?<![0-9A-Za-z._-])[A-Za-z][A-Za-z0-9+.-]{0,31}://[^/\s:@]+:[^/\s@]+@")
 _REDACTED_SECRET_VALUES = frozenset({"<TOKEN>", "${TOKEN}", "[REDACTED]", "REDACTED", "***"})
 _REDACTION_TRAILING_PUNCTUATION = ".,;:!?)]}"
 _CAPTURE_PATH_BOUNDARY = r"(?<![0-9A-Za-z._~/\\-])"
 _CAPTURE_HOST_PATH_RES = (
+    re.compile(
+        _CAPTURE_PATH_BOUNDARY + r"file://(?:localhost|127\.0\.0\.1)/(?:home|Users)/[^/\\\s\"'`]+",
+        re.IGNORECASE,
+    ),
     re.compile(
         _CAPTURE_PATH_BOUNDARY + r"(?:file://)?/(?:home|Users)/[^/\\\s\"'`]+",
         re.IGNORECASE,
@@ -49,12 +55,27 @@ _CAPTURE_HOST_PATH_RES = (
         re.IGNORECASE,
     ),
     re.compile(
+        _CAPTURE_PATH_BOUNDARY + r"(?:\\\\|//)[^/\\\s]+[\\/](?:Users|Documents and Settings)[\\/]" + r"[^/\\\s\"'`]+",
+        re.IGNORECASE,
+    ),
+    re.compile(
         _CAPTURE_PATH_BOUNDARY
         + r"(?:(?:file://)?/|[A-Za-z]:[\\/])[^\s\"'`]*?[\\/]pytest-of-[^/\\\s\"'`]+[\\/]"
-        + r"pytest-[0-9]+(?=$|[/\\\s.,;:!?\"'`)\]}])",
+        + r"pytest-(?:[0-9]+|current)(?=$|[/\\\s.,;:!?\"'`)\]}])",
         re.IGNORECASE,
     ),
 )
+_MOVING_DOCUMENT_SEGMENTS = frozenset(
+    {"latest", "stable", "current", "main", "master", "head", "develop", "release", "trunk"}
+)
+_MOVING_DOCUMENT_TOKEN_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9])(?:latest|stable|current|main|master|head|develop|release|trunk)(?![A-Za-z0-9])"
+)
+_DOCUMENT_VERSION_TOKEN_RE = re.compile(r"^[0-9][0-9A-Za-z._+-]{0,127}$")
+_DOCUMENT_VERSION_SCAN_RE = re.compile(
+    r"(?<![0-9A-Za-z._+-])[0-9][0-9A-Za-z._+-]{0,127}(?<=[0-9A-Za-z+-])(?![0-9A-Za-z._+-])"
+)
+_DOCUMENT_FILE_EXTENSIONS = (".html", ".htm", ".json", ".yaml", ".yml", ".xml", ".txt")
 _HELP_FLAG_TOKENS = frozenset({"--help", "-h", "-help"})
 _HELP_WORD_TOKEN = "help"
 _HELP_TOKENS = frozenset({*_HELP_FLAG_TOKENS, _HELP_WORD_TOKEN})
@@ -145,7 +166,9 @@ def _assignment_value(value: str, start: int) -> tuple[str, bool, str]:
     end = start
     while end < len(value) and value[end] not in "&,;#":
         end += 1
-    return value[start:end].strip(), False, ""
+    raw = value[start:end].strip()
+    parts = raw.split(maxsplit=1)
+    return (parts[0], False, parts[1] if len(parts) > 1 else "") if parts else ("", False, "")
 
 
 def _is_redacted_secret(value: str) -> bool:
@@ -166,18 +189,29 @@ def _validate_retained_secrets(value: str, *, label: str) -> None:
         if not _is_secret_assignment_key(key):
             continue
         retained, quoted, remainder = _assignment_value(value, match.end())
+        if not quoted and remainder:
+            retained = f"{retained} {remainder}".strip()
         if key.casefold().replace("_", "").replace("-", "").replace(".", "") == "authorization":
             parts = retained.split()
             if parts and parts[0].casefold() in ("bearer", "basic"):
                 if quoted:
                     retained = " ".join((*parts[1:], remainder)).strip()
                 else:
-                    retained = parts[1] if len(parts) > 1 else ""
+                    retained = " ".join(parts[1:]) if len(parts) > 1 else ""
             elif parts:
-                retained = " ".join((retained, remainder)).strip() if quoted else parts[0]
-        elif not quoted:
-            retained = retained.split(maxsplit=1)[0] if retained else ""
+                retained = " ".join((retained, remainder)).strip() if quoted else retained
+        elif quoted and remainder:
+            retained = f"{retained} {remainder}".strip()
         if retained and not _is_redacted_secret(retained):
+            raise ValueError(f"{label} must not retain secret values")
+
+    for match in _AUTHORIZATION_SCHEME_RE.finditer(value):
+        retained, quoted, remainder = _assignment_value(value, match.end())
+        if not quoted and remainder:
+            retained = f"{retained} {remainder}".strip()
+        elif quoted and remainder:
+            retained = f"{retained} {remainder}".strip()
+        if not _is_redacted_secret(retained):
             raise ValueError(f"{label} must not retain secret values")
 
 
@@ -186,12 +220,57 @@ def _validate_retained_text(value: str, *, label: str) -> str:
         raise ValueError(f"{label} must not have outer whitespace")
     _validate_printable_unicode(value, label=label)
     _validate_retained_secrets(value, label=label)
+    if _URL_USERINFO_RE.search(value) is not None:
+        raise ValueError(f"{label} must not retain URL userinfo credentials")
     for pattern in _CAPTURE_HOST_PATH_RES:
         for match in pattern.finditer(value):
             captured_path = match.group(0).replace("\\", "/").rstrip(_REDACTION_TRAILING_PUNCTUATION)
             if not captured_path.endswith("/<USER>"):
                 raise ValueError(f"{label} must not retain capture host paths")
     return value
+
+
+def _validate_official_documentation_binding(
+    *,
+    tool_version: str,
+    url: str,
+    version_locator: str,
+) -> None:
+    path_segments = tuple(segment for segment in urlsplit(url).path.split("/") if segment)
+    for segment in path_segments:
+        lowered = segment.casefold()
+        stem = lowered.rsplit(".", 1)[0]
+        if lowered in _MOVING_DOCUMENT_SEGMENTS or stem in _MOVING_DOCUMENT_SEGMENTS:
+            raise ValueError("official documentation URL must not use moving revision segments")
+        candidate = segment
+        for extension in _DOCUMENT_FILE_EXTENSIONS:
+            if lowered.endswith(extension):
+                candidate = segment[: -len(extension)]
+                break
+        if _DOCUMENT_VERSION_TOKEN_RE.fullmatch(candidate) is not None and candidate != tool_version:
+            raise ValueError("official documentation URL must bind the exact tool version")
+    if _MOVING_DOCUMENT_TOKEN_RE.search(version_locator) is not None:
+        raise ValueError("official documentation version locator must not use moving revisions")
+    locator_versions = _DOCUMENT_VERSION_SCAN_RE.findall(version_locator)
+    if any(version != tool_version for version in locator_versions):
+        raise ValueError("official documentation version locator must bind the exact tool version")
+    locator_bound = (
+        re.search(
+            rf"(?<![0-9A-Za-z._+-]){re.escape(tool_version)}(?![0-9A-Za-z._+-])",
+            version_locator,
+        )
+        is not None
+    )
+    path_bound = any(
+        segment == tool_version
+        or any(
+            segment.casefold().endswith(extension) and segment[: -len(extension)] == tool_version
+            for extension in _DOCUMENT_FILE_EXTENSIONS
+        )
+        for segment in path_segments
+    )
+    if not locator_bound and not path_bound:
+        raise ValueError("official documentation must bind the exact tool version")
 
 
 def _validate_repository_path(value: str) -> str:
@@ -408,7 +487,14 @@ class EvidenceSource(_StrictFrozenModel):
         if irrelevant:
             raise ValueError(f"{self.kind.value} source has irrelevant fields: {', '.join(irrelevant)}")
 
-        if self.kind is SourceKind.UPSTREAM_SOURCE:
+        if self.kind in (SourceKind.OFFICIAL_MANUAL, SourceKind.OFFICIAL_API_SCHEMA):
+            assert self.url is not None and self.version_locator is not None
+            _validate_official_documentation_binding(
+                tool_version=self.tool_version,
+                url=self.url,
+                version_locator=self.version_locator,
+            )
+        elif self.kind is SourceKind.UPSTREAM_SOURCE:
             assert self.url is not None and self.commit is not None and self.source_path is not None
             pinned_suffix = f"/{self.commit}/{self.source_path}"
             if not urlsplit(self.url).path.endswith(pinned_suffix):
