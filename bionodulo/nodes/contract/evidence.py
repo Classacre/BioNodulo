@@ -31,7 +31,7 @@ _SECRET_ASSIGNMENT_HEAD_RE = re.compile(
     r"(?P=quote)\s*[:=]\s*"
 )
 _AUTHORIZATION_SCHEME_RE = re.compile(r"(?i)(?<![0-9A-Za-z._~/\\-])authorization\s+(?:bearer|basic)\s+")
-_URL_USERINFO_RE = re.compile(r"(?i)(?<![0-9A-Za-z._-])[A-Za-z][A-Za-z0-9+.-]{0,31}://[^/\s:@]+:[^/\s@]+@")
+_URL_USERINFO_RE = re.compile(r"(?i)(?<![0-9A-Za-z._-])[A-Za-z][A-Za-z0-9+.-]{0,31}://[^/\s?#]*@")
 _REDACTED_SECRET_VALUES = frozenset({"<TOKEN>", "${TOKEN}", "[REDACTED]", "REDACTED", "***"})
 _REDACTION_TRAILING_PUNCTUATION = ".,;:!?)]}"
 _CAPTURE_PATH_BOUNDARY = r"(?<![0-9A-Za-z._~/\\-])"
@@ -71,9 +71,14 @@ _MOVING_DOCUMENT_SEGMENTS = frozenset(
 _MOVING_DOCUMENT_TOKEN_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9])(?:latest|stable|current|main|master|head|develop|release|trunk)(?![A-Za-z0-9])"
 )
-_DOCUMENT_VERSION_TOKEN_RE = re.compile(r"^[0-9][0-9A-Za-z._+-]{0,127}$")
+_DOCUMENT_VERSION_TOKEN_RE = re.compile(
+    r"^v?[0-9]+\.[0-9]+(?:\.[0-9]+)*"
+    r"(?:[A-Za-z][0-9A-Za-z._+-]*|[._+-][0-9A-Za-z][0-9A-Za-z._+-]*)?$"
+)
 _DOCUMENT_VERSION_SCAN_RE = re.compile(
-    r"(?<![0-9A-Za-z._+-])[0-9][0-9A-Za-z._+-]{0,127}(?<=[0-9A-Za-z+-])(?![0-9A-Za-z._+-])"
+    r"(?<![0-9A-Za-z._+-])v?[0-9]+\.[0-9]+(?:\.[0-9]+)*"
+    r"(?:[A-Za-z][0-9A-Za-z._+-]*|[._+-][0-9A-Za-z][0-9A-Za-z._+-]*)?"
+    r"(?![0-9A-Za-z._+-])"
 )
 _DOCUMENT_FILE_EXTENSIONS = (".html", ".htm", ".json", ".yaml", ".yml", ".xml", ".txt")
 _HELP_FLAG_TOKENS = frozenset({"--help", "-h", "-help"})
@@ -124,7 +129,7 @@ def _validate_printable_unicode(value: str, *, label: str) -> str:
 
 def _is_secret_assignment_key(value: str) -> bool:
     compact = value.casefold().replace("_", "").replace("-", "").replace(".", "")
-    return compact == "authorization" or compact.endswith(
+    return compact in {"auth", "authentication", "authorization", "credential", "credentials"} or compact.endswith(
         (
             "token",
             "secret",
@@ -173,14 +178,18 @@ def _assignment_value(value: str, start: int) -> tuple[str, bool, str]:
 
 def _is_redacted_secret(value: str) -> bool:
     candidate = value.strip()
-    if candidate in _REDACTED_SECRET_VALUES:
-        return True
-    return any(
-        candidate.startswith(redaction)
-        and candidate[len(redaction) :]
-        and all(character in _REDACTION_TRAILING_PUNCTUATION for character in candidate[len(redaction) :])
-        for redaction in _REDACTED_SECRET_VALUES
-    )
+    for redaction in _REDACTED_SECRET_VALUES:
+        if candidate == redaction:
+            return True
+        if not candidate.startswith(redaction):
+            continue
+        suffix = candidate[len(redaction) :]
+        punctuation_length = 0
+        while punctuation_length < len(suffix) and suffix[punctuation_length] in _REDACTION_TRAILING_PUNCTUATION:
+            punctuation_length += 1
+        if punctuation_length and (punctuation_length == len(suffix) or suffix[punctuation_length].isspace()):
+            return True
+    return False
 
 
 def _validate_retained_secrets(value: str, *, label: str) -> None:
@@ -237,6 +246,7 @@ def _validate_official_documentation_binding(
     version_locator: str,
 ) -> None:
     path_segments = tuple(segment for segment in urlsplit(url).path.split("/") if segment)
+    path_versions: list[str] = []
     for segment in path_segments:
         lowered = segment.casefold()
         stem = lowered.rsplit(".", 1)[0]
@@ -247,28 +257,20 @@ def _validate_official_documentation_binding(
             if lowered.endswith(extension):
                 candidate = segment[: -len(extension)]
                 break
-        if _DOCUMENT_VERSION_TOKEN_RE.fullmatch(candidate) is not None and candidate != tool_version:
-            raise ValueError("official documentation URL must bind the exact tool version")
+        if _DOCUMENT_VERSION_TOKEN_RE.fullmatch(candidate) is not None:
+            normalized = candidate.removeprefix("v")
+            path_versions.append(normalized)
+            if normalized != tool_version:
+                raise ValueError("official documentation URL must bind the exact tool version")
     if _MOVING_DOCUMENT_TOKEN_RE.search(version_locator) is not None:
         raise ValueError("official documentation version locator must not use moving revisions")
-    locator_versions = _DOCUMENT_VERSION_SCAN_RE.findall(version_locator)
+    locator_versions = tuple(
+        candidate.removeprefix("v") for candidate in _DOCUMENT_VERSION_SCAN_RE.findall(version_locator)
+    )
     if any(version != tool_version for version in locator_versions):
         raise ValueError("official documentation version locator must bind the exact tool version")
-    locator_bound = (
-        re.search(
-            rf"(?<![0-9A-Za-z._+-]){re.escape(tool_version)}(?![0-9A-Za-z._+-])",
-            version_locator,
-        )
-        is not None
-    )
-    path_bound = any(
-        segment == tool_version
-        or any(
-            segment.casefold().endswith(extension) and segment[: -len(extension)] == tool_version
-            for extension in _DOCUMENT_FILE_EXTENSIONS
-        )
-        for segment in path_segments
-    )
+    locator_bound = tool_version in locator_versions
+    path_bound = tool_version in path_versions
     if not locator_bound and not path_bound:
         raise ValueError("official documentation must bind the exact tool version")
 
@@ -378,6 +380,8 @@ class EvidenceSource(_StrictFrozenModel):
     def _validate_url(cls, value: str | None) -> str | None:
         if value is None:
             return None
+        if _URL_USERINFO_RE.search(value) is not None:
+            raise ValueError("URL must not contain userinfo")
         return _validate_https_url(value, require_path=True)
 
     @field_validator("recipe_revision")

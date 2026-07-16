@@ -224,6 +224,9 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "Authorization=Basic ***",
         "Authorization Bearer <TOKEN>",
         "Authorization Basic [REDACTED]",
+        "token=<TOKEN>. Continue with the documented flow.",
+        "auth=[REDACTED]. Continue with the documented flow.",
+        "credential=***. Continue with the documented flow.",
         'Authorization: "Bearer <TOKEN>"',
         'Authorization: "Basic [REDACTED]"',
         'Authorization: "Bearer" <TOKEN>',
@@ -260,6 +263,9 @@ def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths
         "refresh_key=live-value",
         "auth_token=live-value",
         "auth-key=live-value",
+        "auth=live-value",
+        "credential=live-value",
+        "credentials: live-value",
         "license_key=live-value",
         "license-key=live-value",
         "https://service.invalid/run?password=hunter2&mode=test",
@@ -319,10 +325,19 @@ def test_retained_text_rejects_capture_host_paths(field: str, value: str) -> Non
 
 
 @pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-def test_retained_text_rejects_url_userinfo_credentials(field: str) -> None:
-    for scheme in ("http", "https", "ftp"):
-        with pytest.raises(ValidationError, match="userinfo"):
-            retained_text(field, f"See {scheme}://user:pass@example.com/docs for details.")
+@pytest.mark.parametrize(
+    "url",
+    (
+        "http://user:pass@example.com/docs",
+        "https://user@example.com/docs",
+        "https://:pass@example.com/docs",
+        "https://user:@example.com/docs",
+        "ftp://user:pass@example.com/docs",
+    ),
+)
+def test_retained_text_rejects_url_userinfo_credentials(field: str, url: str) -> None:
+    with pytest.raises(ValidationError, match="userinfo"):
+        retained_text(field, f"See {url} for details.")
 
 
 @pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
@@ -415,7 +430,11 @@ def test_source_kinds_reject_irrelevant_cross_kind_fields(
     "url",
     (
         "http://docs.example.org/tool/manual.html",
+        "ftp://docs.example.org/tool/manual.html",
         "HTTPS://docs.example.org/tool/manual.html",
+        "https://user@docs.example.org/tool/manual.html",
+        "https://:password@docs.example.org/tool/manual.html",
+        "https://user:@docs.example.org/tool/manual.html",
         "https://user:password@docs.example.org/tool/manual.html",
         "https://docs.example.org/tool/manual.html?token=secret",
         "https://docs.example.org/tool/manual.html?",
@@ -507,6 +526,25 @@ def test_official_documentation_must_bind_exact_tool_version_without_url_mismatc
         )
 
 
+@pytest.mark.parametrize(
+    ("url", "locator"),
+    (
+        ("https://docs.example.org/api/2/samtools/1.23.1/reference.html", "section 42"),
+        ("https://docs.example.org/2026/samtools/1.23.1/reference.html", "section 42"),
+        ("https://docs.example.org/samtools/v1.23.1/reference.html", "section 42"),
+        ("https://docs.example.org/samtools/reference.html", "v1.23.1 section 42"),
+    ),
+)
+def test_official_documentation_ignores_standalone_integers_and_normalizes_v_versions(
+    url: str,
+    locator: str,
+) -> None:
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url, "version_locator": locator})
+
+    assert captured.url == url
+    assert captured.version_locator == locator
+
+
 def test_official_documentation_accepts_a_matching_suffix_bearing_tool_version() -> None:
     captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
         update={
@@ -519,7 +557,10 @@ def test_official_documentation_accepts_a_matching_suffix_bearing_tool_version()
     assert captured.tool_version == "1.23.1-beta"
 
 
-@pytest.mark.parametrize("locator", ("1.23.1-beta docs", "1.23.1+build docs", "1.23.1.post1 docs"))
+@pytest.mark.parametrize(
+    "locator",
+    ("1.23.1-beta docs", "v1.23.1-beta docs", "1.23.1+build docs", "1.23.1.post1 docs"),
+)
 def test_official_documentation_rejects_suffixes_when_tool_version_is_core(locator: str) -> None:
     with pytest.raises(ValidationError, match="tool version"):
         source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"version_locator": locator})
@@ -529,7 +570,7 @@ def test_official_documentation_rejects_suffix_bearing_url_when_tool_version_is_
     with pytest.raises(ValidationError, match="tool version"):
         source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
             update={
-                "url": "https://docs.example.org/samtools/1.23.1-beta/reference.html",
+                "url": "https://docs.example.org/samtools/v1.23.1-beta/reference.html",
                 "version_locator": "1.23.1 reference",
             }
         )
