@@ -13,11 +13,14 @@ from bionodulo.nodes.contract.artifacts import ArtifactPort, Cardinality
 from bionodulo.nodes.contract.environments import (
     ContainerEnvironment,
     ContainerImageLock,
+    ExecutableProbe,
     ExecutionPlatform,
+    ImportProbe,
     LockedArtifact,
     PixiEnvironment,
     PlatformLock,
     PythonEnvironment,
+    RPackageProbe,
     REnvironment,
     ResolverIdentity,
 )
@@ -26,8 +29,15 @@ from bionodulo.nodes.contract.evidence import (
     EvidenceRecord,
     EvidenceSource,
     SourceKind,
+    VerificationEvidence,
 )
-from bionodulo.nodes.contract.maturity import AccessClass, MaturityRecord
+from bionodulo.nodes.contract.maturity import (
+    AccessClass,
+    Gate,
+    GateAssessment,
+    GateResult,
+    MaturityRecord,
+)
 from bionodulo.nodes.contract.model import (
     ExecutionKind,
     NodeIdentity,
@@ -91,12 +101,17 @@ def platform_lock(*artifacts: LockedArtifact) -> PlatformLock:
     )
 
 
-def pixi_environment(*, locked: bool = True) -> PixiEnvironment:
+def pixi_environment(
+    *,
+    locked: bool = True,
+    tool_id: str = "samtools",
+    tool_version: str = "1.20",
+) -> PixiEnvironment:
     return PixiEnvironment(
-        environment_id="samtools-runtime",
+        environment_id=f"{tool_id}-runtime",
         platforms=(PLATFORM,),
-        packages=("samtools==1.20",),
-        locks=(platform_lock(locked_artifact("samtools", "1.20")),) if locked else (),
+        packages=(f"{tool_id}=={tool_version}",),
+        locks=(platform_lock(locked_artifact(tool_id, tool_version)),) if locked else (),
     )
 
 
@@ -105,7 +120,22 @@ def python_environment(*, locked: bool = True) -> PythonEnvironment:
         environment_id="python-runtime",
         platforms=(PLATFORM,),
         python_version="==3.12.4",
-        locks=(platform_lock(locked_artifact("python", "3.12.4")),) if locked else (),
+        packages=("samtools==1.20",),
+        locks=(
+            platform_lock(
+                locked_artifact("python", "3.12.4"),
+                locked_artifact("samtools", "1.20", digest=SHA_D),
+            ),
+        )
+        if locked
+        else (),
+        import_probes=(
+            ImportProbe(
+                probe_id="samtools-import",
+                module="samtools",
+                expected_version="1.20",
+            ),
+        ),
     )
 
 
@@ -114,7 +144,22 @@ def r_environment(*, locked: bool = True) -> REnvironment:
         environment_id="r-runtime",
         platforms=(PLATFORM,),
         r_version="==4.4.1",
-        locks=(platform_lock(locked_artifact("r-base", "4.4.1")),) if locked else (),
+        packages=("samtools==1.20",),
+        locks=(
+            platform_lock(
+                locked_artifact("r-base", "4.4.1"),
+                locked_artifact("samtools", "1.20", digest=SHA_D),
+            ),
+        )
+        if locked
+        else (),
+        package_probes=(
+            RPackageProbe(
+                probe_id="samtools-r-package",
+                package="samtools",
+                expected_version="1.20",
+            ),
+        ),
     )
 
 
@@ -140,6 +185,7 @@ def evidence_record(
     *,
     tool_id: str = "samtools",
     tool_version: str = "1.20",
+    verifications: tuple[VerificationEvidence, ...] = (),
 ) -> EvidenceRecord:
     source = EvidenceSource(
         source_id=f"{tool_id}-manual",
@@ -168,6 +214,126 @@ def evidence_record(
         tool_version=tool_version,
         sources=(source,),
         claims=(claim,),
+        verifications=verifications,
+    )
+
+
+def verification_evidence(environment: object) -> VerificationEvidence:
+    assert isinstance(
+        environment,
+        (PixiEnvironment, PythonEnvironment, REnvironment, ContainerEnvironment),
+    )
+    return VerificationEvidence(
+        evidence_id="samtools-smoke-linux-amd64",
+        kind="tool-smoke",
+        test_id="samtools-sort-tiny-bam-v1",
+        result_sha256=SHA_D,
+        fixture_id="tiny-bam-v1",
+        fixture_sha256=SHA_C,
+        environment_sha256=environment.environment_digest(),
+        verified_at=CAPTURE_DATE,
+        summary="Pinned samtools completed the retained tiny BAM fixture.",
+    )
+
+
+def gate_assessment(gate: Gate, *digests: str) -> GateAssessment:
+    return GateAssessment(
+        gate=gate,
+        result=GateResult.PASSED,
+        evidence_digests=tuple(sorted(digests)),
+        verified_at=CAPTURE_DATE,
+        verifier_id="catalog-verifier",
+        verifier_version="1.0.0",
+        summary=f"Retained assessment for {gate.value}.",
+    )
+
+
+def runtime_binding(
+    *,
+    tool_id: str = "samtools",
+    tool_version: str = "1.20",
+    execution_kind: ExecutionKind = ExecutionKind.ARGV,
+    execution_factory: str = "bionodulo.nodes.catalog.tools.samtools.sort:build_plan",
+    **updates: object,
+) -> object:
+    values: dict[str, object] = {
+        "tool_id": tool_id,
+        "tool_version": tool_version,
+        "execution_kind": execution_kind,
+        "execution_factory": execution_factory,
+        "package_name": None,
+        "probe_id": None,
+        "container_image": None,
+    }
+    if execution_kind in (ExecutionKind.ARGV, ExecutionKind.PIPELINE, ExecutionKind.SCRIPT):
+        values["package_name"] = tool_id
+    elif execution_kind in (ExecutionKind.PYTHON, ExecutionKind.HTTP):
+        values["probe_id"] = f"{tool_id}-import"
+    elif execution_kind is ExecutionKind.R:
+        values["probe_id"] = f"{tool_id}-r-package"
+    else:
+        values["container_image"] = CONTAINER_IMAGE
+    values.update(updates)
+    return contract.RuntimeBinding(**values)
+
+
+def retained_artifact(
+    kind: object,
+    artifact_id: str,
+    digest: str,
+) -> object:
+    return contract.RetainedArtifact(
+        kind=kind,
+        artifact_id=artifact_id,
+        sha256=digest,
+    )
+
+
+def retained_inventory(
+    *,
+    identity: NodeIdentity,
+    environment: object,
+    evidence: EvidenceRecord,
+    contract_digest: str | None = None,
+) -> object:
+    assert isinstance(
+        environment,
+        (PixiEnvironment, PythonEnvironment, REnvironment, ContainerEnvironment),
+    )
+    if contract_digest is None:
+        contract_digest = external_spec(
+            identity=identity,
+            environment=environment,
+            evidence=evidence,
+            maturity=None,
+        ).contract_digest()
+    artifacts = [
+        retained_artifact(
+            contract.RetainedArtifactKind.CONTRACT,
+            identity.machine_id,
+            contract_digest,
+        ),
+        retained_artifact(
+            contract.RetainedArtifactKind.ENVIRONMENT,
+            environment.environment_id,
+            environment.environment_digest(),
+        ),
+        retained_artifact(
+            contract.RetainedArtifactKind.EVIDENCE_RECORD,
+            evidence.tool_id,
+            evidence.evidence_digest(),
+        ),
+    ]
+    artifacts.extend(
+        retained_artifact(
+            contract.RetainedArtifactKind.VERIFICATION,
+            verification.evidence_id,
+            verification.verification_digest(),
+        )
+        for verification in evidence.verifications
+    )
+    return contract.RetainedEvidenceInventory(
+        artifacts=tuple(sorted(artifacts, key=lambda item: (item.kind.value, item.artifact_id))),
     )
 
 
@@ -225,10 +391,26 @@ def external_spec(**updates: object) -> NodeSpec:
         "environment": pixi_environment(),
         "execution_kind": ExecutionKind.ARGV,
         "execution_factory": "bionodulo.nodes.catalog.tools.samtools.sort:build_plan",
+        "runtime_binding": None,
         "evidence": evidence_record(),
+        "retained_evidence": None,
         "maturity": MaturityRecord(access=AccessClass.PUBLIC),
     }
     values.update(updates)
+    if "runtime_binding" not in updates:
+        identity = values["identity"]
+        assert isinstance(identity, NodeIdentity)
+        execution_kind = values["execution_kind"]
+        assert isinstance(execution_kind, ExecutionKind)
+        execution_factory = values["execution_factory"]
+        assert isinstance(execution_factory, str)
+        if identity.tool_id is not None and identity.tool_version is not None:
+            values["runtime_binding"] = runtime_binding(
+                tool_id=identity.tool_id,
+                tool_version=identity.tool_version,
+                execution_kind=execution_kind,
+                execution_factory=execution_factory,
+            )
     return NodeSpec(**values)
 
 
@@ -262,7 +444,9 @@ def core_spec(**updates: object) -> NodeSpec:
         "environment": None,
         "execution_kind": ExecutionKind.PYTHON,
         "execution_factory": "bionodulo.nodes.catalog.core.values.string:build_plan",
+        "runtime_binding": None,
         "evidence": None,
+        "retained_evidence": None,
         "maturity": MaturityRecord(access=AccessClass.PUBLIC),
     }
     values.update(updates)
@@ -291,6 +475,12 @@ def test_public_wire_values_are_exact() -> None:
         "parameter",
         "secret",
         "output",
+    )
+    assert tuple(kind.value for kind in contract.RetainedArtifactKind) == (
+        "contract",
+        "environment",
+        "evidence_record",
+        "verification",
     )
 
 
@@ -737,14 +927,14 @@ def test_secret_environment_variable_bindings_are_unique() -> None:
         )
 
 
-def conditional_output(condition_key: str) -> OutputSpec:
+def conditional_output(condition_key: str, expected_value: object = True) -> OutputSpec:
     return OutputSpec(
         port_id="index",
         artifact_type="alignment.bai",
         cardinality=Cardinality.OPTIONAL_ONE,
         collector=ConditionalCollector(
             condition_key=condition_key,
-            expected_value=True,
+            expected_value=expected_value,
             collector=ExactCollector(relative_path="result.bai"),
         ),
     )
@@ -769,6 +959,69 @@ def test_conditional_output_references_an_existing_parameter_only() -> None:
             value_inputs=(ValuePort(port_id="write_index", kind=ValueKind.BOOLEAN),),
             outputs=(conditional_output("write_index"),),
         )
+
+
+@pytest.mark.parametrize(
+    ("parameter", "expected_value"),
+    (
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.BOOLEAN), "true"),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.INTEGER), 1.0),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.NUMBER), True),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.INTEGER, minimum=2), 1),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.INTEGER, maximum=2), 3),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.STRING, min_length=2), "x"),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.STRING, max_length=2), "xxx"),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.STRING, pattern=r"^yes$"), "no"),
+        (
+            ParameterSpec(
+                parameter_id="condition",
+                kind=ValueKind.STRING,
+                choices=("yes", "no"),
+            ),
+            "maybe",
+        ),
+    ),
+)
+def test_conditional_output_expected_value_must_be_reachable_by_its_parameter(
+    parameter: ParameterSpec,
+    expected_value: object,
+) -> None:
+    with pytest.raises(ValidationError, match="conditional output"):
+        external_spec(
+            parameters=(parameter,),
+            outputs=(conditional_output(parameter.parameter_id, expected_value),),
+        )
+
+
+@pytest.mark.parametrize(
+    ("parameter", "expected_value"),
+    (
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.BOOLEAN), True),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.INTEGER, minimum=2), 2),
+        (ParameterSpec(parameter_id="condition", kind=ValueKind.NUMBER, maximum=2.5), 2.5),
+        (
+            ParameterSpec(
+                parameter_id="condition",
+                kind=ValueKind.STRING,
+                choices=("no", "yes"),
+                min_length=2,
+                max_length=3,
+                pattern=r"^[a-z]+$",
+            ),
+            "yes",
+        ),
+    ),
+)
+def test_conditional_output_accepts_an_exact_reachable_parameter_value(
+    parameter: ParameterSpec,
+    expected_value: object,
+) -> None:
+    spec = external_spec(
+        parameters=(parameter,),
+        outputs=(conditional_output(parameter.parameter_id, expected_value),),
+    )
+
+    assert spec.outputs[0].collector.expected_value == expected_value
 
 
 @pytest.mark.parametrize(
@@ -879,6 +1132,312 @@ def test_only_owned_in_process_core_python_may_omit_tool_runtime_and_evidence() 
         external_spec(evidence=None)
 
 
+def test_core_python_exemption_requires_the_canonical_core_factory_namespace() -> None:
+    with pytest.raises(ValidationError, match="core Python"):
+        core_spec(execution_factory="thirdparty.plugin:build_plan")
+
+
+def test_external_runtime_binding_resolves_the_declared_tool_in_the_environment() -> None:
+    spec = external_spec(runtime_binding=runtime_binding())
+
+    assert spec.runtime_binding.tool_id == "samtools"
+    assert spec.runtime_binding.package_name == "samtools"
+
+    with pytest.raises(ValidationError, match="runtime binding"):
+        external_spec(
+            identity=external_identity(tool_id="bcftools"),
+            evidence=evidence_record(tool_id="bcftools"),
+            execution_kind=ExecutionKind.PYTHON,
+            environment=python_environment(),
+            runtime_binding=runtime_binding(
+                tool_id="bcftools",
+                execution_kind=ExecutionKind.PYTHON,
+                probe_id="samtools-import",
+            ),
+        )
+
+
+def test_runtime_binding_accepts_actual_executable_import_r_and_container_references() -> None:
+    executable_environment = pixi_environment().model_copy(
+        update={
+            "executable_probes": (
+                ExecutableProbe(
+                    probe_id="samtools-executable",
+                    locator="bin/samtools",
+                    version_arguments=("--version",),
+                    version_line_prefix="samtools ",
+                    expected_version="1.20",
+                ),
+            ),
+        }
+    )
+    executable = external_spec(
+        environment=executable_environment,
+        runtime_binding=runtime_binding(
+            package_name=None,
+            probe_id="samtools-executable",
+        ),
+    )
+    imported = external_spec(
+        execution_kind=ExecutionKind.PYTHON,
+        environment=python_environment(),
+        runtime_binding=runtime_binding(execution_kind=ExecutionKind.PYTHON),
+    )
+    r_package = external_spec(
+        execution_kind=ExecutionKind.R,
+        environment=r_environment(),
+        runtime_binding=runtime_binding(execution_kind=ExecutionKind.R),
+    )
+    container = external_spec(
+        execution_kind=ExecutionKind.CONTAINER,
+        environment=container_environment(),
+        runtime_binding=runtime_binding(execution_kind=ExecutionKind.CONTAINER),
+    )
+
+    assert executable.runtime_binding.probe_id == "samtools-executable"
+    assert imported.runtime_binding.probe_id == "samtools-import"
+    assert r_package.runtime_binding.probe_id == "samtools-r-package"
+    assert container.runtime_binding.container_image == CONTAINER_IMAGE
+
+
+def test_runtime_binding_can_use_an_exact_locked_package_for_python_execution() -> None:
+    spec = external_spec(
+        execution_kind=ExecutionKind.PYTHON,
+        environment=python_environment(),
+        runtime_binding=runtime_binding(
+            execution_kind=ExecutionKind.PYTHON,
+            package_name="samtools",
+            probe_id=None,
+        ),
+    )
+
+    assert spec.runtime_binding.package_name == "samtools"
+
+
+def test_runtime_binding_requires_one_reference_and_matches_factory_and_execution_kind() -> None:
+    with pytest.raises(ValidationError, match="exactly one"):
+        runtime_binding(package_name=None)
+    with pytest.raises(ValidationError, match="exactly one"):
+        runtime_binding(probe_id="samtools-executable")
+    with pytest.raises(ValidationError, match="execution kind"):
+        external_spec(
+            runtime_binding=runtime_binding(execution_kind=ExecutionKind.PIPELINE),
+        )
+    with pytest.raises(ValidationError, match="execution factory"):
+        external_spec(
+            runtime_binding=runtime_binding(
+                execution_factory="bionodulo.nodes.catalog.tools.samtools.index:build_plan"
+            ),
+        )
+
+
+def test_only_canonical_core_python_may_omit_runtime_binding() -> None:
+    assert core_spec().runtime_binding is None
+    with pytest.raises(ValidationError, match="runtime binding"):
+        external_spec(runtime_binding=None)
+
+
+def test_gate_assessment_digests_must_resolve_to_retained_artifacts() -> None:
+    maturity = MaturityRecord(
+        access=AccessClass.PUBLIC,
+        assessments=tuple(gate_assessment(gate, SHA_A) for gate in Gate),
+    )
+
+    assert maturity.released is True
+    with pytest.raises(ValidationError, match="retained evidence"):
+        core_spec(maturity=maturity)
+
+
+def test_passing_evidence_gate_requires_a_bound_evidence_record() -> None:
+    maturity = MaturityRecord(
+        access=AccessClass.PUBLIC,
+        assessments=(
+            gate_assessment(Gate.INVENTORIED, SHA_A),
+            gate_assessment(Gate.EVIDENCE_VERIFIED, SHA_A),
+        ),
+    )
+
+    with pytest.raises(ValidationError, match="evidence record"):
+        core_spec(maturity=maturity)
+
+
+def test_release_resolves_evidence_verification_environment_and_contract_artifacts() -> None:
+    identity = external_identity()
+    environment = pixi_environment()
+    verification = verification_evidence(environment)
+    evidence = evidence_record(verifications=(verification,))
+    inventory = retained_inventory(
+        identity=identity,
+        environment=environment,
+        evidence=evidence,
+    )
+    digest_by_kind = {artifact.kind: artifact.sha256 for artifact in inventory.artifacts}
+    assessments = (
+        gate_assessment(Gate.INVENTORIED, digest_by_kind[contract.RetainedArtifactKind.CONTRACT]),
+        gate_assessment(Gate.EVIDENCE_VERIFIED, evidence.evidence_digest()),
+        gate_assessment(Gate.CONTRACT_VERIFIED, digest_by_kind[contract.RetainedArtifactKind.CONTRACT]),
+        gate_assessment(Gate.COMMAND_VERIFIED, verification.verification_digest()),
+        gate_assessment(Gate.ENVIRONMENT_VERIFIED, environment.environment_digest()),
+        gate_assessment(Gate.TOOL_SMOKE_VERIFIED, verification.verification_digest()),
+        gate_assessment(Gate.CLOUD_VERIFIED, verification.verification_digest()),
+        gate_assessment(Gate.WORKFLOW_VERIFIED, verification.verification_digest()),
+    )
+
+    spec = external_spec(
+        identity=identity,
+        environment=environment,
+        evidence=evidence,
+        retained_evidence=inventory,
+        maturity=MaturityRecord(access=AccessClass.PUBLIC, assessments=assessments),
+        runtime_binding=runtime_binding(),
+    )
+
+    assert spec.maturity is not None
+    assert spec.maturity.released is True
+
+
+def test_retained_inventory_is_canonical_and_bound_to_actual_node_artifacts() -> None:
+    environment = pixi_environment()
+    evidence = evidence_record(verifications=(verification_evidence(environment),))
+    identity = external_identity()
+    inventory = retained_inventory(identity=identity, environment=environment, evidence=evidence)
+
+    with pytest.raises(ValidationError, match="canonical"):
+        contract.RetainedEvidenceInventory(artifacts=tuple(reversed(inventory.artifacts)))
+    with pytest.raises(ValidationError, match="evidence record"):
+        external_spec(
+            identity=identity,
+            environment=environment,
+            evidence=evidence,
+            retained_evidence=inventory.model_copy(
+                update={
+                    "artifacts": tuple(
+                        artifact.model_copy(update={"sha256": SHA_A})
+                        if artifact.kind is contract.RetainedArtifactKind.EVIDENCE_RECORD
+                        else artifact
+                        for artifact in inventory.artifacts
+                    )
+                }
+            ),
+        )
+
+
+def test_assessment_rejects_an_uninventoried_digest_even_when_the_inventory_is_valid() -> None:
+    environment = pixi_environment()
+    evidence = evidence_record()
+    identity = external_identity()
+    inventory = retained_inventory(identity=identity, environment=environment, evidence=evidence)
+
+    with pytest.raises(ValidationError, match="assessment evidence digest"):
+        external_spec(
+            identity=identity,
+            environment=environment,
+            evidence=evidence,
+            retained_evidence=inventory,
+            maturity=MaturityRecord(
+                access=AccessClass.PUBLIC,
+                assessments=(gate_assessment(Gate.INVENTORIED, SHA_A),),
+            ),
+        )
+
+
+def test_retained_contract_artifact_digest_is_derived_from_authoritative_node_state() -> None:
+    environment = pixi_environment()
+    evidence = evidence_record()
+    identity = external_identity()
+    arbitrary_inventory = retained_inventory(
+        identity=identity,
+        environment=environment,
+        evidence=evidence,
+        contract_digest=SHA_D,
+    )
+
+    with pytest.raises(ValidationError, match="contract artifact"):
+        external_spec(
+            identity=identity,
+            environment=environment,
+            evidence=evidence,
+            retained_evidence=arbitrary_inventory,
+            maturity=None,
+        )
+
+    base = external_spec(
+        identity=identity,
+        environment=environment,
+        evidence=evidence,
+        maturity=None,
+    )
+    rebuilt = NodeSpec.model_validate_json(base.model_dump_json())
+    valid_inventory = retained_inventory(
+        identity=identity,
+        environment=environment,
+        evidence=evidence,
+    )
+    retained = external_spec(
+        identity=identity,
+        environment=environment,
+        evidence=evidence,
+        retained_evidence=valid_inventory,
+        maturity=None,
+    )
+
+    assert retained.contract_digest() == base.contract_digest()
+    assert rebuilt.contract_digest() == base.contract_digest()
+    assert retained.contract_digest() != core_spec(maturity=None).contract_digest()
+
+
+def test_retained_verification_environment_digest_matches_the_declared_environment() -> None:
+    environment = pixi_environment()
+    verification = verification_evidence(environment).model_copy(update={"environment_sha256": SHA_A})
+    evidence = evidence_record(verifications=(verification,))
+    identity = external_identity()
+    inventory = retained_inventory(
+        identity=identity,
+        environment=environment,
+        evidence=evidence,
+    )
+
+    with pytest.raises(ValidationError, match="verification environment"):
+        external_spec(
+            identity=identity,
+            environment=environment,
+            evidence=evidence,
+            retained_evidence=inventory,
+            maturity=None,
+        )
+
+
+@pytest.mark.parametrize(
+    "access",
+    tuple(access for access in AccessClass if access is not AccessClass.SECRET_REQUIRED),
+)
+def test_required_secrets_require_the_secret_required_access_class(access: AccessClass) -> None:
+    with pytest.raises(ValidationError, match="required secret"):
+        external_spec(
+            secrets=(SecretSpec(secret_id="api_token", environment_variable="API_TOKEN", required=True),),
+            maturity=MaturityRecord(access=access),
+        )
+
+
+def test_required_secrets_reject_missing_maturity_and_secret_access_requires_one() -> None:
+    required = SecretSpec(secret_id="api_token", environment_variable="API_TOKEN", required=True)
+    optional = required.model_copy(update={"required": False})
+
+    with pytest.raises(ValidationError, match="required secret"):
+        external_spec(secrets=(required,), maturity=None)
+    with pytest.raises(ValidationError, match="secret_required"):
+        external_spec(maturity=MaturityRecord(access=AccessClass.SECRET_REQUIRED))
+    with pytest.raises(ValidationError, match="secret_required"):
+        external_spec(
+            secrets=(optional,),
+            maturity=MaturityRecord(access=AccessClass.SECRET_REQUIRED),
+        )
+
+    assert external_spec(secrets=(required,), maturity=MaturityRecord(access=AccessClass.SECRET_REQUIRED))
+    assert external_spec(secrets=(optional,), maturity=MaturityRecord(access=AccessClass.PUBLIC))
+    assert external_spec(maturity=None)
+
+
 @pytest.mark.parametrize(
     ("identity", "evidence"),
     (
@@ -898,7 +1457,15 @@ def test_evidence_tool_and_version_must_match_declared_identity(
     evidence: EvidenceRecord,
 ) -> None:
     if identity.tool_id == evidence.tool_id and identity.tool_version == evidence.tool_version:
-        spec = external_spec(identity=identity, evidence=evidence)
+        assert identity.tool_id is not None and identity.tool_version is not None
+        spec = external_spec(
+            identity=identity,
+            evidence=evidence,
+            environment=pixi_environment(
+                tool_id=identity.tool_id,
+                tool_version=identity.tool_version,
+            ),
+        )
         assert spec.evidence == evidence
         return
 
@@ -916,6 +1483,63 @@ def test_node_contract_models_share_the_strict_frozen_contract(model: type) -> N
     assert model.model_config["strict"] is True
     assert model.model_config["validate_default"] is True
     assert model.model_config["revalidate_instances"] == "always"
+
+
+def test_runtime_and_retained_reference_models_share_the_strict_frozen_contract() -> None:
+    for model in (
+        contract.RuntimeBinding,
+        contract.RetainedArtifact,
+        contract.RetainedEvidenceInventory,
+    ):
+        assert model.model_config["extra"] == "forbid"
+        assert model.model_config["frozen"] is True
+        assert model.model_config["strict"] is True
+        assert model.model_config["validate_default"] is True
+        assert model.model_config["revalidate_instances"] == "always"
+
+
+def test_new_reference_models_revalidate_model_construct_and_nested_forgery() -> None:
+    valid_runtime = runtime_binding()
+    invalid_runtime = contract.RuntimeBinding.model_construct(
+        **{
+            **valid_runtime.model_dump(mode="python"),
+            "package_name": None,
+        }
+    )
+    invalid_artifact = contract.RetainedArtifact.model_construct(
+        kind=contract.RetainedArtifactKind.CONTRACT,
+        artifact_id="Bad ID",
+        sha256="not-a-digest",
+    )
+    invalid_inventory = contract.RetainedEvidenceInventory.model_construct(
+        artifacts=(invalid_artifact,),
+    )
+
+    for model, forged in (
+        (contract.RuntimeBinding, invalid_runtime),
+        (contract.RetainedArtifact, invalid_artifact),
+        (contract.RetainedEvidenceInventory, invalid_inventory),
+    ):
+        with pytest.raises(ValidationError):
+            model.model_validate(forged)
+        with pytest.raises(ValidationError):
+            forged.model_copy()
+
+    valid = external_spec(runtime_binding=valid_runtime)
+    for field, forged in (
+        ("runtime_binding", invalid_runtime),
+        ("retained_evidence", invalid_inventory),
+    ):
+        forged_spec = NodeSpec.model_construct(
+            **{
+                **valid.model_dump(mode="python"),
+                field: forged,
+            }
+        )
+        with pytest.raises(ValidationError):
+            NodeSpec.model_validate(forged_spec)
+        with pytest.raises(ValidationError):
+            forged_spec.model_copy()
 
 
 def test_node_spec_rejects_extras_mutation_and_mutable_python_collections() -> None:
@@ -975,7 +1599,9 @@ def test_json_dump_contains_only_declarative_authoritative_state() -> None:
         "environment",
         "execution_kind",
         "execution_factory",
+        "runtime_binding",
         "evidence",
+        "retained_evidence",
         "maturity",
     )
     assert dumped["identity"]["stable_id"] == "legacy::Samtools Sort v1"
@@ -1014,6 +1640,10 @@ def test_contract_package_exports_only_the_deliberate_node_spec_surface() -> Non
     assert contract.NodeSpec is NodeSpec
     assert contract.PortAlias is PortAlias
     assert contract.PortAliasScope is PortAliasScope
+    assert contract.RetainedArtifact.__module__ == "bionodulo.nodes.contract.model"
+    assert contract.RetainedArtifactKind.__module__ == "bionodulo.nodes.contract.model"
+    assert contract.RetainedEvidenceInventory.__module__ == "bionodulo.nodes.contract.model"
+    assert contract.RuntimeBinding.__module__ == "bionodulo.nodes.contract.model"
 
 
 def test_model_module_is_declarative_and_has_no_import_or_execution_side_effects() -> None:
