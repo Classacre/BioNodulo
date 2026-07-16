@@ -12,6 +12,10 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic import Field, StringConstraints, ValidationInfo, field_validator, model_validator
 
+from bionodulo.nodes.contract._package_identity import (
+    validate_pypi_package_name,
+    validate_pypi_wheel_identity,
+)
 from bionodulo.nodes.contract.artifacts import ArtifactId, _StrictFrozenModel
 
 
@@ -303,10 +307,9 @@ class ResolverIdentity(_StrictFrozenModel):
         return _validate_exact_version(value)
 
 
-class LockedArtifact(_StrictFrozenModel):
+class _LockedArtifactBase(_StrictFrozenModel):
     name: CanonicalPackageName
     version: ExactVersion
-    build: Annotated[str, StringConstraints(min_length=1, max_length=256)]
     filename: Annotated[str, StringConstraints(min_length=1, max_length=512)]
     url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
     sha256: Sha256Digest
@@ -317,25 +320,6 @@ class LockedArtifact(_StrictFrozenModel):
     def _validate_name(cls, value: str) -> str:
         if _PACKAGE_NAME_RE.fullmatch(value) is None:
             raise ValueError("locked artifact name must be canonical lowercase ASCII")
-        return value
-
-    @field_validator("version")
-    @classmethod
-    def _validate_version(cls, value: str) -> str:
-        return _validate_exact_version(value)
-
-    @field_validator("build")
-    @classmethod
-    def _validate_build(cls, value: str) -> str:
-        if _BUILD_RE.fullmatch(value) is None:
-            raise ValueError("build must be an exact canonical build identifier")
-        return value
-
-    @field_validator("filename")
-    @classmethod
-    def _validate_filename(cls, value: str) -> str:
-        if _FILENAME_RE.fullmatch(value) is None:
-            raise ValueError("filename must be a canonical ASCII basename")
         return value
 
     @field_validator("url")
@@ -351,11 +335,74 @@ class LockedArtifact(_StrictFrozenModel):
         return self
 
 
+class CondaLockedArtifact(_LockedArtifactBase):
+    kind: Literal["conda"] = "conda"
+    build: Annotated[str, StringConstraints(min_length=1, max_length=256)]
+
+    @field_validator("version")
+    @classmethod
+    def _validate_version(cls, value: str) -> str:
+        return _validate_exact_version(value)
+
+    @field_validator("filename")
+    @classmethod
+    def _validate_filename(cls, value: str) -> str:
+        if _FILENAME_RE.fullmatch(value) is None:
+            raise ValueError("Conda filename must be a canonical ASCII basename")
+        return value
+
+    @field_validator("build")
+    @classmethod
+    def _validate_build(cls, value: str) -> str:
+        if _BUILD_RE.fullmatch(value) is None:
+            raise ValueError("build must be an exact canonical build identifier")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_conda_binary_identity(self) -> Self:
+        if self.filename.endswith(".tar.bz2"):
+            suffix = ".tar.bz2"
+        elif self.filename.endswith(".conda"):
+            suffix = ".conda"
+        else:
+            raise ValueError("conda artifact must be a .conda or .tar.bz2 binary")
+        expected = f"{self.name}-{self.version}-{self.build}{suffix}"
+        if self.filename != expected:
+            raise ValueError("conda artifact filename must match its name, version, and build")
+        return self
+
+
+class PypiLockedArtifact(_LockedArtifactBase):
+    kind: Literal["pypi"] = "pypi"
+
+    @field_validator("name")
+    @classmethod
+    def _validate_normalized_name(cls, value: str) -> str:
+        validate_pypi_package_name(value)
+        return value
+
+    @model_validator(mode="after")
+    def _validate_wheel_identity(self) -> Self:
+        validate_pypi_wheel_identity(
+            name=self.name,
+            version=self.version,
+            filename=self.filename,
+        )
+        return self
+
+
+LockedArtifact: TypeAlias = Annotated[
+    CondaLockedArtifact | PypiLockedArtifact,
+    Field(discriminator="kind"),
+]
+
+
 class PlatformLock(_StrictFrozenModel):
     platform: ExecutionPlatform
+    environment_name: ArtifactId
     resolver_platform: Annotated[str, StringConstraints(min_length=1, max_length=64)]
     resolver: ResolverIdentity
-    lockfile_sha256: Sha256Digest
+    native_lock_sha256: Sha256Digest
     artifacts: Annotated[tuple[LockedArtifact, ...], Field(min_length=1, max_length=4096)]
 
     @field_validator("resolver_platform")
