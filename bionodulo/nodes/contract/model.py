@@ -2,24 +2,31 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from enum import StrEnum
 from typing import Annotated, Self
 
-from pydantic import Field, StringConstraints, field_validator, model_validator
+from pydantic import Field, StringConstraints, ValidationError, field_validator, model_validator
 
 from bionodulo.nodes.contract.artifacts import ArtifactId, ArtifactPort, _StrictFrozenModel
 from bionodulo.nodes.contract.environments import (
     ContainerEnvironment,
+    ExecutableProbe,
     EnvironmentSpec,
     ExactVersion,
+    ImportProbe,
     PixiEnvironment,
     PythonEnvironment,
+    RPackageProbe,
     REnvironment,
+    Sha256Digest,
     _validate_exact_version,
+    _validate_oci_reference,
 )
 from bionodulo.nodes.contract.evidence import EvidenceRecord
-from bionodulo.nodes.contract.maturity import MaturityRecord
+from bionodulo.nodes.contract.maturity import AccessClass, Gate, GateResult, MaturityRecord
 from bionodulo.nodes.contract.outputs import ConditionalCollector, OutputSpec
 from bionodulo.nodes.contract.parameters import ParameterSpec, SecretSpec, ValuePort
 
@@ -44,6 +51,20 @@ _FACTORY_RE = re.compile(
 )
 _MAX_ID_LENGTH = 128
 _MAX_TEXT_LENGTH = 2_048
+_CORE_FACTORY_PREFIX = "bionodulo.nodes.catalog.core."
+_CONTRACT_DIGEST_FIELDS = {
+    "identity",
+    "presentation",
+    "artifact_inputs",
+    "value_inputs",
+    "parameters",
+    "secrets",
+    "outputs",
+    "environment",
+    "execution_kind",
+    "execution_factory",
+    "runtime_binding",
+}
 
 StableId = Annotated[str, StringConstraints(min_length=1, max_length=_MAX_ID_LENGTH)]
 MachineId = Annotated[str, StringConstraints(min_length=1, max_length=_MAX_ID_LENGTH)]
@@ -69,6 +90,16 @@ def _validate_printable_text(
     return value
 
 
+def _validate_factory_reference(value: str) -> str:
+    if _FACTORY_RE.fullmatch(value) is None:
+        raise ValueError("execution factory must be an absolute module.path:symbol reference")
+    module, symbol = value.split(":", 1)
+    components = (*module.split("."), symbol)
+    if any(component.startswith("__") or component.endswith("__") for component in components):
+        raise ValueError("execution factory must not reference dunder components")
+    return value
+
+
 class ExecutionKind(StrEnum):
     ARGV = "argv"
     PIPELINE = "pipeline"
@@ -77,6 +108,40 @@ class ExecutionKind(StrEnum):
     R = "r"
     HTTP = "http"
     CONTAINER = "container"
+
+
+class RuntimeBinding(_StrictFrozenModel):
+    tool_id: ArtifactId
+    tool_version: ExactVersion
+    execution_kind: ExecutionKind
+    execution_factory: ExecutionFactory
+    package_name: ArtifactId | None = None
+    probe_id: ArtifactId | None = None
+    container_image: Annotated[str, StringConstraints(min_length=1, max_length=512)] | None = None
+
+    @field_validator("tool_version")
+    @classmethod
+    def _validate_tool_version(cls, value: str) -> str:
+        return _validate_exact_version(value)
+
+    @field_validator("execution_factory")
+    @classmethod
+    def _validate_runtime_factory(cls, value: str) -> str:
+        return _validate_factory_reference(value)
+
+    @field_validator("container_image")
+    @classmethod
+    def _validate_container_image(cls, value: str | None) -> str | None:
+        return None if value is None else _validate_oci_reference(value)
+
+    @model_validator(mode="after")
+    def _validate_single_reference(self) -> Self:
+        references = (self.package_name, self.probe_id, self.container_image)
+        if sum(reference is not None for reference in references) != 1:
+            raise ValueError(
+                "runtime binding requires exactly one package, probe, or immutable container image reference"
+            )
+        return self
 
 
 class NodeOwnership(StrEnum):
@@ -92,6 +157,35 @@ class PortAliasScope(StrEnum):
     PARAMETER = "parameter"
     SECRET = "secret"
     OUTPUT = "output"
+
+
+class RetainedArtifactKind(StrEnum):
+    CONTRACT = "contract"
+    ENVIRONMENT = "environment"
+    EVIDENCE_RECORD = "evidence_record"
+    VERIFICATION = "verification"
+
+
+class RetainedArtifact(_StrictFrozenModel):
+    kind: RetainedArtifactKind
+    artifact_id: ArtifactId
+    sha256: Sha256Digest
+
+
+class RetainedEvidenceInventory(_StrictFrozenModel):
+    artifacts: Annotated[tuple[RetainedArtifact, ...], Field(min_length=1, max_length=4096)]
+
+    @model_validator(mode="after")
+    def _validate_inventory_order(self) -> Self:
+        keys = tuple((artifact.kind.value, artifact.artifact_id) for artifact in self.artifacts)
+        if len(set(keys)) != len(keys):
+            raise ValueError("retained evidence artifact references must be unique")
+        digests = tuple(artifact.sha256 for artifact in self.artifacts)
+        if len(set(digests)) != len(digests):
+            raise ValueError("retained evidence artifact digests must be unique")
+        if keys != tuple(sorted(keys)):
+            raise ValueError("retained evidence artifacts must use canonical order")
+        return self
 
 
 class PortAlias(_StrictFrozenModel):
@@ -243,19 +337,15 @@ class NodeSpec(_StrictFrozenModel):
     environment: EnvironmentSpec | None = None
     execution_kind: ExecutionKind
     execution_factory: ExecutionFactory
+    runtime_binding: RuntimeBinding | None = None
     evidence: EvidenceRecord | None = None
+    retained_evidence: RetainedEvidenceInventory | None = None
     maturity: MaturityRecord | None = None
 
     @field_validator("execution_factory")
     @classmethod
     def _validate_execution_factory(cls, value: str) -> str:
-        if _FACTORY_RE.fullmatch(value) is None:
-            raise ValueError("execution factory must be an absolute module.path:symbol reference")
-        module, symbol = value.split(":", 1)
-        components = (*module.split("."), symbol)
-        if any(component.startswith("__") or component.endswith("__") for component in components):
-            raise ValueError("execution factory must not reference dunder components")
-        return value
+        return _validate_factory_reference(value)
 
     @model_validator(mode="after")
     def _validate_composition(self) -> Self:
@@ -263,7 +353,24 @@ class NodeSpec(_StrictFrozenModel):
         self._validate_port_aliases()
         self._validate_execution_environment()
         self._validate_ownership_and_evidence()
+        self._validate_runtime_binding()
+        self._validate_retained_evidence()
+        self._validate_secret_access()
         return self
+
+    def contract_digest(self) -> str:
+        payload = json.dumps(
+            self.model_dump(
+                mode="json",
+                include=_CONTRACT_DIGEST_FIELDS,
+                round_trip=True,
+            ),
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+        return "sha256:" + hashlib.sha256(payload).hexdigest()
 
     def _validate_input_and_output_ids(self) -> None:
         input_ids = (
@@ -287,12 +394,29 @@ class NodeSpec(_StrictFrozenModel):
             raise ValueError(f"secret environment variable bindings must be unique: {duplicate_environment_name}")
 
         parameter_ids = {parameter.parameter_id for parameter in self.parameters}
+        parameters_by_id = {parameter.parameter_id: parameter for parameter in self.parameters}
         for output in self.outputs:
             collector = output.collector
-            if isinstance(collector, ConditionalCollector) and collector.condition_key not in parameter_ids:
+            if not isinstance(collector, ConditionalCollector):
+                continue
+            if collector.condition_key not in parameter_ids:
                 raise ValueError(
                     f"conditional output {output.port_id} references missing parameter {collector.condition_key}"
                 )
+            parameter = parameters_by_id[collector.condition_key]
+            try:
+                parameter.model_copy(
+                    update={
+                        "required": False,
+                        "has_default": True,
+                        "default": collector.expected_value,
+                    }
+                )
+            except ValidationError as error:
+                raise ValueError(
+                    f"conditional output {output.port_id} expected value is unreachable by parameter "
+                    f"{collector.condition_key}"
+                ) from error
 
     def _validate_port_aliases(self) -> None:
         declared: dict[PortAliasScope, set[str]] = {
@@ -311,9 +435,7 @@ class NodeSpec(_StrictFrozenModel):
 
     def _validate_execution_environment(self) -> None:
         environment = self.environment
-        is_core_python = (
-            self.presentation.owner is NodeOwnership.BIONODULO_CORE and self.execution_kind is ExecutionKind.PYTHON
-        )
+        is_core_python = self._is_core_python_exempt()
         if environment is None:
             if is_core_python:
                 return
@@ -348,10 +470,16 @@ class NodeSpec(_StrictFrozenModel):
         if not isinstance(environment, ContainerEnvironment):
             raise ValueError("container execution requires a container environment")
 
-    def _validate_ownership_and_evidence(self) -> None:
-        is_core_python = (
-            self.presentation.owner is NodeOwnership.BIONODULO_CORE and self.execution_kind is ExecutionKind.PYTHON
+    def _is_core_python_exempt(self) -> bool:
+        module = self.execution_factory.split(":", 1)[0]
+        return (
+            self.presentation.owner is NodeOwnership.BIONODULO_CORE
+            and self.execution_kind is ExecutionKind.PYTHON
+            and module.startswith(_CORE_FACTORY_PREFIX)
         )
+
+    def _validate_ownership_and_evidence(self) -> None:
+        is_core_python = self._is_core_python_exempt()
         if not is_core_python:
             if self.identity.tool_id is None or self.identity.tool_version is None:
                 raise ValueError("only a BioNodulo-owned in-process core Python node may omit its exact tool identity")
@@ -364,6 +492,207 @@ class NodeSpec(_StrictFrozenModel):
             return
         if self.identity.tool_id != self.evidence.tool_id or self.identity.tool_version != self.evidence.tool_version:
             raise ValueError("evidence tool ID and version must equal the declared tool identity")
+
+    def _validate_runtime_binding(self) -> None:
+        binding = self.runtime_binding
+        if binding is None:
+            if self._is_core_python_exempt():
+                return
+            raise ValueError("non-core node requires an explicit runtime binding")
+
+        if self.identity.tool_id is None or self.identity.tool_version is None:
+            raise ValueError("runtime binding requires an exact declared tool identity")
+        if binding.tool_id != self.identity.tool_id or binding.tool_version != self.identity.tool_version:
+            raise ValueError("runtime binding tool ID and version must match the declared identity")
+        if binding.execution_kind is not self.execution_kind:
+            raise ValueError("runtime binding execution kind must match the node execution kind")
+        if binding.execution_factory != self.execution_factory:
+            raise ValueError("runtime binding execution factory must match the node execution factory")
+
+        environment = self.environment
+        if environment is None:
+            raise ValueError("runtime binding requires a declared execution environment")
+
+        if binding.package_name is not None:
+            self._validate_package_runtime_reference(binding.package_name, binding.tool_version)
+            return
+        if binding.probe_id is not None:
+            self._validate_probe_runtime_reference(binding.probe_id, binding.tool_version)
+            return
+        assert binding.container_image is not None
+        if self.execution_kind is not ExecutionKind.CONTAINER or not isinstance(environment, ContainerEnvironment):
+            raise ValueError("container runtime binding requires container execution and environment")
+        if binding.container_image != environment.image:
+            raise ValueError("container runtime binding image must equal the declared environment image")
+        repository = environment.image.rsplit("@", 1)[0].rsplit("/", 1)[-1]
+        if repository != self.identity.tool_id:
+            raise ValueError("container runtime binding image repository must match the declared tool ID")
+
+    def _validate_package_runtime_reference(self, package_name: str, tool_version: str) -> None:
+        environment = self.environment
+        if environment is None or isinstance(environment, ContainerEnvironment):
+            raise ValueError("package runtime binding requires a package environment")
+        if self.identity.tool_id != package_name:
+            raise ValueError("runtime package name must match the declared tool ID")
+        request = next((item for item in environment.packages if item.name == package_name), None)
+        if request is None:
+            raise ValueError(f"runtime binding package {package_name} is missing from the environment")
+        for lock in environment.locks:
+            artifact = next((item for item in lock.artifacts if item.name == package_name), None)
+            if artifact is None or artifact.version != tool_version:
+                raise ValueError(
+                    f"runtime binding package {package_name} must resolve to version {tool_version} in every lock"
+                )
+
+    def _validate_probe_runtime_reference(self, probe_id: str, tool_version: str) -> None:
+        environment = self.environment
+        if environment is None:
+            raise ValueError("probe runtime binding requires a declared execution environment")
+        probes: tuple[ExecutableProbe | ImportProbe | RPackageProbe, ...] = environment.executable_probes
+        if isinstance(environment, (PixiEnvironment, PythonEnvironment)):
+            probes = (*probes, *environment.import_probes)
+        elif isinstance(environment, REnvironment):
+            probes = (*probes, *environment.package_probes)
+        probe = next((item for item in probes if item.probe_id == probe_id), None)
+        if probe is None:
+            raise ValueError(f"runtime binding probe {probe_id} is missing from the environment")
+        if probe.expected_version != tool_version:
+            raise ValueError(f"runtime binding probe {probe_id} version must match the declared tool version")
+
+        tool_id = self.identity.tool_id
+        assert tool_id is not None
+        if isinstance(probe, ExecutableProbe):
+            if self.execution_kind not in (
+                ExecutionKind.ARGV,
+                ExecutionKind.PIPELINE,
+                ExecutionKind.SCRIPT,
+            ):
+                raise ValueError("executable probe runtime binding is only valid for process execution kinds")
+            locator_name = probe.locator.rsplit("/", 1)[-1]
+            if locator_name not in (tool_id, tool_id.replace("-", "_")):
+                raise ValueError("runtime binding executable probe locator must match the declared tool ID")
+            return
+        if isinstance(probe, ImportProbe):
+            if self.execution_kind not in (ExecutionKind.PYTHON, ExecutionKind.HTTP):
+                raise ValueError("Python import probe runtime binding requires Python or HTTP execution")
+            module_name = probe.module.split(".", 1)[0]
+            if module_name not in (tool_id, tool_id.replace("-", "_")):
+                raise ValueError("runtime binding Python import probe module must match the declared tool ID")
+            return
+        if self.execution_kind is not ExecutionKind.R:
+            raise ValueError("R package probe runtime binding requires R execution")
+        if probe.package.lower() != tool_id.lower():
+            raise ValueError("runtime binding R package probe must match the declared tool ID")
+
+    def _validate_retained_evidence(self) -> None:
+        inventory = self.retained_evidence
+        maturity = self.maturity
+        evidence_assessment = None
+        if maturity is not None:
+            evidence_assessment = next(
+                (item for item in maturity.assessments if item.gate is Gate.EVIDENCE_VERIFIED),
+                None,
+            )
+        if (
+            evidence_assessment is not None
+            and evidence_assessment.result is GateResult.PASSED
+            and self.evidence is None
+        ):
+            raise ValueError("passing evidence_verified requires an evidence record in retained evidence inventory")
+        if inventory is None:
+            if maturity is not None and maturity.assessments:
+                raise ValueError("maturity assessments require a retained evidence inventory")
+            return
+
+        artifacts_by_kind: dict[RetainedArtifactKind, tuple[RetainedArtifact, ...]] = {
+            kind: tuple(item for item in inventory.artifacts if item.kind is kind) for kind in RetainedArtifactKind
+        }
+        if self.evidence is None:
+            if (
+                artifacts_by_kind[RetainedArtifactKind.EVIDENCE_RECORD]
+                or artifacts_by_kind[RetainedArtifactKind.VERIFICATION]
+            ):
+                raise ValueError("retained evidence inventory references an absent evidence record")
+        else:
+            expected_evidence = (
+                RetainedArtifact(
+                    kind=RetainedArtifactKind.EVIDENCE_RECORD,
+                    artifact_id=self.evidence.tool_id,
+                    sha256=self.evidence.evidence_digest(),
+                ),
+            )
+            if artifacts_by_kind[RetainedArtifactKind.EVIDENCE_RECORD] != expected_evidence:
+                raise ValueError("retained evidence inventory is not bound to the evidence record")
+            expected_verifications = tuple(
+                RetainedArtifact(
+                    kind=RetainedArtifactKind.VERIFICATION,
+                    artifact_id=item.evidence_id,
+                    sha256=item.verification_digest(),
+                )
+                for item in self.evidence.verifications
+            )
+            if artifacts_by_kind[RetainedArtifactKind.VERIFICATION] != expected_verifications:
+                raise ValueError("retained evidence inventory is not bound to evidence verifications")
+
+        if self.environment is None:
+            if artifacts_by_kind[RetainedArtifactKind.ENVIRONMENT]:
+                raise ValueError("retained evidence inventory references an absent environment")
+        else:
+            expected_environment = (
+                RetainedArtifact(
+                    kind=RetainedArtifactKind.ENVIRONMENT,
+                    artifact_id=self.environment.environment_id,
+                    sha256=self.environment.environment_digest(),
+                ),
+            )
+            if artifacts_by_kind[RetainedArtifactKind.ENVIRONMENT] != expected_environment:
+                raise ValueError("retained evidence inventory is not bound to the execution environment")
+            for verification in () if self.evidence is None else self.evidence.verifications:
+                if verification.environment_sha256 != self.environment.environment_digest():
+                    raise ValueError("retained verification environment digest must match the declared environment")
+
+        expected_contract = (
+            RetainedArtifact(
+                kind=RetainedArtifactKind.CONTRACT,
+                artifact_id=self.identity.machine_id,
+                sha256=self.contract_digest(),
+            ),
+        )
+        if artifacts_by_kind[RetainedArtifactKind.CONTRACT] != expected_contract:
+            raise ValueError("retained contract artifact must match the authoritative node contract digest")
+
+        available = {artifact.sha256: artifact.kind for artifact in inventory.artifacts}
+        if maturity is not None:
+            for assessment in maturity.assessments:
+                for digest in assessment.evidence_digests:
+                    if digest not in available:
+                        raise ValueError(f"assessment evidence digest {digest} is not in retained evidence inventory")
+
+            if evidence_assessment is not None and evidence_assessment.result is GateResult.PASSED:
+                assert self.evidence is not None
+                if self.evidence.evidence_digest() not in evidence_assessment.evidence_digests:
+                    raise ValueError("evidence_verified assessment must reference the evidence record digest")
+
+            if maturity.released:
+                required_kinds = set(RetainedArtifactKind)
+                present_kinds = set(available.values())
+                missing = required_kinds - present_kinds
+                if missing:
+                    names = ", ".join(sorted(kind.value for kind in missing))
+                    raise ValueError(f"released maturity requires retained evidence artifacts: {names}")
+
+    def _validate_secret_access(self) -> None:
+        required_secret = any(secret.required for secret in self.secrets)
+        if self.maturity is None:
+            if required_secret:
+                raise ValueError("required secret declarations require explicit secret_required maturity")
+            return
+        if self.maturity.access is AccessClass.SECRET_REQUIRED:
+            if not required_secret:
+                raise ValueError("secret_required maturity requires at least one required secret")
+            return
+        if required_secret:
+            raise ValueError("required secret declarations require secret_required maturity")
 
 
 def _first_duplicate(values: tuple[str, ...]) -> str | None:
@@ -384,5 +713,9 @@ __all__ = [
     "NodeSpec",
     "PortAlias",
     "PortAliasScope",
+    "RetainedArtifact",
+    "RetainedArtifactKind",
+    "RetainedEvidenceInventory",
+    "RuntimeBinding",
     "SEMVER_PATTERN",
 ]

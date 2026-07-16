@@ -18,6 +18,10 @@ from bionodulo.nodes.contract.model import (
     NodeSpec,
     PortAlias,
     PortAliasScope,
+    RetainedArtifact,
+    RetainedArtifactKind,
+    RetainedEvidenceInventory,
+    RuntimeBinding,
     SEMVER_PATTERN,
 )
 
@@ -39,6 +43,10 @@ __all__ = [
     "NodeSpec",
     "PortAlias",
     "PortAliasScope",
+    "RetainedArtifact",
+    "RetainedArtifactKind",
+    "RetainedEvidenceInventory",
+    "RuntimeBinding",
     "SEMVER_PATTERN",
     "UnknownArtifactTypeError",
 ]
