@@ -3,8 +3,12 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 import re
+import subprocess
+import sys
 from datetime import date
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 import pytest
@@ -23,6 +27,14 @@ COMMIT_A = "1" * 40
 COMMIT_B = "2" * 64
 CAPTURE_DATE = date(2026, 7, 15)
 CATALOG_PATH = "bionodulo/nodes/catalog/tools/samtools/evidence.authoring.json"
+DEFAULT_CONTRACT_VALUE = "index"
+DEFAULT_CONTRACT_VALUE_BYTES = b'"index"'
+DEFAULT_CONTRACT_VALUE_SHA256 = "sha256:" + hashlib.sha256(DEFAULT_CONTRACT_VALUE_BYTES).hexdigest()
+MAX_JSON_NUMBER_COEFFICIENT_DIGITS = 256
+MAX_JSON_NUMBER_EXPONENT = 4096
+MAX_JSON_INPUT_BYTES = 8 * 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 64
+MAX_CANONICAL_JSON_BYTES = 1024 * 1024
 
 
 def provenance(
@@ -147,10 +159,69 @@ def claim(
         ),
         "source_content_sha256": SHA_A,
         "excerpt_sha256": SHA_B,
-        "contract_value_sha256": SHA_C,
+        "contract_value_sha256": DEFAULT_CONTRACT_VALUE_SHA256,
     }
     values.update(updates)
     return evidence.EvidenceClaim(**values)
+
+
+def verify_claim(
+    asserted: evidence.EvidenceClaim,
+    source_content: bytes,
+    **updates: object,
+) -> evidence.EvidenceClaim:
+    verification: dict[str, object] = {
+        "expected_contract_pointer": asserted.contract_pointer,
+        "contract_value": DEFAULT_CONTRACT_VALUE,
+    }
+    verification.update(updates)
+    return evidence.verify_evidence_claim_content(
+        asserted,
+        source_content=source_content,
+        **verification,
+    )
+
+
+def verify_json_source(verifier: str, source_content: bytes) -> None:
+    source_digest = "sha256:" + hashlib.sha256(source_content).hexdigest()
+    selected_digest = "sha256:" + hashlib.sha256(b'"ok"').hexdigest()
+    locator = evidence.JsonPointerLocator(
+        kind=evidence.ContentLocatorKind.JSON_POINTER,
+        pointer="/value",
+    )
+    if verifier == "retained_text":
+        retained = authored(
+            "ok",
+            "/value",
+            catalog_content_sha256=source_digest,
+        )
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_content,
+            expected_field_pointer="/value",
+        )
+    elif verifier == "documentation_proof":
+        evidence.verify_documentation_proof_content(
+            proof(
+                proof_kind=evidence.DocumentationProofKind.SCHEMA_FIELD,
+                source_content_sha256=source_digest,
+                locator=locator,
+                proof_content_sha256=selected_digest,
+            ),
+            source_content=source_content,
+        )
+    elif verifier == "evidence_claim":
+        verify_claim(
+            claim(
+                source_content_sha256=source_digest,
+                locator=locator,
+                excerpt_sha256=selected_digest,
+            ),
+            source_content,
+        )
+    else:
+        raise AssertionError(f"unknown verifier: {verifier}")
 
 
 def verification(
@@ -618,6 +689,58 @@ def test_compiler_rejects_factory_self_asserted_or_mismatched_text_provenance(
         evidence.verify_retained_text_selection(retained, **verification)
 
 
+@pytest.mark.parametrize(
+    "document",
+    (
+        {"description": "ok", "catalog_content_sha256": SHA_A},
+        {"description": "ok", "nested": {"catalog_path": CATALOG_PATH}},
+        {"description": "ok", "nested": [{"field_pointer": "/description"}]},
+        {"description": "ok", "nested": {"provenance": {"origin": "catalog_author"}}},
+    ),
+)
+def test_authoring_json_rejects_reserved_compiler_provenance_fields_at_any_depth(
+    document: dict[str, object],
+) -> None:
+    source_content = json.dumps(document, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+    retained = authored(
+        "ok",
+        "/description",
+        catalog_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+    )
+
+    with pytest.raises(ValueError, match="reserved compiler field"):
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_content,
+            expected_field_pointer="/description",
+        )
+
+
+def test_authoring_prose_may_name_reserved_compiler_fields_as_text() -> None:
+    value = "catalog_content_sha256 and provenance are compiler-owned fields."
+    source_content = json.dumps(
+        {"description": value},
+        ensure_ascii=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+    retained = authored(
+        value,
+        "/description",
+        catalog_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+    )
+
+    assert (
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_content,
+            expected_field_pointer="/description",
+        )
+        == retained
+    )
+
+
 @pytest.mark.parametrize("kind", ("byte_range", "json_pointer", "symbol"))
 def test_content_locator_variants_are_strict_frozen_and_json_roundtrip(
     kind: str,
@@ -744,22 +867,73 @@ def test_evidence_claim_verifier_recomputes_source_and_byte_range_digests() -> N
         excerpt_sha256="sha256:" + hashlib.sha256(selected).hexdigest(),
     )
 
-    assert evidence.verify_evidence_claim_content(asserted, source_content=source_content) == asserted
+    assert verify_claim(asserted, source_content) == asserted
 
     with pytest.raises(ValueError, match="source content"):
-        evidence.verify_evidence_claim_content(
+        verify_claim(
             asserted.model_copy(update={"source_content_sha256": SHA_A}),
-            source_content=source_content,
+            source_content,
         )
     with pytest.raises(ValueError, match="locator"):
-        evidence.verify_evidence_claim_content(
+        verify_claim(
             asserted.model_copy(update={"locator": byte_locator(start, start + len(selected) + 100)}),
-            source_content=source_content,
+            source_content,
         )
     with pytest.raises(ValueError, match="excerpt"):
-        evidence.verify_evidence_claim_content(
+        verify_claim(
             asserted.model_copy(update={"excerpt_sha256": SHA_A}),
+            source_content,
+        )
+
+
+def test_evidence_claim_verifier_recomputes_contract_value_digest() -> None:
+    source_content = b"selected"
+    asserted = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(0, len(source_content)),
+        excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        contract_value_sha256=SHA_A,
+    )
+
+    with pytest.raises(ValueError, match="contract value"):
+        verify_claim(asserted, source_content)
+
+
+def test_evidence_claim_verifier_requires_exact_compiler_contract_pointer() -> None:
+    source_content = b"selected"
+    asserted = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(0, len(source_content)),
+        excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+    )
+
+    with pytest.raises(ValueError, match="contract pointer"):
+        verify_claim(
+            asserted,
+            source_content,
+            expected_contract_pointer="/outputs/index/path_rule",
+        )
+
+
+def test_evidence_claim_verifier_requires_both_compiler_contract_arguments() -> None:
+    source_content = b"selected"
+    asserted = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(0, len(source_content)),
+        excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+    )
+
+    with pytest.raises(TypeError, match="expected_contract_pointer"):
+        evidence.verify_evidence_claim_content(
+            asserted,
             source_content=source_content,
+            contract_value=DEFAULT_CONTRACT_VALUE,
+        )
+    with pytest.raises(TypeError, match="contract_value"):
+        evidence.verify_evidence_claim_content(
+            asserted,
+            source_content=source_content,
+            expected_contract_pointer=asserted.contract_pointer,
         )
 
 
@@ -777,7 +951,344 @@ def test_evidence_claim_verifier_canonicalizes_strict_json_pointer_selection() -
         excerpt_sha256="sha256:" + hashlib.sha256(selected_content).hexdigest(),
     )
 
-    assert evidence.verify_evidence_claim_content(asserted, source_content=source_content) == asserted
+    assert verify_claim(asserted, source_content) == asserted
+
+
+def test_json_number_canonicalization_distinguishes_adjacent_large_decimals() -> None:
+    cases = (
+        (b"9007199254740992.0", b"9.007199254740992e15"),
+        (b"9007199254740993.0", b"9.007199254740993e15"),
+    )
+    canonical_digests: list[str] = []
+
+    for literal, canonical in cases:
+        source_content = b'{"value":' + literal + b"}"
+        source_digest = "sha256:" + hashlib.sha256(source_content).hexdigest()
+        selected_digest = "sha256:" + hashlib.sha256(canonical).hexdigest()
+        canonical_digests.append(selected_digest)
+        retained_proof = proof(
+            proof_kind=evidence.DocumentationProofKind.SCHEMA_FIELD,
+            source_content_sha256=source_digest,
+            locator=evidence.JsonPointerLocator(
+                kind=evidence.ContentLocatorKind.JSON_POINTER,
+                pointer="/value",
+            ),
+            proof_content_sha256=selected_digest,
+        )
+        asserted = claim(
+            source_content_sha256=source_digest,
+            locator=evidence.JsonPointerLocator(
+                kind=evidence.ContentLocatorKind.JSON_POINTER,
+                pointer="/value",
+            ),
+            excerpt_sha256=selected_digest,
+            contract_value_sha256=selected_digest,
+        )
+
+        assert (
+            evidence.verify_documentation_proof_content(retained_proof, source_content=source_content) == retained_proof
+        )
+        assert (
+            verify_claim(
+                asserted,
+                source_content,
+                contract_value=Decimal(literal.decode("ascii")),
+            )
+            == asserted
+        )
+
+    assert canonical_digests[0] != canonical_digests[1]
+
+
+@pytest.mark.parametrize(
+    ("source_literal", "contract_value"),
+    (
+        (b"1", 1),
+        (b"1.0", Decimal("1.0")),
+        (b"1e0", Decimal("1e0")),
+    ),
+)
+def test_equivalent_json_number_spellings_share_one_canonical_form(
+    source_literal: bytes,
+    contract_value: int | Decimal,
+) -> None:
+    source_content = b'{"value":' + source_literal + b"}"
+    source_digest = "sha256:" + hashlib.sha256(source_content).hexdigest()
+    canonical_digest = "sha256:" + hashlib.sha256(b"1").hexdigest()
+    asserted = claim(
+        source_content_sha256=source_digest,
+        locator=evidence.JsonPointerLocator(
+            kind=evidence.ContentLocatorKind.JSON_POINTER,
+            pointer="/value",
+        ),
+        excerpt_sha256=canonical_digest,
+        contract_value_sha256=canonical_digest,
+    )
+
+    assert verify_claim(asserted, source_content, contract_value=contract_value) == asserted
+
+
+def test_contract_decimal_canonicalization_ignores_ambient_context() -> None:
+    contract_value = Decimal("123456789.987654321")
+    canonical = b"1.23456789987654321e8"
+    source_content = b"selected"
+    asserted = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(0, len(source_content)),
+        excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        contract_value_sha256="sha256:" + hashlib.sha256(canonical).hexdigest(),
+    )
+
+    with localcontext() as context:
+        context.prec = 3
+        assert verify_claim(asserted, source_content, contract_value=contract_value) == asserted
+
+
+@pytest.mark.parametrize(
+    "number",
+    (
+        "1" + "2" * (MAX_JSON_NUMBER_COEFFICIENT_DIGITS - 1),
+        f"1e{MAX_JSON_NUMBER_EXPONENT}",
+        f"1e-{MAX_JSON_NUMBER_EXPONENT}",
+        f"9.9e{MAX_JSON_NUMBER_EXPONENT}",
+        f"0.1e-{MAX_JSON_NUMBER_EXPONENT - 1}",
+    ),
+)
+def test_strict_json_accepts_numbers_at_repository_owned_limits(number: str) -> None:
+    source_content = f'{{"description":"ok","number":{number}}}'.encode("ascii")
+    retained = authored(
+        "ok",
+        "/description",
+        catalog_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+    )
+
+    assert (
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_content,
+            expected_field_pointer="/description",
+        )
+        == retained
+    )
+
+
+@pytest.mark.parametrize(
+    "number",
+    (
+        "1" + "2" * MAX_JSON_NUMBER_COEFFICIENT_DIGITS,
+        f"1e{MAX_JSON_NUMBER_EXPONENT + 1}",
+        f"1e-{MAX_JSON_NUMBER_EXPONENT + 1}",
+        f"99e{MAX_JSON_NUMBER_EXPONENT}",
+        f"0.1e-{MAX_JSON_NUMBER_EXPONENT}",
+    ),
+)
+def test_strict_json_rejects_numbers_beyond_repository_owned_limits(number: str) -> None:
+    source_content = f'{{"description":"ok","number":{number}}}'.encode("ascii")
+    retained = authored(
+        "ok",
+        "/description",
+        catalog_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+    )
+
+    with pytest.raises(ValueError, match="JSON number"):
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_content,
+            expected_field_pointer="/description",
+        )
+
+
+def test_json_integer_policy_is_independent_of_python_digit_limit() -> None:
+    script = f"""
+import hashlib
+from bionodulo.nodes.contract.evidence import (
+    RetainedText,
+    RetainedTextOrigin,
+    RetainedTextProvenance,
+    verify_retained_text_selection,
+)
+
+content = b'{{"description":"ok","number":' + b'1' * 700 + b'}}'
+retained = RetainedText(
+    value="ok",
+    provenance=RetainedTextProvenance(
+        origin=RetainedTextOrigin.CATALOG_AUTHOR,
+        catalog_path={CATALOG_PATH!r},
+        catalog_content_sha256="sha256:" + hashlib.sha256(content).hexdigest(),
+        field_pointer="/description",
+    ),
+)
+try:
+    verify_retained_text_selection(
+        retained,
+        catalog_path={CATALOG_PATH!r},
+        catalog_content=content,
+        expected_field_pointer="/description",
+    )
+except Exception as error:
+    print(type(error).__name__ + ":" + str(error))
+else:
+    print("accepted")
+"""
+    outputs: list[str] = []
+    project_root = Path(__file__).parents[2]
+    for digit_limit in ("640", "0"):
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=project_root,
+            env={**os.environ, "PYTHONINTMAXSTRDIGITS": digit_limit},
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        outputs.append(completed.stdout.strip())
+
+    assert outputs[0] == outputs[1]
+    assert "JSON number coefficient may have at most 256 digits" in outputs[0]
+
+
+@pytest.mark.parametrize(
+    "verifier",
+    ("retained_text", "documentation_proof", "evidence_claim"),
+)
+def test_json_verifiers_enforce_exact_input_byte_bound(verifier: str) -> None:
+    payload = b'{"value":"ok"}'
+    at_limit = b" " * (MAX_JSON_INPUT_BYTES - len(payload)) + payload
+    beyond_limit = b" " + at_limit
+
+    verify_json_source(verifier, at_limit)
+    with pytest.raises(ValueError, match=f"at most {MAX_JSON_INPUT_BYTES} bytes"):
+        verify_json_source(verifier, beyond_limit)
+
+
+@pytest.mark.parametrize(
+    "verifier",
+    ("retained_text", "documentation_proof", "evidence_claim"),
+)
+def test_json_verifiers_enforce_exact_structural_nesting_bound(verifier: str) -> None:
+    def nested_source(depth: int) -> bytes:
+        nested_arrays = depth - 1
+        return b'{"value":"ok","nested":' + b"[" * nested_arrays + b"null" + b"]" * nested_arrays + b"}"
+
+    verify_json_source(verifier, nested_source(MAX_JSON_NESTING_DEPTH))
+    with pytest.raises(ValueError, match=f"nesting depth may be at most {MAX_JSON_NESTING_DEPTH}"):
+        verify_json_source(verifier, nested_source(MAX_JSON_NESTING_DEPTH + 1))
+
+
+def test_json_nesting_scanner_ignores_structural_characters_and_escapes_inside_strings() -> None:
+    source_content = json.dumps(
+        {
+            "value": "ok",
+            "text": "[" * 65 + "{" * 65 + 'escaped quote: " and slash: \\',
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+
+    verify_json_source("retained_text", source_content)
+
+
+def test_json_decoder_recursion_error_is_controlled(monkeypatch: pytest.MonkeyPatch) -> None:
+    def raise_recursion_error(*_args: object, **_kwargs: object) -> object:
+        raise RecursionError("decoder recursion")
+
+    monkeypatch.setattr(evidence.json, "loads", raise_recursion_error)
+
+    with pytest.raises(ValueError, match="strict JSON"):
+        verify_json_source("retained_text", b'{"value":"ok"}')
+
+
+@pytest.mark.parametrize("target", ("selected_value", "contract_value"))
+def test_canonical_json_output_is_bounded_for_selected_and_contract_values(target: str) -> None:
+    def verify_value(value: str) -> None:
+        canonical = b'"' + value.encode("ascii") + b'"'
+        selected_digest = "sha256:" + hashlib.sha256(canonical).hexdigest()
+        if target == "selected_value":
+            source_content = json.dumps(
+                {"value": value},
+                ensure_ascii=True,
+                separators=(",", ":"),
+            ).encode("ascii")
+            evidence.verify_documentation_proof_content(
+                proof(
+                    proof_kind=evidence.DocumentationProofKind.SCHEMA_FIELD,
+                    source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+                    locator=evidence.JsonPointerLocator(
+                        kind=evidence.ContentLocatorKind.JSON_POINTER,
+                        pointer="/value",
+                    ),
+                    proof_content_sha256=selected_digest,
+                ),
+                source_content=source_content,
+            )
+        else:
+            source_content = b"selected"
+            verify_claim(
+                claim(
+                    source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+                    locator=byte_locator(0, len(source_content)),
+                    excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+                    contract_value_sha256=selected_digest,
+                ),
+                source_content,
+                contract_value=value,
+            )
+
+    verify_value("x" * (MAX_CANONICAL_JSON_BYTES - 2))
+    with pytest.raises(ValueError, match=f"canonical JSON may be at most {MAX_CANONICAL_JSON_BYTES} bytes"):
+        verify_value("x" * (MAX_CANONICAL_JSON_BYTES - 1))
+
+
+def test_compiler_contract_value_enforces_independent_nesting_bound() -> None:
+    def nested_value(depth: int) -> tuple[list[object], bytes]:
+        value: object = None
+        for _ in range(depth):
+            value = [value]
+        assert isinstance(value, list)
+        canonical = b"[" * depth + b"null" + b"]" * depth
+        return value, canonical
+
+    source_content = b"selected"
+    at_limit, at_limit_canonical = nested_value(MAX_JSON_NESTING_DEPTH)
+    at_limit_claim = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(0, len(source_content)),
+        excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        contract_value_sha256="sha256:" + hashlib.sha256(at_limit_canonical).hexdigest(),
+    )
+    assert verify_claim(at_limit_claim, source_content, contract_value=at_limit) == at_limit_claim
+
+    beyond_limit, beyond_limit_canonical = nested_value(MAX_JSON_NESTING_DEPTH + 1)
+    beyond_limit_claim = at_limit_claim.model_copy(
+        update={
+            "contract_value_sha256": "sha256:" + hashlib.sha256(beyond_limit_canonical).hexdigest(),
+        }
+    )
+    with pytest.raises(ValueError, match=f"nesting depth may be at most {MAX_JSON_NESTING_DEPTH}"):
+        verify_claim(beyond_limit_claim, source_content, contract_value=beyond_limit)
+
+
+@pytest.mark.parametrize("container_kind", ("list", "dict"))
+def test_compiler_contract_value_rejects_container_cycles_cleanly(container_kind: str) -> None:
+    if container_kind == "list":
+        contract_value: object = []
+        assert isinstance(contract_value, list)
+        contract_value.append(contract_value)
+    else:
+        contract_value = {}
+        assert isinstance(contract_value, dict)
+        contract_value["self"] = contract_value
+
+    source_content = b"selected"
+    asserted = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(0, len(source_content)),
+        excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+    )
+    with pytest.raises(ValueError, match="container cycles"):
+        verify_claim(asserted, source_content, contract_value=contract_value)
 
 
 @pytest.mark.parametrize(
@@ -798,7 +1309,7 @@ def test_evidence_claim_verifier_rejects_ambiguous_json_pointer_sources(source_c
     )
 
     with pytest.raises(ValueError, match="strict JSON"):
-        evidence.verify_evidence_claim_content(asserted, source_content=source_content)
+        verify_claim(asserted, source_content)
 
 
 def test_evidence_claim_verifier_requires_a_trusted_symbol_selector() -> None:
@@ -820,12 +1331,12 @@ def test_evidence_claim_verifier_requires_a_trusted_symbol_selector() -> None:
         return selected
 
     with pytest.raises(ValueError, match="trusted language-aware symbol selector"):
-        evidence.verify_evidence_claim_content(asserted, source_content=source_content)
+        verify_claim(asserted, source_content)
 
     assert (
-        evidence.verify_evidence_claim_content(
+        verify_claim(
             asserted,
-            source_content=source_content,
+            source_content,
             symbol_selector=trusted_selector,
         )
         == asserted
@@ -833,20 +1344,29 @@ def test_evidence_claim_verifier_requires_a_trusted_symbol_selector() -> None:
     assert calls == [(source_content, "bam_sort_core_ext")]
 
     with pytest.raises(ValueError, match="excerpt"):
-        evidence.verify_evidence_claim_content(
+        verify_claim(
             asserted,
-            source_content=source_content,
+            source_content,
             symbol_selector=lambda _content, _symbol: b"different symbol bytes",
         )
     with pytest.raises(TypeError, match="exact bytes"):
-        evidence.verify_evidence_claim_content(
+        verify_claim(
             asserted,
-            source_content=source_content,
+            source_content,
             symbol_selector=lambda _content, _symbol: "not bytes",  # type: ignore[return-value]
         )
 
 
-def test_evidence_claim_verifier_revalidates_constructed_claims_and_exact_bytes() -> None:
+@pytest.mark.parametrize(
+    "forged_update",
+    (
+        {"contract_pointer": "not-a-pointer"},
+        {"contract_value_sha256": "not-a-digest"},
+    ),
+)
+def test_evidence_claim_verifier_revalidates_constructed_claims_and_exact_bytes(
+    forged_update: dict[str, object],
+) -> None:
     source_content = b"selected"
     valid = claim(
         source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
@@ -854,15 +1374,15 @@ def test_evidence_claim_verifier_revalidates_constructed_claims_and_exact_bytes(
         excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
     )
     forged = evidence.EvidenceClaim.model_construct(
-        **(valid.model_dump() | {"contract_pointer": "not-a-pointer"}),
+        **(valid.model_dump() | forged_update),
     )
 
     with pytest.raises(ValidationError):
-        evidence.verify_evidence_claim_content(forged, source_content=source_content)
+        verify_claim(forged, source_content)
     with pytest.raises(TypeError, match="exact captured bytes"):
-        evidence.verify_evidence_claim_content(
+        verify_claim(
             claim(),
-            source_content=bytearray(source_content),  # type: ignore[arg-type]
+            bytearray(source_content),  # type: ignore[arg-type]
         )
 
 

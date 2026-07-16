@@ -334,11 +334,13 @@ Blogs, old wrappers, Galaxy XML, and the legacy BioNodulo implementation are dis
 Checked-in `*.authoring.json` files contain plain `title`, `description`, and
 `statement` strings. They never contain their own content digest. Authoring
 files are strict duplicate-free UTF-8 JSON; YAML aliases, merges, tags,
-non-finite numbers, and duplicate keys have no accepted interpretation. The
-trusted compiler reopens each authoring file, resolves each JSON pointer from
-those bytes, hashes the exact source bytes, and injects provenance into the
-generated schema-version-2 record. A compiled record contains only
-provenance-bound prose or structured, content-addressed captures:
+non-finite numbers, and duplicate keys have no accepted interpretation. At any
+depth they reject the compiler-owned fields `provenance`, `catalog_path`,
+`catalog_content_sha256`, and `field_pointer`; those words remain legal inside
+plain prose. The trusted compiler reopens each authoring file, resolves each
+JSON pointer from those bytes, hashes the exact source bytes, and injects
+provenance into the generated schema-version-2 record. A compiled record
+contains only provenance-bound prose or structured, content-addressed captures:
 
 ```yaml
 schema_version: 2
@@ -380,7 +382,7 @@ sources:
     retrieved_at: 2026-07-15
 claims:
   - claim_id: samtools-index-default-output
-    contract_pointer: /outputs/index/path_rule
+    contract_pointer: /outputs/index/collector
     source_id: samtools-index-manual
     source_content_sha256: sha256:<captured-document-digest>
     locator:
@@ -430,6 +432,23 @@ the strictly parsed selected value. Symbol locators are accepted only for an
 symbol identity. A JSON-pointer documentation proof likewise requires `json`;
 documentation byte-range proofs work for every official source format.
 
+All parsed JSON paths are bounded before decoding: exact input is at most 8 MiB
+and structural nesting is at most 64 object/array levels. Decoder recursion is a
+controlled validation failure. Canonical selected values and compiler-resolved
+contract values are independently limited to 64 levels and 1 MiB of output and
+reject circular containers. These limits apply before digest comparison, so an
+oversized self-consistent digest cannot bypass them.
+
+JSON numbers are parsed as exact decimal tokens, never through binary float and
+never through Python's process-wide integer digit limit. A coefficient has at
+most 256 digits; both the written exponent and normalized adjusted exponent are
+between -4096 and 4096. Canonicalization strips insignificant zeros, maps
+negative zero to zero, uses lowercase scientific notation without exponent
+expansion, plus signs, or exponent-leading zeros, and deliberately maps `1`,
+`1.0`, and `1e0` to the same token `1`. Numerically distinct in-policy decimals
+therefore remain distinct. The implementation does not use ambient Decimal
+context operations.
+
 This is an information-flow boundary, not proof that a caller is human. The
 declarative model retains the immutable provenance; the trusted catalog loader
 in Task 9 must reopen every referenced path and verify its exact source-byte
@@ -448,7 +467,20 @@ pointer, and retains the selected-content digest. Task 9 must invoke proof
 content verification for every proof and claim content verification for every
 claim, using compiler-owned captured bytes rather than factory-supplied
 selections. Both paths recompute the captured-source and selected-content
-digests. Symbol locators remain available for upstream-source claims, but are
+digests. Task 8 defines an evidence-free deterministic contract projection
+containing exactly `identity`, `presentation`, `artifact_inputs`, `value_inputs`,
+`parameters`, `secrets`, `outputs`, `environment`, `execution_kind`,
+`execution_factory`, and `runtime_binding`. Artifact/value inputs, parameters,
+secrets, and outputs are objects keyed by canonical ID and retain every item
+field. All object keys and collection items use canonical order; for example,
+`/outputs/index/collector` addresses output ID `index` rather than an array
+position. `contract_digest()` hashes these exact Task-7 canonical bytes.
+`NodeSpec` itself performs no pointer or filesystem resolution. Task 9 resolves
+every claim's `contract_pointer` from that projection, passes the exact expected
+pointer and resolved JSON value to the claim verifier, and recomputes
+`contract_value_sha256` with the same lossless serializer used for JSON evidence
+selections. Missing compiler arguments, pointer disagreement, or digest mismatch
+is fatal. Symbol locators remain available for upstream-source claims, but are
 not documentation-version proofs because this declarative module has no
 source-language symbol resolver. A symbol claim is accepted only when a
 compiler-owned, language-aware selector resolves the exact symbol from the
@@ -562,6 +594,17 @@ The catalog compiler emits all consumer artifacts in one deterministic operation
 The compiler starts empty and treats every warning as a failure. Generated artifacts are never manually edited.
 
 The catalog compiler emits a canonical pre-build `contract.json`. Its `contract_id` is the SHA-256 of app/website source identities, protocol versions, catalog, compatibility, templates, evidence ledger, fixture set, and exact per-platform environment-lock digests. Every built artifact embeds this contract ID.
+
+Within the catalog, each node also has Task 8's deterministic evidence-free
+contract projection. It contains exactly identity, presentation, the five
+ID-keyed input/parameter/secret/output collections, environment, execution kind,
+execution factory, and runtime binding. Complete items and keys are canonically
+ordered. Those stable keyed-map pointers and Task-7 canonical bytes are the
+authority for `EvidenceClaim.contract_pointer`, `contract_value_sha256`, and the
+node's `contract_digest`. During compilation, Task 9 resolves each claim pointer
+from this projection with the bounded lossless JSON rules in Section 9 and
+supplies the selected value to claim verification. A raw `NodeSpec` tuple index,
+factory-supplied Python value, or factory-supplied digest is never a substitute.
 
 After artifacts are built, the release orchestrator emits a signed `bundle.json`. Its `bundle_id` is the SHA-256 of the contract ID plus exact SPA, Lambda, worker-platform, dispatch-package, Vercel-artifact, SBOM, and provenance digests. This two-stage identity avoids circular hashing: images embed the contract ID, while the post-build bundle records image digests. Promotion always moves the already-built bundle and never rebuilds artifacts.
 

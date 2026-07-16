@@ -495,6 +495,20 @@ an upstream `source_code` capture with the exact source symbol and a trusted
 language-aware selector. Documentation proofs never accept symbols, and their
 JSON pointers require a JSON source.
 
+Add adversarial strict-JSON tests for an 8 MiB input limit, 64 structural levels,
+controlled decoder recursion failures, and a 1 MiB canonical selected-value
+limit through retained-text, documentation-proof, and claim paths. Numbers use
+at most 256 coefficient digits and explicit and adjusted exponents from -4096
+through 4096. Prove adjacent large decimals do not collide, `1`, `1.0`, and
+`1e0` canonicalize identically, and results do not depend on
+`PYTHONINTMAXSTRDIGITS` or ambient decimal context. Authoring files reject the
+reserved compiler fields `provenance`, `catalog_path`,
+`catalog_content_sha256`, and `field_pointer` at every depth while allowing
+those words inside prose. Claim verification must also require the compiler's
+exact expected contract pointer and resolved contract JSON value, recompute
+`contract_value_sha256`, and reject missing arguments, pointer mismatch, wrong
+digests, and constructed forgeries.
+
 - [ ] **Step 2: Implement evidence models and maturity derivation**
 
 Evidence source kinds are `official_manual`, `official_api_schema`,
@@ -507,6 +521,15 @@ codes and SHA-256 digests, never retained stdout, stderr, environment values, or
 host paths. Every source declares `content_format` as `text`, `json`, or
 `source_code`, and model validation rejects locator combinations that cannot be
 resolved under that format.
+
+Strict JSON is parsed without binary floating-point conversion or Python's
+process-wide integer digit policy. The bounded number parser retains exact
+decimal coefficients and exponents. Its canonical form removes insignificant
+zeros, maps negative zero to zero, and emits one lowercase scientific token
+with no plus sign or exponent-leading zeros; numerically equal `1`, `1.0`, and
+`1e0` therefore hash as `1`. It never expands a large exponent. One shared,
+depth- and output-bounded serializer hashes JSON-pointer selections and
+compiler-resolved contract values so the two paths cannot drift.
 
 The evidence and maturity roots require `schema_version: 2`. Maturity stores a
 unique, canonically ordered `access_classes` tuple so access, credentials,
@@ -545,10 +568,13 @@ value, and only then injects provenance into the compiled model. It must repeat
 this verification for values returned by arbitrary `get_node_specs()` factories
 rather than trust their self-asserted provenance. For every evidence source it
 also reopens the compiler-owned captured bytes, verifies every documentation
-proof, and recomputes every claim's source and excerpt digests. Byte-range and
-JSON-pointer selections are resolved in the contract verifier. Symbol claims
-require a compiler-owned language-aware selector; unsupported languages and
-missing or ambiguous symbols quarantine the node and prevent release.
+proof, and recomputes every claim's source, excerpt, and contract-value digests.
+For each claim, Task 9 resolves `contract_pointer` against Task 8's authoritative
+contract JSON projection and passes both the exact expected pointer and selected
+JSON value to `verify_evidence_claim_content()`. Byte-range and JSON-pointer
+evidence selections are resolved in the contract verifier. Symbol claims require
+a compiler-owned language-aware selector; unsupported languages and missing or
+ambiguous symbols quarantine the node and prevent release.
 Schema-v1 data receives no permissive compatibility parser. A one-shot offline
 migration must construct these facts and quarantine records whose documentation
 binding cannot be proved.
@@ -620,9 +646,35 @@ def test_node_id_is_stable_machine_identifier() -> None:
         NodeIdentity(node_id="Samtools Sort", contract_version="2.0.0", implementation_version="1.0.0")
 ```
 
+Add RED tests for `NodeSpec.contract_projection()`. Its top-level object contains
+exactly `identity`, `presentation`, `artifact_inputs`, `value_inputs`,
+`parameters`, `secrets`, `outputs`, `environment`, `execution_kind`,
+`execution_factory`, and `runtime_binding`; it contains neither evidence nor
+maturity. Artifact inputs, value inputs, parameters, secrets, and outputs are
+objects keyed by their canonical port/parameter/secret/output IDs and retain
+each complete item, rather than positional arrays. Prove a pointer such as
+`/outputs/index/collector` resolves the output keyed `index`, insertion order
+does not affect bytes or digest, any retained item-field change does, and
+`contract_digest()` hashes the exact bounded canonical bytes defined by Task 7.
+
 - [ ] **Step 2: Implement NodeSpec composition**
 
-`NodeSpec` composes identity, presentation, artifact/value inputs, parameters, secrets, outputs, environment, execution factory, evidence, and maturity. Validate unique IDs across all input kinds, valid import-path syntax, output artifact types, environment/runtime agreement, evidence source references, and explicit port aliases for migrations. Tool version and environment are optional only for BioNodulo-owned in-process core nodes.
+`NodeSpec` composes identity, presentation, artifact/value inputs, parameters,
+secrets, outputs, environment, execution factory, evidence, and maturity.
+Validate unique IDs across all input kinds, valid import-path syntax, output
+artifact types, environment/runtime agreement, evidence source references, and
+explicit port aliases for migrations. Tool version and environment are optional
+only for BioNodulo-owned in-process core nodes. Task 8 defines the authoritative
+evidence-free pure-JSON contract projection. It contains exactly `identity`,
+`presentation`, `artifact_inputs`, `value_inputs`, `parameters`, `secrets`,
+`outputs`, `environment`, `execution_kind`, `execution_factory`, and
+`runtime_binding`. Artifact/value inputs, parameters, secrets, and outputs are
+objects keyed by canonical ID, retain every item field, and are emitted with
+canonical key/item ordering, so `/outputs/index/collector` never depends on tuple
+position. `contract_digest()` hashes the exact Task-7 bounded canonical bytes.
+`NodeSpec` remains a pure value model: it does not open files, resolve evidence
+locators, or attest claim digests. Those compiler-owned operations remain in
+Task 9.
 
 - [ ] **Step 3: Run tests and commit**
 
@@ -671,12 +723,29 @@ documentation proof, and evidence claim is recomputed from reopened
 compiler-owned bytes even when a factory used `model_construct()` or supplied a
 self-consistent forged digest. Cover byte-range and strict-JSON-pointer claims,
 plus upstream symbol claims resolved by a trusted language-aware selector.
-Unsupported source languages and missing or ambiguous symbols must quarantine
-the node and prevent release.
+For every claim, resolve its pointer from the authoritative contract projection
+and test missing compiler arguments, a different expected pointer, a forged
+contract-value digest, and a constructed claim. Unsupported source languages
+and missing or ambiguous symbols must quarantine the node and prevent release.
 
 - [ ] **Step 2: Implement discovery, validation, and projections**
 
-The compiler takes an explicit module list; it does not walk with `pkgutil` and does not read prior generated JSON. It imports each declared module, calls `get_node_specs()`, validates every spec against the artifact registry and baseline ledger, and fails on any exception. Before a spec can satisfy evidence maturity, the loader reopens every authoring and captured source, invokes `verify_retained_text_selection()` for every retained string, `verify_documentation_proof_content()` for every documentation proof, and `verify_evidence_claim_content()` for every claim. Symbol selection comes only from a compiler-owned registry of supported language-aware selectors; an unsupported language or unresolved/ambiguous symbol quarantines the node and excludes it from release. Sort all projections by stable IDs and use canonical JSON (`sort_keys=True`, compact separators, UTF-8) for SHA-256.
+The compiler takes an explicit module list; it does not walk with `pkgutil` and
+does not read prior generated JSON. It imports each declared module, calls
+`get_node_specs()`, validates every spec against the artifact registry and
+baseline ledger, and fails on any exception. Before a spec can satisfy evidence
+maturity, the loader reopens every authoring and captured source, invokes
+`verify_retained_text_selection()` for every retained string and
+`verify_documentation_proof_content()` for every documentation proof, resolves
+every claim's canonical pointer from Task 8's authoritative contract JSON
+projection, and passes that exact pointer and selected JSON value to
+`verify_evidence_claim_content()`. It never trusts a factory's contract-value
+digest. Symbol selection comes only from a compiler-owned registry of supported
+language-aware selectors; an unsupported language or unresolved/ambiguous
+symbol quarantines the node and excludes it from release. Sort all projections
+by stable IDs and use canonical JSON (`sort_keys=True`, compact separators,
+UTF-8) for SHA-256; evidence selections and contract values use Task 7's
+bounded lossless serializer.
 
 Emit runtime, UI, compatibility, node-index, and catalog-lock projections. The UI projection preserves artifact ports as ports and parameters as widgets; no fallback-to-string conversion exists.
 

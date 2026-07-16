@@ -8,7 +8,9 @@ import math
 import re
 import unicodedata
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal, Self, TypeAlias
 from urllib.parse import urlsplit
@@ -36,8 +38,27 @@ _MAX_ID_LENGTH = 128
 _MAX_POINTER_DEPTH = 64
 _MAX_BYTE_OFFSET = 2**63 - 1
 _MAX_LOCATOR_SPAN = 1024 * 1024
+_MAX_JSON_NUMBER_COEFFICIENT_DIGITS = 256
+_MAX_JSON_NUMBER_EXPONENT = 4096
+_MAX_JSON_NUMBER_ADJUSTED_EXPONENT = 4096
+_MAX_JSON_INTEGER_BITS = 851  # ceil(256 * log2(10))
+_MAX_JSON_INPUT_BYTES = 8 * 1024 * 1024
+_MAX_JSON_NESTING_DEPTH = 64
+_MAX_CANONICAL_JSON_BYTES = 1024 * 1024
 _CATALOG_AUTHORING_PREFIX = "bionodulo/nodes/catalog/"
 _CATALOG_AUTHORING_SUFFIX = ".authoring.json"
+_CATALOG_AUTHORING_RESERVED_FIELDS = frozenset(
+    {
+        "catalog_content_sha256",
+        "catalog_path",
+        "field_pointer",
+        "provenance",
+    }
+)
+_JSON_NUMBER_RE = re.compile(
+    r"(?P<sign>-?)(?P<integer>0|[1-9][0-9]*)(?:\.(?P<fraction>[0-9]+))?"
+    r"(?:[eE](?P<exponent_sign>[+-]?)(?P<exponent>[0-9]+))?"
+)
 
 
 RepositoryPath = Annotated[str, StringConstraints(min_length=1, max_length=1024)]
@@ -150,23 +171,212 @@ def _reject_nonfinite_json_constant(value: str) -> object:
     raise ValueError(f"non-finite JSON number: {value}")
 
 
-def _parse_finite_json_float(value: str) -> float:
-    parsed = float(value)
-    if not math.isfinite(parsed):
-        raise ValueError(f"JSON number exceeds the finite float range: {value}")
-    return parsed
+@dataclass(frozen=True, slots=True)
+class _JsonNumber:
+    canonical: str
+
+
+def _parse_bounded_json_exponent(sign: str, digits: str) -> int:
+    significant = digits.lstrip("0") or "0"
+    maximum = str(_MAX_JSON_NUMBER_EXPONENT)
+    if len(significant) > len(maximum) or (len(significant) == len(maximum) and significant > maximum):
+        raise ValueError(f"JSON number exponent magnitude may be at most {_MAX_JSON_NUMBER_EXPONENT}")
+    exponent = int(significant)
+    return -exponent if sign == "-" else exponent
+
+
+def _normalize_json_number(
+    *,
+    negative: bool,
+    coefficient: str,
+    exponent: int,
+) -> _JsonNumber:
+    if len(coefficient) > _MAX_JSON_NUMBER_COEFFICIENT_DIGITS:
+        raise ValueError(f"JSON number coefficient may have at most {_MAX_JSON_NUMBER_COEFFICIENT_DIGITS} digits")
+
+    significant = coefficient.lstrip("0")
+    if not significant:
+        return _JsonNumber("0")
+    trimmed = significant.rstrip("0")
+    exponent += len(significant) - len(trimmed)
+    adjusted_exponent = exponent + len(trimmed) - 1
+    if abs(adjusted_exponent) > _MAX_JSON_NUMBER_ADJUSTED_EXPONENT:
+        raise ValueError(f"JSON number adjusted exponent magnitude may be at most {_MAX_JSON_NUMBER_ADJUSTED_EXPONENT}")
+
+    mantissa = trimmed if len(trimmed) == 1 else f"{trimmed[0]}.{trimmed[1:]}"
+    exponent_suffix = "" if adjusted_exponent == 0 else f"e{adjusted_exponent}"
+    sign = "-" if negative else ""
+    return _JsonNumber(f"{sign}{mantissa}{exponent_suffix}")
+
+
+def _parse_json_number(value: str) -> _JsonNumber:
+    matched = _JSON_NUMBER_RE.fullmatch(value)
+    if matched is None:
+        raise ValueError(f"invalid JSON number: {value}")
+    fraction = matched.group("fraction") or ""
+    exponent_digits = matched.group("exponent") or "0"
+    explicit_exponent = _parse_bounded_json_exponent(
+        matched.group("exponent_sign") or "",
+        exponent_digits,
+    )
+    return _normalize_json_number(
+        negative=matched.group("sign") == "-",
+        coefficient=matched.group("integer") + fraction,
+        exponent=explicit_exponent - len(fraction),
+    )
+
+
+def _decimal_json_number(value: Decimal) -> _JsonNumber:
+    if not value.is_finite():
+        raise ValueError("JSON numbers must be finite")
+    parts = value.as_tuple()
+    exponent = parts.exponent
+    if not isinstance(exponent, int) or abs(exponent) > _MAX_JSON_NUMBER_EXPONENT:
+        raise ValueError(f"JSON number exponent magnitude may be at most {_MAX_JSON_NUMBER_EXPONENT}")
+    coefficient = "".join(str(digit) for digit in parts.digits) or "0"
+    return _normalize_json_number(
+        negative=bool(parts.sign),
+        coefficient=coefficient,
+        exponent=exponent,
+    )
+
+
+def _canonical_json_bytes(value: object, *, label: str) -> bytes:
+    parts: list[str] = []
+    size = 0
+    active_containers: set[int] = set()
+
+    def append(token: str) -> None:
+        nonlocal size
+        size += len(token)
+        if size > _MAX_CANONICAL_JSON_BYTES:
+            raise ValueError(f"canonical JSON may be at most {_MAX_CANONICAL_JSON_BYTES} bytes")
+        parts.append(token)
+
+    def serialize(selected: object, depth: int) -> None:
+        if selected is None:
+            append("null")
+            return
+        if type(selected) is bool:
+            append("true" if selected else "false")
+            return
+        if isinstance(selected, _JsonNumber):
+            append(selected.canonical)
+            return
+        if type(selected) is int:
+            if selected.bit_length() > _MAX_JSON_INTEGER_BITS:
+                raise ValueError(
+                    f"JSON number coefficient may have at most {_MAX_JSON_NUMBER_COEFFICIENT_DIGITS} digits"
+                )
+            append(_parse_json_number(str(selected)).canonical)
+            return
+        if type(selected) is float:
+            if not math.isfinite(selected):
+                raise ValueError("JSON numbers must be finite")
+            append(_parse_json_number(repr(selected)).canonical)
+            return
+        if isinstance(selected, Decimal):
+            append(_decimal_json_number(selected).canonical)
+            return
+        if type(selected) is str:
+            if len(selected) + 2 > _MAX_CANONICAL_JSON_BYTES - size:
+                raise ValueError(f"canonical JSON may be at most {_MAX_CANONICAL_JSON_BYTES} bytes")
+            append(json.dumps(selected, ensure_ascii=True))
+            return
+        if type(selected) is list:
+            container_depth = depth + 1
+            if container_depth > _MAX_JSON_NESTING_DEPTH:
+                raise ValueError(f"JSON nesting depth may be at most {_MAX_JSON_NESTING_DEPTH}")
+            if 2 * len(selected) + 1 > _MAX_CANONICAL_JSON_BYTES:
+                raise ValueError(f"canonical JSON may be at most {_MAX_CANONICAL_JSON_BYTES} bytes")
+            identity = id(selected)
+            if identity in active_containers:
+                raise ValueError("canonical JSON must not contain container cycles")
+            active_containers.add(identity)
+            try:
+                append("[")
+                for index, item in enumerate(selected):
+                    if index:
+                        append(",")
+                    serialize(item, container_depth)
+                append("]")
+            finally:
+                active_containers.remove(identity)
+            return
+        if type(selected) is dict:
+            container_depth = depth + 1
+            if container_depth > _MAX_JSON_NESTING_DEPTH:
+                raise ValueError(f"JSON nesting depth may be at most {_MAX_JSON_NESTING_DEPTH}")
+            if any(type(key) is not str for key in selected):
+                raise ValueError("JSON object keys must be strings")
+            if 5 * len(selected) + 1 > _MAX_CANONICAL_JSON_BYTES:
+                raise ValueError(f"canonical JSON may be at most {_MAX_CANONICAL_JSON_BYTES} bytes")
+            identity = id(selected)
+            if identity in active_containers:
+                raise ValueError("canonical JSON must not contain container cycles")
+            active_containers.add(identity)
+            try:
+                append("{")
+                for index, key in enumerate(sorted(selected)):
+                    if index:
+                        append(",")
+                    if len(key) + 2 > _MAX_CANONICAL_JSON_BYTES - size:
+                        raise ValueError(f"canonical JSON may be at most {_MAX_CANONICAL_JSON_BYTES} bytes")
+                    append(json.dumps(key, ensure_ascii=True))
+                    append(":")
+                    serialize(selected[key], container_depth)
+                append("}")
+            finally:
+                active_containers.remove(identity)
+            return
+        raise ValueError(f"unsupported JSON value type: {type(selected).__name__}")
+
+    try:
+        serialize(value, 0)
+        return "".join(parts).encode("ascii")
+    except (RecursionError, ValueError) as error:
+        raise ValueError(f"{label} must be canonical finite JSON: {error}") from error
+
+
+def _validate_json_nesting(text: str, *, label: str) -> None:
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > _MAX_JSON_NESTING_DEPTH:
+                raise ValueError(f"{label} JSON nesting depth may be at most {_MAX_JSON_NESTING_DEPTH}")
+        elif character in "]}":
+            depth -= 1
 
 
 def _load_strict_json(content: bytes, *, label: str) -> object:
+    if len(content) > _MAX_JSON_INPUT_BYTES:
+        raise ValueError(f"{label} JSON input may be at most {_MAX_JSON_INPUT_BYTES} bytes")
     try:
+        text = content.decode("utf-8")
+        _validate_json_nesting(text, label=label)
         return json.loads(
-            content.decode("utf-8"),
+            text,
             object_pairs_hook=_reject_duplicate_json_keys,
             parse_constant=_reject_nonfinite_json_constant,
-            parse_float=_parse_finite_json_float,
+            parse_float=_parse_json_number,
+            parse_int=_parse_json_number,
         )
-    except (UnicodeDecodeError, ValueError) as error:
-        raise ValueError(f"{label} must be strict JSON with unique keys and UTF-8 encoding") from error
+    except (RecursionError, UnicodeDecodeError, ValueError) as error:
+        raise ValueError(
+            f"{label} must be strict JSON with unique keys, bounded numbers, and UTF-8 encoding: {error}"
+        ) from error
 
 
 def _resolve_json_pointer(document: object, pointer: str, *, label: str) -> object:
@@ -186,6 +396,19 @@ def _resolve_json_pointer(document: object, pointer: str, *, label: str) -> obje
         else:
             raise ValueError(f"{label} pointer does not resolve to a value")
     return selected
+
+
+def _reject_authoring_reserved_fields(document: object) -> None:
+    pending = [document]
+    while pending:
+        selected = pending.pop()
+        if isinstance(selected, dict):
+            for key, value in selected.items():
+                if key in _CATALOG_AUTHORING_RESERVED_FIELDS:
+                    raise ValueError(f"catalog authoring content contains reserved compiler field: {key}")
+                pending.append(value)
+        elif isinstance(selected, list):
+            pending.extend(selected)
 
 
 def _validate_unique_ordered(values: tuple[str, ...], *, label: str) -> None:
@@ -265,6 +488,7 @@ def verify_retained_text_selection(
         raise ValueError("retained text provenance does not match the compiler-selected field pointer")
 
     document = _load_strict_json(catalog_content, label="catalog content")
+    _reject_authoring_reserved_fields(document)
     selected = _resolve_json_pointer(document, declared_pointer, label="retained text provenance")
 
     if (
@@ -390,13 +614,10 @@ def verify_documentation_proof_content(
     else:
         document = _load_strict_json(source_content, label="documentation source content")
         selected = _resolve_json_pointer(document, locator.pointer, label="documentation proof locator")
-        selected_content = json.dumps(
+        selected_content = _canonical_json_bytes(
             selected,
-            ensure_ascii=True,
-            allow_nan=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("ascii")
+            label="documentation proof selected value",
+        )
 
     selected_digest = "sha256:" + hashlib.sha256(selected_content).hexdigest()
     if selected_digest != validated.proof_content_sha256:
@@ -646,16 +867,22 @@ def verify_evidence_claim_content(
     claim: EvidenceClaim,
     *,
     source_content: bytes,
+    expected_contract_pointer: str,
+    contract_value: object,
     symbol_selector: Callable[[bytes, str], bytes] | None = None,
 ) -> EvidenceClaim:
-    """Recompute a claim excerpt from compiler-owned captured bytes.
+    """Recompute a claim excerpt and contract value from compiler-owned data.
 
     Byte ranges and JSON pointers are resolved here. Symbol claims require a
     trusted language-aware selector, which is invoked with the exact captured
-    bytes and canonical symbol identity.
+    bytes and canonical symbol identity. The compiler resolves the expected
+    pointer against its authoritative contract projection and supplies that
+    selected JSON value.
     """
 
     validated = EvidenceClaim.model_validate(claim)
+    if validated.contract_pointer != _validate_json_pointer(expected_contract_pointer):
+        raise ValueError("claim contract pointer does not match the compiler-resolved contract pointer")
     if type(source_content) is not bytes:
         raise TypeError("claim source content must be exact captured bytes")
     source_digest = "sha256:" + hashlib.sha256(source_content).hexdigest()
@@ -670,13 +897,7 @@ def verify_evidence_claim_content(
     elif isinstance(locator, JsonPointerLocator):
         document = _load_strict_json(source_content, label="claim source content")
         selected = _resolve_json_pointer(document, locator.pointer, label="claim locator")
-        selected_content = json.dumps(
-            selected,
-            ensure_ascii=True,
-            allow_nan=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("ascii")
+        selected_content = _canonical_json_bytes(selected, label="claim selected value")
     else:
         if symbol_selector is None:
             raise ValueError("symbol claim requires a trusted language-aware symbol selector")
@@ -687,6 +908,14 @@ def verify_evidence_claim_content(
     selected_digest = "sha256:" + hashlib.sha256(selected_content).hexdigest()
     if selected_digest != validated.excerpt_sha256:
         raise ValueError("claim excerpt digest does not match selected source content")
+
+    contract_content = _canonical_json_bytes(
+        contract_value,
+        label="compiler-resolved contract value",
+    )
+    contract_digest = "sha256:" + hashlib.sha256(contract_content).hexdigest()
+    if contract_digest != validated.contract_value_sha256:
+        raise ValueError("claim contract value digest does not match the compiler-resolved contract value")
     return validated
 
 
