@@ -98,6 +98,7 @@ _SAFE_SECRET_TOPIC_WORDS = frozenset(
         "parameter",
         "parser",
         "policy",
+        "requirements",
         "rotation",
         "storage",
     }
@@ -109,25 +110,33 @@ _SAFE_TECHNICAL_TOPIC_TOKEN_RE = re.compile(
 )
 _SAFE_SECRET_CONTEXT_HEADS = frozenset(
     {
-        "a",
-        "an",
         "caller",
         "client",
         "configuration",
+        "documented",
         "environment",
+        "execution",
+        "input",
         "orchestrator",
         "process",
+        "request",
         "runtime",
         "service",
-        "the",
+        "startup",
+        "stored",
         "user",
+        "workflow",
     }
 )
+_SAFE_SECRET_CONTEXT_DETERMINERS = frozenset({"a", "an", "the"})
 _SAFE_REDACTED_SECRET_CONTEXT_RE = re.compile(
-    r"(?i)^only\s+when\s+(?:(?:the\s+)?(?:official\s+)?"
+    r"(?i)^(?:"
+    r"(?:continue|proceed)\s+with\s+the\s+documented\s+(?:flow|procedure|process|workflow)"
+    r"|only\s+with\s+the\s+documented\s+(?:(?:integration|service|test)\s+)?account"
+    r"|only\s+when\s+(?:(?:the\s+)?(?:official\s+)?"
     r"(?:endpoint|operation|provider|request|service|workflow)\s+(?:requires?|uses?)\s+"
     r"(?:authentication|authorization)|(?:authentication|authorization)\s+is\s+required)"
-    r"[.,;:!?)]*$"
+    r")[.,;:!?)]*$"
 )
 _CAPTURE_PATH_BOUNDARY = r"(?<![0-9A-Za-z._~/\\-])"
 _CAPTURE_HOST_PATH_RES = (
@@ -159,6 +168,12 @@ _CAPTURE_HOST_PATH_RES = (
         re.IGNORECASE,
     ),
     re.compile(
+        _CAPTURE_PATH_BOUNDARY
+        + r"\\\\\?\\UNC[\\/]+[^/\\\s]+[\\/]+(?:Users|Documents and Settings)[\\/]+"
+        + r"[^/\\\s\"'`]+",
+        re.IGNORECASE,
+    ),
+    re.compile(
         _CAPTURE_PATH_BOUNDARY + r"(?:\\\\|//)[^/\\\s]+[\\/]+(?:Users|Documents and Settings)[\\/]+" + r"[^/\\\s\"'`]+",
         re.IGNORECASE,
     ),
@@ -182,7 +197,6 @@ _DOCUMENT_VERSION_BODY = (
 _DOCUMENT_PATH_CONTEXT_BODY = (
     r"(?:docs?|documentation|guide|manual|reference|release[._-]+notes?|schema|user[._-]+guide)"
 )
-_DOCUMENT_PATH_CONTEXT_RE = re.compile(rf"(?i)^{_DOCUMENT_PATH_CONTEXT_BODY}$")
 _DOCUMENT_VERSION_SCAN_RE = re.compile(
     rf"(?<![0-9A-Za-z])v?{_DOCUMENT_VERSION_BODY}(?![0-9A-Za-z])",
     re.IGNORECASE,
@@ -313,11 +327,11 @@ def _is_safe_secret_topic_tail(value: str) -> bool:
         return False
     if not remainder:
         return True
-    relation = re.match(r"(?i)^(?P<word>at|by|for|in|is|through|via|was|with)\b\s*(?P<tail>.*)", remainder)
+    relation = re.match(r"(?i)^(?P<word>are|at|by|for|in|is|through|via|was|were|with)\b\s*(?P<tail>.*)", remainder)
     if relation is None:
         return False
-    if relation.group("word").casefold() not in {"is", "was"}:
-        return not any(_looks_like_secret_tail_value(word) for word in relation.group("tail").split())
+    if relation.group("word").casefold() not in {"are", "is", "was", "were"}:
+        return _is_safe_secret_context_tail(relation.group("tail"))
     state = relation.group("tail").split(maxsplit=1)[0].strip("\"'`()[]{}<>,.;:!?").casefold()
     return state in _SAFE_SECRET_STATE_WORDS
 
@@ -332,13 +346,9 @@ def _is_safe_secret_state_tail(value: str) -> bool:
     relation = re.match(r"(?i)^(?P<word>at|by|for|in|through|via|with)\b\s*(?P<tail>.*)", remainder)
     if relation is None:
         return False
-    if state not in {"configured", "provided", "supplied"} or relation.group("word").casefold() not in {"by", "with"}:
+    if state not in {"configured", "provided", "supplied"}:
         return True
-    context = relation.group("tail").split()
-    if not context:
-        return False
-    head = context[0].strip("\"'`()[]{}<>,.;:!?").casefold()
-    return head in _SAFE_SECRET_CONTEXT_HEADS and not any(_looks_like_secret_tail_value(word) for word in context)
+    return _is_safe_secret_context_tail(relation.group("tail"))
 
 
 def _is_safe_secret_copula_tail(value: str) -> bool:
@@ -364,33 +374,57 @@ def _looks_like_secret_tail_value(value: str) -> bool:
     return len(token) >= 16 or sum(character.isupper() for character in token) > 1
 
 
+def _is_safe_secret_context_tail(value: str) -> bool:
+    tokens = tuple(word.strip("\"'`()[]{}<>,.;:!?") for word in value.split())
+    if tokens and tokens[0].casefold() in _SAFE_SECRET_CONTEXT_DETERMINERS:
+        tokens = tokens[1:]
+    if not tokens:
+        return False
+    head = tokens[0]
+    if (
+        head.casefold() not in _SAFE_SECRET_CONTEXT_HEADS
+        and head.casefold() not in _SAFE_TECHNICAL_TOPIC_TOKENS
+        and _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(head) is None
+    ):
+        return False
+    return not any(_looks_like_secret_tail_value(token) for token in tokens)
+
+
 def _is_safe_secret_topic_prefix(value: str) -> bool:
     first, _, remainder = value.partition(" ")
     topic = first.strip("\"'`()[]{}<>,.;:!?").casefold()
-    if topic not in _SAFE_SECRET_TOPIC_WORDS:
-        return False
-    if re.match(r"(?i)^(?:are|equals|is|was|were)\b", remainder) is not None:
-        return False
-    for word in remainder.split():
-        token = word.strip("\"'`()[]{}<>,.;:!?")
-        if token.casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None:
-            continue
-        if _looks_like_secret_tail_value(token):
-            return False
-    return True
+    candidate = remainder.rstrip(".,;:!?")
+    if topic == "bucket":
+        return re.fullmatch(r"(?i)algorithm\s+(?:is|was)\s+documented", candidate) is not None
+    if topic == "hashing":
+        match = re.fullmatch(r"(?i)uses\s+(?P<algorithm>\S+)", candidate)
+        return match is not None and (
+            match.group("algorithm").casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
+            or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(match.group("algorithm")) is not None
+        )
+    if topic == "parser":
+        return _is_safe_secret_parameter_tail(candidate)
+    return False
 
 
 def _is_safe_secret_parameter_tail(value: str) -> bool:
-    match = re.match(r"(?i)^(?:accepts|supports)\s+(?P<tail>.+)$", value)
+    match = re.match(r"(?i)^(?P<predicate>accepts|supports)\s+(?P<tail>.+)$", value.rstrip(".,;:!?"))
     if match is None:
         return False
     tokens = tuple(word.strip("\"'`()[]{}<>,.;:!?") for word in match.group("tail").split())
+    if any(_looks_like_secret_tail_value(token) for token in tokens):
+        return False
+    if match.group("predicate").casefold() == "accepts":
+        return re.fullmatch(
+            r"(?i)(?:quoted|redacted)\s+(?:arguments?|placeholders?|strings?|values?)",
+            match.group("tail"),
+        ) is not None
     has_technical_token = any(
         token.casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
         or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None
         for token in tokens
     )
-    return has_technical_token and not any(_looks_like_secret_tail_value(token) for token in tokens)
+    return has_technical_token
 
 
 def _has_unsafe_post_assignment_tail(value: str, *, start: int) -> bool:
@@ -456,7 +490,7 @@ def _validate_retained_secrets(value: str, *, label: str) -> None:
         elif quoted and remainder:
             retained = f"{retained} {remainder}".strip()
         if retained:
-            if not _is_redacted_secret(retained):
+            if not _is_redacted_secret_tail(retained):
                 raise ValueError(f"{label} must not retain secret values")
             if _has_unsafe_post_assignment_tail(value, start=match.end()):
                 raise ValueError(f"{label} must not retain secret values")
@@ -554,9 +588,18 @@ def _tool_path_document_versions(value: str, *, tool_id: str) -> tuple[str, ...]
     return tuple(match.group("version") for match in pattern.finditer(value))
 
 
-def _has_unrecognized_tool_path_version(value: str, *, tool_id: str) -> bool:
-    prefix = re.match(rf"(?i)^{re.escape(tool_id)}(?=$|[._-]|v?[0-9])", value)
-    return prefix is not None and _DOCUMENT_VERSION_SCAN_RE.search(value[prefix.end() :]) is not None
+def _is_tool_path_context_segment(value: str, *, tool_id: str) -> bool:
+    return (
+        re.fullmatch(
+            rf"(?i){re.escape(tool_id)}[._-]+{_DOCUMENT_PATH_CONTEXT_BODY}",
+            value,
+        )
+        is not None
+    )
+
+
+def _has_tool_path_prefix(value: str, *, tool_id: str) -> bool:
+    return re.match(rf"(?i)^{re.escape(tool_id)}(?=$|[._-]|v?[0-9])", value) is not None
 
 
 def _locator_version_has_tool_context(value: str, *, start: int, tool_id: str) -> bool:
@@ -591,26 +634,35 @@ def _validate_official_documentation_binding(
         path_candidates.append(candidate)
 
     path_bound = False
-    for index, candidate in enumerate(path_candidates):
-        previous_is_tool = index > 0 and path_candidates[index - 1].casefold() == tool_id.casefold()
-        nested_document_context = (
-            index > 1
-            and path_candidates[index - 2].casefold() == tool_id.casefold()
-            and _DOCUMENT_PATH_CONTEXT_RE.fullmatch(path_candidates[index - 1]) is not None
-        )
+    tool_context = False
+    for candidate in path_candidates:
         adjacent_versions = _tool_path_document_versions(candidate, tool_id=tool_id)
-        if not adjacent_versions and _has_unrecognized_tool_path_version(candidate, tool_id=tool_id):
-            raise ValueError("official documentation URL must bind the exact tool version")
         for normalized in adjacent_versions:
             if normalized != tool_version:
                 raise ValueError("official documentation URL must bind the exact tool version")
             path_bound = True
-        for match in _DOCUMENT_VERSION_SCAN_RE.finditer(candidate):
-            normalized = _normalized_document_version(match.group(0))
-            if (previous_is_tool or nested_document_context) and normalized == tool_version:
+        if adjacent_versions:
+            tool_context = False
+            continue
+        if candidate.casefold() == tool_id.casefold() or _is_tool_path_context_segment(
+            candidate,
+            tool_id=tool_id,
+        ):
+            tool_context = True
+            continue
+        if _has_tool_path_prefix(candidate, tool_id=tool_id):
+            raise ValueError("official documentation URL must bind the exact tool version")
+        if not tool_context:
+            continue
+        context_versions = tuple(_DOCUMENT_VERSION_SCAN_RE.finditer(candidate))
+        if context_versions:
+            for match in context_versions:
+                normalized = _normalized_document_version(match.group(0))
+                if normalized != tool_version:
+                    raise ValueError("official documentation URL must bind the exact tool version")
                 path_bound = True
-            elif previous_is_tool or nested_document_context:
-                raise ValueError("official documentation URL must bind the exact tool version")
+            tool_context = False
+            continue
 
     if _MOVING_DOCUMENT_TOKEN_RE.search(version_locator) is not None:
         raise ValueError("official documentation version locator must not use moving revisions")

@@ -224,12 +224,12 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "Authorization=Basic ***",
         "Authorization Bearer <TOKEN>",
         "Authorization Basic [REDACTED]",
-        "token=<TOKEN>.",
-        "auth=[REDACTED].",
-        "credential=***.",
-        "Run --token <TOKEN>",
-        "Run --token ${TOKEN}",
-        "Use password [REDACTED]",
+        "token=<TOKEN>. Continue with the documented flow.",
+        "auth=[REDACTED]. Continue with the documented flow.",
+        "credential=***. Continue with the documented flow.",
+        "Run --token <TOKEN> only when the official service requires authentication.",
+        "Run --token ${TOKEN} only when the official service requires authentication.",
+        "Use password [REDACTED] only with the documented test account.",
         'Authorization: "Bearer <TOKEN>"',
         'Authorization: "Basic [REDACTED]"',
         'Authorization: "Bearer" <TOKEN>',
@@ -264,6 +264,18 @@ def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths
     field: str,
     value: str,
 ) -> None:
+    assert retained_text(field, value) == value
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "token=<TOKEN>. Continue with the documented workflow.",
+        "Use password [REDACTED] only with the documented integration account.",
+    ),
+)
+def test_retained_text_accepts_bounded_documented_redaction_contexts(field: str, value: str) -> None:
     assert retained_text(field, value) == value
 
 
@@ -316,6 +328,8 @@ def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths
         "token=<TOKEN>. Continue with Swordfish",
         "token=<TOKEN>. Swordfish is the official fallback.",
         "token=<TOKEN>. Use Swordfish for the documented account.",
+        "token=<TOKEN>. Continue with the documented flow using Swordfish.",
+        "Use password [REDACTED] only with the documented test account Swordfish.",
         "token=<TOKEN>&fallback=live-secret",
         "token=<TOKEN>&fallback=abc123XYZ",
         "token=<TOKEN>#live-secret",
@@ -401,6 +415,38 @@ def test_retained_text_rejects_plain_values_after_secret_bearing_grammar(
 @pytest.mark.parametrize(
     "value",
     (
+        "The token field with Swordfish is retained.",
+        "The token is configured via Swordfish.",
+        "The token storage in Marlin is retained.",
+        "The token is supplied through Marlin.",
+        "The token is provided at Swordfish.",
+    ),
+)
+def test_retained_text_rejects_plain_values_in_secret_state_and_topic_relations(
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(ValidationError, match="secret"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "The token is configured in the environment.",
+        "The token is provided by the caller.",
+        "The token storage is documented for stored credentials.",
+    ),
+)
+def test_retained_text_accepts_bounded_secret_state_and_topic_contexts(field: str, value: str) -> None:
+    assert retained_text(field, value) == value
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
         "Password hashing uses SHA-256.",
         "Password hashing uses PBKDF2-HMAC-SHA256.",
         "The token parameter supports SHA-256 digests.",
@@ -408,6 +454,36 @@ def test_retained_text_rejects_plain_values_after_secret_bearing_grammar(
 )
 def test_retained_text_accepts_recognized_hash_algorithm_prose(field: str, value: str) -> None:
     assert retained_text(field, value) == value
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "The token parameter accepts quoted values.",
+        "The token parameter accepts redacted placeholders.",
+        "Password requirements are documented.",
+    ),
+)
+def test_retained_text_accepts_secret_parameter_capability_and_requirement_prose(
+    field: str,
+    value: str,
+) -> None:
+    assert retained_text(field, value) == value
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "The token parameter accepts Swordfish.",
+        "The token parameter is Swordfish.",
+        "Password requirements are Swordfish.",
+    ),
+)
+def test_retained_text_rejects_values_assigned_in_technical_secret_prose(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match="secret"):
+        retained_text(field, value)
 
 
 @pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
@@ -461,6 +537,32 @@ def test_retained_text_rejects_doubled_and_extended_capture_host_paths(
 ) -> None:
     with pytest.raises(ValidationError, match="host path"):
         retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        r"\\?\UNC\server\Users\alice\work",
+        r"\\?\UNC\server\\Users\\alice\work",
+        r"\\?\UNC\\server\\Users\alice\work",
+    ),
+)
+def test_retained_text_rejects_extended_unc_capture_host_paths(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match="host path"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        r"\\?\UNC\server\Users\<USER>\work",
+        r"\\?\UNC\server\\Users\\<USER>\work",
+    ),
+)
+def test_retained_text_accepts_redacted_extended_unc_capture_host_paths(field: str, value: str) -> None:
+    assert retained_text(field, value) == value
 
 
 @pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
@@ -721,6 +823,62 @@ def test_official_documentation_accepts_nested_matching_tool_version_with_refere
 
     assert captured.url == url
     assert captured.version_locator == "reference"
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://docs.example.org/samtools-api/1.23.1/reference.html",
+        "https://docs.example.org/samtools-htslib/docs/1.23.1/reference.html",
+    ),
+)
+def test_official_documentation_rejects_false_composite_tool_path_segments(url: str) -> None:
+    with pytest.raises(ValidationError, match="tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+            update={"url": url, "version_locator": "1.23.1 reference"}
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://docs.example.org/samtools/docs/reference/1.20/index.html",
+        "https://docs.example.org/samtools/docs/manual/reference/1.20/index.html",
+        "https://docs.example.org/samtools/user-guide/reference/1.20/index.html",
+        "https://docs.example.org/samtools/docs/reference/archive/sections/1.20/index.html",
+    ),
+)
+def test_official_documentation_rejects_arbitrarily_deep_mismatched_tool_versions(url: str) -> None:
+    with pytest.raises(ValidationError, match="tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+            update={"url": url, "version_locator": "1.23.1 reference"}
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://docs.example.org/samtools/docs/reference/1.23.1/index.html",
+        "https://docs.example.org/samtools/docs/manual/reference/1.23.1/index.html",
+        "https://docs.example.org/samtools/docs/reference/archive/sections/1.23.1/index.html",
+    ),
+)
+def test_official_documentation_accepts_arbitrarily_deep_matching_tool_versions(url: str) -> None:
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+        update={"url": url, "version_locator": "reference"}
+    )
+
+    assert captured.url == url
+
+
+def test_official_documentation_accepts_no_version_url_when_locator_binds_version() -> None:
+    url = "https://docs.example.org/samtools/docs/reference/index.html"
+
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+        update={"url": url, "version_locator": "1.23.1 reference"}
+    )
+
+    assert captured.url == url
 
 
 @pytest.mark.parametrize(
