@@ -128,14 +128,14 @@ bionodulo/nodes/
         view.py
         sort.py
         index.py
-        evidence.yaml
+        evidence.authoring.json
         fixtures/
       bedtools/
         tool.py
         common.py
         intersect.py
         closest.py
-        evidence.yaml
+        evidence.authoring.json
         fixtures/
 
   generated/
@@ -331,8 +331,14 @@ Every contract claim must point to authoritative evidence. Preferred order:
 
 Blogs, old wrappers, Galaxy XML, and the legacy BioNodulo implementation are discovery aids, not final authority, unless the upstream project designates them as canonical.
 
-Each evidence record uses schema version 2 and contains only authored prose or
-structured, content-addressed captures:
+Checked-in `*.authoring.json` files contain plain `title`, `description`, and
+`statement` strings. They never contain their own content digest. Authoring
+files are strict duplicate-free UTF-8 JSON; YAML aliases, merges, tags,
+non-finite numbers, and duplicate keys have no accepted interpretation. The
+trusted compiler reopens each authoring file, resolves each JSON pointer from
+those bytes, hashes the exact source bytes, and injects provenance into the
+generated schema-version-2 record. A compiled record contains only
+provenance-bound prose or structured, content-addressed captures:
 
 ```yaml
 schema_version: 2
@@ -340,9 +346,26 @@ tool_id: samtools
 tool_version: 1.23.1
 sources:
   - source_id: samtools-index-manual
+    tool_id: samtools
     kind: official_manual
+    tool_version: 1.23.1
     url: https://www.htslib.org/doc/samtools-index.html
     content_sha256: sha256:<captured-document-digest>
+    content_format: text
+    title:
+      value: Samtools index manual
+      provenance:
+        origin: catalog_author
+        catalog_path: bionodulo/nodes/catalog/tools/samtools/evidence.authoring.json
+        catalog_content_sha256: sha256:<exact-authoring-source-bytes-digest>
+        field_pointer: /sources/0/title
+    description:
+      value: Authoritative index behavior for the pinned Samtools release.
+      provenance:
+        origin: catalog_author
+        catalog_path: bionodulo/nodes/catalog/tools/samtools/evidence.authoring.json
+        catalog_content_sha256: sha256:<exact-authoring-source-bytes-digest>
+        field_pointer: /sources/0/description
     documentation_proof:
       proof_kind: declared_metadata
       tool_id: samtools
@@ -359,22 +382,36 @@ claims:
   - claim_id: samtools-index-default-output
     contract_pointer: /outputs/index/path_rule
     source_id: samtools-index-manual
+    source_content_sha256: sha256:<captured-document-digest>
     locator:
       kind: byte_range
       start_byte: 912
       end_byte_exclusive: 1004
+    excerpt_sha256: sha256:<selected-claim-digest>
+    contract_value_sha256: sha256:<canonical-contract-value-digest>
     statement:
       value: Default BAM index is input.bam.bai unless -o is supplied.
       provenance:
         origin: catalog_author
-        catalog_path: catalog/samtools/evidence.yaml
-        catalog_content_sha256: sha256:<canonical-catalog-source-digest>
+        catalog_path: bionodulo/nodes/catalog/tools/samtools/evidence.authoring.json
+        catalog_content_sha256: sha256:<exact-authoring-source-bytes-digest>
         field_pointer: /claims/0/statement
 verifications:
-  - kind: tool_smoke
+  - evidence_id: samtools-index-smoke-linux-amd64
+    tool_id: samtools
+    tool_version: 1.23.1
+    kind: tool_smoke
     outcome: passed
     test_id: samtools-index-tiny-bam-v1
     result_sha256: sha256:<canonical-verifier-report-digest>
+    fixture_id: tiny-bam-v1
+    fixture_sha256: sha256:<fixture-digest>
+    environment_sha256: sha256:<environment-lock-digest>
+    catalog_sha256: sha256:<catalog-lock-digest>
+    platform_sha256: sha256:<platform-digest>
+    verified_at: 2026-07-15
+    verifier_id: catalog-tool-verifier
+    verifier_version: 1.0.0
 ```
 
 `title`, `description`, and claim `statement` are the only retained prose. Each
@@ -385,19 +422,42 @@ paths. `catalog_author` is the only text origin. Runtime stdout, stderr,
 environment values, and filesystem paths have no retained-text representation
 and may enter the ledger only as digests or closed result codes.
 
+Every source declares one closed `content_format`: `text`, `json`, or
+`source_code`. Byte ranges select exact bytes in all three formats. JSON
+pointers are accepted only for `json` and hash the canonical JSON encoding of
+the strictly parsed selected value. Symbol locators are accepted only for an
+`upstream_source` with `source_code` content and must equal that source's exact
+symbol identity. A JSON-pointer documentation proof likewise requires `json`;
+documentation byte-range proofs work for every official source format.
+
 This is an information-flow boundary, not proof that a caller is human. The
 declarative model retains the immutable provenance; the trusted catalog loader
-in Task 9 must verify the path, canonical blob digest, pointer, and selected
-text before constructing it. Runtime collectors never receive that authority.
+in Task 9 must reopen every referenced path and verify its exact source-byte
+digest, pointer, and selected text before accepting a `NodeSpec`. Arbitrary
+`get_node_specs()` factories may declare provenance but cannot attest it: the
+compiler ignores self-asserted source content and performs the verification
+with compiler-owned bytes. It accepts only Git-tracked authoring paths under
+`bionodulo/nodes/catalog/`, rejects generated paths, and opens them without
+following symlinks outside that tree. Runtime collectors never receive that
+authority.
 
 Official documentation requires a `DocumentationVersionProof` over the exact
 captured bytes. The proof repeats the exact tool, version, URL, and source
-content digest, identifies proof bytes with a structured byte-range, JSON
-pointer, or symbol locator, and retains the selected-content digest. URL shape
-is transport metadata and never establishes tool ownership or version. If the
-captured content cannot prove the pair, the agent must inspect pinned upstream
-source and record the exact file/symbol/commit. If behavior remains uncertain,
-the node stays quarantined.
+content digest, identifies proof bytes with a structured byte-range or JSON
+pointer, and retains the selected-content digest. Task 9 must invoke proof
+content verification for every proof and claim content verification for every
+claim, using compiler-owned captured bytes rather than factory-supplied
+selections. Both paths recompute the captured-source and selected-content
+digests. Symbol locators remain available for upstream-source claims, but are
+not documentation-version proofs because this declarative module has no
+source-language symbol resolver. A symbol claim is accepted only when a
+compiler-owned, language-aware selector resolves the exact symbol from the
+captured bytes. Unsupported languages and missing or ambiguous symbols
+quarantine the node and prevent release. URL shape is transport metadata and
+never establishes tool ownership or version. If the captured content cannot
+prove the pair, the agent must inspect pinned upstream source and record the
+exact file/symbol/commit. If behavior remains uncertain, the node stays
+quarantined.
 
 All explicit source paths use canonical repository-relative POSIX syntax. URLs
 use canonical HTTPS parsing. Neither validator searches arbitrary path segments
@@ -408,7 +468,8 @@ binding cannot be established without a heuristic.
 
 ## 10. Access and license classification
 
-Access status is independent from technical maturity:
+Access and resource requirements are independent from technical maturity and
+are retained as a unique tuple in the canonical order below:
 
 - `public`
 - `public_rate_limited`
@@ -417,6 +478,27 @@ Access status is independent from technical maturity:
 - `gpu_required`
 - `byol`
 - `service_license`
+
+The tuple must contain at least one access mode. `public` and
+`public_rate_limited` are mutually exclusive, and `public` cannot coexist with
+`secret_required`, `byol`, or `service_license`; it may coexist with
+`large_reference` and `gpu_required`. `secret_required` may coexist with BYOL
+or service licensing. Any BYOL or service-license member blocks automatic
+release, while GPU and large-reference members remain releasable after their
+relevant technical gates pass.
+
+Schema v2 has no manual-approval override artifact. Therefore a maturity record
+containing BYOL or service licensing never reports `released`; it remains in
+quarantine until a later design adds an auditable approval record and a
+production verification path. Out-of-band approval must not mutate or bypass
+the computed maturity state.
+
+Task 8 validates secret declarations against this tuple. Any optional secret
+requires `public_rate_limited`, `secret_required`, `byol`, or
+`service_license`. A required secret requires `secret_required`, `byol`, or
+`service_license`, and `secret_required` requires at least one required secret.
+Thus account-bound licensed nodes may correctly declare required credentials;
+an unclassified `public` node may not silently accept them.
 
 Known restricted or account-bound families remain quarantined until terms and runtime provisioning are validated. This includes ANNOVAR, Allegro, Cell Ranger/Space Ranger, Dorado/Rerio branches, MSFragger/FragPipe, DIA-NN, MaxQuant, SIRIUS service-backed features, and KEGG service-provider use.
 
@@ -428,11 +510,30 @@ Maturity is derived from retained test evidence, not a boolean written by an aut
 
 Verification and gate records retain only closed kinds, pass/fail outcomes,
 failure codes, canonical report/artifact digests, dates, and verifier identity.
-Every passed or failed gate points to retained evidence. Raw stdout, stderr,
-environment values, host paths, and author-written summaries or failure reasons
-are not maturity data. The UI derives stable labels and failure messages from
-the gate and failure-code enums; generated text is neither serialized nor part
-of the maturity digest.
+Every passed or failed gate has one or more sorted `verification_digests`. Raw
+stdout, stderr, environment values, host paths, and author-written summaries or
+failure reasons are not maturity data. The UI derives stable labels and failure
+messages from the gate and failure-code enums; generated text is neither
+serialized nor part of the maturity digest. Each gate declares one required
+verification kind;
+Task 8 resolves every assessment digest to a retained report for the same tool,
+requires that report to have the declared kind, and requires its outcome and
+failure code to agree with the assessment. Multiple same-kind reports support
+platform-specific verification without weakening the binding.
+
+Verification context is kind-specific and closed:
+
+| Verification kind | Required context | Additional allowed context |
+| --- | --- | --- |
+| `inventory`, `evidence_coverage`, `contract_compile` | `catalog_sha256` | none |
+| `command_fixture` | `fixture_id`, `fixture_sha256`, `environment_sha256`, `catalog_sha256` | `platform_sha256` |
+| `environment_probe` | `environment_sha256`, `catalog_sha256`, `platform_sha256` | none |
+| `tool_smoke` | `fixture_id`, `fixture_sha256`, `environment_sha256`, `catalog_sha256`, `platform_sha256` | none |
+| `cloud_run`, `workflow_run` | `fixture_id`, `fixture_sha256`, `environment_sha256`, `catalog_sha256`, `platform_sha256`, `release_sha256` | none |
+
+Fields outside the row are rejected, and fixture ID/digest are always supplied
+together. This prevents a report for one catalog, environment, fixture,
+platform, or release from satisfying a gate for another.
 
 1. `inventoried` - baseline ID and disposition recorded.
 2. `evidence_verified` - every contract claim has authoritative evidence.

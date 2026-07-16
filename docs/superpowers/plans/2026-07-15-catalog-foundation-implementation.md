@@ -483,6 +483,17 @@ computed maturity progression. Demonstrate that arbitrary authored technical
 prose is accepted while no runtime/captured text origin exists. Demonstrate
 that version-looking URL segments have no ownership semantics and that legacy
 free-text locators, version locators, summaries, and reasons are rejected.
+Authoring input is strict duplicate-free UTF-8 `*.authoring.json`; add failures
+for duplicate keys, YAML aliases/merges/tags, and provenance outside the
+checked-in catalog authoring namespace. The compiler supplies the expected
+field pointer, resolves it from reopened bytes, and revalidates even
+`model_construct` inputs. Documentation proof and claim verification recompute
+source and selected-content digests from byte-range or strict-JSON-pointer
+locators. Add locator/content-format compatibility tests: byte ranges work for
+`text`, `json`, and `source_code`; JSON pointers require `json`; symbols require
+an upstream `source_code` capture with the exact source symbol and a trusted
+language-aware selector. Documentation proofs never accept symbols, and their
+JSON pointers require a JSON source.
 
 - [ ] **Step 2: Implement evidence models and maturity derivation**
 
@@ -493,29 +504,61 @@ infer tool ownership or version. Claims reference a known source, canonical
 contract pointer, structured content locator, authored statement provenance,
 and content/value digests. Captured runtime data is represented only by closed
 codes and SHA-256 digests, never retained stdout, stderr, environment values, or
-host paths.
+host paths. Every source declares `content_format` as `text`, `json`, or
+`source_code`, and model validation rejects locator combinations that cannot be
+resolved under that format.
 
-The evidence and maturity roots require `schema_version: 2`. Maturity gates are
-inventoried, evidence, contract, command, environment, tool smoke, cloud, and
-workflow. Every assessment, including failure, references retained evidence;
-human-readable labels and reasons are computed from enums and are not
-serialized. `released` is computed and cannot be supplied by callers. Access
-classes include public, rate-limited, secret-required, large-reference, GPU,
-BYOL, and service-license.
+The evidence and maturity roots require `schema_version: 2`. Maturity stores a
+unique, canonically ordered `access_classes` tuple so access, credentials,
+licensing, GPU, and large-reference requirements may overlap. `public` cannot
+coexist with credential or license classes; BYOL and service-license members
+block automatic release. Task 8 must require an allowed credential-bearing
+class for every secret, require a required-secret-capable class for required
+secrets, and require a required secret when `secret_required` is present.
+
+Maturity gates are inventoried, evidence, contract, command, environment, tool
+smoke, cloud, and workflow. Every assessment, including failure, references
+one or more sorted `verification_digests`; human-readable labels and reasons
+are computed from enums and are not serialized. Each gate maps to one
+verification kind. Task 8 resolves every digest to a same-tool retained report
+whose exact tool/version and verifier identity are retained, with that kind and
+an agreeing outcome/failure code; multiple same-kind reports may cover
+platforms. `released` is computed and cannot be supplied by callers.
+BYOL and service-license records remain quarantined because schema v2 has no
+auditable manual-approval artifact or override.
+
+Verification context is closed by kind. Inventory, evidence-coverage, and
+contract-compile reports require only the catalog digest. Command fixtures
+require fixture ID/digest plus environment and catalog digests and may add a
+platform digest. Environment probes require environment, catalog, and platform
+digests. Tool smoke adds fixture ID/digest. Cloud and workflow runs additionally
+require the release digest. Any other context field is rejected, and fixture ID
+and digest are inseparable.
 
 The contract model does not prove authorship by inspecting prose. It retains
-immutable author provenance, and the trusted Task 9 catalog loader must verify
-the repository-relative path, canonical source-blob digest, JSON pointer, and
-selected value. Schema-v1 data receives no permissive compatibility parser. A
-one-shot offline migration must construct these facts and quarantine records
-whose documentation binding cannot be proved.
+immutable author provenance. Checked-in authoring blobs are strict
+duplicate-free UTF-8 JSON containing plain text and never embed their own
+digest. The trusted Task 9 catalog loader reopens every Git-tracked authoring
+path without escaping the catalog tree through a symlink, computes the digest
+from exact source bytes, resolves the JSON pointer itself, compares the selected
+value, and only then injects provenance into the compiled model. It must repeat
+this verification for values returned by arbitrary `get_node_specs()` factories
+rather than trust their self-asserted provenance. For every evidence source it
+also reopens the compiler-owned captured bytes, verifies every documentation
+proof, and recomputes every claim's source and excerpt digests. Byte-range and
+JSON-pointer selections are resolved in the contract verifier. Symbol claims
+require a compiler-owned language-aware selector; unsupported languages and
+missing or ambiguous symbols quarantine the node and prevent release.
+Schema-v1 data receives no permissive compatibility parser. A one-shot offline
+migration must construct these facts and quarantine records whose documentation
+binding cannot be proved.
 
 - [ ] **Step 3: Run tests and commit**
 
 ```bash
 .venv/bin/python -m pytest -q tests/catalog/test_evidence_maturity.py
 git add bionodulo/nodes/contract/evidence.py bionodulo/nodes/contract/maturity.py tests/catalog/test_evidence_maturity.py
-git commit -m "feat(catalog): add evidence-backed maturity gates"
+git commit -m "refactor(catalog): replace evidence text heuristics"
 ```
 
 ### Task 8: Compose NodeSpec and enforce cross-field invariants
@@ -623,9 +666,17 @@ def test_projection_digest_is_deterministic(sample_spec) -> None:
     assert first.catalog_digest == second.catalog_digest
 ```
 
+Add adversarial loader tests showing that each retained-text selection,
+documentation proof, and evidence claim is recomputed from reopened
+compiler-owned bytes even when a factory used `model_construct()` or supplied a
+self-consistent forged digest. Cover byte-range and strict-JSON-pointer claims,
+plus upstream symbol claims resolved by a trusted language-aware selector.
+Unsupported source languages and missing or ambiguous symbols must quarantine
+the node and prevent release.
+
 - [ ] **Step 2: Implement discovery, validation, and projections**
 
-The compiler takes an explicit module list; it does not walk with `pkgutil` and does not read prior generated JSON. It imports each declared module, calls `get_node_specs()`, validates every spec against the artifact registry and baseline ledger, and fails on any exception. Sort all projections by stable IDs and use canonical JSON (`sort_keys=True`, compact separators, UTF-8) for SHA-256.
+The compiler takes an explicit module list; it does not walk with `pkgutil` and does not read prior generated JSON. It imports each declared module, calls `get_node_specs()`, validates every spec against the artifact registry and baseline ledger, and fails on any exception. Before a spec can satisfy evidence maturity, the loader reopens every authoring and captured source, invokes `verify_retained_text_selection()` for every retained string, `verify_documentation_proof_content()` for every documentation proof, and `verify_evidence_claim_content()` for every claim. Symbol selection comes only from a compiler-owned registry of supported language-aware selectors; an unsupported language or unresolved/ambiguous symbol quarantines the node and excludes it from release. Sort all projections by stable IDs and use canonical JSON (`sort_keys=True`, compact separators, UTF-8) for SHA-256.
 
 Emit runtime, UI, compatibility, node-index, and catalog-lock projections. The UI projection preserves artifact ports as ports and parameters as widgets; no fallback-to-string conversion exists.
 

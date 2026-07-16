@@ -1,14 +1,16 @@
-"""Immutable authoritative source and retained verification evidence."""
+"""Immutable authoritative sources and structured verification evidence."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import unicodedata
+from collections.abc import Callable
 from datetime import date
 from enum import StrEnum
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self, TypeAlias
 from urllib.parse import urlsplit
 
 from pydantic import Field, StringConstraints, field_validator, model_validator
@@ -26,217 +28,24 @@ _GIT_COMMIT_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _SOURCE_PATH_SEGMENT_RE = re.compile(r"^[0-9A-Za-z._+-]+$")
 _SYMBOL_LOCATOR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.:-]{0,255}$")
 _SHELL_META_RE = re.compile(r"[;&|`$<>]")
-_SECRET_ASSIGNMENT_HEAD_RE = re.compile(
-    r"(?i)(?<![0-9A-Za-z_.-])(?:--)?(?P<quote>[\"']?)(?P<key>[A-Za-z][A-Za-z0-9_.-]{0,127})"
-    r"(?P=quote)\s*[:=]\s*"
-)
-_SECRET_OPTION_HEAD_RE = re.compile(
-    r"(?i)(?<![0-9A-Za-z_.-])(?P<tick>`?)--"
-    r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)\s*(?:=\s*|\s+)"
-)
-_SECRET_QUOTED_OPTION_HEAD_RE = re.compile(
-    r"(?i)(?<![0-9A-Za-z_.-])(?P<quote>[`\"'])--"
-    r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)(?P=quote)\s*(?:=\s*|\s+)"
-)
-_SECRET_BRACKETED_OPTION_HEAD_RE = re.compile(
-    r"(?i)(?<![0-9A-Za-z_.-])\[\s*--"
-    r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)\s*\]\s*(?:=\s*|\s+)"
-)
-_SECRET_PROSE_KEY_BODY = (
-    r"(?:api[ _-]*key|access[ _-]+(?:key|token)|client[ _-]+secret|private[ _-]+key|"
-    r"license[ _-]+key|password|passwd|pwd|token(?:[ _.-]+value)?|"
-    r"secret(?:[ _.-]+(?:key|value))?|credentials?)"
-)
-_SECRET_PROSE_KEY = rf"[`\"']?{_SECRET_PROSE_KEY_BODY}[`\"']?"
-_SECRET_LINK_HEAD_RE = re.compile(
-    rf"(?i)(?<![0-9A-Za-z_.-])(?:the\s+)?{_SECRET_PROSE_KEY}"
-    r"(?:\s+(?:value|argument|parameter))?\s+(?:is|was|are|were|equals)\s+"
-)
-_SECRET_STATE_VALUE_HEAD_RE = re.compile(
-    rf"(?i)(?<![0-9A-Za-z_.-])(?:the\s+)?{_SECRET_PROSE_KEY}"
-    r"\s+(?:configured|provided|supplied)\s*:\s*"
-)
-_SECRET_ACTION_HEAD_RE = re.compile(
-    rf"(?i)(?<![0-9A-Za-z_.-])"
-    r"(?:use|set|pass|provide|send|enter|supply|include|add|specify|export)\s+"
-    rf"(?:the\s+)?{_SECRET_PROSE_KEY}(?:\s+(?:value|argument|parameter))?\s+"
-)
-_SECRET_DIRECT_VALUE_HEAD_RE = re.compile(
-    rf"(?i)(?<![0-9A-Za-z_.-])(?:the\s+)?{_SECRET_PROSE_KEY}"
-    r"(?P<qualifier>\s+(?:value|argument|parameter))?\s+"
-)
-_AUTHORIZATION_SCHEME_RE = re.compile(
-    r"(?i)(?<![0-9A-Za-z._~/\\-])authorization(?:\s+header)?\s*(?::|=)?\s*(?:bearer|basic)\s+"
-)
-_SCHEME_URL_USERINFO_RE = re.compile(r"(?i)(?<![A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*://[^/\s?#]*@")
-_NETWORK_PATH_USERINFO_RE = re.compile(r"(?<![0-9A-Za-z/])//[^/\s?#]*@")
-_REDACTED_SECRET_VALUES = frozenset({"<TOKEN>", "${TOKEN}", "[REDACTED]", "REDACTED", "***"})
-_REDACTION_TRAILING_PUNCTUATION = ".,;:!?)]}"
-_CREDENTIAL_TOKEN_RE = re.compile(
-    r"(?i)(?<![0-9A-Za-z])(?:"
-    r"(?:akia|asia)[0-9A-Z]{12,}"
-    r"|(?:live|secret|token|password)[-_][0-9A-Za-z][0-9A-Za-z._+-]*"
-    r"|sk-[0-9A-Za-z][0-9A-Za-z._+-]*"
-    r"|gh[pousr]_[0-9A-Za-z][0-9A-Za-z_-]*"
-    r"|xox[a-z]-[0-9A-Za-z][0-9A-Za-z-]*"
-    r"|eyJ[0-9A-Za-z_-]{8,}"
-    r"|hunter[0-9]+"
-    r")(?![0-9A-Za-z])"
-)
-_SAFE_SECRET_STATE_WORDS = frozenset(
-    {"configured", "documented", "hashed", "provided", "redacted", "required", "supplied", "unavailable", "unset"}
-)
-_SAFE_SECRET_TOPIC_WORDS = frozenset(
-    {
-        "algorithm",
-        "bucket",
-        "field",
-        "flag",
-        "handling",
-        "hashing",
-        "option",
-        "parameter",
-        "parser",
-        "policy",
-        "requirements",
-        "rotation",
-        "storage",
-    }
-)
-_SAFE_TECHNICAL_TOPIC_TOKENS = frozenset({"argon2", "bcrypt", "oauth2", "pbkdf2", "scrypt"})
-_SAFE_TECHNICAL_TOPIC_TOKEN_RE = re.compile(
-    r"(?i)^(?:argon2(?:id|i|d)?|bcrypt|oauth2|scrypt|sha-?[0-9]+|"
-    r"(?:pbkdf[0-9]+(?:-hmac)?|hmac)-sha-?[0-9]+)$"
-)
-_SAFE_TECHNICAL_VALUE_NOUN_RE = re.compile(
-    r"(?i)^(?:arguments?|booleans?|digests?|identifiers?|integers?|numbers?|paths?|"
-    r"placeholders?|representations?|strings?|values?)$"
-)
-_UNSAFE_TECHNICAL_DESCRIPTOR_WORDS = frozenset(
-    {"credential", "credentials", "passphrase", "password", "secret", "token"}
-)
-_SAFE_SECRET_CONTEXT_HEADS = frozenset(
-    {
-        "caller",
-        "client",
-        "configuration",
-        "documented",
-        "environment",
-        "execution",
-        "input",
-        "orchestrator",
-        "process",
-        "request",
-        "runtime",
-        "service",
-        "startup",
-        "stored",
-        "user",
-        "workflow",
-    }
-)
-_SAFE_SECRET_CONTEXT_DETERMINERS = frozenset({"a", "an", "the"})
-_SAFE_SECRET_CONTEXT_RELATIONS = frozenset({"at", "by", "for", "in", "through", "via", "with"})
-_SAFE_REDACTED_SECRET_CONTEXT_RE = re.compile(
-    r"(?i)^(?:"
-    r"(?:continue|proceed)\s+with\s+the\s+documented\s+(?:flow|procedure|process|workflow)"
-    r"|only\s+with\s+the\s+documented\s+(?:(?:integration|service|test)\s+)?account"
-    r"|only\s+when\s+(?:(?:the\s+)?(?:official\s+)?"
-    r"(?:endpoint|operation|provider|request|service|workflow)\s+(?:requires?|uses?)\s+"
-    r"(?:authentication|authorization)|(?:authentication|authorization)\s+is\s+required)"
-    r")[.,;:!?)]*$"
-)
-_CAPTURE_PATH_BOUNDARY = r"(?<![0-9A-Za-z._~/\\-])"
-_CAPTURE_HOST_PATH_RES = (
-    re.compile(
-        r"(?<![0-9A-Za-z+.-])file://[^/\\\s]+/+(?:home|Users)/+[^/\\\s\"'`]+",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"(?<![0-9A-Za-z+.-])file://[^/\\\s]+/+root(?=$|[/\\\s.,;:!?\"'`)\]}])",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        _CAPTURE_PATH_BOUNDARY + r"file://(?:localhost|127\.0\.0\.1)/+(?:home|Users)/+[^/\\\s\"'`]+",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        _CAPTURE_PATH_BOUNDARY + r"(?:file://)?/+(?:home|Users)/+[^/\\\s\"'`]+",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        _CAPTURE_PATH_BOUNDARY + r"(?:file://)?/root(?=$|[/\\\s.,;:!?\"'`)\]}])",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        _CAPTURE_PATH_BOUNDARY
-        + r"(?:(?:file:///)?(?:\\\\\?\\)?[A-Za-z]:[\\/]+|/mnt/[A-Za-z]/+)"
-        + r"(?:Users|Documents and Settings)[\\/]+"
-        + r"[^/\\\s\"'`]+",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        _CAPTURE_PATH_BOUNDARY
-        + r"\\\\\?\\UNC[\\/]+[^/\\\s]+[\\/]+(?:[^/\\\s]+[\\/]+)?"
-        + r"(?:Users|Documents and Settings)[\\/]+"
-        + r"[^/\\\s\"'`]+",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        _CAPTURE_PATH_BOUNDARY + r"(?:\\\\|//)[^/\\\s]+[\\/]+(?:Users|Documents and Settings)[\\/]+" + r"[^/\\\s\"'`]+",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        _CAPTURE_PATH_BOUNDARY
-        + r"(?:(?:file://)?/|[A-Za-z]:[\\/])[^\s\"'`]*?[\\/]pytest-of-[^/\\\s\"'`]+[\\/]"
-        + r"pytest-(?:[0-9]+|current)(?=$|[/\\\s.,;:!?\"'`)\]}])",
-        re.IGNORECASE,
-    ),
-)
-_MOVING_DOCUMENT_SEGMENTS = frozenset(
-    {"latest", "stable", "current", "main", "master", "head", "develop", "release", "trunk"}
-)
-_MOVING_DOCUMENT_TOKEN_RE = re.compile(
-    r"(?i)(?<![A-Za-z0-9])(?:latest|stable|current|main|master|head|develop|release|trunk)(?![A-Za-z0-9])"
-)
-_DOCUMENT_VERSION_BODY = (
-    r"[0-9]+\.[0-9]+(?:\.[0-9]+)*"
-    r"(?:[A-Za-z][0-9A-Za-z._+-]*|[._+-][0-9A-Za-z][0-9A-Za-z._+-]*)?"
-)
-_DOCUMENT_PATH_CONTEXT_BODY = (
-    r"(?:docs?|documentation|guide|manual|reference|release[._-]+notes?|schema|user[._-]+guide)"
-)
-_DOCUMENT_PRODUCT_BOUNDARY_RE = re.compile(
-    r"(?i)^(?:dependencies?|deps?|integrations?|plugins?|third[._-]+party|vendors?)(?:[._-].*)?$"
-)
-_DOCUMENT_VERSION_SCAN_RE = re.compile(
-    rf"(?<![0-9A-Za-z])v?{_DOCUMENT_VERSION_BODY}(?![0-9A-Za-z])",
-    re.IGNORECASE,
-)
-_IGNORED_DOCUMENT_VERSION_CONTEXT_RE = re.compile(
-    r"(?:^|[^0-9A-Za-z])(?:api|section)[\s:/_-]*$",
-    re.IGNORECASE,
-)
-_DOCUMENT_FILE_EXTENSIONS = (".html", ".htm", ".json", ".yaml", ".yml", ".xml", ".txt")
 _HELP_FLAG_TOKENS = frozenset({"--help", "-h", "-help"})
 _HELP_WORD_TOKEN = "help"
 _HELP_TOKENS = frozenset({*_HELP_FLAG_TOKENS, _HELP_WORD_TOKEN})
 _HELP_SUBCOMMAND_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _MAX_ID_LENGTH = 128
 _MAX_POINTER_DEPTH = 64
+_MAX_BYTE_OFFSET = 2**63 - 1
+_MAX_LOCATOR_SPAN = 1024 * 1024
+_CATALOG_AUTHORING_PREFIX = "bionodulo/nodes/catalog/"
+_CATALOG_AUTHORING_SUFFIX = ".authoring.json"
 
 
-Title = Annotated[str, StringConstraints(min_length=1, max_length=256)]
-Description = Annotated[str, StringConstraints(min_length=1, max_length=2048)]
-VersionLocator = Annotated[str, StringConstraints(min_length=1, max_length=512)]
-RecipeRevision = Annotated[str, StringConstraints(min_length=1, max_length=128)]
 RepositoryPath = Annotated[str, StringConstraints(min_length=1, max_length=1024)]
-SymbolLocator = Annotated[str, StringConstraints(min_length=1, max_length=256)]
-HelpArgument = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
 JsonPointer = Annotated[str, StringConstraints(min_length=2, max_length=2048)]
-ClaimLocator = Annotated[str, StringConstraints(min_length=1, max_length=512)]
-ClaimStatement = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
-VerificationSummary = Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+SymbolIdentity = Annotated[str, StringConstraints(min_length=1, max_length=256)]
+HelpArgument = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
+RetainedTextValue = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
+CanonicalUrl = Annotated[str, StringConstraints(min_length=1, max_length=2048)]
 
 
 def _canonical_digest(value: _StrictFrozenModel) -> str:
@@ -264,488 +73,10 @@ def _validate_printable_unicode(value: str, *, label: str) -> str:
     return value
 
 
-def _is_secret_assignment_key(value: str) -> bool:
-    compact = value.casefold().replace("_", "").replace("-", "").replace(".", "")
-    return compact in {"auth", "authentication", "authorization", "credential", "credentials"} or compact.endswith(
-        (
-            "token",
-            "secret",
-            "password",
-            "passphrase",
-            "passwd",
-            "pwd",
-            "apikey",
-            "authkey",
-            "secretkey",
-            "privatekey",
-            "refreshkey",
-            "licensekey",
-            "accesskey",
-            "accesskeyid",
-        )
-    )
-
-
-def _assignment_value(value: str, start: int) -> tuple[str, bool, str]:
-    if start >= len(value):
-        return "", False, ""
-    if value[start] in ('"', "'"):
-        quote = value[start]
-        end = value.find(quote, start + 1)
-        if end < 0:
-            return value[start:], True, ""
-        suffix_end = end + 1
-        while suffix_end < len(value) and not value[suffix_end].isspace() and value[suffix_end] not in "&#":
-            suffix_end += 1
-        remainder_start = suffix_end
-        while remainder_start < len(value) and value[remainder_start].isspace():
-            remainder_start += 1
-        remainder_end = remainder_start
-        while remainder_end < len(value) and value[remainder_end] not in "&#":
-            remainder_end += 1
-        return (
-            value[start + 1 : end] + value[end + 1 : suffix_end],
-            True,
-            value[remainder_start:remainder_end].strip(),
-        )
-    end = start
-    while end < len(value) and value[end] not in "&#":
-        end += 1
-    raw = value[start:end].strip()
-    parts = raw.split(maxsplit=1)
-    return (parts[0], False, parts[1] if len(parts) > 1 else "") if parts else ("", False, "")
-
-
-def _secret_tail(value: str, start: int, *, backticked: bool = False) -> str:
-    end = value.find("`", start) if backticked else -1
-    return value[start : end if end >= 0 else len(value)].strip()
-
-
-def _is_redacted_secret_tail(value: str) -> bool:
-    if _is_redacted_secret(value):
-        return True
-    first, _, remainder = value.partition(" ")
-    if first.strip("\"'`().,;:!?") not in _REDACTED_SECRET_VALUES:
-        return False
-    if _SAFE_REDACTED_SECRET_CONTEXT_RE.fullmatch(remainder) is None:
-        return False
-    return _CREDENTIAL_TOKEN_RE.search(remainder) is None
-
-
-def _is_safe_secret_topic_tail(value: str) -> bool:
-    first, _, remainder = value.partition(" ")
-    topic = first.strip("\"'`()[]{}<>,.;:!?").casefold()
-    if topic not in _SAFE_SECRET_TOPIC_WORDS:
-        return False
-    if not remainder:
-        return True
-    relation = re.match(r"(?i)^(?P<word>are|at|by|for|in|is|through|via|was|were|with)\b\s*(?P<tail>.*)", remainder)
-    if relation is None:
-        return False
-    if relation.group("word").casefold() not in {"are", "is", "was", "were"}:
-        return _is_safe_secret_context_tail(relation.group("tail"))
-    state = relation.group("tail").split(maxsplit=1)[0].strip("\"'`()[]{}<>,.;:!?").casefold()
-    return state in _SAFE_SECRET_STATE_WORDS
-
-
-def _is_safe_secret_state_tail(value: str) -> bool:
-    first, _, remainder = value.partition(" ")
-    state = first.strip("\"'`()[]{}<>,.;:!?").casefold()
-    if state not in _SAFE_SECRET_STATE_WORDS:
-        return False
-    if not remainder:
-        return True
-    relation = re.match(r"(?i)^(?P<word>at|by|for|in|through|via|with)\b\s*(?P<tail>.*)", remainder)
-    if relation is None:
-        return False
-    if state not in {"configured", "provided", "supplied"}:
-        return True
-    return _is_safe_secret_context_tail(relation.group("tail"))
-
-
-def _is_safe_secret_copula_tail(value: str) -> bool:
-    match = re.match(r"(?i)^(?:is|was|are|were)\s+(?P<tail>.+)$", value)
-    return match is not None and (
-        _is_redacted_secret_tail(match.group("tail")) or _is_safe_secret_state_tail(match.group("tail"))
-    )
-
-
-def _looks_like_secret_tail_value(value: str) -> bool:
-    token = value.strip("\"'`()[]{}<>,.;:!?")
-    if not token or token in _REDACTED_SECRET_VALUES:
-        return False
-    folded = token.casefold()
-    if folded in _SAFE_TECHNICAL_TOPIC_TOKENS or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None:
-        return False
-    if _CREDENTIAL_TOKEN_RE.search(token) is not None:
-        return True
-    if any(character.isalpha() for character in token) and any(character.isdigit() for character in token):
-        return True
-    if any(character in "-_/+=" for character in token):
-        return True
-    return len(token) >= 16 or sum(character.isupper() for character in token) > 1
-
-
-def _is_safe_secret_context_tail(value: str) -> bool:
-    tokens = tuple(word.strip("\"'`()[]{}<>,.;:!?") for word in value.split())
-    if any(_looks_like_secret_tail_value(token) for token in tokens):
-        return False
-    if tokens and tokens[0].casefold() in _SAFE_SECRET_CONTEXT_DETERMINERS:
-        tokens = tokens[1:]
-    if not tokens:
-        return False
-
-    def is_context_token(token: str) -> bool:
-        return (
-            token.casefold() in _SAFE_SECRET_CONTEXT_HEADS
-            or token.casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
-            or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None
-        )
-
-    index = 0
-    if tokens[0].casefold() == "stored":
-        if len(tokens) < 2 or tokens[1].casefold() not in {"credential", "credentials"}:
-            return False
-        index = 2
-    elif is_context_token(tokens[0]):
-        index = 1
-    else:
-        return False
-
-    while index < len(tokens):
-        if tokens[index].casefold() not in _SAFE_SECRET_CONTEXT_RELATIONS:
-            return False
-        index += 1
-        if index < len(tokens) and tokens[index].casefold() in _SAFE_SECRET_CONTEXT_DETERMINERS:
-            index += 1
-        if index >= len(tokens) or not is_context_token(tokens[index]):
-            return False
-        index += 1
-    return True
-
-
-def _is_safe_secret_topic_prefix(value: str) -> bool:
-    first, _, remainder = value.partition(" ")
-    candidate = value.rstrip(".,;:!?")
-    if _is_safe_secret_parameter_tail(remainder):
-        return True
-    if _is_safe_secret_constraint_tail(candidate):
-        return True
-    if re.fullmatch(
-        r"(?i)(?:[a-z][a-z0-9_-]*\s+)+(?:is|are|was|were)\s+documented(?:\s+upstream)?",
-        candidate,
-    ) is not None:
-        return True
-    match = re.fullmatch(
-        r"(?i)(?:[a-z][a-z0-9_-]*\s+)+uses\s+(?P<algorithm>\S+)",
-        candidate,
-    )
-    return match is not None and (
-        match.group("algorithm").casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
-        or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(match.group("algorithm")) is not None
-    )
-
-
-def _is_safe_secret_parameter_tail(value: str) -> bool:
-    match = re.fullmatch(
-        r"(?i)(?P<predicate>accepts|allows|expects|supports|takes)\s+(?P<tail>.+)",
-        value.rstrip(".,;:!?"),
-    )
-    if match is None:
-        return False
-    tokens = tuple(word.strip("\"'`()[]{}<>,.;:!?") for word in match.group("tail").split())
-    if (
-        not tokens
-        or _SAFE_TECHNICAL_VALUE_NOUN_RE.fullmatch(tokens[-1]) is None
-        or any(token.casefold() in _UNSAFE_TECHNICAL_DESCRIPTOR_WORDS for token in tokens[:-1])
-        or any(_looks_like_secret_tail_value(token) for token in tokens)
-    ):
-        return False
-    return all(re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", token) is not None for token in tokens)
-
-
-def _is_safe_secret_constraint_tail(value: str) -> bool:
-    match = re.fullmatch(
-        r"(?i)(?P<subject>(?:[a-z][a-z0-9_-]*\s+)+)"
-        r"(?:must|should)\s+(?:be\s+(?:at\s+(?:least|most)|exactly)|contain\s+at\s+(?:least|most))\s+"
-        r"(?P<number>[0-9]+(?:\.[0-9]+)?)(?:\s+(?P<unit>[a-z][a-z0-9_-]*))?",
-        value.rstrip(".,;:!?"),
-    )
-    if match is None:
-        return False
-    tokens = tuple(match.group("subject").split())
-    unit = match.group("unit")
-    return (
-        not any(token.casefold() in _UNSAFE_TECHNICAL_DESCRIPTOR_WORDS for token in tokens)
-        and not any(_looks_like_secret_tail_value(token) for token in tokens)
-        and (unit is None or unit.casefold() not in _UNSAFE_TECHNICAL_DESCRIPTOR_WORDS)
-    )
-
-
-def _has_unsafe_post_assignment_tail(value: str, *, start: int) -> bool:
-    tail = value[start:]
-    separators = tuple(index for marker in "&#" if (index := tail.find(marker)) >= 0)
-    if not separators:
-        return False
-    remainder = tail[min(separators) + 1 :]
-    for segment in re.split(r"[&#]", remainder):
-        candidate = segment.strip()
-        if not candidate:
-            continue
-        key, separator, retained = candidate.partition("=")
-        if separator:
-            compact_key = key.strip().casefold().replace("_", "").replace("-", "")
-            if compact_key in {"alt", "alternate", "backup", "fallback", "secondary"}:
-                return True
-            if _is_secret_assignment_key(key.strip()) or _looks_like_secret_tail_value(retained):
-                return True
-        elif _looks_like_secret_tail_value(candidate):
-            return True
-    return False
-
-
-def _is_redacted_secret(value: str) -> bool:
-    candidate = value.strip()
-    for redaction in _REDACTED_SECRET_VALUES:
-        if candidate == redaction:
-            return True
-        if not candidate.startswith(redaction):
-            continue
-        suffix = candidate[len(redaction) :]
-        punctuation_length = 0
-        while punctuation_length < len(suffix) and suffix[punctuation_length] in _REDACTION_TRAILING_PUNCTUATION:
-            punctuation_length += 1
-        if not punctuation_length:
-            continue
-        if punctuation_length == len(suffix):
-            return True
-        if not suffix[punctuation_length].isspace():
-            continue
-        return False
-    return False
-
-
-def _validate_retained_secrets(value: str, *, label: str) -> None:
-    for match in _SECRET_ASSIGNMENT_HEAD_RE.finditer(value):
-        key = match.group("key")
-        if not _is_secret_assignment_key(key):
-            continue
-        retained, quoted, remainder = _assignment_value(value, match.end())
-        if not quoted and remainder:
-            retained = f"{retained} {remainder}".strip()
-        if key.casefold().replace("_", "").replace("-", "").replace(".", "") == "authorization":
-            parts = retained.split()
-            if parts and parts[0].casefold() in ("bearer", "basic"):
-                if quoted:
-                    retained = " ".join((*parts[1:], remainder)).strip()
-                else:
-                    retained = " ".join(parts[1:]) if len(parts) > 1 else ""
-            elif parts:
-                retained = " ".join((retained, remainder)).strip() if quoted else retained
-        elif quoted and remainder:
-            retained = f"{retained} {remainder}".strip()
-        if retained:
-            if not _is_redacted_secret_tail(retained):
-                raise ValueError(f"{label} must not retain secret values")
-            if _has_unsafe_post_assignment_tail(value, start=match.end()):
-                raise ValueError(f"{label} must not retain secret values")
-
-    for pattern in (_SECRET_OPTION_HEAD_RE, _SECRET_QUOTED_OPTION_HEAD_RE, _SECRET_BRACKETED_OPTION_HEAD_RE):
-        for match in pattern.finditer(value):
-            key = match.group("key")
-            if not _is_secret_assignment_key(key):
-                continue
-            if key.casefold().startswith(("no-", "disable-")):
-                continue
-            retained = _secret_tail(
-                value,
-                match.end(),
-                backticked=bool(match.groupdict().get("tick")),
-            )
-            if not retained or _is_redacted_secret_tail(retained):
-                continue
-            if _is_safe_secret_topic_tail(retained):
-                continue
-            raise ValueError(f"{label} must not retain secret values")
-
-    for match in _SECRET_ACTION_HEAD_RE.finditer(value):
-        retained = _secret_tail(value, match.end())
-        if not retained or _is_redacted_secret_tail(retained):
-            continue
-        if _is_safe_secret_topic_tail(retained):
-            continue
-        raise ValueError(f"{label} must not retain secret values")
-
-    for match in _SECRET_DIRECT_VALUE_HEAD_RE.finditer(value):
-        retained = _secret_tail(value, match.end())
-        if not retained or _is_redacted_secret_tail(retained):
-            continue
-        qualifier = match.group("qualifier")
-        if qualifier is not None and qualifier.strip().casefold() == "parameter" and _is_safe_secret_parameter_tail(retained):
-            continue
-        if (
-            _is_safe_secret_topic_tail(retained)
-            or _is_safe_secret_topic_prefix(retained)
-            or _is_safe_secret_state_tail(retained)
-            or _is_safe_secret_copula_tail(retained)
-        ):
-            continue
-        raise ValueError(f"{label} must not retain secret values")
-
-    for pattern in (_SECRET_LINK_HEAD_RE, _SECRET_STATE_VALUE_HEAD_RE):
-        for match in pattern.finditer(value):
-            retained = _secret_tail(value, match.end())
-            if not retained or _is_redacted_secret_tail(retained):
-                continue
-            if pattern is _SECRET_LINK_HEAD_RE and _is_safe_secret_state_tail(retained):
-                continue
-            raise ValueError(f"{label} must not retain secret values")
-
-    for match in _AUTHORIZATION_SCHEME_RE.finditer(value):
-        retained = _secret_tail(value, match.end())
-        if not _is_redacted_secret(retained):
-            raise ValueError(f"{label} must not retain secret values")
-
-
-def _validate_retained_text(value: str, *, label: str) -> str:
+def _validate_retained_value(value: str, *, label: str) -> str:
     if value != value.strip():
         raise ValueError(f"{label} must not have outer whitespace")
-    _validate_printable_unicode(value, label=label)
-    _validate_retained_secrets(value, label=label)
-    if _SCHEME_URL_USERINFO_RE.search(value) is not None or _NETWORK_PATH_USERINFO_RE.search(value) is not None:
-        raise ValueError(f"{label} must not retain URL userinfo credentials")
-    for pattern in _CAPTURE_HOST_PATH_RES:
-        for match in pattern.finditer(value):
-            captured_path = match.group(0).replace("\\", "/").rstrip(_REDACTION_TRAILING_PUNCTUATION)
-            if not captured_path.endswith("/<USER>"):
-                raise ValueError(f"{label} must not retain capture host paths")
-    return value
-
-
-def _normalized_document_version(value: str) -> str:
-    return value[1:] if value[:1].casefold() == "v" else value
-
-
-def _tool_adjacent_document_versions(value: str, *, tool_id: str) -> tuple[str, ...]:
-    pattern = re.compile(
-        rf"(?i)(?<![0-9A-Za-z]){re.escape(tool_id)}"
-        rf"(?:[._\s-]+(?:docs?|manual|reference|release|version))*[._\s-]*v?"
-        rf"(?P<version>{_DOCUMENT_VERSION_BODY})(?![0-9A-Za-z])"
-    )
-    return tuple(match.group("version") for match in pattern.finditer(value))
-
-
-def _tool_path_document_versions(value: str, *, tool_id: str) -> tuple[str, ...]:
-    pattern = re.compile(
-        rf"(?i)^{re.escape(tool_id)}(?:[._-]+{_DOCUMENT_PATH_CONTEXT_BODY})?[._-]*v?"
-        rf"(?P<version>{_DOCUMENT_VERSION_BODY})$"
-    )
-    return tuple(match.group("version") for match in pattern.finditer(value))
-
-
-def _is_tool_path_context_segment(value: str, *, tool_id: str) -> bool:
-    return (
-        re.fullmatch(
-            rf"(?i){re.escape(tool_id)}[._-]+{_DOCUMENT_PATH_CONTEXT_BODY}",
-            value,
-        )
-        is not None
-    )
-
-
-def _has_tool_path_prefix(value: str, *, tool_id: str) -> bool:
-    return re.match(rf"(?i)^{re.escape(tool_id)}(?=$|[._-]|v?[0-9])", value) is not None
-
-
-def _locator_version_has_tool_context(value: str, *, start: int, tool_id: str) -> bool:
-    prefix = value[:start].rstrip().rstrip("._-:/")
-    if not prefix:
-        return True
-    match = re.search(r"([A-Za-z][0-9A-Za-z_.-]*)$", prefix)
-    if match is None:
-        return True
-    return match.group(1).casefold() == tool_id.casefold()
-
-
-def _validate_official_documentation_binding(
-    *,
-    tool_id: str,
-    tool_version: str,
-    url: str,
-    version_locator: str,
-) -> None:
-    path_segments = tuple(segment for segment in urlsplit(url).path.split("/") if segment)
-    path_candidates: list[str] = []
-    for segment in path_segments:
-        lowered = segment.casefold()
-        stem = lowered.rsplit(".", 1)[0]
-        if lowered in _MOVING_DOCUMENT_SEGMENTS or stem in _MOVING_DOCUMENT_SEGMENTS:
-            raise ValueError("official documentation URL must not use moving revision segments")
-        candidate = segment
-        for extension in _DOCUMENT_FILE_EXTENSIONS:
-            if lowered.endswith(extension):
-                candidate = segment[: -len(extension)]
-                break
-        path_candidates.append(candidate)
-
-    path_bound = False
-    tool_context = False
-    for candidate in path_candidates:
-        adjacent_versions = _tool_path_document_versions(candidate, tool_id=tool_id)
-        for normalized in adjacent_versions:
-            if normalized != tool_version:
-                raise ValueError("official documentation URL must bind the exact tool version")
-            path_bound = True
-        if adjacent_versions:
-            tool_context = False
-            continue
-        if candidate.casefold() == tool_id.casefold() or _is_tool_path_context_segment(
-            candidate,
-            tool_id=tool_id,
-        ):
-            tool_context = True
-            continue
-        if _has_tool_path_prefix(candidate, tool_id=tool_id):
-            raise ValueError("official documentation URL must bind the exact tool version")
-        if not tool_context:
-            continue
-        if _DOCUMENT_PRODUCT_BOUNDARY_RE.fullmatch(candidate) is not None:
-            tool_context = False
-            continue
-        context_versions = tuple(_DOCUMENT_VERSION_SCAN_RE.finditer(candidate))
-        if context_versions:
-            for match in context_versions:
-                normalized = _normalized_document_version(match.group(0))
-                if normalized != tool_version:
-                    raise ValueError("official documentation URL must bind the exact tool version")
-                path_bound = True
-            tool_context = False
-            continue
-
-    if _MOVING_DOCUMENT_TOKEN_RE.search(version_locator) is not None:
-        raise ValueError("official documentation version locator must not use moving revisions")
-    locator_bound = False
-    for normalized in _tool_adjacent_document_versions(version_locator, tool_id=tool_id):
-        if normalized != tool_version:
-            raise ValueError("official documentation version locator must bind the exact tool version")
-        locator_bound = True
-    for match in _DOCUMENT_VERSION_SCAN_RE.finditer(version_locator):
-        normalized = _normalized_document_version(match.group(0))
-        has_tool_context = _locator_version_has_tool_context(
-            version_locator,
-            start=match.start(),
-            tool_id=tool_id,
-        )
-        if normalized == tool_version and has_tool_context:
-            locator_bound = True
-        elif (
-            normalized != tool_version
-            and has_tool_context
-            and _IGNORED_DOCUMENT_VERSION_CONTEXT_RE.search(version_locator[: match.start()]) is None
-        ):
-            raise ValueError("official documentation version locator must bind the exact tool version")
-    if not locator_bound and not path_bound:
-        raise ValueError("official documentation must bind the exact tool version")
+    return _validate_printable_unicode(value, label=label)
 
 
 def _validate_repository_path(value: str) -> str:
@@ -761,33 +92,100 @@ def _validate_repository_path(value: str) -> str:
     return value
 
 
+def _validate_catalog_authoring_path(value: str) -> str:
+    value = _validate_repository_path(value)
+    segments = value.split("/")
+    if not value.startswith(_CATALOG_AUTHORING_PREFIX):
+        raise ValueError("catalog provenance path must be under the checked-in catalog directory")
+    if "generated" in segments or "compiled" in segments:
+        raise ValueError("catalog provenance path must not point to generated content")
+    if not value.endswith(_CATALOG_AUTHORING_SUFFIX):
+        raise ValueError("catalog provenance path must name an authoring JSON blob")
+    return value
+
+
 def _decode_json_pointer(value: str) -> tuple[str, ...]:
     return tuple(segment.replace("~1", "/").replace("~0", "~") for segment in value[1:].split("/"))
 
 
 def _validate_json_pointer(value: str) -> str:
-    _validate_printable_unicode(value, label="contract pointer")
+    _validate_printable_unicode(value, label="JSON pointer")
     if not value.startswith("/"):
-        raise ValueError("contract pointer must start with /")
+        raise ValueError("JSON pointer must start with /")
     segments = value[1:].split("/")
     if len(segments) > _MAX_POINTER_DEPTH:
-        raise ValueError(f"contract pointer may have at most {_MAX_POINTER_DEPTH} segments")
+        raise ValueError(f"JSON pointer may have at most {_MAX_POINTER_DEPTH} segments")
     for segment in segments:
         if not segment or segment != segment.strip():
-            raise ValueError("contract pointer segments must be nonempty and canonical")
+            raise ValueError("JSON pointer segments must be nonempty and canonical")
         index = 0
         while index < len(segment):
-            character = segment[index]
-            if character == "~":
+            if segment[index] == "~":
                 if index + 1 >= len(segment) or segment[index + 1] not in "01":
-                    raise ValueError("contract pointer must use only canonical ~0 and ~1 escapes")
+                    raise ValueError("JSON pointer must use only canonical ~0 and ~1 escapes")
                 index += 2
                 continue
             index += 1
-        decoded = segment.replace("~1", "/").replace("~0", "~")
-        if decoded in (".", ".."):
-            raise ValueError("contract pointer must not contain traversal segments")
+        if segment.replace("~1", "/").replace("~0", "~") in (".", ".."):
+            raise ValueError("JSON pointer must not contain traversal segments")
     return value
+
+
+def _validate_symbol(value: str) -> str:
+    if _SYMBOL_LOCATOR_RE.fullmatch(value) is None:
+        raise ValueError("symbol must be an exact canonical identity")
+    return value
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    parsed: dict[str, object] = {}
+    for key, value in pairs:
+        if key in parsed:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        parsed[key] = value
+    return parsed
+
+
+def _reject_nonfinite_json_constant(value: str) -> object:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def _parse_finite_json_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"JSON number exceeds the finite float range: {value}")
+    return parsed
+
+
+def _load_strict_json(content: bytes, *, label: str) -> object:
+    try:
+        return json.loads(
+            content.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_nonfinite_json_constant,
+            parse_float=_parse_finite_json_float,
+        )
+    except (UnicodeDecodeError, ValueError) as error:
+        raise ValueError(f"{label} must be strict JSON with unique keys and UTF-8 encoding") from error
+
+
+def _resolve_json_pointer(document: object, pointer: str, *, label: str) -> object:
+    selected = document
+    for segment in _decode_json_pointer(pointer):
+        if isinstance(selected, dict):
+            if segment not in selected:
+                raise ValueError(f"{label} pointer is absent from content")
+            selected = selected[segment]
+        elif isinstance(selected, list):
+            if re.fullmatch(r"[0-9]+", segment) is None or (segment != "0" and segment.startswith("0")):
+                raise ValueError(f"{label} pointer has a noncanonical array index")
+            index = int(segment)
+            if index >= len(selected):
+                raise ValueError(f"{label} pointer is absent from content")
+            selected = selected[index]
+        else:
+            raise ValueError(f"{label} pointer does not resolve to a value")
+    return selected
 
 
 def _validate_unique_ordered(values: tuple[str, ...], *, label: str) -> None:
@@ -795,6 +193,215 @@ def _validate_unique_ordered(values: tuple[str, ...], *, label: str) -> None:
         raise ValueError(f"{label} must be unique")
     if values != tuple(sorted(values)):
         raise ValueError(f"{label} must use canonical order")
+
+
+def _url_path_ends_with(url: str, *segments: str) -> bool:
+    path_segments = tuple(urlsplit(url).path.removeprefix("/").split("/"))
+    return len(path_segments) >= len(segments) and path_segments[-len(segments) :] == segments
+
+
+class RetainedTextOrigin(StrEnum):
+    """Origins authorized to retain prose in catalog evidence."""
+
+    CATALOG_AUTHOR = "catalog_author"
+
+
+class RetainedTextProvenance(_StrictFrozenModel):
+    """Immutable identity of prose selected from a checked-in catalog blob.
+
+    The Task 9 catalog loader is the trust boundary that verifies the path,
+    content digest, pointer, and selected value. Runtime capture code has no
+    retained-text origin and must use digest-only models below.
+    """
+
+    origin: RetainedTextOrigin
+    catalog_path: RepositoryPath
+    catalog_content_sha256: Sha256Digest
+    field_pointer: JsonPointer
+
+    @field_validator("catalog_path")
+    @classmethod
+    def _validate_catalog_path(cls, value: str) -> str:
+        return _validate_catalog_authoring_path(value)
+
+    @field_validator("field_pointer")
+    @classmethod
+    def _validate_field_pointer(cls, value: str) -> str:
+        return _validate_json_pointer(value)
+
+
+class RetainedText(_StrictFrozenModel):
+    value: RetainedTextValue
+    provenance: RetainedTextProvenance
+
+    @field_validator("value")
+    @classmethod
+    def _validate_value(cls, value: str) -> str:
+        return _validate_retained_value(value, label="retained author text")
+
+
+def verify_retained_text_selection(
+    retained: RetainedText,
+    *,
+    catalog_path: str,
+    catalog_content: bytes,
+    expected_field_pointer: str,
+) -> RetainedText:
+    """Verify loader-injected provenance against compiler-owned source data.
+
+    Task 9 must reopen the declared path, resolve the pointer itself, and pass
+    those results here. Values supplied by an arbitrary node factory are not a
+    substitute for that compiler-owned operation.
+    """
+
+    validated = RetainedText.model_validate(retained)
+    canonical_path = _validate_catalog_authoring_path(catalog_path)
+    if type(catalog_content) is not bytes:
+        raise TypeError("catalog content must be exact bytes reopened by the compiler")
+    content_digest = "sha256:" + hashlib.sha256(catalog_content).hexdigest()
+    declared = validated.provenance
+    declared_pointer = _validate_json_pointer(declared.field_pointer)
+    if declared_pointer != _validate_json_pointer(expected_field_pointer):
+        raise ValueError("retained text provenance does not match the compiler-selected field pointer")
+
+    document = _load_strict_json(catalog_content, label="catalog content")
+    selected = _resolve_json_pointer(document, declared_pointer, label="retained text provenance")
+
+    if (
+        declared.catalog_path != canonical_path
+        or declared.catalog_content_sha256 != content_digest
+        or type(selected) is not str
+        or validated.value != selected
+    ):
+        raise ValueError("retained text provenance does not match the compiler-selected catalog value")
+    return validated
+
+
+class ContentLocatorKind(StrEnum):
+    BYTE_RANGE = "byte_range"
+    JSON_POINTER = "json_pointer"
+    SYMBOL = "symbol"
+
+
+class SourceContentFormat(StrEnum):
+    TEXT = "text"
+    JSON = "json"
+    SOURCE_CODE = "source_code"
+
+
+class ByteRangeLocator(_StrictFrozenModel):
+    kind: Literal[ContentLocatorKind.BYTE_RANGE]
+    start_byte: Annotated[int, Field(ge=0, le=_MAX_BYTE_OFFSET)]
+    end_byte_exclusive: Annotated[int, Field(ge=1, le=_MAX_BYTE_OFFSET)]
+
+    @model_validator(mode="after")
+    def _validate_range(self) -> Self:
+        if self.end_byte_exclusive <= self.start_byte:
+            raise ValueError("byte range end must be greater than its start")
+        if self.end_byte_exclusive - self.start_byte > _MAX_LOCATOR_SPAN:
+            raise ValueError(f"byte range may select at most {_MAX_LOCATOR_SPAN} bytes")
+        return self
+
+
+class JsonPointerLocator(_StrictFrozenModel):
+    kind: Literal[ContentLocatorKind.JSON_POINTER]
+    pointer: JsonPointer
+
+    @field_validator("pointer")
+    @classmethod
+    def _validate_pointer(cls, value: str) -> str:
+        return _validate_json_pointer(value)
+
+
+class SymbolLocator(_StrictFrozenModel):
+    kind: Literal[ContentLocatorKind.SYMBOL]
+    symbol: SymbolIdentity
+
+    @field_validator("symbol")
+    @classmethod
+    def _validate_symbol_identity(cls, value: str) -> str:
+        return _validate_symbol(value)
+
+
+ContentLocator: TypeAlias = Annotated[
+    ByteRangeLocator | JsonPointerLocator | SymbolLocator,
+    Field(discriminator="kind"),
+]
+
+DocumentationProofLocator: TypeAlias = Annotated[
+    ByteRangeLocator | JsonPointerLocator,
+    Field(discriminator="kind"),
+]
+
+
+class DocumentationProofKind(StrEnum):
+    DECLARED_METADATA = "declared_metadata"
+    SCHEMA_FIELD = "schema_field"
+    RELEASE_MANIFEST = "release_manifest"
+
+
+class DocumentationVersionProof(_StrictFrozenModel):
+    proof_kind: DocumentationProofKind
+    tool_id: ArtifactId
+    tool_version: ExactVersion
+    source_url: CanonicalUrl
+    source_content_sha256: Sha256Digest
+    locator: DocumentationProofLocator
+    proof_content_sha256: Sha256Digest
+
+    @field_validator("tool_id")
+    @classmethod
+    def _validate_tool_id(cls, value: str) -> str:
+        return _validate_bounded_id(value, label="proof tool ID")
+
+    @field_validator("tool_version")
+    @classmethod
+    def _validate_tool_version(cls, value: str) -> str:
+        return _validate_exact_version(value)
+
+    @field_validator("source_url")
+    @classmethod
+    def _validate_source_url(cls, value: str) -> str:
+        return _validate_https_url(value, require_path=True)
+
+    def proof_digest(self) -> str:
+        return _canonical_digest(self)
+
+
+def verify_documentation_proof_content(
+    proof: DocumentationVersionProof,
+    *,
+    source_content: bytes,
+) -> DocumentationVersionProof:
+    """Recompute a documentation proof from compiler-owned captured bytes."""
+
+    validated = DocumentationVersionProof.model_validate(proof)
+    if type(source_content) is not bytes:
+        raise TypeError("documentation source content must be exact captured bytes")
+    source_digest = "sha256:" + hashlib.sha256(source_content).hexdigest()
+    if source_digest != validated.source_content_sha256:
+        raise ValueError("documentation proof source content digest does not match captured bytes")
+
+    locator = validated.locator
+    if isinstance(locator, ByteRangeLocator):
+        if locator.end_byte_exclusive > len(source_content):
+            raise ValueError("documentation proof locator exceeds captured source content")
+        selected_content = source_content[locator.start_byte : locator.end_byte_exclusive]
+    else:
+        document = _load_strict_json(source_content, label="documentation source content")
+        selected = _resolve_json_pointer(document, locator.pointer, label="documentation proof locator")
+        selected_content = json.dumps(
+            selected,
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+
+    selected_digest = "sha256:" + hashlib.sha256(selected_content).hexdigest()
+    if selected_digest != validated.proof_content_sha256:
+        raise ValueError("documentation proof content digest does not match selected source content")
+    return validated
 
 
 class SourceKind(StrEnum):
@@ -806,6 +413,15 @@ class SourceKind(StrEnum):
 
 
 _SOURCE_KIND_PRECEDENCE = {kind: index for index, kind in enumerate(SourceKind)}
+_DOCUMENTATION_PROOF_LOCATOR_FORMATS = {
+    ByteRangeLocator: frozenset(SourceContentFormat),
+    JsonPointerLocator: frozenset({SourceContentFormat.JSON}),
+}
+_CLAIM_LOCATOR_FORMATS = {
+    ByteRangeLocator: frozenset(SourceContentFormat),
+    JsonPointerLocator: frozenset({SourceContentFormat.JSON}),
+    SymbolLocator: frozenset({SourceContentFormat.SOURCE_CODE}),
+}
 
 
 class EvidenceSource(_StrictFrozenModel):
@@ -815,15 +431,16 @@ class EvidenceSource(_StrictFrozenModel):
     tool_version: ExactVersion
     retrieved_at: date
     content_sha256: Sha256Digest
-    title: Title
-    description: Description
-    url: Annotated[str, StringConstraints(min_length=1, max_length=2048)] | None = None
-    version_locator: VersionLocator | None = None
-    recipe_revision: RecipeRevision | None = None
+    content_format: SourceContentFormat
+    title: RetainedText
+    description: RetainedText
+    url: CanonicalUrl | None = None
+    documentation_proof: DocumentationVersionProof | None = None
+    recipe_revision: Annotated[str, StringConstraints(min_length=40, max_length=64)] | None = None
     recipe_path: RepositoryPath | None = None
     commit: Annotated[str, StringConstraints(min_length=40, max_length=64)] | None = None
     source_path: RepositoryPath | None = None
-    symbol_locator: SymbolLocator | None = None
+    symbol_locator: SymbolIdentity | None = None
     environment_digest: Sha256Digest | None = None
     executable_probe_id: ArtifactId | None = None
     argv: Annotated[tuple[HelpArgument, ...], Field(min_length=1, max_length=16)] | None = None
@@ -840,37 +457,26 @@ class EvidenceSource(_StrictFrozenModel):
     def _validate_tool_version(cls, value: str) -> str:
         return _validate_exact_version(value)
 
-    @field_validator("title", "description", "version_locator")
+    @field_validator("title", "description")
     @classmethod
-    def _validate_human_text(cls, value: str | None, info: object) -> str | None:
-        if value is None:
-            return None
-        label = getattr(info, "field_name", "text").replace("_", " ")
-        return _validate_retained_text(value, label=label)
+    def _validate_authored_text_bounds(cls, value: RetainedText, info: object) -> RetainedText:
+        field_name = getattr(info, "field_name", "description")
+        maximum = 256 if field_name == "title" else 2048
+        if len(value.value) > maximum:
+            raise ValueError(f"{field_name} must be at most {maximum} characters")
+        return value
 
     @field_validator("url")
     @classmethod
     def _validate_url(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        if _SCHEME_URL_USERINFO_RE.search(value) is not None:
-            raise ValueError("URL must not contain userinfo")
-        return _validate_https_url(value, require_path=True)
+        return None if value is None else _validate_https_url(value, require_path=True)
 
-    @field_validator("recipe_revision")
+    @field_validator("recipe_revision", "commit")
     @classmethod
-    def _validate_recipe_revision(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        if _GIT_COMMIT_RE.fullmatch(value) is None:
-            raise ValueError("recipe revision must be an exact lowercase 40- or 64-hex Git object ID")
-        return value
-
-    @field_validator("commit")
-    @classmethod
-    def _validate_commit(cls, value: str | None) -> str | None:
+    def _validate_git_object(cls, value: str | None, info: object) -> str | None:
         if value is not None and _GIT_COMMIT_RE.fullmatch(value) is None:
-            raise ValueError("commit must be an exact lowercase 40- or 64-hex Git object ID")
+            label = getattr(info, "field_name", "revision").replace("_", " ")
+            raise ValueError(f"{label} must be an exact lowercase 40- or 64-hex Git object ID")
         return value
 
     @field_validator("recipe_path", "source_path")
@@ -881,16 +487,12 @@ class EvidenceSource(_StrictFrozenModel):
     @field_validator("symbol_locator")
     @classmethod
     def _validate_symbol_locator(cls, value: str | None) -> str | None:
-        if value is not None and _SYMBOL_LOCATOR_RE.fullmatch(value) is None:
-            raise ValueError("symbol locator must be an exact canonical symbol identity")
-        return value
+        return None if value is None else _validate_symbol(value)
 
     @field_validator("executable_probe_id")
     @classmethod
     def _validate_probe_id(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        return _validate_bounded_id(value, label="executable probe ID")
+        return None if value is None else _validate_bounded_id(value, label="executable probe ID")
 
     @field_validator("argv")
     @classmethod
@@ -898,7 +500,7 @@ class EvidenceSource(_StrictFrozenModel):
         if value is None:
             return None
         for argument in value:
-            _validate_retained_text(argument, label="installed-help argv")
+            _validate_printable_unicode(argument, label="installed-help argument")
             if argument != argument.strip() or any(character.isspace() for character in argument):
                 raise ValueError("installed-help argv entries must be exact single arguments")
             if _SHELL_META_RE.search(argument) is not None:
@@ -926,13 +528,13 @@ class EvidenceSource(_StrictFrozenModel):
 
     @model_validator(mode="after")
     def _validate_kind_specific_capture(self) -> Self:
-        documentation_fields = ("url", "version_locator")
+        documentation_fields = ("url", "documentation_proof")
         package_fields = ("url", "recipe_revision", "recipe_path")
         upstream_fields = ("url", "commit", "source_path")
         installed_fields = ("environment_digest", "executable_probe_id", "argv", "output_sha256")
         all_specific_fields = {
             "url",
-            "version_locator",
+            "documentation_proof",
             "recipe_revision",
             "recipe_path",
             "commit",
@@ -965,24 +567,28 @@ class EvidenceSource(_StrictFrozenModel):
             raise ValueError(f"{self.kind.value} source has irrelevant fields: {', '.join(irrelevant)}")
 
         if self.kind in (SourceKind.OFFICIAL_MANUAL, SourceKind.OFFICIAL_API_SCHEMA):
-            assert self.url is not None and self.version_locator is not None
-            _validate_official_documentation_binding(
-                tool_id=self.tool_id,
-                tool_version=self.tool_version,
-                url=self.url,
-                version_locator=self.version_locator,
-            )
+            assert self.url is not None and self.documentation_proof is not None
+            proof = self.documentation_proof
+            if self.content_format not in _DOCUMENTATION_PROOF_LOCATOR_FORMATS[type(proof.locator)]:
+                raise ValueError("documentation proof locator is not supported for the source content format")
+            if (
+                proof.tool_id != self.tool_id
+                or proof.tool_version != self.tool_version
+                or proof.source_url != self.url
+                or proof.source_content_sha256 != self.content_sha256
+            ):
+                raise ValueError("documentation proof must match the enclosing source exactly")
         elif self.kind is SourceKind.UPSTREAM_SOURCE:
             assert self.url is not None and self.commit is not None and self.source_path is not None
-            pinned_suffix = f"/{self.commit}/{self.source_path}"
-            if not urlsplit(self.url).path.endswith(pinned_suffix):
+            if self.symbol_locator is not None and self.content_format is not SourceContentFormat.SOURCE_CODE:
+                raise ValueError("upstream symbol locator requires source-code content")
+            if not _url_path_ends_with(self.url, self.commit, *self.source_path.split("/")):
                 raise ValueError("upstream URL must bind the exact commit and source path")
         elif self.kind is SourceKind.PACKAGE_RECIPE:
             assert self.url is not None and self.recipe_revision is not None and self.recipe_path is not None
-            pinned_suffix = f"/{self.recipe_revision}/{self.recipe_path}"
-            if not urlsplit(self.url).path.endswith(pinned_suffix):
+            if not _url_path_ends_with(self.url, self.recipe_revision, *self.recipe_path.split("/")):
                 raise ValueError("package recipe URL must bind its exact revision and recipe path")
-        elif self.kind is SourceKind.INSTALLED_HELP and self.output_sha256 != self.content_sha256:
+        elif self.output_sha256 != self.content_sha256:
             raise ValueError("installed-help output digest must equal the captured content digest")
         return self
 
@@ -992,8 +598,8 @@ def _source_provenance(captured: EvidenceSource) -> tuple[object, ...]:
         captured.tool_id,
         captured.kind,
         captured.tool_version,
+        captured.content_format,
         captured.url,
-        captured.version_locator,
         captured.recipe_revision,
         captured.recipe_path,
         captured.commit,
@@ -1005,12 +611,21 @@ def _source_provenance(captured: EvidenceSource) -> tuple[object, ...]:
     )
 
 
+def _documentation_proof_provenance(proof: DocumentationVersionProof) -> tuple[object, ...]:
+    return (
+        proof.source_url,
+        proof.source_content_sha256,
+        proof.proof_kind,
+        proof.locator,
+    )
+
+
 class EvidenceClaim(_StrictFrozenModel):
     claim_id: ArtifactId
     contract_pointer: JsonPointer
     source_id: ArtifactId
-    locator: ClaimLocator
-    statement: ClaimStatement
+    locator: ContentLocator
+    statement: RetainedText
     source_content_sha256: Sha256Digest
     excerpt_sha256: Sha256Digest
     contract_value_sha256: Sha256Digest
@@ -1026,16 +641,177 @@ class EvidenceClaim(_StrictFrozenModel):
     def _validate_contract_pointer(cls, value: str) -> str:
         return _validate_json_pointer(value)
 
-    @field_validator("locator", "statement")
-    @classmethod
-    def _validate_claim_text(cls, value: str, info: object) -> str:
-        label = getattr(info, "field_name", "claim text").replace("_", " ")
-        return _validate_retained_text(value, label=label)
+
+def verify_evidence_claim_content(
+    claim: EvidenceClaim,
+    *,
+    source_content: bytes,
+    symbol_selector: Callable[[bytes, str], bytes] | None = None,
+) -> EvidenceClaim:
+    """Recompute a claim excerpt from compiler-owned captured bytes.
+
+    Byte ranges and JSON pointers are resolved here. Symbol claims require a
+    trusted language-aware selector, which is invoked with the exact captured
+    bytes and canonical symbol identity.
+    """
+
+    validated = EvidenceClaim.model_validate(claim)
+    if type(source_content) is not bytes:
+        raise TypeError("claim source content must be exact captured bytes")
+    source_digest = "sha256:" + hashlib.sha256(source_content).hexdigest()
+    if source_digest != validated.source_content_sha256:
+        raise ValueError("claim source content digest does not match captured bytes")
+
+    locator = validated.locator
+    if isinstance(locator, ByteRangeLocator):
+        if locator.end_byte_exclusive > len(source_content):
+            raise ValueError("claim locator exceeds captured source content")
+        selected_content = source_content[locator.start_byte : locator.end_byte_exclusive]
+    elif isinstance(locator, JsonPointerLocator):
+        document = _load_strict_json(source_content, label="claim source content")
+        selected = _resolve_json_pointer(document, locator.pointer, label="claim locator")
+        selected_content = json.dumps(
+            selected,
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+    else:
+        if symbol_selector is None:
+            raise ValueError("symbol claim requires a trusted language-aware symbol selector")
+        selected_content = symbol_selector(source_content, locator.symbol)
+        if type(selected_content) is not bytes:
+            raise TypeError("trusted symbol selector must return exact bytes")
+
+    selected_digest = "sha256:" + hashlib.sha256(selected_content).hexdigest()
+    if selected_digest != validated.excerpt_sha256:
+        raise ValueError("claim excerpt digest does not match selected source content")
+    return validated
+
+
+class VerificationKind(StrEnum):
+    INVENTORY = "inventory"
+    EVIDENCE_COVERAGE = "evidence_coverage"
+    CONTRACT_COMPILE = "contract_compile"
+    COMMAND_FIXTURE = "command_fixture"
+    ENVIRONMENT_PROBE = "environment_probe"
+    TOOL_SMOKE = "tool_smoke"
+    CLOUD_RUN = "cloud_run"
+    WORKFLOW_RUN = "workflow_run"
+
+
+class VerificationOutcome(StrEnum):
+    PASSED = "passed"
+    FAILED = "failed"
+
+
+class FailureCode(StrEnum):
+    INVENTORY_MISSING = "inventory_missing"
+    EVIDENCE_MISSING = "evidence_missing"
+    EVIDENCE_CONFLICT = "evidence_conflict"
+    CONTRACT_INVALID = "contract_invalid"
+    COMMAND_FIXTURE_FAILED = "command_fixture_failed"
+    ENVIRONMENT_RESOLUTION_FAILED = "environment_resolution_failed"
+    TOOL_SMOKE_FAILED = "tool_smoke_failed"
+    CLOUD_RUN_FAILED = "cloud_run_failed"
+    WORKFLOW_RUN_FAILED = "workflow_run_failed"
+
+
+_VERIFICATION_FAILURE_CODES = {
+    VerificationKind.INVENTORY: frozenset({FailureCode.INVENTORY_MISSING}),
+    VerificationKind.EVIDENCE_COVERAGE: frozenset({FailureCode.EVIDENCE_MISSING, FailureCode.EVIDENCE_CONFLICT}),
+    VerificationKind.CONTRACT_COMPILE: frozenset({FailureCode.CONTRACT_INVALID}),
+    VerificationKind.COMMAND_FIXTURE: frozenset({FailureCode.COMMAND_FIXTURE_FAILED}),
+    VerificationKind.ENVIRONMENT_PROBE: frozenset({FailureCode.ENVIRONMENT_RESOLUTION_FAILED}),
+    VerificationKind.TOOL_SMOKE: frozenset({FailureCode.TOOL_SMOKE_FAILED}),
+    VerificationKind.CLOUD_RUN: frozenset({FailureCode.CLOUD_RUN_FAILED}),
+    VerificationKind.WORKFLOW_RUN: frozenset({FailureCode.WORKFLOW_RUN_FAILED}),
+}
+
+_VERIFICATION_UI_LABELS = {
+    VerificationKind.INVENTORY: "Inventory verification",
+    VerificationKind.EVIDENCE_COVERAGE: "Evidence verification",
+    VerificationKind.CONTRACT_COMPILE: "Contract verification",
+    VerificationKind.COMMAND_FIXTURE: "Command verification",
+    VerificationKind.ENVIRONMENT_PROBE: "Environment verification",
+    VerificationKind.TOOL_SMOKE: "Tool smoke verification",
+    VerificationKind.CLOUD_RUN: "Cloud verification",
+    VerificationKind.WORKFLOW_RUN: "Workflow verification",
+}
+
+_VERIFICATION_REQUIRED_CONTEXT = {
+    VerificationKind.INVENTORY: frozenset({"catalog_sha256"}),
+    VerificationKind.EVIDENCE_COVERAGE: frozenset({"catalog_sha256"}),
+    VerificationKind.CONTRACT_COMPILE: frozenset({"catalog_sha256"}),
+    VerificationKind.COMMAND_FIXTURE: frozenset(
+        {"fixture_id", "fixture_sha256", "environment_sha256", "catalog_sha256"}
+    ),
+    VerificationKind.ENVIRONMENT_PROBE: frozenset({"environment_sha256", "catalog_sha256", "platform_sha256"}),
+    VerificationKind.TOOL_SMOKE: frozenset(
+        {"fixture_id", "fixture_sha256", "environment_sha256", "catalog_sha256", "platform_sha256"}
+    ),
+    VerificationKind.CLOUD_RUN: frozenset(
+        {
+            "fixture_id",
+            "fixture_sha256",
+            "environment_sha256",
+            "catalog_sha256",
+            "platform_sha256",
+            "release_sha256",
+        }
+    ),
+    VerificationKind.WORKFLOW_RUN: frozenset(
+        {
+            "fixture_id",
+            "fixture_sha256",
+            "environment_sha256",
+            "catalog_sha256",
+            "platform_sha256",
+            "release_sha256",
+        }
+    ),
+}
+
+_VERIFICATION_ALLOWED_CONTEXT = {
+    VerificationKind.INVENTORY: frozenset({"catalog_sha256"}),
+    VerificationKind.EVIDENCE_COVERAGE: frozenset({"catalog_sha256"}),
+    VerificationKind.CONTRACT_COMPILE: frozenset({"catalog_sha256"}),
+    VerificationKind.COMMAND_FIXTURE: frozenset(
+        {"fixture_id", "fixture_sha256", "environment_sha256", "catalog_sha256", "platform_sha256"}
+    ),
+    VerificationKind.ENVIRONMENT_PROBE: frozenset({"environment_sha256", "catalog_sha256", "platform_sha256"}),
+    VerificationKind.TOOL_SMOKE: frozenset(
+        {"fixture_id", "fixture_sha256", "environment_sha256", "catalog_sha256", "platform_sha256"}
+    ),
+    VerificationKind.CLOUD_RUN: _VERIFICATION_REQUIRED_CONTEXT[VerificationKind.CLOUD_RUN],
+    VerificationKind.WORKFLOW_RUN: _VERIFICATION_REQUIRED_CONTEXT[VerificationKind.WORKFLOW_RUN],
+}
+
+_FAILURE_UI_REASONS = {
+    FailureCode.INVENTORY_MISSING: "Inventory evidence is missing",
+    FailureCode.EVIDENCE_MISSING: "Required authoritative evidence is missing",
+    FailureCode.EVIDENCE_CONFLICT: "Authoritative evidence contains a conflict",
+    FailureCode.CONTRACT_INVALID: "Typed contract verification failed",
+    FailureCode.COMMAND_FIXTURE_FAILED: "Command fixture verification failed",
+    FailureCode.ENVIRONMENT_RESOLUTION_FAILED: "Environment resolution verification failed",
+    FailureCode.TOOL_SMOKE_FAILED: "Pinned tool smoke verification failed",
+    FailureCode.CLOUD_RUN_FAILED: "Cloud run verification failed",
+    FailureCode.WORKFLOW_RUN_FAILED: "Workflow verification failed",
+}
+
+
+def failure_code_ui_reason(code: FailureCode) -> str:
+    return _FAILURE_UI_REASONS[code]
 
 
 class VerificationEvidence(_StrictFrozenModel):
     evidence_id: ArtifactId
-    kind: ArtifactId
+    tool_id: ArtifactId
+    tool_version: ExactVersion
+    kind: VerificationKind
+    outcome: VerificationOutcome
+    failure_code: FailureCode | None = None
     test_id: ArtifactId
     result_sha256: Sha256Digest
     fixture_id: ArtifactId | None = None
@@ -1045,9 +821,10 @@ class VerificationEvidence(_StrictFrozenModel):
     platform_sha256: Sha256Digest | None = None
     release_sha256: Sha256Digest | None = None
     verified_at: date
-    summary: VerificationSummary
+    verifier_id: ArtifactId
+    verifier_version: ExactVersion
 
-    @field_validator("evidence_id", "kind", "test_id", "fixture_id")
+    @field_validator("evidence_id", "tool_id", "test_id", "fixture_id", "verifier_id")
     @classmethod
     def _validate_ids(cls, value: str | None, info: object) -> str | None:
         if value is None:
@@ -1055,23 +832,61 @@ class VerificationEvidence(_StrictFrozenModel):
         label = getattr(info, "field_name", "ID").replace("_", " ")
         return _validate_bounded_id(value, label=label)
 
-    @field_validator("summary")
+    @field_validator("tool_version", "verifier_version")
     @classmethod
-    def _validate_summary(cls, value: str) -> str:
-        return _validate_retained_text(value, label="verification summary")
+    def _validate_verifier_version(cls, value: str) -> str:
+        return _validate_exact_version(value)
 
     @model_validator(mode="after")
-    def _validate_fixture_identity(self) -> Self:
+    def _validate_result(self) -> Self:
+        context = {
+            "fixture_id": self.fixture_id,
+            "fixture_sha256": self.fixture_sha256,
+            "environment_sha256": self.environment_sha256,
+            "catalog_sha256": self.catalog_sha256,
+            "platform_sha256": self.platform_sha256,
+            "release_sha256": self.release_sha256,
+        }
+        missing = tuple(sorted(field for field in _VERIFICATION_REQUIRED_CONTEXT[self.kind] if context[field] is None))
+        if missing:
+            raise ValueError(f"{self.kind.value} verification is missing required context: {', '.join(missing)}")
+        irrelevant = tuple(
+            sorted(
+                field
+                for field, value in context.items()
+                if value is not None and field not in _VERIFICATION_ALLOWED_CONTEXT[self.kind]
+            )
+        )
+        if irrelevant:
+            raise ValueError(f"{self.kind.value} verification has irrelevant context: {', '.join(irrelevant)}")
         if (self.fixture_id is None) != (self.fixture_sha256 is None):
             raise ValueError("fixture ID and digest must be supplied together")
+        if self.outcome is VerificationOutcome.PASSED:
+            if self.failure_code is not None:
+                raise ValueError("passed verification must not declare a failure code")
+        elif self.failure_code is None:
+            raise ValueError("failed verification requires a failure code")
+        elif self.failure_code not in _VERIFICATION_FAILURE_CODES[self.kind]:
+            raise ValueError("verification failure code is not valid for its kind")
         return self
 
     def verification_digest(self) -> str:
         return _canonical_digest(self)
 
+    @property
+    def ui_summary(self) -> str:
+        suffix = "passed" if self.outcome is VerificationOutcome.PASSED else "failed"
+        return f"{_VERIFICATION_UI_LABELS[self.kind]} {suffix}"
+
+    @property
+    def ui_reason(self) -> str | None:
+        return None if self.failure_code is None else failure_code_ui_reason(self.failure_code)
+
 
 def _verification_provenance(captured: VerificationEvidence) -> tuple[object, ...]:
     return (
+        captured.tool_id,
+        captured.tool_version,
         captured.kind,
         captured.test_id,
         captured.fixture_id,
@@ -1080,10 +895,13 @@ def _verification_provenance(captured: VerificationEvidence) -> tuple[object, ..
         captured.catalog_sha256,
         captured.platform_sha256,
         captured.release_sha256,
+        captured.verifier_id,
+        captured.verifier_version,
     )
 
 
 class EvidenceRecord(_StrictFrozenModel):
+    schema_version: Literal[2]
     tool_id: ArtifactId
     tool_version: ExactVersion
     sources: Annotated[tuple[EvidenceSource, ...], Field(min_length=1, max_length=512)]
@@ -1115,6 +933,8 @@ class EvidenceRecord(_StrictFrozenModel):
 
         sources_by_id = {item.source_id: item for item in self.sources}
         source_contents: dict[tuple[object, ...], str] = {}
+        proof_results: dict[tuple[object, ...], str] = {}
+        document_bindings: dict[tuple[str, str], tuple[str, str]] = {}
         for captured in self.sources:
             if captured.tool_id != self.tool_id:
                 raise ValueError("source tool ID must equal the evidence record tool ID")
@@ -1127,16 +947,36 @@ class EvidenceRecord(_StrictFrozenModel):
                 raise ValueError("conflicting source capture content for one provenance")
             source_contents[provenance] = captured.content_sha256
 
-        verification_results: dict[tuple[object, ...], str] = {}
+            proof = captured.documentation_proof
+            if proof is None:
+                continue
+            document_key = (proof.source_url, proof.source_content_sha256)
+            binding = (proof.tool_id, proof.tool_version)
+            prior_binding = document_bindings.get(document_key)
+            if prior_binding is not None and prior_binding != binding:
+                raise ValueError("documentation content has conflicting tool/version bindings")
+            document_bindings[document_key] = binding
+            proof_key = _documentation_proof_provenance(proof)
+            prior_proof = proof_results.get(proof_key)
+            if prior_proof is not None:
+                if prior_proof == proof.proof_content_sha256:
+                    raise ValueError("duplicate documentation proof provenance")
+                raise ValueError("conflicting documentation proof content for one provenance")
+            proof_results[proof_key] = proof.proof_content_sha256
+
+        verification_results: dict[tuple[object, ...], tuple[VerificationOutcome, FailureCode | None, str]] = {}
         for captured in self.verifications:
+            if captured.tool_id != self.tool_id or captured.tool_version != self.tool_version:
+                raise ValueError("verification tool ID and version must equal the evidence record tool")
             provenance = _verification_provenance(captured)
+            result = (captured.outcome, captured.failure_code, captured.result_sha256)
             if provenance in verification_results:
-                if verification_results[provenance] == captured.result_sha256:
+                if verification_results[provenance] == result:
                     raise ValueError("duplicate verification capture provenance")
                 raise ValueError("conflicting verification capture result for one provenance")
-            verification_results[provenance] = captured.result_sha256
+            verification_results[provenance] = result
 
-        bindings: set[tuple[str, ...]] = set()
+        bindings: set[tuple[object, ...]] = set()
         pointer_sources: set[tuple[str, str]] = set()
         pointer_values: dict[str, str] = {}
         for asserted in self.claims:
@@ -1145,6 +985,12 @@ class EvidenceRecord(_StrictFrozenModel):
                 raise ValueError(f"claim {asserted.claim_id} references missing source {asserted.source_id}")
             if asserted.source_content_sha256 != captured.content_sha256:
                 raise ValueError(f"claim {asserted.claim_id} source content digest does not match its source")
+            if captured.content_format not in _CLAIM_LOCATOR_FORMATS[type(asserted.locator)]:
+                raise ValueError("claim locator kind is not supported for the captured content format")
+            if isinstance(asserted.locator, SymbolLocator) and (
+                captured.kind is not SourceKind.UPSTREAM_SOURCE or asserted.locator.symbol != captured.symbol_locator
+            ):
+                raise ValueError("symbol claim locator requires upstream source with the exact source symbol")
             if captured.kind is SourceKind.PACKAGE_RECIPE:
                 pointer_segments = _decode_json_pointer(asserted.contract_pointer)
                 if pointer_segments[:2] != ("environment", "packages"):
@@ -1176,9 +1022,28 @@ class EvidenceRecord(_StrictFrozenModel):
 
 
 __all__ = [
+    "ByteRangeLocator",
+    "ContentLocator",
+    "ContentLocatorKind",
+    "DocumentationProofKind",
+    "DocumentationProofLocator",
+    "DocumentationVersionProof",
     "EvidenceClaim",
     "EvidenceRecord",
     "EvidenceSource",
+    "FailureCode",
+    "JsonPointerLocator",
+    "RetainedText",
+    "RetainedTextOrigin",
+    "RetainedTextProvenance",
+    "SourceContentFormat",
     "SourceKind",
+    "SymbolLocator",
     "VerificationEvidence",
+    "VerificationKind",
+    "VerificationOutcome",
+    "failure_code_ui_reason",
+    "verify_documentation_proof_content",
+    "verify_evidence_claim_content",
+    "verify_retained_text_selection",
 ]

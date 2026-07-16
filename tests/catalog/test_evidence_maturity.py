@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 from datetime import date
@@ -21,6 +22,54 @@ SHA_E = "sha256:" + "e" * 64
 COMMIT_A = "1" * 40
 COMMIT_B = "2" * 64
 CAPTURE_DATE = date(2026, 7, 15)
+CATALOG_PATH = "bionodulo/nodes/catalog/tools/samtools/evidence.authoring.json"
+
+
+def provenance(
+    pointer: str = "/description",
+    **updates: object,
+) -> evidence.RetainedTextProvenance:
+    values: dict[str, object] = {
+        "origin": evidence.RetainedTextOrigin.CATALOG_AUTHOR,
+        "catalog_path": CATALOG_PATH,
+        "catalog_content_sha256": SHA_E,
+        "field_pointer": pointer,
+    }
+    values.update(updates)
+    return evidence.RetainedTextProvenance(**values)
+
+
+def authored(
+    value: str,
+    pointer: str = "/description",
+    **provenance_updates: object,
+) -> evidence.RetainedText:
+    return evidence.RetainedText(
+        value=value,
+        provenance=provenance(pointer, **provenance_updates),
+    )
+
+
+def byte_locator(start: int = 100, end: int = 180) -> evidence.ByteRangeLocator:
+    return evidence.ByteRangeLocator(
+        kind=evidence.ContentLocatorKind.BYTE_RANGE,
+        start_byte=start,
+        end_byte_exclusive=end,
+    )
+
+
+def proof(**updates: object) -> evidence.DocumentationVersionProof:
+    values: dict[str, object] = {
+        "proof_kind": evidence.DocumentationProofKind.DECLARED_METADATA,
+        "tool_id": "samtools",
+        "tool_version": "1.23.1",
+        "source_url": "https://docs.example.org/releases/latest/dependencies/htslib/9.9/reference.html",
+        "source_content_sha256": SHA_A,
+        "locator": byte_locator(10, 40),
+        "proof_content_sha256": SHA_B,
+    }
+    values.update(updates)
+    return evidence.DocumentationVersionProof(**values)
 
 
 def source(kind: evidence.SourceKind, **updates: object) -> evidence.EvidenceSource:
@@ -31,14 +80,23 @@ def source(kind: evidence.SourceKind, **updates: object) -> evidence.EvidenceSou
         "tool_version": "1.23.1",
         "retrieved_at": CAPTURE_DATE,
         "content_sha256": SHA_A,
-        "title": "Samtools 1.23.1 reference",
-        "description": "Authoritative behavior reference for the pinned tool release.",
+        "content_format": (
+            evidence.SourceContentFormat.JSON
+            if kind is evidence.SourceKind.OFFICIAL_API_SCHEMA
+            else (
+                evidence.SourceContentFormat.SOURCE_CODE
+                if kind is evidence.SourceKind.UPSTREAM_SOURCE
+                else evidence.SourceContentFormat.TEXT
+            )
+        ),
+        "title": authored("Samtools reference", f"/sources/{kind.value}/title"),
+        "description": authored(
+            "Authoritative behavior reference for the pinned tool release.",
+            f"/sources/{kind.value}/description",
+        ),
     }
     if kind in (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA):
-        values.update(
-            url="https://docs.example.org/samtools/1.23.1/reference.html",
-            version_locator="1.23.1 reference",
-        )
+        values["url"] = "https://docs.example.org/releases/latest/dependencies/htslib/9.9/reference.html"
     elif kind is evidence.SourceKind.PACKAGE_RECIPE:
         values.update(
             url=(f"https://github.com/bioconda/bioconda-recipes/blob/{COMMIT_A}/recipes/samtools/meta.yaml"),
@@ -60,6 +118,16 @@ def source(kind: evidence.SourceKind, **updates: object) -> evidence.EvidenceSou
             output_sha256=SHA_A,
         )
     values.update(updates)
+    if kind in (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA):
+        values.setdefault(
+            "documentation_proof",
+            proof(
+                tool_id=values["tool_id"],
+                tool_version=values["tool_version"],
+                source_url=values["url"],
+                source_content_sha256=values["content_sha256"],
+            ),
+        )
     return evidence.EvidenceSource(**values)
 
 
@@ -72,8 +140,11 @@ def claim(
         "claim_id": claim_id,
         "contract_pointer": "/outputs/index/collector",
         "source_id": source_id,
-        "locator": "OUTPUT FILES",
-        "statement": "Default index naming is derived from the input file name.",
+        "locator": byte_locator(),
+        "statement": authored(
+            "Default index naming is derived from the input file name.",
+            f"/claims/{claim_id}/statement",
+        ),
         "source_content_sha256": SHA_A,
         "excerpt_sha256": SHA_B,
         "contract_value_sha256": SHA_C,
@@ -88,24 +159,97 @@ def verification(
 ) -> evidence.VerificationEvidence:
     values: dict[str, object] = {
         "evidence_id": evidence_id,
-        "kind": "tool-smoke",
+        "tool_id": "samtools",
+        "tool_version": "1.23.1",
+        "kind": evidence.VerificationKind.TOOL_SMOKE,
+        "outcome": evidence.VerificationOutcome.PASSED,
+        "failure_code": None,
         "test_id": "samtools-index-tiny-bam-v1",
         "result_sha256": SHA_D,
         "fixture_id": "tiny-bam-v1",
         "fixture_sha256": SHA_E,
         "environment_sha256": SHA_B,
-        "catalog_sha256": None,
+        "catalog_sha256": SHA_A,
         "platform_sha256": SHA_C,
         "release_sha256": None,
         "verified_at": CAPTURE_DATE,
-        "summary": "Pinned samtools completed the retained tiny BAM fixture.",
+        "verifier_id": "tool-verifier",
+        "verifier_version": "1.0.0",
     }
     values.update(updates)
     return evidence.VerificationEvidence(**values)
 
 
+_VERIFICATION_FAILURE = {
+    evidence.VerificationKind.INVENTORY: evidence.FailureCode.INVENTORY_MISSING,
+    evidence.VerificationKind.EVIDENCE_COVERAGE: evidence.FailureCode.EVIDENCE_MISSING,
+    evidence.VerificationKind.CONTRACT_COMPILE: evidence.FailureCode.CONTRACT_INVALID,
+    evidence.VerificationKind.COMMAND_FIXTURE: evidence.FailureCode.COMMAND_FIXTURE_FAILED,
+    evidence.VerificationKind.ENVIRONMENT_PROBE: evidence.FailureCode.ENVIRONMENT_RESOLUTION_FAILED,
+    evidence.VerificationKind.TOOL_SMOKE: evidence.FailureCode.TOOL_SMOKE_FAILED,
+    evidence.VerificationKind.CLOUD_RUN: evidence.FailureCode.CLOUD_RUN_FAILED,
+    evidence.VerificationKind.WORKFLOW_RUN: evidence.FailureCode.WORKFLOW_RUN_FAILED,
+}
+
+_REQUIRED_VERIFICATION_CONTEXT = {
+    evidence.VerificationKind.INVENTORY: frozenset({"catalog_sha256"}),
+    evidence.VerificationKind.EVIDENCE_COVERAGE: frozenset({"catalog_sha256"}),
+    evidence.VerificationKind.CONTRACT_COMPILE: frozenset({"catalog_sha256"}),
+    evidence.VerificationKind.COMMAND_FIXTURE: frozenset(
+        {"fixture_id", "fixture_sha256", "environment_sha256", "catalog_sha256"}
+    ),
+    evidence.VerificationKind.ENVIRONMENT_PROBE: frozenset({"environment_sha256", "catalog_sha256", "platform_sha256"}),
+    evidence.VerificationKind.TOOL_SMOKE: frozenset(
+        {"fixture_id", "fixture_sha256", "environment_sha256", "catalog_sha256", "platform_sha256"}
+    ),
+    evidence.VerificationKind.CLOUD_RUN: frozenset(
+        {
+            "fixture_id",
+            "fixture_sha256",
+            "environment_sha256",
+            "catalog_sha256",
+            "platform_sha256",
+            "release_sha256",
+        }
+    ),
+    evidence.VerificationKind.WORKFLOW_RUN: frozenset(
+        {
+            "fixture_id",
+            "fixture_sha256",
+            "environment_sha256",
+            "catalog_sha256",
+            "platform_sha256",
+            "release_sha256",
+        }
+    ),
+}
+
+
+def verification_with_minimal_context(
+    kind: evidence.VerificationKind,
+    outcome: evidence.VerificationOutcome = evidence.VerificationOutcome.PASSED,
+) -> evidence.VerificationEvidence:
+    context: dict[str, object] = {
+        "fixture_id": None,
+        "fixture_sha256": None,
+        "environment_sha256": None,
+        "catalog_sha256": None,
+        "platform_sha256": None,
+        "release_sha256": None,
+    }
+    for field in _REQUIRED_VERIFICATION_CONTEXT[kind]:
+        context[field] = "fixture-v1" if field == "fixture_id" else SHA_A
+    return verification(
+        kind=kind,
+        outcome=outcome,
+        failure_code=None if outcome is evidence.VerificationOutcome.PASSED else _VERIFICATION_FAILURE[kind],
+        **context,
+    )
+
+
 def evidence_record(**updates: object) -> evidence.EvidenceRecord:
     values: dict[str, object] = {
+        "schema_version": 2,
         "tool_id": "samtools",
         "tool_version": "1.23.1",
         "sources": (source(evidence.SourceKind.OFFICIAL_MANUAL),),
@@ -116,6 +260,18 @@ def evidence_record(**updates: object) -> evidence.EvidenceRecord:
     return evidence.EvidenceRecord(**values)
 
 
+_GATE_FAILURE = {
+    maturity.Gate.INVENTORIED: evidence.FailureCode.INVENTORY_MISSING,
+    maturity.Gate.EVIDENCE_VERIFIED: evidence.FailureCode.EVIDENCE_MISSING,
+    maturity.Gate.CONTRACT_VERIFIED: evidence.FailureCode.CONTRACT_INVALID,
+    maturity.Gate.COMMAND_VERIFIED: evidence.FailureCode.COMMAND_FIXTURE_FAILED,
+    maturity.Gate.ENVIRONMENT_VERIFIED: evidence.FailureCode.ENVIRONMENT_RESOLUTION_FAILED,
+    maturity.Gate.TOOL_SMOKE_VERIFIED: evidence.FailureCode.TOOL_SMOKE_FAILED,
+    maturity.Gate.CLOUD_VERIFIED: evidence.FailureCode.CLOUD_RUN_FAILED,
+    maturity.Gate.WORKFLOW_VERIFIED: evidence.FailureCode.WORKFLOW_RUN_FAILED,
+}
+
+
 def assessment(
     gate: maturity.Gate,
     result: maturity.GateResult = maturity.GateResult.PASSED,
@@ -124,12 +280,11 @@ def assessment(
     values: dict[str, object] = {
         "gate": gate,
         "result": result,
-        "evidence_digests": (SHA_A,) if result is maturity.GateResult.PASSED else (),
+        "verification_digests": (SHA_A,),
         "verified_at": CAPTURE_DATE,
         "verifier_id": "catalog-verifier",
         "verifier_version": "1.0.0",
-        "summary": f"Retained assessment for {gate.value}.",
-        "reason": None if result is maturity.GateResult.PASSED else f"{gate.value} fixture failed",
+        "failure_code": None if result is maturity.GateResult.PASSED else _GATE_FAILURE[gate],
     }
     values.update(updates)
     return maturity.GateAssessment(**values)
@@ -139,44 +294,47 @@ def passed_prefix(length: int) -> tuple[maturity.GateAssessment, ...]:
     return tuple(assessment(gate) for gate in tuple(maturity.Gate)[:length])
 
 
-_RETAINED_TEXT_FIELDS = (
-    "source_title",
-    "source_description",
-    "source_version_locator",
-    "claim_locator",
-    "claim_statement",
-    "verification_summary",
-    "assessment_summary",
-    "assessment_reason",
-)
+def maturity_record(**updates: object) -> maturity.MaturityRecord:
+    values: dict[str, object] = {
+        "schema_version": 2,
+        "access_classes": (maturity.AccessClass.PUBLIC,),
+        "assessments": (),
+    }
+    values.update(updates)
+    return maturity.MaturityRecord(**values)
 
 
-def retained_text(field: str, value: str) -> str:
-    if field == "source_title":
-        return source(evidence.SourceKind.OFFICIAL_MANUAL, title=value).title
-    if field == "source_description":
-        return source(evidence.SourceKind.OFFICIAL_MANUAL, description=value).description
-    if field == "source_version_locator":
-        locator = f"1.23.1 {value}"
-        captured = source(evidence.SourceKind.OFFICIAL_MANUAL, version_locator=locator)
-        assert captured.version_locator is not None
-        return captured.version_locator.removeprefix("1.23.1 ")
-    if field == "claim_locator":
-        return claim(locator=value).locator
-    if field == "claim_statement":
-        return claim(statement=value).statement
-    if field == "verification_summary":
-        return verification(summary=value).summary
-    if field == "assessment_summary":
-        return assessment(maturity.Gate.INVENTORIED, summary=value).summary
-    if field == "assessment_reason":
-        failed = assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED, reason=value)
-        assert failed.reason is not None
-        return failed.reason
-    raise AssertionError(f"unknown retained-text field {field}")
+def test_schema_v2_types_are_explicit() -> None:
+    assert tuple(evidence.RetainedTextOrigin) == (evidence.RetainedTextOrigin.CATALOG_AUTHOR,)
+    assert tuple(item.value for item in evidence.ContentLocatorKind) == (
+        "byte_range",
+        "json_pointer",
+        "symbol",
+    )
+    assert tuple(item.value for item in evidence.SourceContentFormat) == (
+        "text",
+        "json",
+        "source_code",
+    )
+    assert tuple(item.value for item in evidence.DocumentationProofKind) == (
+        "declared_metadata",
+        "schema_field",
+        "release_manifest",
+    )
+    assert tuple(item.value for item in evidence.VerificationKind) == (
+        "inventory",
+        "evidence_coverage",
+        "contract_compile",
+        "command_fixture",
+        "environment_probe",
+        "tool_smoke",
+        "cloud_run",
+        "workflow_run",
+    )
+    assert tuple(item.value for item in evidence.VerificationOutcome) == ("passed", "failed")
 
 
-def test_source_kind_wire_values_are_exact_and_authoritative_only() -> None:
+def test_existing_wire_enums_remain_exact() -> None:
     assert tuple(kind.value for kind in evidence.SourceKind) == (
         "official_manual",
         "official_api_schema",
@@ -184,10 +342,6 @@ def test_source_kind_wire_values_are_exact_and_authoritative_only() -> None:
         "installed_help",
         "package_recipe",
     )
-    assert not {"bionodulo", "galaxy", "blog"} & {kind.value for kind in evidence.SourceKind}
-
-
-def test_access_and_gate_wire_values_and_order_are_exact() -> None:
     assert tuple(item.value for item in maturity.AccessClass) == (
         "public",
         "public_rate_limited",
@@ -210,517 +364,625 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
     assert tuple(result.value for result in maturity.GateResult) == ("passed", "failed")
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
 @pytest.mark.parametrize(
     "value",
     (
-        "Résumé — 測試 🧬",
-        "أداة موثوقة",
-        "The access_token parameter is <TOKEN>.",
-        "access_token=<TOKEN>",
-        'Set client_secret="${TOKEN}".',
-        "https://service.invalid/run?password=[REDACTED]&mode=test",
-        "Authorization: Bearer REDACTED.",
-        "Authorization=Basic ***",
-        "Authorization Bearer <TOKEN>",
-        "Authorization Basic [REDACTED]",
-        "token=<TOKEN>. Continue with the documented flow.",
-        "auth=[REDACTED]. Continue with the documented flow.",
-        "credential=***. Continue with the documented flow.",
-        "Run --token <TOKEN> only when the official service requires authentication.",
-        "Run --token ${TOKEN} only when the official service requires authentication.",
-        "Use password [REDACTED] only with the documented test account.",
-        'Authorization: "Bearer <TOKEN>"',
-        'Authorization: "Basic [REDACTED]"',
-        'Authorization: "Bearer" <TOKEN>',
-        "Defaults: output=/tmp/default, stream=/dev/stdout, tool=/usr/bin/tool.",
-        "Captured from /home/<USER>/work.",
-        "Captured from /Users/<USER>/work.",
-        r"Captured from C:\Users\<USER>\work.",
-        "Captured from /home/<USER>.",
-        r"Captured from C:\Users\<USER>.",
-        "Captured from </home/<USER>/work>.",
-        "Captured from file://localhost/home/<USER>/work.",
-        "See https://docs.example.org/home/user for documented behavior.",
-        "Database metadata: foreign_key_id=42.",
-        "The monkey habitat and keynote schedule contain no credentials.",
-        "The key parameter selects the output map.",
-        "Token bucket algorithm is documented.",
-        "Password hashing uses Argon2.",
-        "Credentials are supplied at runtime.",
-        "The token parser accepts quoted values.",
-        "Password rotation is documented upstream.",
-        "The --token option is required.",
-        "Use password hashing for stored credentials.",
-        "Configure authentication using OAuth.",
-        "See profile://buildhost/home/alice/work for the documented profile URI.",
-        "The password is hashed with Argon2.",
-        "The token is documented in the HTTP reference.",
-        "Credentials are supplied via OAuth2.",
-        "Use --no-token to disable authentication.",
-    ),
-)
-def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths(
-    field: str,
-    value: str,
-) -> None:
-    assert retained_text(field, value) == value
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "token=<TOKEN>. Continue with the documented workflow.",
-        "Use password [REDACTED] only with the documented integration account.",
-    ),
-)
-def test_retained_text_accepts_bounded_documented_redaction_contexts(field: str, value: str) -> None:
-    assert retained_text(field, value) == value
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "access_token=live-value",
-        "access-token: live-value",
-        'CLIENT_SECRET="live-value"',
-        "OPENAI_API_KEY=sk-live-value",
-        "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
-        "api-key=live-value",
-        "refresh_token=live-value",
-        "refresh_key=live-value",
-        "auth_token=live-value",
-        "auth-key=live-value",
-        "auth=live-value",
-        "credential=live-value",
-        "credentials: live-value",
-        "license_key=live-value",
-        "license-key=live-value",
-        "https://service.invalid/run?password=hunter2&mode=test",
-        "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9",
-        "Authorization=Basic dXNlcjpwYXNz",
-        "client_secret=<TOKEN> live-secret",
-        'client_secret="<TOKEN>" live-secret',
-        "Authorization: <TOKEN> live-secret",
-        "token=<TOKEN> extra",
-        "Authorization Bearer live-secret",
-        "Authorization Basic dXNlcjpwYXNz",
-        "Authorization Bearer <TOKEN> extra",
-        "token=<TOKEN>-suffix",
-        'client_secret="<TOKEN> live-secret"',
-        'client_secret="<TOKEN>"live-secret',
-        'Authorization: "Bearer <TOKEN> live-secret"',
-        'Authorization: "Bearer <TOKEN>"live-secret',
-        'Authorization: "Bearer" live-secret',
-        'Authorization: "Basic" dXNlcjpwYXNz',
-        "api_key=<API_KEY>",
-        "token=<TOKEN>. live-secret",
-        "credential=***. AKIAIOSFODNN7EXAMPLE",
-        "token=<TOKEN>. Continue with live-secret",
-        "credential=***. Continue with AKIAIOSFODNN7EXAMPLE",
-        "token=<TOKEN>. Swordfish",
-        "token=<TOKEN>. Continue with abc123XYZ",
-        "token=<TOKEN>. The fallback token is abc123",
-        "token=<TOKEN>, live-secret",
-        "token=<TOKEN>; live-secret",
-        "token=<TOKEN>. Continue with Swordfish",
-        "token=<TOKEN>. Swordfish is the official fallback.",
-        "token=<TOKEN>. Use Swordfish for the documented account.",
-        "token=<TOKEN>. Continue with the documented flow using Swordfish.",
-        "Use password [REDACTED] only with the documented test account Swordfish.",
-        "token=<TOKEN>&fallback=live-secret",
-        "token=<TOKEN>&fallback=abc123XYZ",
-        "token=<TOKEN>#live-secret",
-        "token=<TOKEN>#fallback=abc123XYZ",
-    ),
-)
-def test_retained_text_rejects_unredacted_secret_assignments_and_redaction_prefix_leaks(
-    field: str,
-    value: str,
-) -> None:
-    with pytest.raises(ValidationError, match="secret"):
-        retained_text(field, value)
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "Run --token live-secret",
-        "Run --api-key sk-live-value",
-        "Use password hunter2",
-        "Use credential AKIAIOSFODNN7EXAMPLE",
-        "The password is hunter2.",
-        "The token is live-secret.",
-        "The API key is sk-live-value.",
-        "The token value is live-secret.",
-        "Use --token value live-secret.",
-        "Authorization header Bearer live-secret",
-        "Use `--token live-secret` for the request.",
-        "Run `--token` live-secret",
-        'Run "--token" live-secret',
-        "Run '--token' live-secret",
-        "SECRET_KEY=live-secret",
-        "--private-key live-secret",
-        "--token Swordfish",
         "The password is Swordfish.",
-        "The token equals Swordfish.",
-        "The token configured: Swordfish.",
-        "The token supplied: Swordfish.",
-        'The "token" is Swordfish.',
-        "The token_value is Swordfish.",
-        "--token <TOKEN> Swordfish",
-        "--token <TOKEN> Swordfish official flow",
-        "The token is configured: Swordfish.",
-        "The token is provided: Swordfish.",
-        "The apikey is Swordfish.",
-        "The access_token is Swordfish.",
-        "The secret_key is Swordfish.",
-        "Use access_token live-secret.",
-        "Run --token option Swordfish.",
-        "API key sk-live-value",
-        "Private key abc123XYZ",
+        "The secret field accepts ordinary technical values.",
+        "Captured examples may mention /home/alice/project and C:\\Users\\alice.",
+        "Authorization examples belong in author-reviewed documentation prose.",
+        "Resume - Unicode documentation: \u6e2c\u8a66",
     ),
 )
-def test_retained_text_rejects_secret_bearing_cli_and_prose_forms(field: str, value: str) -> None:
-    with pytest.raises(ValidationError, match="secret"):
-        retained_text(field, value)
+def test_retained_text_accepts_arbitrary_authored_printable_prose(value: str) -> None:
+    retained = authored(value)
+
+    assert retained.value == value
+    assert retained.provenance.origin is evidence.RetainedTextOrigin.CATALOG_AUTHOR
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize("value", (" text", "text ", "line\nfeed", "zero\u200bwidth", "right\u202eoverride"))
+def test_retained_text_rejects_noncanonical_or_nonprintable_text(value: str) -> None:
+    with pytest.raises(ValidationError):
+        authored(value)
+
+
+def test_runtime_or_capture_text_origin_does_not_exist() -> None:
+    assert {item.value for item in evidence.RetainedTextOrigin} == {"catalog_author"}
+    for origin in ("runtime_stdout", "runtime_stderr", "environment", "filesystem", "captured"):
+        with pytest.raises(ValueError):
+            evidence.RetainedTextOrigin(origin)
+        with pytest.raises(ValidationError):
+            evidence.RetainedTextProvenance.model_validate_json(
+                json.dumps(
+                    {
+                        "origin": origin,
+                        "catalog_path": CATALOG_PATH,
+                        "catalog_content_sha256": SHA_E,
+                        "field_pointer": "/description",
+                    }
+                )
+            )
+
+
 @pytest.mark.parametrize(
-    "value",
+    ("field", "value"),
     (
-        "The token is configured with Swordfish.",
-        "The token is provided by Swordfish.",
-        "The token field with live-secret is retained.",
-        "The password policy is Swordfish.",
-        "Run --token <TOKEN> only when Swordfish is used.",
-        "Run [--token] Swordfish.",
-        "Run `--token`=Swordfish.",
-        "--passphrase Swordfish",
+        ("catalog_path", "/home/alice/evidence.yaml"),
+        ("catalog_path", "catalog/../evidence.yaml"),
+        ("catalog_path", "catalog\\evidence.yaml"),
+        ("catalog_path", "catalog/samtools/evidence.authoring.yaml"),
+        ("catalog_path", "bionodulo/nodes/catalog/tools/samtools/evidence.yaml"),
+        ("catalog_path", "bionodulo/nodes/catalog/tools/samtools/evidence.authoring.yaml"),
+        ("catalog_path", "bionodulo/nodes/catalog/generated/evidence.authoring.json"),
+        ("catalog_content_sha256", "a" * 64),
+        ("catalog_content_sha256", "sha256:" + "A" * 64),
+        ("field_pointer", "description"),
+        ("field_pointer", "/../description"),
     ),
 )
-def test_retained_text_rejects_plain_values_after_secret_bearing_grammar(
-    field: str,
+def test_retained_text_provenance_is_content_addressed_and_canonical(field: str, value: str) -> None:
+    with pytest.raises(ValidationError):
+        provenance(**{field: value})
+
+
+def test_retained_text_provenance_is_strict_frozen_and_roundtrips() -> None:
+    retained = authored("Ordinary authored prose.")
+    rebuilt = evidence.RetainedText.model_validate_json(retained.model_dump_json())
+
+    assert rebuilt == retained
+    assert hash(rebuilt) == hash(retained)
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        evidence.RetainedText(
+            value="Text",
+            provenance=provenance(),
+            stdout="not allowed",
+        )
+    with pytest.raises(ValidationError, match="frozen_instance"):
+        retained.value = "changed"
+
+
+def test_compiler_verifies_injected_text_provenance_against_reopened_authoring_blob() -> None:
+    source_bytes = b'{"description":"Ordinary authored prose."}'
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
+    retained = authored(
+        "Ordinary authored prose.",
+        "/description",
+        catalog_content_sha256=source_digest,
+    )
+
+    assert (
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_bytes,
+            expected_field_pointer="/description",
+        )
+        == retained
+    )
+
+
+def test_compiler_requires_an_explicit_expected_pointer_from_the_loader() -> None:
+    source_bytes = b'{"description":"Ordinary authored prose."}'
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
+    retained = authored("Ordinary authored prose.", "/description", catalog_content_sha256=source_digest)
+
+    with pytest.raises(TypeError):
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_bytes,
+        )
+
+
+def test_compiler_revalidates_model_constructed_text_before_accepting_provenance() -> None:
+    source_bytes = b'{"description":"Ordinary authored prose."}'
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
+    forged_provenance = evidence.RetainedTextProvenance.model_construct(
+        origin="runtime_stdout",
+        catalog_path=CATALOG_PATH,
+        catalog_content_sha256=source_digest,
+        field_pointer="/description",
+    )
+    forged = evidence.RetainedText.model_construct(
+        value="Ordinary authored prose.",
+        provenance=forged_provenance,
+    )
+
+    with pytest.raises(ValidationError):
+        evidence.verify_retained_text_selection(
+            forged,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_bytes,
+            expected_field_pointer="/description",
+        )
+
+
+def test_compiler_rejects_a_wrong_but_existing_factory_pointer() -> None:
+    source_bytes = b'{"title":"Factory substitute","description":"Real description"}'
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
+    retained = authored("Factory substitute", "/title", catalog_content_sha256=source_digest)
+
+    with pytest.raises(ValueError, match="field pointer"):
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_bytes,
+            expected_field_pointer="/description",
+        )
+
+
+def test_compiler_rejects_text_that_does_not_match_the_reopened_pointer_value() -> None:
+    source_bytes = b'{"description":"Ordinary authored prose."}'
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
+    forged = authored(
+        "Factory-provided substitute",
+        "/description",
+        catalog_content_sha256=source_digest,
+    )
+
+    with pytest.raises(ValueError, match="provenance"):
+        evidence.verify_retained_text_selection(
+            forged,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_bytes,
+            expected_field_pointer="/description",
+        )
+
+
+@pytest.mark.parametrize(
+    ("source_bytes", "pointer", "value"),
+    (
+        (
+            b'{"description":"first","description":"Factory substitute"}',
+            "/description",
+            "Factory substitute",
+        ),
+        (
+            b"base: &base\n  description: Factory substitute\ncopy:\n  <<: *base\n",
+            "/copy/description",
+            "Factory substitute",
+        ),
+        (
+            b"description: !!str Factory substitute\n",
+            "/description",
+            "Factory substitute",
+        ),
+        (
+            b'{"description":"Factory substitute","number":1e9999}',
+            "/description",
+            "Factory substitute",
+        ),
+    ),
+)
+def test_compiler_rejects_ambiguous_or_yaml_specific_authoring_content(
+    source_bytes: bytes,
+    pointer: str,
     value: str,
 ) -> None:
-    with pytest.raises(ValidationError, match="secret"):
-        retained_text(field, value)
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
+    retained = authored(value, pointer, catalog_content_sha256=source_digest)
+
+    with pytest.raises(ValueError, match="strict JSON"):
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_bytes,
+            expected_field_pointer=pointer,
+        )
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize("pointer", ("/items/١", "/items/１", "/items/²"))
+def test_compiler_rejects_non_ascii_json_array_indices(pointer: str) -> None:
+    source_bytes = b'{"items":["zero","one"]}'
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
+    retained = authored("one", pointer, catalog_content_sha256=source_digest)
+
+    with pytest.raises(ValueError, match="array index|provenance"):
+        evidence.verify_retained_text_selection(
+            retained,
+            catalog_path=CATALOG_PATH,
+            catalog_content=source_bytes,
+            expected_field_pointer=pointer,
+        )
+
+
 @pytest.mark.parametrize(
-    "value",
+    ("declared_updates", "verified_updates"),
     (
-        "The token field with Swordfish is retained.",
-        "The token is configured via Swordfish.",
-        "The token storage in Marlin is retained.",
-        "The token is supplied through Marlin.",
-        "The token is provided at Swordfish.",
+        ({"catalog_content_sha256": SHA_E}, {}),
+        (
+            {"catalog_path": "bionodulo/nodes/catalog/tools/forged/evidence.authoring.json"},
+            {},
+        ),
+        ({}, {"expected_field_pointer": "/other"}),
     ),
 )
-def test_retained_text_rejects_plain_values_in_secret_state_and_topic_relations(
-    field: str,
-    value: str,
+def test_compiler_rejects_factory_self_asserted_or_mismatched_text_provenance(
+    declared_updates: dict[str, object],
+    verified_updates: dict[str, object],
 ) -> None:
-    with pytest.raises(ValidationError, match="secret"):
-        retained_text(field, value)
+    source_bytes = b'{"description":"Ordinary authored prose."}'
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
+    declared: dict[str, object] = {"catalog_content_sha256": source_digest}
+    declared.update(declared_updates)
+    retained = authored("Ordinary authored prose.", "/description", **declared)
+    verification: dict[str, object] = {
+        "catalog_path": CATALOG_PATH,
+        "catalog_content": source_bytes,
+        "expected_field_pointer": "/description",
+    }
+    verification.update(verified_updates)
+
+    with pytest.raises(ValueError, match="provenance"):
+        evidence.verify_retained_text_selection(retained, **verification)
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "The token is configured in the environment.",
-        "The token is provided by the caller.",
-        "The token storage is documented for stored credentials.",
-    ),
-)
-def test_retained_text_accepts_bounded_secret_state_and_topic_contexts(field: str, value: str) -> None:
-    assert retained_text(field, value) == value
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "The token is configured in the environment as Swordfish.",
-        "The token is provided by the caller as Marlin.",
-        "The token field with the environment as Swordfish is retained.",
-    ),
-)
-def test_retained_text_rejects_values_after_safe_context_tails(field: str, value: str) -> None:
-    with pytest.raises(ValidationError, match="secret"):
-        retained_text(field, value)
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "The token is configured in the environment at runtime.",
-        "The token is provided by the caller for the request.",
-    ),
-)
-def test_retained_text_accepts_complete_safe_context_tails(field: str, value: str) -> None:
-    assert retained_text(field, value) == value
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "The token parameter accepts numeric values.",
-        "Password length must be at least 12 characters.",
-        "Password entropy must be at least 128 bits.",
-        "The secret field supports hexadecimal strings.",
-    ),
-)
-def test_retained_text_accepts_broad_syntactic_technical_prose(field: str, value: str) -> None:
-    assert retained_text(field, value) == value
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "Password length must be Swordfish.",
-        "Password length must be at least Swordfish.",
-        "The secret field supports Swordfish.",
-    ),
-)
-def test_retained_text_rejects_secret_values_in_broad_technical_prose(field: str, value: str) -> None:
-    with pytest.raises(ValidationError, match="secret"):
-        retained_text(field, value)
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "Password hashing uses SHA-256.",
-        "Password hashing uses PBKDF2-HMAC-SHA256.",
-        "The token parameter supports SHA-256 digests.",
-    ),
-)
-def test_retained_text_accepts_recognized_hash_algorithm_prose(field: str, value: str) -> None:
-    assert retained_text(field, value) == value
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "The token parameter accepts quoted values.",
-        "The token parameter accepts redacted placeholders.",
-        "Password requirements are documented.",
-    ),
-)
-def test_retained_text_accepts_secret_parameter_capability_and_requirement_prose(
-    field: str,
-    value: str,
+@pytest.mark.parametrize("kind", ("byte_range", "json_pointer", "symbol"))
+def test_content_locator_variants_are_strict_frozen_and_json_roundtrip(
+    kind: str,
 ) -> None:
-    assert retained_text(field, value) == value
+    if kind == "byte_range":
+        locator = byte_locator()
+    elif kind == "json_pointer":
+        locator = evidence.JsonPointerLocator(
+            kind=evidence.ContentLocatorKind.JSON_POINTER,
+            pointer="/info/version",
+        )
+    else:
+        locator = evidence.SymbolLocator(
+            kind=evidence.ContentLocatorKind.SYMBOL,
+            symbol="Samtools.Index::output_name",
+        )
+    asserted = claim(locator=locator)
+    rebuilt = evidence.EvidenceClaim.model_validate_json(asserted.model_dump_json())
+
+    assert rebuilt.locator == locator
+    assert type(rebuilt.locator) is type(locator)
+    assert hash(locator) == hash(rebuilt.locator)
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
 @pytest.mark.parametrize(
-    "value",
+    ("start", "end"),
+    ((-1, 1), (0, 0), (10, 9), (0, 1_048_577), (2**63, 2**63 + 1)),
+)
+def test_byte_range_locator_is_ordered_and_bounded(start: int, end: int) -> None:
+    with pytest.raises(ValidationError):
+        byte_locator(start, end)
+
+
+def test_content_locator_variants_reject_cross_kind_fields_and_free_text() -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        evidence.ByteRangeLocator(
+            kind=evidence.ContentLocatorKind.BYTE_RANGE,
+            start_byte=0,
+            end_byte_exclusive=1,
+            pointer="/version",
+        )
+    with pytest.raises(ValidationError):
+        claim(locator="OUTPUT FILES")
+
+
+@pytest.mark.parametrize("pointer", ("version", "/../version", "/a~2b", "/a//b"))
+def test_json_pointer_locator_reuses_canonical_pointer_rules(pointer: str) -> None:
+    with pytest.raises(ValidationError):
+        evidence.JsonPointerLocator(
+            kind=evidence.ContentLocatorKind.JSON_POINTER,
+            pointer=pointer,
+        )
+
+
+@pytest.mark.parametrize("symbol", ("", " main", "main ", "main()", "src/main", "main\n"))
+def test_symbol_locator_is_an_exact_identity(symbol: str) -> None:
+    with pytest.raises(ValidationError):
+        evidence.SymbolLocator(
+            kind=evidence.ContentLocatorKind.SYMBOL,
+            symbol=symbol,
+        )
+
+
+def test_documentation_proof_is_content_addressed_and_digest_stable() -> None:
+    retained = proof()
+    rebuilt = evidence.DocumentationVersionProof.model_validate_json(retained.model_dump_json())
+    changed = proof(proof_content_sha256=SHA_C)
+
+    assert retained == rebuilt
+    assert retained.proof_digest() == rebuilt.proof_digest()
+    assert retained.proof_digest() != changed.proof_digest()
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", retained.proof_digest())
+
+
+def test_documentation_proof_verifier_recomputes_source_and_byte_range_digests() -> None:
+    source_content = b"header\nsamtools 1.23.1\nfooter"
+    selected = b"samtools 1.23.1"
+    start = source_content.index(selected)
+    retained = proof(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(start, start + len(selected)),
+        proof_content_sha256="sha256:" + hashlib.sha256(selected).hexdigest(),
+    )
+
+    assert evidence.verify_documentation_proof_content(retained, source_content=source_content) == retained
+
+    with pytest.raises(ValueError, match="source content"):
+        evidence.verify_documentation_proof_content(
+            retained.model_copy(update={"source_content_sha256": SHA_A}),
+            source_content=source_content,
+        )
+    with pytest.raises(ValueError, match="locator"):
+        evidence.verify_documentation_proof_content(
+            retained.model_copy(update={"locator": byte_locator(start, start + len(selected) + 100)}),
+            source_content=source_content,
+        )
+
+
+def test_documentation_proof_verifier_canonicalizes_strict_json_pointer_selection() -> None:
+    selected = {"tool_id": "samtools", "tool_version": "1.23.1"}
+    document = {"metadata": selected}
+    source_content = json.dumps(document, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+    selected_content = json.dumps(selected, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+    retained = proof(
+        proof_kind=evidence.DocumentationProofKind.SCHEMA_FIELD,
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=evidence.JsonPointerLocator(
+            kind=evidence.ContentLocatorKind.JSON_POINTER,
+            pointer="/metadata",
+        ),
+        proof_content_sha256="sha256:" + hashlib.sha256(selected_content).hexdigest(),
+    )
+
+    assert evidence.verify_documentation_proof_content(retained, source_content=source_content) == retained
+
+
+def test_evidence_claim_verifier_recomputes_source_and_byte_range_digests() -> None:
+    source_content = b"header\ndefault output is input.bam.bai\nfooter"
+    selected = b"default output is input.bam.bai"
+    start = source_content.index(selected)
+    asserted = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(start, start + len(selected)),
+        excerpt_sha256="sha256:" + hashlib.sha256(selected).hexdigest(),
+    )
+
+    assert evidence.verify_evidence_claim_content(asserted, source_content=source_content) == asserted
+
+    with pytest.raises(ValueError, match="source content"):
+        evidence.verify_evidence_claim_content(
+            asserted.model_copy(update={"source_content_sha256": SHA_A}),
+            source_content=source_content,
+        )
+    with pytest.raises(ValueError, match="locator"):
+        evidence.verify_evidence_claim_content(
+            asserted.model_copy(update={"locator": byte_locator(start, start + len(selected) + 100)}),
+            source_content=source_content,
+        )
+    with pytest.raises(ValueError, match="excerpt"):
+        evidence.verify_evidence_claim_content(
+            asserted.model_copy(update={"excerpt_sha256": SHA_A}),
+            source_content=source_content,
+        )
+
+
+def test_evidence_claim_verifier_canonicalizes_strict_json_pointer_selection() -> None:
+    selected = {"collector": "index", "suffixes": [".bai", ".csi"]}
+    document = {"outputs": {"index": selected}}
+    source_content = json.dumps(document, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+    selected_content = json.dumps(selected, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+    asserted = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=evidence.JsonPointerLocator(
+            kind=evidence.ContentLocatorKind.JSON_POINTER,
+            pointer="/outputs/index",
+        ),
+        excerpt_sha256="sha256:" + hashlib.sha256(selected_content).hexdigest(),
+    )
+
+    assert evidence.verify_evidence_claim_content(asserted, source_content=source_content) == asserted
+
+
+@pytest.mark.parametrize(
+    "source_content",
     (
-        "The token parameter accepts Swordfish.",
-        "The token parameter is Swordfish.",
-        "Password requirements are Swordfish.",
+        b'{"outputs":{"index":"first","index":"second"}}',
+        b'{"outputs":{"index":"value"},"number":NaN}',
+        b'\xff{"outputs":{"index":"value"}}',
     ),
 )
-def test_retained_text_rejects_values_assigned_in_technical_secret_prose(field: str, value: str) -> None:
-    with pytest.raises(ValidationError, match="secret"):
-        retained_text(field, value)
+def test_evidence_claim_verifier_rejects_ambiguous_json_pointer_sources(source_content: bytes) -> None:
+    asserted = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=evidence.JsonPointerLocator(
+            kind=evidence.ContentLocatorKind.JSON_POINTER,
+            pointer="/outputs/index",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="strict JSON"):
+        evidence.verify_evidence_claim_content(asserted, source_content=source_content)
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "Captured from /home/user/project/help.txt",
-        "Captured from /Users/user/project/help.txt",
-        "Captured from /root/.cache/tool/help.txt",
-        r"Captured from C:\Users\user\AppData\Local\Temp\help.txt",
-        "Captured from D:/Documents and Settings/user/work/help.txt",
-        "Captured from /mnt/c/Users/user/work/help.txt",
-        "Captured from /home/<USER>evil/work/help.txt",
-        r"Captured from C:\Users\<USER>evil\work\help.txt",
-        "Captured from </home/alice/work/help.txt>",
-        r"Captured from <C:\Users\alice\work\help.txt>",
-        "Captured from,/home/alice/work/help.txt",
-        "Captured from file://localhost/home/alice/work/help.txt",
-        "Captured from file://localhost/Users/alice/work/help.txt",
-        "Captured from file://buildhost/home/alice/work",
-        "Captured from file://localhost/root/private",
-        "Captured from file://buildhost//home/alice/work",
-        "Captured from file://buildhost/home//alice/work",
-        "Captured from file://buildhost//home//alice/work",
-        r"Captured from \\server\Users\\alice\work",
-        r"Captured from \\server\Users\alice\work\help.txt",
-        "Captured from /tmp/pytest-of-user/pytest-3/test_help0/output.txt",
-        "Captured from /tmp/pytest-of-user/pytest-current/out",
-        "Captured from /private/var/folders/aa/bb/T/pytest-of-user/pytest-3/test_help0/output.txt",
-    ),
-)
-def test_retained_text_rejects_capture_host_paths(field: str, value: str) -> None:
-    with pytest.raises(ValidationError, match="host path"):
-        retained_text(field, value)
+def test_evidence_claim_verifier_requires_a_trusted_symbol_selector() -> None:
+    source_content = b"static int bam_sort_core_ext(void) { return 0; }"
+    selected = b"int bam_sort_core_ext(void) { return 0; }"
+    asserted = claim(
+        source_id="samtools-upstream-source",
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=evidence.SymbolLocator(
+            kind=evidence.ContentLocatorKind.SYMBOL,
+            symbol="bam_sort_core_ext",
+        ),
+        excerpt_sha256="sha256:" + hashlib.sha256(selected).hexdigest(),
+    )
+    calls: list[tuple[bytes, str]] = []
+
+    def trusted_selector(content: bytes, symbol: str) -> bytes:
+        calls.append((content, symbol))
+        return selected
+
+    with pytest.raises(ValueError, match="trusted language-aware symbol selector"):
+        evidence.verify_evidence_claim_content(asserted, source_content=source_content)
+
+    assert (
+        evidence.verify_evidence_claim_content(
+            asserted,
+            source_content=source_content,
+            symbol_selector=trusted_selector,
+        )
+        == asserted
+    )
+    assert calls == [(source_content, "bam_sort_core_ext")]
+
+    with pytest.raises(ValueError, match="excerpt"):
+        evidence.verify_evidence_claim_content(
+            asserted,
+            source_content=source_content,
+            symbol_selector=lambda _content, _symbol: b"different symbol bytes",
+        )
+    with pytest.raises(TypeError, match="exact bytes"):
+        evidence.verify_evidence_claim_content(
+            asserted,
+            source_content=source_content,
+            symbol_selector=lambda _content, _symbol: "not bytes",  # type: ignore[return-value]
+        )
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "/home//alice/work",
-        "/Users//alice/work",
-        r"C:\Users\alice\work",
-        "file:///home//alice/work",
-        r"\\?\C:\Users\alice\work",
-    ),
-)
-def test_retained_text_rejects_doubled_and_extended_capture_host_paths(
-    field: str,
-    value: str,
+def test_evidence_claim_verifier_revalidates_constructed_claims_and_exact_bytes() -> None:
+    source_content = b"selected"
+    valid = claim(
+        source_content_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+        locator=byte_locator(0, len(source_content)),
+        excerpt_sha256="sha256:" + hashlib.sha256(source_content).hexdigest(),
+    )
+    forged = evidence.EvidenceClaim.model_construct(
+        **(valid.model_dump() | {"contract_pointer": "not-a-pointer"}),
+    )
+
+    with pytest.raises(ValidationError):
+        evidence.verify_evidence_claim_content(forged, source_content=source_content)
+    with pytest.raises(TypeError, match="exact captured bytes"):
+        evidence.verify_evidence_claim_content(
+            claim(),
+            source_content=bytearray(source_content),  # type: ignore[arg-type]
+        )
+
+
+def test_documentation_proof_rejects_unresolvable_symbol_locator() -> None:
+    with pytest.raises(ValidationError):
+        proof(
+            locator=evidence.SymbolLocator(
+                kind=evidence.ContentLocatorKind.SYMBOL,
+                symbol="Samtools.Index::version",
+            )
+        )
+
+
+def test_json_pointer_documentation_proof_requires_json_source_content() -> None:
+    pointer_proof = proof(
+        proof_kind=evidence.DocumentationProofKind.SCHEMA_FIELD,
+        locator=evidence.JsonPointerLocator(
+            kind=evidence.ContentLocatorKind.JSON_POINTER,
+            pointer="/metadata/version",
+        ),
+    )
+
+    with pytest.raises(ValidationError, match="content format"):
+        source(
+            evidence.SourceKind.OFFICIAL_MANUAL,
+            content_format=evidence.SourceContentFormat.TEXT,
+            documentation_proof=pointer_proof,
+        )
+
+    captured = source(
+        evidence.SourceKind.OFFICIAL_MANUAL,
+        content_format=evidence.SourceContentFormat.JSON,
+        documentation_proof=pointer_proof,
+    )
+    assert captured.documentation_proof == pointer_proof
+
+
+@pytest.mark.parametrize("content_format", tuple(evidence.SourceContentFormat))
+def test_byte_range_documentation_proof_is_valid_for_each_official_source_format(
+    content_format: evidence.SourceContentFormat,
 ) -> None:
-    with pytest.raises(ValidationError, match="host path"):
-        retained_text(field, value)
+    captured = source(
+        evidence.SourceKind.OFFICIAL_MANUAL,
+        content_format=content_format,
+        documentation_proof=proof(locator=byte_locator(10, 40)),
+    )
+
+    assert isinstance(captured.documentation_proof.locator, evidence.ByteRangeLocator)
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
 @pytest.mark.parametrize(
-    "value",
+    ("field", "value"),
     (
-        r"\\?\UNC\server\Users\alice\work",
-        r"\\?\UNC\server\\Users\\alice\work",
-        r"\\?\UNC\\server\\Users\alice\work",
+        ("tool_id", "bcftools"),
+        ("tool_version", "9.9"),
+        ("source_url", "https://docs.example.org/other/reference.html"),
+        ("source_content_sha256", SHA_C),
     ),
 )
-def test_retained_text_rejects_extended_unc_capture_host_paths(field: str, value: str) -> None:
-    with pytest.raises(ValidationError, match="host path"):
-        retained_text(field, value)
+def test_official_documentation_proof_must_match_enclosing_source(field: str, value: str) -> None:
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL)
+    assert captured.documentation_proof is not None
+    mismatched = captured.documentation_proof.model_copy(update={field: value})
+
+    with pytest.raises(ValidationError, match="documentation proof"):
+        captured.model_copy(update={"documentation_proof": mismatched})
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        r"\\?\UNC\server\Users\<USER>\work",
-        r"\\?\UNC\server\\Users\\<USER>\work",
-    ),
-)
-def test_retained_text_accepts_redacted_extended_unc_capture_host_paths(field: str, value: str) -> None:
-    assert retained_text(field, value) == value
+@pytest.mark.parametrize("kind", (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA))
+def test_official_documentation_requires_an_explicit_version_proof(kind: evidence.SourceKind) -> None:
+    with pytest.raises(ValidationError, match="documentation_proof"):
+        source(kind, documentation_proof=None)
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        r"\\?\UNC\server\share\Users\alice\work",
-        r"\\?\UNC\server\\share\\Users\\alice\work",
-        r"\\?\UNC\\server\\share\Users\\alice\work",
-    ),
-)
-def test_retained_text_rejects_extended_unc_server_share_capture_paths(field: str, value: str) -> None:
-    with pytest.raises(ValidationError, match="host path"):
-        retained_text(field, value)
+def test_url_path_versions_and_moving_segments_never_infer_document_ownership() -> None:
+    url = "https://docs.example.org/api/99.7/latest/dependencies/other-tool/3.4/reference.html"
+    captured = source(
+        evidence.SourceKind.OFFICIAL_MANUAL,
+        url=url,
+        documentation_proof=proof(source_url=url),
+    )
+
+    assert captured.tool_id == "samtools"
+    assert captured.tool_version == "1.23.1"
+    assert captured.url == url
 
 
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        r"\\?\UNC\server\share\Users\<USER>\work",
-        r"\\?\UNC\server\\share\\Users\\<USER>\work",
-    ),
-)
-def test_retained_text_accepts_redacted_extended_unc_server_share_paths(field: str, value: str) -> None:
-    assert retained_text(field, value) == value
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
 @pytest.mark.parametrize(
     "url",
     (
-        "http://user:pass@example.com/docs",
-        "https://user@example.com/docs",
-        "https://:pass@example.com/docs",
-        "https://user:@example.com/docs",
-        "ftp://user:pass@example.com/docs",
-        "averylongcustomschemeoverthirtytwocharacters://user:pass@example.com/docs",
-        "//user:pass@example.com/docs",
-        "//user@example.com/docs",
-        "docs.//user:pass@example.com/x",
+        "http://docs.example.org/manual.html",
+        "https://user@docs.example.org/manual.html",
+        "https://docs.example.org/manual.html?version=1.23.1",
+        "https://DOCS.example.org/manual.html",
+        "https://docs.example.org/a/../manual.html",
+        "https://docs.example.org/manual path.html",
     ),
 )
-def test_retained_text_rejects_url_userinfo_credentials(field: str, url: str) -> None:
-    with pytest.raises(ValidationError, match="userinfo"):
-        retained_text(field, f"See {url} for details.")
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "Contact user@example.com for details.",
-        "Use mailto:user@example.com for support.",
-        "See https://example.com/@user/profile for details.",
-        "See //example.com/@user/profile for details.",
-        "See https://example.com/a//user@example.com/x for a documented path.",
-    ),
-)
-def test_retained_text_accepts_at_signs_outside_uri_authority_userinfo(field: str, value: str) -> None:
-    assert retained_text(field, value) == value
-
-
-@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
-@pytest.mark.parametrize(
-    "value",
-    (
-        "line\u2028separator",
-        "paragraph\u2029separator",
-        "right-to-left\u202eoverride",
-        "zero\u200bwidth",
-        "next\x85line",
-        "byte-order\ufeffmark",
-        "private\ue000use",
-    ),
-)
-def test_retained_text_rejects_unicode_separators_formats_and_controls(
-    field: str,
-    value: str,
-) -> None:
-    with pytest.raises(ValidationError, match="printable"):
-        retained_text(field, value)
+def test_source_urls_remain_canonical_credential_free_https(url: str) -> None:
+    with pytest.raises(ValidationError):
+        source(evidence.SourceKind.OFFICIAL_MANUAL, url=url)
 
 
 @pytest.mark.parametrize("kind", tuple(evidence.SourceKind))
-def test_each_source_kind_has_a_valid_minimal_immutable_json_roundtrip(
-    kind: evidence.SourceKind,
-) -> None:
+def test_each_source_kind_has_a_valid_minimal_immutable_json_roundtrip(kind: evidence.SourceKind) -> None:
     captured = source(kind)
     rebuilt = evidence.EvidenceSource.model_validate_json(captured.model_dump_json())
 
     assert rebuilt == captured
     assert hash(rebuilt) == hash(captured)
     assert rebuilt.kind is kind
-    assert rebuilt.tool_id == "samtools"
 
 
 @pytest.mark.parametrize(
     ("kind", "field"),
     (
         (evidence.SourceKind.OFFICIAL_MANUAL, "url"),
-        (evidence.SourceKind.OFFICIAL_MANUAL, "version_locator"),
+        (evidence.SourceKind.OFFICIAL_MANUAL, "documentation_proof"),
         (evidence.SourceKind.OFFICIAL_API_SCHEMA, "url"),
-        (evidence.SourceKind.OFFICIAL_API_SCHEMA, "version_locator"),
+        (evidence.SourceKind.OFFICIAL_API_SCHEMA, "documentation_proof"),
         (evidence.SourceKind.PACKAGE_RECIPE, "url"),
         (evidence.SourceKind.PACKAGE_RECIPE, "recipe_revision"),
         (evidence.SourceKind.PACKAGE_RECIPE, "recipe_path"),
@@ -737,10 +999,8 @@ def test_source_kinds_fail_closed_when_required_kind_fields_are_missing(
     kind: evidence.SourceKind,
     field: str,
 ) -> None:
-    captured = source(kind)
-
     with pytest.raises(ValidationError):
-        captured.model_copy(update={field: None})
+        source(kind).model_copy(update={field: None})
 
 
 @pytest.mark.parametrize(
@@ -748,14 +1008,9 @@ def test_source_kinds_fail_closed_when_required_kind_fields_are_missing(
     (
         (evidence.SourceKind.OFFICIAL_MANUAL, {"commit": COMMIT_A}),
         (evidence.SourceKind.OFFICIAL_API_SCHEMA, {"recipe_revision": COMMIT_A}),
-        (evidence.SourceKind.PACKAGE_RECIPE, {"version_locator": "1.23.1 docs"}),
-        (evidence.SourceKind.PACKAGE_RECIPE, {"source_path": "recipes/samtools/meta.yaml"}),
-        (evidence.SourceKind.UPSTREAM_SOURCE, {"version_locator": "1.23.1 source"}),
-        (evidence.SourceKind.UPSTREAM_SOURCE, {"recipe_revision": COMMIT_A}),
-        (evidence.SourceKind.UPSTREAM_SOURCE, {"environment_digest": SHA_B}),
-        (evidence.SourceKind.INSTALLED_HELP, {"url": "https://docs.example.org/tool/help"}),
-        (evidence.SourceKind.INSTALLED_HELP, {"commit": COMMIT_A}),
-        (evidence.SourceKind.INSTALLED_HELP, {"symbol_locator": "main"}),
+        (evidence.SourceKind.PACKAGE_RECIPE, {"documentation_proof": "present"}),
+        (evidence.SourceKind.UPSTREAM_SOURCE, {"documentation_proof": "present"}),
+        (evidence.SourceKind.INSTALLED_HELP, {"url": "https://docs.example.org/help"}),
     ),
 )
 def test_source_kinds_reject_irrelevant_cross_kind_fields(
@@ -767,813 +1022,384 @@ def test_source_kinds_reject_irrelevant_cross_kind_fields(
 
 
 @pytest.mark.parametrize(
-    "url",
-    (
-        "http://docs.example.org/tool/manual.html",
-        "ftp://docs.example.org/tool/manual.html",
-        "HTTPS://docs.example.org/tool/manual.html",
-        "https://user@docs.example.org/tool/manual.html",
-        "https://:password@docs.example.org/tool/manual.html",
-        "https://user:@docs.example.org/tool/manual.html",
-        "https://user:password@docs.example.org/tool/manual.html",
-        "https://docs.example.org/tool/manual.html?token=secret",
-        "https://docs.example.org/tool/manual.html?",
-        "https://docs.example.org/tool/manual.html#section",
-        "https://docs.example.org/tool/manual.html#",
-        "https://DOCS.example.org/tool/manual.html",
-        "https://docs.example.org:443/tool/manual.html",
-        "https://docs.example.org:08443/tool/manual.html",
-        "https://docs.example.org/tool/%6danual.html",
-        "https://docs.example.org/tool/manual path.html",
-        "https://docs.example.org/tool/manual.html\n",
-        "https://docs.example.org",
-        "https://docs.example.org/",
-        "https://docs.example.org//tool/manual.html",
-        "https://docs.example.org/tool/../manual.html",
-        "https://docs.example.org/tool\\manual.html",
-    ),
-)
-def test_document_and_recipe_urls_require_one_canonical_credential_free_https_spelling(
-    url: str,
-) -> None:
-    with pytest.raises(ValidationError):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url})
-
-
-def test_canonical_nondefault_https_port_is_retained() -> None:
-    captured = source(evidence.SourceKind.OFFICIAL_API_SCHEMA).model_copy(
-        update={"url": "https://api.example.org:8443/schema/1.23.1.json"}
-    )
-
-    assert captured.url == "https://api.example.org:8443/schema/1.23.1.json"
-
-
-@pytest.mark.parametrize("kind", (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA))
-@pytest.mark.parametrize(
-    "segment",
-    ("latest", "stable", "current", "main", "master", "head", "develop", "release", "trunk"),
-)
-def test_official_documentation_rejects_moving_url_segments(
-    kind: evidence.SourceKind,
-    segment: str,
-) -> None:
-    with pytest.raises(ValidationError, match="moving"):
-        source(kind).model_copy(update={"url": f"https://docs.example.org/samtools/{segment}/reference.html"})
-
-
-@pytest.mark.parametrize("kind", (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA))
-@pytest.mark.parametrize("locator", ("latest reference", "stable schema", "current docs", "main branch"))
-def test_official_documentation_rejects_moving_version_locators(
-    kind: evidence.SourceKind,
-    locator: str,
-) -> None:
-    with pytest.raises(ValidationError, match="moving"):
-        source(kind).model_copy(update={"version_locator": locator})
-
-
-@pytest.mark.parametrize("kind", (evidence.SourceKind.OFFICIAL_MANUAL, evidence.SourceKind.OFFICIAL_API_SCHEMA))
-def test_official_documentation_must_bind_exact_tool_version_without_url_mismatch(
-    kind: evidence.SourceKind,
-) -> None:
-    path_bound = source(kind).model_copy(
-        update={
-            "url": "https://docs.example.org/samtools/1.23.1/reference.html",
-            "version_locator": "reference",
-        }
-    )
-    locator_bound = source(kind).model_copy(
-        update={
-            "url": "https://docs.example.org/samtools/reference.html",
-            "version_locator": "1.23.1 reference",
-        }
-    )
-
-    assert path_bound.url is not None and locator_bound.version_locator == "1.23.1 reference"
-
-    with pytest.raises(ValidationError, match="tool version"):
-        source(kind).model_copy(
-            update={
-                "url": "https://docs.example.org/samtools/1.20/reference.html",
-                "version_locator": "1.23.1 reference",
-            }
-        )
-    with pytest.raises(ValidationError, match="tool version"):
-        source(kind).model_copy(
-            update={
-                "url": "https://docs.example.org/samtools/reference.html",
-                "version_locator": "reference",
-            }
-        )
-
-
-@pytest.mark.parametrize(
-    "url",
-    (
-        "https://docs.example.org/samtools/docs/1.20/reference.html",
-        "https://docs.example.org/samtools/user-guide/1.20/reference.html",
-    ),
-)
-def test_official_documentation_rejects_nested_mismatched_tool_versions(url: str) -> None:
-    with pytest.raises(ValidationError, match="tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-            update={"url": url, "version_locator": "1.23.1 reference"}
-        )
-
-
-@pytest.mark.parametrize(
-    "url",
-    (
-        "https://docs.example.org/samtools-htslib-1.23.1/reference.html",
-        "https://docs.example.org/samtools-api-1.23.1/reference.html",
-    ),
-)
-def test_official_documentation_rejects_false_composite_tool_contexts(url: str) -> None:
-    with pytest.raises(ValidationError, match="tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-            update={"url": url, "version_locator": "1.23.1 reference"}
-        )
-
-
-def test_official_documentation_accepts_nested_matching_tool_version_with_reference_locator() -> None:
-    url = "https://docs.example.org/samtools/docs/1.23.1/reference.html"
-
-    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-        update={"url": url, "version_locator": "reference"}
-    )
-
-    assert captured.url == url
-    assert captured.version_locator == "reference"
-
-
-@pytest.mark.parametrize(
-    "url",
-    (
-        "https://docs.example.org/samtools-api/1.23.1/reference.html",
-        "https://docs.example.org/samtools-htslib/docs/1.23.1/reference.html",
-    ),
-)
-def test_official_documentation_rejects_false_composite_tool_path_segments(url: str) -> None:
-    with pytest.raises(ValidationError, match="tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-            update={"url": url, "version_locator": "1.23.1 reference"}
-        )
-
-
-@pytest.mark.parametrize(
-    "url",
-    (
-        "https://docs.example.org/samtools/docs/reference/1.20/index.html",
-        "https://docs.example.org/samtools/docs/manual/reference/1.20/index.html",
-        "https://docs.example.org/samtools/user-guide/reference/1.20/index.html",
-        "https://docs.example.org/samtools/docs/reference/archive/sections/1.20/index.html",
-    ),
-)
-def test_official_documentation_rejects_arbitrarily_deep_mismatched_tool_versions(url: str) -> None:
-    with pytest.raises(ValidationError, match="tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-            update={"url": url, "version_locator": "1.23.1 reference"}
-        )
-
-
-@pytest.mark.parametrize(
-    "url",
-    (
-        "https://docs.example.org/samtools/docs/reference/1.23.1/index.html",
-        "https://docs.example.org/samtools/docs/manual/reference/1.23.1/index.html",
-        "https://docs.example.org/samtools/docs/reference/archive/sections/1.23.1/index.html",
-    ),
-)
-def test_official_documentation_accepts_arbitrarily_deep_matching_tool_versions(url: str) -> None:
-    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-        update={"url": url, "version_locator": "reference"}
-    )
-
-    assert captured.url == url
-
-
-def test_official_documentation_accepts_no_version_url_when_locator_binds_version() -> None:
-    url = "https://docs.example.org/samtools/docs/reference/index.html"
-
-    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-        update={"url": url, "version_locator": "1.23.1 reference"}
-    )
-
-    assert captured.url == url
-
-
-@pytest.mark.parametrize(
-    "url",
-    (
-        "https://docs.example.org/samtools/docs/dependencies/htslib/1.23.1/reference.html",
-        "https://docs.example.org/samtools/docs/vendor/bcftools/1.23.1/reference.html",
-        "https://docs.example.org/samtools/docs/integrations/tabix/1.23.1/reference.html",
-    ),
-)
-def test_official_documentation_does_not_bind_dependency_product_versions(url: str) -> None:
-    with pytest.raises(ValidationError, match="bind the exact tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-            update={"url": url, "version_locator": "reference"}
-        )
-
-
-@pytest.mark.parametrize(
-    "url",
-    (
-        "https://docs.example.org/samtools/docs/dependencies/htslib/index.html",
-        "https://docs.example.org/samtools/docs/dependencies/htslib/1.20/reference.html",
-    ),
-)
-def test_official_documentation_accepts_dependency_paths_when_locator_binds_tool_version(url: str) -> None:
-    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-        update={"url": url, "version_locator": "1.23.1 reference"}
-    )
-
-    assert captured.url == url
-
-
-@pytest.mark.parametrize(
-    ("url", "locator"),
-    (
-        ("https://docs.example.org/samtools-1.20/reference.html", "1.23.1 reference"),
-        ("https://docs.example.org/samtools/reference-1.20.html", "1.23.1 reference"),
-        ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools-1.20 reference"),
-        ("https://docs.example.org/samtools1.20/reference.html", "1.23.1 reference"),
-        ("https://docs.example.org/samtoolsV1.20/reference.html", "1.23.1 reference"),
-        ("https://docs.example.org/samtools-v1.20/reference.html", "1.23.1 reference"),
-        ("https://docs.example.org/samtools-docs-1.20/reference.html", "1.23.1 reference"),
-        ("https://docs.example.org/samtools-release-notes-1.20/reference.html", "1.23.1 reference"),
-        ("https://docs.example.org/samtools-user-guide-1.20/reference.html", "1.23.1 reference"),
-        ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools1.20 reference"),
-        ("https://docs.example.org/samtools/1.23.1/reference.html", "samtoolsV1.20 reference"),
-        ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools-v1.20 reference"),
-        ("https://docs.example.org/samtools/1.23.1/reference.html", "V1.20 reference"),
-    ),
-)
-def test_official_documentation_rejects_conflicting_embedded_dotted_versions(
-    url: str,
-    locator: str,
-) -> None:
-    with pytest.raises(ValidationError, match="tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url, "version_locator": locator})
-
-
-@pytest.mark.parametrize(
-    ("url", "locator"),
-    (
-        ("https://docs.example.org/samtools-1.23.1/reference.html", "reference"),
-        ("https://docs.example.org/samtools/reference-1.23.1.html", "reference"),
-        ("https://docs.example.org/samtools/reference.html", "samtools-1.23.1 reference"),
-    ),
-)
-def test_official_documentation_accepts_exact_embedded_dotted_versions(
-    url: str,
-    locator: str,
-) -> None:
-    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url, "version_locator": locator})
-
-    assert captured.url == url
-    assert captured.version_locator == locator
-
-
-@pytest.mark.parametrize(
-    ("url", "locator"),
-    (
-        ("https://docs.example.org/api/2/samtools/1.23.1/reference.html", "section 42"),
-        ("https://docs.example.org/2026/samtools/1.23.1/reference.html", "section 42"),
-        ("https://docs.example.org/samtools/v1.23.1/reference.html", "section 42"),
-        ("https://docs.example.org/samtools/reference.html", "v1.23.1 section 42"),
-        ("https://docs.example.org/samtools/V1.23.1/reference.html", "section 42"),
-        ("https://docs.example.org/samtools/reference.html", "V1.23.1 section 42"),
-        ("https://docs.example.org/api/2.0/samtools/1.23.1/reference.html", "manual"),
-        ("https://docs.example.org/samtools/reference.html", "1.23.1 manual, section 1.2"),
-    ),
-)
-def test_official_documentation_ignores_unrelated_numbers_and_normalizes_v_versions(
-    url: str,
-    locator: str,
-) -> None:
-    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url, "version_locator": locator})
-
-    assert captured.url == url
-    assert captured.version_locator == locator
-
-
-@pytest.mark.parametrize(
-    ("url", "locator"),
-    (
-        ("https://docs.example.org/api/1.23.1/samtools/reference.html", "section 42"),
-        ("https://docs.example.org/samtools/reference.html", "htslib 1.23.1 reference"),
-        ("https://docs.example.org/samtools/reference.html", "htslib version 1.23.1"),
-        ("https://docs.example.org/samtools/reference.html", "API documentation 1.23.1"),
-    ),
-)
-def test_official_documentation_does_not_use_unrelated_matching_versions_as_binding(
-    url: str,
-    locator: str,
-) -> None:
-    with pytest.raises(ValidationError, match="bind the exact tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url, "version_locator": locator})
-
-
-def test_official_documentation_ignores_unrelated_mismatched_tool_versions_when_url_is_bound() -> None:
-    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"version_locator": "htslib version 1.20"})
-
-    assert captured.version_locator == "htslib version 1.20"
-
-
-def test_official_documentation_accepts_a_matching_suffix_bearing_tool_version() -> None:
-    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-        update={
-            "tool_version": "1.23.1-beta",
-            "url": "https://docs.example.org/samtools/1.23.1-beta/reference.html",
-            "version_locator": "1.23.1-beta reference",
-        }
-    )
-
-    assert captured.tool_version == "1.23.1-beta"
-
-
-@pytest.mark.parametrize(
-    "locator",
-    ("1.23.1-beta docs", "v1.23.1-beta docs", "1.23.1+build docs", "1.23.1.post1 docs"),
-)
-def test_official_documentation_rejects_suffixes_when_tool_version_is_core(locator: str) -> None:
-    with pytest.raises(ValidationError, match="tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"version_locator": locator})
-
-
-def test_official_documentation_rejects_suffix_bearing_url_when_tool_version_is_core() -> None:
-    with pytest.raises(ValidationError, match="tool version"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
-            update={
-                "url": "https://docs.example.org/samtools/v1.23.1-beta/reference.html",
-                "version_locator": "1.23.1 reference",
-            }
-        )
-
-
-@pytest.mark.parametrize("version", ("", "latest", "main", "1.*", ">=1.2", " 1.2", "1.2 ", "1.2\n"))
-def test_sources_and_records_require_exact_tool_versions(version: str) -> None:
-    with pytest.raises(ValidationError):
-        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"tool_version": version})
-    with pytest.raises(ValidationError):
-        evidence_record().model_copy(update={"tool_version": version})
-
-
-@pytest.mark.parametrize("revision", (COMMIT_A, COMMIT_B))
-def test_package_recipe_revision_is_a_full_lowercase_git_object_id(revision: str) -> None:
-    updates = {
-        "recipe_revision": revision,
-        "url": f"https://github.com/bioconda/bioconda-recipes/blob/{revision}/recipes/samtools/meta.yaml",
-    }
-    recipe = source(evidence.SourceKind.PACKAGE_RECIPE).model_copy(update=updates)
-
-    assert recipe.recipe_revision == revision
-
-
-@pytest.mark.parametrize(
-    "updates",
-    (
-        {"url": "https://github.com/bioconda/bioconda-recipes/blob/main/recipes/samtools/meta.yaml"},
-        {"url": (f"https://github.com/bioconda/bioconda-recipes/blob/{COMMIT_A}/recipes/bcftools/meta.yaml")},
-        {"recipe_path": "recipes/bcftools/meta.yaml"},
-        {
-            "recipe_revision": "1.2.3",
-            "url": "https://github.com/bioconda/bioconda-recipes/blob/main/recipes/samtools/meta.yaml",
-        },
-    ),
-)
-def test_package_recipe_revision_and_path_must_be_bound_in_its_url(
-    updates: dict[str, object],
-) -> None:
-    with pytest.raises(ValidationError, match="revision"):
-        source(evidence.SourceKind.PACKAGE_RECIPE).model_copy(update=updates)
-
-
-@pytest.mark.parametrize(
-    "pointer",
-    (
-        "/environment/packages",
-        "/environment/packages/0",
-        "/environment/packages/0/constraint",
-    ),
-)
-def test_package_recipe_claims_are_scoped_to_environment_packages(pointer: str) -> None:
-    recipe = source(evidence.SourceKind.PACKAGE_RECIPE)
-    asserted = claim(source_id=recipe.source_id, contract_pointer=pointer)
-
-    record = evidence_record(sources=(recipe,), claims=(asserted,))
-
-    assert record.claims == (asserted,)
-
-
-@pytest.mark.parametrize(
-    "pointer",
-    (
-        "/environment",
-        "/environment/locks/0",
-        "/outputs/0",
-        "/environment/packages_evil/0",
-        "/environment/packages~1evil/0",
-        "/environment~1packages/0",
-    ),
-)
-def test_package_recipe_claims_reject_non_package_contract_pointers(pointer: str) -> None:
-    recipe = source(evidence.SourceKind.PACKAGE_RECIPE)
-    asserted = claim(source_id=recipe.source_id, contract_pointer=pointer)
-
-    with pytest.raises(ValidationError, match="package"):
-        evidence_record(sources=(recipe,), claims=(asserted,))
-
-
-@pytest.mark.parametrize(
-    "revision",
-    (
-        "",
-        "latest",
-        "main",
-        "master",
-        "1.2.3",
-        "samtools-1.23.1-0",
-        "1" * 12,
-        "1" * 39,
-        "1" * 41,
-        "A" * 40,
-        "g" * 40,
-        "1" * 40 + "\n",
-    ),
-)
-def test_package_recipe_rejects_non_git_or_noncanonical_revisions(revision: str) -> None:
-    with pytest.raises(ValidationError):
-        source(evidence.SourceKind.PACKAGE_RECIPE).model_copy(update={"recipe_revision": revision})
-
-
-@pytest.mark.parametrize("commit", (COMMIT_A, COMMIT_B))
-def test_upstream_source_accepts_exact_lowercase_git_object_ids(commit: str) -> None:
-    captured = source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(
-        update={
-            "commit": commit,
-            "url": f"https://github.com/samtools/samtools/blob/{commit}/src/samtools.c",
-            "source_path": "src/samtools.c",
-        }
-    )
-
-    assert captured.commit == commit
-
-
-@pytest.mark.parametrize(
-    "commit",
-    ("1" * 39, "1" * 41, "A" * 40, "g" * 40, "latest", "main", "1" * 40 + "\n"),
-)
-def test_upstream_source_rejects_noncanonical_git_object_ids(commit: str) -> None:
-    with pytest.raises(ValidationError):
-        source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(update={"commit": commit})
-
-
-@pytest.mark.parametrize(
-    "source_path",
+    "path",
     ("bam_sort.c", "src/samtools.c", "include/htslib/sam.h", "src/_internal.py", ".github/schema.json"),
 )
-def test_upstream_source_path_is_repository_relative_and_url_bound(source_path: str) -> None:
-    captured = source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(
-        update={
-            "source_path": source_path,
-            "url": f"https://github.com/samtools/samtools/blob/{COMMIT_A}/{source_path}",
-        }
+def test_repository_source_paths_are_canonical_relative_posix(path: str) -> None:
+    captured = source(
+        evidence.SourceKind.UPSTREAM_SOURCE,
+        source_path=path,
+        url=f"https://github.com/samtools/samtools/blob/{COMMIT_A}/{path}",
     )
 
-    assert captured.source_path == source_path
+    assert captured.source_path == path
 
 
 @pytest.mark.parametrize(
-    "source_path",
-    (
-        "",
-        "/src/samtools.c",
-        "../src/samtools.c",
-        "src/../samtools.c",
-        "src/./samtools.c",
-        "src//samtools.c",
-        "src\\samtools.c",
-        "src/samtools.c/",
-        "src/samtools.c\n",
-    ),
+    "path",
+    ("/src/main.c", "src/../main.c", "src//main.c", "src\\main.c", "src/main file.c", "src/main.c/"),
 )
-def test_upstream_source_rejects_noncanonical_paths(source_path: str) -> None:
+def test_repository_source_paths_reject_absolute_host_and_noncanonical_forms(path: str) -> None:
     with pytest.raises(ValidationError):
-        source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(update={"source_path": source_path})
+        source(evidence.SourceKind.UPSTREAM_SOURCE, source_path=path)
 
 
 @pytest.mark.parametrize(
-    ("url", "source_path"),
+    ("url", "path"),
     (
-        ("https://github.com/samtools/samtools/blob/main/bam_sort.c", "bam_sort.c"),
-        (f"https://github.com/samtools/samtools/blob/{COMMIT_A}/src/other.c", "bam_sort.c"),
-        (f"https://github.com/samtools/samtools/tree/{COMMIT_A}", "bam_sort.c"),
-        (f"https://github.com/samtools/samtools/blob/{COMMIT_A}/bam_sort.c", "src/bam_sort.c"),
+        (f"https://github.com/samtools/samtools/blob/{COMMIT_A}x/src/main.c", "src/main.c"),
+        (f"https://github.com/samtools/samtools/blob/prefix-{COMMIT_A}/src/main.c", "src/main.c"),
+        (f"https://github.com/samtools/samtools/blob/{COMMIT_A}/src/other.c", "src/main.c"),
     ),
 )
-def test_upstream_url_must_bind_the_commit_and_exact_source_path(url: str, source_path: str) -> None:
-    with pytest.raises(ValidationError):
-        source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(update={"url": url, "source_path": source_path})
+def test_upstream_url_binding_compares_exact_parsed_path_segments(url: str, path: str) -> None:
+    with pytest.raises(ValidationError, match="commit and source path"):
+        source(evidence.SourceKind.UPSTREAM_SOURCE, url=url, source_path=path)
 
 
-@pytest.mark.parametrize("symbol", (None, "main", "bam_sort_core_ext", "Samtools.Sort::run"))
-def test_upstream_symbol_locator_is_optional_but_exact(symbol: str | None) -> None:
-    captured = source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(update={"symbol_locator": symbol})
-
-    assert captured.symbol_locator == symbol
-
-
-@pytest.mark.parametrize("symbol", ("", " main", "main ", "main()", "src/main", "main\n"))
-def test_upstream_symbol_locator_rejects_ambiguous_forms(symbol: str) -> None:
-    with pytest.raises(ValidationError):
-        source(evidence.SourceKind.UPSTREAM_SOURCE).model_copy(update={"symbol_locator": symbol})
+@pytest.mark.parametrize(
+    "argv",
+    (("--help",), ("-h",), ("view", "--help"), ("help", "view")),
+)
+def test_installed_help_retains_literal_structured_argv(argv: tuple[str, ...]) -> None:
+    assert source(evidence.SourceKind.INSTALLED_HELP, argv=argv).argv == argv
 
 
 @pytest.mark.parametrize(
     "argv",
     (
-        ("--help",),
-        ("-h",),
-        ("-help",),
-        ("help",),
-        ("view", "--help"),
-        ("view", "-h"),
-        ("view", "-help"),
-        ("help", "view"),
-    ),
-)
-def test_installed_help_retains_literal_immutable_argv(argv: tuple[str, ...]) -> None:
-    captured = source(evidence.SourceKind.INSTALLED_HELP).model_copy(update={"argv": argv})
-
-    assert captured.argv == argv
-    assert type(captured.argv) is tuple
-
-
-@pytest.mark.parametrize(
-    "argv",
-    (
-        (),
+        ("tool --help",),
+        ("/usr/bin/tool", "--help"),
+        ("--token", "Swordfish"),
+        ("--help;env",),
         ["--help"],
-        "--help",
-        ("",),
-        ("samtools --help",),
-        ("--help;id",),
-        ("$(id)",),
-        ("`id`",),
-        ("--token=secret",),
-        ("view", "input.bam"),
-        ("input.bam", "--help"),
-        ("--help", "input.bam"),
-        ("--help", "view"),
-        ("-h", "view"),
-        ("-help", "view"),
-        ("view", "help"),
-        ("help", "help"),
-        ("help", "View"),
-        ("view", "input.bam", "--help"),
-        ("view", "--help", "input.bam"),
-        ("--help", "--format=json"),
-        ("/usr/bin/samtools", "--help"),
-        ("--config=/tmp/config",),
-        ("--help\n",),
     ),
 )
-def test_installed_help_rejects_shell_strings_paths_secrets_and_coercions(argv: object) -> None:
+def test_installed_help_rejects_commands_paths_credentials_and_collection_coercion(argv: object) -> None:
     with pytest.raises(ValidationError):
-        source(evidence.SourceKind.INSTALLED_HELP).model_copy(update={"argv": argv})
+        source(evidence.SourceKind.INSTALLED_HELP, argv=argv)
 
 
-def test_installed_help_output_digest_must_equal_common_captured_content() -> None:
-    with pytest.raises(ValidationError, match="output"):
-        source(evidence.SourceKind.INSTALLED_HELP).model_copy(update={"output_sha256": SHA_C})
-
-
-@pytest.mark.parametrize("pointer", ("/outputs/0/collector", "/a~1b/~0schema", "/metadata/%2E/value"))
-def test_claim_accepts_canonical_json_pointers(pointer: str) -> None:
-    asserted = claim(contract_pointer=pointer)
-
-    assert asserted.contract_pointer == pointer
-
-
-def test_claim_pointer_allows_printable_unicode_but_rejects_format_characters() -> None:
-    assert claim(contract_pointer="/outputs/測試").contract_pointer == "/outputs/測試"
-
-    with pytest.raises(ValidationError, match="printable"):
-        claim(contract_pointer="/outputs/safe\u202eunsafe")
-
-
-@pytest.mark.parametrize(
-    "pointer",
-    (
-        "",
-        "outputs.index.collector",
-        "/",
-        "//",
-        "/outputs/",
-        "/outputs//collector",
-        "/.",
-        "/..",
-        "/outputs/../collector",
-        "/outputs/./collector",
-        "/outputs/~",
-        "/outputs/~2",
-        "/outputs/raw~tilde",
-        "/outputs/ collector",
-        "/outputs/collector ",
-        "/outputs/collector\n",
-        "/outputs/collector\x7f",
-        "/" + "/".join("segment" for _ in range(65)),
-        "/" + "a" * 2048,
-    ),
-)
-def test_claim_rejects_dotted_empty_traversing_overdeep_or_noncanonical_pointers(
-    pointer: str,
-) -> None:
-    with pytest.raises(ValidationError):
-        claim(contract_pointer=pointer)
-
-
-def test_claim_locator_is_bounded_single_line_and_statement_is_nonempty() -> None:
-    redacted = claim(
-        statement="Use the token parameter <TOKEN> only when the official service requires authentication."
-    )
-
-    assert redacted.statement.startswith("Use the token parameter <TOKEN>")
-    with pytest.raises(ValidationError):
-        claim(locator="")
-    with pytest.raises(ValidationError):
-        claim(locator="OUTPUT\nFILES")
-    with pytest.raises(ValidationError):
-        claim(locator="x" * 513)
-    with pytest.raises(ValidationError):
-        claim(statement="")
-    with pytest.raises(ValidationError):
-        claim(statement=" statement with outer whitespace ")
-    with pytest.raises(ValidationError, match="secret"):
-        claim(statement="Use --token=retained-secret-value for authentication.")
+def test_installed_help_output_digest_equals_source_content_digest() -> None:
+    with pytest.raises(ValidationError, match="output digest"):
+        source(evidence.SourceKind.INSTALLED_HELP, output_sha256=SHA_C)
 
 
 def test_evidence_record_binds_claims_to_known_source_content() -> None:
-    record = evidence_record()
-
-    assert record.claims[0].source_id == record.sources[0].source_id
-    assert record.claims[0].source_content_sha256 == record.sources[0].content_sha256
-
     with pytest.raises(ValidationError, match="missing source"):
-        evidence_record(claims=(claim(source_id="missing-source"),))
-    with pytest.raises(ValidationError, match="content"):
+        evidence_record(claims=(claim(source_id="missing"),))
+    with pytest.raises(ValidationError, match="source content digest"):
         evidence_record(claims=(claim(source_content_sha256=SHA_D),))
 
 
-@pytest.mark.parametrize(
-    "kind",
-    (
-        evidence.SourceKind.OFFICIAL_MANUAL,
-        evidence.SourceKind.OFFICIAL_API_SCHEMA,
-        evidence.SourceKind.UPSTREAM_SOURCE,
-        evidence.SourceKind.INSTALLED_HELP,
-        evidence.SourceKind.PACKAGE_RECIPE,
-    ),
-)
-def test_evidence_record_rejects_sources_for_a_different_tool(kind: evidence.SourceKind) -> None:
-    captured = source(kind, tool_id="bcftools")
-    pointer = "/environment/packages/0/version" if kind is evidence.SourceKind.PACKAGE_RECIPE else "/outputs/0"
-    asserted = claim(source_id=captured.source_id, contract_pointer=pointer)
-
-    with pytest.raises(ValidationError, match="tool ID"):
-        evidence_record(sources=(captured,), claims=(asserted,))
-
-
 @pytest.mark.parametrize("field", ("sources", "claims"))
-def test_evidence_verified_record_requires_sources_and_claims(field: str) -> None:
+def test_evidence_record_requires_sources_and_claims(field: str) -> None:
     with pytest.raises(ValidationError):
         evidence_record(**{field: ()})
 
 
-def test_evidence_sources_claims_and_verifications_are_unique_and_canonically_ordered() -> None:
-    manual = source(evidence.SourceKind.OFFICIAL_MANUAL)
-    upstream = source(evidence.SourceKind.UPSTREAM_SOURCE)
-    manual_claim = claim()
-    upstream_claim = claim(
-        claim_id="upstream-output-collector",
-        source_id=upstream.source_id,
-        excerpt_sha256=SHA_D,
+def test_package_recipe_claims_are_limited_to_environment_packages() -> None:
+    recipe = source(evidence.SourceKind.PACKAGE_RECIPE)
+    accepted = claim(
+        source_id=recipe.source_id,
+        contract_pointer="/environment/packages/0/constraint",
     )
-    first_verification = verification("a-smoke")
-    second_verification = verification("z-workflow", kind="workflow", test_id="workflow-v1")
+    assert evidence_record(sources=(recipe,), claims=(accepted,)).claims == (accepted,)
 
-    valid = evidence_record(
+    rejected = accepted.model_copy(update={"contract_pointer": "/outputs/index"})
+    with pytest.raises(ValidationError, match="package"):
+        evidence_record(sources=(recipe,), claims=(rejected,))
+
+
+@pytest.mark.parametrize(
+    ("kind", "content_format", "locator"),
+    (
+        (evidence.SourceKind.OFFICIAL_MANUAL, "text", byte_locator()),
+        (evidence.SourceKind.OFFICIAL_API_SCHEMA, "json", byte_locator()),
+        (
+            evidence.SourceKind.OFFICIAL_API_SCHEMA,
+            "json",
+            evidence.JsonPointerLocator(kind=evidence.ContentLocatorKind.JSON_POINTER, pointer="/version"),
+        ),
+        (evidence.SourceKind.UPSTREAM_SOURCE, "source_code", byte_locator()),
+        (
+            evidence.SourceKind.UPSTREAM_SOURCE,
+            "source_code",
+            evidence.SymbolLocator(
+                kind=evidence.ContentLocatorKind.SYMBOL,
+                symbol="bam_sort_core_ext",
+            ),
+        ),
+        (
+            evidence.SourceKind.UPSTREAM_SOURCE,
+            "json",
+            evidence.JsonPointerLocator(kind=evidence.ContentLocatorKind.JSON_POINTER, pointer="/version"),
+        ),
+        (evidence.SourceKind.INSTALLED_HELP, "text", byte_locator()),
+        (
+            evidence.SourceKind.INSTALLED_HELP,
+            "json",
+            evidence.JsonPointerLocator(kind=evidence.ContentLocatorKind.JSON_POINTER, pointer="/version"),
+        ),
+        (evidence.SourceKind.PACKAGE_RECIPE, "text", byte_locator()),
+        (
+            evidence.SourceKind.PACKAGE_RECIPE,
+            "json",
+            evidence.JsonPointerLocator(kind=evidence.ContentLocatorKind.JSON_POINTER, pointer="/package/version"),
+        ),
+    ),
+)
+def test_claim_locator_compatibility_table_accepts_only_resolvable_source_forms(
+    kind: evidence.SourceKind,
+    content_format: str,
+    locator: evidence.ContentLocator,
+) -> None:
+    source_updates: dict[str, object] = {"content_format": evidence.SourceContentFormat(content_format)}
+    if kind is evidence.SourceKind.UPSTREAM_SOURCE and content_format != "source_code":
+        source_updates["symbol_locator"] = None
+    captured = source(kind, **source_updates)
+    asserted = claim(
+        source_id=captured.source_id,
+        source_content_sha256=captured.content_sha256,
+        contract_pointer=(
+            "/environment/packages/0" if kind is evidence.SourceKind.PACKAGE_RECIPE else "/outputs/index"
+        ),
+        locator=locator,
+    )
+
+    assert evidence_record(sources=(captured,), claims=(asserted,)).claims == (asserted,)
+
+
+@pytest.mark.parametrize(
+    ("kind", "content_format", "locator"),
+    (
+        (
+            evidence.SourceKind.OFFICIAL_MANUAL,
+            "text",
+            evidence.JsonPointerLocator(kind=evidence.ContentLocatorKind.JSON_POINTER, pointer="/version"),
+        ),
+        (
+            evidence.SourceKind.UPSTREAM_SOURCE,
+            "source_code",
+            evidence.JsonPointerLocator(kind=evidence.ContentLocatorKind.JSON_POINTER, pointer="/version"),
+        ),
+        (
+            evidence.SourceKind.INSTALLED_HELP,
+            "text",
+            evidence.JsonPointerLocator(kind=evidence.ContentLocatorKind.JSON_POINTER, pointer="/version"),
+        ),
+        (
+            evidence.SourceKind.PACKAGE_RECIPE,
+            "text",
+            evidence.JsonPointerLocator(kind=evidence.ContentLocatorKind.JSON_POINTER, pointer="/version"),
+        ),
+        (
+            evidence.SourceKind.OFFICIAL_MANUAL,
+            "text",
+            evidence.SymbolLocator(kind=evidence.ContentLocatorKind.SYMBOL, symbol="Fake::symbol"),
+        ),
+        (
+            evidence.SourceKind.OFFICIAL_API_SCHEMA,
+            "json",
+            evidence.SymbolLocator(kind=evidence.ContentLocatorKind.SYMBOL, symbol="Fake::symbol"),
+        ),
+        (
+            evidence.SourceKind.INSTALLED_HELP,
+            "text",
+            evidence.SymbolLocator(kind=evidence.ContentLocatorKind.SYMBOL, symbol="Fake::symbol"),
+        ),
+        (
+            evidence.SourceKind.PACKAGE_RECIPE,
+            "text",
+            evidence.SymbolLocator(kind=evidence.ContentLocatorKind.SYMBOL, symbol="Fake::symbol"),
+        ),
+        (
+            evidence.SourceKind.UPSTREAM_SOURCE,
+            "source_code",
+            evidence.SymbolLocator(kind=evidence.ContentLocatorKind.SYMBOL, symbol="different_symbol"),
+        ),
+    ),
+)
+def test_claim_locator_compatibility_table_rejects_unresolvable_source_forms(
+    kind: evidence.SourceKind,
+    content_format: str,
+    locator: evidence.ContentLocator,
+) -> None:
+    captured = source(kind, content_format=evidence.SourceContentFormat(content_format))
+    asserted = claim(
+        source_id=captured.source_id,
+        source_content_sha256=captured.content_sha256,
+        contract_pointer=(
+            "/environment/packages/0" if kind is evidence.SourceKind.PACKAGE_RECIPE else "/outputs/index"
+        ),
+        locator=locator,
+    )
+
+    with pytest.raises(ValidationError, match="locator"):
+        evidence_record(sources=(captured,), claims=(asserted,))
+
+
+def test_sources_claims_and_verifications_are_unique_and_canonically_ordered() -> None:
+    manual = source(evidence.SourceKind.OFFICIAL_MANUAL, source_id="a-manual")
+    upstream = source(evidence.SourceKind.UPSTREAM_SOURCE, source_id="z-source")
+    manual_claim = claim(claim_id="a-claim", source_id=manual.source_id)
+    upstream_claim = claim(
+        claim_id="z-claim",
+        source_id=upstream.source_id,
+        contract_pointer="/outputs/index/path",
+    )
+    first = verification("a-verification")
+    second = verification("z-verification", test_id="samtools-view-tiny-bam-v1")
+    accepted = evidence_record(
         sources=(manual, upstream),
         claims=(manual_claim, upstream_claim),
-        verifications=(first_verification, second_verification),
+        verifications=(first, second),
     )
-    assert valid.sources == (manual, upstream)
+    assert len(accepted.sources) == 2
 
     for updates in (
-        {"sources": (upstream, manual)},
-        {"sources": (manual, manual)},
-        {"claims": (upstream_claim, manual_claim), "sources": (manual, upstream)},
+        {"claims": (upstream_claim, manual_claim)},
+        {"verifications": (second, first)},
         {"claims": (manual_claim, manual_claim)},
-        {"verifications": (second_verification, first_verification)},
-        {"verifications": (first_verification, first_verification)},
+        {"verifications": (first, first)},
     ):
         with pytest.raises(ValidationError):
-            evidence_record(**updates)
+            evidence_record(sources=(manual, upstream), **updates)
 
 
 def test_sources_use_authoritative_kind_precedence_then_source_id_order() -> None:
-    manual = source(evidence.SourceKind.OFFICIAL_MANUAL, source_id="z-manual")
-    api = source(evidence.SourceKind.OFFICIAL_API_SCHEMA, source_id="a-api")
-    manual_claim = claim(source_id=manual.source_id)
+    manual = source(evidence.SourceKind.OFFICIAL_MANUAL)
+    upstream = source(evidence.SourceKind.UPSTREAM_SOURCE)
+    asserted = claim(source_id=manual.source_id)
 
-    precedence_ordered = evidence_record(sources=(manual, api), claims=(manual_claim,))
-
-    assert precedence_ordered.sources == (manual, api)
-    with pytest.raises(ValidationError, match="source captures"):
-        evidence_record(sources=(api, manual), claims=(manual_claim,))
-
-    first_manual = source(
-        evidence.SourceKind.OFFICIAL_MANUAL,
-        source_id="a-manual",
-        url="https://docs.example.org/samtools/1.23.1/a-reference.html",
-    )
-    second_manual = source(
-        evidence.SourceKind.OFFICIAL_MANUAL,
-        source_id="z-manual",
-        url="https://docs.example.org/samtools/1.23.1/z-reference.html",
-        content_sha256=SHA_D,
-    )
-    first_claim = claim(source_id=first_manual.source_id)
-
-    same_kind_ordered = evidence_record(sources=(first_manual, second_manual), claims=(first_claim,))
-
-    assert same_kind_ordered.sources == (first_manual, second_manual)
-    with pytest.raises(ValidationError, match="source captures"):
-        evidence_record(sources=(second_manual, first_manual), claims=(first_claim,))
+    assert evidence_record(sources=(manual, upstream), claims=(asserted,)).sources == (manual, upstream)
+    with pytest.raises(ValidationError, match="precedence"):
+        evidence_record(sources=(upstream, manual), claims=(asserted,))
 
 
-def test_source_provenance_rejects_duplicate_and_conflicting_captures_under_new_ids() -> None:
+def test_duplicate_and_conflicting_source_capture_provenance_is_rejected() -> None:
     original = source(evidence.SourceKind.OFFICIAL_MANUAL, source_id="a-manual")
     alias = source(
         evidence.SourceKind.OFFICIAL_MANUAL,
         source_id="z-manual",
-        title="Renamed retained manual",
-        description="A later description for the same authoritative source capture.",
+        title=authored("Renamed manual", "/sources/z/title"),
         retrieved_at=date(2026, 7, 16),
     )
-    original_claim = claim(source_id=original.source_id)
 
     with pytest.raises(ValidationError, match="duplicate source capture"):
-        evidence_record(sources=(original, alias), claims=(original_claim,))
+        evidence_record(sources=(original, alias), claims=(claim(source_id=original.source_id),))
 
-    conflicting = alias.model_copy(update={"content_sha256": SHA_D})
+    conflicting = alias.model_copy(
+        update={
+            "content_sha256": SHA_D,
+            "documentation_proof": proof(source_content_sha256=SHA_D),
+        }
+    )
     with pytest.raises(ValidationError, match="conflicting source capture"):
-        evidence_record(sources=(original, conflicting), claims=(original_claim,))
+        evidence_record(sources=(original, conflicting), claims=(claim(source_id=original.source_id),))
 
 
-def test_same_pointer_may_have_independent_claims_only_from_distinct_sources() -> None:
+def test_duplicate_and_conflicting_documentation_proofs_are_rejected() -> None:
+    original = source(evidence.SourceKind.OFFICIAL_MANUAL, source_id="a-manual")
+    duplicate = source(evidence.SourceKind.OFFICIAL_API_SCHEMA, source_id="z-schema")
+    asserted = claim(source_id=original.source_id)
+
+    with pytest.raises(ValidationError, match="duplicate documentation proof"):
+        evidence_record(sources=(original, duplicate), claims=(asserted,))
+
+    assert duplicate.documentation_proof is not None
+    conflicting = duplicate.model_copy(
+        update={"documentation_proof": duplicate.documentation_proof.model_copy(update={"proof_content_sha256": SHA_C})}
+    )
+    with pytest.raises(ValidationError, match="conflicting documentation proof"):
+        evidence_record(sources=(original, conflicting), claims=(asserted,))
+
+
+def test_claim_bindings_reject_conflicts_and_duplicate_sources() -> None:
     manual = source(evidence.SourceKind.OFFICIAL_MANUAL)
     upstream = source(evidence.SourceKind.UPSTREAM_SOURCE)
+    original = claim()
     independent = claim(
         claim_id="upstream-output-collector",
         source_id=upstream.source_id,
         excerpt_sha256=SHA_D,
     )
-    accepted = evidence_record(sources=(manual, upstream), claims=(claim(), independent))
+    assert len(evidence_record(sources=(manual, upstream), claims=(original, independent)).claims) == 2
 
-    assert len(accepted.claims) == 2
+    same_source = claim(claim_id="same-source", excerpt_sha256=SHA_D)
+    with pytest.raises(ValidationError, match="distinct sources"):
+        evidence_record(claims=(original, same_source))
 
-    same_source = claim(
-        claim_id="second-manual-claim",
-        locator="OPTIONS",
-        excerpt_sha256=SHA_D,
-    )
-    with pytest.raises(ValidationError, match="pointer"):
-        evidence_record(claims=(claim(), same_source))
-
-
-def test_same_pointer_claims_from_distinct_sources_must_agree_on_contract_value() -> None:
-    manual = source(evidence.SourceKind.OFFICIAL_MANUAL)
-    upstream = source(evidence.SourceKind.UPSTREAM_SOURCE)
-    manual_claim = claim()
-    conflicting = claim(
-        claim_id="upstream-output-collector",
-        source_id=upstream.source_id,
-        excerpt_sha256=SHA_D,
-        contract_value_sha256=SHA_D,
-    )
-
+    conflicting_value = independent.model_copy(update={"contract_value_sha256": SHA_D})
     with pytest.raises(ValidationError, match="conflicting contract values"):
-        evidence_record(sources=(manual, upstream), claims=(manual_claim, conflicting))
+        evidence_record(sources=(manual, upstream), claims=(original, conflicting_value))
 
 
-def test_duplicate_exact_claim_bindings_are_rejected_even_with_new_claim_ids() -> None:
-    duplicate = claim(claim_id="same-binding-new-id")
+def test_verification_outcome_and_failure_code_are_structured_and_kind_compatible() -> None:
+    failed = verification(
+        outcome=evidence.VerificationOutcome.FAILED,
+        failure_code=evidence.FailureCode.TOOL_SMOKE_FAILED,
+    )
+    assert failed.failure_code is evidence.FailureCode.TOOL_SMOKE_FAILED
 
-    with pytest.raises(ValidationError, match="duplicate"):
-        evidence_record(claims=(claim(), duplicate))
+    with pytest.raises(ValidationError, match="failure code"):
+        verification(failure_code=evidence.FailureCode.TOOL_SMOKE_FAILED)
+    with pytest.raises(ValidationError, match="failure code"):
+        verification(outcome=evidence.VerificationOutcome.FAILED, failure_code=None)
+    with pytest.raises(ValidationError, match="failure code"):
+        verification(
+            outcome=evidence.VerificationOutcome.FAILED,
+            failure_code=evidence.FailureCode.CLOUD_RUN_FAILED,
+        )
+
+
+@pytest.mark.parametrize("kind", tuple(evidence.VerificationKind))
+@pytest.mark.parametrize("outcome", tuple(evidence.VerificationOutcome))
+def test_each_verification_kind_requires_its_minimal_context_for_pass_and_failure(
+    kind: evidence.VerificationKind,
+    outcome: evidence.VerificationOutcome,
+) -> None:
+    retained = verification_with_minimal_context(kind, outcome)
+    assert retained.kind is kind
+    assert retained.outcome is outcome
+
+    for field in _REQUIRED_VERIFICATION_CONTEXT[kind]:
+        with pytest.raises(ValidationError, match="required context"):
+            retained.model_copy(update={field: None})
+
+
+@pytest.mark.parametrize(
+    ("kind", "updates"),
+    (
+        (evidence.VerificationKind.INVENTORY, {"environment_sha256": SHA_A}),
+        (
+            evidence.VerificationKind.ENVIRONMENT_PROBE,
+            {"fixture_id": "fixture-v1", "fixture_sha256": SHA_A},
+        ),
+        (evidence.VerificationKind.TOOL_SMOKE, {"release_sha256": SHA_A}),
+    ),
+)
+def test_verification_kinds_reject_semantically_irrelevant_context(
+    kind: evidence.VerificationKind,
+    updates: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError, match="irrelevant context"):
+        verification_with_minimal_context(kind).model_copy(update=updates)
+
+
+def test_verification_ui_text_is_computed_from_codes_and_not_serialized() -> None:
+    passed = verification()
+    failed = verification(
+        outcome=evidence.VerificationOutcome.FAILED,
+        failure_code=evidence.FailureCode.TOOL_SMOKE_FAILED,
+    )
+
+    assert passed.ui_summary == "Tool smoke verification passed"
+    assert passed.ui_reason is None
+    assert failed.ui_summary == "Tool smoke verification failed"
+    assert failed.ui_reason == "Pinned tool smoke verification failed"
+    for dumped in (passed.model_dump(), failed.model_dump()):
+        assert not {"summary", "reason", "ui_summary", "ui_reason"} & dumped.keys()
 
 
 def test_verification_fixture_identity_is_all_or_nothing_and_digest_stable() -> None:
@@ -1582,20 +1408,21 @@ def test_verification_fixture_identity_is_all_or_nothing_and_digest_stable() -> 
 
     assert retained.verification_digest() == rebuilt.verification_digest()
     assert re.fullmatch(r"sha256:[0-9a-f]{64}", retained.verification_digest())
-
     with pytest.raises(ValidationError):
         verification(fixture_id=None)
     with pytest.raises(ValidationError):
         verification(fixture_sha256=None)
 
 
-def test_verification_provenance_rejects_duplicate_and_conflicting_results_under_new_ids() -> None:
+@pytest.mark.parametrize("field", ("summary", "reason", "stdout", "stderr", "environment", "host_path"))
+def test_verification_schema_has_no_raw_or_free_text_capture_fields(field: str) -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        verification(**{field: "Swordfish from /home/alice"})
+
+
+def test_verification_provenance_rejects_duplicate_and_conflicting_results() -> None:
     original = verification("a-smoke")
-    alias = verification(
-        "z-smoke",
-        verified_at=date(2026, 7, 16),
-        summary="A later description for the same retained verification capture.",
-    )
+    alias = verification("z-smoke", verified_at=date(2026, 7, 16))
 
     with pytest.raises(ValidationError, match="duplicate verification capture"):
         evidence_record(verifications=(original, alias))
@@ -1605,76 +1432,119 @@ def test_verification_provenance_rejects_duplicate_and_conflicting_results_under
         evidence_record(verifications=(original, conflicting))
 
 
-def test_evidence_digest_is_canonical_and_sensitive_to_every_claim_binding() -> None:
+@pytest.mark.parametrize(
+    "updates",
+    ({"tool_id": "bcftools"}, {"tool_version": "2.0"}),
+)
+def test_evidence_record_rejects_verification_for_another_tool(updates: dict[str, object]) -> None:
+    with pytest.raises(ValidationError, match="verification tool"):
+        evidence_record(verifications=(verification(**updates),))
+
+
+def test_evidence_digest_is_canonical_and_sensitive_to_proof_and_author_provenance() -> None:
     original = evidence_record()
     rebuilt = evidence.EvidenceRecord.model_validate_json(original.model_dump_json())
-    changed_pointer = evidence_record(claims=(claim(contract_pointer="/outputs/index/path"),))
-    changed_value = evidence_record(claims=(claim(contract_value_sha256=SHA_D),))
-    changed_excerpt = evidence_record(claims=(claim(excerpt_sha256=SHA_D),))
-    changed_source = evidence_record(
-        sources=(source(evidence.SourceKind.OFFICIAL_MANUAL, content_sha256=SHA_D),),
-        claims=(claim(source_content_sha256=SHA_D),),
+    changed_proof_source = source(
+        evidence.SourceKind.OFFICIAL_MANUAL,
+        documentation_proof=proof(proof_content_sha256=SHA_C),
+    )
+    changed_proof = evidence_record(sources=(changed_proof_source,))
+    changed_statement = evidence_record(
+        claims=(
+            claim(
+                statement=authored(
+                    "Default index naming is documented.",
+                    "/claims/output-collector/statement",
+                )
+            ),
+        )
+    )
+    changed_provenance = evidence_record(
+        claims=(
+            claim(
+                statement=authored(
+                    "Default index naming is derived from the input file name.",
+                    "/claims/output-collector/statement",
+                    catalog_content_sha256=SHA_D,
+                )
+            ),
+        )
     )
 
-    assert original.evidence_digest() == rebuilt.evidence_digest()
-    assert re.fullmatch(r"sha256:[0-9a-f]{64}", original.evidence_digest())
+    assert original == rebuilt
     assert (
         len(
             {
                 original.evidence_digest(),
-                changed_pointer.evidence_digest(),
-                changed_value.evidence_digest(),
-                changed_excerpt.evidence_digest(),
-                changed_source.evidence_digest(),
+                changed_proof.evidence_digest(),
+                changed_statement.evidence_digest(),
+                changed_provenance.evidence_digest(),
             }
         )
-        == 5
+        == 4
     )
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", original.evidence_digest())
+
+
+def test_evidence_schema_version_is_required_and_legacy_fields_are_rejected() -> None:
+    dumped = evidence_record().model_dump(mode="python")
+    dumped.pop("schema_version")
+    with pytest.raises(ValidationError):
+        evidence.EvidenceRecord(**dumped)
+    with pytest.raises(ValidationError, match="literal_error"):
+        evidence_record(schema_version=1)
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL, version_locator="1.23.1 reference")
+    with pytest.raises(ValidationError):
+        claim(statement="legacy free text", locator="OUTPUT FILES")
+
+
+def test_evidence_json_contains_only_schema_v2_declarative_state() -> None:
+    record = evidence_record()
+    dumped = json.loads(record.model_dump_json())
+
+    assert tuple(dumped) == ("schema_version", "tool_id", "tool_version", "sources", "claims", "verifications")
+    serialized = record.model_dump_json()
+    for forbidden in ("summary", "reason", "stdout", "stderr", "host_path", "version_locator"):
+        assert f'"{forbidden}"' not in serialized
 
 
 @pytest.mark.parametrize(
     "model",
     (
-        evidence.EvidenceSource,
-        evidence.EvidenceClaim,
-        evidence.VerificationEvidence,
-        evidence.EvidenceRecord,
-        maturity.GateAssessment,
-        maturity.MaturityRecord,
+        "RetainedTextProvenance",
+        "RetainedText",
+        "ByteRangeLocator",
+        "JsonPointerLocator",
+        "SymbolLocator",
+        "DocumentationVersionProof",
+        "EvidenceSource",
+        "EvidenceClaim",
+        "VerificationEvidence",
+        "EvidenceRecord",
     ),
 )
-def test_evidence_and_maturity_models_share_strict_frozen_validated_copy_contract(model: type) -> None:
-    assert model.model_config["extra"] == "forbid"
-    assert model.model_config["frozen"] is True
-    assert model.model_config["strict"] is True
-    assert model.model_config["validate_default"] is True
-    assert model.model_config["revalidate_instances"] == "always"
+def test_evidence_models_share_strict_frozen_validated_copy_contract(model: str) -> None:
+    model_type = getattr(evidence, model)
+    assert model_type.model_config["extra"] == "forbid"
+    assert model_type.model_config["frozen"] is True
+    assert model_type.model_config["strict"] is True
+    assert model_type.model_config["validate_default"] is True
+    assert model_type.model_config["revalidate_instances"] == "always"
 
 
-def test_evidence_models_reject_extras_mutation_and_python_collection_coercions() -> None:
-    with pytest.raises(ValidationError, match="extra_forbidden"):
-        source(evidence.SourceKind.OFFICIAL_MANUAL, released=True)
-    with pytest.raises(ValidationError):
-        evidence_record(sources=[source(evidence.SourceKind.OFFICIAL_MANUAL)])
-    with pytest.raises(ValidationError):
-        evidence_record(claims=[claim()])
-
-    record = evidence_record()
-    with pytest.raises(ValidationError, match="frozen_instance"):
-        record.tool_id = "bcftools"
-
-
-def test_evidence_copy_and_construct_revalidate_nested_forgery() -> None:
-    invalid_source = evidence.EvidenceSource.model_construct(
+def test_evidence_construct_and_copy_revalidate_nested_forgery() -> None:
+    valid = source(evidence.SourceKind.OFFICIAL_MANUAL)
+    invalid = evidence.EvidenceSource.model_construct(
         **{
-            **source(evidence.SourceKind.OFFICIAL_MANUAL).model_dump(mode="python"),
-            "url": "http://docs.example.org/tool/manual.html",
+            **valid.model_dump(mode="python"),
+            "url": "http://docs.example.org/manual.html",
         }
     )
     forged = evidence.EvidenceRecord.model_construct(
         **{
             **evidence_record().model_dump(mode="python"),
-            "sources": (invalid_source,),
+            "sources": (invalid,),
         }
     )
 
@@ -1682,232 +1552,294 @@ def test_evidence_copy_and_construct_revalidate_nested_forgery() -> None:
         evidence.EvidenceRecord.model_validate(forged)
     with pytest.raises(ValidationError):
         forged.model_copy()
-    with pytest.raises(ValidationError):
-        evidence_record().model_copy(update={"claims": ()})
 
 
-def test_evidence_json_dump_contains_only_declarative_state() -> None:
-    record = evidence_record()
-    dumped = json.loads(record.model_dump_json())
+def test_gate_assessment_requires_verification_for_pass_and_failure() -> None:
+    assert assessment(maturity.Gate.INVENTORIED).verification_digests == (SHA_A,)
+    assert assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED).verification_digests == (SHA_A,)
 
-    assert tuple(dumped) == ("tool_id", "tool_version", "sources", "claims", "verifications")
-    assert "released" not in dumped
-    assert "passed" not in dumped
-    assert evidence.EvidenceRecord.model_validate_json(record.model_dump_json()) == record
-
-
-def test_gate_assessment_pass_requires_retained_evidence_and_failure_requires_reason() -> None:
-    passed = assessment(maturity.Gate.INVENTORIED)
-    failed = assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED)
-
-    assert passed.evidence_digests == (SHA_A,)
-    assert failed.reason == "inventoried fixture failed"
-
-    with pytest.raises(ValidationError, match="evidence"):
-        assessment(maturity.Gate.INVENTORIED, evidence_digests=())
-    with pytest.raises(ValidationError, match="reason"):
-        assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED, reason=None)
-    with pytest.raises(ValidationError, match="reason"):
-        assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED, reason="")
-    with pytest.raises(ValidationError, match="reason"):
-        assessment(maturity.Gate.INVENTORIED, reason="not applicable to a pass")
+    with pytest.raises(ValidationError, match="verification"):
+        assessment(maturity.Gate.INVENTORIED, verification_digests=())
+    with pytest.raises(ValidationError, match="verification"):
+        assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED, verification_digests=())
 
 
-def test_failed_gate_may_retain_evidence_and_assessment_evidence_is_unique_ordered() -> None:
-    retained = assessment(
-        maturity.Gate.TOOL_SMOKE_VERIFIED,
-        maturity.GateResult.FAILED,
-        evidence_digests=(SHA_A, SHA_B),
-    )
+def test_gate_assessment_failure_code_is_required_for_failure_and_forbidden_for_pass() -> None:
+    failed = assessment(maturity.Gate.TOOL_SMOKE_VERIFIED, maturity.GateResult.FAILED)
+    assert failed.failure_code is evidence.FailureCode.TOOL_SMOKE_FAILED
 
-    assert retained.evidence_digests == (SHA_A, SHA_B)
-    with pytest.raises(ValidationError):
-        retained.model_copy(update={"evidence_digests": (SHA_B, SHA_A)})
-    with pytest.raises(ValidationError):
-        retained.model_copy(update={"evidence_digests": (SHA_A, SHA_A)})
+    with pytest.raises(ValidationError, match="failure code"):
+        assessment(maturity.Gate.INVENTORIED, failure_code=evidence.FailureCode.INVENTORY_MISSING)
+    with pytest.raises(ValidationError, match="failure code"):
+        assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED, failure_code=None)
+    with pytest.raises(ValidationError, match="failure code"):
+        assessment(
+            maturity.Gate.TOOL_SMOKE_VERIFIED,
+            maturity.GateResult.FAILED,
+            failure_code=evidence.FailureCode.CLOUD_RUN_FAILED,
+        )
 
 
-def test_assessment_text_and_verifier_identity_are_exact_and_bounded() -> None:
+def test_gate_ui_text_is_computed_from_codes_and_not_serialized() -> None:
+    passed = assessment(maturity.Gate.CONTRACT_VERIFIED)
+    failed = assessment(maturity.Gate.TOOL_SMOKE_VERIFIED, maturity.GateResult.FAILED)
+
+    assert passed.ui_summary == "Contract verification passed"
+    assert passed.ui_reason is None
+    assert failed.ui_summary == "Tool smoke verification failed"
+    assert failed.ui_reason == "Pinned tool smoke verification failed"
+    for dumped in (passed.model_dump(), failed.model_dump()):
+        assert not {"summary", "reason", "ui_summary", "ui_reason"} & dumped.keys()
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        assessment(maturity.Gate.INVENTORIED, summary="legacy")
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED, reason="legacy")
+
+
+def test_each_gate_declares_the_required_verification_kind_for_node_spec_binding() -> None:
+    assert tuple(assessment(gate).verification_kind for gate in maturity.Gate) == tuple(evidence.VerificationKind)
+
+
+def test_assessment_verification_is_unique_ordered_and_verifier_identity_is_exact() -> None:
+    retained = assessment(maturity.Gate.INVENTORIED, verification_digests=(SHA_A, SHA_B))
+    assert retained.verification_digests == (SHA_A, SHA_B)
+
     for updates in (
-        {"summary": ""},
-        {"summary": " summary "},
-        {"summary": "summary\n"},
+        {"verification_digests": (SHA_B, SHA_A)},
+        {"verification_digests": (SHA_A, SHA_A)},
         {"verifier_id": "Catalog Verifier"},
         {"verifier_version": "latest"},
         {"verified_at": "2026-07-15"},
     ):
         with pytest.raises(ValidationError):
-            assessment(maturity.Gate.INVENTORIED).model_copy(update=updates)
+            retained.model_copy(update=updates)
 
 
 def test_empty_assessments_are_uninventoried_and_quarantined() -> None:
-    record = maturity.MaturityRecord(access=maturity.AccessClass.PUBLIC)
+    record = maturity_record()
 
     assert record.passed == ()
     assert record.blocking_gate is None
     assert record.next_gate is maturity.Gate.INVENTORIED
     assert record.released is False
     assert record.quarantined is True
-    assert record.manual_approval_required is False
-    assert "inventoried" in record.release_block_reason
+    assert record.release_block_reason == "Inventory verification has not passed"
+
+
+@pytest.mark.parametrize(
+    "access_classes",
+    (
+        (maturity.AccessClass.PUBLIC,),
+        (
+            maturity.AccessClass.PUBLIC,
+            maturity.AccessClass.LARGE_REFERENCE,
+            maturity.AccessClass.GPU_REQUIRED,
+        ),
+        (maturity.AccessClass.PUBLIC_RATE_LIMITED,),
+        (
+            maturity.AccessClass.PUBLIC_RATE_LIMITED,
+            maturity.AccessClass.SECRET_REQUIRED,
+            maturity.AccessClass.GPU_REQUIRED,
+        ),
+        (maturity.AccessClass.SECRET_REQUIRED, maturity.AccessClass.BYOL),
+        (
+            maturity.AccessClass.SECRET_REQUIRED,
+            maturity.AccessClass.LARGE_REFERENCE,
+            maturity.AccessClass.GPU_REQUIRED,
+            maturity.AccessClass.BYOL,
+            maturity.AccessClass.SERVICE_LICENSE,
+        ),
+    ),
+)
+def test_access_classes_accept_canonical_overlapping_dimensions(
+    access_classes: tuple[maturity.AccessClass, ...],
+) -> None:
+    assert maturity_record(access_classes=access_classes).access_classes == access_classes
+
+
+@pytest.mark.parametrize(
+    "access_classes",
+    (
+        (),
+        (maturity.AccessClass.GPU_REQUIRED,),
+        (maturity.AccessClass.LARGE_REFERENCE,),
+        (maturity.AccessClass.PUBLIC, maturity.AccessClass.PUBLIC),
+        (maturity.AccessClass.GPU_REQUIRED, maturity.AccessClass.LARGE_REFERENCE),
+        (maturity.AccessClass.PUBLIC, maturity.AccessClass.PUBLIC_RATE_LIMITED),
+        (maturity.AccessClass.PUBLIC, maturity.AccessClass.SECRET_REQUIRED),
+        (maturity.AccessClass.PUBLIC, maturity.AccessClass.BYOL),
+        (maturity.AccessClass.PUBLIC, maturity.AccessClass.SERVICE_LICENSE),
+    ),
+)
+def test_access_classes_reject_noncanonical_or_incoherent_combinations(
+    access_classes: tuple[maturity.AccessClass, ...],
+) -> None:
+    with pytest.raises(ValidationError):
+        maturity_record(access_classes=access_classes)
+
+
+@pytest.mark.parametrize(
+    ("access_classes", "permits", "permits_required", "requires"),
+    (
+        ((maturity.AccessClass.PUBLIC,), False, False, False),
+        ((maturity.AccessClass.PUBLIC_RATE_LIMITED,), True, False, False),
+        ((maturity.AccessClass.SECRET_REQUIRED,), True, True, True),
+        ((maturity.AccessClass.BYOL,), True, True, False),
+        ((maturity.AccessClass.SERVICE_LICENSE,), True, True, False),
+        (
+            (maturity.AccessClass.SECRET_REQUIRED, maturity.AccessClass.BYOL),
+            True,
+            True,
+            True,
+        ),
+    ),
+)
+def test_access_classes_expose_secret_policy_for_node_spec_validation(
+    access_classes: tuple[maturity.AccessClass, ...],
+    permits: bool,
+    permits_required: bool,
+    requires: bool,
+) -> None:
+    record = maturity_record(access_classes=access_classes)
+
+    assert record.permits_secrets is permits
+    assert record.permits_required_secrets is permits_required
+    assert record.requires_secret is requires
 
 
 @pytest.mark.parametrize("length", range(9))
-def test_each_passing_prefix_derives_ordered_progress_and_next_gate(length: int) -> None:
+def test_each_passing_prefix_derives_progress_and_release(length: int) -> None:
     gates = tuple(maturity.Gate)
-    record = maturity.MaturityRecord(
-        access=maturity.AccessClass.PUBLIC,
-        assessments=passed_prefix(length),
-    )
+    record = maturity_record(assessments=passed_prefix(length))
 
     assert record.passed == gates[:length]
-    assert record.blocking_gate is None
     assert record.next_gate is (gates[length] if length < len(gates) else None)
     assert record.released is (length == len(gates))
     assert record.quarantined is (length != len(gates))
-    if length == len(gates):
-        assert record.release_block_reason is None
-    else:
-        assert gates[length].value in record.release_block_reason
 
 
 @pytest.mark.parametrize("failed_gate", tuple(maturity.Gate))
-def test_each_failed_gate_stops_progress_and_identifies_exact_blocker(
-    failed_gate: maturity.Gate,
-) -> None:
+def test_each_failed_gate_stops_progress_and_uses_generated_reason(failed_gate: maturity.Gate) -> None:
     gates = tuple(maturity.Gate)
     index = gates.index(failed_gate)
-    reason = f"retained failure at {failed_gate.value}"
-    assessments = (*passed_prefix(index), assessment(failed_gate, maturity.GateResult.FAILED, reason=reason))
-    record = maturity.MaturityRecord(access=maturity.AccessClass.PUBLIC, assessments=assessments)
+    failed = assessment(failed_gate, maturity.GateResult.FAILED)
+    record = maturity_record(assessments=(*passed_prefix(index), failed))
 
     assert record.passed == gates[:index]
     assert record.blocking_gate is failed_gate
     assert record.next_gate is failed_gate
     assert record.released is False
-    assert record.quarantined is True
-    assert record.release_block_reason == reason
+    assert record.release_block_reason == failed.ui_reason
 
 
 @pytest.mark.parametrize(
-    "assessments",
+    "gate_specs",
     (
-        (assessment(maturity.Gate.EVIDENCE_VERIFIED),),
+        ((maturity.Gate.EVIDENCE_VERIFIED, maturity.GateResult.PASSED),),
         (
-            assessment(maturity.Gate.INVENTORIED),
-            assessment(maturity.Gate.CONTRACT_VERIFIED),
+            (maturity.Gate.INVENTORIED, maturity.GateResult.PASSED),
+            (maturity.Gate.CONTRACT_VERIFIED, maturity.GateResult.PASSED),
         ),
         (
-            assessment(maturity.Gate.INVENTORIED),
-            assessment(maturity.Gate.INVENTORIED),
+            (maturity.Gate.INVENTORIED, maturity.GateResult.PASSED),
+            (maturity.Gate.INVENTORIED, maturity.GateResult.PASSED),
         ),
         (
-            assessment(maturity.Gate.EVIDENCE_VERIFIED),
-            assessment(maturity.Gate.INVENTORIED),
-        ),
-        (
-            assessment(maturity.Gate.INVENTORIED, maturity.GateResult.FAILED),
-            assessment(maturity.Gate.EVIDENCE_VERIFIED),
+            (maturity.Gate.INVENTORIED, maturity.GateResult.FAILED),
+            (maturity.Gate.EVIDENCE_VERIFIED, maturity.GateResult.PASSED),
         ),
     ),
 )
-def test_assessments_must_start_at_inventoried_be_unique_contiguous_and_stop_on_failure(
-    assessments: tuple[maturity.GateAssessment, ...],
+def test_assessments_are_contiguous_and_stop_on_failure(
+    gate_specs: tuple[tuple[maturity.Gate, maturity.GateResult], ...],
 ) -> None:
+    assessments = tuple(assessment(gate, result) for gate, result in gate_specs)
     with pytest.raises(ValidationError):
-        maturity.MaturityRecord(access=maturity.AccessClass.PUBLIC, assessments=assessments)
+        maturity_record(assessments=assessments)
 
 
-@pytest.mark.parametrize("access", tuple(maturity.AccessClass))
-def test_full_technical_gates_release_only_nonmanual_access_classes(
-    access: maturity.AccessClass,
+@pytest.mark.parametrize(
+    "access_classes",
+    (
+        (maturity.AccessClass.PUBLIC,),
+        (maturity.AccessClass.PUBLIC, maturity.AccessClass.GPU_REQUIRED),
+        (maturity.AccessClass.PUBLIC, maturity.AccessClass.LARGE_REFERENCE),
+        (maturity.AccessClass.PUBLIC_RATE_LIMITED,),
+        (maturity.AccessClass.SECRET_REQUIRED,),
+        (maturity.AccessClass.BYOL,),
+        (maturity.AccessClass.SERVICE_LICENSE,),
+        (maturity.AccessClass.SECRET_REQUIRED, maturity.AccessClass.BYOL),
+    ),
+)
+def test_full_technical_gates_release_only_nonmanual_access(
+    access_classes: tuple[maturity.AccessClass, ...],
 ) -> None:
-    record = maturity.MaturityRecord(access=access, assessments=passed_prefix(len(maturity.Gate)))
-    manual = access in (maturity.AccessClass.BYOL, maturity.AccessClass.SERVICE_LICENSE)
+    record = maturity_record(access_classes=access_classes, assessments=passed_prefix(len(maturity.Gate)))
+    manual = bool({maturity.AccessClass.BYOL, maturity.AccessClass.SERVICE_LICENSE} & set(access_classes))
 
     assert record.released is not manual
     assert record.quarantined is manual
     assert record.manual_approval_required is manual
-    assert record.blocking_gate is None
-    assert record.next_gate is None
     if manual:
-        assert access.value in record.release_block_reason
+        manual_names = ", ".join(
+            item.value
+            for item in access_classes
+            if item in (maturity.AccessClass.BYOL, maturity.AccessClass.SERVICE_LICENSE)
+        )
+        assert record.release_block_reason == f"{manual_names} requires manual approval"
     else:
         assert record.release_block_reason is None
 
 
-@pytest.mark.parametrize("access", (maturity.AccessClass.BYOL, maturity.AccessClass.SERVICE_LICENSE))
-def test_manual_access_never_auto_releases_even_after_all_technical_gates(
-    access: maturity.AccessClass,
-) -> None:
-    record = maturity.MaturityRecord(access=access, assessments=passed_prefix(8))
-
-    assert record.passed == tuple(maturity.Gate)
-    assert record.released is False
-    assert record.quarantined is True
-    assert record.manual_approval_required is True
-
-
-@pytest.mark.parametrize("field", ("released", "quarantined", "passed", "next_gate", "blocking_gate"))
-def test_callers_cannot_supply_computed_maturity_state(field: str) -> None:
+def test_maturity_schema_version_is_required_and_legacy_state_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        maturity.MaturityRecord(access_classes=(maturity.AccessClass.PUBLIC,))
+    with pytest.raises(ValidationError, match="literal_error"):
+        maturity_record(schema_version=1)
     with pytest.raises(ValidationError, match="extra_forbidden"):
-        maturity.MaturityRecord(access=maturity.AccessClass.PUBLIC, **{field: True})
+        maturity_record(access=maturity.AccessClass.PUBLIC)
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        assessment(maturity.Gate.INVENTORIED, evidence_digests=(SHA_A,))
+    for field in ("released", "quarantined", "passed", "next_gate", "blocking_gate"):
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            maturity_record(**{field: True})
 
 
-def test_maturity_copy_cannot_forge_release_or_skip_gates() -> None:
-    record = maturity.MaturityRecord(access=maturity.AccessClass.PUBLIC)
-
-    with pytest.raises(ValidationError):
-        record.model_copy(update={"released": True})
-    with pytest.raises(ValidationError):
-        record.model_copy(update={"quarantined": False})
-    with pytest.raises(ValidationError):
-        record.model_copy(update={"assessments": (assessment(maturity.Gate.WORKFLOW_VERIFIED),)})
-
-
-def test_constructed_maturity_is_revalidated_by_validation_and_copy() -> None:
-    forged = maturity.MaturityRecord.model_construct(
-        access=maturity.AccessClass.PUBLIC,
-        assessments=(assessment(maturity.Gate.WORKFLOW_VERIFIED),),
-    )
-
-    with pytest.raises(ValidationError):
-        maturity.MaturityRecord.model_validate(forged)
-    with pytest.raises(ValidationError):
-        forged.model_copy()
-
-
-def test_maturity_digest_roundtrip_is_stable_and_retains_assessment_evidence() -> None:
-    original = maturity.MaturityRecord(access=maturity.AccessClass.PUBLIC, assessments=passed_prefix(2))
+def test_maturity_digest_roundtrip_is_stable_and_json_is_authoritative_only() -> None:
+    original = maturity_record(assessments=passed_prefix(2))
     rebuilt = maturity.MaturityRecord.model_validate_json(original.model_dump_json())
-    changed_evidence = original.model_copy(
-        update={
-            "assessments": (
-                assessment(maturity.Gate.INVENTORIED, evidence_digests=(SHA_B,)),
-                assessment(maturity.Gate.EVIDENCE_VERIFIED),
-            )
-        }
+    changed = maturity_record(
+        assessments=(
+            assessment(maturity.Gate.INVENTORIED, verification_digests=(SHA_B,)),
+            assessment(maturity.Gate.EVIDENCE_VERIFIED),
+        )
     )
-    changed_access = original.model_copy(update={"access": maturity.AccessClass.GPU_REQUIRED})
+    dumped = json.loads(original.model_dump_json())
 
     assert original == rebuilt
     assert hash(original) == hash(rebuilt)
     assert original.maturity_digest() == rebuilt.maturity_digest()
-    assert original.maturity_digest() != changed_evidence.maturity_digest()
-    assert original.maturity_digest() != changed_access.maturity_digest()
-    assert re.fullmatch(r"sha256:[0-9a-f]{64}", original.maturity_digest())
+    assert original.maturity_digest() != changed.maturity_digest()
+    assert tuple(dumped) == ("schema_version", "access_classes", "assessments")
+    assert not {"released", "summary", "reason", "ui_summary", "ui_reason"} & dumped.keys()
 
 
-def test_maturity_json_contains_only_authoritative_access_and_assessments() -> None:
-    record = maturity.MaturityRecord(access=maturity.AccessClass.PUBLIC, assessments=passed_prefix(1))
-    dumped = json.loads(record.model_dump_json())
+@pytest.mark.parametrize("model", (maturity.GateAssessment, maturity.MaturityRecord))
+def test_maturity_models_are_strict_frozen_and_revalidate_copies(model: type) -> None:
+    assert model.model_config["extra"] == "forbid"
+    assert model.model_config["frozen"] is True
+    assert model.model_config["strict"] is True
+    assert model.model_config["validate_default"] is True
+    assert model.model_config["revalidate_instances"] == "always"
 
-    assert tuple(dumped) == ("access", "assessments")
-    assert not {"released", "quarantined", "passed", "next_gate", "blocking_gate"} & dumped.keys()
-    assert maturity.MaturityRecord.model_validate_json(record.model_dump_json()) == record
+    record = maturity_record()
+    with pytest.raises(ValidationError, match="frozen_instance"):
+        record.access_classes = (maturity.AccessClass.GPU_REQUIRED,)
+    with pytest.raises(ValidationError):
+        record.model_copy(update={"assessments": (assessment(maturity.Gate.WORKFLOW_VERIFIED),)})
 
 
-def test_contract_modules_are_declarative_and_do_not_fetch_execute_or_read_a_clock() -> None:
+def test_contract_modules_are_declarative_and_contain_no_legacy_semantic_text_parser() -> None:
     forbidden_import_roots = {
         "aiohttp",
         "httpx",
@@ -1916,6 +1848,13 @@ def test_contract_modules_are_declarative_and_do_not_fetch_execute_or_read_a_clo
         "subprocess",
         "urllib.request",
     }
+    forbidden_legacy_names = (
+        "_validate_retained_secrets",
+        "_CAPTURE_HOST_PATH_RES",
+        "_DOCUMENT_VERSION_SCAN_RE",
+        "_tool_adjacent_document_versions",
+        "_validate_official_documentation_binding",
+    )
 
     for module in (evidence, maturity):
         path = Path(module.__file__)
@@ -1931,6 +1870,7 @@ def test_contract_modules_are_declarative_and_do_not_fetch_execute_or_read_a_clo
                 assert node.func.attr not in {"now", "today", "utcnow"}
 
         assert not forbidden_import_roots & imports
+        assert not any(name in source_text for name in forbidden_legacy_names)
         for forbidden_text in (
             "bionodulo.nodes.legacy",
             "legacy.executor",
