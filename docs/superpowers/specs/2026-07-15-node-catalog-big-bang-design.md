@@ -331,26 +331,80 @@ Every contract claim must point to authoritative evidence. Preferred order:
 
 Blogs, old wrappers, Galaxy XML, and the legacy BioNodulo implementation are discovery aids, not final authority, unless the upstream project designates them as canonical.
 
-Each evidence record contains:
+Each evidence record uses schema version 2 and contains only authored prose or
+structured, content-addressed captures:
 
 ```yaml
-tool: samtools
-version: 1.23.1
-source:
-  kind: official_manual
-  url: https://www.htslib.org/doc/samtools-index.html
-  upstream_commit: null
-  retrieved_at: 2026-07-15
+schema_version: 2
+tool_id: samtools
+tool_version: 1.23.1
+sources:
+  - source_id: samtools-index-manual
+    kind: official_manual
+    url: https://www.htslib.org/doc/samtools-index.html
+    content_sha256: sha256:<captured-document-digest>
+    documentation_proof:
+      proof_kind: declared_metadata
+      tool_id: samtools
+      tool_version: 1.23.1
+      source_url: https://www.htslib.org/doc/samtools-index.html
+      source_content_sha256: sha256:<captured-document-digest>
+      locator:
+        kind: byte_range
+        start_byte: 120
+        end_byte_exclusive: 164
+      proof_content_sha256: sha256:<selected-proof-digest>
+    retrieved_at: 2026-07-15
 claims:
-  - field: outputs.index.path_rule
-    locator: "OUTPUT FILES"
-    statement: "Default BAM index is input.bam.bai unless -o is supplied"
-verification:
-  help_sha256: <digest>
-  fixture_id: samtools-index-tiny-bam-v1
+  - claim_id: samtools-index-default-output
+    contract_pointer: /outputs/index/path_rule
+    source_id: samtools-index-manual
+    locator:
+      kind: byte_range
+      start_byte: 912
+      end_byte_exclusive: 1004
+    statement:
+      value: Default BAM index is input.bam.bai unless -o is supplied.
+      provenance:
+        origin: catalog_author
+        catalog_path: catalog/samtools/evidence.yaml
+        catalog_content_sha256: sha256:<canonical-catalog-source-digest>
+        field_pointer: /claims/0/statement
+verifications:
+  - kind: tool_smoke
+    outcome: passed
+    test_id: samtools-index-tiny-bam-v1
+    result_sha256: sha256:<canonical-verifier-report-digest>
 ```
 
-If documentation is absent or ambiguous, the agent must inspect pinned upstream source and record the exact file/symbol/commit. If the behavior remains uncertain, the node stays quarantined.
+`title`, `description`, and claim `statement` are the only retained prose. Each
+is a `RetainedText` value whose provenance identifies one checked-in catalog
+blob by repository-relative path, SHA-256 digest, and JSON pointer. Ordinary
+technical prose is allowed; it is not scanned for secret-looking words or host
+paths. `catalog_author` is the only text origin. Runtime stdout, stderr,
+environment values, and filesystem paths have no retained-text representation
+and may enter the ledger only as digests or closed result codes.
+
+This is an information-flow boundary, not proof that a caller is human. The
+declarative model retains the immutable provenance; the trusted catalog loader
+in Task 9 must verify the path, canonical blob digest, pointer, and selected
+text before constructing it. Runtime collectors never receive that authority.
+
+Official documentation requires a `DocumentationVersionProof` over the exact
+captured bytes. The proof repeats the exact tool, version, URL, and source
+content digest, identifies proof bytes with a structured byte-range, JSON
+pointer, or symbol locator, and retains the selected-content digest. URL shape
+is transport metadata and never establishes tool ownership or version. If the
+captured content cannot prove the pair, the agent must inspect pinned upstream
+source and record the exact file/symbol/commit. If behavior remains uncertain,
+the node stays quarantined.
+
+All explicit source paths use canonical repository-relative POSIX syntax. URLs
+use canonical HTTPS parsing. Neither validator searches arbitrary path segments
+or prose for versions, credentials, or host paths. Existing schema-v1 evidence
+is not accepted implicitly: an offline migration must add authored provenance,
+structured locators, and content proofs, and must quarantine any record whose
+binding cannot be established without a heuristic.
 
 ## 10. Access and license classification
 
@@ -371,6 +425,14 @@ BYOL assets are account-scoped, never included in a shared worker image, and nev
 ## 11. Computed maturity gates
 
 Maturity is derived from retained test evidence, not a boolean written by an author.
+
+Verification and gate records retain only closed kinds, pass/fail outcomes,
+failure codes, canonical report/artifact digests, dates, and verifier identity.
+Every passed or failed gate points to retained evidence. Raw stdout, stderr,
+environment values, host paths, and author-written summaries or failure reasons
+are not maturity data. The UI derives stable labels and failure messages from
+the gate and failure-code enums; generated text is neither serialized nor part
+of the maturity digest.
 
 1. `inventoried` - baseline ID and disposition recorded.
 2. `evidence_verified` - every contract claim has authoritative evidence.

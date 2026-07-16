@@ -475,49 +475,40 @@ git commit -m "feat(catalog): add reproducible execution plans"
 
 - [ ] **Step 1: Write failing evidence/maturity tests**
 
-```python
-from datetime import date
-
-from bionodulo.nodes.contract.evidence import EvidenceClaim, EvidenceRecord, EvidenceSource, SourceKind
-from bionodulo.nodes.contract.maturity import AccessClass, Gate, MaturityRecord
-
-
-def evidence() -> EvidenceRecord:
-    return EvidenceRecord(
-        tool="samtools",
-        version="1.23.1",
-        sources=(
-            EvidenceSource(
-                source_id="samtools-index-manual",
-                kind=SourceKind.OFFICIAL_MANUAL,
-                url="https://www.htslib.org/doc/samtools-index.html",
-                retrieved_at=date(2026, 7, 15),
-            ),
-        ),
-        claims=(
-            EvidenceClaim(
-                field="outputs.index.collector",
-                source_id="samtools-index-manual",
-                locator="OUTPUT FILES",
-                statement="Default BAM index naming is derived from the input name.",
-            ),
-        ),
-    )
-
-
-def test_released_is_computed_from_all_required_gates() -> None:
-    record = MaturityRecord(access=AccessClass.PUBLIC, passed=frozenset(Gate))
-    assert record.released is True
-
-
-def test_byol_never_auto_releases() -> None:
-    record = MaturityRecord(access=AccessClass.BYOL, passed=frozenset(Gate))
-    assert record.released is False
-```
+Write schema-v2 tests before implementation. Cover strict frozen round trips and
+canonical digests; checked-in `RetainedText` provenance by path, catalog-content
+SHA-256, and pointer; structured byte-range, JSON-pointer, and symbol locators;
+exact documentation proof bindings; code-and-digest-only verification; and
+computed maturity progression. Demonstrate that arbitrary authored technical
+prose is accepted while no runtime/captured text origin exists. Demonstrate
+that version-looking URL segments have no ownership semantics and that legacy
+free-text locators, version locators, summaries, and reasons are rejected.
 
 - [ ] **Step 2: Implement evidence models and maturity derivation**
 
-Evidence source kinds are `official_manual`, `official_api_schema`, `upstream_source`, `installed_help`, and `package_recipe`. Claims reference a known source and nonempty field path/locator/statement. Maturity gates are inventoried, evidence, contract, command, environment, tool smoke, cloud, and workflow. `released` is computed and cannot be supplied by callers. Access classes include public, rate-limited, secret-required, large-reference, GPU, BYOL, and service-license.
+Evidence source kinds are `official_manual`, `official_api_schema`,
+`upstream_source`, `installed_help`, and `package_recipe`. Official documentation
+must carry an exact `DocumentationVersionProof`; its URL is never parsed to
+infer tool ownership or version. Claims reference a known source, canonical
+contract pointer, structured content locator, authored statement provenance,
+and content/value digests. Captured runtime data is represented only by closed
+codes and SHA-256 digests, never retained stdout, stderr, environment values, or
+host paths.
+
+The evidence and maturity roots require `schema_version: 2`. Maturity gates are
+inventoried, evidence, contract, command, environment, tool smoke, cloud, and
+workflow. Every assessment, including failure, references retained evidence;
+human-readable labels and reasons are computed from enums and are not
+serialized. `released` is computed and cannot be supplied by callers. Access
+classes include public, rate-limited, secret-required, large-reference, GPU,
+BYOL, and service-license.
+
+The contract model does not prove authorship by inspecting prose. It retains
+immutable author provenance, and the trusted Task 9 catalog loader must verify
+the repository-relative path, canonical source-blob digest, JSON pointer, and
+selected value. Schema-v1 data receives no permissive compatibility parser. A
+one-shot offline migration must construct these facts and quarantine records
+whose documentation binding cannot be proved.
 
 - [ ] **Step 3: Run tests and commit**
 
