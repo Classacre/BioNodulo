@@ -447,6 +447,60 @@ def test_retained_text_accepts_bounded_secret_state_and_topic_contexts(field: st
 @pytest.mark.parametrize(
     "value",
     (
+        "The token is configured in the environment as Swordfish.",
+        "The token is provided by the caller as Marlin.",
+        "The token field with the environment as Swordfish is retained.",
+    ),
+)
+def test_retained_text_rejects_values_after_safe_context_tails(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match="secret"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "The token is configured in the environment at runtime.",
+        "The token is provided by the caller for the request.",
+    ),
+)
+def test_retained_text_accepts_complete_safe_context_tails(field: str, value: str) -> None:
+    assert retained_text(field, value) == value
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "The token parameter accepts numeric values.",
+        "Password length must be at least 12 characters.",
+        "Password entropy must be at least 128 bits.",
+        "The secret field supports hexadecimal strings.",
+    ),
+)
+def test_retained_text_accepts_broad_syntactic_technical_prose(field: str, value: str) -> None:
+    assert retained_text(field, value) == value
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "Password length must be Swordfish.",
+        "Password length must be at least Swordfish.",
+        "The secret field supports Swordfish.",
+    ),
+)
+def test_retained_text_rejects_secret_values_in_broad_technical_prose(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match="secret"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
         "Password hashing uses SHA-256.",
         "Password hashing uses PBKDF2-HMAC-SHA256.",
         "The token parameter supports SHA-256 digests.",
@@ -562,6 +616,32 @@ def test_retained_text_rejects_extended_unc_capture_host_paths(field: str, value
     ),
 )
 def test_retained_text_accepts_redacted_extended_unc_capture_host_paths(field: str, value: str) -> None:
+    assert retained_text(field, value) == value
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        r"\\?\UNC\server\share\Users\alice\work",
+        r"\\?\UNC\server\\share\\Users\\alice\work",
+        r"\\?\UNC\\server\\share\Users\\alice\work",
+    ),
+)
+def test_retained_text_rejects_extended_unc_server_share_capture_paths(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match="host path"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        r"\\?\UNC\server\share\Users\<USER>\work",
+        r"\\?\UNC\server\\share\\Users\\<USER>\work",
+    ),
+)
+def test_retained_text_accepts_redacted_extended_unc_server_share_paths(field: str, value: str) -> None:
     assert retained_text(field, value) == value
 
 
@@ -874,6 +954,36 @@ def test_official_documentation_accepts_arbitrarily_deep_matching_tool_versions(
 def test_official_documentation_accepts_no_version_url_when_locator_binds_version() -> None:
     url = "https://docs.example.org/samtools/docs/reference/index.html"
 
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+        update={"url": url, "version_locator": "1.23.1 reference"}
+    )
+
+    assert captured.url == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://docs.example.org/samtools/docs/dependencies/htslib/1.23.1/reference.html",
+        "https://docs.example.org/samtools/docs/vendor/bcftools/1.23.1/reference.html",
+        "https://docs.example.org/samtools/docs/integrations/tabix/1.23.1/reference.html",
+    ),
+)
+def test_official_documentation_does_not_bind_dependency_product_versions(url: str) -> None:
+    with pytest.raises(ValidationError, match="bind the exact tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+            update={"url": url, "version_locator": "reference"}
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://docs.example.org/samtools/docs/dependencies/htslib/index.html",
+        "https://docs.example.org/samtools/docs/dependencies/htslib/1.20/reference.html",
+    ),
+)
+def test_official_documentation_accepts_dependency_paths_when_locator_binds_tool_version(url: str) -> None:
     captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
         update={"url": url, "version_locator": "1.23.1 reference"}
     )

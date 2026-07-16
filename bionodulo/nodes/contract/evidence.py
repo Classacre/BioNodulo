@@ -108,6 +108,13 @@ _SAFE_TECHNICAL_TOPIC_TOKEN_RE = re.compile(
     r"(?i)^(?:argon2(?:id|i|d)?|bcrypt|oauth2|scrypt|sha-?[0-9]+|"
     r"(?:pbkdf[0-9]+(?:-hmac)?|hmac)-sha-?[0-9]+)$"
 )
+_SAFE_TECHNICAL_VALUE_NOUN_RE = re.compile(
+    r"(?i)^(?:arguments?|booleans?|digests?|identifiers?|integers?|numbers?|paths?|"
+    r"placeholders?|representations?|strings?|values?)$"
+)
+_UNSAFE_TECHNICAL_DESCRIPTOR_WORDS = frozenset(
+    {"credential", "credentials", "passphrase", "password", "secret", "token"}
+)
 _SAFE_SECRET_CONTEXT_HEADS = frozenset(
     {
         "caller",
@@ -129,6 +136,7 @@ _SAFE_SECRET_CONTEXT_HEADS = frozenset(
     }
 )
 _SAFE_SECRET_CONTEXT_DETERMINERS = frozenset({"a", "an", "the"})
+_SAFE_SECRET_CONTEXT_RELATIONS = frozenset({"at", "by", "for", "in", "through", "via", "with"})
 _SAFE_REDACTED_SECRET_CONTEXT_RE = re.compile(
     r"(?i)^(?:"
     r"(?:continue|proceed)\s+with\s+the\s+documented\s+(?:flow|procedure|process|workflow)"
@@ -169,7 +177,8 @@ _CAPTURE_HOST_PATH_RES = (
     ),
     re.compile(
         _CAPTURE_PATH_BOUNDARY
-        + r"\\\\\?\\UNC[\\/]+[^/\\\s]+[\\/]+(?:Users|Documents and Settings)[\\/]+"
+        + r"\\\\\?\\UNC[\\/]+[^/\\\s]+[\\/]+(?:[^/\\\s]+[\\/]+)?"
+        + r"(?:Users|Documents and Settings)[\\/]+"
         + r"[^/\\\s\"'`]+",
         re.IGNORECASE,
     ),
@@ -196,6 +205,9 @@ _DOCUMENT_VERSION_BODY = (
 )
 _DOCUMENT_PATH_CONTEXT_BODY = (
     r"(?:docs?|documentation|guide|manual|reference|release[._-]+notes?|schema|user[._-]+guide)"
+)
+_DOCUMENT_PRODUCT_BOUNDARY_RE = re.compile(
+    r"(?i)^(?:dependencies?|deps?|integrations?|plugins?|third[._-]+party|vendors?)(?:[._-].*)?$"
 )
 _DOCUMENT_VERSION_SCAN_RE = re.compile(
     rf"(?<![0-9A-Za-z])v?{_DOCUMENT_VERSION_BODY}(?![0-9A-Za-z])",
@@ -376,55 +388,98 @@ def _looks_like_secret_tail_value(value: str) -> bool:
 
 def _is_safe_secret_context_tail(value: str) -> bool:
     tokens = tuple(word.strip("\"'`()[]{}<>,.;:!?") for word in value.split())
+    if any(_looks_like_secret_tail_value(token) for token in tokens):
+        return False
     if tokens and tokens[0].casefold() in _SAFE_SECRET_CONTEXT_DETERMINERS:
         tokens = tokens[1:]
     if not tokens:
         return False
-    head = tokens[0]
-    if (
-        head.casefold() not in _SAFE_SECRET_CONTEXT_HEADS
-        and head.casefold() not in _SAFE_TECHNICAL_TOPIC_TOKENS
-        and _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(head) is None
-    ):
+
+    def is_context_token(token: str) -> bool:
+        return (
+            token.casefold() in _SAFE_SECRET_CONTEXT_HEADS
+            or token.casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
+            or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None
+        )
+
+    index = 0
+    if tokens[0].casefold() == "stored":
+        if len(tokens) < 2 or tokens[1].casefold() not in {"credential", "credentials"}:
+            return False
+        index = 2
+    elif is_context_token(tokens[0]):
+        index = 1
+    else:
         return False
-    return not any(_looks_like_secret_tail_value(token) for token in tokens)
+
+    while index < len(tokens):
+        if tokens[index].casefold() not in _SAFE_SECRET_CONTEXT_RELATIONS:
+            return False
+        index += 1
+        if index < len(tokens) and tokens[index].casefold() in _SAFE_SECRET_CONTEXT_DETERMINERS:
+            index += 1
+        if index >= len(tokens) or not is_context_token(tokens[index]):
+            return False
+        index += 1
+    return True
 
 
 def _is_safe_secret_topic_prefix(value: str) -> bool:
     first, _, remainder = value.partition(" ")
-    topic = first.strip("\"'`()[]{}<>,.;:!?").casefold()
-    candidate = remainder.rstrip(".,;:!?")
-    if topic == "bucket":
-        return re.fullmatch(r"(?i)algorithm\s+(?:is|was)\s+documented", candidate) is not None
-    if topic == "hashing":
-        match = re.fullmatch(r"(?i)uses\s+(?P<algorithm>\S+)", candidate)
-        return match is not None and (
-            match.group("algorithm").casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
-            or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(match.group("algorithm")) is not None
-        )
-    if topic == "parser":
-        return _is_safe_secret_parameter_tail(candidate)
-    return False
+    candidate = value.rstrip(".,;:!?")
+    if _is_safe_secret_parameter_tail(remainder):
+        return True
+    if _is_safe_secret_constraint_tail(candidate):
+        return True
+    if re.fullmatch(
+        r"(?i)(?:[a-z][a-z0-9_-]*\s+)+(?:is|are|was|were)\s+documented(?:\s+upstream)?",
+        candidate,
+    ) is not None:
+        return True
+    match = re.fullmatch(
+        r"(?i)(?:[a-z][a-z0-9_-]*\s+)+uses\s+(?P<algorithm>\S+)",
+        candidate,
+    )
+    return match is not None and (
+        match.group("algorithm").casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
+        or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(match.group("algorithm")) is not None
+    )
 
 
 def _is_safe_secret_parameter_tail(value: str) -> bool:
-    match = re.match(r"(?i)^(?P<predicate>accepts|supports)\s+(?P<tail>.+)$", value.rstrip(".,;:!?"))
+    match = re.fullmatch(
+        r"(?i)(?P<predicate>accepts|allows|expects|supports|takes)\s+(?P<tail>.+)",
+        value.rstrip(".,;:!?"),
+    )
     if match is None:
         return False
     tokens = tuple(word.strip("\"'`()[]{}<>,.;:!?") for word in match.group("tail").split())
-    if any(_looks_like_secret_tail_value(token) for token in tokens):
+    if (
+        not tokens
+        or _SAFE_TECHNICAL_VALUE_NOUN_RE.fullmatch(tokens[-1]) is None
+        or any(token.casefold() in _UNSAFE_TECHNICAL_DESCRIPTOR_WORDS for token in tokens[:-1])
+        or any(_looks_like_secret_tail_value(token) for token in tokens)
+    ):
         return False
-    if match.group("predicate").casefold() == "accepts":
-        return re.fullmatch(
-            r"(?i)(?:quoted|redacted)\s+(?:arguments?|placeholders?|strings?|values?)",
-            match.group("tail"),
-        ) is not None
-    has_technical_token = any(
-        token.casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
-        or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None
-        for token in tokens
+    return all(re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", token) is not None for token in tokens)
+
+
+def _is_safe_secret_constraint_tail(value: str) -> bool:
+    match = re.fullmatch(
+        r"(?i)(?P<subject>(?:[a-z][a-z0-9_-]*\s+)+)"
+        r"(?:must|should)\s+(?:be\s+(?:at\s+(?:least|most)|exactly)|contain\s+at\s+(?:least|most))\s+"
+        r"(?P<number>[0-9]+(?:\.[0-9]+)?)(?:\s+(?P<unit>[a-z][a-z0-9_-]*))?",
+        value.rstrip(".,;:!?"),
     )
-    return has_technical_token
+    if match is None:
+        return False
+    tokens = tuple(match.group("subject").split())
+    unit = match.group("unit")
+    return (
+        not any(token.casefold() in _UNSAFE_TECHNICAL_DESCRIPTOR_WORDS for token in tokens)
+        and not any(_looks_like_secret_tail_value(token) for token in tokens)
+        and (unit is None or unit.casefold() not in _UNSAFE_TECHNICAL_DESCRIPTOR_WORDS)
+    )
 
 
 def _has_unsafe_post_assignment_tail(value: str, *, start: int) -> bool:
@@ -653,6 +708,9 @@ def _validate_official_documentation_binding(
         if _has_tool_path_prefix(candidate, tool_id=tool_id):
             raise ValueError("official documentation URL must bind the exact tool version")
         if not tool_context:
+            continue
+        if _DOCUMENT_PRODUCT_BOUNDARY_RE.fullmatch(candidate) is not None:
+            tool_context = False
             continue
         context_versions = tuple(_DOCUMENT_VERSION_SCAN_RE.finditer(candidate))
         if context_versions:
