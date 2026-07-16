@@ -224,12 +224,12 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "Authorization=Basic ***",
         "Authorization Bearer <TOKEN>",
         "Authorization Basic [REDACTED]",
-        "token=<TOKEN>. Continue with the documented flow.",
-        "auth=[REDACTED]. Continue with the documented flow.",
-        "credential=***. Continue with the documented flow.",
-        "Run --token <TOKEN> only when the official service requires authentication.",
-        "Run --token ${TOKEN} only when the official service requires authentication.",
-        "Use password [REDACTED] only with the documented test account.",
+        "token=<TOKEN>.",
+        "auth=[REDACTED].",
+        "credential=***.",
+        "Run --token <TOKEN>",
+        "Run --token ${TOKEN}",
+        "Use password [REDACTED]",
         'Authorization: "Bearer <TOKEN>"',
         'Authorization: "Basic [REDACTED]"',
         'Authorization: "Bearer" <TOKEN>',
@@ -250,6 +250,14 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "Credentials are supplied at runtime.",
         "The token parser accepts quoted values.",
         "Password rotation is documented upstream.",
+        "The --token option is required.",
+        "Use password hashing for stored credentials.",
+        "Configure authentication using OAuth.",
+        "See profile://buildhost/home/alice/work for the documented profile URI.",
+        "The password is hashed with Argon2.",
+        "The token is documented in the HTTP reference.",
+        "Credentials are supplied via OAuth2.",
+        "Use --no-token to disable authentication.",
     ),
 )
 def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths(
@@ -303,6 +311,15 @@ def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths
         "token=<TOKEN>. Swordfish",
         "token=<TOKEN>. Continue with abc123XYZ",
         "token=<TOKEN>. The fallback token is abc123",
+        "token=<TOKEN>, live-secret",
+        "token=<TOKEN>; live-secret",
+        "token=<TOKEN>. Continue with Swordfish",
+        "token=<TOKEN>. Swordfish is the official fallback.",
+        "token=<TOKEN>. Use Swordfish for the documented account.",
+        "token=<TOKEN>&fallback=live-secret",
+        "token=<TOKEN>&fallback=abc123XYZ",
+        "token=<TOKEN>#live-secret",
+        "token=<TOKEN>#fallback=abc123XYZ",
     ),
 )
 def test_retained_text_rejects_unredacted_secret_assignments_and_redaction_prefix_leaks(
@@ -328,16 +345,69 @@ def test_retained_text_rejects_unredacted_secret_assignments_and_redaction_prefi
         "Use --token value live-secret.",
         "Authorization header Bearer live-secret",
         "Use `--token live-secret` for the request.",
+        "Run `--token` live-secret",
+        'Run "--token" live-secret',
+        "Run '--token' live-secret",
         "SECRET_KEY=live-secret",
         "--private-key live-secret",
         "--token Swordfish",
         "The password is Swordfish.",
+        "The token equals Swordfish.",
+        "The token configured: Swordfish.",
+        "The token supplied: Swordfish.",
+        'The "token" is Swordfish.',
+        "The token_value is Swordfish.",
         "--token <TOKEN> Swordfish",
+        "--token <TOKEN> Swordfish official flow",
+        "The token is configured: Swordfish.",
+        "The token is provided: Swordfish.",
+        "The apikey is Swordfish.",
+        "The access_token is Swordfish.",
+        "The secret_key is Swordfish.",
+        "Use access_token live-secret.",
+        "Run --token option Swordfish.",
+        "API key sk-live-value",
+        "Private key abc123XYZ",
     ),
 )
 def test_retained_text_rejects_secret_bearing_cli_and_prose_forms(field: str, value: str) -> None:
     with pytest.raises(ValidationError, match="secret"):
         retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "The token is configured with Swordfish.",
+        "The token is provided by Swordfish.",
+        "The token field with live-secret is retained.",
+        "The password policy is Swordfish.",
+        "Run --token <TOKEN> only when Swordfish is used.",
+        "Run [--token] Swordfish.",
+        "Run `--token`=Swordfish.",
+        "--passphrase Swordfish",
+    ),
+)
+def test_retained_text_rejects_plain_values_after_secret_bearing_grammar(
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(ValidationError, match="secret"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "Password hashing uses SHA-256.",
+        "Password hashing uses PBKDF2-HMAC-SHA256.",
+        "The token parameter supports SHA-256 digests.",
+    ),
+)
+def test_retained_text_accepts_recognized_hash_algorithm_prose(field: str, value: str) -> None:
+    assert retained_text(field, value) == value
 
 
 @pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
@@ -359,6 +429,10 @@ def test_retained_text_rejects_secret_bearing_cli_and_prose_forms(field: str, va
         "Captured from file://localhost/Users/alice/work/help.txt",
         "Captured from file://buildhost/home/alice/work",
         "Captured from file://localhost/root/private",
+        "Captured from file://buildhost//home/alice/work",
+        "Captured from file://buildhost/home//alice/work",
+        "Captured from file://buildhost//home//alice/work",
+        r"Captured from \\server\Users\\alice\work",
         r"Captured from \\server\Users\alice\work\help.txt",
         "Captured from /tmp/pytest-of-user/pytest-3/test_help0/output.txt",
         "Captured from /tmp/pytest-of-user/pytest-current/out",
@@ -366,6 +440,25 @@ def test_retained_text_rejects_secret_bearing_cli_and_prose_forms(field: str, va
     ),
 )
 def test_retained_text_rejects_capture_host_paths(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match="host path"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "/home//alice/work",
+        "/Users//alice/work",
+        r"C:\Users\alice\work",
+        "file:///home//alice/work",
+        r"\\?\C:\Users\alice\work",
+    ),
+)
+def test_retained_text_rejects_doubled_and_extended_capture_host_paths(
+    field: str,
+    value: str,
+) -> None:
     with pytest.raises(ValidationError, match="host path"):
         retained_text(field, value)
 
@@ -398,6 +491,7 @@ def test_retained_text_rejects_url_userinfo_credentials(field: str, url: str) ->
         "Use mailto:user@example.com for support.",
         "See https://example.com/@user/profile for details.",
         "See //example.com/@user/profile for details.",
+        "See https://example.com/a//user@example.com/x for a documented path.",
     ),
 )
 def test_retained_text_accepts_at_signs_outside_uri_authority_userinfo(field: str, value: str) -> None:
@@ -591,6 +685,45 @@ def test_official_documentation_must_bind_exact_tool_version_without_url_mismatc
 
 
 @pytest.mark.parametrize(
+    "url",
+    (
+        "https://docs.example.org/samtools/docs/1.20/reference.html",
+        "https://docs.example.org/samtools/user-guide/1.20/reference.html",
+    ),
+)
+def test_official_documentation_rejects_nested_mismatched_tool_versions(url: str) -> None:
+    with pytest.raises(ValidationError, match="tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+            update={"url": url, "version_locator": "1.23.1 reference"}
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://docs.example.org/samtools-htslib-1.23.1/reference.html",
+        "https://docs.example.org/samtools-api-1.23.1/reference.html",
+    ),
+)
+def test_official_documentation_rejects_false_composite_tool_contexts(url: str) -> None:
+    with pytest.raises(ValidationError, match="tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+            update={"url": url, "version_locator": "1.23.1 reference"}
+        )
+
+
+def test_official_documentation_accepts_nested_matching_tool_version_with_reference_locator() -> None:
+    url = "https://docs.example.org/samtools/docs/1.23.1/reference.html"
+
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(
+        update={"url": url, "version_locator": "reference"}
+    )
+
+    assert captured.url == url
+    assert captured.version_locator == "reference"
+
+
+@pytest.mark.parametrize(
     ("url", "locator"),
     (
         ("https://docs.example.org/samtools-1.20/reference.html", "1.23.1 reference"),
@@ -599,6 +732,9 @@ def test_official_documentation_must_bind_exact_tool_version_without_url_mismatc
         ("https://docs.example.org/samtools1.20/reference.html", "1.23.1 reference"),
         ("https://docs.example.org/samtoolsV1.20/reference.html", "1.23.1 reference"),
         ("https://docs.example.org/samtools-v1.20/reference.html", "1.23.1 reference"),
+        ("https://docs.example.org/samtools-docs-1.20/reference.html", "1.23.1 reference"),
+        ("https://docs.example.org/samtools-release-notes-1.20/reference.html", "1.23.1 reference"),
+        ("https://docs.example.org/samtools-user-guide-1.20/reference.html", "1.23.1 reference"),
         ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools1.20 reference"),
         ("https://docs.example.org/samtools/1.23.1/reference.html", "samtoolsV1.20 reference"),
         ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools-v1.20 reference"),
@@ -652,6 +788,29 @@ def test_official_documentation_ignores_unrelated_numbers_and_normalizes_v_versi
 
     assert captured.url == url
     assert captured.version_locator == locator
+
+
+@pytest.mark.parametrize(
+    ("url", "locator"),
+    (
+        ("https://docs.example.org/api/1.23.1/samtools/reference.html", "section 42"),
+        ("https://docs.example.org/samtools/reference.html", "htslib 1.23.1 reference"),
+        ("https://docs.example.org/samtools/reference.html", "htslib version 1.23.1"),
+        ("https://docs.example.org/samtools/reference.html", "API documentation 1.23.1"),
+    ),
+)
+def test_official_documentation_does_not_use_unrelated_matching_versions_as_binding(
+    url: str,
+    locator: str,
+) -> None:
+    with pytest.raises(ValidationError, match="bind the exact tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url, "version_locator": locator})
+
+
+def test_official_documentation_ignores_unrelated_mismatched_tool_versions_when_url_is_bound() -> None:
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"version_locator": "htslib version 1.20"})
+
+    assert captured.version_locator == "htslib version 1.20"
 
 
 def test_official_documentation_accepts_a_matching_suffix_bearing_tool_version() -> None:

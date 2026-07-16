@@ -34,23 +34,42 @@ _SECRET_OPTION_HEAD_RE = re.compile(
     r"(?i)(?<![0-9A-Za-z_.-])(?P<tick>`?)--"
     r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)\s*(?:=\s*|\s+)"
 )
-_SECRET_PROSE_KEY = (
-    r"(?:api[ _-]+key|access[ _-]+key|client[ _-]+secret|private[ _-]+key|"
-    r"license[ _-]+key|password|passwd|pwd|token|secret|credentials?|auth(?:entication|orization)?)"
+_SECRET_QUOTED_OPTION_HEAD_RE = re.compile(
+    r"(?i)(?<![0-9A-Za-z_.-])(?P<quote>[`\"'])--"
+    r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)(?P=quote)\s*(?:=\s*|\s+)"
 )
+_SECRET_BRACKETED_OPTION_HEAD_RE = re.compile(
+    r"(?i)(?<![0-9A-Za-z_.-])\[\s*--"
+    r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)\s*\]\s*(?:=\s*|\s+)"
+)
+_SECRET_PROSE_KEY_BODY = (
+    r"(?:api[ _-]*key|access[ _-]+(?:key|token)|client[ _-]+secret|private[ _-]+key|"
+    r"license[ _-]+key|password|passwd|pwd|token(?:[ _.-]+value)?|"
+    r"secret(?:[ _.-]+(?:key|value))?|credentials?)"
+)
+_SECRET_PROSE_KEY = rf"[`\"']?{_SECRET_PROSE_KEY_BODY}[`\"']?"
 _SECRET_LINK_HEAD_RE = re.compile(
     rf"(?i)(?<![0-9A-Za-z_.-])(?:the\s+)?{_SECRET_PROSE_KEY}"
-    r"(?:\s+(?:value|argument|parameter))?\s+(?:is|was|are|were)\s+"
+    r"(?:\s+(?:value|argument|parameter))?\s+(?:is|was|are|were|equals)\s+"
+)
+_SECRET_STATE_VALUE_HEAD_RE = re.compile(
+    rf"(?i)(?<![0-9A-Za-z_.-])(?:the\s+)?{_SECRET_PROSE_KEY}"
+    r"\s+(?:configured|provided|supplied)\s*:\s*"
 )
 _SECRET_ACTION_HEAD_RE = re.compile(
     rf"(?i)(?<![0-9A-Za-z_.-])"
-    r"(?:use|set|pass|provide|send|enter|supply|include|add|configure|specify|export)\s+"
+    r"(?:use|set|pass|provide|send|enter|supply|include|add|specify|export)\s+"
     rf"(?:the\s+)?{_SECRET_PROSE_KEY}(?:\s+(?:value|argument|parameter))?\s+"
+)
+_SECRET_DIRECT_VALUE_HEAD_RE = re.compile(
+    rf"(?i)(?<![0-9A-Za-z_.-])(?:the\s+)?{_SECRET_PROSE_KEY}"
+    r"(?P<qualifier>\s+(?:value|argument|parameter))?\s+"
 )
 _AUTHORIZATION_SCHEME_RE = re.compile(
     r"(?i)(?<![0-9A-Za-z._~/\\-])authorization(?:\s+header)?\s*(?::|=)?\s*(?:bearer|basic)\s+"
 )
-_URL_USERINFO_RE = re.compile(r"(?i)(?:[A-Za-z][A-Za-z0-9+.-]*:)?//[^/\s?#]*@")
+_SCHEME_URL_USERINFO_RE = re.compile(r"(?i)(?<![A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*://[^/\s?#]*@")
+_NETWORK_PATH_USERINFO_RE = re.compile(r"(?<![0-9A-Za-z/])//[^/\s?#]*@")
 _REDACTED_SECRET_VALUES = frozenset({"<TOKEN>", "${TOKEN}", "[REDACTED]", "REDACTED", "***"})
 _REDACTION_TRAILING_PUNCTUATION = ".,;:!?)]}"
 _CREDENTIAL_TOKEN_RE = re.compile(
@@ -65,21 +84,67 @@ _CREDENTIAL_TOKEN_RE = re.compile(
     r")(?![0-9A-Za-z])"
 )
 _SAFE_SECRET_STATE_WORDS = frozenset(
-    {"configured", "documented", "provided", "redacted", "required", "supplied", "unavailable", "unset"}
+    {"configured", "documented", "hashed", "provided", "redacted", "required", "supplied", "unavailable", "unset"}
+)
+_SAFE_SECRET_TOPIC_WORDS = frozenset(
+    {
+        "algorithm",
+        "bucket",
+        "field",
+        "flag",
+        "handling",
+        "hashing",
+        "option",
+        "parameter",
+        "parser",
+        "policy",
+        "rotation",
+        "storage",
+    }
+)
+_SAFE_TECHNICAL_TOPIC_TOKENS = frozenset({"argon2", "bcrypt", "oauth2", "pbkdf2", "scrypt"})
+_SAFE_TECHNICAL_TOPIC_TOKEN_RE = re.compile(
+    r"(?i)^(?:argon2(?:id|i|d)?|bcrypt|oauth2|scrypt|sha-?[0-9]+|"
+    r"(?:pbkdf[0-9]+(?:-hmac)?|hmac)-sha-?[0-9]+)$"
+)
+_SAFE_SECRET_CONTEXT_HEADS = frozenset(
+    {
+        "a",
+        "an",
+        "caller",
+        "client",
+        "configuration",
+        "environment",
+        "orchestrator",
+        "process",
+        "runtime",
+        "service",
+        "the",
+        "user",
+    }
+)
+_SAFE_REDACTED_SECRET_CONTEXT_RE = re.compile(
+    r"(?i)^only\s+when\s+(?:(?:the\s+)?(?:official\s+)?"
+    r"(?:endpoint|operation|provider|request|service|workflow)\s+(?:requires?|uses?)\s+"
+    r"(?:authentication|authorization)|(?:authentication|authorization)\s+is\s+required)"
+    r"[.,;:!?)]*$"
 )
 _CAPTURE_PATH_BOUNDARY = r"(?<![0-9A-Za-z._~/\\-])"
 _CAPTURE_HOST_PATH_RES = (
-    re.compile(r"file://[^/\\\s]+/(?:home|Users)/[^/\\\s\"'`]+", re.IGNORECASE),
     re.compile(
-        r"file://[^/\\\s]+/root(?=$|[/\\\s.,;:!?\"'`)\]}])",
+        r"(?<![0-9A-Za-z+.-])file://[^/\\\s]+/+(?:home|Users)/+[^/\\\s\"'`]+",
         re.IGNORECASE,
     ),
     re.compile(
-        _CAPTURE_PATH_BOUNDARY + r"file://(?:localhost|127\.0\.0\.1)/(?:home|Users)/[^/\\\s\"'`]+",
+        r"(?<![0-9A-Za-z+.-])file://[^/\\\s]+/+root(?=$|[/\\\s.,;:!?\"'`)\]}])",
         re.IGNORECASE,
     ),
     re.compile(
-        _CAPTURE_PATH_BOUNDARY + r"(?:file://)?/(?:home|Users)/[^/\\\s\"'`]+",
+        _CAPTURE_PATH_BOUNDARY + r"file://(?:localhost|127\.0\.0\.1)/+(?:home|Users)/+[^/\\\s\"'`]+",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        _CAPTURE_PATH_BOUNDARY + r"(?:file://)?/+(?:home|Users)/+[^/\\\s\"'`]+",
         re.IGNORECASE,
     ),
     re.compile(
@@ -88,12 +153,13 @@ _CAPTURE_HOST_PATH_RES = (
     ),
     re.compile(
         _CAPTURE_PATH_BOUNDARY
-        + r"(?:(?:file:///)?[A-Za-z]:[\\/]|/mnt/[A-Za-z]/)(?:Users|Documents and Settings)[\\/]"
+        + r"(?:(?:file:///)?(?:\\\\\?\\)?[A-Za-z]:[\\/]+|/mnt/[A-Za-z]/+)"
+        + r"(?:Users|Documents and Settings)[\\/]+"
         + r"[^/\\\s\"'`]+",
         re.IGNORECASE,
     ),
     re.compile(
-        _CAPTURE_PATH_BOUNDARY + r"(?:\\\\|//)[^/\\\s]+[\\/](?:Users|Documents and Settings)[\\/]" + r"[^/\\\s\"'`]+",
+        _CAPTURE_PATH_BOUNDARY + r"(?:\\\\|//)[^/\\\s]+[\\/]+(?:Users|Documents and Settings)[\\/]+" + r"[^/\\\s\"'`]+",
         re.IGNORECASE,
     ),
     re.compile(
@@ -113,6 +179,10 @@ _DOCUMENT_VERSION_BODY = (
     r"[0-9]+\.[0-9]+(?:\.[0-9]+)*"
     r"(?:[A-Za-z][0-9A-Za-z._+-]*|[._+-][0-9A-Za-z][0-9A-Za-z._+-]*)?"
 )
+_DOCUMENT_PATH_CONTEXT_BODY = (
+    r"(?:docs?|documentation|guide|manual|reference|release[._-]+notes?|schema|user[._-]+guide)"
+)
+_DOCUMENT_PATH_CONTEXT_RE = re.compile(rf"(?i)^{_DOCUMENT_PATH_CONTEXT_BODY}$")
 _DOCUMENT_VERSION_SCAN_RE = re.compile(
     rf"(?<![0-9A-Za-z])v?{_DOCUMENT_VERSION_BODY}(?![0-9A-Za-z])",
     re.IGNORECASE,
@@ -175,6 +245,7 @@ def _is_secret_assignment_key(value: str) -> bool:
             "token",
             "secret",
             "password",
+            "passphrase",
             "passwd",
             "pwd",
             "apikey",
@@ -198,13 +269,13 @@ def _assignment_value(value: str, start: int) -> tuple[str, bool, str]:
         if end < 0:
             return value[start:], True, ""
         suffix_end = end + 1
-        while suffix_end < len(value) and not value[suffix_end].isspace() and value[suffix_end] not in "&,;#":
+        while suffix_end < len(value) and not value[suffix_end].isspace() and value[suffix_end] not in "&#":
             suffix_end += 1
         remainder_start = suffix_end
         while remainder_start < len(value) and value[remainder_start].isspace():
             remainder_start += 1
         remainder_end = remainder_start
-        while remainder_end < len(value) and value[remainder_end] not in "&,;#":
+        while remainder_end < len(value) and value[remainder_end] not in "&#":
             remainder_end += 1
         return (
             value[start + 1 : end] + value[end + 1 : suffix_end],
@@ -212,43 +283,11 @@ def _assignment_value(value: str, start: int) -> tuple[str, bool, str]:
             value[remainder_start:remainder_end].strip(),
         )
     end = start
-    while end < len(value) and value[end] not in "&,;#":
+    while end < len(value) and value[end] not in "&#":
         end += 1
     raw = value[start:end].strip()
     parts = raw.split(maxsplit=1)
     return (parts[0], False, parts[1] if len(parts) > 1 else "") if parts else ("", False, "")
-
-
-def _looks_like_credential_token(value: str) -> bool:
-    token = value.strip("\"'`()[]{}<>,.;:!?")
-    if not token:
-        return False
-    folded = token.casefold()
-    if folded in {"credential", "password", "secret", "token"}:
-        return True
-    if folded.startswith(("akia", "asia", "eyj", "ghp_", "live-", "live_", "sk-", "xox")):
-        return True
-    if any(character.isdigit() for character in token) and any(character.isalpha() for character in token):
-        return True
-    if any(character in "-_/+=" for character in token):
-        return True
-    if len(token) >= 16 or sum(character.isupper() for character in token) > 1:
-        return True
-    return False
-
-
-def _is_redaction_token(value: str) -> bool:
-    candidate = value.strip("\"'`().,;:!?")
-    return candidate in _REDACTED_SECRET_VALUES
-
-
-def _contains_credential_indicator(value: str) -> bool:
-    for token in value.split():
-        if _is_redaction_token(token):
-            continue
-        if _CREDENTIAL_TOKEN_RE.search(token) is not None or _looks_like_credential_token(token):
-            return True
-    return False
 
 
 def _secret_tail(value: str, start: int, *, backticked: bool = False) -> str:
@@ -260,7 +299,120 @@ def _is_redacted_secret_tail(value: str) -> bool:
     if _is_redacted_secret(value):
         return True
     first, _, remainder = value.partition(" ")
-    return _is_redaction_token(first) and len(remainder.split()) >= 3 and not _contains_credential_indicator(remainder)
+    if first.strip("\"'`().,;:!?") not in _REDACTED_SECRET_VALUES:
+        return False
+    if _SAFE_REDACTED_SECRET_CONTEXT_RE.fullmatch(remainder) is None:
+        return False
+    return _CREDENTIAL_TOKEN_RE.search(remainder) is None
+
+
+def _is_safe_secret_topic_tail(value: str) -> bool:
+    first, _, remainder = value.partition(" ")
+    topic = first.strip("\"'`()[]{}<>,.;:!?").casefold()
+    if topic not in _SAFE_SECRET_TOPIC_WORDS:
+        return False
+    if not remainder:
+        return True
+    relation = re.match(r"(?i)^(?P<word>at|by|for|in|is|through|via|was|with)\b\s*(?P<tail>.*)", remainder)
+    if relation is None:
+        return False
+    if relation.group("word").casefold() not in {"is", "was"}:
+        return not any(_looks_like_secret_tail_value(word) for word in relation.group("tail").split())
+    state = relation.group("tail").split(maxsplit=1)[0].strip("\"'`()[]{}<>,.;:!?").casefold()
+    return state in _SAFE_SECRET_STATE_WORDS
+
+
+def _is_safe_secret_state_tail(value: str) -> bool:
+    first, _, remainder = value.partition(" ")
+    state = first.strip("\"'`()[]{}<>,.;:!?").casefold()
+    if state not in _SAFE_SECRET_STATE_WORDS:
+        return False
+    if not remainder:
+        return True
+    relation = re.match(r"(?i)^(?P<word>at|by|for|in|through|via|with)\b\s*(?P<tail>.*)", remainder)
+    if relation is None:
+        return False
+    if state not in {"configured", "provided", "supplied"} or relation.group("word").casefold() not in {"by", "with"}:
+        return True
+    context = relation.group("tail").split()
+    if not context:
+        return False
+    head = context[0].strip("\"'`()[]{}<>,.;:!?").casefold()
+    return head in _SAFE_SECRET_CONTEXT_HEADS and not any(_looks_like_secret_tail_value(word) for word in context)
+
+
+def _is_safe_secret_copula_tail(value: str) -> bool:
+    match = re.match(r"(?i)^(?:is|was|are|were)\s+(?P<tail>.+)$", value)
+    return match is not None and (
+        _is_redacted_secret_tail(match.group("tail")) or _is_safe_secret_state_tail(match.group("tail"))
+    )
+
+
+def _looks_like_secret_tail_value(value: str) -> bool:
+    token = value.strip("\"'`()[]{}<>,.;:!?")
+    if not token or token in _REDACTED_SECRET_VALUES:
+        return False
+    folded = token.casefold()
+    if folded in _SAFE_TECHNICAL_TOPIC_TOKENS or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None:
+        return False
+    if _CREDENTIAL_TOKEN_RE.search(token) is not None:
+        return True
+    if any(character.isalpha() for character in token) and any(character.isdigit() for character in token):
+        return True
+    if any(character in "-_/+=" for character in token):
+        return True
+    return len(token) >= 16 or sum(character.isupper() for character in token) > 1
+
+
+def _is_safe_secret_topic_prefix(value: str) -> bool:
+    first, _, remainder = value.partition(" ")
+    topic = first.strip("\"'`()[]{}<>,.;:!?").casefold()
+    if topic not in _SAFE_SECRET_TOPIC_WORDS:
+        return False
+    if re.match(r"(?i)^(?:are|equals|is|was|were)\b", remainder) is not None:
+        return False
+    for word in remainder.split():
+        token = word.strip("\"'`()[]{}<>,.;:!?")
+        if token.casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None:
+            continue
+        if _looks_like_secret_tail_value(token):
+            return False
+    return True
+
+
+def _is_safe_secret_parameter_tail(value: str) -> bool:
+    match = re.match(r"(?i)^(?:accepts|supports)\s+(?P<tail>.+)$", value)
+    if match is None:
+        return False
+    tokens = tuple(word.strip("\"'`()[]{}<>,.;:!?") for word in match.group("tail").split())
+    has_technical_token = any(
+        token.casefold() in _SAFE_TECHNICAL_TOPIC_TOKENS
+        or _SAFE_TECHNICAL_TOPIC_TOKEN_RE.fullmatch(token) is not None
+        for token in tokens
+    )
+    return has_technical_token and not any(_looks_like_secret_tail_value(token) for token in tokens)
+
+
+def _has_unsafe_post_assignment_tail(value: str, *, start: int) -> bool:
+    tail = value[start:]
+    separators = tuple(index for marker in "&#" if (index := tail.find(marker)) >= 0)
+    if not separators:
+        return False
+    remainder = tail[min(separators) + 1 :]
+    for segment in re.split(r"[&#]", remainder):
+        candidate = segment.strip()
+        if not candidate:
+            continue
+        key, separator, retained = candidate.partition("=")
+        if separator:
+            compact_key = key.strip().casefold().replace("_", "").replace("-", "")
+            if compact_key in {"alt", "alternate", "backup", "fallback", "secondary"}:
+                return True
+            if _is_secret_assignment_key(key.strip()) or _looks_like_secret_tail_value(retained):
+                return True
+        elif _looks_like_secret_tail_value(candidate):
+            return True
+    return False
 
 
 def _is_redacted_secret(value: str) -> bool:
@@ -280,10 +432,7 @@ def _is_redacted_secret(value: str) -> bool:
             return True
         if not suffix[punctuation_length].isspace():
             continue
-        prose = suffix[punctuation_length:].strip()
-        prose_tokens = prose.split()
-        if len(prose_tokens) > 1 and not _contains_credential_indicator(prose):
-            return True
+        return False
     return False
 
 
@@ -306,33 +455,62 @@ def _validate_retained_secrets(value: str, *, label: str) -> None:
                 retained = " ".join((retained, remainder)).strip() if quoted else retained
         elif quoted and remainder:
             retained = f"{retained} {remainder}".strip()
-        if retained and not _is_redacted_secret(retained):
-            raise ValueError(f"{label} must not retain secret values")
+        if retained:
+            if not _is_redacted_secret(retained):
+                raise ValueError(f"{label} must not retain secret values")
+            if _has_unsafe_post_assignment_tail(value, start=match.end()):
+                raise ValueError(f"{label} must not retain secret values")
 
-    for match in _SECRET_OPTION_HEAD_RE.finditer(value):
-        key = match.group("key")
-        if not _is_secret_assignment_key(key):
-            continue
-        retained = _secret_tail(value, match.end(), backticked=bool(match.group("tick")))
-        if not retained or _is_redacted_secret_tail(retained):
-            continue
-        raise ValueError(f"{label} must not retain secret values")
+    for pattern in (_SECRET_OPTION_HEAD_RE, _SECRET_QUOTED_OPTION_HEAD_RE, _SECRET_BRACKETED_OPTION_HEAD_RE):
+        for match in pattern.finditer(value):
+            key = match.group("key")
+            if not _is_secret_assignment_key(key):
+                continue
+            if key.casefold().startswith(("no-", "disable-")):
+                continue
+            retained = _secret_tail(
+                value,
+                match.end(),
+                backticked=bool(match.groupdict().get("tick")),
+            )
+            if not retained or _is_redacted_secret_tail(retained):
+                continue
+            if _is_safe_secret_topic_tail(retained):
+                continue
+            raise ValueError(f"{label} must not retain secret values")
 
     for match in _SECRET_ACTION_HEAD_RE.finditer(value):
         retained = _secret_tail(value, match.end())
         if not retained or _is_redacted_secret_tail(retained):
             continue
+        if _is_safe_secret_topic_tail(retained):
+            continue
         raise ValueError(f"{label} must not retain secret values")
 
-    for match in _SECRET_LINK_HEAD_RE.finditer(value):
+    for match in _SECRET_DIRECT_VALUE_HEAD_RE.finditer(value):
         retained = _secret_tail(value, match.end())
         if not retained or _is_redacted_secret_tail(retained):
             continue
-        first, _, remainder = retained.partition(" ")
-        state = first.strip("\"'`()[]{}<>,.;:!?").casefold()
-        if state in _SAFE_SECRET_STATE_WORDS and not _contains_credential_indicator(remainder):
+        qualifier = match.group("qualifier")
+        if qualifier is not None and qualifier.strip().casefold() == "parameter" and _is_safe_secret_parameter_tail(retained):
+            continue
+        if (
+            _is_safe_secret_topic_tail(retained)
+            or _is_safe_secret_topic_prefix(retained)
+            or _is_safe_secret_state_tail(retained)
+            or _is_safe_secret_copula_tail(retained)
+        ):
             continue
         raise ValueError(f"{label} must not retain secret values")
+
+    for pattern in (_SECRET_LINK_HEAD_RE, _SECRET_STATE_VALUE_HEAD_RE):
+        for match in pattern.finditer(value):
+            retained = _secret_tail(value, match.end())
+            if not retained or _is_redacted_secret_tail(retained):
+                continue
+            if pattern is _SECRET_LINK_HEAD_RE and _is_safe_secret_state_tail(retained):
+                continue
+            raise ValueError(f"{label} must not retain secret values")
 
     for match in _AUTHORIZATION_SCHEME_RE.finditer(value):
         retained = _secret_tail(value, match.end())
@@ -345,7 +523,7 @@ def _validate_retained_text(value: str, *, label: str) -> str:
         raise ValueError(f"{label} must not have outer whitespace")
     _validate_printable_unicode(value, label=label)
     _validate_retained_secrets(value, label=label)
-    if _URL_USERINFO_RE.search(value) is not None:
+    if _SCHEME_URL_USERINFO_RE.search(value) is not None or _NETWORK_PATH_USERINFO_RE.search(value) is not None:
         raise ValueError(f"{label} must not retain URL userinfo credentials")
     for pattern in _CAPTURE_HOST_PATH_RES:
         for match in pattern.finditer(value):
@@ -361,10 +539,34 @@ def _normalized_document_version(value: str) -> str:
 
 def _tool_adjacent_document_versions(value: str, *, tool_id: str) -> tuple[str, ...]:
     pattern = re.compile(
-        rf"(?i)(?<![0-9A-Za-z]){re.escape(tool_id)}[._-]?v?"
+        rf"(?i)(?<![0-9A-Za-z]){re.escape(tool_id)}"
+        rf"(?:[._\s-]+(?:docs?|manual|reference|release|version))*[._\s-]*v?"
         rf"(?P<version>{_DOCUMENT_VERSION_BODY})(?![0-9A-Za-z])"
     )
     return tuple(match.group("version") for match in pattern.finditer(value))
+
+
+def _tool_path_document_versions(value: str, *, tool_id: str) -> tuple[str, ...]:
+    pattern = re.compile(
+        rf"(?i)^{re.escape(tool_id)}(?:[._-]+{_DOCUMENT_PATH_CONTEXT_BODY})?[._-]*v?"
+        rf"(?P<version>{_DOCUMENT_VERSION_BODY})$"
+    )
+    return tuple(match.group("version") for match in pattern.finditer(value))
+
+
+def _has_unrecognized_tool_path_version(value: str, *, tool_id: str) -> bool:
+    prefix = re.match(rf"(?i)^{re.escape(tool_id)}(?=$|[._-]|v?[0-9])", value)
+    return prefix is not None and _DOCUMENT_VERSION_SCAN_RE.search(value[prefix.end() :]) is not None
+
+
+def _locator_version_has_tool_context(value: str, *, start: int, tool_id: str) -> bool:
+    prefix = value[:start].rstrip().rstrip("._-:/")
+    if not prefix:
+        return True
+    match = re.search(r"([A-Za-z][0-9A-Za-z_.-]*)$", prefix)
+    if match is None:
+        return True
+    return match.group(1).casefold() == tool_id.casefold()
 
 
 def _validate_official_documentation_binding(
@@ -390,30 +592,48 @@ def _validate_official_documentation_binding(
 
     path_bound = False
     for index, candidate in enumerate(path_candidates):
-        for match in _DOCUMENT_VERSION_SCAN_RE.finditer(candidate):
-            normalized = _normalized_document_version(match.group(0))
-            if normalized == tool_version:
-                path_bound = True
-            elif index > 0 and path_candidates[index - 1].casefold() == tool_id.casefold():
-                raise ValueError("official documentation URL must bind the exact tool version")
-        for normalized in _tool_adjacent_document_versions(candidate, tool_id=tool_id):
+        previous_is_tool = index > 0 and path_candidates[index - 1].casefold() == tool_id.casefold()
+        nested_document_context = (
+            index > 1
+            and path_candidates[index - 2].casefold() == tool_id.casefold()
+            and _DOCUMENT_PATH_CONTEXT_RE.fullmatch(path_candidates[index - 1]) is not None
+        )
+        adjacent_versions = _tool_path_document_versions(candidate, tool_id=tool_id)
+        if not adjacent_versions and _has_unrecognized_tool_path_version(candidate, tool_id=tool_id):
+            raise ValueError("official documentation URL must bind the exact tool version")
+        for normalized in adjacent_versions:
             if normalized != tool_version:
                 raise ValueError("official documentation URL must bind the exact tool version")
             path_bound = True
+        for match in _DOCUMENT_VERSION_SCAN_RE.finditer(candidate):
+            normalized = _normalized_document_version(match.group(0))
+            if (previous_is_tool or nested_document_context) and normalized == tool_version:
+                path_bound = True
+            elif previous_is_tool or nested_document_context:
+                raise ValueError("official documentation URL must bind the exact tool version")
 
     if _MOVING_DOCUMENT_TOKEN_RE.search(version_locator) is not None:
         raise ValueError("official documentation version locator must not use moving revisions")
     locator_bound = False
-    for match in _DOCUMENT_VERSION_SCAN_RE.finditer(version_locator):
-        normalized = _normalized_document_version(match.group(0))
-        if normalized == tool_version:
-            locator_bound = True
-        elif _IGNORED_DOCUMENT_VERSION_CONTEXT_RE.search(version_locator[: match.start()]) is None:
-            raise ValueError("official documentation version locator must bind the exact tool version")
     for normalized in _tool_adjacent_document_versions(version_locator, tool_id=tool_id):
         if normalized != tool_version:
             raise ValueError("official documentation version locator must bind the exact tool version")
         locator_bound = True
+    for match in _DOCUMENT_VERSION_SCAN_RE.finditer(version_locator):
+        normalized = _normalized_document_version(match.group(0))
+        has_tool_context = _locator_version_has_tool_context(
+            version_locator,
+            start=match.start(),
+            tool_id=tool_id,
+        )
+        if normalized == tool_version and has_tool_context:
+            locator_bound = True
+        elif (
+            normalized != tool_version
+            and has_tool_context
+            and _IGNORED_DOCUMENT_VERSION_CONTEXT_RE.search(version_locator[: match.start()]) is None
+        ):
+            raise ValueError("official documentation version locator must bind the exact tool version")
     if not locator_bound and not path_bound:
         raise ValueError("official documentation must bind the exact tool version")
 
@@ -523,7 +743,7 @@ class EvidenceSource(_StrictFrozenModel):
     def _validate_url(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        if _URL_USERINFO_RE.search(value) is not None:
+        if _SCHEME_URL_USERINFO_RE.search(value) is not None:
             raise ValueError("URL must not contain userinfo")
         return _validate_https_url(value, require_path=True)
 
