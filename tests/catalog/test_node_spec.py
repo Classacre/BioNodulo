@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import json
 from datetime import date
 from pathlib import Path
@@ -10,7 +9,6 @@ import pytest
 from pydantic import ValidationError
 
 import bionodulo.nodes.contract as contract
-import bionodulo.nodes.contract.evidence as evidence_module
 from bionodulo.nodes.contract.artifacts import ArtifactPort, Cardinality
 from bionodulo.nodes.contract.environments import (
     ContainerEnvironment,
@@ -77,6 +75,7 @@ SHA_A = "sha256:" + "a" * 64
 SHA_B = "sha256:" + "b" * 64
 SHA_C = "sha256:" + "c" * 64
 SHA_D = "sha256:" + "d" * 64
+PROJECTION_GOLDEN_CONTRACT_DIGEST = "sha256:e28ff7f63d100cd2bdb86b58c7e50a6da8f9eadd47850576fe85475c404b7b69"
 CAPTURE_DATE = date(2026, 7, 16)
 PLATFORM = ExecutionPlatform.LINUX_AMD64
 CONTAINER_IMAGE = "registry.example.org/tools/samtools@" + SHA_A
@@ -1561,7 +1560,11 @@ def test_gate_assessment_resolves_only_evidence_verification_digests() -> None:
         artifact.sha256 for artifact in inventory.artifacts if artifact.kind is contract.RetainedArtifactKind.CONTRACT
     )
 
-    with pytest.raises(ValidationError, match="verification"):
+    expected_message = (
+        f"maturity gate {Gate.INVENTORIED.value} verification {contract_digest} resolution mismatch: "
+        "expected retained verification evidence, actual unresolved digest"
+    )
+    with pytest.raises(ValidationError) as error:
         external_spec(
             identity=identity,
             environment=environment,
@@ -1571,17 +1574,24 @@ def test_gate_assessment_resolves_only_evidence_verification_digests() -> None:
                 assessments=(gate_assessment(Gate.INVENTORIED, contract_digest),),
             ),
         )
+    assert expected_message in str(error.value)
 
 
 def test_tool_smoke_report_cannot_be_replayed_for_an_unrelated_gate() -> None:
     environment = pixi_environment()
     smoke = verification_for_gate(Gate.TOOL_SMOKE_VERIFIED, environment)
 
-    with pytest.raises(ValidationError, match="verification kind"):
+    digest = smoke.verification_digest()
+    expected_message = (
+        f"maturity gate {Gate.INVENTORIED.value} verification {digest} kind mismatch: "
+        f"expected {VerificationKind.INVENTORY.value}, actual {VerificationKind.TOOL_SMOKE.value}"
+    )
+    with pytest.raises(ValidationError) as error:
         retained_spec_with_assessments(
             (smoke,),
-            (gate_assessment(Gate.INVENTORIED, smoke.verification_digest()),),
+            (gate_assessment(Gate.INVENTORIED, digest),),
         )
+    assert expected_message in str(error.value)
 
 
 def test_gate_assessment_requires_matching_verification_outcome() -> None:
@@ -1592,11 +1602,17 @@ def test_gate_assessment_requires_matching_verification_outcome() -> None:
         outcome=VerificationOutcome.FAILED,
     )
 
-    with pytest.raises(ValidationError, match="outcome"):
+    digest = failed.verification_digest()
+    expected_message = (
+        f"maturity gate {Gate.INVENTORIED.value} verification {digest} outcome mismatch: "
+        f"expected {VerificationOutcome.PASSED.value}, actual {VerificationOutcome.FAILED.value}"
+    )
+    with pytest.raises(ValidationError) as error:
         retained_spec_with_assessments(
             (failed,),
-            (gate_assessment(Gate.INVENTORIED, failed.verification_digest()),),
+            (gate_assessment(Gate.INVENTORIED, digest),),
         )
+    assert expected_message in str(error.value)
 
 
 def test_gate_assessment_requires_exact_matching_failure_code() -> None:
@@ -1618,35 +1634,98 @@ def test_gate_assessment_requires_exact_matching_failure_code() -> None:
         ),
     )
 
-    with pytest.raises(ValidationError, match="failure code"):
+    digest = failed_coverage.verification_digest()
+    expected_message = (
+        f"maturity gate {Gate.EVIDENCE_VERIFIED.value} verification {digest} failure code mismatch: "
+        f"expected {FailureCode.EVIDENCE_MISSING.value}, actual {FailureCode.EVIDENCE_CONFLICT.value}"
+    )
+    with pytest.raises(ValidationError) as error:
         retained_spec_with_assessments((inventoried, failed_coverage), assessments)
+    assert expected_message in str(error.value)
 
 
 @pytest.mark.parametrize(
-    ("assessment_updates", "message"),
+    ("assessment_updates", "field", "expected", "actual"),
     (
-        ({"verifier_id": "other-verifier"}, "verifier ID"),
-        ({"verifier_version": "2.0.0"}, "verifier version"),
+        ({"verifier_id": "other-verifier"}, "verifier ID", "other-verifier", "catalog-verifier"),
+        ({"verifier_version": "2.0.0"}, "verifier version", "2.0.0", "1.0.0"),
     ),
 )
 def test_gate_assessment_requires_matching_verifier_identity(
     assessment_updates: dict[str, str],
-    message: str,
+    field: str,
+    expected: str,
+    actual: str,
 ) -> None:
     environment = pixi_environment()
     report = verification_for_gate(Gate.INVENTORIED, environment)
+    digest = report.verification_digest()
+    expected_message = (
+        f"maturity gate {Gate.INVENTORIED.value} verification {digest} {field} mismatch: "
+        f"expected {expected}, actual {actual}"
+    )
 
-    with pytest.raises(ValidationError, match=message):
+    with pytest.raises(ValidationError) as error:
         retained_spec_with_assessments(
             (report,),
             (
                 gate_assessment(
                     Gate.INVENTORIED,
-                    report.verification_digest(),
+                    digest,
                     **assessment_updates,
                 ),
             ),
         )
+    assert expected_message in str(error.value)
+
+
+def test_gate_assessment_tool_identity_mismatch_names_gate_digest_and_values() -> None:
+    environment = pixi_environment()
+    report = verification_for_gate(Gate.INVENTORIED, environment)
+    mismatched_report = report.model_copy(
+        update={"tool_id": "bcftools", "tool_version": "1.21"},
+    )
+    valid_evidence = evidence_record(verifications=(report,))
+    retained_evidence = EvidenceRecord.model_construct(
+        **(valid_evidence.__dict__ | {"verifications": (mismatched_report,)}),
+    )
+    identity = external_identity()
+    valid_spec = external_spec(
+        identity=identity,
+        environment=environment,
+        evidence=valid_evidence,
+        maturity=None,
+    )
+    inventory = retained_inventory(
+        identity=identity,
+        environment=environment,
+        evidence=retained_evidence,
+        contract_digest=valid_spec.contract_digest(),
+    )
+    digest = mismatched_report.verification_digest()
+    expected_message = (
+        f"maturity gate {Gate.INVENTORIED.value} verification {digest} tool identity mismatch: "
+        "expected samtools@1.20, actual bcftools@1.21"
+    )
+
+    # Reach the defense-in-depth check through the model's documented trusted
+    # construction escape hatch; normal EvidenceRecord validation rejects this
+    # mismatch earlier.
+    constructed = NodeSpec.model_construct(
+        **(
+            valid_spec.__dict__
+            | {
+                "evidence": retained_evidence,
+                "retained_evidence": inventory,
+                "maturity": maturity_record(
+                    assessments=(gate_assessment(Gate.INVENTORIED, digest),),
+                ),
+            }
+        ),
+    )
+    with pytest.raises(ValueError) as error:
+        constructed._validate_retained_evidence()
+    assert expected_message in str(error.value)
 
 
 def test_multiple_same_kind_reports_all_must_agree_with_the_gate() -> None:
@@ -1904,18 +1983,18 @@ def test_contract_projection_keeps_stable_output_id_pointer_shape() -> None:
     }
 
 
-def test_contract_projection_bytes_and_digest_ignore_collection_insertion_order() -> None:
+def test_contract_projection_and_digest_ignore_collection_insertion_order() -> None:
     first = projection_spec()
     second = projection_spec(reverse=True)
     first_projection = first.contract_projection()
     second_projection = second.contract_projection()
-    first_bytes = evidence_module._canonical_json_bytes(first_projection, label="node contract projection")
-    second_bytes = evidence_module._canonical_json_bytes(second_projection, label="node contract projection")
 
     assert first_projection == second_projection
-    assert first_bytes == second_bytes
     assert first.contract_digest() == second.contract_digest()
-    assert first.contract_digest() == "sha256:" + hashlib.sha256(first_bytes).hexdigest()
+
+
+def test_contract_digest_matches_independent_hard_coded_golden_value() -> None:
+    assert projection_spec().contract_digest() == PROJECTION_GOLDEN_CONTRACT_DIGEST
 
 
 @pytest.mark.parametrize(
@@ -1966,6 +2045,39 @@ def test_contract_digest_changes_when_any_complete_collection_item_field_changes
     changed = tuple(changed_item if item == items[0] else item for item in items)
 
     assert projection_spec(**{field: changed}).contract_digest() != base.contract_digest()
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "identity",
+        "presentation",
+        "environment",
+        "execution_kind",
+        "execution_factory",
+        "runtime_binding",
+    ),
+)
+def test_contract_digest_changes_when_any_non_collection_contract_field_changes(field: str) -> None:
+    base = projection_spec()
+    assert base.environment is not None
+    assert base.runtime_binding is not None
+    mutations: dict[str, object] = {
+        "identity": base.identity.model_copy(update={"implementation_version": "1.0.1"}),
+        "presentation": base.presentation.model_copy(update={"description": "Sort alignments reproducibly."}),
+        "environment": base.environment.model_copy(update={"environment_id": "samtools-runtime-v2"}),
+        "execution_kind": ExecutionKind.PIPELINE,
+        "execution_factory": "bionodulo.nodes.catalog.tools.samtools.index:build_plan",
+        "runtime_binding": base.runtime_binding.model_copy(
+            update={"execution_factory": "bionodulo.nodes.catalog.tools.samtools.index:build_plan"},
+        ),
+    }
+    # Isolate one digest input even where normal NodeSpec validation requires
+    # coupled execution and runtime-binding changes.
+    changed = NodeSpec.model_construct(**(base.__dict__ | {field: mutations[field]}))
+
+    assert changed.contract_projection()[field] != base.contract_projection()[field]
+    assert changed.contract_digest() != base.contract_digest()
 
 
 def test_retained_verification_environment_digest_matches_the_declared_environment() -> None:

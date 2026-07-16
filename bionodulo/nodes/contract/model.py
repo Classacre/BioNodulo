@@ -694,28 +694,55 @@ class NodeSpec(_StrictFrozenModel):
             for assessment in maturity.assessments:
                 expected_outcome = VerificationOutcome(assessment.result.value)
                 for digest in assessment.verification_digests:
-                    verification = verifications_by_digest.get(digest)
-                    if verification is None:
+                    mismatch_context = f"maturity gate {assessment.gate.value} verification {digest}"
+                    matched_verification = verifications_by_digest.get(digest)
+                    if matched_verification is None:
                         raise ValueError(
-                            f"assessment verification digest {digest} does not resolve to retained verification evidence"
+                            f"{mismatch_context} resolution mismatch: expected retained verification evidence, "
+                            "actual unresolved digest"
                         )
-                    if verification.kind is not assessment.verification_kind:
-                        raise ValueError("assessment verification kind must match its maturity gate")
-                    if verification.outcome is not expected_outcome:
-                        raise ValueError("assessment verification outcome must match its gate result")
-                    if verification.failure_code is not assessment.failure_code:
-                        raise ValueError("assessment verification failure code must match its gate failure code")
-                    if verification.verifier_id != assessment.verifier_id:
-                        raise ValueError("assessment verification verifier ID must match the gate verifier ID")
-                    if verification.verifier_version != assessment.verifier_version:
+                    if matched_verification.kind is not assessment.verification_kind:
                         raise ValueError(
-                            "assessment verification verifier version must match the gate verifier version"
+                            f"{mismatch_context} kind mismatch: expected {assessment.verification_kind.value}, "
+                            f"actual {matched_verification.kind.value}"
+                        )
+                    if matched_verification.outcome is not expected_outcome:
+                        raise ValueError(
+                            f"{mismatch_context} outcome mismatch: expected {expected_outcome.value}, "
+                            f"actual {matched_verification.outcome.value}"
+                        )
+                    if matched_verification.failure_code is not assessment.failure_code:
+                        expected_failure_code = (
+                            "none" if assessment.failure_code is None else assessment.failure_code.value
+                        )
+                        actual_failure_code = (
+                            "none"
+                            if matched_verification.failure_code is None
+                            else matched_verification.failure_code.value
+                        )
+                        raise ValueError(
+                            f"{mismatch_context} failure code mismatch: expected {expected_failure_code}, "
+                            f"actual {actual_failure_code}"
+                        )
+                    if matched_verification.verifier_id != assessment.verifier_id:
+                        raise ValueError(
+                            f"{mismatch_context} verifier ID mismatch: expected {assessment.verifier_id}, "
+                            f"actual {matched_verification.verifier_id}"
+                        )
+                    if matched_verification.verifier_version != assessment.verifier_version:
+                        raise ValueError(
+                            f"{mismatch_context} verifier version mismatch: expected {assessment.verifier_version}, "
+                            f"actual {matched_verification.verifier_version}"
                         )
                     if (
-                        verification.tool_id != self.identity.tool_id
-                        or verification.tool_version != self.identity.tool_version
+                        matched_verification.tool_id != self.identity.tool_id
+                        or matched_verification.tool_version != self.identity.tool_version
                     ):
-                        raise ValueError("assessment verification tool ID and version must match the node identity")
+                        raise ValueError(
+                            f"{mismatch_context} tool identity mismatch: "
+                            f"expected {self.identity.tool_id}@{self.identity.tool_version}, "
+                            f"actual {matched_verification.tool_id}@{matched_verification.tool_version}"
+                        )
 
             if maturity.released:
                 required_kinds = set(RetainedArtifactKind)
