@@ -30,38 +30,29 @@ _SECRET_ASSIGNMENT_HEAD_RE = re.compile(
     r"(?i)(?<![0-9A-Za-z_.-])(?:--)?(?P<quote>[\"']?)(?P<key>[A-Za-z][A-Za-z0-9_.-]{0,127})"
     r"(?P=quote)\s*[:=]\s*"
 )
-_SECRET_WORD_HEAD_RE = re.compile(
-    r"(?i)(?<![0-9A-Za-z_.-])(?P<option>--)?"
-    r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)\s+"
+_SECRET_OPTION_HEAD_RE = re.compile(
+    r"(?i)(?<![0-9A-Za-z_.-])(?P<tick>`?)--"
+    r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)\s*(?:=\s*|\s+)"
 )
-_AUTHORIZATION_SCHEME_RE = re.compile(r"(?i)(?<![0-9A-Za-z._~/\\-])authorization\s+(?:bearer|basic)\s+")
-_URL_USERINFO_RE = re.compile(r"(?i)(?<![0-9A-Za-z+.-])(?:[A-Za-z][A-Za-z0-9+.-]*:)?//[^/\s?#]*@")
+_SECRET_PROSE_KEY = (
+    r"(?:api[ _-]+key|access[ _-]+key|client[ _-]+secret|private[ _-]+key|"
+    r"license[ _-]+key|password|passwd|pwd|token|secret|credentials?|auth(?:entication|orization)?)"
+)
+_SECRET_LINK_HEAD_RE = re.compile(
+    rf"(?i)(?<![0-9A-Za-z_.-])(?:the\s+)?{_SECRET_PROSE_KEY}"
+    r"(?:\s+(?:value|argument|parameter))?\s+(?:is|was|are|were)\s+"
+)
+_SECRET_ACTION_HEAD_RE = re.compile(
+    rf"(?i)(?<![0-9A-Za-z_.-])"
+    r"(?:use|set|pass|provide|send|enter|supply|include|add|configure|specify|export)\s+"
+    rf"(?:the\s+)?{_SECRET_PROSE_KEY}(?:\s+(?:value|argument|parameter))?\s+"
+)
+_AUTHORIZATION_SCHEME_RE = re.compile(
+    r"(?i)(?<![0-9A-Za-z._~/\\-])authorization(?:\s+header)?\s*(?::|=)?\s*(?:bearer|basic)\s+"
+)
+_URL_USERINFO_RE = re.compile(r"(?i)(?:[A-Za-z][A-Za-z0-9+.-]*:)?//[^/\s?#]*@")
 _REDACTED_SECRET_VALUES = frozenset({"<TOKEN>", "${TOKEN}", "[REDACTED]", "REDACTED", "***"})
 _REDACTION_TRAILING_PUNCTUATION = ".,;:!?)]}"
-_SECRET_CONTEXT_WORDS = frozenset(
-    {
-        "argument",
-        "arguments",
-        "authentication",
-        "field",
-        "fields",
-        "flag",
-        "header",
-        "is",
-        "name",
-        "names",
-        "option",
-        "parameter",
-        "parameters",
-        "placeholder",
-        "requirement",
-        "requirements",
-        "setting",
-        "value",
-        "values",
-        "variable",
-    }
-)
 _CREDENTIAL_TOKEN_RE = re.compile(
     r"(?i)(?<![0-9A-Za-z])(?:"
     r"(?:akia|asia)[0-9A-Z]{12,}"
@@ -73,8 +64,16 @@ _CREDENTIAL_TOKEN_RE = re.compile(
     r"|hunter[0-9]+"
     r")(?![0-9A-Za-z])"
 )
+_SAFE_SECRET_STATE_WORDS = frozenset(
+    {"configured", "documented", "provided", "redacted", "required", "supplied", "unavailable", "unset"}
+)
 _CAPTURE_PATH_BOUNDARY = r"(?<![0-9A-Za-z._~/\\-])"
 _CAPTURE_HOST_PATH_RES = (
+    re.compile(r"file://[^/\\\s]+/(?:home|Users)/[^/\\\s\"'`]+", re.IGNORECASE),
+    re.compile(
+        r"file://[^/\\\s]+/root(?=$|[/\\\s.,;:!?\"'`)\]}])",
+        re.IGNORECASE,
+    ),
     re.compile(
         _CAPTURE_PATH_BOUNDARY + r"file://(?:localhost|127\.0\.0\.1)/(?:home|Users)/[^/\\\s\"'`]+",
         re.IGNORECASE,
@@ -110,10 +109,17 @@ _MOVING_DOCUMENT_SEGMENTS = frozenset(
 _MOVING_DOCUMENT_TOKEN_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9])(?:latest|stable|current|main|master|head|develop|release|trunk)(?![A-Za-z0-9])"
 )
-_DOCUMENT_VERSION_SCAN_RE = re.compile(
-    r"(?<![0-9A-Za-z])v?[0-9]+\.[0-9]+(?:\.[0-9]+)*"
+_DOCUMENT_VERSION_BODY = (
+    r"[0-9]+\.[0-9]+(?:\.[0-9]+)*"
     r"(?:[A-Za-z][0-9A-Za-z._+-]*|[._+-][0-9A-Za-z][0-9A-Za-z._+-]*)?"
-    r"(?![0-9A-Za-z])"
+)
+_DOCUMENT_VERSION_SCAN_RE = re.compile(
+    rf"(?<![0-9A-Za-z])v?{_DOCUMENT_VERSION_BODY}(?![0-9A-Za-z])",
+    re.IGNORECASE,
+)
+_IGNORED_DOCUMENT_VERSION_CONTEXT_RE = re.compile(
+    r"(?:^|[^0-9A-Za-z])(?:api|section)[\s:/_-]*$",
+    re.IGNORECASE,
 )
 _DOCUMENT_FILE_EXTENSIONS = (".html", ".htm", ".json", ".yaml", ".yml", ".xml", ".txt")
 _HELP_FLAG_TOKENS = frozenset({"--help", "-h", "-help"})
@@ -173,6 +179,8 @@ def _is_secret_assignment_key(value: str) -> bool:
             "pwd",
             "apikey",
             "authkey",
+            "secretkey",
+            "privatekey",
             "refreshkey",
             "licensekey",
             "accesskey",
@@ -229,6 +237,32 @@ def _looks_like_credential_token(value: str) -> bool:
     return False
 
 
+def _is_redaction_token(value: str) -> bool:
+    candidate = value.strip("\"'`().,;:!?")
+    return candidate in _REDACTED_SECRET_VALUES
+
+
+def _contains_credential_indicator(value: str) -> bool:
+    for token in value.split():
+        if _is_redaction_token(token):
+            continue
+        if _CREDENTIAL_TOKEN_RE.search(token) is not None or _looks_like_credential_token(token):
+            return True
+    return False
+
+
+def _secret_tail(value: str, start: int, *, backticked: bool = False) -> str:
+    end = value.find("`", start) if backticked else -1
+    return value[start : end if end >= 0 else len(value)].strip()
+
+
+def _is_redacted_secret_tail(value: str) -> bool:
+    if _is_redacted_secret(value):
+        return True
+    first, _, remainder = value.partition(" ")
+    return _is_redaction_token(first) and len(remainder.split()) >= 3 and not _contains_credential_indicator(remainder)
+
+
 def _is_redacted_secret(value: str) -> bool:
     candidate = value.strip()
     for redaction in _REDACTED_SECRET_VALUES:
@@ -247,12 +281,8 @@ def _is_redacted_secret(value: str) -> bool:
         if not suffix[punctuation_length].isspace():
             continue
         prose = suffix[punctuation_length:].strip()
-        if (
-            prose
-            and prose[0].isupper()
-            and _CREDENTIAL_TOKEN_RE.search(prose) is None
-            and not _looks_like_credential_token(prose.split(maxsplit=1)[0])
-        ):
+        prose_tokens = prose.split()
+        if len(prose_tokens) > 1 and not _contains_credential_indicator(prose):
             return True
     return False
 
@@ -279,28 +309,33 @@ def _validate_retained_secrets(value: str, *, label: str) -> None:
         if retained and not _is_redacted_secret(retained):
             raise ValueError(f"{label} must not retain secret values")
 
-    for match in _SECRET_WORD_HEAD_RE.finditer(value):
+    for match in _SECRET_OPTION_HEAD_RE.finditer(value):
         key = match.group("key")
         if not _is_secret_assignment_key(key):
             continue
-        retained, _, remainder = _assignment_value(value, match.end())
-        if not retained:
+        retained = _secret_tail(value, match.end(), backticked=bool(match.group("tick")))
+        if not retained or _is_redacted_secret_tail(retained):
             continue
-        compact_key = key.casefold().replace("_", "").replace("-", "").replace(".", "")
-        context_word = retained.strip("\"'`()[]{}<>,.;:!?").casefold()
-        if compact_key == "authorization" and context_word in {"basic", "bearer"}:
+        raise ValueError(f"{label} must not retain secret values")
+
+    for match in _SECRET_ACTION_HEAD_RE.finditer(value):
+        retained = _secret_tail(value, match.end())
+        if not retained or _is_redacted_secret_tail(retained):
             continue
-        if context_word in _SECRET_CONTEXT_WORDS and (match.group("option") is None or remainder):
+        raise ValueError(f"{label} must not retain secret values")
+
+    for match in _SECRET_LINK_HEAD_RE.finditer(value):
+        retained = _secret_tail(value, match.end())
+        if not retained or _is_redacted_secret_tail(retained):
             continue
-        if not _is_redacted_secret(retained):
-            raise ValueError(f"{label} must not retain secret values")
+        first, _, remainder = retained.partition(" ")
+        state = first.strip("\"'`()[]{}<>,.;:!?").casefold()
+        if state in _SAFE_SECRET_STATE_WORDS and not _contains_credential_indicator(remainder):
+            continue
+        raise ValueError(f"{label} must not retain secret values")
 
     for match in _AUTHORIZATION_SCHEME_RE.finditer(value):
-        retained, quoted, remainder = _assignment_value(value, match.end())
-        if not quoted and remainder:
-            retained = f"{retained} {remainder}".strip()
-        elif quoted and remainder:
-            retained = f"{retained} {remainder}".strip()
+        retained = _secret_tail(value, match.end())
         if not _is_redacted_secret(retained):
             raise ValueError(f"{label} must not retain secret values")
 
@@ -320,14 +355,27 @@ def _validate_retained_text(value: str, *, label: str) -> str:
     return value
 
 
+def _normalized_document_version(value: str) -> str:
+    return value[1:] if value[:1].casefold() == "v" else value
+
+
+def _tool_adjacent_document_versions(value: str, *, tool_id: str) -> tuple[str, ...]:
+    pattern = re.compile(
+        rf"(?i)(?<![0-9A-Za-z]){re.escape(tool_id)}[._-]?v?"
+        rf"(?P<version>{_DOCUMENT_VERSION_BODY})(?![0-9A-Za-z])"
+    )
+    return tuple(match.group("version") for match in pattern.finditer(value))
+
+
 def _validate_official_documentation_binding(
     *,
+    tool_id: str,
     tool_version: str,
     url: str,
     version_locator: str,
 ) -> None:
     path_segments = tuple(segment for segment in urlsplit(url).path.split("/") if segment)
-    path_versions: list[str] = []
+    path_candidates: list[str] = []
     for segment in path_segments:
         lowered = segment.casefold()
         stem = lowered.rsplit(".", 1)[0]
@@ -338,20 +386,34 @@ def _validate_official_documentation_binding(
             if lowered.endswith(extension):
                 candidate = segment[: -len(extension)]
                 break
+        path_candidates.append(candidate)
+
+    path_bound = False
+    for index, candidate in enumerate(path_candidates):
         for match in _DOCUMENT_VERSION_SCAN_RE.finditer(candidate):
-            normalized = match.group(0).removeprefix("v")
-            path_versions.append(normalized)
+            normalized = _normalized_document_version(match.group(0))
+            if normalized == tool_version:
+                path_bound = True
+            elif index > 0 and path_candidates[index - 1].casefold() == tool_id.casefold():
+                raise ValueError("official documentation URL must bind the exact tool version")
+        for normalized in _tool_adjacent_document_versions(candidate, tool_id=tool_id):
             if normalized != tool_version:
                 raise ValueError("official documentation URL must bind the exact tool version")
+            path_bound = True
+
     if _MOVING_DOCUMENT_TOKEN_RE.search(version_locator) is not None:
         raise ValueError("official documentation version locator must not use moving revisions")
-    locator_versions = tuple(
-        match.group(0).removeprefix("v") for match in _DOCUMENT_VERSION_SCAN_RE.finditer(version_locator)
-    )
-    if any(version != tool_version for version in locator_versions):
-        raise ValueError("official documentation version locator must bind the exact tool version")
-    locator_bound = tool_version in locator_versions
-    path_bound = tool_version in path_versions
+    locator_bound = False
+    for match in _DOCUMENT_VERSION_SCAN_RE.finditer(version_locator):
+        normalized = _normalized_document_version(match.group(0))
+        if normalized == tool_version:
+            locator_bound = True
+        elif _IGNORED_DOCUMENT_VERSION_CONTEXT_RE.search(version_locator[: match.start()]) is None:
+            raise ValueError("official documentation version locator must bind the exact tool version")
+    for normalized in _tool_adjacent_document_versions(version_locator, tool_id=tool_id):
+        if normalized != tool_version:
+            raise ValueError("official documentation version locator must bind the exact tool version")
+        locator_bound = True
     if not locator_bound and not path_bound:
         raise ValueError("official documentation must bind the exact tool version")
 
@@ -575,6 +637,7 @@ class EvidenceSource(_StrictFrozenModel):
         if self.kind in (SourceKind.OFFICIAL_MANUAL, SourceKind.OFFICIAL_API_SCHEMA):
             assert self.url is not None and self.version_locator is not None
             _validate_official_documentation_binding(
+                tool_id=self.tool_id,
                 tool_version=self.tool_version,
                 url=self.url,
                 version_locator=self.version_locator,

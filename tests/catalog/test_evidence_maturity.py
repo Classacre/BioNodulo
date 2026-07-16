@@ -228,6 +228,7 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "auth=[REDACTED]. Continue with the documented flow.",
         "credential=***. Continue with the documented flow.",
         "Run --token <TOKEN> only when the official service requires authentication.",
+        "Run --token ${TOKEN} only when the official service requires authentication.",
         "Use password [REDACTED] only with the documented test account.",
         'Authorization: "Bearer <TOKEN>"',
         'Authorization: "Basic [REDACTED]"',
@@ -244,6 +245,11 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "Database metadata: foreign_key_id=42.",
         "The monkey habitat and keynote schedule contain no credentials.",
         "The key parameter selects the output map.",
+        "Token bucket algorithm is documented.",
+        "Password hashing uses Argon2.",
+        "Credentials are supplied at runtime.",
+        "The token parser accepts quoted values.",
+        "Password rotation is documented upstream.",
     ),
 )
 def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths(
@@ -294,6 +300,9 @@ def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths
         "credential=***. AKIAIOSFODNN7EXAMPLE",
         "token=<TOKEN>. Continue with live-secret",
         "credential=***. Continue with AKIAIOSFODNN7EXAMPLE",
+        "token=<TOKEN>. Swordfish",
+        "token=<TOKEN>. Continue with abc123XYZ",
+        "token=<TOKEN>. The fallback token is abc123",
     ),
 )
 def test_retained_text_rejects_unredacted_secret_assignments_and_redaction_prefix_leaks(
@@ -312,6 +321,18 @@ def test_retained_text_rejects_unredacted_secret_assignments_and_redaction_prefi
         "Run --api-key sk-live-value",
         "Use password hunter2",
         "Use credential AKIAIOSFODNN7EXAMPLE",
+        "The password is hunter2.",
+        "The token is live-secret.",
+        "The API key is sk-live-value.",
+        "The token value is live-secret.",
+        "Use --token value live-secret.",
+        "Authorization header Bearer live-secret",
+        "Use `--token live-secret` for the request.",
+        "SECRET_KEY=live-secret",
+        "--private-key live-secret",
+        "--token Swordfish",
+        "The password is Swordfish.",
+        "--token <TOKEN> Swordfish",
     ),
 )
 def test_retained_text_rejects_secret_bearing_cli_and_prose_forms(field: str, value: str) -> None:
@@ -336,6 +357,8 @@ def test_retained_text_rejects_secret_bearing_cli_and_prose_forms(field: str, va
         "Captured from,/home/alice/work/help.txt",
         "Captured from file://localhost/home/alice/work/help.txt",
         "Captured from file://localhost/Users/alice/work/help.txt",
+        "Captured from file://buildhost/home/alice/work",
+        "Captured from file://localhost/root/private",
         r"Captured from \\server\Users\alice\work\help.txt",
         "Captured from /tmp/pytest-of-user/pytest-3/test_help0/output.txt",
         "Captured from /tmp/pytest-of-user/pytest-current/out",
@@ -359,6 +382,7 @@ def test_retained_text_rejects_capture_host_paths(field: str, value: str) -> Non
         "averylongcustomschemeoverthirtytwocharacters://user:pass@example.com/docs",
         "//user:pass@example.com/docs",
         "//user@example.com/docs",
+        "docs.//user:pass@example.com/x",
     ),
 )
 def test_retained_text_rejects_url_userinfo_credentials(field: str, url: str) -> None:
@@ -572,6 +596,13 @@ def test_official_documentation_must_bind_exact_tool_version_without_url_mismatc
         ("https://docs.example.org/samtools-1.20/reference.html", "1.23.1 reference"),
         ("https://docs.example.org/samtools/reference-1.20.html", "1.23.1 reference"),
         ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools-1.20 reference"),
+        ("https://docs.example.org/samtools1.20/reference.html", "1.23.1 reference"),
+        ("https://docs.example.org/samtoolsV1.20/reference.html", "1.23.1 reference"),
+        ("https://docs.example.org/samtools-v1.20/reference.html", "1.23.1 reference"),
+        ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools1.20 reference"),
+        ("https://docs.example.org/samtools/1.23.1/reference.html", "samtoolsV1.20 reference"),
+        ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools-v1.20 reference"),
+        ("https://docs.example.org/samtools/1.23.1/reference.html", "V1.20 reference"),
     ),
 )
 def test_official_documentation_rejects_conflicting_embedded_dotted_versions(
@@ -607,9 +638,13 @@ def test_official_documentation_accepts_exact_embedded_dotted_versions(
         ("https://docs.example.org/2026/samtools/1.23.1/reference.html", "section 42"),
         ("https://docs.example.org/samtools/v1.23.1/reference.html", "section 42"),
         ("https://docs.example.org/samtools/reference.html", "v1.23.1 section 42"),
+        ("https://docs.example.org/samtools/V1.23.1/reference.html", "section 42"),
+        ("https://docs.example.org/samtools/reference.html", "V1.23.1 section 42"),
+        ("https://docs.example.org/api/2.0/samtools/1.23.1/reference.html", "manual"),
+        ("https://docs.example.org/samtools/reference.html", "1.23.1 manual, section 1.2"),
     ),
 )
-def test_official_documentation_ignores_standalone_integers_and_normalizes_v_versions(
+def test_official_documentation_ignores_unrelated_numbers_and_normalizes_v_versions(
     url: str,
     locator: str,
 ) -> None:
