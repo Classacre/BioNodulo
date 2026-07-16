@@ -432,6 +432,29 @@ def test_executable_probe_uses_a_bounded_literal_exact_version_matcher() -> None
     assert "expected_version_pattern" not in probe.model_dump()
 
 
+@pytest.mark.parametrize(
+    "version",
+    (
+        "1.23.1-beta",
+        "1.23.1+galaxy0",
+        "1.23.1.post1",
+        "1.23.1rc1",
+        "5.71-102.0",
+        "000005845.2_ASM584v2",
+    ),
+)
+def test_exact_versions_preserve_supported_upstream_suffix_forms(version: str) -> None:
+    captured = env.ResolverIdentity(name="resolver", version=version, config_digest=SHA_A)
+
+    assert captured.version == version
+
+
+@pytest.mark.parametrize("version", ("1.x", "1..2", "1.2.x", "1.2.", "1.2-", "1.2+"))
+def test_exact_versions_reject_wildcards_and_malformed_segments(version: str) -> None:
+    with pytest.raises(ValidationError, match="exact upstream version"):
+        env.ResolverIdentity(name="resolver", version=version, config_digest=SHA_A)
+
+
 @pytest.mark.parametrize("pattern", (".*", "(a+)+$", "^$"))
 def test_executable_probe_rejects_legacy_regex_matchers(pattern: str) -> None:
     with pytest.raises(ValidationError):

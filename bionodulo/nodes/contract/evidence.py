@@ -30,10 +30,49 @@ _SECRET_ASSIGNMENT_HEAD_RE = re.compile(
     r"(?i)(?<![0-9A-Za-z_.-])(?:--)?(?P<quote>[\"']?)(?P<key>[A-Za-z][A-Za-z0-9_.-]{0,127})"
     r"(?P=quote)\s*[:=]\s*"
 )
+_SECRET_WORD_HEAD_RE = re.compile(
+    r"(?i)(?<![0-9A-Za-z_.-])(?P<option>--)?"
+    r"(?P<key>[A-Za-z](?:[A-Za-z0-9_.-]{0,126}[A-Za-z0-9])?)\s+"
+)
 _AUTHORIZATION_SCHEME_RE = re.compile(r"(?i)(?<![0-9A-Za-z._~/\\-])authorization\s+(?:bearer|basic)\s+")
-_URL_USERINFO_RE = re.compile(r"(?i)(?<![0-9A-Za-z._-])[A-Za-z][A-Za-z0-9+.-]{0,31}://[^/\s?#]*@")
+_URL_USERINFO_RE = re.compile(r"(?i)(?<![0-9A-Za-z+.-])(?:[A-Za-z][A-Za-z0-9+.-]*:)?//[^/\s?#]*@")
 _REDACTED_SECRET_VALUES = frozenset({"<TOKEN>", "${TOKEN}", "[REDACTED]", "REDACTED", "***"})
 _REDACTION_TRAILING_PUNCTUATION = ".,;:!?)]}"
+_SECRET_CONTEXT_WORDS = frozenset(
+    {
+        "argument",
+        "arguments",
+        "authentication",
+        "field",
+        "fields",
+        "flag",
+        "header",
+        "is",
+        "name",
+        "names",
+        "option",
+        "parameter",
+        "parameters",
+        "placeholder",
+        "requirement",
+        "requirements",
+        "setting",
+        "value",
+        "values",
+        "variable",
+    }
+)
+_CREDENTIAL_TOKEN_RE = re.compile(
+    r"(?i)(?<![0-9A-Za-z])(?:"
+    r"(?:akia|asia)[0-9A-Z]{12,}"
+    r"|(?:live|secret|token|password)[-_][0-9A-Za-z][0-9A-Za-z._+-]*"
+    r"|sk-[0-9A-Za-z][0-9A-Za-z._+-]*"
+    r"|gh[pousr]_[0-9A-Za-z][0-9A-Za-z_-]*"
+    r"|xox[a-z]-[0-9A-Za-z][0-9A-Za-z-]*"
+    r"|eyJ[0-9A-Za-z_-]{8,}"
+    r"|hunter[0-9]+"
+    r")(?![0-9A-Za-z])"
+)
 _CAPTURE_PATH_BOUNDARY = r"(?<![0-9A-Za-z._~/\\-])"
 _CAPTURE_HOST_PATH_RES = (
     re.compile(
@@ -71,14 +110,10 @@ _MOVING_DOCUMENT_SEGMENTS = frozenset(
 _MOVING_DOCUMENT_TOKEN_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9])(?:latest|stable|current|main|master|head|develop|release|trunk)(?![A-Za-z0-9])"
 )
-_DOCUMENT_VERSION_TOKEN_RE = re.compile(
-    r"^v?[0-9]+\.[0-9]+(?:\.[0-9]+)*"
-    r"(?:[A-Za-z][0-9A-Za-z._+-]*|[._+-][0-9A-Za-z][0-9A-Za-z._+-]*)?$"
-)
 _DOCUMENT_VERSION_SCAN_RE = re.compile(
-    r"(?<![0-9A-Za-z._+-])v?[0-9]+\.[0-9]+(?:\.[0-9]+)*"
+    r"(?<![0-9A-Za-z])v?[0-9]+\.[0-9]+(?:\.[0-9]+)*"
     r"(?:[A-Za-z][0-9A-Za-z._+-]*|[._+-][0-9A-Za-z][0-9A-Za-z._+-]*)?"
-    r"(?![0-9A-Za-z._+-])"
+    r"(?![0-9A-Za-z])"
 )
 _DOCUMENT_FILE_EXTENSIONS = (".html", ".htm", ".json", ".yaml", ".yml", ".xml", ".txt")
 _HELP_FLAG_TOKENS = frozenset({"--help", "-h", "-help"})
@@ -176,6 +211,24 @@ def _assignment_value(value: str, start: int) -> tuple[str, bool, str]:
     return (parts[0], False, parts[1] if len(parts) > 1 else "") if parts else ("", False, "")
 
 
+def _looks_like_credential_token(value: str) -> bool:
+    token = value.strip("\"'`()[]{}<>,.;:!?")
+    if not token:
+        return False
+    folded = token.casefold()
+    if folded in {"credential", "password", "secret", "token"}:
+        return True
+    if folded.startswith(("akia", "asia", "eyj", "ghp_", "live-", "live_", "sk-", "xox")):
+        return True
+    if any(character.isdigit() for character in token) and any(character.isalpha() for character in token):
+        return True
+    if any(character in "-_/+=" for character in token):
+        return True
+    if len(token) >= 16 or sum(character.isupper() for character in token) > 1:
+        return True
+    return False
+
+
 def _is_redacted_secret(value: str) -> bool:
     candidate = value.strip()
     for redaction in _REDACTED_SECRET_VALUES:
@@ -187,7 +240,19 @@ def _is_redacted_secret(value: str) -> bool:
         punctuation_length = 0
         while punctuation_length < len(suffix) and suffix[punctuation_length] in _REDACTION_TRAILING_PUNCTUATION:
             punctuation_length += 1
-        if punctuation_length and (punctuation_length == len(suffix) or suffix[punctuation_length].isspace()):
+        if not punctuation_length:
+            continue
+        if punctuation_length == len(suffix):
+            return True
+        if not suffix[punctuation_length].isspace():
+            continue
+        prose = suffix[punctuation_length:].strip()
+        if (
+            prose
+            and prose[0].isupper()
+            and _CREDENTIAL_TOKEN_RE.search(prose) is None
+            and not _looks_like_credential_token(prose.split(maxsplit=1)[0])
+        ):
             return True
     return False
 
@@ -212,6 +277,22 @@ def _validate_retained_secrets(value: str, *, label: str) -> None:
         elif quoted and remainder:
             retained = f"{retained} {remainder}".strip()
         if retained and not _is_redacted_secret(retained):
+            raise ValueError(f"{label} must not retain secret values")
+
+    for match in _SECRET_WORD_HEAD_RE.finditer(value):
+        key = match.group("key")
+        if not _is_secret_assignment_key(key):
+            continue
+        retained, _, remainder = _assignment_value(value, match.end())
+        if not retained:
+            continue
+        compact_key = key.casefold().replace("_", "").replace("-", "").replace(".", "")
+        context_word = retained.strip("\"'`()[]{}<>,.;:!?").casefold()
+        if compact_key == "authorization" and context_word in {"basic", "bearer"}:
+            continue
+        if context_word in _SECRET_CONTEXT_WORDS and (match.group("option") is None or remainder):
+            continue
+        if not _is_redacted_secret(retained):
             raise ValueError(f"{label} must not retain secret values")
 
     for match in _AUTHORIZATION_SCHEME_RE.finditer(value):
@@ -257,15 +338,15 @@ def _validate_official_documentation_binding(
             if lowered.endswith(extension):
                 candidate = segment[: -len(extension)]
                 break
-        if _DOCUMENT_VERSION_TOKEN_RE.fullmatch(candidate) is not None:
-            normalized = candidate.removeprefix("v")
+        for match in _DOCUMENT_VERSION_SCAN_RE.finditer(candidate):
+            normalized = match.group(0).removeprefix("v")
             path_versions.append(normalized)
             if normalized != tool_version:
                 raise ValueError("official documentation URL must bind the exact tool version")
     if _MOVING_DOCUMENT_TOKEN_RE.search(version_locator) is not None:
         raise ValueError("official documentation version locator must not use moving revisions")
     locator_versions = tuple(
-        candidate.removeprefix("v") for candidate in _DOCUMENT_VERSION_SCAN_RE.findall(version_locator)
+        match.group(0).removeprefix("v") for match in _DOCUMENT_VERSION_SCAN_RE.finditer(version_locator)
     )
     if any(version != tool_version for version in locator_versions):
         raise ValueError("official documentation version locator must bind the exact tool version")

@@ -22,7 +22,15 @@ _RANGE_CONSTRAINT_RE = re.compile(
     r"(?P<upper_op><=|<)(?P<upper>[0-9]+(?:\.[0-9]+)*)$"
 )
 _RESOLVER_PLATFORM_RE = re.compile(r"^[a-z0-9][a-z0-9._/-]{0,63}$")
-_EXACT_VERSION_RE = re.compile(r"^[0-9][0-9A-Za-z._+-]{0,127}$")
+_EXACT_VERSION_RE = re.compile(
+    r"^[0-9]+(?:\.[0-9]+)*(?:"
+    r"[A-Za-z][0-9A-Za-z]*(?:[._+-][0-9A-Za-z]+)*"
+    r"|\.(?:alpha|beta|dev|p|patch|post|pre|preview|r|rc|rev)[0-9A-Za-z]*"
+    r"(?:[._+-][0-9A-Za-z]+)*"
+    r"|[-+_][0-9A-Za-z]+(?:[._+-][0-9A-Za-z]+)*"
+    r")?$",
+    re.IGNORECASE,
+)
 _BUILD_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,255}$")
 _FILENAME_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,511}$")
 _HOST_RE = re.compile(

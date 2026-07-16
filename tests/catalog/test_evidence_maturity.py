@@ -227,6 +227,8 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "token=<TOKEN>. Continue with the documented flow.",
         "auth=[REDACTED]. Continue with the documented flow.",
         "credential=***. Continue with the documented flow.",
+        "Run --token <TOKEN> only when the official service requires authentication.",
+        "Use password [REDACTED] only with the documented test account.",
         'Authorization: "Bearer <TOKEN>"',
         'Authorization: "Basic [REDACTED]"',
         'Authorization: "Bearer" <TOKEN>',
@@ -240,6 +242,8 @@ def test_access_and_gate_wire_values_and_order_are_exact() -> None:
         "Captured from file://localhost/home/<USER>/work.",
         "See https://docs.example.org/home/user for documented behavior.",
         "Database metadata: foreign_key_id=42.",
+        "The monkey habitat and keynote schedule contain no credentials.",
+        "The key parameter selects the output map.",
     ),
 )
 def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths(
@@ -286,12 +290,31 @@ def test_retained_text_accepts_printable_unicode_redactions_and_documented_paths
         'Authorization: "Bearer" live-secret',
         'Authorization: "Basic" dXNlcjpwYXNz',
         "api_key=<API_KEY>",
+        "token=<TOKEN>. live-secret",
+        "credential=***. AKIAIOSFODNN7EXAMPLE",
+        "token=<TOKEN>. Continue with live-secret",
+        "credential=***. Continue with AKIAIOSFODNN7EXAMPLE",
     ),
 )
-def test_retained_text_rejects_unredacted_secret_assignments(
+def test_retained_text_rejects_unredacted_secret_assignments_and_redaction_prefix_leaks(
     field: str,
     value: str,
 ) -> None:
+    with pytest.raises(ValidationError, match="secret"):
+        retained_text(field, value)
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "Run --token live-secret",
+        "Run --api-key sk-live-value",
+        "Use password hunter2",
+        "Use credential AKIAIOSFODNN7EXAMPLE",
+    ),
+)
+def test_retained_text_rejects_secret_bearing_cli_and_prose_forms(field: str, value: str) -> None:
     with pytest.raises(ValidationError, match="secret"):
         retained_text(field, value)
 
@@ -333,11 +356,28 @@ def test_retained_text_rejects_capture_host_paths(field: str, value: str) -> Non
         "https://:pass@example.com/docs",
         "https://user:@example.com/docs",
         "ftp://user:pass@example.com/docs",
+        "averylongcustomschemeoverthirtytwocharacters://user:pass@example.com/docs",
+        "//user:pass@example.com/docs",
+        "//user@example.com/docs",
     ),
 )
 def test_retained_text_rejects_url_userinfo_credentials(field: str, url: str) -> None:
     with pytest.raises(ValidationError, match="userinfo"):
         retained_text(field, f"See {url} for details.")
+
+
+@pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    (
+        "Contact user@example.com for details.",
+        "Use mailto:user@example.com for support.",
+        "See https://example.com/@user/profile for details.",
+        "See //example.com/@user/profile for details.",
+    ),
+)
+def test_retained_text_accepts_at_signs_outside_uri_authority_userinfo(field: str, value: str) -> None:
+    assert retained_text(field, value) == value
 
 
 @pytest.mark.parametrize("field", _RETAINED_TEXT_FIELDS)
@@ -524,6 +564,40 @@ def test_official_documentation_must_bind_exact_tool_version_without_url_mismatc
                 "version_locator": "reference",
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("url", "locator"),
+    (
+        ("https://docs.example.org/samtools-1.20/reference.html", "1.23.1 reference"),
+        ("https://docs.example.org/samtools/reference-1.20.html", "1.23.1 reference"),
+        ("https://docs.example.org/samtools/1.23.1/reference.html", "samtools-1.20 reference"),
+    ),
+)
+def test_official_documentation_rejects_conflicting_embedded_dotted_versions(
+    url: str,
+    locator: str,
+) -> None:
+    with pytest.raises(ValidationError, match="tool version"):
+        source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url, "version_locator": locator})
+
+
+@pytest.mark.parametrize(
+    ("url", "locator"),
+    (
+        ("https://docs.example.org/samtools-1.23.1/reference.html", "reference"),
+        ("https://docs.example.org/samtools/reference-1.23.1.html", "reference"),
+        ("https://docs.example.org/samtools/reference.html", "samtools-1.23.1 reference"),
+    ),
+)
+def test_official_documentation_accepts_exact_embedded_dotted_versions(
+    url: str,
+    locator: str,
+) -> None:
+    captured = source(evidence.SourceKind.OFFICIAL_MANUAL).model_copy(update={"url": url, "version_locator": locator})
+
+    assert captured.url == url
+    assert captured.version_locator == locator
 
 
 @pytest.mark.parametrize(
