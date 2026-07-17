@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -11,7 +13,7 @@ from packaging.utils import canonicalize_name, parse_wheel_filename
 from pydantic import ValidationError
 
 from bionodulo.nodes.contract.environments import ExecutionPlatform
-from bionodulo.nodes.environment_compiler import compiler
+from bionodulo.nodes.environment_compiler import compiler, pixi_identity
 
 
 SHA_A = "a" * 64
@@ -122,6 +124,28 @@ def verified_pixi(
         version=version,
         distribution=compiler.PIXI_DISTRIBUTIONS[platform],
     )
+
+
+def write_synthetic_pixi(path: Path, content: bytes = b"synthetic pixi executable") -> Path:
+    path.write_bytes(content)
+    path.chmod(0o755)
+    return path
+
+
+def synthetic_distribution_map(
+    content: bytes,
+    *,
+    expected_binary_sha256: str | None = None,
+) -> dict[ExecutionPlatform, pixi_identity.PixiDistribution]:
+    digest = expected_binary_sha256 or "sha256:" + hashlib.sha256(content).hexdigest()
+    return {
+        ExecutionPlatform.LINUX_AMD64: pixi_identity.PixiDistribution(
+            filename="pixi-synthetic.tar.gz",
+            url="https://example.org/pixi-synthetic.tar.gz",
+            archive_sha256="sha256:" + "a" * 64,
+            binary_sha256=digest,
+        )
+    }
 
 
 def lockfile(
@@ -1608,13 +1632,212 @@ def test_runner_detects_workspace_mutation_even_when_capture_raises(tmp_path: Pa
 def test_pixi_release_identity_and_linux_distribution_checksums_are_pinned() -> None:
     assert compiler.PIXI_VERSION == "0.68.1"
     assert compiler.PIXI_TAG_COMMIT == "a2453cacd4a02bc99ee84b5e6015ec83bbb2d397"
-    assert compiler.PIXI_DISTRIBUTIONS[ExecutionPlatform.LINUX_AMD64].sha256 == (
+    assert compiler.PIXI_DISTRIBUTIONS[ExecutionPlatform.LINUX_AMD64].archive_sha256 == (
         "sha256:f61a9546898cc1caad1956d1b5bba0408de5a24854b648631c0b49555520ed42"
     )
-    assert compiler.PIXI_DISTRIBUTIONS[ExecutionPlatform.LINUX_ARM64].sha256 == (
+    assert compiler.PIXI_DISTRIBUTIONS[ExecutionPlatform.LINUX_AMD64].binary_sha256 == (
+        "sha256:01d29d4b78ab07badf57edda0b3d200bc705d5afb6da9960ebabe7010cd836e4"
+    )
+    assert compiler.PIXI_DISTRIBUTIONS[ExecutionPlatform.LINUX_ARM64].archive_sha256 == (
         "sha256:b2b21272578600086e92f4e1d0e42cb7409c8e541688b9ea61aed7dd6a07a5ad"
+    )
+    assert compiler.PIXI_DISTRIBUTIONS[ExecutionPlatform.LINUX_ARM64].binary_sha256 == (
+        "sha256:a86916c9cf8c84fe8e1a8fbac117dc8bc85a0bf9cfc63e7382d6d45e5101f179"
     )
     assert all(
         distribution.url.startswith("https://github.com/prefix-dev/pixi/releases/download/v0.68.1/")
         for distribution in compiler.PIXI_DISTRIBUTIONS.values()
     )
+
+
+def test_pixi_identity_rejects_wrong_binary_sha256(tmp_path: Path) -> None:
+    content = b"synthetic pixi executable"
+    binary = write_synthetic_pixi(tmp_path / "pixi", content)
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        pixi_identity._open_verified_pixi(
+            binary,
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(
+                content,
+                expected_binary_sha256="sha256:" + "0" * 64,
+            ),
+        )
+
+
+def test_pixi_identity_rejects_relative_executable_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    content = b"synthetic pixi executable"
+    write_synthetic_pixi(tmp_path / "pixi", content)
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError, match="absolute|PATH"):
+        pixi_identity._open_verified_pixi(
+            Path("pixi"),
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(content),
+        )
+
+
+def test_pixi_identity_rejects_missing_binary(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="readable|exist"):
+        pixi_identity._open_verified_pixi(
+            tmp_path / "pixi",
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(b"missing"),
+        )
+
+
+def test_pixi_identity_rejects_symlink(tmp_path: Path) -> None:
+    content = b"synthetic pixi executable"
+    target = write_synthetic_pixi(tmp_path / "pixi-target", content)
+    link = tmp_path / "pixi"
+    link.symlink_to(target)
+
+    with pytest.raises(ValueError, match="symlink|regular"):
+        pixi_identity._open_verified_pixi(
+            link,
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(content),
+        )
+
+
+def test_pixi_identity_rejects_directory(tmp_path: Path) -> None:
+    directory = tmp_path / "pixi"
+    directory.mkdir()
+
+    with pytest.raises(ValueError, match="regular"):
+        pixi_identity._open_verified_pixi(
+            directory,
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(b""),
+        )
+
+
+def test_pixi_identity_rejects_fifo_without_blocking(tmp_path: Path) -> None:
+    fifo = tmp_path / "pixi"
+    os.mkfifo(fifo)
+
+    with pytest.raises(ValueError, match="regular"):
+        pixi_identity._open_verified_pixi(
+            fifo,
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(b""),
+        )
+
+
+def test_pixi_identity_rejects_zero_byte_binary(tmp_path: Path) -> None:
+    binary = write_synthetic_pixi(tmp_path / "pixi", b"")
+
+    with pytest.raises(ValueError, match="size|empty|byte"):
+        pixi_identity._open_verified_pixi(
+            binary,
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(b""),
+        )
+
+
+def test_pixi_identity_rejects_oversized_binary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    content = b"123456789"
+    binary = write_synthetic_pixi(tmp_path / "pixi", content)
+    monkeypatch.setattr(pixi_identity, "_MAX_PIXI_BINARY_BYTES", len(content) - 1)
+
+    with pytest.raises(ValueError, match="size|bytes"):
+        pixi_identity._open_verified_pixi(
+            binary,
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(content),
+        )
+
+
+def test_pixi_identity_rejects_non_executable_regular_file(tmp_path: Path) -> None:
+    content = b"synthetic pixi executable"
+    binary = write_synthetic_pixi(tmp_path / "pixi", content)
+    binary.chmod(0o644)
+
+    with pytest.raises(ValueError, match="executable|permission"):
+        pixi_identity._open_verified_pixi(
+            binary,
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(content),
+        )
+
+
+def test_pixi_identity_retains_verified_fd_across_path_replacement(tmp_path: Path) -> None:
+    content = b"verified pixi bytes"
+    replacement = b"unverified replacement"
+    binary = write_synthetic_pixi(tmp_path / "pixi", content)
+
+    with pixi_identity._open_verified_pixi(
+        binary,
+        host_platform=ExecutionPlatform.LINUX_AMD64,
+        distributions=synthetic_distribution_map(content),
+    ) as verified:
+        original = tmp_path / "pixi-original"
+        binary.rename(original)
+        write_synthetic_pixi(binary, replacement)
+
+        assert verified.executable == f"/proc/self/fd/{verified.fd}"
+        assert Path(verified.executable).read_bytes() == content
+        assert verified.resolver.config_digest == "sha256:" + "a" * 64
+
+    with pytest.raises(ValueError, match="closed"):
+        _ = verified.fd
+
+
+def test_pixi_identity_rejects_in_place_mutation_during_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = b"verified pixi bytes"
+    binary = write_synthetic_pixi(tmp_path / "pixi", content)
+    real_read = os.read
+    mutated = False
+
+    def mutate_after_eof(fd: int, size: int) -> bytes:
+        nonlocal mutated
+        chunk = real_read(fd, size)
+        if not chunk and not mutated:
+            with binary.open("ab") as handle:
+                handle.write(b"mutated")
+            mutated = True
+        return chunk
+
+    monkeypatch.setattr(pixi_identity.os, "read", mutate_after_eof)
+
+    with pytest.raises(ValueError, match="changed|metadata"):
+        pixi_identity._open_verified_pixi(
+            binary,
+            host_platform=ExecutionPlatform.LINUX_AMD64,
+            distributions=synthetic_distribution_map(content),
+        )
+
+
+def test_verified_x86_host_handle_compiles_arm_target_lock(tmp_path: Path) -> None:
+    content = b"verified x86 host pixi"
+    binary = write_synthetic_pixi(tmp_path / "pixi", content)
+    filename = "samtools-1.20-h50ea8bc_0.conda"
+    url = f"https://conda.anaconda.org/bioconda/linux-aarch64/{filename}"
+    arm_record = conda_record(
+        arch="aarch64",
+        subdir="linux-aarch64",
+        url=url,
+    )
+
+    with pixi_identity._open_verified_pixi(
+        binary,
+        host_platform=ExecutionPlatform.LINUX_AMD64,
+        distributions=synthetic_distribution_map(content),
+    ) as verified:
+        compiled = compiler.compile_pixi_platform_lock(
+            encoded(arm_record),
+            lockfile(
+                resolver_platform="linux-aarch64",
+                package_references=(("conda", url),),
+            ),
+            pixi=verified,
+            environment_name="alignment-tools",
+            platform=ExecutionPlatform.LINUX_ARM64,
+        )
+
+    assert compiled.platform is ExecutionPlatform.LINUX_ARM64
+    assert compiled.resolver.config_digest == "sha256:" + "a" * 64

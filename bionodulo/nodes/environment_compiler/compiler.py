@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from types import MappingProxyType
 from typing import Annotated, TypeAlias
 
 from pydantic import StringConstraints, field_validator
@@ -17,19 +16,14 @@ from bionodulo.nodes.contract.environments import (
     ResolverIdentity,
     Sha256Digest,
 )
-from bionodulo.nodes.environment_compiler import pixi_lock_v7
+from bionodulo.nodes.environment_compiler import pixi_identity, pixi_lock_v7
 
 
-PIXI_VERSION = "0.68.1"
-PIXI_TAG_COMMIT = "a2453cacd4a02bc99ee84b5e6015ec83bbb2d397"
-_PIXI_RELEASE_BASE = f"https://github.com/prefix-dev/pixi/releases/download/v{PIXI_VERSION}"
+PIXI_VERSION = pixi_identity.PIXI_VERSION
+PIXI_TAG_COMMIT = pixi_identity.PIXI_TAG_COMMIT
+PixiDistribution = pixi_identity.PixiDistribution
+PIXI_DISTRIBUTIONS = pixi_identity.PIXI_DISTRIBUTIONS
 _MAX_WORKSPACE_STATE_BYTES = 512 * 1024 * 1024
-
-
-class PixiDistribution(_StrictFrozenModel):
-    filename: str
-    url: str
-    sha256: Sha256Digest
 
 
 class VerifiedPixiExecutable(_StrictFrozenModel):
@@ -49,21 +43,6 @@ class VerifiedPixiExecutable(_StrictFrozenModel):
         return value
 
 
-PIXI_DISTRIBUTIONS: Mapping[ExecutionPlatform, PixiDistribution] = MappingProxyType(
-    {
-        ExecutionPlatform.LINUX_AMD64: PixiDistribution(
-            filename="pixi-x86_64-unknown-linux-musl.tar.gz",
-            url=f"{_PIXI_RELEASE_BASE}/pixi-x86_64-unknown-linux-musl.tar.gz",
-            sha256="sha256:f61a9546898cc1caad1956d1b5bba0408de5a24854b648631c0b49555520ed42",
-        ),
-        ExecutionPlatform.LINUX_ARM64: PixiDistribution(
-            filename="pixi-aarch64-unknown-linux-musl.tar.gz",
-            url=f"{_PIXI_RELEASE_BASE}/pixi-aarch64-unknown-linux-musl.tar.gz",
-            sha256="sha256:b2b21272578600086e92f4e1d0e42cb7409c8e541688b9ea61aed7dd6a07a5ad",
-        ),
-    }
-)
-
 _PIXI_PLATFORM = pixi_lock_v7.PIXI_PLATFORM
 
 # Compatibility re-exports retained until the public compiler API is narrowed.
@@ -73,14 +52,19 @@ PixiListRecord = pixi_lock_v7.PixiListRecord
 decode_pixi_list_json = pixi_lock_v7.decode_pixi_list_json
 _validate_pixi_lock = pixi_lock_v7._validate_pixi_lock
 
+_VerifiedPixi = VerifiedPixiExecutable | pixi_identity._VerifiedPixiHandle
+
 
 def _verified_pixi_for_platform(
-    pixi: VerifiedPixiExecutable | None,
+    pixi: _VerifiedPixi | None,
     *,
     platform: ExecutionPlatform,
-) -> VerifiedPixiExecutable:
+) -> _VerifiedPixi:
     if pixi is None:
         raise ValueError("capture requires an explicit verified Pixi executable identity")
+    if isinstance(pixi, pixi_identity._VerifiedPixiHandle):
+        _ = pixi.fd
+        return pixi
     validated = VerifiedPixiExecutable.model_validate(pixi)
     if validated.version != PIXI_VERSION:
         raise ValueError(f"verified Pixi version must be exactly {PIXI_VERSION}")
@@ -89,7 +73,9 @@ def _verified_pixi_for_platform(
     return validated
 
 
-def _resolver_identity(pixi: VerifiedPixiExecutable) -> ResolverIdentity:
+def _resolver_identity(pixi: _VerifiedPixi) -> ResolverIdentity:
+    if isinstance(pixi, pixi_identity._VerifiedPixiHandle):
+        return pixi.resolver
     return ResolverIdentity(
         name="pixi",
         version=pixi.version,
@@ -100,7 +86,7 @@ def _resolver_identity(pixi: VerifiedPixiExecutable) -> ResolverIdentity:
 def admit_pixi_records(
     records: Iterable[PixiListRecord],
     *,
-    pixi: VerifiedPixiExecutable | None = None,
+    pixi: _VerifiedPixi | None = None,
     environment_name: str,
     platform: ExecutionPlatform,
     native_lock_sha256: Sha256Digest,
@@ -121,7 +107,7 @@ def compile_pixi_platform_lock(
     pixi_list_content: bytes,
     pixi_lock_content: bytes,
     *,
-    pixi: VerifiedPixiExecutable | None = None,
+    pixi: _VerifiedPixi | None = None,
     environment_name: str,
     platform: ExecutionPlatform,
 ) -> PlatformLock:
@@ -210,6 +196,7 @@ def compile_pixi_platform_lock_with_runner(
     """Capture one frozen, no-install list from an explicitly verified Pixi binary."""
 
     verified_pixi = _verified_pixi_for_platform(pixi, platform=platform)
+    assert isinstance(verified_pixi, VerifiedPixiExecutable)
     _validate_pixi_lock(
         pixi_lock_content,
         environment_name=environment_name,
