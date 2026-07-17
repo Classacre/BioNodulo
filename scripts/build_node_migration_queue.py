@@ -10,9 +10,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-
-from bionodulo.nodes.contract.environments import _validate_https_url
-from bionodulo.nodes.contract.model import MACHINE_ID_PATTERN, NodeOwnership
+from urllib.parse import urlsplit
 
 
 DEFAULT_BASELINE = Path("bionodulo/nodes/generated/baseline-ledger.json")
@@ -22,12 +20,16 @@ EXPECTED_NODE_COUNT = 943
 _SAFE_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,127}$")
 _SAFE_PATH_RE = re.compile(r"^[a-z0-9_./-]+$")
 _CLOUD_JOB_LABEL_RE = re.compile(r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
-_NODE_ID_PREFIX_RE = re.compile(MACHINE_ID_PATTERN.removesuffix("$") + r"_$")
+_NODE_ID_PREFIX_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_$")
+_HOST_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+    r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+)
 _HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _RELEASE_TAG_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
 _PATH_SCOPE_FIELDS = ("exclusive_path", "fixture_prefix", "r2_test_prefix")
-_NODE_OWNERSHIP_VALUES = frozenset(owner.value for owner in NodeOwnership)
+_NODE_OWNERSHIP_VALUES = frozenset({"bionodulo_core", "external_tool", "external_library", "external_provider"})
 _MAX_NODE_ID_PREFIX_LENGTH = 128
 
 
@@ -46,6 +48,15 @@ def canonical_json_bytes(value: object) -> bytes:
         )
         + "\n"
     ).encode("ascii")
+
+
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise MigrationQueueError(f"duplicate JSON object member {key!r}")
+        result[key] = value
+    return result
 
 
 def _sha256(value: object) -> str:
@@ -148,9 +159,46 @@ def _validate_scope_collisions(scopes: Sequence[tuple[str, Mapping[str, str]]]) 
 def _https_url(value: object, label: str) -> str:
     source = _expect_string(value, label)
     try:
-        return _validate_https_url(source, require_path=True)
-    except ValueError as error:
+        source.encode("ascii")
+        if (
+            "%" in source
+            or "\\" in source
+            or any(ord(character) <= 32 or ord(character) == 127 for character in source)
+        ):
+            raise ValueError("noncanonical URL characters")
+        if not source.startswith("https://") or "?" in source or "#" in source:
+            raise ValueError("noncanonical HTTPS spelling")
+        parsed = urlsplit(source)
+        port = parsed.port
+        if parsed.scheme != "https" or not parsed.netloc or parsed.hostname is None:
+            raise ValueError("missing HTTPS hostname")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("URL user information is forbidden")
+        raw_host = parsed.netloc.rsplit(":", 1)[0] if port is not None else parsed.netloc
+        if raw_host != parsed.hostname or _HOST_RE.fullmatch(raw_host) is None:
+            raise ValueError("noncanonical DNS hostname")
+        if port is not None and not 1 <= port <= 65535:
+            raise ValueError("port outside valid range")
+        if port == 443:
+            raise ValueError("default HTTPS port must be omitted")
+        canonical_netloc = parsed.hostname
+        if port is not None:
+            raw_port = parsed.netloc.rsplit(":", 1)[1]
+            if raw_port != str(port):
+                raise ValueError("noncanonical decimal port")
+            canonical_netloc = f"{canonical_netloc}:{port}"
+        if parsed.netloc != canonical_netloc:
+            raise ValueError("noncanonical authority")
+        if not parsed.path or parsed.path == "/":
+            raise ValueError("missing resource path")
+        segments = parsed.path.split("/")
+        if "" in segments[1:-1] or any(segment in (".", "..") for segment in segments):
+            raise ValueError("noncanonical path segments")
+        if source != f"https://{canonical_netloc}{parsed.path}":
+            raise ValueError("URL does not use its canonical raw spelling")
+    except (UnicodeEncodeError, ValueError) as error:
         raise MigrationQueueError(f"{label} must be a canonical HTTPS URL") from error
+    return source
 
 
 def _node_ownership(value: object) -> str:
@@ -470,7 +518,10 @@ def build_queue(
 
 def _read_json(path: Path) -> object:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_json_object,
+        )
     except (OSError, json.JSONDecodeError) as error:
         raise MigrationQueueError(f"cannot read canonical JSON from {path}") from error
 

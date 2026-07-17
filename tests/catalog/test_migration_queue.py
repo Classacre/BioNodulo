@@ -525,3 +525,33 @@ def test_cli_writes_and_checks_exact_canonical_bytes(tmp_path: Path) -> None:
     assert output.read_bytes() == expected
     assert "943 nodes queued" in written.stdout
     assert "916 pending family review" in checked.stdout
+
+
+def test_cli_rejects_duplicate_json_object_members(tmp_path: Path) -> None:
+    rules = tmp_path / "duplicate-rules.json"
+    output = tmp_path / "migration-queue.json"
+    rules.write_text(
+        '{"schema_version":999,"schema_version":1,"confirmed_families":[]}\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_node_migration_queue.py",
+            "--baseline",
+            str(BASELINE_PATH),
+            "--rules",
+            str(rules),
+            "--output",
+            str(output),
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "duplicate JSON object member 'schema_version'" in result.stderr
+    assert not output.exists()
