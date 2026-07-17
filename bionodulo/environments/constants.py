@@ -208,7 +208,7 @@ R_PACKAGE_TO_CONDA_PACKAGE: dict[str, str] = {
 PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "bwa": ">=0.7.17",
     "bowtie2": ">=2.5.0",
-    "samtools": ">=1.15",
+    "samtools": "1.23.1",
     "bcftools": ">=1.15",
     "gffread": ">=0.12.7",
     "seqtk": ">=1.4",

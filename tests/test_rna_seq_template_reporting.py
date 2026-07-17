@@ -28,6 +28,15 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
     )
 
 
+def test_rna_seq_template_uses_canonical_samtools_alignment_inputs() -> None:
+    workflow = _load_template("rna_seq_pipeline.json")
+
+    assert _has_edge(workflow, "hisat2_001", "alignment", "view_001", "alignment")
+    assert _has_edge(workflow, "view_001", "bam", "sort_001", "alignment")
+    assert not _has_edge(workflow, "hisat2_001", "alignment", "view_001", "sam")
+    assert not _has_edge(workflow, "view_001", "bam", "sort_001", "bam")
+
+
 def test_rna_seq_template_adds_counts_html_report_from_raw_and_normalized_tables() -> None:
     workflow = _load_template("rna_seq_pipeline.json")
     node_types = _node_types(workflow)

@@ -38,6 +38,49 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
     )
 
 
+def test_official_samtools_view_and_sort_edges_use_canonical_alignment_ports() -> None:
+    expected_edges = {
+        "variant_calling_pipeline.json": (
+            ("bwa_001", "alignment", "view_001"),
+            ("fixmate_001", "fixmate_bam", "sort_001"),
+        ),
+        "wgs_variant_pipeline.json": (
+            ("bwa_001", "alignment", "view_001"),
+            ("fixmate_001", "fixmate_bam", "sort_001"),
+        ),
+        "chip_seq_pipeline.json": (
+            ("bt2_001", "alignment", "view_001"),
+            ("view_001", "bam", "sort_001"),
+            ("bt2_control_001", "alignment", "view_control_001"),
+            ("view_control_001", "bam", "sort_control_001"),
+        ),
+        "rna_seq_pipeline.json": (
+            ("hisat2_001", "alignment", "view_001"),
+            ("view_001", "bam", "sort_001"),
+        ),
+    }
+
+    for template_name, expected in expected_edges.items():
+        workflow = _load_template(template_name)
+        node_types = _node_types(workflow)
+        affected_nodes = {
+            node_id
+            for node_id, node_type in node_types.items()
+            if node_type in {"samtools_view", "samtools_sort"}
+        }
+        affected_edges = [
+            edge for edge in workflow["edges"] if edge.get("to", {}).get("node") in affected_nodes
+        ]
+
+        assert len(affected_edges) == len(expected)
+        for source, source_output, target in expected:
+            assert _has_edge(workflow, source, source_output, target, "alignment")
+        assert not any(
+            edge.get("to", {}).get("input") in {"sam", "bam"}
+            for edge in affected_edges
+        )
+
+
 def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotation_report() -> None:
     workflow = _load_template("variant_calling_pipeline.json")
     node_types = _node_types(workflow)
@@ -49,7 +92,7 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert "render_vcf_stats_ima_2" not in node_types
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
     assert _has_edge(workflow, "collate_001", "name_collated_bam", "fixmate_001", "bam")
-    assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "bam")
+    assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "alignment")
     assert _has_edge(workflow, "sort_001", "sorted_bam", "markdup_001", "bam")
     assert _has_edge(workflow, "markdup_001", "marked_bam", "index_001", "bam")
     assert _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
@@ -162,7 +205,7 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert "render_vcf_stats_ima_2" not in node_types
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
     assert _has_edge(workflow, "collate_001", "name_collated_bam", "fixmate_001", "bam")
-    assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "bam")
+    assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "alignment")
     assert _has_edge(workflow, "sort_001", "sorted_bam", "markdup_001", "bam")
     assert _has_edge(workflow, "markdup_001", "marked_bam", "idx_001", "bam")
     assert _has_edge(workflow, "markdup_001", "marked_bam", "fb_001", "bam")
@@ -1030,8 +1073,8 @@ def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
     assert _has_edge(workflow, "fastp_control_001", "trimmed_reads", "gate_control_reads_001", "value")
     assert _has_edge(workflow, "gate_control_reads_001", "output", "bt2_control_001", "reads")
     assert _has_edge(workflow, "bt2build_001", "index", "bt2_control_001", "index")
-    assert _has_edge(workflow, "bt2_control_001", "alignment", "view_control_001", "sam")
-    assert _has_edge(workflow, "view_control_001", "bam", "sort_control_001", "bam")
+    assert _has_edge(workflow, "bt2_control_001", "alignment", "view_control_001", "alignment")
+    assert _has_edge(workflow, "view_control_001", "bam", "sort_control_001", "alignment")
     assert _has_edge(workflow, "sort_control_001", "sorted_bam", "macs2_001", "control")
     assert workflow["outputs"]["control_alignment"] == "sort_control_001"
     assert workflow["outputs"]["validated_control_reads"] == "control_001"

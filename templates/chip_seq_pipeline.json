@@ -447,7 +447,7 @@
       },
       "to": {
         "node": "view_001",
-        "input": "sam"
+        "input": "alignment"
       }
     },
     {
@@ -502,7 +502,7 @@
       },
       "to": {
         "node": "sort_001",
-        "input": "bam"
+        "input": "alignment"
       }
     },
     {
@@ -568,7 +568,7 @@
       },
       "to": {
         "node": "view_control_001",
-        "input": "sam"
+        "input": "alignment"
       }
     },
     {
@@ -579,7 +579,7 @@
       },
       "to": {
         "node": "sort_control_001",
-        "input": "bam"
+        "input": "alignment"
       }
     },
     {

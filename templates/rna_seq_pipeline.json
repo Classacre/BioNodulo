@@ -435,7 +435,7 @@
       },
       "to": {
         "node": "view_001",
-        "input": "sam"
+        "input": "alignment"
       }
     },
     {
@@ -512,7 +512,7 @@
       },
       "to": {
         "node": "sort_001",
-        "input": "bam"
+        "input": "alignment"
       }
     },
     {
