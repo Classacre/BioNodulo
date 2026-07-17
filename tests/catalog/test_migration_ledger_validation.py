@@ -112,6 +112,18 @@ def test_modified_baseline_entry_with_stale_aggregate_is_fatal() -> None:
         validate_baseline(baseline)
 
 
+def test_fully_redigested_node_id_swap_is_rejected_by_authority_anchor() -> None:
+    baseline = load_baseline()
+    abricate = baseline_entry(baseline, "abricate")
+    samtools_sort = baseline_entry(baseline, "samtools_sort")
+    abricate["node_id"], samtools_sort["node_id"] = samtools_sort["node_id"], abricate["node_id"]
+    baseline["entries"].sort(key=lambda entry: entry["node_id"])
+    refresh_baseline_canonical_digests(baseline)
+
+    with pytest.raises(MigrationQueueError, match="immutable baseline authority"):
+        validate_baseline(baseline)
+
+
 def test_missing_baseline_aggregate_is_rejected_before_rule_assignment() -> None:
     baseline = load_baseline()
     del baseline["aggregate_sha256"]
@@ -391,6 +403,73 @@ def test_current_source_qualified_class_rejects_injected_namespace() -> None:
         match="current_source qualified_class must match module and comparison class_name",
     ):
         validate_baseline(baseline)
+
+
+@pytest.mark.parametrize(
+    ("source_path", "source", "expected_qualified_class"),
+    [
+        (
+            "bionodulo/nodes/builtin/nested.py",
+            'class Outer:\n    class Inner:\n        NODE_ID = "nested"\n',
+            "bionodulo.nodes.builtin.nested.Outer.Inner",
+        ),
+        (
+            "bionodulo/nodes/builtin/package/__init__.py",
+            'class PackageNode:\n    NODE_ID = "package_node"\n',
+            "bionodulo.nodes.builtin.package.PackageNode",
+        ),
+    ],
+)
+def test_standalone_validator_accepts_emitter_source_identities(
+    source_path: str,
+    source: str,
+    expected_qualified_class: str,
+) -> None:
+    module = catalog_ledger_builder._module_name(source_path)
+    nodes, anomalies = catalog_ledger_builder.extract_nodes(
+        source,
+        module,
+        source_path=source_path,
+        git_blob="a" * 40,
+    )
+    record = nodes[0].as_dict()
+
+    assert anomalies == ()
+    assert record["qualified_class"] == expected_qualified_class
+    assert migration_ledger_validation._validated_source_node(record, "emitter source") == record
+
+
+def test_current_source_preserves_comparison_nested_qualified_name_suffix() -> None:
+    entry = copy.deepcopy(baseline_entry(load_baseline()))
+    comparison = entry["comparison_locations"][0]
+    current = entry["current_source"]
+    nested_suffix = f"Outer.{comparison['class_name']}"
+    comparison["qualified_class"] = f"{comparison['module']}.{nested_suffix}"
+    current["qualified_class"] = f"{current['module']}.{nested_suffix}"
+
+    validated = migration_ledger_validation._validated_baseline_entry(entry, 0)
+
+    assert validated["current_source"]["qualified_class"] == current["qualified_class"]
+
+
+@pytest.mark.parametrize(
+    ("module", "path"),
+    [
+        ("bionodulo.nodes.builtin.annotation", "bionodulo/nodes/builtin/annotation/__init__.py"),
+        ("bionodulo.nodes.builtin", "bionodulo/nodes/builtin/__init__.py"),
+    ],
+)
+def test_current_source_accepts_emitter_package_init_module_identity(module: str, path: str) -> None:
+    entry = copy.deepcopy(baseline_entry(load_baseline()))
+    comparison = entry["comparison_locations"][0]
+    current = entry["current_source"]
+    current["module"] = module
+    current["path"] = path
+    current["qualified_class"] = f"{current['module']}.{comparison['class_name']}"
+
+    validated = migration_ledger_validation._validated_baseline_entry(entry, 0)
+
+    assert validated["current_source"]["path"] == current["path"]
 
 
 def test_current_source_path_must_match_its_module() -> None:

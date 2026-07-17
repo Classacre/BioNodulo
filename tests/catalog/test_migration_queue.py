@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -124,6 +125,26 @@ def rules_with_second_family() -> tuple[dict[str, Any], dict[str, Any]]:
     return rules, family
 
 
+def rules_with_family_count(count: int) -> dict[str, Any]:
+    family_template = samtools_rules()["confirmed_families"][0]
+    families: list[dict[str, Any]] = []
+    for index in range(count):
+        family = copy.deepcopy(family_template)
+        family.update(
+            {
+                "cloud_job_label": f"family-{index}",
+                "exclusive_path": f"bionodulo/nodes/catalog/tools/family_{index}",
+                "expected_count": 1,
+                "family_id": f"family_{index}",
+                "fixture_prefix": f"family_{index}/",
+                "node_id_prefix": f"family{index}_",
+                "r2_test_prefix": f"catalog-tests/family_{index}/",
+            }
+        )
+        families.append(family)
+    return {"schema_version": 1, "confirmed_families": families}
+
+
 def scope_from_lane(lane: dict[str, object]) -> dict[str, str] | None:
     agent_scope = lane.get("agent_scope")
     exclusive_path = lane.get("exclusive_path")
@@ -213,6 +234,28 @@ def test_assignment_rules_schema_version_accepts_exact_integer_one() -> None:
     rules["schema_version"] = 1
 
     assert build_queue(load_baseline(), rules)["summary"]["stable_node_ids"] == 943
+
+
+def test_assignment_rules_accept_at_most_one_family_per_stable_node(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(migration_queue_builder, "_validate_scope_collisions", lambda _scopes: None)
+
+    families = migration_queue_builder._validated_rules(rules_with_family_count(943))
+
+    assert len(families) == 943
+
+
+def test_assignment_rules_reject_oversized_family_array_before_collision_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_collision_validation(_scopes: object) -> None:
+        raise AssertionError("oversized rules reached pairwise collision validation")
+
+    monkeypatch.setattr(migration_queue_builder, "_validate_scope_collisions", unexpected_collision_validation)
+
+    with pytest.raises(MigrationQueueError, match="confirmed_families.*at most 943"):
+        migration_queue_builder._validated_rules(rules_with_family_count(944))
 
 
 @pytest.mark.parametrize("expected_count", [True, False, 1.0, 0, -1, 944])
@@ -310,6 +353,22 @@ def test_confirmed_scope_values_require_canonical_syntax(field: str, invalid_val
     rules["confirmed_families"][0][field] = invalid_value
 
     with pytest.raises(MigrationQueueError, match=field):
+        build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("exclusive_path", "bionodulo/nodes/catalog/tools/" + "a" * 1024),
+        ("fixture_prefix", "a" * 1024 + "/"),
+        ("r2_test_prefix", "catalog-tests/" + "a" * 1024 + "/"),
+    ],
+)
+def test_confirmed_scope_paths_and_namespaces_are_length_bounded(field: str, value: str) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0][field] = value
+
+    with pytest.raises(MigrationQueueError, match=rf"{field}.*1024"):
         build_queue(load_baseline(), rules)
 
 
@@ -535,6 +594,22 @@ def test_queue_bytes_are_deterministic_and_digest_bound() -> None:
     assert first["baseline_aggregate_sha256"] == baseline_sha256
 
 
+def test_canonical_queue_serialization_is_bounded_to_eight_mib() -> None:
+    with pytest.raises(MigrationQueueError, match="canonical JSON exceeds 8388608 bytes"):
+        canonical_json_bytes({"payload": "x" * (8 * 1024 * 1024)})
+
+
+def test_queue_digest_streams_without_materializing_canonical_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_materialization(_value: object) -> bytes:
+        raise AssertionError("queue digest materialized canonical JSON")
+
+    monkeypatch.setattr(migration_queue_builder, "canonical_json_bytes", unexpected_materialization)
+
+    assert migration_queue_builder._sha256({"value": 1}) == ("sha256:" + hashlib.sha256(b'{"value":1}\n').hexdigest())
+
+
 def test_standalone_ownership_values_match_node_contract() -> None:
     assert migration_queue_builder._NODE_OWNERSHIP_VALUES == frozenset(owner.value for owner in NodeOwnership)
 
@@ -600,6 +675,44 @@ def test_atomic_write_failure_preserves_existing_artifact(
     assert sorted(tmp_path.iterdir()) == [output]
 
 
+def test_atomic_write_fsyncs_file_then_parent_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    synced_modes: list[int] = []
+
+    def record_fsync(file_descriptor: int) -> None:
+        synced_modes.append(os.fstat(file_descriptor).st_mode)
+
+    monkeypatch.setattr(os, "fsync", record_fsync)
+
+    write_or_check(tmp_path / "migration-queue.json", b"new\n", check=False)
+
+    assert len(synced_modes) == 2
+    assert stat.S_ISREG(synced_modes[0])
+    assert stat.S_ISDIR(synced_modes[1])
+
+
+def test_directory_fsync_failure_is_normalized_after_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "migration-queue.json"
+    output.write_bytes(b"existing artifact\n")
+
+    def fail_directory_fsync(file_descriptor: int) -> None:
+        if stat.S_ISDIR(os.fstat(file_descriptor).st_mode):
+            raise OSError("directory fsync failed")
+
+    monkeypatch.setattr(os, "fsync", fail_directory_fsync)
+
+    with pytest.raises(MigrationQueueError, match="cannot atomically write migration queue"):
+        write_or_check(output, b"replacement artifact\n", check=False)
+
+    assert output.read_bytes() == b"replacement artifact\n"
+    assert sorted(tmp_path.iterdir()) == [output]
+
+
 def test_write_rejects_unbounded_queue_payload(tmp_path: Path) -> None:
     output = tmp_path / "migration-queue.json"
 
@@ -623,6 +736,14 @@ def test_check_mode_is_read_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     write_or_check(output, payload, check=True)
 
     assert output.read_bytes() == payload
+
+
+def test_check_mode_rejects_existing_artifact_larger_than_eight_mib(tmp_path: Path) -> None:
+    output = tmp_path / "migration-queue.json"
+    output.write_bytes(b"x" * (8 * 1024 * 1024 + 1))
+
+    with pytest.raises(MigrationQueueError, match="existing migration queue exceeds 8388608 bytes"):
+        write_or_check(output, b"canonical queue\n", check=True)
 
 
 def test_read_json_rejects_input_larger_than_eight_mib(tmp_path: Path) -> None:
@@ -832,6 +953,15 @@ def test_confirmed_upstream_urls_preserve_one_canonical_https_spelling(field: st
     assignment = next(item for item in queue["assignments"] if item["node_id"] == "samtools_sort")
 
     assert assignment["upstream"][field] == canonical
+
+
+@pytest.mark.parametrize("field", ["repository_url", "documentation_url"])
+def test_confirmed_upstream_urls_are_length_bounded(field: str) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["upstream"][field] = "https://repo.example.org/" + "a" * 2048
+
+    with pytest.raises(MigrationQueueError, match=rf"{field}.*2048"):
+        build_queue(load_baseline(), rules)
 
 
 def test_cli_writes_and_checks_exact_canonical_bytes(tmp_path: Path) -> None:

@@ -6,7 +6,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from scripts import node_source_identity as _source_identity
+elif __package__:
+    from scripts import node_source_identity as _source_identity
+else:
+    import node_source_identity as _source_identity
 
 
 EXPECTED_NODE_COUNT = 943
@@ -15,7 +22,9 @@ EXPECTED_TEMPLATE_COUNT = 22
 EXPECTED_EXAMPLE_COUNT = 1
 EXPECTED_TEMPLATE_INSTANCES = 329
 EXPECTED_TEMPLATE_EDGES = 291
+EXPECTED_BASELINE_AGGREGATE_SHA256 = "75643eb83592eccd492d65d3c53b40d45cc6d0e04c2363f5572aeb3492927210"
 FORENSIC_RAW_AST_DIGEST = "1b9b2abbd518dc8ed22e53e333a74f37b93fb156266e7a1262495227ebc910c3"
+MAX_CANONICAL_JSON_BYTES = 8 * 1024 * 1024
 HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -129,23 +138,34 @@ _SUMMARY_FIELDS = frozenset(
 )
 _ANOMALY_FIELDS = frozenset({"blob", "class_name", "kind", "line", "module", "path"})
 ORIGIN_COLLISION_FIELDS = frozenset({"declarations", "node_id"})
+_CANONICAL_JSON_ENCODER = json.JSONEncoder(
+    ensure_ascii=True,
+    allow_nan=False,
+    separators=(",", ":"),
+    sort_keys=True,
+)
 
 
 class MigrationQueueError(RuntimeError):
     """Raised when migration queue inputs are invalid or inconsistent."""
 
 
+def canonical_json_chunks(value: object) -> Iterator[bytes]:
+    size = 0
+    for chunk in _CANONICAL_JSON_ENCODER.iterencode(value):
+        encoded = chunk.encode("ascii")
+        size += len(encoded)
+        if size > MAX_CANONICAL_JSON_BYTES:
+            raise MigrationQueueError(f"canonical JSON exceeds {MAX_CANONICAL_JSON_BYTES} bytes")
+        yield encoded
+    size += 1
+    if size > MAX_CANONICAL_JSON_BYTES:
+        raise MigrationQueueError(f"canonical JSON exceeds {MAX_CANONICAL_JSON_BYTES} bytes")
+    yield b"\n"
+
+
 def canonical_json_bytes(value: object) -> bytes:
-    return (
-        json.dumps(
-            value,
-            ensure_ascii=True,
-            allow_nan=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
-        + "\n"
-    ).encode("ascii")
+    return b"".join(canonical_json_chunks(value))
 
 
 def expect_mapping(value: object, label: str) -> Mapping[str, Any]:
@@ -231,7 +251,10 @@ def _canonical_port_ids(value: object, label: str) -> list[str]:
 
 
 def _sha256_hex(value: object) -> str:
-    return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+    digest = hashlib.sha256()
+    for chunk in canonical_json_chunks(value):
+        digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _exact_positive_int(value: object, label: str) -> int:
@@ -251,9 +274,13 @@ def _validated_source_node(value: object, label: str, *, origin: bool = False) -
         raise MigrationQueueError(f"{label} class_name must be a canonical Python identifier")
     if not path.startswith("bionodulo/nodes/builtin/") or not path.endswith(".py"):
         raise MigrationQueueError(f"{label} path must identify a builtin Python source")
-    if module != path.removesuffix(".py").replace("/", "."):
+    if module != _source_identity.module_name(path):
         raise MigrationQueueError(f"{label} path must match module")
-    if qualified_class != f"{module}.{class_name}":
+    try:
+        qualified_name = _source_identity.qualified_name_suffix(module, qualified_class)
+    except ValueError as error:
+        raise MigrationQueueError(f"{label} qualified_class must match module and class_name") from error
+    if qualified_name.rsplit(".", 1)[-1] != class_name:
         raise MigrationQueueError(f"{label} qualified_class must match module and class_name")
     line = _exact_positive_int(source["line"], f"{label} line")
     node_id_line = _exact_positive_int(source["node_id_line"], f"{label} node_id_line")
@@ -299,12 +326,14 @@ def _validated_current_source(value: object, label: str) -> dict[str, str]:
         raise MigrationQueueError(f"{label} path must identify a builtin Python source")
     if not comparison_path.startswith("bionodulo/nodes/builtin/") or not comparison_path.endswith(".py"):
         raise MigrationQueueError(f"{label} comparison_path must identify a builtin Python source")
-    if not module.startswith("bionodulo.nodes.builtin."):
+    if module != "bionodulo.nodes.builtin" and not module.startswith("bionodulo.nodes.builtin."):
         raise MigrationQueueError(f"{label} module must identify a builtin Python module")
-    if path != module.replace(".", "/") + ".py":
+    if module != _source_identity.module_name(path):
         raise MigrationQueueError(f"{label} path must match module")
-    if not qualified_class.startswith(module + "."):
-        raise MigrationQueueError(f"{label} qualified_class must belong to its module")
+    try:
+        _source_identity.qualified_name_suffix(module, qualified_class)
+    except ValueError as error:
+        raise MigrationQueueError(f"{label} qualified_class must belong to its module") from error
     return {
         "ast_sha256": _hex_digest(source["ast_sha256"], f"{label} ast_sha256", HEX64_RE, 64),
         "comparison_git_blob": _hex_digest(source["comparison_git_blob"], f"{label} comparison_git_blob", HEX40_RE, 40),
@@ -434,7 +463,10 @@ def _validated_baseline_entry(value: object, index: int) -> dict[str, Any]:
         current[current_key] != comparison[comparison_key] for current_key, comparison_key in current_comparison_pairs
     ):
         raise MigrationQueueError(f"{label} current_source must match comparison source evidence")
-    expected_current_qualified_class = f"{current['module']}.{comparison['class_name']}"
+    comparison_qualified_name = _source_identity.qualified_name_suffix(
+        comparison["module"], comparison["qualified_class"]
+    )
+    expected_current_qualified_class = _source_identity.qualified_class(current["module"], comparison_qualified_name)
     if current["qualified_class"] != expected_current_qualified_class:
         raise MigrationQueueError(f"{label} current_source qualified_class must match module and comparison class_name")
     origin = _validated_origin(entry["origin"], f"{label} origin")
@@ -474,7 +506,7 @@ def _validated_anomalies(value: object) -> list[dict[str, Any]]:
         class_name = expect_string(anomaly["class_name"], f"{label} class_name")
         if not path.startswith("bionodulo/nodes/builtin/") or not path.endswith(".py"):
             raise MigrationQueueError(f"{label} path must identify a builtin Python source")
-        if module != path.removesuffix(".py").replace("/", "."):
+        if module != _source_identity.module_name(path):
             raise MigrationQueueError(f"{label} path must match module")
         if _PYTHON_NAME_RE.fullmatch(class_name) is None:
             raise MigrationQueueError(f"{label} class_name must be a canonical Python identifier")
@@ -780,4 +812,6 @@ def validate_baseline(baseline: Mapping[str, Any]) -> tuple[str, list[dict[str, 
     _verify_snapshot(entries, refs, snapshot)
     _verify_digests(entries, digests)
     _verify_summary(entries, anomalies, collisions, summary)
+    if aggregate != EXPECTED_BASELINE_AGGREGATE_SHA256:
+        raise MigrationQueueError("baseline aggregate_sha256 does not match the immutable baseline authority")
     return aggregate, entries

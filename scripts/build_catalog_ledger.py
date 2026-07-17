@@ -18,7 +18,14 @@ from collections import defaultdict
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from scripts import node_source_identity as _source_identity
+elif __package__:
+    from scripts import node_source_identity as _source_identity
+else:
+    import node_source_identity as _source_identity
 
 
 DEFAULT_ORIGIN_REF = "44c247986f3bcfe8f8d93d0d719a53e4853d0437"
@@ -730,7 +737,7 @@ def extract_nodes(
                             module=module,
                             class_name=statement.name,
                             qualified_name=qualified_name,
-                            qualified_class=f"{module}.{qualified_name}",
+                            qualified_class=_source_identity.qualified_class(module, qualified_name),
                             line=statement.lineno,
                             node_id_line=node_id_line,
                             raw_class_sha256=_sha256(raw_segment.encode("utf-8")),
@@ -765,10 +772,7 @@ def extract_nodes(
 
 
 def _module_name(source_path: str) -> str:
-    module = source_path.removesuffix(".py").replace("/", ".")
-    if module.endswith(".__init__"):
-        module = module[: -len(".__init__")]
-    return module
+    return _source_identity.module_name(source_path)
 
 
 def _git(repo: Path, *arguments: str) -> bytes:
@@ -1031,7 +1035,7 @@ def _project_current_sources(
         current[node_id] = CurrentSourceEvidence(
             node_id=node_id,
             module=current_module,
-            qualified_class=f"{current_module}.{source.qualified_name}",
+            qualified_class=_source_identity.qualified_class(current_module, source.qualified_name),
             source_path=current_path,
             raw_class_sha256=source.raw_class_sha256,
             ast_sha256=source.ast_sha256,

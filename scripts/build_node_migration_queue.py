@@ -23,9 +23,11 @@ else:
     import node_migration_ledger_validation as _ledger_validation
 
 EXPECTED_NODE_COUNT = _ledger_validation.EXPECTED_NODE_COUNT
+MAX_CANONICAL_JSON_BYTES = _ledger_validation.MAX_CANONICAL_JSON_BYTES
 _HEX40_RE = _ledger_validation.HEX40_RE
 MigrationQueueError = _ledger_validation.MigrationQueueError
 canonical_json_bytes = _ledger_validation.canonical_json_bytes
+canonical_json_chunks = _ledger_validation.canonical_json_chunks
 _expect_mapping = _ledger_validation.expect_mapping
 _expect_string = _ledger_validation.expect_string
 _safe_identifier = _ledger_validation.safe_identifier
@@ -46,9 +48,11 @@ _RELEASE_TAG_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
 _LITERAL_PREFIX_SCOPE_FIELDS = ("fixture_prefix", "r2_test_prefix")
 _NODE_OWNERSHIP_VALUES = frozenset({"bionodulo_core", "external_tool", "external_library", "external_provider"})
 _MAX_NODE_ID_PREFIX_LENGTH = 128
-_MAX_JSON_INPUT_BYTES = 8 * 1024 * 1024
+_MAX_PATH_LENGTH = 1024
+_MAX_HTTPS_URL_LENGTH = 2048
+_MAX_JSON_INPUT_BYTES = MAX_CANONICAL_JSON_BYTES
 _MAX_JSON_DEPTH = 64
-_MAX_QUEUE_BYTES = 8 * 1024 * 1024
+_MAX_QUEUE_BYTES = MAX_CANONICAL_JSON_BYTES
 _UNSAFE_JSON_KEYS = frozenset({"__proto__", "constructor", "prototype"})
 
 
@@ -78,10 +82,15 @@ def _validate_json_depth(value: object, path: Path) -> None:
 
 
 def _sha256(value: object) -> str:
-    return "sha256:" + hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+    digest = hashlib.sha256()
+    for chunk in canonical_json_chunks(value):
+        digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
 
 
 def _safe_path(value: str, label: str) -> str:
+    if len(value) > _MAX_PATH_LENGTH:
+        raise MigrationQueueError(f"{label} must not exceed {_MAX_PATH_LENGTH} ASCII characters")
     if (
         _SAFE_PATH_RE.fullmatch(value) is None
         or value.startswith("/")
@@ -102,6 +111,8 @@ def _exclusive_path(value: object) -> str:
 
 def _namespace_prefix(value: object, label: str) -> str:
     prefix = _expect_string(value, label)
+    if len(prefix) > _MAX_PATH_LENGTH:
+        raise MigrationQueueError(f"{label} must not exceed {_MAX_PATH_LENGTH} ASCII characters")
     if not prefix.endswith("/"):
         raise MigrationQueueError(f"{label} must be a canonical relative namespace root ending in /")
     try:
@@ -151,6 +162,8 @@ def _validate_scope_collisions(
 
 def _https_url(value: object, label: str) -> str:
     source = _expect_string(value, label)
+    if len(source) > _MAX_HTTPS_URL_LENGTH:
+        raise MigrationQueueError(f"{label} must not exceed {_MAX_HTTPS_URL_LENGTH} ASCII characters")
     try:
         source.encode("ascii")
         if (
@@ -295,6 +308,8 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
     families = rules["confirmed_families"]
     if not isinstance(families, list):
         raise MigrationQueueError("confirmed_families must be an array")
+    if len(families) > EXPECTED_NODE_COUNT:
+        raise MigrationQueueError(f"confirmed_families must contain at most {EXPECTED_NODE_COUNT} entries")
 
     result: list[Mapping[str, Any]] = []
     family_ids: set[str] = set()
@@ -515,16 +530,19 @@ def _read_json(path: Path) -> object:
 
 
 def write_or_check(path: Path, payload: bytes, *, check: bool) -> None:
+    if len(payload) > _MAX_QUEUE_BYTES:
+        raise MigrationQueueError(f"migration queue payload exceeds {_MAX_QUEUE_BYTES} bytes")
     if check:
         try:
-            existing = path.read_bytes()
+            with path.open("rb") as source:
+                existing = source.read(_MAX_QUEUE_BYTES + 1)
         except OSError as error:
             raise MigrationQueueError(f"migration queue is missing: {path}") from error
+        if len(existing) > _MAX_QUEUE_BYTES:
+            raise MigrationQueueError(f"existing migration queue exceeds {_MAX_QUEUE_BYTES} bytes: {path}")
         if existing != payload:
             raise MigrationQueueError(f"migration queue is stale: {path}")
         return
-    if len(payload) > _MAX_QUEUE_BYTES:
-        raise MigrationQueueError(f"migration queue payload exceeds {_MAX_QUEUE_BYTES} bytes")
 
     temporary_path: Path | None = None
     try:
@@ -547,6 +565,11 @@ def write_or_check(path: Path, payload: bytes, *, check: bool) -> None:
             os.fsync(temporary.fileno())
         os.replace(temporary_path, path)
         temporary_path = None
+        directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     except OSError as error:
         if temporary_path is not None:
             try:
