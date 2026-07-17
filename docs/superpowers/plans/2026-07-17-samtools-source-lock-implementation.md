@@ -29,6 +29,8 @@ bionodulo/nodes/catalog/tools/samtools/
   source-lock.json
   verification.py
 
+scripts/verify_samtools_source_lock.py
+
 tests/catalog/tools/samtools/
   test_source_lock.py
 ```
@@ -155,9 +157,11 @@ ToolSourceLock
 Validation requirements:
 
 - Git object IDs are exactly 40 lowercase hexadecimal characters.
-- A release tag is a bounded literal ref component; it must pass both the local canonical character policy and `git check-ref-format` when verified. Do not reject names based on words such as `latest`; exact ref/object identity is the source-lock guarantee.
+- Tool IDs, source IDs, and command IDs match `^[a-z][a-z0-9_.-]{0,127}$` in ASCII.
+- Stable node IDs are 1-128 printable ASCII bytes with no outer whitespace and match `^[\x21-\x7e](?:[\x20-\x7e]{0,126}[\x21-\x7e])?$`; Task 4 additionally requires exact baseline-ledger membership.
+- A release tag is at most 128 ASCII bytes and matches `^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$`; it must also pass `git check-ref-format` when verified. Do not reject names based on words such as `latest`; exact ref/object identity is the source-lock guarantee.
 - Repository URL is canonical HTTPS with no credentials, query, fragment, escapes, or mutable branch field.
-- Repository paths are unique ASCII repository-relative POSIX paths with no empty, dot, traversal, control, or backslash components.
+- Repository paths are unique ASCII repository-relative POSIX paths of at most 1,024 bytes with no empty, dot, traversal, control, or backslash components.
 - SHA-256 values use `sha256:` plus 64 lowercase hexadecimal characters.
 - Source files sort by `source_id`; commands by `command`; operations by `node_id`; source roles, documentation source IDs, and upstream commands are unique sorted tuples.
 - Every source and command binding is referenced at least once. A source may serve multiple roles and bindings. Each command has one binding, while any number of operations may reuse that binding.
@@ -214,9 +218,15 @@ def test_verify_source_lock_rejects_wrong_tag_object_or_file_digest(tmp_path: Pa
 
 Additional RED tests must cover: lightweight tag with an unexpected ref target; invalid ref syntax containing `~`, `^`, `:`, `@{`, or `..`; injected `GIT_DIR`, `GIT_WORK_TREE`, object directory, alternate object directory, namespace, and replace-ref environment variables; active replace objects; Git timeout; stderr overflow; a source blob over 8 MiB; aggregate verified source bytes over 64 MiB; more than 4,096 source files; and a changed working tree that remains byte-for-byte unchanged after verification.
 
+Write CLI tests in this same RED batch. A temporary-repository success case must assert exact stdout and an unchanged worktree. Separate cases must assert noncanonical lock bytes, a source mismatch, and a tag mismatch exit nonzero without writing. Invoke `scripts/verify_tool_source_lock.py` through `subprocess.run()` before that script exists and record the expected RED failure.
+
 - [ ] **Step 2: Run verifier tests and verify RED**
 
-Expected: failures are caused by missing verifier behavior, not malformed test fixtures.
+```bash
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/test_source_lock.py
+```
+
+Expected: failures are caused by missing verifier and CLI behavior, not malformed test fixtures.
 
 - [ ] **Step 3: Implement safe read-only verification**
 
@@ -235,7 +245,7 @@ git cat-file blob <exact commit>:<validated repository path>
 
 Use `--end-of-options` and `--` where supported. For an annotated pin, the exact ref target must equal `tag_object`, `cat-file -t` must return `tag`, and peeling must equal `commit`. For a lightweight pin, the exact ref target and object type must be the declared `commit`. Check size before reading, stream/hash at most 8 MiB per blob and 64 MiB across the lock, and compare every SHA-256. The verifier does not parse a language or assert biological/CLI semantics.
 
-Return a strict `SourceLockVerificationReport` containing only tool/version, tag kind, optional tag object, commit, lock digest, verified file count, verified command count, and verified operation count.
+Return `VerifiedToolSources`, a frozen result containing a strict `SourceLockVerificationReport` plus an immutable source-ID-to-`bytes` mapping. Every value is a fresh immutable `bytes` snapshot covered by the checked digest, and the mapping retains the same 8 MiB per-file and 64 MiB aggregate bounds. The report contains only tool/version, tag kind, optional tag object, commit, lock digest, verified file count, declared command count, and declared operation count. The generic CLI discards source contents after printing the report; family verifiers consume them synchronously without reopening paths.
 
 - [ ] **Step 4: Implement and test the non-writing CLI**
 
@@ -264,13 +274,14 @@ git commit -m "feat(catalog): verify pinned upstream git sources"
 **Files:**
 - Create: `bionodulo/nodes/catalog/tools/samtools/__init__.py`
 - Create: `bionodulo/nodes/catalog/tools/samtools/verification.py`
+- Create: `scripts/verify_samtools_source_lock.py`
 - Create: `tests/catalog/tools/samtools/test_source_lock.py`
 
 - [ ] **Step 1: Write all dispatcher and opaque-marker tests**
 
 The family verifier accepts only compiler-owned bytes already verified by the generic source lock. It parses the pinned `bamtk.c` `else if` dispatch chain into literal command-to-entrypoint mappings, including multi-name branches such as `fasta`/`fastq` and `idxstat`/`idxstats`.
 
-Before implementation, record RED for exact 23-command equality, missing/duplicate/ambiguous dispatcher entries, missing opaque implementation markers, and this swapped-binding regression:
+Before implementation, record RED for exact 23-command equality, missing/duplicate/ambiguous dispatcher entries, missing opaque implementation markers, and the wrapper CLI's success/mismatch/non-writing paths. Test empty, control-containing, over-128-byte, and metacharacter entrypoints against `^[A-Za-z_][A-Za-z0-9_]{0,127}$`. Include this swapped-binding regression:
 
 ```python
 def test_swapped_samtools_command_binding_is_rejected(verified_sources) -> None:
@@ -283,11 +294,17 @@ def test_swapped_samtools_command_binding_is_rejected(verified_sources) -> None:
 
 - [ ] **Step 2: Run tests and verify RED**
 
-Expected: the Samtools verifier module does not exist.
+```bash
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/tools/samtools/test_source_lock.py
+```
+
+Expected: the Samtools verifier and wrapper CLI do not exist.
 
 - [ ] **Step 3: Implement the narrow family verifier**
 
-`parse_samtools_dispatcher()` is intentionally specific to the pinned `bamtk.c` structure. It returns literal command names and entrypoint identifiers and rejects any unparsed or ambiguous selected branch. `verify_samtools_source_bindings()` requires every lock command to map to the declared entrypoint. It then performs one downgraded opaque sanity check: the exact line prefix `int <entrypoint>(` occurs once in the declared, hash-verified implementation file. This marker is not called a C parser or evidence proof. A subsequent evidence compiler must use language-aware symbol selection or exact content locators before a node can pass `evidence_verified`.
+`parse_samtools_dispatcher()` is intentionally specific to the pinned `bamtk.c` structure. It returns literal command names and entrypoint identifiers and rejects any unparsed or ambiguous selected branch. `verify_samtools_source_bindings()` accepts the exact immutable `VerifiedToolSources` result, requires every lock command to map to the declared entrypoint, and never reopens a file. It then performs one downgraded opaque sanity check: the exact line prefix `int <entrypoint>(` occurs once in the declared, hash-verified implementation bytes. This marker is not called a C parser or evidence proof. A subsequent evidence compiler must use language-aware symbol selection or exact content locators before a node can pass `evidence_verified`.
+
+`scripts/verify_samtools_source_lock.py` is the composed entrypoint: load canonical lock bytes, run generic Git verification, pass the returned exact bytes to `verify_samtools_source_bindings()`, then print the 44-file/23-command/27-operation summary. The generic CLI reports file identity only and must not claim that Samtools command dispatch was verified.
 
 - [ ] **Step 4: Run focused tests and commit**
 
@@ -295,7 +312,7 @@ Expected: the Samtools verifier module does not exist.
 PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/tools/samtools/test_source_lock.py
 ../../.venv/bin/ruff check bionodulo/nodes/catalog/tools/samtools/verification.py tests/catalog/tools/samtools/test_source_lock.py
 ../../.venv/bin/mypy bionodulo/nodes/catalog/tools/samtools/verification.py
-git add bionodulo/nodes/catalog/tools/samtools tests/catalog/tools/samtools
+git add bionodulo/nodes/catalog/tools/samtools scripts/verify_samtools_source_lock.py tests/catalog/tools/samtools
 git commit -m "test(catalog): verify samtools command ownership"
 ```
 
@@ -346,6 +363,10 @@ EXPECTED_NODE_COMMANDS = {
 The exact node set must equal the 27 `samtools_` baseline and approved queue IDs. All remain `quarantined` and `evidence_pending`; source locking must not alter maturity.
 
 - [ ] **Step 2: Run tests and verify RED**
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/tools/samtools/test_source_lock.py
+```
 
 Expected: the Samtools lock file does not exist.
 
@@ -413,7 +434,13 @@ sam_view.c sha256:49102b2145657ed84e519423934050119990ca5aaf7a823df2cc4a63cb0e9c
 stats.c sha256:81d67e5aa1ce22521a0c9973614fa0cb25bc163f265d7c7bd4b5d259676e24f5
 ```
 
-Use source ID `samtools-dispatch-bamtk` for `bamtk.c`; `samtools-doc-<manual>` for canonical manpages; `samtools-doc-fastq-alias` for `samtools-fastq.1`; and `samtools-src-<basename-with-underscores>` for implementation files. The `fastq` command references both `samtools-doc-fasta` and `samtools-doc-fastq-alias`. Shared implementation source IDs are reused rather than duplicated.
+Source IDs are derived exactly as follows:
+
+- `bamtk.c` is `samtools-dispatch-bamtk`, with role `dispatcher` and format `source_code`.
+- For `doc/samtools-NAME.1`, remove the literal `doc/samtools-` prefix and `.1` suffix and prepend `samtools-doc-`. Thus the alias file is `samtools-doc-fastq`. Every document has role `documentation` and format `text`.
+- For a C implementation basename `NAME.c`, remove `.c` without changing underscores and prepend `samtools-src-`. Thus `bam_ampliconclip.c` is `samtools-src-bam_ampliconclip`. Every such file has role `implementation` and format `source_code`.
+
+The `fastq` command references both `samtools-doc-fasta` and `samtools-doc-fastq`. Shared implementation source IDs are reused rather than duplicated.
 
 - [ ] **Step 5: Author and verify exact command bindings**
 
@@ -451,7 +478,7 @@ Every binding uses dispatcher source `samtools-dispatch-bamtk` and passes the Sa
 PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q \
   tests/catalog/test_source_lock.py \
   tests/catalog/tools/samtools/test_source_lock.py
-../../.venv/bin/python scripts/verify_tool_source_lock.py \
+../../.venv/bin/python scripts/verify_samtools_source_lock.py \
   --repository /tmp/bionodulo-samtools-1.23.1 \
   --lock bionodulo/nodes/catalog/tools/samtools/source-lock.json
 ```
@@ -478,8 +505,8 @@ git commit -m "feat(catalog): lock samtools 1.23.1 sources"
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog
-../../.venv/bin/ruff check bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py tests/catalog
-../../.venv/bin/mypy bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py
+../../.venv/bin/ruff check bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py scripts/verify_samtools_source_lock.py tests/catalog
+../../.venv/bin/mypy bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py scripts/verify_samtools_source_lock.py
 ```
 
 - [ ] **Step 2: Run specification review**
