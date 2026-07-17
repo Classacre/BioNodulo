@@ -37,6 +37,10 @@ The old source-lock implementation plan is superseded by this design. Pinned
 upstream identity is recorded directly on the family adapter and checked in
 focused tests.
 
+The Pixi package constraint for Samtools is exact `1.23.1`. A minimum-version
+range is not sufficient for a source-backed argv contract because local and
+cloud solvers could otherwise select different Samtools releases.
+
 ## Chosen Architecture
 
 Use one shared `SamtoolsCommandNode` adapter and one small module per operation.

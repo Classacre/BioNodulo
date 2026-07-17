@@ -96,6 +96,7 @@ Expected: all tests pass.
 - Create: `bionodulo/nodes/builtin/samtools_family/adapter.py`
 - Create: seven operation modules listed above
 - Modify: `bionodulo/nodes/builtin/samtools.py`
+- Modify: `bionodulo/environments/constants.py`
 - Create: `tests/nodes/samtools/test_adapter.py`
 - Create: `tests/nodes/samtools/test_first_wave.py`
 
@@ -103,8 +104,9 @@ Expected: all tests pass.
 
 Assert that each stable ID resolves to its own module, inherits the shared
 adapter, declares Samtools `1.23.1`, the pinned Git commit, one manpage, and one
-implementation source file. Assert exact input sections, defaults, return types,
-return names, and fixed output paths.
+implementation source file. Assert `PACKAGE_MIN_VERSIONS["samtools"]` is the
+exact Pixi constraint `"1.23.1"`, not a lower bound. Assert exact input sections,
+defaults, return types, return names, and fixed output paths.
 
 - [ ] **Step 2: Write RED argv tests**
 
@@ -142,7 +144,9 @@ The adapter supplies shared category, package, executable, citations, version,
 Git URL/commit, thread validation, declarative output planning, and source
 metadata. Each operation module contains one concrete class and its argv logic.
 Remove only the seven migrated classes and now-unused stem helpers from the
-legacy monolith.
+legacy monolith. Pin the shared runtime manifest constraint to exact Samtools
+`1.23.1` so local Pixi environments and cloud worker environments execute the
+same command contract.
 
 - [ ] **Step 5: Confirm GREEN**
 
