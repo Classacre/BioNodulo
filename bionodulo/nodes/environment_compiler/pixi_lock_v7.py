@@ -180,7 +180,7 @@ def _admit_pypi(record: PixiPypiListRecord) -> PypiLockedArtifact:
     )
 
 
-def admit_pixi_records(
+def _admit_pixi_records(
     records: Iterable[PixiListRecord],
     *,
     resolver: ResolverIdentity,
@@ -1021,7 +1021,7 @@ def _compile_captured_platform_lock(
     if not records:
         raise ValueError("Pixi selected-platform output must not be empty")
     _validate_native_list_records(native_packages, records)
-    return admit_pixi_records(
+    return _admit_pixi_records(
         records,
         resolver=resolver,
         environment_name=environment_name,

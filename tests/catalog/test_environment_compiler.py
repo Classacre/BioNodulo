@@ -430,7 +430,7 @@ def test_decoder_accepts_missing_optional_sha_but_admission_rejects_it() -> None
 
     assert records[0].sha256 is None
     with pytest.raises(ValueError, match="sha256"):
-        pixi_lock_v7.admit_pixi_records(
+        pixi_lock_v7._admit_pixi_records(
             records,
             resolver=resolver_identity(),
             environment_name="alignment-tools",
@@ -448,7 +448,7 @@ def test_decoder_rejects_non_pixiesque_sha256_text(digest: str) -> None:
 def test_admission_builds_strict_sorted_platform_lock() -> None:
     records = pixi_lock_v7.decode_pixi_list_json(encoded(conda_record(), python_record(), pypi_record()))
 
-    admitted = pixi_lock_v7.admit_pixi_records(
+    admitted = pixi_lock_v7._admit_pixi_records(
         reversed(records),
         resolver=resolver_identity(),
         environment_name="alignment-tools",
@@ -478,7 +478,7 @@ def test_pypi_admission_normalizes_pixis_dist_info_package_name() -> None:
         )
     )
 
-    admitted = pixi_lock_v7.admit_pixi_records(
+    admitted = pixi_lock_v7._admit_pixi_records(
         records,
         resolver=resolver_identity(),
         environment_name="python-analysis",
@@ -503,7 +503,7 @@ def test_admission_rejects_nonbinary_or_mutable_records(record: dict[str, object
     records = pixi_lock_v7.decode_pixi_list_json(encoded(record))
 
     with pytest.raises(ValueError):
-        pixi_lock_v7.admit_pixi_records(
+        pixi_lock_v7._admit_pixi_records(
             records,
             resolver=resolver_identity(),
             environment_name="alignment-tools",
@@ -523,7 +523,7 @@ def test_admission_rejects_pypi_url_name_or_version_disagreement(url: str) -> No
     records = pixi_lock_v7.decode_pixi_list_json(encoded(pypi_record(url=url)))
 
     with pytest.raises(ValueError, match="name|version"):
-        pixi_lock_v7.admit_pixi_records(
+        pixi_lock_v7._admit_pixi_records(
             records,
             resolver=resolver_identity(),
             environment_name="alignment-tools",
@@ -1939,3 +1939,5 @@ def test_public_compiler_exposes_only_exact_byte_verified_binary_boundary() -> N
     assert not hasattr(compiler, "admit_pixi_records")
     assert not hasattr(compiler, "compile_pixi_platform_lock_with_runner")
     assert not hasattr(compiler, "VerifiedPixiExecutable")
+    assert not hasattr(pixi_lock_v7, "admit_pixi_records")
+    assert hasattr(pixi_lock_v7, "_admit_pixi_records")
