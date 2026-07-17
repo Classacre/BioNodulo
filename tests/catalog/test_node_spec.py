@@ -11,12 +11,12 @@ from pydantic import ValidationError
 import bionodulo.nodes.contract as contract
 from bionodulo.nodes.contract.artifacts import ArtifactPort, Cardinality
 from bionodulo.nodes.contract.environments import (
+    CondaLockedArtifact,
     ContainerEnvironment,
     ContainerImageLock,
     ExecutableProbe,
     ExecutionPlatform,
     ImportProbe,
-    LockedArtifact,
     PixiEnvironment,
     PlatformLock,
     PythonEnvironment,
@@ -75,7 +75,7 @@ SHA_A = "sha256:" + "a" * 64
 SHA_B = "sha256:" + "b" * 64
 SHA_C = "sha256:" + "c" * 64
 SHA_D = "sha256:" + "d" * 64
-PROJECTION_GOLDEN_CONTRACT_DIGEST = "sha256:e28ff7f63d100cd2bdb86b58c7e50a6da8f9eadd47850576fe85475c404b7b69"
+PROJECTION_GOLDEN_CONTRACT_DIGEST = "sha256:bb6b393930433b38d5730ab171617f0f189a21123358ce82f932ff66f6392a84"
 CAPTURE_DATE = date(2026, 7, 16)
 PLATFORM = ExecutionPlatform.LINUX_AMD64
 CONTAINER_IMAGE = "registry.example.org/tools/samtools@" + SHA_A
@@ -87,9 +87,10 @@ def locked_artifact(
     version: str,
     *,
     digest: str = SHA_B,
-) -> LockedArtifact:
+) -> CondaLockedArtifact:
     filename = f"{name}-{version}-build.conda"
-    return LockedArtifact(
+    return CondaLockedArtifact(
+        kind="conda",
         name=name,
         version=version,
         build="build",
@@ -100,16 +101,17 @@ def locked_artifact(
     )
 
 
-def platform_lock(*artifacts: LockedArtifact) -> PlatformLock:
+def platform_lock(environment_name: str, *artifacts: CondaLockedArtifact) -> PlatformLock:
     return PlatformLock(
         platform=PLATFORM,
+        environment_name=environment_name,
         resolver_platform="linux-64",
         resolver=ResolverIdentity(
             name="pixi",
-            version="0.24.2",
+            version="0.68.1",
             config_digest=SHA_A,
         ),
-        lockfile_sha256=SHA_C,
+        native_lock_sha256=SHA_C,
         artifacts=artifacts,
     )
 
@@ -124,7 +126,7 @@ def pixi_environment(
         environment_id=f"{tool_id}-runtime",
         platforms=(PLATFORM,),
         packages=(f"{tool_id}=={tool_version}",),
-        locks=(platform_lock(locked_artifact(tool_id, tool_version)),) if locked else (),
+        locks=(platform_lock(f"{tool_id}-runtime", locked_artifact(tool_id, tool_version)),) if locked else (),
     )
 
 
@@ -136,6 +138,7 @@ def python_environment(*, locked: bool = True) -> PythonEnvironment:
         packages=("samtools==1.20",),
         locks=(
             platform_lock(
+                "python-runtime",
                 locked_artifact("python", "3.12.4"),
                 locked_artifact("samtools", "1.20", digest=SHA_D),
             ),
@@ -160,6 +163,7 @@ def r_environment(*, locked: bool = True) -> REnvironment:
         packages=("samtools==1.20",),
         locks=(
             platform_lock(
+                "r-runtime",
                 locked_artifact("r-base", "4.4.1"),
                 locked_artifact("samtools", "1.20", digest=SHA_D),
             ),
@@ -1944,6 +1948,17 @@ def test_contract_projection_has_exact_evidence_free_top_level_shape() -> None:
         "runtime_binding",
     )
     assert not {"evidence", "retained_evidence", "maturity"} & projection.keys()
+
+
+def test_contract_projection_uses_discriminated_environment_lock_wire_shape() -> None:
+    environment = projection_spec().contract_projection()["environment"]
+
+    assert isinstance(environment, dict)
+    lock = environment["locks"][0]
+    assert lock["environment_name"] == "samtools-runtime"
+    assert lock["native_lock_sha256"] == SHA_C
+    assert "lockfile_sha256" not in lock
+    assert lock["artifacts"][0]["kind"] == "conda"
 
 
 def test_contract_projection_uses_sorted_id_keyed_complete_collections() -> None:
