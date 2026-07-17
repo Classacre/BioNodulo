@@ -54,11 +54,11 @@ def _encode_mutated_lock(document: dict[str, object]) -> bytes:
     return yaml.safe_dump(document, sort_keys=False).encode("utf-8")
 
 
-def _marker_environment(
+def _selected_python_version(
     selected: tuple[pixi_lock_v7._NativePackage, ...],
     *,
     resolver_platform: str,
-) -> dict[str, str]:
+) -> Version:
     python_records = [
         item
         for item in selected
@@ -71,6 +71,10 @@ def _marker_environment(
 
     python_version = Version(python_record.version)
     assert len(python_version.release) >= 2
+    return python_version
+
+
+def _marker_environment(python_version: Version, *, resolver_platform: str) -> dict[str, str]:
     return {
         "implementation_name": "cpython",
         "implementation_version": str(python_version),
@@ -112,6 +116,7 @@ def _active_boto3_dependency_closure(
     selected_pypi: dict[str, pixi_lock_v7._NativePackage],
     *,
     marker_environment: dict[str, str],
+    python_version: Version,
 ) -> frozenset[str]:
     pending = ["boto3"]
     active: set[str] = set()
@@ -122,12 +127,32 @@ def _active_boto3_dependency_closure(
         package = selected_pypi.get(name)
         assert package is not None, f"active boto3 dependency {name!r} is missing from selected lock"
         active.add(name)
+        if package.requires_python is not None:
+            requires_python = SpecifierSet(package.requires_python)
+            assert python_version in requires_python, (
+                f"selected Python {python_version} does not satisfy requires_python "
+                f"{requires_python} for {name}"
+            )
         for requirement_text in package.requires_dist:
             requirement = Requirement(requirement_text)
             if not _requirement_is_active(requirement, marker_environment):
                 continue
+            assert requirement.url is None, "active direct-URL requirement cannot be validated without fetching"
             assert not requirement.extras, "active boto3 dependency extras require solver semantics"
-            pending.append(canonicalize_name(requirement.name))
+            dependency_name = canonicalize_name(requirement.name)
+            dependency = selected_pypi.get(dependency_name)
+            assert dependency is not None, (
+                f"active boto3 dependency {dependency_name!r} is missing from selected lock"
+            )
+            dependency_version = Version(dependency.version)
+            assert not dependency_version.is_prerelease, (
+                "active boto3 dependency prerelease requires resolver selection semantics"
+            )
+            assert dependency_version in requirement.specifier, (
+                f"selected {dependency_name} {dependency_version} does not satisfy active requirement "
+                f"{requirement.specifier}"
+            )
+            pending.append(dependency_name)
     return frozenset(active)
 
 
@@ -140,9 +165,14 @@ def _assert_universal_boto3_stack(lock_content: bytes) -> None:
             resolver_platform=resolver_platform,
         )
         selected_pypi = _selected_pypi_by_name(selected)
+        python_version = _selected_python_version(selected, resolver_platform=resolver_platform)
         closure = _active_boto3_dependency_closure(
             selected_pypi,
-            marker_environment=_marker_environment(selected, resolver_platform=resolver_platform),
+            marker_environment=_marker_environment(
+                python_version,
+                resolver_platform=resolver_platform,
+            ),
+            python_version=python_version,
         )
         assert closure == BOTO3_STACK, "active boto3 dependency closure must be exactly seven packages"
         stack = {name: selected_pypi[name] for name in sorted(closure)}
@@ -239,6 +269,44 @@ def _lock_with_eighth_active_boto3_dependency(lock_content: bytes) -> bytes:
     return _encode_mutated_lock(document)
 
 
+def _lock_with_incompatible_botocore_version(lock_content: bytes) -> bytes:
+    document = yaml.safe_load(lock_content)
+    packages = document["packages"]
+    botocore = next(package for package in packages if package.get("name") == "botocore")
+    original_url = botocore["pypi"]
+    incompatible_url = original_url.replace("botocore-1.43.50-", "botocore-1.44.99-")
+    assert incompatible_url != original_url
+    botocore.update(pypi=incompatible_url, version="1.44.99", sha256="b" * 64)
+
+    for environment in document["environments"].values():
+        for references in environment["packages"].values():
+            reference = next(item for item in references if item.get("pypi") == original_url)
+            reference["pypi"] = incompatible_url
+    return _encode_mutated_lock(document)
+
+
+def _lock_with_incompatible_botocore_python(lock_content: bytes) -> bytes:
+    document = yaml.safe_load(lock_content)
+    botocore = next(package for package in document["packages"] if package.get("name") == "botocore")
+    botocore["requires_python"] = ">=99"
+    return _encode_mutated_lock(document)
+
+
+def _lock_with_direct_url_botocore_requirement(lock_content: bytes) -> bytes:
+    document = yaml.safe_load(lock_content)
+    packages = document["packages"]
+    botocore = next(package for package in packages if package.get("name") == "botocore")
+    boto3 = next(package for package in packages if package.get("name") == "boto3")
+    requirements = boto3["requires_dist"]
+    requirement_index = next(
+        index
+        for index, requirement in enumerate(requirements)
+        if requirement.startswith("botocore>=") and "extra" not in requirement
+    )
+    requirements[requirement_index] = f"botocore @ {botocore['pypi']}"
+    return _encode_mutated_lock(document)
+
+
 def test_worker_manifest_declares_bounded_boto3_runtime() -> None:
     manifest = tomllib.loads((REPOSITORY_ROOT / "pixi.toml").read_text(encoding="utf-8"))
 
@@ -306,6 +374,51 @@ def test_boto3_stack_guard_rejects_eighth_active_dependency() -> None:
         assert ("boto3-extra" in selected_names) is (resolver_platform == "linux-aarch64")
 
     with pytest.raises(AssertionError, match="active boto3 dependency closure"):
+        _assert_universal_boto3_stack(mutated_lock)
+
+
+def test_boto3_stack_guard_rejects_incompatible_active_dependency_version() -> None:
+    mutated_lock = _lock_with_incompatible_botocore_version((REPOSITORY_ROOT / "pixi.lock").read_bytes())
+    for environment_name, resolver_platform in BOTO3_CONTEXTS:
+        selected = pixi_lock_v7._validate_pixi_lock(
+            mutated_lock,
+            environment_name=environment_name,
+            resolver_platform=resolver_platform,
+        )
+        botocore = next(item for item in selected if item.kind == "pypi" and item.name == "botocore")
+        assert botocore.version == "1.44.99"
+
+    with pytest.raises(AssertionError, match="does not satisfy active requirement"):
+        _assert_universal_boto3_stack(mutated_lock)
+
+
+def test_boto3_stack_guard_rejects_incompatible_requires_python() -> None:
+    mutated_lock = _lock_with_incompatible_botocore_python((REPOSITORY_ROOT / "pixi.lock").read_bytes())
+    for environment_name, resolver_platform in BOTO3_CONTEXTS:
+        selected = pixi_lock_v7._validate_pixi_lock(
+            mutated_lock,
+            environment_name=environment_name,
+            resolver_platform=resolver_platform,
+        )
+        botocore = next(item for item in selected if item.kind == "pypi" and item.name == "botocore")
+        assert botocore.requires_python == ">=99"
+
+    with pytest.raises(AssertionError, match="does not satisfy requires_python"):
+        _assert_universal_boto3_stack(mutated_lock)
+
+
+def test_boto3_stack_guard_fails_closed_on_active_direct_url_requirement() -> None:
+    mutated_lock = _lock_with_direct_url_botocore_requirement((REPOSITORY_ROOT / "pixi.lock").read_bytes())
+    for environment_name, resolver_platform in BOTO3_CONTEXTS:
+        selected = pixi_lock_v7._validate_pixi_lock(
+            mutated_lock,
+            environment_name=environment_name,
+            resolver_platform=resolver_platform,
+        )
+        boto3 = next(item for item in selected if item.kind == "pypi" and item.name == "boto3")
+        assert any(Requirement(requirement).url is not None for requirement in boto3.requires_dist)
+
+    with pytest.raises(AssertionError, match="active direct-URL requirement"):
         _assert_universal_boto3_stack(mutated_lock)
 
 
