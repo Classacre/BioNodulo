@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "confirmed_families": [
+    {
+      "family_id": "samtools",
+      "ownership": "external_tool",
+      "node_id_prefix": "samtools_",
+      "expected_count": 27,
+      "exclusive_path": "bionodulo/nodes/catalog/tools/samtools",
+      "fixture_prefix": "samtools",
+      "cloud_job_label": "catalog-samtools",
+      "r2_test_prefix": "catalog-tests/samtools",
+      "upstream": {
+        "repository_url": "https://github.com/samtools/samtools",
+        "release_tag": "1.23.1",
+        "tag_object": "4ac78a7e9938dbef3c6f97d549758feceb0252db",
+        "commit": "6efb9b6da35224cf804921dedecf9fb8f411365d",
+        "documentation_url": "https://www.htslib.org/doc/samtools.html"
+      }
+    }
+  ]
+}
