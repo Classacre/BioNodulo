@@ -351,7 +351,20 @@ class CommandNode(BaseNode):
                     )
                 stdout_path = outputs[stdout_output_index]
 
-            self.__class__.PREPARE_EXECUTION(kwargs, outputs)
+            prepare_outputs = outputs
+            if symlink is not None:
+                real_output_path = Path(real_output_dir)
+                execution_output_path = Path(output_dir)
+                prepare_outputs = []
+                for path in outputs:
+                    try:
+                        relative_path = path.relative_to(real_output_path)
+                    except ValueError:
+                        prepare_outputs.append(path)
+                    else:
+                        prepare_outputs.append(execution_output_path / relative_path)
+
+            self.__class__.PREPARE_EXECUTION(kwargs, prepare_outputs)
 
             # Render command from the prepared inputs.
             cmd: str | list[str] = self.__class__.render_command(kwargs)

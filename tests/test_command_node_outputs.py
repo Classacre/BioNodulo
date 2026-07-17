@@ -70,6 +70,68 @@ async def test_command_node_prepares_planned_outputs_before_rendering(tmp_path: 
 
 
 @pytest.mark.asyncio
+async def test_command_node_prepares_space_free_output_alias_for_rendering(tmp_path: Path) -> None:
+    prepared_outputs: list[Path] = []
+    outside_output = tmp_path / "outside-artifact.out"
+    plan_calls = 0
+
+    class SpacedOutputCommandNode(CommandNode):
+        NODE_ID = "spaced_output_command"
+        RETURN_TYPES = ("FILE", "FILE")
+        RETURN_NAMES = ("artifact", "outside_artifact")
+        STDOUT_OUTPUT_INDEX = 0
+
+        @classmethod
+        def PLAN_OUTPUTS(cls, _inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+            nonlocal plan_calls
+            plan_calls += 1
+            return [Path(output_dir) / cls.NODE_ID / "artifact.out", outside_output]
+
+        @classmethod
+        def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+            prepared_outputs.extend(outputs)
+            inputs["prepared_output"] = str(outputs[0])
+
+        @classmethod
+        def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+            return ["fake-tool", str(inputs["prepared_output"])]
+
+    class ArgvWritingContext:
+        def __init__(self, node_dir: Path) -> None:
+            self.node_dir = node_dir
+            self.command: list[str] | None = None
+            self.resolved_output: Path | None = None
+            self.stdout_path: Path | None = None
+
+        async def run_command(self, cmd: str | list[str], **kwargs: Any) -> dict[str, Any]:
+            assert isinstance(cmd, list)
+            self.command = cmd
+            self.stdout_path = Path(kwargs["stdout_path"])
+            argv_output = Path(cmd[-1])
+            self.resolved_output = argv_output.resolve()
+            argv_output.write_text("created through alias\n", encoding="utf-8")
+            outside_output.write_text("created outside output base\n", encoding="utf-8")
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    output_dir = tmp_path / "output directory with spaces"
+    expected_output = output_dir / "spaced_output_command" / "artifact.out"
+    context = ArgvWritingContext(output_dir)
+
+    result = await SpacedOutputCommandNode().run(context=context, output_dir=output_dir)
+
+    assert context.command is not None
+    argv_output = Path(context.command[-1])
+    assert plan_calls == 1
+    assert prepared_outputs == [argv_output, outside_output]
+    assert " " not in str(argv_output)
+    assert context.resolved_output == expected_output
+    assert context.stdout_path == expected_output
+    assert expected_output.read_text(encoding="utf-8") == "created through alias\n"
+    assert outside_output.read_text(encoding="utf-8") == "created outside output base\n"
+    assert result == (str(expected_output), str(outside_output))
+
+
+@pytest.mark.asyncio
 async def test_command_node_redirects_stdout_to_declared_output(tmp_path: Path) -> None:
     class StdoutCommandNode(CommandNode):
         NODE_ID = "stdout_command"
