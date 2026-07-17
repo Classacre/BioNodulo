@@ -7,9 +7,9 @@
       "node_id_prefix": "samtools_",
       "expected_count": 27,
       "exclusive_path": "bionodulo/nodes/catalog/tools/samtools",
-      "fixture_prefix": "samtools",
+      "fixture_prefix": "samtools/",
       "cloud_job_label": "catalog-samtools",
-      "r2_test_prefix": "catalog-tests/samtools",
+      "r2_test_prefix": "catalog-tests/samtools/",
       "upstream": {
         "repository_url": "https://github.com/samtools/samtools",
         "release_tag": "1.23.1",

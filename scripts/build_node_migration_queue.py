@@ -6,7 +6,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import stat
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -19,8 +22,10 @@ DEFAULT_OUTPUT = Path("bionodulo/nodes/generated/migration-queue.json")
 EXPECTED_NODE_COUNT = 943
 _SAFE_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,127}$")
 _SAFE_PATH_RE = re.compile(r"^[a-z0-9_./-]+$")
+_REPOSITORY_PATH_RE = re.compile(r"^[A-Za-z0-9_./-]+$")
 _CLOUD_JOB_LABEL_RE = re.compile(r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
 _NODE_ID_PREFIX_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_$")
+_PYTHON_REFERENCE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+$")
 _HOST_RE = re.compile(
     r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$"
@@ -28,9 +33,53 @@ _HOST_RE = re.compile(
 _HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _RELEASE_TAG_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
-_PATH_SCOPE_FIELDS = ("exclusive_path", "fixture_prefix", "r2_test_prefix")
+_LITERAL_PREFIX_SCOPE_FIELDS = ("fixture_prefix", "r2_test_prefix")
 _NODE_OWNERSHIP_VALUES = frozenset({"bionodulo_core", "external_tool", "external_library", "external_provider"})
 _MAX_NODE_ID_PREFIX_LENGTH = 128
+_MAX_QUEUE_BYTES = 8 * 1024 * 1024
+_BASELINE_FIELDS = frozenset(
+    {
+        "aggregate_sha256",
+        "anomalies",
+        "canonicalizer",
+        "current_snapshot",
+        "digests",
+        "entries",
+        "origin_collisions",
+        "refs",
+        "schema_version",
+        "summary",
+    }
+)
+_BASELINE_ENTRY_FIELDS = frozenset(
+    {
+        "alias_of",
+        "behavior_source",
+        "comparison_locations",
+        "current_source",
+        "immediate_split_locations",
+        "node_id",
+        "origin",
+        "qualified_class",
+        "rebuild",
+        "semantic_candidates",
+        "template_references",
+    }
+)
+_CURRENT_SOURCE_FIELDS = frozenset(
+    {
+        "ast_sha256",
+        "comparison_git_blob",
+        "comparison_path",
+        "module",
+        "path",
+        "qualified_class",
+        "raw_class_sha256",
+    }
+)
+_TEMPLATE_REFERENCE_FIELDS = frozenset(
+    {"input_ports", "instance_id", "kind", "output_ports", "source_blob", "source_path"}
+)
 
 
 class MigrationQueueError(RuntimeError):
@@ -110,6 +159,188 @@ def _safe_path(value: str, label: str) -> str:
     return value
 
 
+def _closed_mapping(value: object, label: str, expected_fields: frozenset[str]) -> Mapping[str, Any]:
+    mapping = _expect_mapping(value, label)
+    if set(mapping) != expected_fields:
+        raise MigrationQueueError(f"{label} contains unknown or missing fields")
+    return mapping
+
+
+def _hex_digest(value: object, label: str, pattern: re.Pattern[str], length: int) -> str:
+    digest = _expect_string(value, label)
+    if pattern.fullmatch(digest) is None:
+        raise MigrationQueueError(f"{label} must be {length} lowercase hexadecimal characters")
+    return digest
+
+
+def _repository_path(value: object, label: str) -> str:
+    path = _expect_string(value, label)
+    if (
+        len(path) > 512
+        or _REPOSITORY_PATH_RE.fullmatch(path) is None
+        or path.startswith("/")
+        or path.endswith("/")
+        or "//" in path
+        or any(part in ("", ".", "..") for part in path.split("/"))
+    ):
+        raise MigrationQueueError(f"{label} must be a canonical repository-relative path")
+    return path
+
+
+def _stable_node_id(value: object, label: str) -> str:
+    node_id = _expect_string(value, label)
+    try:
+        node_id.encode("ascii")
+    except UnicodeEncodeError as error:
+        raise MigrationQueueError(f"{label} must be a safe stable identifier") from error
+    if (
+        len(node_id) > 128
+        or node_id != node_id.strip()
+        or "/" in node_id
+        or "\\" in node_id
+        or any(ord(character) < 32 or ord(character) == 127 for character in node_id)
+    ):
+        raise MigrationQueueError(f"{label} must be a safe stable identifier")
+    return node_id
+
+
+def _python_reference(value: object, label: str) -> str:
+    reference = _expect_string(value, label)
+    if len(reference) > 512 or _PYTHON_REFERENCE_RE.fullmatch(reference) is None:
+        raise MigrationQueueError(f"{label} must be a canonical dotted Python reference")
+    return reference
+
+
+def _canonical_port_ids(value: object, label: str) -> list[str]:
+    if not isinstance(value, list):
+        raise MigrationQueueError(f"{label} must be an array")
+    ports = [
+        _safe_identifier(_expect_string(port, f"{label}[{index}]"), f"{label}[{index}]")
+        for index, port in enumerate(value)
+    ]
+    if len(ports) != len(set(ports)) or ports != sorted(ports):
+        raise MigrationQueueError(f"{label} must be canonical sorted unique identifiers")
+    return ports
+
+
+def _validated_current_source(value: object, label: str) -> dict[str, str]:
+    source = _closed_mapping(value, label, _CURRENT_SOURCE_FIELDS)
+    path = _repository_path(source["path"], f"{label} path")
+    comparison_path = _repository_path(source["comparison_path"], f"{label} comparison_path")
+    module = _python_reference(source["module"], f"{label} module")
+    qualified_class = _python_reference(source["qualified_class"], f"{label} qualified_class")
+    if not path.startswith("bionodulo/nodes/builtin/") or not path.endswith(".py"):
+        raise MigrationQueueError(f"{label} path must identify a builtin Python source")
+    if not comparison_path.startswith("bionodulo/nodes/builtin/") or not comparison_path.endswith(".py"):
+        raise MigrationQueueError(f"{label} comparison_path must identify a builtin Python source")
+    if not module.startswith("bionodulo.nodes.builtin."):
+        raise MigrationQueueError(f"{label} module must identify a builtin Python module")
+    if not qualified_class.startswith(module + "."):
+        raise MigrationQueueError(f"{label} qualified_class must belong to its module")
+    return {
+        "ast_sha256": _hex_digest(source["ast_sha256"], f"{label} ast_sha256", _HEX64_RE, 64),
+        "comparison_git_blob": _hex_digest(
+            source["comparison_git_blob"],
+            f"{label} comparison_git_blob",
+            _HEX40_RE,
+            40,
+        ),
+        "comparison_path": comparison_path,
+        "module": module,
+        "path": path,
+        "qualified_class": qualified_class,
+        "raw_class_sha256": _hex_digest(
+            source["raw_class_sha256"],
+            f"{label} raw_class_sha256",
+            _HEX64_RE,
+            64,
+        ),
+    }
+
+
+def _validated_template_reference(value: object, label: str) -> dict[str, Any]:
+    reference = _closed_mapping(value, label, _TEMPLATE_REFERENCE_FIELDS)
+    source_path = _repository_path(reference["source_path"], f"{label} source_path")
+    if not source_path.endswith(".json") or not source_path.startswith(("templates/", "examples/workflows/")):
+        raise MigrationQueueError(f"{label} source_path must identify a template or example JSON document")
+    kind = _expect_string(reference["kind"], f"{label} kind")
+    if kind not in {"template", "example"}:
+        raise MigrationQueueError(f"{label} kind must be template or example")
+    expected_kind = "template" if source_path.startswith("templates/") else "example"
+    if kind != expected_kind:
+        raise MigrationQueueError(f"{label} kind must agree with source_path namespace")
+    return {
+        "input_ports": _canonical_port_ids(reference["input_ports"], f"{label} input_ports"),
+        "instance_id": _safe_identifier(
+            _expect_string(reference["instance_id"], f"{label} instance_id"),
+            f"{label} instance_id",
+        ),
+        "kind": kind,
+        "output_ports": _canonical_port_ids(reference["output_ports"], f"{label} output_ports"),
+        "source_blob": _hex_digest(reference["source_blob"], f"{label} source_blob", _HEX40_RE, 40),
+        "source_path": source_path,
+    }
+
+
+def _validated_template_references(value: object, label: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        raise MigrationQueueError(f"{label} must be an array")
+    references = [
+        _validated_template_reference(reference, f"template reference {index}") for index, reference in enumerate(value)
+    ]
+    keys = [(reference["source_path"], reference["instance_id"]) for reference in references]
+    if len(keys) != len(set(keys)):
+        raise MigrationQueueError(f"{label} must contain unique workflow instances")
+    if keys != sorted(keys):
+        raise MigrationQueueError(f"{label} must use canonical order")
+    return references
+
+
+def _validated_baseline_entry(value: object, index: int) -> dict[str, Any]:
+    label = f"baseline entry {index}"
+    entry = _expect_mapping(value, label)
+    if "current_source" not in entry or not isinstance(entry["current_source"], dict):
+        raise MigrationQueueError(f"{label} current_source must be an object")
+    if set(entry) != _BASELINE_ENTRY_FIELDS:
+        raise MigrationQueueError(f"{label} contains unknown or missing fields")
+    alias = entry["alias_of"]
+    if alias is not None:
+        alias = _stable_node_id(alias, f"{label} alias_of")
+    _python_reference(entry["qualified_class"], f"{label} qualified_class")
+    return {
+        "alias_of": alias,
+        "current_source": _validated_current_source(entry["current_source"], f"{label} current_source"),
+        "node_id": _stable_node_id(entry["node_id"], f"{label} node_id"),
+        "template_references": _validated_template_references(
+            entry["template_references"],
+            f"{label} template_references",
+        ),
+    }
+
+
+def _validated_baseline(baseline: Mapping[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    aggregate = _verify_baseline_aggregate(baseline)
+    if set(baseline) != _BASELINE_FIELDS:
+        raise MigrationQueueError("baseline ledger contains unknown or missing fields")
+    if type(baseline["schema_version"]) is not int or baseline["schema_version"] != 1:
+        raise MigrationQueueError("baseline schema_version must be exact integer 1")
+    raw_entries = baseline["entries"]
+    if not isinstance(raw_entries, list) or len(raw_entries) != EXPECTED_NODE_COUNT:
+        raise MigrationQueueError(f"baseline ledger must contain exactly {EXPECTED_NODE_COUNT} entries")
+    entries = [_validated_baseline_entry(entry, index) for index, entry in enumerate(raw_entries)]
+    node_ids = [entry["node_id"] for entry in entries]
+    if node_ids != sorted(node_ids):
+        raise MigrationQueueError("baseline entries must use canonical node_id order")
+    if len(node_ids) != len(set(node_ids)):
+        raise MigrationQueueError("baseline entries contain duplicate node IDs")
+    node_id_set = set(node_ids)
+    for entry in entries:
+        alias = entry["alias_of"]
+        if alias is not None and alias not in node_id_set:
+            raise MigrationQueueError(f"node {entry['node_id']} alias_of references unknown node {alias}")
+    return aggregate, entries
+
+
 def _exclusive_path(value: object) -> str:
     path = _safe_path(_expect_string(value, "exclusive_path"), "exclusive_path")
     if not path.startswith("bionodulo/nodes/catalog/"):
@@ -117,11 +348,15 @@ def _exclusive_path(value: object) -> str:
     return path
 
 
-def _relative_prefix(value: object, label: str) -> str:
+def _namespace_prefix(value: object, label: str) -> str:
+    prefix = _expect_string(value, label)
+    if not prefix.endswith("/"):
+        raise MigrationQueueError(f"{label} must be a canonical relative namespace root ending in /")
     try:
-        return _safe_path(_expect_string(value, label), label)
+        _safe_path(prefix[:-1], label)
     except MigrationQueueError as error:
-        raise MigrationQueueError(f"{label} must be a canonical traversal-free relative prefix") from error
+        raise MigrationQueueError(f"{label} must be a canonical relative namespace root ending in /") from error
+    return prefix
 
 
 def _cloud_job_label(value: object) -> str:
@@ -138,13 +373,19 @@ def _scope_values_overlap(left: str, right: str) -> bool:
     return left_parts[:shared] == right_parts[:shared]
 
 
-def _validate_scope_collisions(scopes: Sequence[tuple[str, Mapping[str, str]]]) -> None:
-    for field in _PATH_SCOPE_FIELDS:
+def _validate_scope_collisions(
+    scopes: Sequence[tuple[str, Mapping[str, str]]],
+) -> None:
+    for field in ("exclusive_path", *_LITERAL_PREFIX_SCOPE_FIELDS):
         for index, (left_id, left_scope) in enumerate(scopes):
             for right_id, right_scope in scopes[index + 1 :]:
                 left = left_scope[field]
                 right = right_scope[field]
-                if _scope_values_overlap(left, right):
+                if field == "exclusive_path":
+                    overlaps = _scope_values_overlap(left, right)
+                else:
+                    overlaps = left.startswith(right) or right.startswith(left)
+                if overlaps:
                     raise MigrationQueueError(f"{field} overlap between {left_id} ({left}) and {right_id} ({right})")
 
     cloud_labels: dict[str, str] = {}
@@ -289,8 +530,8 @@ def _validated_scope(exclusive_path: object, agent_scope_value: object) -> dict[
     return {
         "cloud_job_label": _cloud_job_label(agent_scope["cloud_job_label"]),
         "exclusive_path": _exclusive_path(exclusive_path),
-        "fixture_prefix": _relative_prefix(agent_scope["fixture_prefix"], "fixture_prefix"),
-        "r2_test_prefix": _relative_prefix(agent_scope["r2_test_prefix"], "r2_test_prefix"),
+        "fixture_prefix": _namespace_prefix(agent_scope["fixture_prefix"], "fixture_prefix"),
+        "r2_test_prefix": _namespace_prefix(agent_scope["r2_test_prefix"], "r2_test_prefix"),
     }
 
 
@@ -330,8 +571,8 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
         scope = {
             "cloud_job_label": _cloud_job_label(family["cloud_job_label"]),
             "exclusive_path": _exclusive_path(family["exclusive_path"]),
-            "fixture_prefix": _relative_prefix(family["fixture_prefix"], "fixture_prefix"),
-            "r2_test_prefix": _relative_prefix(family["r2_test_prefix"], "r2_test_prefix"),
+            "fixture_prefix": _namespace_prefix(family["fixture_prefix"], "fixture_prefix"),
+            "r2_test_prefix": _namespace_prefix(family["r2_test_prefix"], "r2_test_prefix"),
         }
         result.append(
             {
@@ -352,12 +593,9 @@ def build_queue(
     rules_value: object,
 ) -> dict[str, Any]:
     baseline = _expect_mapping(baseline_value, "baseline ledger")
-    baseline_aggregate_sha256 = _verify_baseline_aggregate(baseline)
+    baseline_aggregate_sha256, entries = _validated_baseline(baseline)
     rules = _expect_mapping(rules_value, "assignment rules")
     families = _validated_rules(rules)
-    entries = baseline.get("entries")
-    if not isinstance(entries, list) or len(entries) != EXPECTED_NODE_COUNT:
-        raise MigrationQueueError(f"baseline ledger must contain exactly {EXPECTED_NODE_COUNT} entries")
 
     matched_rules: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for family in families:
@@ -376,22 +614,17 @@ def build_queue(
             matched_rules[node_id].append(family)
 
     provisional_modules: set[str] = set()
-    for raw_entry in entries:
-        entry = _expect_mapping(raw_entry, "baseline entry")
-        node_id = _expect_string(entry.get("node_id"), "node_id")
+    for entry in entries:
+        node_id = entry["node_id"]
         if matched_rules.get(node_id):
             continue
-        current = entry.get("current_source")
-        if not isinstance(current, dict):
-            current = _expect_mapping(entry.get("behavior_source"), "behavior_source")
-        provisional_modules.add(_expect_string(current.get("module"), "source module"))
+        provisional_modules.add(entry["current_source"]["module"])
     legacy_lanes = _legacy_lanes(provisional_modules)
 
     assignments: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    for raw_entry in sorted(entries, key=lambda item: item["node_id"]):
-        entry = _expect_mapping(raw_entry, "baseline entry")
-        node_id = _expect_string(entry.get("node_id"), "node_id")
+    for entry in entries:
+        node_id = entry["node_id"]
         if node_id in seen_ids:
             raise MigrationQueueError(f"duplicate baseline node ID {node_id}")
         seen_ids.add(node_id)
@@ -400,25 +633,14 @@ def build_queue(
             family_names = ", ".join(sorted(item["family_id"] for item in matching))
             raise MigrationQueueError(f"node {node_id} is assigned by multiple confirmed families: {family_names}")
 
-        template_references = entry.get("template_references")
-        if not isinstance(template_references, list):
-            raise MigrationQueueError(f"node {node_id} template_references must be an array")
-        template_paths = sorted(
-            {
-                _expect_string(reference.get("source_path"), "template source_path")
-                for reference in template_references
-                if isinstance(reference, dict)
-            }
-        )
-        current = entry.get("current_source")
-        if not isinstance(current, dict):
-            current = _expect_mapping(entry.get("behavior_source"), "behavior_source")
-        module = _expect_string(current.get("module"), "source module")
+        template_paths = sorted({reference["source_path"] for reference in entry["template_references"]})
+        current = entry["current_source"]
+        module = current["module"]
         source = {
-            "ast_sha256": _expect_string(current.get("ast_sha256"), "source ast_sha256"),
+            "ast_sha256": current["ast_sha256"],
             "module": module,
-            "path": _expect_string(current.get("path"), "source path"),
-            "qualified_class": _expect_string(current.get("qualified_class"), "source qualified_class"),
+            "path": current["path"],
+            "qualified_class": current["qualified_class"],
         }
 
         if matching:
@@ -445,14 +667,14 @@ def build_queue(
             upstream = None
             agent_scope = {
                 "cloud_job_label": f"catalog-{lane_id}",
-                "fixture_prefix": lane_id,
-                "r2_test_prefix": f"catalog-tests/{lane_id}",
+                "fixture_prefix": f"{lane_id}/",
+                "r2_test_prefix": f"catalog-tests/{lane_id}/",
             }
 
         assignments.append(
             {
                 "agent_scope": agent_scope,
-                "alias_of": entry.get("alias_of"),
+                "alias_of": entry["alias_of"],
                 "assignment_basis": assignment_basis,
                 "assignment_status": assignment_status,
                 "contract_status": "evidence_pending",
@@ -535,8 +757,37 @@ def write_or_check(path: Path, payload: bytes, *, check: bool) -> None:
         if existing != payload:
             raise MigrationQueueError(f"migration queue is stale: {path}")
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(payload)
+    if len(payload) > _MAX_QUEUE_BYTES:
+        raise MigrationQueueError(f"migration queue payload exceeds {_MAX_QUEUE_BYTES} bytes")
+
+    temporary_path: Path | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            output_mode = stat.S_IMODE(path.stat().st_mode)
+        except FileNotFoundError:
+            output_mode = 0o644
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            os.fchmod(temporary.fileno(), output_mode)
+            if temporary.write(payload) != len(payload):
+                raise OSError("short migration queue write")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_path, path)
+        temporary_path = None
+    except OSError as error:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise MigrationQueueError(f"cannot atomically write migration queue: {path}") from error
 
 
 def main() -> int:
