@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from bionodulo.nodes.catalog import environment_registry as registry
 from bionodulo.nodes.contract.environments import ExecutionPlatform
+from test_node_spec import evidence_record, external_identity, external_spec, pixi_environment
 
 
 SHA_A = "sha256:" + "a" * 64
@@ -37,9 +38,20 @@ def entry(
     environment_name: str = "alignment-tools",
     bindings: tuple[registry.EnvironmentPlatformLockBinding, ...] | None = None,
 ) -> registry.EnvironmentRegistryEntry:
+    tool_id = environment_name.split("-", 1)[0]
     return registry.EnvironmentRegistryEntry(
         environment_id=environment_id,
+        environment_digest=SHA_C,
         lock_set=lock_set(environment_name, bindings),
+        runtime_bindings=(
+            registry.EnvironmentRuntimeBinding(
+                node_id=f"{tool_id}-node",
+                tool_id=tool_id,
+                tool_version="1.0",
+                binding_kind="package",
+                binding_id=tool_id,
+            ),
+        ),
     )
 
 
@@ -58,6 +70,20 @@ def environment_registry() -> registry.EnvironmentRegistry:
             ),
         ),
     )
+
+
+def validated_node_specs() -> tuple[object, object]:
+    samtools = external_spec()
+    bcftools = external_spec(
+        identity=external_identity(
+            stable_id="legacy::Bcftools Call v1",
+            machine_id="bcftools_call",
+            tool_id="bcftools",
+        ),
+        environment=pixi_environment(tool_id="bcftools"),
+        evidence=evidence_record(tool_id="bcftools"),
+    )
+    return samtools, bcftools
 
 
 def test_lock_set_descriptor_binds_environment_name_and_platform_digests() -> None:
@@ -102,12 +128,40 @@ def test_registry_canonical_bytes_are_exact_and_omit_catalog_digest() -> None:
         environments=(entry(),),
     )
 
-    assert value.canonical_json_bytes() == (
-        b'{"environments":[{"environment_id":"env.alignment-tools","lock_set":'
-        b'{"environment_name":"alignment-tools","platform_locks":['
-        b'{"lock_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
-        b'"platform":"linux/amd64"}]}}],"schema_version":1}'
-    )
+    expected = {
+        "environments": [
+            {
+                "environment_digest": SHA_C,
+                "environment_id": "env.alignment-tools",
+                "lock_set": {
+                    "environment_name": "alignment-tools",
+                    "platform_locks": [
+                        {
+                            "lock_digest": SHA_A,
+                            "platform": "linux/amd64",
+                        }
+                    ],
+                },
+                "runtime_bindings": [
+                    {
+                        "binding_id": "alignment",
+                        "binding_kind": "package",
+                        "node_id": "alignment-node",
+                        "tool_id": "alignment",
+                        "tool_version": "1.0",
+                    }
+                ],
+            }
+        ],
+        "schema_version": 1,
+    }
+    assert value.canonical_json_bytes() == json.dumps(
+        expected,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
     assert b"catalog_digest" not in value.canonical_json_bytes()
     assert value.registry_digest() == registry.environment_registry_digest(value.canonical_json_bytes())
 
@@ -129,49 +183,203 @@ def test_one_byte_registry_mutation_changes_registry_digest() -> None:
     assert registry.environment_registry_digest(mutated) != registry.environment_registry_digest(content)
 
 
+def test_registry_is_derived_from_validated_node_spec_environment_and_runtime_binding() -> None:
+    spec = external_spec()
+    assert spec.environment is not None
+    assert spec.runtime_binding is not None
+
+    source = registry.derive_environment_registry((spec,))
+
+    assert len(source.environments) == 1
+    captured = source.environments[0]
+    assert captured.environment_id == spec.environment.environment_id
+    assert captured.environment_digest == spec.environment.environment_digest()
+    assert captured.lock_set.environment_name == spec.environment.locks[0].environment_name
+    assert captured.lock_set.platform_locks[0].lock_digest == spec.environment.locks[0].lock_digest()
+    assert captured.runtime_bindings == (
+        registry.EnvironmentRuntimeBinding(
+            node_id=spec.identity.machine_id,
+            tool_id=spec.runtime_binding.tool_id,
+            tool_version=spec.runtime_binding.tool_version,
+            binding_kind="package",
+            binding_id=spec.runtime_binding.package_name,
+        ),
+    )
+
+
+def test_registry_validation_rejects_zero_digest_substitution_for_same_environment_id() -> None:
+    spec = external_spec()
+    source = registry.derive_environment_registry((spec,))
+    captured = source.environments[0]
+    substituted = registry.EnvironmentRegistry(
+        schema_version=1,
+        environments=(
+            captured.model_copy(
+                update={
+                    "lock_set": captured.lock_set.model_copy(
+                        update={
+                            "platform_locks": (
+                                captured.lock_set.platform_locks[0].model_copy(
+                                    update={"lock_digest": "sha256:" + "0" * 64}
+                                ),
+                            )
+                        }
+                    )
+                }
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="NodeSpec|lock digest"):
+        registry.validate_environment_registry(substituted, (spec,))
+
+
+def test_registry_validation_rejects_environment_and_runtime_binding_substitution() -> None:
+    spec = external_spec()
+    source = registry.derive_environment_registry((spec,))
+    captured = source.environments[0]
+    substituted = registry.EnvironmentRegistry(
+        schema_version=1,
+        environments=(
+            captured.model_copy(
+                update={
+                    "environment_digest": "sha256:" + "0" * 64,
+                    "runtime_bindings": (
+                        captured.runtime_bindings[0].model_copy(update={"binding_id": "bcftools"}),
+                    ),
+                }
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="NodeSpec|environment digest|runtime"):
+        registry.validate_environment_registry(substituted, (spec,))
+
+
+def test_persisted_registry_decoder_requires_unique_canonical_versioned_json_bytes() -> None:
+    spec = external_spec()
+    content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
+    duplicate = content.replace(b'{"environments":', b'{"schema_version":1,"environments":', 1)
+    omitted_version = content.replace(b',"schema_version":1}', b'}', 1)
+
+    with pytest.raises(ValueError, match="duplicate JSON key: schema_version"):
+        registry.decode_environment_registry(duplicate, node_specs=(spec,))
+    with pytest.raises((ValidationError, ValueError), match="schema_version"):
+        registry.decode_environment_registry(omitted_version, node_specs=(spec,))
+    with pytest.raises(ValueError, match="canonical"):
+        registry.decode_environment_registry(content + b"\n", node_specs=(spec,))
+
+
+def test_request_admission_reopens_exact_registry_bytes_and_rejects_stale_or_tampered_content() -> None:
+    spec = external_spec()
+    source = registry.derive_environment_registry((spec,))
+    content = source.canonical_json_bytes()
+    selection = registry.WorkflowEnvironmentSelection(
+        environment_id=source.environments[0].environment_id,
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+    request = registry.compile_workflow_environment_request(
+        content,
+        (selection,),
+        node_specs=(spec,),
+    )
+    stale_content = source.model_copy(
+        update={
+            "environments": (
+                source.environments[0].model_copy(
+                    update={"environment_digest": "sha256:" + "0" * 64}
+                ),
+            )
+        }
+    ).canonical_json_bytes()
+
+    assert request.environments[0].environment_digest == spec.environment.environment_digest()
+    assert registry.admit_workflow_environment_request(
+        request,
+        registry_content=content,
+        node_specs=(spec,),
+    ) == request
+    with pytest.raises(ValueError, match="registry|digest|NodeSpec"):
+        registry.admit_workflow_environment_request(
+            request,
+            registry_content=stale_content,
+            node_specs=(spec,),
+        )
+
+
+def test_request_admission_rejects_forged_stored_raw_registry_digest() -> None:
+    spec = external_spec()
+    content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
+    request = registry.compile_workflow_environment_request(
+        content,
+        (
+            registry.WorkflowEnvironmentSelection(
+                environment_id=spec.environment.environment_id,
+                platform=ExecutionPlatform.LINUX_AMD64,
+            ),
+        ),
+        node_specs=(spec,),
+    )
+    forged = request.model_copy(update={"environment_registry_sha256": "sha256:" + "0" * 64})
+
+    with pytest.raises(ValueError, match="raw registry|digest"):
+        registry.admit_workflow_environment_request(
+            forged,
+            registry_content=content,
+            node_specs=(spec,),
+        )
+
+
 def test_workflow_request_compiler_is_stable_under_input_order_and_duplicates() -> None:
-    source = environment_registry()
+    specs = validated_node_specs()
+    source = registry.derive_environment_registry(specs)
+    content = source.canonical_json_bytes()
     first = registry.WorkflowEnvironmentSelection(
-        environment_id="env.python-analysis",
-        platform=ExecutionPlatform.LINUX_ARM64,
+        environment_id="samtools-runtime",
+        platform=ExecutionPlatform.LINUX_AMD64,
     )
     second = registry.WorkflowEnvironmentSelection(
-        environment_id="env.alignment-tools",
+        environment_id="bcftools-runtime",
         platform=ExecutionPlatform.LINUX_AMD64,
     )
 
-    forward = registry.compile_workflow_environment_request(source, (first, second, first))
-    reverse = registry.compile_workflow_environment_request(source, (second, first))
+    forward = registry.compile_workflow_environment_request(content, (first, second, first), node_specs=specs)
+    reverse = registry.compile_workflow_environment_request(content, (second, first), node_specs=specs)
 
     assert forward == reverse
     assert forward.canonical_json_bytes() == reverse.canonical_json_bytes()
     assert tuple(item.environment_id for item in forward.environments) == (
-        "env.alignment-tools",
-        "env.python-analysis",
+        "bcftools-runtime",
+        "samtools-runtime",
     )
-    assert forward.environment_registry_sha256 == source.registry_digest()
+    assert forward.environment_registry_sha256 == registry.environment_registry_digest(content)
 
 
 def test_workflow_request_projection_has_a_deterministic_cross_language_wire_shape() -> None:
-    source = registry.EnvironmentRegistry(schema_version=1, environments=(entry(),))
+    spec = external_spec()
+    assert spec.environment is not None
+    source = registry.derive_environment_registry((spec,))
+    content = source.canonical_json_bytes()
     request = registry.compile_workflow_environment_request(
-        source,
+        content,
         (
             registry.WorkflowEnvironmentSelection(
-                environment_id="env.alignment-tools",
+                environment_id=spec.environment.environment_id,
                 platform=ExecutionPlatform.LINUX_AMD64,
             ),
         ),
+        node_specs=(spec,),
     )
     expected = {
-        "environment_registry_sha256": source.registry_digest(),
+        "environment_registry_sha256": registry.environment_registry_digest(content),
         "environments": [
             {
-                "environment_id": "env.alignment-tools",
-                "environment_name": "alignment-tools",
+                "environment_digest": spec.environment.environment_digest(),
+                "environment_id": "samtools-runtime",
+                "environment_name": "samtools-runtime",
                 "lock_set_digest": source.environments[0].lock_set.lock_set_digest(),
                 "platform": "linux/amd64",
-                "platform_lock_digest": SHA_A,
+                "platform_lock_digest": spec.environment.locks[0].lock_digest(),
             }
         ],
         "schema_version": 1,
@@ -187,27 +395,31 @@ def test_workflow_request_projection_has_a_deterministic_cross_language_wire_sha
 
 
 def test_workflow_request_rejects_unknown_environment_or_unlocked_platform() -> None:
-    source = registry.EnvironmentRegistry(schema_version=1, environments=(entry(),))
+    spec = external_spec()
+    source = registry.derive_environment_registry((spec,))
+    content = source.canonical_json_bytes()
 
     with pytest.raises(ValueError, match="unknown environment"):
         registry.compile_workflow_environment_request(
-            source,
+            content,
             (
                 registry.WorkflowEnvironmentSelection(
                     environment_id="env.unknown",
                     platform=ExecutionPlatform.LINUX_AMD64,
                 ),
             ),
+            node_specs=(spec,),
         )
     with pytest.raises(ValueError, match="platform"):
         registry.compile_workflow_environment_request(
-            source,
+            content,
             (
                 registry.WorkflowEnvironmentSelection(
-                    environment_id="env.alignment-tools",
+                    environment_id="samtools-runtime",
                     platform=ExecutionPlatform.LINUX_ARM64,
                 ),
             ),
+            node_specs=(spec,),
         )
 
 
@@ -216,6 +428,7 @@ def test_workflow_request_rejects_unknown_environment_or_unlocked_platform() -> 
     (
         "EnvironmentPlatformLockBinding",
         "EnvironmentLockSetDescriptor",
+        "EnvironmentRuntimeBinding",
         "EnvironmentRegistryEntry",
         "EnvironmentRegistry",
         "WorkflowEnvironmentSelection",

@@ -28,3 +28,22 @@ def validate_pypi_wheel_identity(*, name: str, version: str, filename: str) -> N
         raise ValueError("PyPI artifact version must use canonical PEP 440 spelling")
     if str(wheel_version) != version:
         raise ValueError("PyPI wheel version does not match the locked package version")
+
+
+def parse_pypi_wheel_tags(filename: str) -> tuple[tuple[str, str, str], ...]:
+    """Return normalized wheel tag triples through the standards-backed parser."""
+
+    try:
+        _, _, _, tags = parse_wheel_filename(filename)
+    except InvalidWheelFilename as error:
+        raise ValueError("PyPI artifact must be a valid wheel filename") from error
+    return tuple(sorted((tag.interpreter, tag.abi, tag.platform) for tag in tags))
+
+
+def parse_python_runtime_release(version: str) -> tuple[int, ...]:
+    """Return the PEP 440 release tuple for a locked Python runtime version."""
+
+    try:
+        return Version(version).release
+    except InvalidVersion as error:
+        raise ValueError("locked Python runtime version must be valid PEP 440") from error

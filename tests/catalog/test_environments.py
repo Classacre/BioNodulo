@@ -220,13 +220,17 @@ def artifact(
 def platform_lock(
     platform: env.ExecutionPlatform = env.ExecutionPlatform.LINUX_AMD64,
 ) -> env.PlatformLock:
+    resolver_platform = "linux-64" if platform is env.ExecutionPlatform.LINUX_AMD64 else "linux-aarch64"
+    locked = artifact(
+        url=f"https://packages.example.org/{resolver_platform}/samtools-1.20-h50ea8bc_0.conda"
+    )
     return env.PlatformLock(
         platform=platform,
         environment_name="alignment-tools",
-        resolver_platform="linux-64" if platform is env.ExecutionPlatform.LINUX_AMD64 else "linux-aarch64",
+        resolver_platform=resolver_platform,
         resolver=resolver(),
         native_lock_sha256=SHA_C,
-        artifacts=(artifact(),),
+        artifacts=(locked,),
     )
 
 
@@ -269,6 +273,113 @@ def test_platform_lock_contains_exact_resolver_and_artifact_identity() -> None:
     assert lock.artifacts[0].sha256 == SHA_B
     assert re.fullmatch(r"sha256:[0-9a-f]{64}", lock.lock_digest())
     assert lock.lock_digest() == rebuilt.lock_digest()
+
+
+@pytest.mark.parametrize(
+    ("platform", "resolver_platform"),
+    (
+        (env.ExecutionPlatform.LINUX_AMD64, "linux-aarch64"),
+        (env.ExecutionPlatform.LINUX_ARM64, "linux-64"),
+    ),
+)
+def test_platform_lock_requires_exact_execution_to_resolver_platform_mapping(
+    platform: env.ExecutionPlatform,
+    resolver_platform: str,
+) -> None:
+    values = platform_lock(platform).model_dump(mode="python")
+    values["resolver_platform"] = resolver_platform
+
+    with pytest.raises(ValidationError, match="resolver platform.*platform"):
+        env.PlatformLock.model_validate(values)
+
+
+def test_package_environment_rejects_mixed_platform_lock_environment_names() -> None:
+    arm_lock = platform_lock(env.ExecutionPlatform.LINUX_ARM64).model_copy(
+        update={"environment_name": "other-environment"}
+    )
+
+    with pytest.raises(ValidationError, match="one environment_name|same environment_name"):
+        pixi_environment(locks=(platform_lock(), arm_lock))
+
+
+def test_platform_lock_rejects_conda_url_from_windows_subdir_on_linux() -> None:
+    windows = artifact(
+        url="https://packages.example.org/win-64/samtools-1.20-h50ea8bc_0.conda"
+    )
+
+    with pytest.raises(ValidationError, match="Conda.*platform|win-64"):
+        platform_lock().model_copy(update={"artifacts": (windows,)})
+
+
+def _python_wheel_lock(
+    wheel_filename: str,
+    *,
+    python_version: str,
+    platform: env.ExecutionPlatform = env.ExecutionPlatform.LINUX_AMD64,
+) -> env.PlatformLock:
+    resolver_platform = "linux-64" if platform is env.ExecutionPlatform.LINUX_AMD64 else "linux-aarch64"
+    wheel = pypi_artifact(
+        filename=wheel_filename,
+        url=f"https://files.pythonhosted.org/packages/{wheel_filename}",
+    )
+    python = artifact(
+        "python",
+        version=python_version,
+        build="h0_cpython",
+        digest=SHA_C,
+        url=f"https://packages.example.org/{resolver_platform}/python-{python_version}-h0_cpython.conda",
+    )
+    return env.PlatformLock(
+        platform=platform,
+        environment_name="python-analysis",
+        resolver_platform=resolver_platform,
+        resolver=resolver(),
+        native_lock_sha256=SHA_A,
+        artifacts=(wheel, python),
+    )
+
+
+def test_platform_lock_rejects_windows_wheel_on_linux() -> None:
+    with pytest.raises(ValidationError, match="wheel.*platform|win_amd64"):
+        _python_wheel_lock(
+            "numpy-1.26.4-cp311-cp311-win_amd64.whl",
+            python_version="3.11.9",
+        )
+
+
+@pytest.mark.parametrize(
+    ("wheel_filename", "python_version"),
+    (
+        ("numpy-1.26.4-cp313-cp313-manylinux_2_17_x86_64.whl", "3.11.9"),
+        ("numpy-1.26.4-cp311-cp311-manylinux_2_17_x86_64.whl", "3.13.1"),
+    ),
+)
+def test_platform_lock_rejects_wheel_for_different_locked_python_runtime(
+    wheel_filename: str,
+    python_version: str,
+) -> None:
+    with pytest.raises(ValidationError, match="wheel.*Python|runtime"):
+        _python_wheel_lock(wheel_filename, python_version=python_version)
+
+
+@pytest.mark.parametrize(
+    ("platform", "python_version"),
+    (
+        (env.ExecutionPlatform.LINUX_AMD64, "3.11.9"),
+        (env.ExecutionPlatform.LINUX_ARM64, "3.13.1"),
+    ),
+)
+def test_platform_lock_preserves_universal_wheels_for_supported_python_runtimes(
+    platform: env.ExecutionPlatform,
+    python_version: str,
+) -> None:
+    lock = _python_wheel_lock(
+        "numpy-1.26.4-py3-none-any.whl",
+        python_version=python_version,
+        platform=platform,
+    )
+
+    assert lock.artifacts[0].filename.endswith("py3-none-any.whl")
 
 
 def test_locked_artifact_union_roundtrips_by_explicit_kind() -> None:

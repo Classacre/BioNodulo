@@ -13,6 +13,8 @@ from urllib.parse import unquote, urlsplit
 from pydantic import Field, StringConstraints, ValidationInfo, field_validator, model_validator
 
 from bionodulo.nodes.contract._package_identity import (
+    parse_pypi_wheel_tags,
+    parse_python_runtime_release,
     validate_pypi_package_name,
     validate_pypi_wheel_identity,
 )
@@ -258,6 +260,43 @@ class ExecutionPlatform(StrEnum):
     LINUX_ARM64 = "linux/arm64"
 
 
+_RESOLVER_PLATFORM_BY_EXECUTION = {
+    ExecutionPlatform.LINUX_AMD64: "linux-64",
+    ExecutionPlatform.LINUX_ARM64: "linux-aarch64",
+}
+
+
+def _wheel_tag_matches_platform(tag_platform: str, platform: ExecutionPlatform) -> bool:
+    if tag_platform == "any":
+        return True
+    if not tag_platform.startswith(("linux_", "manylinux", "musllinux")):
+        return False
+    if platform is ExecutionPlatform.LINUX_AMD64:
+        return tag_platform.endswith("_x86_64")
+    return tag_platform.endswith(("_aarch64", "_arm64"))
+
+
+def _wheel_tag_matches_python(
+    interpreter: str,
+    abi: str,
+    runtime_version: tuple[int, int],
+) -> bool:
+    if interpreter.startswith("py"):
+        digits = interpreter[2:]
+        if digits == str(runtime_version[0]):
+            return True
+    elif interpreter.startswith("cp"):
+        digits = interpreter[2:]
+    else:
+        return False
+    if not digits.isdigit() or len(digits) < 2:
+        return False
+    tagged_version = (int(digits[0]), int(digits[1:]))
+    if abi == "abi3":
+        return tagged_version[0] == runtime_version[0] and tagged_version <= runtime_version
+    return tagged_version == runtime_version
+
+
 class PackageRequirement(_StrictFrozenModel):
     """A deliberately small exact-or-bounded package request."""
 
@@ -414,6 +453,11 @@ class PlatformLock(_StrictFrozenModel):
 
     @model_validator(mode="after")
     def _validate_artifacts(self) -> Self:
+        expected_resolver_platform = _RESOLVER_PLATFORM_BY_EXECUTION[self.platform]
+        if self.resolver_platform != expected_resolver_platform:
+            raise ValueError(
+                f"resolver platform must be {expected_resolver_platform} for execution platform {self.platform.value}"
+            )
         names = tuple(artifact.name for artifact in self.artifacts)
         if len(set(names)) != len(names):
             raise ValueError("locked artifact names must be unique")
@@ -426,6 +470,41 @@ class PlatformLock(_StrictFrozenModel):
         ):
             if len(set(identities)) != len(identities):
                 raise ValueError(f"locked artifact {label} must be unique")
+        for artifact in self.artifacts:
+            if isinstance(artifact, CondaLockedArtifact):
+                url_subdir = urlsplit(artifact.url).path.rsplit("/", 2)[-2]
+                if url_subdir not in (expected_resolver_platform, "noarch"):
+                    raise ValueError(
+                        f"Conda artifact URL subdir {url_subdir} does not match selected platform "
+                        f"{expected_resolver_platform}"
+                    )
+        wheels = tuple(artifact for artifact in self.artifacts if isinstance(artifact, PypiLockedArtifact))
+        if wheels:
+            python = next(
+                (
+                    artifact
+                    for artifact in self.artifacts
+                    if isinstance(artifact, CondaLockedArtifact) and artifact.name == "python"
+                ),
+                None,
+            )
+            if python is None:
+                raise ValueError("PyPI wheel admission requires a locked Python runtime artifact")
+            runtime_release = parse_python_runtime_release(python.version)
+            if len(runtime_release) < 2:
+                raise ValueError("locked Python runtime must declare major and minor versions")
+            runtime_version = (runtime_release[0], runtime_release[1])
+            for wheel in wheels:
+                tags = parse_pypi_wheel_tags(wheel.filename)
+                if not any(
+                    _wheel_tag_matches_platform(tag_platform, self.platform)
+                    and _wheel_tag_matches_python(interpreter, abi, runtime_version)
+                    for interpreter, abi, tag_platform in tags
+                ):
+                    raise ValueError(
+                        f"PyPI wheel {wheel.filename} is incompatible with execution platform "
+                        f"{self.platform.value} and locked Python {python.version}"
+                    )
         return self
 
     def lock_digest(self) -> str:
@@ -541,6 +620,13 @@ class ContainerImageLock(_StrictFrozenModel):
     def _validate_image(cls, value: str) -> str:
         return _validate_oci_reference(value)
 
+    @model_validator(mode="after")
+    def _validate_platform_identity(self) -> Self:
+        expected = _RESOLVER_PLATFORM_BY_EXECUTION[self.platform]
+        if self.resolver_platform != expected:
+            raise ValueError(f"resolver platform must be {expected} for execution platform {self.platform.value}")
+        return self
+
     def lock_digest(self) -> str:
         return _canonical_digest(self)
 
@@ -577,6 +663,8 @@ class _LockedPackageEnvironment(_EnvironmentBase):
     def _validate_platform_locks(self) -> Self:
         lock_platforms = tuple(lock.platform.value for lock in self.locks)
         _validate_unique_ordered_strings(lock_platforms, label="lock platforms")
+        if len({lock.environment_name for lock in self.locks}) > 1:
+            raise ValueError("all PlatformLocks in one environment must share the same environment_name")
         declared = set(self.platforms)
         if any(lock.platform not in declared for lock in self.locks):
             raise ValueError("locks may cover only declared platforms")
