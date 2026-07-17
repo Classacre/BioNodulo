@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml  # type: ignore[import-untyped]
+from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
@@ -109,7 +110,7 @@ def _requirement_is_active(requirement: Requirement, marker_environment: dict[st
     assert not any(name in marker_text for name in UNAVAILABLE_TARGET_MARKERS), (
         "boto3 dependency marker uses target values unavailable from pixi.lock"
     )
-    return requirement.marker.evaluate(environment=marker_environment, context="metadata")
+    return requirement.marker.evaluate(environment=marker_environment)
 
 
 def _active_boto3_dependency_closure(
@@ -311,6 +312,18 @@ def test_worker_manifest_declares_bounded_boto3_runtime() -> None:
     manifest = tomllib.loads((REPOSITORY_ROOT / "pixi.toml").read_text(encoding="utf-8"))
 
     assert manifest["pypi-dependencies"]["boto3"] == BOTO3_SPEC
+
+
+def test_boto3_stack_guard_uses_packaging_floor_marker_signature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_evaluate = Marker.evaluate
+
+    def floor_evaluate(self: Marker, environment: dict[str, str] | None = None) -> bool:
+        return current_evaluate(self, environment=environment)
+
+    monkeypatch.setattr(Marker, "evaluate", floor_evaluate)
+    _assert_universal_boto3_stack((REPOSITORY_ROOT / "pixi.lock").read_bytes())
 
 
 def test_boto3_stack_guard_rejects_cross_environment_artifact_divergence() -> None:
