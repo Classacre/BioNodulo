@@ -13,7 +13,7 @@
 ## Execution Preconditions
 
 - Tasks 1-2 are shared foundation work and are owned by the catalog integration owner, not a family agent.
-- Tasks 3-4 run only after the migration queue has independent specification and quality approval and its reviewed commit is integrated into this branch. The approved queue is commit `05db7fe84656624ae85abde713988d28f541c520`, whose canonical queue digest is `sha256:e3930ac5de25d18b2d70340c680adc4de318a39240abc2b18859ccefa84486fd`, rules digest is `sha256:76ff27225d51f5b0cbb0a58361b7c0419bc77cd4db39617617ab81274157e6c2`, and artifact file SHA-256 is `34e1a5a6cc1811ffc23a49b08819b09f1d782b074b711c8be02f92b90052c781`. If any identity changes after integration, amend this plan before execution.
+- Tasks 3-4 run only after the migration queue has independent specification and quality approval and its reviewed commit is merged into this branch as preserved ancestry. The approved queue is commit `05db7fe84656624ae85abde713988d28f541c520`, whose canonical queue digest is `sha256:e3930ac5de25d18b2d70340c680adc4de318a39240abc2b18859ccefa84486fd`, rules digest is `sha256:76ff27225d51f5b0cbb0a58361b7c0419bc77cd4db39617617ab81274157e6c2`, and artifact file SHA-256 is `34e1a5a6cc1811ffc23a49b08819b09f1d782b074b711c8be02f92b90052c781`. Do not cherry-pick that commit, copy its artifact, or regenerate a replacement. Before Task 3, `git merge-base --is-ancestor 05db7fe84656624ae85abde713988d28f541c520 HEAD` must exit zero, all 943 assignments must still have `disposition == "quarantined"` and `contract_status == "evidence_pending"`, and all three reviewed identities must match. If any identity or queue state changes after the ancestry merge, amend and re-review this plan before execution.
 - Use the existing repository environment from this linked worktree through `../../.venv/bin/python`, `../../.venv/bin/ruff`, and `../../.venv/bin/mypy`. Do not create a second environment inside the worktree.
 - The pinned upstream repository is available read-only at `/tmp/bionodulo-samtools-1.23.1`. Do not fetch, build, install, or run Samtools on this host.
 
@@ -64,7 +64,7 @@ Tests must be RED for every behavior before implementation:
 ```python
 def test_source_lock_requires_canonical_order_and_closed_fields() -> None:
     value = minimal_lock()
-    value["operations"] = list(reversed(value["operations"]))
+    value["operations"] = tuple(reversed(value["operations"]))
     with pytest.raises(ValueError, match="operations.*canonical"):
         ToolSourceLock.model_validate(value)
 
@@ -91,10 +91,12 @@ def test_tag_pin_is_a_closed_discriminated_union() -> None:
 
 def test_command_bindings_are_unique_but_operations_may_reuse_them() -> None:
     value = minimal_lock()
-    value["operations"].append(
-        {"node_id": "second_node", "upstream_commands": ["view"]}
+    value["operations"] += (
+        {"node_id": "second_node", "upstream_commands": ("view",)},
     )
-    value["operations"].sort(key=lambda item: item["node_id"])
+    value["operations"] = tuple(
+        sorted(value["operations"], key=lambda item: item["node_id"])
+    )
     lock = ToolSourceLock.model_validate(value)
     assert [item.upstream_commands for item in lock.operations] == [("view",), ("view",)]
 
@@ -111,9 +113,27 @@ def test_source_lock_collections_are_deeply_immutable() -> None:
 
     with pytest.raises((AttributeError, TypeError, ValidationError)):
         lock.operations += lock.operations
+
+
+@pytest.mark.parametrize("schema_version", (True, "1"))
+def test_schema_version_rejects_bool_and_string_coercion(schema_version: object) -> None:
+    value = minimal_lock()
+    value["schema_version"] = schema_version
+
+    with pytest.raises(ValidationError):
+        ToolSourceLock.model_validate(value)
+
+
+def test_model_copy_uses_the_repository_validated_copy_contract() -> None:
+    lock = ToolSourceLock.model_validate(minimal_lock())
+
+    with pytest.raises(ValidationError):
+        lock.model_copy(update={"schema_version": "1"})
 ```
 
-Also test duplicate source IDs, repository paths, command IDs, node IDs, and per-item references; missing/orphan references; noncanonical arrays; traversal paths; wrong source roles; malformed URLs/digests/Git IDs; duplicate roles; and self-consistent unknown fields. One source ID and one command binding may be referenced by many command or operation bindings.
+`minimal_lock()` and every other Python-mode fixture use tuples for tuple-typed fields. Add RED showing that direct `ToolSourceLock.model_validate()` rejects Python lists rather than silently converting them. Canonical JSON arrays are covered separately through `load_tool_source_lock()`.
+
+Also test duplicate source IDs, repository paths, command IDs, node IDs, and per-item references; missing/orphan references; noncanonical arrays; traversal paths; wrong source roles; malformed URLs/digests/Git IDs; duplicate roles; and self-consistent unknown fields. Add explicit RED for empty `source_files`, `command_bindings`, and `operations`, plus empty nested `roles`, `documentation_source_ids`, and `upstream_commands`; zero-length and over-128-byte `tool_version`; and each unsafe key `__proto__`, `prototype`, or `constructor` nested inside every accepted JSON object shape, not only at the top level. One source ID and one command binding may be referenced by many command or operation bindings.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -125,7 +145,7 @@ Expected: collection fails because `bionodulo.nodes.catalog.source_lock` does no
 
 - [ ] **Step 3: Implement strict immutable models**
 
-Create frozen `extra="forbid"` models with these exact fields:
+Build every source-lock model on the repository's `_StrictFrozenModel` validated-copy contract, not directly on Pydantic `BaseModel`. That base supplies frozen, strict, `extra="forbid"`, `validate_default=True`, `revalidate_instances="always"` models and a repository-owned `model_copy()` override that dumps, applies updates, and calls `type(self).model_validate(...)`. Stock Pydantic `model_copy(update=...)` does not validate; do not rely on or imply otherwise. Create models with these exact fields:
 
 ```text
 AnnotatedTagPin
@@ -170,18 +190,22 @@ ToolSourceLock
 
 Validation requirements:
 
+- `schema_version` is the strict integer literal `1`; boolean `True` and string `"1"` are invalid in Python and JSON inputs.
 - Git object IDs are exactly 40 lowercase hexadecimal characters.
 - Tool IDs, source IDs, and command IDs match `^[a-z][a-z0-9_.-]{0,127}$` in ASCII.
+- `tool_version` reuses the repository `ExactVersion` and `_validate_exact_version` contract: 1-128 characters, an exact upstream version, and never an unbounded or mutable marker such as `latest`.
 - Stable node IDs are 1-128 printable ASCII bytes with no outer whitespace and match `^[\x21-\x7e](?:[\x20-\x7e]{0,126}[\x21-\x7e])?$`; Task 4 additionally requires exact baseline-ledger membership.
 - A release tag is at most 128 ASCII bytes and matches `^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$`; it must also pass `git check-ref-format` when verified. Do not reject names based on words such as `latest`; exact ref/object identity is the source-lock guarantee.
 - Repository URL is canonical HTTPS with no credentials, query, fragment, escapes, or mutable branch field.
 - Repository paths are unique ASCII repository-relative POSIX paths of at most 1,024 bytes with no empty, dot, traversal, control, or backslash components.
 - SHA-256 values use `sha256:` plus 64 lowercase hexadecimal characters.
-- Source files sort by `source_id`; commands by `command`; operations by `node_id`; source roles, documentation source IDs, and upstream commands are unique sorted tuples.
+- `source_files`, `command_bindings`, `operations`, `roles`, `documentation_source_ids`, and `upstream_commands` are all nonempty. Source files sort by `source_id`; commands by `command`; operations by `node_id`; source roles, documentation source IDs, and upstream commands are unique sorted tuples.
 - Every source and command binding is referenced at least once. A source may serve multiple roles and bindings. Each command has one binding, while any number of operations may reuse that binding.
 - Every reference resolves. Documentation references require a documentation role, implementation references require an implementation role, and the dispatcher source requires a dispatcher role.
 - `canonical_source_lock_bytes()` uses ASCII canonical JSON with sorted keys, compact separators, no NaN, and one trailing newline. `lock_digest()` hashes those exact bytes.
-- `load_tool_source_lock()` accepts at most 1 MiB, rejects BOM/non-UTF-8/duplicate keys/unsafe keys/depth over 64, validates schema version explicitly, and requires the supplied bytes to equal canonical bytes.
+- `load_tool_source_lock()` accepts at most 1 MiB, rejects BOM/non-UTF-8/duplicate keys/depth over 64, rejects `__proto__`, `prototype`, and `constructor` recursively at every object depth, validates schema version explicitly without coercion, and requires the supplied bytes to equal canonical bytes.
+- Preserve strict Python-mode tuple validation. After the bounded duplicate-key/unsafe-key/depth preflight, parse the same raw bytes with Pydantic JSON mode (`ToolSourceLock.model_validate_json(...)`) so canonical JSON arrays become immutable tuples without making Python `model_validate()` accept lists. If implementation constraints require `mode="before"` validators instead, gate them narrowly to loader-supplied JSON context and add RED proving direct Python list inputs still fail.
+- Add regression tests showing the inherited repository `model_copy()` rejects invalid scalar and nested updates, including `schema_version="1"` and an empty required collection. Never use an unvalidated Pydantic copy to build fixtures or trusted results.
 
 - [ ] **Step 4: Run focused tests and commit**
 
@@ -209,7 +233,7 @@ Create temporary Git repositories with annotated and lightweight tags. Before pr
 ```python
 def test_verify_source_lock_reads_exact_git_objects_without_mutation(tmp_path: Path) -> None:
     repository, lock_path, expected_commit = tagged_fixture_repository(tmp_path)
-    before = git_status(repository)
+    before = repository_snapshot(repository)
 
     lock = load_tool_source_lock(lock_path.read_bytes())
     verified = verify_tool_source_lock(repository, lock)
@@ -220,7 +244,7 @@ def test_verify_source_lock_reads_exact_git_objects_without_mutation(tmp_path: P
     assert tuple(verified.source_bytes) == tuple(source.source_id for source in lock.source_files)
     with pytest.raises(TypeError):
         verified.source_bytes[lock.source_files[0].source_id] = b"forged"
-    assert git_status(repository) == before
+    assert repository_snapshot(repository) == before
 
 
 def test_verify_source_lock_rejects_wrong_tag_object_or_file_digest(tmp_path: Path) -> None:
@@ -235,9 +259,17 @@ def test_verify_source_lock_rejects_wrong_tag_object_or_file_digest(tmp_path: Pa
         verify_tool_source_lock(repository, ToolSourceLock.model_validate(value))
 ```
 
-Additional RED tests must cover: lightweight tag with an unexpected ref target; invalid ref syntax containing `~`, `^`, `:`, `@{`, or `..`; injected `GIT_DIR`, `GIT_WORK_TREE`, object directory, alternate object directory, namespace, and replace-ref environment variables; active replace objects; Git timeout; stderr overflow; a source blob over 8 MiB; aggregate verified source bytes over 64 MiB; more than 4,096 source files; and a changed working tree that remains byte-for-byte unchanged after verification.
+`repository_snapshot()` must not be a `git status` alias. For these bounded temporary fixtures it records every worktree entry, including ignored and untracked files, and the resolved Git directory and common Git directory, including path, file type, permission bits, symlink target or regular-file digest, `HEAD`, refs, `packed-refs`, index/config/log metadata, lock files, and every object-database entry. Exclude access time only. Compare this snapshot before and after every success, mismatch, timeout, and bound failure so ignored-file, ref, metadata, and object-database writes are detectable.
 
-Write CLI tests in this same RED batch. Import the not-yet-created verifier functions inside individual tests rather than at collection time, so the CLI subprocess cases execute while the verifier is still RED. A temporary-repository success case must assert exact stdout and an unchanged worktree. Separate cases must assert noncanonical lock bytes, a source mismatch, and a tag mismatch exit nonzero without writing. Invoke `scripts/verify_tool_source_lock.py` through `subprocess.run()` before that script exists and record the expected RED failure.
+Additional RED tests must cover: lightweight tag with an unexpected ref target; invalid ref syntax containing `~`, `^`, `:`, `@{`, or `..`; injected `GIT_DIR`, `GIT_WORK_TREE`, object directory, alternate object directory, namespace, replace-ref, `GIT_CONFIG*`, `GIT_TRACE*`, and `GIT_TRACE2*` environment variables; active replace objects; exact child-environment equality in a recording fake-Git process, including `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, and `GIT_NO_REPLACE_OBJECTS=1` on every invocation; hostile trace targets remaining absent; a missing promisor object failing without any remote invocation; Git per-command timeout; a total aggregate deadline exceeded by individually sub-timeout commands; stdout or stderr overflow; a source blob over 8 MiB; aggregate verified source bytes over 64 MiB; more than 4,096 source files; a `120000 blob` symlink and a `100755 blob` executable where only `100644 blob` is allowed; attempted bytecode/cache creation; and a changed working tree that remains byte-for-byte unchanged after verification. Every case uses the full repository snapshot rather than claiming `git status` covers ignored files, refs, repository metadata, or objects.
+
+Write CLI tests in this same RED batch. Import the not-yet-created verifier functions inside individual tests rather than at collection time, so the CLI subprocess cases execute while the verifier is still RED. Invoke every Python subprocess with `PYTHONDONTWRITEBYTECODE=1` and an isolated cache prefix outside the repository, and assert the repository snapshot is unchanged. A temporary-repository success case must assert exit zero, empty stderr, and exact stdout in this format, including its one trailing newline:
+
+```text
+<tool_id> <tool_version>: <verified_files> source file identities verified at <commit>; <declared_commands> commands and <declared_operations> operations declared; lock <lock_digest>
+```
+
+Separate cases must assert an over-1-MiB lock, noncanonical lock bytes, a source mismatch, a tag mismatch, a per-command timeout, and aggregate-deadline exhaustion all exit `1`, produce empty stdout, emit one exact sanitized error line on stderr, and show no traceback or write. Pin exact messages in the tests, including `source-lock verification failed: lock exceeds 1048576 bytes\n`, `source-lock verification failed: lock bytes are not canonical\n`, `source-lock verification failed: content digest mismatch for <source_id>\n`, `source-lock verification failed: tag ref target mismatch\n`, and `source-lock verification failed: aggregate verification deadline exceeded\n`. An argparse usage error may retain argparse's exit `2`. Invoke `scripts/verify_tool_source_lock.py` through `subprocess.run()` before that script exists and record the expected RED failure.
 
 - [ ] **Step 2: Run verifier tests and verify RED**
 
@@ -249,7 +281,9 @@ Expected: failures are caused by missing verifier and CLI behavior, not malforme
 
 - [ ] **Step 3: Implement safe read-only verification**
 
-All subprocesses use an explicit executable argument array, a ten-second timeout, bounded stderr, and a sanitized environment. Set `GIT_NO_REPLACE_OBJECTS=1`, use `git --no-replace-objects -C <repo>`, remove inherited repository/object/namespace/config-selection `GIT_*` variables, and never interpolate a revision expression from unchecked text.
+Resolve the Git executable from the trusted `os.defpath` once, then invoke its absolute path with an explicit argument array. Build the child environment from an explicit minimal mapping rather than copying or filtering `os.environ`: fixed `PATH=os.defpath`, `LC_ALL=C`, `LANG=C`, an isolated non-repository `HOME`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL` pointing to `os.devnull`, `GIT_NO_REPLACE_OBJECTS=1`, `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`, and `PYTHONDONTWRITEBYTECODE=1`. Do not inherit any other `GIT_*` variable, especially repository/object/namespace/config selection, `GIT_CONFIG*`, `GIT_TRACE*`, or `GIT_TRACE2*`. Use `git --no-replace-objects -C <repo>` and never interpolate a revision expression from unchecked text.
+
+Each Git process has a ten-second cap and bounded stdout/stderr capture; non-blob plumbing output and stderr are each capped at 64 KiB. The entire `verify_tool_source_lock()` call has one monotonic 60-second aggregate deadline covering ref checks and all source reads. Before every process, pass `min(10 seconds, aggregate time remaining)` and fail before launching when no time remains. Stream bounded outputs and terminate/reap on timeout or overflow; never use an unbounded `subprocess.run(capture_output=True)` path.
 
 Verification sequence:
 
@@ -258,23 +292,24 @@ git check-ref-format refs/tags/<release_tag>
 git show-ref --verify --hash refs/tags/<release_tag>
 git cat-file -t <exact object ID>
 git rev-parse --verify <exact annotated tag object>^{commit}
-git cat-file -s <exact commit>:<validated repository path>
-git cat-file blob <exact commit>:<validated repository path>
+git --literal-pathspecs ls-tree -z --full-tree <exact commit> -- <validated repository path>
+git cat-file -s <exact blob ID from ls-tree>
+git cat-file blob <exact blob ID from ls-tree>
 ```
 
-Use `--end-of-options` and `--` where supported. For an annotated pin, the exact ref target must equal `tag_object`, `cat-file -t` must return `tag`, and peeling must equal `commit`. For a lightweight pin, the exact ref target and object type must be the declared `commit`. Check size before reading, stream/hash at most 8 MiB per blob and 64 MiB across the lock, and compare every SHA-256. The verifier does not parse a language or assert biological/CLI semantics.
+Use `--end-of-options`, `--literal-pathspecs`, and `--` where supported. For an annotated pin, the exact ref target must equal `tag_object`, `cat-file -t` must return `tag`, and peeling must equal `commit`. For a lightweight pin, the exact ref target and object type must be the declared `commit`. Parse the NUL-delimited `ls-tree` record structurally, require exactly one record for the exact repository path, and require exact tree identity `100644 blob <40-lowercase-hex-object-id>`; a symlink is also a Git blob but mode `120000` and must fail, as must executable mode `100755`. Read by the resulting exact blob ID. Check size before reading, stream/hash at most 8 MiB per blob and 64 MiB across the lock, allow at most 4,096 files, and compare every SHA-256 within the aggregate deadline. The verifier does not parse a language or assert biological/CLI semantics.
 
-Return `VerifiedToolSources`, a frozen result containing the exact validated `ToolSourceLock` value, a strict `SourceLockVerificationReport`, and a read-only source-ID-to-`bytes` mapping. Production code constructs it only inside `verify_tool_source_lock()`; downstream consumers nevertheless recheck its lock/report digest invariant rather than treating Python constructor privacy as a security boundary. Every value is a fresh immutable `bytes` snapshot covered by the checked digest, and the mapping is a `MappingProxyType` over a fresh dictionary with the same 8 MiB per-file and 64 MiB aggregate bounds. The report contains only tool/version, tag kind, optional tag object, commit, lock digest, verified file count, declared command count, and declared operation count. Tests require `verified.lock.lock_digest() == verified.report.lock_digest`, tuple-backed nested lock collections, frozen nested models, and assignment failure for the returned byte mapping. The generic CLI discards source contents after printing the report; family verifiers consume the complete result synchronously without reopening paths.
+Return `VerifiedToolSources`, a frozen result containing the exact validated `ToolSourceLock` value, a strict `SourceLockVerificationReport`, and a read-only source-ID-to-`bytes` mapping. Production code constructs it only inside `verify_tool_source_lock()`; downstream consumers nevertheless recheck its full integrity rather than treating Python constructor privacy as a security boundary. The mapping's keys must equal the lock's exact canonical source-ID sequence with no missing, extra, reordered, or substituted ID, and each fresh immutable `bytes` value must be rehashed against that source file's declared `content_sha256` before the result is returned. Use a `MappingProxyType` over a fresh dictionary with the same 8 MiB per-file and 64 MiB aggregate bounds. The report contains only tool/version, tag kind, optional tag object, commit, lock digest, verified file count, declared command count, and declared operation count. Tests require the exact source ID/bytes/digest binding, `verified.lock.lock_digest() == verified.report.lock_digest`, tuple-backed nested lock collections, frozen nested models, and assignment failure for the returned byte mapping. Lock/report digest equality alone is insufficient because it does not authenticate a replaceable `source_bytes` field. The generic CLI discards source contents after printing the report; family verifiers consume the complete result synchronously without reopening paths.
 
 - [ ] **Step 4: Implement and test the non-writing CLI**
 
 ```bash
-../../.venv/bin/python scripts/verify_tool_source_lock.py \
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python scripts/verify_tool_source_lock.py \
   --repository /path/to/upstream/git/repository \
   --lock bionodulo/nodes/catalog/tools/samtools/source-lock.json
 ```
 
-The CLI loads exact canonical bytes, verifies the repository, prints one summary line, exits nonzero on any mismatch, and never writes or fetches.
+The CLI opens only a regular lock file once, calls `read(1_048_577)`, and rejects overflow without `Path.read_bytes()` or another unbounded read. It loads exact canonical bytes, verifies the repository, and implements the exact stdout/stderr/exit contract from Step 1. Set `sys.dont_write_bytecode = True` before either CLI imports project modules, and set `PYTHONDONTWRITEBYTECODE=1` in every documented and test invocation. The CLI never writes, locks, lazily fetches, creates bytecode, or creates cache files in either repository.
 
 - [ ] **Step 5: Run focused checks and commit**
 
@@ -298,17 +333,17 @@ git commit -m "feat(catalog): verify pinned upstream git sources"
 
 - [ ] **Step 1: Write all dispatcher and opaque-marker tests**
 
-The family verifier accepts only compiler-owned bytes already verified by the generic source lock. It parses the pinned `bamtk.c` `else if` dispatch chain into literal command-to-entrypoint mappings, including multi-name branches such as `fasta`/`fastq` and `idxstat`/`idxstats`.
+The family verifier accepts only compiler-owned bytes already verified by the generic source lock. It parses the pinned `bamtk.c` `else if` dispatch chain into literal command-to-entrypoint mappings, including multi-name branches such as `fasta`/`fastq` and `idxstat`/`idxstats`. The dispatcher contains aliases and unrelated commands beyond the lock's selected 23; equality means that the lock's exact 23 command names and entrypoints equal those same 23 entries selected from the parsed dispatcher, not that the 23-command lock equals the entire `bamtk.c` command set.
 
-Before implementation, record RED for exact 23-command equality, missing/duplicate/ambiguous dispatcher entries, missing opaque implementation markers, a forged lock/result digest mismatch, and the wrapper CLI's success/mismatch/non-writing paths. Test empty, control-containing, over-128-byte, and metacharacter entrypoints against `^[A-Za-z_][A-Za-z0-9_]{0,127}$`. Do not import the not-yet-created family module at test-collection time: import it inside each test or fixture so the CLI subprocess RED cases also execute. Include these regressions:
+Before implementation, record RED for exact lock-selected 23-command equality, missing/duplicate/ambiguous selected dispatcher entries, missing opaque implementation markers, a forged lock/result digest mismatch, missing/extra/reordered source-byte keys, a forged source-byte value, and the wrapper CLI's success/mismatch/non-writing paths. Test empty, control-containing, over-128-byte, and metacharacter entrypoints against `^[A-Za-z_][A-Za-z0-9_]{0,127}$`. Do not import the not-yet-created family module at test-collection time: import it inside each test or fixture so the CLI subprocess RED cases also execute. Include these regressions:
 
-`verified_sources_for()` is a test-only helper in this file. It starts from the complete valid synthetic Samtools lock fixture, replaces its canonical `command_bindings` tuple with the supplied bindings, recalculates canonical lock bytes/digest through the real model, and calls the real generic verifier against the temporary pinned Git fixture. It never fabricates a `SourceLockVerificationReport` or byte mapping.
+`validated_update()` is a test-only helper that mirrors the repository `_StrictFrozenModel` validated-copy implementation: dump with `mode="python", round_trip=True`, apply the update, then call `type(value).model_validate(...)`. It does not call stock Pydantic `BaseModel.model_copy(update=...)` or suggest that stock Pydantic copies revalidate. `verified_sources_for()` starts from the complete valid synthetic Samtools lock fixture, replaces its canonical `command_bindings` tuple through `validated_update()`, recalculates canonical lock bytes/digest through the real model, and calls the real generic verifier against the temporary pinned Git fixture. It never fabricates a `SourceLockVerificationReport` or byte mapping.
 
 ```python
 def test_swapped_samtools_command_binding_is_rejected(verified_sources) -> None:
     bindings = valid_command_bindings()
-    bindings["sort"] = bindings["sort"].model_copy(
-        update={"entrypoint": bindings["view"].entrypoint}
+    bindings["sort"] = validated_update(
+        bindings["sort"], entrypoint=bindings["view"].entrypoint
     )
     verified = verified_sources_for(command_bindings=bindings)
 
@@ -319,12 +354,32 @@ def test_swapped_samtools_command_binding_is_rejected(verified_sources) -> None:
 def test_samtools_verifier_rejects_a_lock_from_another_verified_result(
     verified_sources,
 ) -> None:
-    other_lock = verified_sources.lock.model_copy(update={"tool_version": "1.23.0"})
+    other_lock = validated_update(verified_sources.lock, tool_version="1.23.0")
     forged = dataclasses.replace(verified_sources, lock=other_lock)
 
     with pytest.raises(SamtoolsSourceBindingError, match="lock digest"):
         verify_samtools_source_bindings(forged)
+
+
+def test_samtools_verifier_rehashes_forged_source_bytes(verified_sources) -> None:
+    forged_bytes = dict(verified_sources.source_bytes)
+    forged_bytes[verified_sources.lock.dispatcher_source_id] = b"forged dispatcher\n"
+    forged = dataclasses.replace(
+        verified_sources,
+        source_bytes=MappingProxyType(forged_bytes),
+    )
+
+    with pytest.raises(SamtoolsSourceBindingError, match="source bytes.*digest"):
+        verify_samtools_source_bindings(forged)
 ```
+
+The wrapper CLI success case asserts exit zero, empty stderr, and exactly one stdout line with one trailing newline:
+
+```text
+<tool_id> <tool_version>: <verified_files> files and <selected_lock_commands> dispatcher commands verified; <declared_operations> operations declared at <commit>
+```
+
+Every family mismatch, integrity failure, timeout, or bound failure exits `1`, leaves stdout empty, and emits exactly `samtools source-lock verification failed: <stable error>\n` on stderr. The same bounded lock-read, bytecode suppression, aggregate deadline, and full repository-snapshot assertions used by the generic CLI apply here.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -336,16 +391,28 @@ Expected: the Samtools verifier and wrapper CLI do not exist.
 
 - [ ] **Step 3: Implement the narrow family verifier**
 
-`parse_samtools_dispatcher()` is intentionally specific to the pinned `bamtk.c` structure. It returns literal command names and entrypoint identifiers and rejects any unparsed or ambiguous selected branch. `verify_samtools_source_bindings()` accepts only the exact immutable `VerifiedToolSources` result, first recomputes `verified.lock.lock_digest()` and requires equality with `verified.report.lock_digest`, then consumes command, dispatcher, and implementation metadata only from `verified.lock`. It requires every lock command to map to the declared entrypoint and never accepts separately supplied bindings or reopens a file. It then performs one downgraded opaque sanity check: the exact line prefix `int <entrypoint>(` occurs once in the declared, hash-verified implementation bytes. This marker is not called a C parser or evidence proof. A subsequent evidence compiler must use language-aware symbol selection or exact content locators before a node can pass `evidence_verified`.
+`parse_samtools_dispatcher()` is intentionally specific to the pinned `bamtk.c` structure. It returns literal command names and entrypoint identifiers and rejects any unparsed or ambiguous selected branch. `verify_samtools_source_bindings()` accepts only the exact immutable `VerifiedToolSources` result and performs all integrity checks before dispatcher or entrypoint parsing: recompute `verified.lock.lock_digest()` and require equality with `verified.report.lock_digest`; require `tuple(verified.source_bytes)` to equal exactly the canonical source-ID tuple from `verified.lock.source_files`; then rehash every byte value and compare it with that source file's `content_sha256`. Missing, extra, reordered, non-`bytes`, oversized, aggregate-oversized, or digest-mismatched values fail. Lock/report digest equality alone is insufficient.
 
-`scripts/verify_samtools_source_lock.py` is the composed entrypoint: load canonical lock bytes, run generic Git verification, pass the complete returned result to `verify_samtools_source_bindings()`, then print a summary that distinguishes 44 verified file identities, 23 verified dispatcher command bindings, and 27 declared operation mappings. The generic CLI reports file identity only and must not claim that Samtools command dispatch was verified.
+Only after those checks, consume command, dispatcher, and implementation metadata from `verified.lock`; never accept separately supplied bindings or reopen a file. Parse all discoverable dispatcher branches, select by the lock's exact 23 command names, and require that selected 23-name-to-entrypoint mapping to equal the lock mapping. Additional `bamtk.c` aliases or unrelated commands remain outside the equality comparison. Then perform one downgraded opaque sanity check: the exact line prefix `int <entrypoint>(` occurs once in the declared, hash-verified implementation bytes. This marker is not called a C parser or evidence proof. A subsequent evidence compiler must use language-aware symbol selection or exact content locators before a node can pass `evidence_verified`.
+
+`scripts/verify_samtools_source_lock.py` is the composed entrypoint: bounded-read canonical lock bytes, run generic Git verification, pass the complete returned result to `verify_samtools_source_bindings()`, then print the exact Step 1 summary that distinguishes 44 verified file identities, 23 verified dispatcher command bindings, and 27 declared operation mappings. The generic CLI reports file identity only and must not claim that Samtools command dispatch was verified. Neither CLI claims parameter, output, environment, or biological correctness, advances evidence maturity, or authorizes a node's release.
 
 - [ ] **Step 4: Run focused tests and commit**
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/tools/samtools/test_source_lock.py
-../../.venv/bin/ruff check bionodulo/nodes/catalog/tools/samtools/verification.py tests/catalog/tools/samtools/test_source_lock.py
-../../.venv/bin/mypy bionodulo/nodes/catalog/tools/samtools/verification.py
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q \
+  tests/catalog/test_source_lock.py \
+  tests/catalog/tools/samtools/test_source_lock.py
+../../.venv/bin/ruff check \
+  bionodulo/nodes/catalog/tools/samtools/verification.py \
+  scripts/verify_samtools_source_lock.py \
+  tests/catalog/test_source_lock.py \
+  tests/catalog/tools/samtools/test_source_lock.py
+../../.venv/bin/mypy \
+  bionodulo/nodes/catalog/tools/samtools/verification.py \
+  scripts/verify_samtools_source_lock.py \
+  tests/catalog/test_source_lock.py \
+  tests/catalog/tools/samtools/test_source_lock.py
 git add bionodulo/nodes/catalog/tools/samtools scripts/verify_samtools_source_lock.py tests/catalog/tools/samtools
 git commit -m "test(catalog): verify samtools command ownership"
 ```
@@ -360,7 +427,7 @@ git commit -m "test(catalog): verify samtools command ownership"
 
 - [ ] **Step 1: Write the failing 27-ID and ownership tests**
 
-The test loads `baseline-ledger.json`, the approved integrated migration queue, and the wished-for Samtools lock. It asserts exact queue commit/digest preconditions and this exact mapping:
+The test loads `baseline-ledger.json`, the approved ancestry-merged migration queue, and the wished-for Samtools lock. It first requires `git merge-base --is-ancestor 05db7fe84656624ae85abde713988d28f541c520 HEAD` to exit zero and asserts the exact reviewed queue/rules/artifact digests. It then asserts `len(queue["assignments"]) == 943` and that every assignment, not only Samtools, still has `disposition == "quarantined"` and `contract_status == "evidence_pending"`. Only after that whole-queue invariant does it assert this exact Samtools mapping:
 
 ```python
 EXPECTED_NODE_COMMANDS = {
@@ -394,7 +461,7 @@ EXPECTED_NODE_COMMANDS = {
 }
 ```
 
-The exact node set must equal the 27 `samtools_` baseline and approved queue IDs. All remain `quarantined` and `evidence_pending`; source locking must not alter maturity.
+The exact node set must equal the 27 `samtools_` baseline and approved queue IDs. Those 27 remain part of the all-943 `quarantined`/`evidence_pending` invariant; source locking must not alter any queue assignment or maturity state.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -415,7 +482,7 @@ Expected: the Samtools lock file does not exist.
 }
 ```
 
-The enclosing lock uses `tool_id` `samtools`, `tool_version` `1.23.1`, and repository URL `https://github.com/samtools/samtools`. It contains no release date, branch, mutable ref, evidence claim, or maturity assertion.
+The enclosing lock uses `tool_id` `samtools`, `tool_version` `1.23.1`, and repository URL `https://github.com/samtools/samtools`. It contains no release date, branch, mutable ref, evidence claim, or maturity assertion. Creating and verifying it is explicitly insufficient to mark any node `released` or to claim parameter, output, environment, runtime, or biological correctness.
 
 - [ ] **Step 4: Author the exact 44-file source table**
 
@@ -512,7 +579,7 @@ Every binding uses dispatcher source `samtools-dispatch-bamtk` and passes the Sa
 PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q \
   tests/catalog/test_source_lock.py \
   tests/catalog/tools/samtools/test_source_lock.py
-../../.venv/bin/python scripts/verify_samtools_source_lock.py \
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python scripts/verify_samtools_source_lock.py \
   --repository /tmp/bionodulo-samtools-1.23.1 \
   --lock bionodulo/nodes/catalog/tools/samtools/source-lock.json
 ```
@@ -522,6 +589,8 @@ Expected summary:
 ```text
 samtools 1.23.1: 44 files and 23 dispatcher commands verified; 27 operations declared at 6efb9b6da35224cf804921dedecf9fb8f411365d
 ```
+
+Expected process contract: exit `0`, stdout equals exactly that line plus one `\n`, stderr is empty, the bounded aggregate deadline is respected, no bytecode/cache appears in either repository, and the full worktree/Git-metadata/ref/object snapshots are unchanged. Every verification failure exits `1` under the Task 3 stderr contract with empty stdout and the same no-write acceptance checks.
 
 - [ ] **Step 7: Commit the family lock**
 
@@ -539,18 +608,30 @@ git commit -m "feat(catalog): lock samtools 1.23.1 sources"
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog
-../../.venv/bin/ruff check bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py scripts/verify_samtools_source_lock.py tests/catalog
-../../.venv/bin/mypy bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py scripts/verify_samtools_source_lock.py
+../../.venv/bin/ruff check \
+  bionodulo/nodes/catalog/source_lock.py \
+  bionodulo/nodes/catalog/tools/samtools \
+  scripts/verify_tool_source_lock.py \
+  scripts/verify_samtools_source_lock.py \
+  tests/catalog/test_source_lock.py \
+  tests/catalog/tools/samtools/test_source_lock.py
+../../.venv/bin/mypy \
+  bionodulo/nodes/catalog/source_lock.py \
+  bionodulo/nodes/catalog/tools/samtools \
+  scripts/verify_tool_source_lock.py \
+  scripts/verify_samtools_source_lock.py \
+  tests/catalog/test_source_lock.py \
+  tests/catalog/tools/samtools/test_source_lock.py
 ```
 
 - [ ] **Step 2: Run specification review**
 
-Verify exact 27-ID coverage, 44 file hashes, 23 command bindings, annotated tag peeling, safe Git plumbing, file bounds, dispatcher ownership, continued quarantine, and zero source-lock claims about parameters, outputs, environments, biological behavior, or maturity.
+Verify exact 27-ID coverage, all-943 queue quarantine/evidence-pending state, 44 exact source ID/byte/digest bindings, the lock-selected 23 command bindings, annotated tag peeling, exact `100644 blob` tree modes, safe Git plumbing, per-command/output/file/aggregate byte bounds, the total deadline, dispatcher ownership, and zero source-lock claims about parameters, outputs, environments, biological behavior, maturity, or release readiness.
 
 - [ ] **Step 3: Run a separate code-quality review**
 
-Review parser bounds, duplicate-key handling, Git environment isolation, argument safety, timeout/output bounds, canonical bytes, exact source reuse, error specificity, family/foundation ownership, and test realism.
+Review parser bounds, recursive unsafe/duplicate-key handling, strict Python versus JSON-mode collection behavior, validated-copy semantics, exact-from-scratch Git child environments, literal path handling, argument safety, per-command and aggregate timeout/output bounds, bounded CLI reads, bytecode suppression, exact stdout/stderr contracts, and full worktree/Git-dir/common-dir snapshots. `git status` equality alone is not no-write acceptance. Also review canonical bytes, exact source reuse, error specificity, family/foundation ownership, and test realism.
 
 - [ ] **Step 4: Fix confirmed findings with failing regression tests**
 
-Do not write NodeSpecs in this phase. A separate evidence/contract plan begins only after this source lock is approved and the catalog environment foundation can produce verified `samtools==1.23.1` Pixi locks for each supported platform.
+Do not write NodeSpecs or release nodes in this phase. Source locking establishes upstream Git/file/selected-dispatch identity only; it does not establish parameter, output, environment, runtime, or biological correctness. A separate evidence/contract plan begins only after this source lock is approved and the catalog environment foundation can produce verified `samtools==1.23.1` Pixi locks for each supported platform.
