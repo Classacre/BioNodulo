@@ -434,8 +434,9 @@ def _validated_baseline_entry(value: object, index: int) -> dict[str, Any]:
         current[current_key] != comparison[comparison_key] for current_key, comparison_key in current_comparison_pairs
     ):
         raise MigrationQueueError(f"{label} current_source must match comparison source evidence")
-    if current["qualified_class"].rsplit(".", 1)[1] != comparison["class_name"]:
-        raise MigrationQueueError(f"{label} current_source qualified_class must match comparison class_name")
+    expected_current_qualified_class = f"{current['module']}.{comparison['class_name']}"
+    if current["qualified_class"] != expected_current_qualified_class:
+        raise MigrationQueueError(f"{label} current_source qualified_class must match module and comparison class_name")
     origin = _validated_origin(entry["origin"], f"{label} origin")
     expected_origin = min(origin["declarations"], key=lambda source: _origin_priority(source, behavior))
     if origin["selected"] != expected_origin:

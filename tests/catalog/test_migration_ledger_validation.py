@@ -378,6 +378,21 @@ def test_entry_and_current_qualified_classes_remain_coherent(source: str) -> Non
         validate_baseline(baseline)
 
 
+def test_current_source_qualified_class_rejects_injected_namespace() -> None:
+    baseline = load_baseline()
+    entry = baseline_entry(baseline)
+    current = entry["current_source"]
+    comparison = entry["comparison_locations"][0]
+    current["qualified_class"] = f"{current['module']}.Injected.{comparison['class_name']}"
+    refresh_baseline_canonical_digests(baseline)
+
+    with pytest.raises(
+        MigrationQueueError,
+        match="current_source qualified_class must match module and comparison class_name",
+    ):
+        validate_baseline(baseline)
+
+
 def test_current_source_path_must_match_its_module() -> None:
     baseline = load_baseline()
     baseline_entry(baseline)["current_source"]["path"] = "bionodulo/nodes/builtin/mismatched.py"
