@@ -91,12 +91,16 @@ its explicit index path to pysam rather than relying on discovery.
 The affected official templates are `variant_calling_pipeline.json`,
 `wgs_variant_pipeline.json`, and `chip_seq_pipeline.json`. RNA-seq uses only
 sequential readers in its current graph and does not need an index edge.
+All four templates, including RNA-seq, migrate view and sort connections to the
+canonical `alignment` input because those operations accept both SAM and BAM.
+The old `sam` and `bam` input aliases are not retained in this unreleased,
+quarantined rebuild.
 
 ## First-Wave Contracts
 
 ### View
 
-- Input: `alignment` file, limited to SAM or BAM in this release.
+- Input: required `alignment` union, limited to SAM or BAM in this release.
 - Parameters: `threads=4`, optional `require_all_flags`, optional
   `exclude_any_flags`.
 - Output: BAM.
@@ -121,7 +125,7 @@ sequential readers in its current graph and does not need an index edge.
 
 ### Sort
 
-- Input: SAM or BAM file.
+- Input: required `alignment` union accepting SAM or BAM.
 - Parameters: `threads=4`, `memory_per_thread="768M"`.
 - Output: coordinate-sorted BAM.
 - Name/minimiser/tag sort modes are not exposed in this wave.
@@ -141,6 +145,11 @@ sequential readers in its current graph and does not need an index edge.
 - Parameters: `threads=2`.
 - Outputs: indexed BAM bundle primary plus BAI sidecar.
 - Fixed BAI mode; CSI is a later separate contract.
+
+During Task 2, before staging semantics are implemented, index exposes only the
+BAI and runs against its input BAM. Task 3 adds `indexed_bam` by staging the BAM
+beside the unchanged `indexed_bam.bam.bai` path. This keeps each TDD task's
+ownership explicit.
 
 ### Flagstat
 

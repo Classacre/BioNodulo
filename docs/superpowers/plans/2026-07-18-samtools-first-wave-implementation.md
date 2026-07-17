@@ -97,8 +97,13 @@ Expected: all tests pass.
 - Create: seven operation modules listed above
 - Modify: `bionodulo/nodes/builtin/samtools.py`
 - Modify: `bionodulo/environments/constants.py`
+- Modify: `templates/variant_calling_pipeline.json`
+- Modify: `templates/wgs_variant_pipeline.json`
+- Modify: `templates/chip_seq_pipeline.json`
+- Modify: `templates/rna_seq_pipeline.json`
 - Create: `tests/nodes/samtools/test_adapter.py`
 - Create: `tests/nodes/samtools/test_first_wave.py`
+- Modify: focused template tests that assert the migrated view/sort input ports
 
 - [ ] **Step 1: Write RED registry and contract tests**
 
@@ -107,6 +112,21 @@ adapter, declares Samtools `1.23.1`, the pinned Git commit, one manpage, and one
 implementation source file. Assert `PACKAGE_MIN_VERSIONS["samtools"]` is the
 exact Pixi constraint `"1.23.1"`, not a lower bound. Assert exact input sections,
 defaults, return types, return names, and fixed output paths.
+
+Use these exact Task 2 artifact contracts:
+
+| Node | Required input | Return names | Fixed output files |
+|---|---|---|---|
+| view | `alignment: (SAM, BAM)` | `bam` | `bam.bam` |
+| collate | `bam: BAM` | `name_collated_bam` | `name_collated_bam.bam` |
+| fixmate | `bam: BAM` | `fixmate_bam` | `fixmate_bam.bam` |
+| sort | `alignment: (SAM, BAM)` | `sorted_bam` | `sorted_bam.bam` |
+| markdup | `bam: BAM` | `marked_bam`, `duplicate_stats` | `marked_bam.bam`, `duplicate_stats.stats.txt` |
+| index | `bam: BAM` | `bai` | `indexed_bam.bam.bai` |
+| flagstat | `bam: BAM` | `stats` | `stats.stats.txt` |
+
+Task 2 index has only the BAI output. Task 3 adds the staged `indexed_bam`
+output while preserving the BAI filename.
 
 - [ ] **Step 2: Write RED argv tests**
 
@@ -118,14 +138,15 @@ Assert the exact token arrays:
 ["samtools", "fixmate", "-@", "4", INPUT, OUT]
 ["samtools", "sort", "-@", "4", "-m", "768M", "-T", TMP, "-o", OUT, INPUT]
 ["samtools", "markdup", "-@", "4", "-f", STATS, INPUT, OUT]
-["samtools", "index", "-@", "2", "-b", "-o", BAI, INDEXED_BAM]
+["samtools", "index", "-@", "2", "-b", "-o", BAI, INPUT_BAM]
 ["samtools", "flagstat", "-@", "2", INPUT]
 ```
 
 Add option tests for view masks, fixmate `-m/-r`, and markdup
-`-r/-S/-d/--read-coords/-c`. Assert invalid thread counts, invalid sort memory,
-negative optical distance, and `read_coords` without optical detection are
-rejected.
+`-r/-S/-d/--read-coords/-c`. Assert nonempty file inputs; integer, non-boolean
+threads in `1..64`; view masks in `0..65535`; sort memory in bytes or with one
+`K/M/G` suffix and at least 1 MiB; nonnegative optical distance; and
+`read_coords` only with positive optical distance.
 
 - [ ] **Step 3: Confirm RED**
 
@@ -136,7 +157,8 @@ Run:
 ```
 
 Expected: import/ownership failures because the new package does not exist and
-the legacy module still owns the seven IDs.
+the legacy module still owns the seven IDs, plus template failures for old
+`sam`/`bam` targets on view and sort.
 
 - [ ] **Step 4: Implement the adapter and modules**
 
@@ -146,12 +168,15 @@ metadata. Each operation module contains one concrete class and its argv logic.
 Remove only the seven migrated classes and now-unused stem helpers from the
 legacy monolith. Pin the shared runtime manifest constraint to exact Samtools
 `1.23.1` so local Pixi environments and cloud worker environments execute the
-same command contract.
+same command contract. Migrate all ten official-template edges targeting view
+or sort to the canonical `alignment` input: two each in variant calling, WGS,
+and RNA-seq, and four treatment/control edges in ChIP-seq. Do not retain old
+input aliases.
 
 - [ ] **Step 5: Confirm GREEN**
 
-Run the Samtools tests above. Expected: all first-wave tests pass without
-executing Samtools.
+Run the Samtools tests above plus the focused template and workflow-validation
+tests. Expected: all first-wave tests pass without executing Samtools.
 
 ### Task 3: Implement Explicit BAM/BAI Semantics
 
