@@ -17,6 +17,7 @@ from bionodulo.nodes.environment_compiler import compiler
 SHA_A = "a" * 64
 SHA_B = "b" * 64
 SHA_C = "d" * 64
+PYPI_DEPENDENCY = "typing-extensions>=4.0 ; python_version < '3.11'"
 
 
 def conda_record(**updates: object) -> dict[str, object]:
@@ -76,7 +77,7 @@ def pypi_record(**updates: object) -> dict[str, object]:
         "index_url": "https://pypi.org/simple",
         "requested_spec": "numpy==1.26.4",
         "constrains": [],
-        "depends": [],
+        "depends": [PYPI_DEPENDENCY],
         "track_features": [],
     }
     record.update(updates)
@@ -106,7 +107,8 @@ def python_record(*, version: str = "3.11.9", **updates: object) -> dict[str, ob
 
 
 def encoded(*records: dict[str, object]) -> bytes:
-    return json.dumps(records, separators=(",", ":")).encode("utf-8")
+    ordered = tuple(sorted(records, key=lambda record: str(record["name"])))
+    return json.dumps(ordered, separators=(",", ":")).encode("utf-8")
 
 
 def verified_pixi(
@@ -159,12 +161,8 @@ def _native_conda_package(url: str, *, sha256: str | None = None) -> str:
     depends = tuple(str(dependency) for dependency in listed["depends"])
     constrains = tuple(str(constraint) for constraint in listed["constrains"])
     depends_yaml = "  depends: []\n" if not depends else "  depends:\n" + "".join(f"  - {item}\n" for item in depends)
-    constrains_yaml = (
-        "" if not constrains else "  constrains:\n" + "".join(f"  - {item}\n" for item in constrains)
-    )
-    license_family_yaml = (
-        "" if listed["license_family"] is None else f"  license_family: {listed['license_family']}\n"
-    )
+    constrains_yaml = "" if not constrains else "  constrains:\n" + "".join(f"  - {item}\n" for item in constrains)
+    license_family_yaml = "" if listed["license_family"] is None else f"  license_family: {listed['license_family']}\n"
     return (
         f"- conda: {json.dumps(url)}\n"
         f"  sha256: {sha256 or listed['sha256']}\n"
@@ -190,9 +188,81 @@ def _native_pypi_package(url: str, *, sha256: str | None = None) -> str:
         f"  version: {version}\n"
         f"  sha256: {sha256 or listed['sha256']}\n"
         "  requires_dist:\n"
-        "  - typing-extensions>=4.0 ; python_version < '3.11'\n"
+        f"  - {PYPI_DEPENDENCY}\n"
         "  requires_python: '>=3.9'\n"
     )
+
+
+_CONDA_V7_FIELDS = (
+    "conda",
+    "name",
+    "version",
+    "build",
+    "build_number",
+    "subdir",
+    "noarch",
+    "variants",
+    "sha256",
+    "md5",
+    "legacy_bz2_md5",
+    "depends",
+    "constrains",
+    "extra_depends",
+    "channel",
+    "features",
+    "flags",
+    "track_features",
+    "file_name",
+    "license",
+    "license_family",
+    "purls",
+    "run_exports",
+    "size",
+    "legacy_bz2_size",
+    "timestamp",
+    "python_site_packages_path",
+)
+
+
+def lockfile_with_conda_field(field: str, value: object, *, content: bytes | None = None) -> bytes:
+    document = yaml.safe_load(lockfile() if content is None else content)
+    package = document["packages"][0]
+    document["packages"][0] = {
+        key: value if key == field else package[key] for key in _CONDA_V7_FIELDS if key == field or key in package
+    }
+    return yaml.safe_dump(document, sort_keys=False).encode("utf-8")
+
+
+_PYPI_V7_FIELDS = (
+    "pypi",
+    "name",
+    "version",
+    "md5",
+    "sha256",
+    "index",
+    "requires_dist",
+    "requires_python",
+    "build_packages",
+    "host_packages",
+)
+
+
+def lockfile_with_pypi_field(field: str, value: object) -> bytes:
+    python = python_record()
+    wheel = pypi_record()
+    document = yaml.safe_load(
+        lockfile(
+            package_references=(
+                ("conda", str(python["url"])),
+                ("pypi", str(wheel["url"])),
+            )
+        )
+    )
+    package = document["packages"][1]
+    document["packages"][1] = {
+        key: value if key == field else package[key] for key in _PYPI_V7_FIELDS if key == field or key in package
+    }
+    return yaml.safe_dump(document, sort_keys=False).encode("utf-8")
 
 
 def test_decoder_accepts_repository_lock_emitted_by_pinned_pixi_0681() -> None:
@@ -214,15 +284,22 @@ def test_decoder_accepts_realistic_full_conda_and_pypi_records() -> None:
     records = compiler.decode_pixi_list_json(encoded(conda_record(), pypi_record()))
 
     assert tuple(type(record) for record in records) == (
-        compiler.PixiCondaListRecord,
         compiler.PixiPypiListRecord,
+        compiler.PixiCondaListRecord,
     )
     assert len(conda_record()) == 24
     assert len(pypi_record()) == 24
-    assert records[0].source == "https://conda.anaconda.org/bioconda"
-    assert records[1].source == "https://pypi.org/simple"
-    assert records[1].file_name is None
-    assert records[1].license is None
+    assert records[0].source == "https://pypi.org/simple"
+    assert records[0].file_name is None
+    assert records[0].license is None
+    assert records[1].source == "https://conda.anaconda.org/bioconda"
+
+
+def test_decoder_rejects_list_records_outside_pixi_name_order() -> None:
+    content = json.dumps((conda_record(), pypi_record()), separators=(",", ":")).encode("utf-8")
+
+    with pytest.raises(ValueError, match="name order|sorted by name"):
+        compiler.decode_pixi_list_json(content)
 
 
 @pytest.mark.parametrize("field", ("kind", "index_url", "track_features"))
@@ -329,7 +406,7 @@ def test_pypi_admission_normalizes_pixis_dist_info_package_name() -> None:
                 name="scikit_learn",
                 version="1.4.2",
                 url=f"https://files.pythonhosted.org/packages/{filename}",
-            )
+            ),
         )
     )
 
@@ -442,6 +519,70 @@ def test_compiler_rejects_unknown_v7_fields_and_noncanonical_root_order() -> Non
         )
 
 
+def test_v7_environment_indexes_preserve_semantic_upstream_order() -> None:
+    document = yaml.safe_load(lockfile())
+    environment = document["environments"]["alignment-tools"]
+    document["environments"]["alignment-tools"] = {
+        "channels": environment["channels"],
+        "indexes": ["https://z.example/simple", "https://a.example/simple"],
+        "packages": environment["packages"],
+    }
+    content = yaml.safe_dump(document, sort_keys=False).encode("utf-8")
+
+    selected = compiler._validate_pixi_lock(
+        content,
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].name == "samtools"
+
+
+@pytest.mark.parametrize(
+    "index",
+    (
+        "https://user@packages.example.org/simple",
+        "https://packages.example.org/simple?token=secret",
+    ),
+)
+def test_v7_environment_indexes_reject_noncanonical_https_urls(index: str) -> None:
+    document = yaml.safe_load(lockfile())
+    environment = document["environments"]["alignment-tools"]
+    document["environments"]["alignment-tools"] = {
+        "channels": environment["channels"],
+        "indexes": [index],
+        "packages": environment["packages"],
+    }
+    content = yaml.safe_dump(document, sort_keys=False).encode("utf-8")
+
+    with pytest.raises(ValueError, match="index"):
+        compiler._validate_pixi_lock(
+            content,
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://user@conda.example.org/channel/",
+        "https://conda.example.org/channel/?token=secret",
+    ),
+)
+def test_v7_environment_channels_reject_noncanonical_https_urls(url: str) -> None:
+    document = yaml.safe_load(lockfile())
+    document["environments"]["alignment-tools"]["channels"][0]["url"] = url
+    content = yaml.safe_dump(document, sort_keys=False).encode("utf-8")
+
+    with pytest.raises(ValueError, match="channel"):
+        compiler._validate_pixi_lock(
+            content,
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
 @pytest.mark.parametrize(
     ("content", "message"),
     (
@@ -470,6 +611,333 @@ def test_compiler_rejects_yaml_graph_features_and_duplicate_keys(content: bytes,
             pixi=verified_pixi(),
             environment_name="alignment-tools",
             platform=ExecutionPlatform.LINUX_AMD64,
+        )
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        None,
+        {},
+        [],
+        1,
+        True,
+        "A" * 32,
+        "a" * 31,
+        "a" * 33,
+    ),
+)
+def test_v7_legacy_bz2_md5_rejects_values_outside_optional_lowercase_md5(value: object) -> None:
+    with pytest.raises(ValueError, match="legacy_bz2_md5"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("legacy_bz2_md5", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_legacy_bz2_md5_is_retained_on_native_package() -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field("legacy_bz2_md5", "f" * 32),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].legacy_bz2_md5 == "f" * 32
+
+
+@pytest.mark.parametrize("value", (None, {}, [], True, -1, 1.5, "1", 2**64))
+def test_v7_legacy_bz2_size_rejects_values_outside_optional_u64(value: object) -> None:
+    with pytest.raises(ValueError, match="legacy_bz2_size"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("legacy_bz2_size", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize("value", (0, 2**64 - 1))
+def test_v7_legacy_bz2_size_is_retained_on_native_package(value: int) -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field("legacy_bz2_size", value),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].legacy_bz2_size == value
+
+
+@pytest.mark.parametrize("value", (None, {}, [], 1, True, "f" * 257, "feature\nvalue"))
+def test_v7_features_rejects_values_outside_optional_bounded_string(value: object) -> None:
+    with pytest.raises(ValueError, match="features"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("features", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize("value", ("", "mkl"))
+def test_v7_features_is_retained_on_native_package(value: str) -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field("features", value),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].features == value
+
+
+@pytest.mark.parametrize("value", (None, {}, [], 1, True, "p" * 1025, "lib\nsite-packages"))
+def test_v7_python_site_packages_path_rejects_values_outside_bounded_string(value: object) -> None:
+    with pytest.raises(ValueError, match="python_site_packages_path"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("python_site_packages_path", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize("value", ("", "lib/python3.11/site-packages"))
+def test_v7_python_site_packages_path_is_retained_on_native_package(value: str) -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field("python_site_packages_path", value),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].python_site_packages_path == value
+
+
+@pytest.mark.parametrize("value", ({}, {"python": "3.11"}))
+def test_v7_binary_conda_package_rejects_source_variants_field(value: object) -> None:
+    with pytest.raises(ValueError, match="variants|binary"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("variants", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize("field", ("build_packages", "host_packages"))
+def test_v7_pypi_wheel_rejects_source_selector_fields_even_when_empty(field: str) -> None:
+    with pytest.raises(ValueError, match=field):
+        compiler._validate_pixi_lock(
+            lockfile_with_pypi_field(field, []),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_conda_timestamp_accepts_signed_upstream_integer() -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field("timestamp", -1),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].timestamp == -1
+
+
+@pytest.mark.parametrize("value", (None, True, 1.5, "1", -(2**63) - 1, 2**63))
+def test_v7_conda_timestamp_rejects_values_outside_signed_i64(value: object) -> None:
+    with pytest.raises(ValueError, match="timestamp"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("timestamp", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_explicit_null_channel_overrides_url_derived_channel() -> None:
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(conda_record(source=None)),
+        lockfile_with_conda_field("channel", None),
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert compiled.artifacts[0].name == "samtools"
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        {},
+        [],
+        1,
+        True,
+        "http://packages.example.org/channel",
+        "https://user@packages.example.org/channel",
+        "https://packages.example.org/channel?query=1",
+        "https://packages.example.org/channel/",
+    ),
+)
+def test_v7_channel_rejects_values_outside_canonical_optional_https_url(value: object) -> None:
+    with pytest.raises(ValueError, match="channel"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("channel", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_extra_depends_retains_sorted_map_and_ordered_vectors() -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field(
+            "extra_depends",
+            {"feature-a": ["zlib >=1.3", "openssl >=3"], "feature-b": []},
+        ),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].extra_depends == (
+        ("feature-a", ("zlib >=1.3", "openssl >=3")),
+        ("feature-b", ()),
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        None,
+        {},
+        [],
+        {"feature": "zlib"},
+        {"feature": [1]},
+        {"z": [], "a": []},
+    ),
+)
+def test_v7_extra_depends_rejects_values_outside_canonical_btree_map(value: object) -> None:
+    with pytest.raises(ValueError, match="extra_depends"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("extra_depends", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ({}, ()),
+        (
+            {"weak": ["zlib >=1.3"], "noarch": []},
+            (("weak", ("zlib >=1.3",)), ("noarch", ())),
+        ),
+    ),
+)
+def test_v7_run_exports_retains_known_empty_or_ordered_mapping(
+    value: object,
+    expected: tuple[tuple[str, tuple[str, ...]], ...],
+) -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field("run_exports", value),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].run_exports == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (None, [], {"weak": "zlib"}, {"unknown": []}, {"strong": [], "weak": []}),
+)
+def test_v7_run_exports_rejects_values_outside_exact_upstream_mapping(value: object) -> None:
+    with pytest.raises(ValueError, match="run_exports"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("run_exports", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ([], ()),
+        (
+            ["pkg:conda/samtools@1.20?channel=bioconda"],
+            ("pkg:conda/samtools@1.20?channel=bioconda",),
+        ),
+    ),
+)
+def test_v7_purls_retains_optional_sorted_package_url_set(
+    value: object,
+    expected: tuple[str, ...],
+) -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field("purls", value),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].purls == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        None,
+        {},
+        [1],
+        ["not-a-purl"],
+        ["pkg:conda/a", "pkg:conda/a"],
+        ["pkg:conda/z", "pkg:conda/a"],
+    ),
+)
+def test_v7_purls_rejects_values_outside_canonical_btree_set(value: object) -> None:
+    with pytest.raises(ValueError, match="purls"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("purls", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_flags_retains_ordered_upstream_vector() -> None:
+    selected = compiler._validate_pixi_lock(
+        lockfile_with_conda_field("flags", ["deprecated", "revoked"]),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].flags == ("deprecated", "revoked")
+
+
+@pytest.mark.parametrize("value", (None, {}, "deprecated", [], [1], ["flag\nvalue"]))
+def test_v7_flags_rejects_values_outside_nonempty_ordered_string_vector(value: object) -> None:
+    with pytest.raises(ValueError, match="flags"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("flags", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    ("name", "version", "build", "subdir", "file_name", "license", "license_family"),
+)
+def test_v7_conda_ordinary_optional_fields_reject_explicit_null(field: str) -> None:
+    with pytest.raises(ValueError, match=field):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field(field, None),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize("field", ("md5", "index", "requires_python"))
+def test_v7_pypi_ordinary_optional_fields_reject_explicit_null(field: str) -> None:
+    with pytest.raises(ValueError, match=field):
+        compiler._validate_pixi_lock(
+            lockfile_with_pypi_field(field, None),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
         )
 
 
@@ -522,8 +990,10 @@ def test_compiler_requires_selected_reference_to_resolve_to_exactly_one_top_leve
 
 def test_compiler_rejects_excessive_lock_bytes_depth_and_package_count() -> None:
     oversized = lockfile() + b"#" + b"x" * (8 * 1024 * 1024)
-    too_deep = lockfile() + b"unknown:\n" + b"".join(
-        b"  " * depth + f"level_{depth}:\n".encode("ascii") for depth in range(1, 35)
+    too_deep = (
+        lockfile()
+        + b"unknown:\n"
+        + b"".join(b"  " * depth + f"level_{depth}:\n".encode("ascii") for depth in range(1, 35))
     )
     document = yaml.safe_load(lockfile())
     document["packages"] = [deepcopy(document["packages"][0]) for _ in range(4097)]
@@ -628,7 +1098,6 @@ def test_compiler_rejects_conda_record_from_another_platform() -> None:
     (
         ("arch", "aarch64"),
         ("platform", "win"),
-        ("noarch", "python"),
     ),
 )
 def test_compiler_rejects_conda_platform_metadata_contradictions(field: str, value: str) -> None:
@@ -642,6 +1111,108 @@ def test_compiler_rejects_conda_platform_metadata_contradictions(field: str, val
             environment_name="alignment-tools",
             platform=ExecutionPlatform.LINUX_AMD64,
         )
+
+
+def test_compiler_accepts_explicit_noarch_python_metadata_on_platform_subdir() -> None:
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(conda_record(noarch="python")),
+        lockfile_with_conda_field("noarch", "python"),
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert compiled.artifacts[0].name == "samtools"
+
+
+@pytest.mark.parametrize("value", (None, {}, [], True, "", "none", "Python"))
+def test_v7_noarch_rejects_values_outside_exact_upstream_variants(value: object) -> None:
+    with pytest.raises(ValueError, match="noarch"):
+        compiler._validate_pixi_lock(
+            lockfile_with_conda_field("noarch", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_noarch_python_heuristic_matches_builds_containing_py() -> None:
+    filename = "demo-1.0-h123_py311_0.conda"
+    url = f"https://conda.anaconda.org/conda-forge/noarch/{filename}"
+    record = conda_record(
+        name="demo",
+        version="1.0",
+        build="h123_py311_0",
+        build_number=0,
+        source="https://conda.anaconda.org/conda-forge",
+        arch=None,
+        platform=None,
+        subdir="noarch",
+        noarch="python",
+        file_name=filename,
+        url=url,
+    )
+
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(record),
+        lockfile(package_references=(("conda", url),)),
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert compiled.artifacts[0].name == "demo"
+
+
+def test_v7_build_number_is_derived_from_any_trailing_ascii_digits() -> None:
+    filename = "demo-1.0-h123abc4.conda"
+    url = f"https://conda.anaconda.org/conda-forge/linux-64/{filename}"
+    record = conda_record(
+        name="demo",
+        version="1.0",
+        build="h123abc4",
+        build_number=4,
+        source="https://conda.anaconda.org/conda-forge",
+        file_name=filename,
+        url=url,
+    )
+
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(record),
+        lockfile(package_references=(("conda", url),)),
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert compiled.artifacts[0].build == "h123abc4"
+
+
+def test_compiler_preserves_conda_name_spelling_during_native_reconciliation() -> None:
+    filename = "_openmp_mutex-4.5-20_gnu.conda"
+    url = f"https://conda.anaconda.org/conda-forge/linux-64/{filename}"
+    mutex = conda_record(
+        name="_openmp_mutex",
+        version="4.5",
+        build="20_gnu",
+        build_number=20,
+        source="https://conda.anaconda.org/conda-forge",
+        file_name=filename,
+        url=url,
+    )
+
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(mutex),
+        lockfile_with_conda_field(
+            "build_number",
+            20,
+            content=lockfile(package_references=(("conda", url),)),
+        ),
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert compiled.artifacts[0].name == "_openmp_mutex"
 
 
 def test_compiler_reconciles_locked_python_and_pypi_wheel_end_to_end() -> None:
@@ -664,6 +1235,106 @@ def test_compiler_reconciles_locked_python_and_pypi_wheel_end_to_end() -> None:
         ("pypi", "numpy"),
         ("conda", "python"),
     )
+
+
+def test_compiler_reconciles_pypi_list_depends_with_native_requires_dist() -> None:
+    python = python_record()
+    wheel = pypi_record()
+    references = (
+        ("conda", str(python["url"])),
+        ("pypi", str(wheel["url"])),
+    )
+
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(python, wheel),
+        lockfile(package_references=references),
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert any(artifact.kind == "pypi" for artifact in compiled.artifacts)
+
+
+def test_compiler_accepts_pypi_list_record_without_cached_size() -> None:
+    python = python_record()
+    wheel = pypi_record(size_bytes=None)
+    references = (
+        ("conda", str(python["url"])),
+        ("pypi", str(wheel["url"])),
+    )
+
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(python, wheel),
+        lockfile(package_references=references),
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    pypi_artifact = next(artifact for artifact in compiled.artifacts if artifact.kind == "pypi")
+    assert pypi_artifact.size_bytes is None
+
+
+def test_compiler_preserves_custom_pypi_index_url_spelling() -> None:
+    custom_index = "https://packages.example.org/simple/"
+    python = python_record()
+    wheel = pypi_record(source=custom_index, index_url=custom_index)
+    references = (
+        ("conda", str(python["url"])),
+        ("pypi", str(wheel["url"])),
+    )
+    native_lock = (
+        lockfile(package_references=references)
+        .replace(
+            b"    - https://pypi.org/simple\n",
+            f"    - {custom_index}\n".encode("ascii"),
+            1,
+        )
+        .replace(
+            b"  requires_dist:\n",
+            f"  index: {custom_index}\n  requires_dist:\n".encode("ascii"),
+            1,
+        )
+    )
+
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(python, wheel),
+        native_lock,
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert any(artifact.kind == "pypi" for artifact in compiled.artifacts)
+
+
+def test_v7_omitted_pypi_index_uses_selected_environment_first_index() -> None:
+    default_index = "https://primary.example/simple/"
+    python = python_record()
+    wheel = pypi_record(source=default_index, index_url=default_index)
+    references = (
+        ("conda", str(python["url"])),
+        ("pypi", str(wheel["url"])),
+    )
+    document = yaml.safe_load(lockfile(package_references=references))
+    environment = document["environments"]["alignment-tools"]
+    document["environments"]["alignment-tools"] = {
+        "channels": environment["channels"],
+        "indexes": [default_index, "https://pypi.org/simple"],
+        "packages": environment["packages"],
+    }
+    native_lock = yaml.safe_dump(document, sort_keys=False).encode("utf-8")
+
+    compiled = compiler.compile_pixi_platform_lock(
+        encoded(python, wheel),
+        native_lock,
+        pixi=verified_pixi(),
+        environment_name="alignment-tools",
+        platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert any(artifact.kind == "pypi" for artifact in compiled.artifacts)
 
 
 def test_compiler_rejects_malformed_native_pypi_dependency_marker() -> None:

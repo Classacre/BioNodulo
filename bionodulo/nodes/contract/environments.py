@@ -22,6 +22,7 @@ from bionodulo.nodes.contract.artifacts import ArtifactId, _StrictFrozenModel
 
 
 _PACKAGE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+_LOCKED_ARTIFACT_NAME_RE = re.compile(r"^[a-z0-9_][a-z0-9._-]{0,127}$")
 _EXACT_CONSTRAINT_RE = re.compile(r"^==(?P<version>[0-9][0-9A-Za-z._+-]{0,127})$")
 _RANGE_CONSTRAINT_RE = re.compile(
     r"^(?P<lower_op>>=|>)(?P<lower>[0-9]+(?:\.[0-9]+)*),"
@@ -38,7 +39,7 @@ _EXACT_VERSION_RE = re.compile(
     re.IGNORECASE,
 )
 _BUILD_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,255}$")
-_FILENAME_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]{0,511}$")
+_FILENAME_RE = re.compile(r"^[0-9A-Za-z_][0-9A-Za-z._+-]{0,511}$")
 _HOST_RE = re.compile(
     r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$"
@@ -357,7 +358,7 @@ class _LockedArtifactBase(_StrictFrozenModel):
     @field_validator("name")
     @classmethod
     def _validate_name(cls, value: str) -> str:
-        if _PACKAGE_NAME_RE.fullmatch(value) is None:
+        if _LOCKED_ARTIFACT_NAME_RE.fullmatch(value) is None:
             raise ValueError("locked artifact name must be canonical lowercase ASCII")
         return value
 
