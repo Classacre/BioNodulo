@@ -28,6 +28,7 @@ from bionodulo.nodes.contract.environments import (
     ResolverIdentity,
     Sha256Digest,
 )
+from bionodulo.nodes.environment_compiler import package_url
 
 
 _MAX_PIXI_LOCK_BYTES = 8 * 1024 * 1024
@@ -278,6 +279,24 @@ _PLATFORM_FIELDS = ("name", "subdir", "virtual-packages")
 _ENVIRONMENT_FIELDS = ("channels", "indexes", "find-links", "options", "packages")
 _CHANNEL_FIELDS = ("url", "used_env_vars")
 _OPTION_FIELDS = ("strategy", "channel-priority", "pypi-prerelease-mode")
+# rattler_lock 0.29.0 options.rs, backed by rattler_solve 6.0.1
+# src/lib.rs:349-370 and 460-480.
+_OPTION_VALUES: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "strategy": frozenset(("highest", "lowest-version", "lowest-version-direct")),
+        "channel-priority": frozenset(("strict", "disabled")),
+        "pypi-prerelease-mode": frozenset(
+            ("disallow", "allow", "if-necessary", "explicit", "if-necessary-or-explicit")
+        ),
+    }
+)
+_OPTION_DEFAULTS: Mapping[str, str] = MappingProxyType(
+    {
+        "strategy": "highest",
+        "channel-priority": "strict",
+        "pypi-prerelease-mode": "if-necessary-or-explicit",
+    }
+)
 _CONDA_FIELDS = (
     "conda",
     "name",
@@ -540,14 +559,8 @@ def _string_list_mapping(value: object, *, label: str) -> tuple[tuple[str, tuple
     return tuple(result)
 
 
-def _validate_package_url(value: str, *, label: str) -> None:
-    type_and_name = value[4:].split("?", 1)[0].split("#", 1)[0]
-    if (
-        not value.startswith("pkg:")
-        or "/" not in type_and_name
-        or any(character.isspace() or ord(character) > 127 for character in value)
-    ):
-        raise ValueError(f"{label} must be a canonical package URL")
+def _validate_package_url(value: str, *, label: str) -> package_url._CanonicalPackageUrl:
+    return package_url._parse_canonical_package_url(value, label=label)
 
 
 def _decode_native_conda(value: dict[str, object]) -> _NativePackage:
@@ -617,10 +630,9 @@ def _decode_native_conda(value: dict[str, object]) -> _NativePackage:
     purls = None
     if "purls" in value:
         purls = _string_sequence(value["purls"], label="Conda purls")
-        if purls != tuple(sorted(set(purls))):
+        parsed_purls = tuple(_validate_package_url(purl, label="Conda purls item") for purl in purls)
+        if parsed_purls != tuple(sorted(set(parsed_purls))):
             raise ValueError("Conda purls must be unique and use canonical BTreeSet ordering")
-        for purl in purls:
-            _validate_package_url(purl, label="Conda purls item")
     source: str | None = _derived_channel(url, subdir)
     if "channel" in value:
         source = (
@@ -830,8 +842,14 @@ def _validate_environments(
         if "options" in environment:
             options = _mapping(environment["options"], label=f"environment {name} options")
             _require_fields(options, allowed=_OPTION_FIELDS, required=(), label="environment options")
+            if not options:
+                raise ValueError("environment options must be omitted when all solver options are default")
             for key, option in options.items():
-                _text(option, label=f"environment option {key}", maximum=64)
+                validated = _text(option, label=f"environment option {key}", maximum=64)
+                if validated not in _OPTION_VALUES[key]:
+                    raise ValueError(f"environment option {key} is not an exact pinned solver enum")
+                if validated == _OPTION_DEFAULTS[key]:
+                    raise ValueError(f"environment option {key} default must be omitted by canonical serialization")
         packages = _mapping(environment["packages"], label=f"environment {name} packages")
         if tuple(packages) != tuple(sorted(packages)):
             raise ValueError("environment package platforms must use canonical ordering")
@@ -939,6 +957,8 @@ def _metadata_mismatch(native: _NativePackage, field: str, listed: object, expec
 def _validate_native_list_records(
     native_packages: tuple[_NativePackage, ...],
     records: tuple[PixiListRecord, ...],
+    *,
+    requested_specs: Mapping[str, str],
 ) -> None:
     listed: dict[tuple[str, str], PixiListRecord] = {}
     for record in records:
@@ -959,6 +979,10 @@ def _validate_native_list_records(
                 raise ValueError("native locked Python version is malformed") from error
     for identity, native in native_by_identity.items():
         record = listed[identity]
+        requested_name = canonicalize_name(record.name).replace("-", "_") if native.kind == "pypi" else record.name
+        expected_requested_spec = requested_specs.get(requested_name)
+        _metadata_mismatch(native, "is_explicit", record.is_explicit, expected_requested_spec is not None)
+        _metadata_mismatch(native, "requested_spec", record.requested_spec, expected_requested_spec)
         listed_name = canonicalize_name(record.name) if native.kind == "pypi" else record.name
         _metadata_mismatch(native, "name", listed_name, native.name)
         _metadata_mismatch(native, "version", record.version, native.version)
@@ -1007,6 +1031,7 @@ def _compile_captured_platform_lock(
     resolver: ResolverIdentity,
     environment_name: str,
     target_platform: ExecutionPlatform,
+    requested_specs: Mapping[str, str],
 ) -> PlatformLock:
     """Compile exact captured Pixi list and native lock bytes."""
 
@@ -1020,7 +1045,7 @@ def _compile_captured_platform_lock(
     records = decode_pixi_list_json(pixi_list_content)
     if not records:
         raise ValueError("Pixi selected-platform output must not be empty")
-    _validate_native_list_records(native_packages, records)
+    _validate_native_list_records(native_packages, records, requested_specs=requested_specs)
     return _admit_pixi_records(
         records,
         resolver=resolver,

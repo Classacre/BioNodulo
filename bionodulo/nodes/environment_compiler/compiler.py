@@ -14,7 +14,7 @@ from tempfile import TemporaryDirectory
 from typing import TypeAlias
 
 from bionodulo.nodes.contract.environments import ExecutionPlatform, PlatformLock
-from bionodulo.nodes.environment_compiler import pixi_identity, pixi_lock_v7
+from bionodulo.nodes.environment_compiler import pixi_identity, pixi_lock_v7, pixi_manifest
 
 
 _MAX_PIXI_TOML_BYTES = 1024 * 1024
@@ -143,6 +143,11 @@ def _compile_with_capture_for_test(
         environment_name=environment_name,
         resolver_platform=pixi_lock_v7.PIXI_PLATFORM[target_platform],
     )
+    requested_specs = pixi_manifest._derive_requested_specs(
+        pixi_toml_content,
+        environment_name=environment_name,
+        target_platform=target_platform,
+    )
     with TemporaryDirectory(prefix="bionodulo-pixi-") as temporary_directory:
         stage = Path(temporary_directory)
         (stage / "pixi.toml").write_bytes(pixi_toml_content)
@@ -174,6 +179,7 @@ def _compile_with_capture_for_test(
             resolver=verified_pixi.resolver,
             environment_name=environment_name,
             target_platform=target_platform,
+            requested_specs=requested_specs,
         )
 
 

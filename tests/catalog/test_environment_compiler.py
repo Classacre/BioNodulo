@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import inspect
 import json
@@ -23,7 +24,14 @@ from bionodulo.nodes.contract.environments import (
     PlatformLock,
     ResolverIdentity,
 )
-from bionodulo.nodes.environment_compiler import compiler, pixi_identity, pixi_lock_v7
+from bionodulo.nodes.environment_compiler import (
+    compiler,
+    package_url,
+    pixi_identity,
+    pixi_lock_v7,
+    pixi_manifest,
+    pixi_specs,
+)
 
 
 SHA_A = "a" * 64
@@ -138,12 +146,23 @@ def compile_captured_platform_lock(
     environment_name: str,
     platform: ExecutionPlatform,
 ) -> PlatformLock:
+    fixture_records = cast(list[dict[str, object]], json.loads(pixi_list_content))
+    requested_specs = {
+        (
+            canonicalize_name(str(record["name"])).replace("-", "_")
+            if record["kind"] == "pypi"
+            else str(record["name"])
+        ): str(record["requested_spec"])
+        for record in fixture_records
+        if record["requested_spec"] is not None
+    }
     return pixi_lock_v7._compile_captured_platform_lock(
         pixi_list_content=pixi_list_content,
         pixi_lock_content=pixi_lock_content,
         resolver=resolver_identity(),
         environment_name=environment_name,
         target_platform=platform,
+        requested_specs=requested_specs,
     )
 
 
@@ -306,6 +325,17 @@ def lockfile_with_pypi_field(field: str, value: object) -> bytes:
     package = document["packages"][1]
     document["packages"][1] = {
         key: value if key == field else package[key] for key in _PYPI_V7_FIELDS if key == field or key in package
+    }
+    return yaml.safe_dump(document, sort_keys=False).encode("utf-8")
+
+
+def lockfile_with_environment_options(options: object) -> bytes:
+    document = yaml.safe_load(lockfile())
+    environment = document["environments"]["alignment-tools"]
+    document["environments"]["alignment-tools"] = {
+        "channels": environment["channels"],
+        "options": options,
+        "packages": environment["packages"],
     }
     return yaml.safe_dump(document, sort_keys=False).encode("utf-8")
 
@@ -945,6 +975,100 @@ def test_v7_purls_retains_optional_sorted_package_url_set(
 @pytest.mark.parametrize(
     "value",
     (
+        "pkg:type/name",
+        "pkg:type/namespace/name@version?key=value#subpath",
+        "pkg:type/a%2Fb",
+        "pkg:type/name@a/b",
+        "pkg:type/%C3%A6",
+        "pkg:type/name?checksum=hash1:aabb,hash2:1234",
+        "pkg:custom/Foo",
+        "pkg:maven/name",
+        "pkg:generic/a%23/b%3F/c%40/name",
+        "pkg:generic/a%23%2Fb%3F%2Fc%40",
+        "pkg:generic/name?a=%23&b=%3F&c=%40",
+        "pkg:generic/name#a%23/b%3F/c%40",
+        "pkg:type/a/b/./c/../d/name",
+        "pkg:type/name#a/.../b",
+        "pkg:type/name?checksum=%C3%A4:aabb",
+    ),
+)
+def test_v7_purls_accepts_exact_generic_purl_canonical_forms(value: str) -> None:
+    selected = pixi_lock_v7._validate_pixi_lock(
+        lockfile_with_conda_field("purls", [value]),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].purls == (value,)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "pkg:1type/name",
+        "pkg:t_ype/name",
+        "pkg:type/",
+        "pkg:type/%80",
+        "pkg:type/a%2Fb/name",
+        "pkg:type/name#a%2Fb",
+        "pkg:type/name?bad",
+        "pkg:type/name?=x",
+        "pkg:type/name?a=x&A=y",
+        "pkg:type/name?checksum=hash1:xx",
+        "pkg:/type/name",
+        "pkg:TYPE/name",
+        "pkg:type/n%61me",
+        "pkg:type/a%2fb",
+        "pkg:type/name@",
+        "pkg:type/name?a=",
+        "pkg:type/name?b=2&A=1",
+        "pkg:type/name#/a//./b/../c/",
+        "pkg:type//name",
+        "pkg:type/na%GGme",
+        "pkg:type/æ",
+        "pkg:type/name?a=x+y",
+        "pkg:type/name?checksum=hash2:1234,HASH1:aAbB",
+        "pkg:type/name?checksum=%C3%84:aabb",
+    ),
+)
+def test_v7_purls_rejects_invalid_or_noncanonical_generic_purls(value: str) -> None:
+    with pytest.raises(ValueError, match="purls|package URL"):
+        pixi_lock_v7._validate_pixi_lock(
+            lockfile_with_conda_field("purls", [value]),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_purls_uses_decoded_generic_purl_btree_order() -> None:
+    expected = ("pkg:t/b", "pkg:t/a/z")
+
+    selected = pixi_lock_v7._validate_pixi_lock(
+        lockfile_with_conda_field("purls", list(expected)),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected[0].purls == expected
+
+
+def test_v7_purls_rejects_raw_lexical_order_when_structural_order_differs() -> None:
+    with pytest.raises(ValueError, match="purls|BTreeSet|order"):
+        pixi_lock_v7._validate_pixi_lock(
+            lockfile_with_conda_field("purls", ["pkg:t/a/z", "pkg:t/b"]),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_purls_rejects_checksum_algorithms_duplicated_by_unicode_case() -> None:
+    with pytest.raises(ValueError, match="checksum|repeats|algorithm"):
+        package_url._canonical_checksum("Ä:aabb,ä:1234", label="Conda purls item")
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
         None,
         {},
         [1],
@@ -957,6 +1081,77 @@ def test_v7_purls_rejects_values_outside_canonical_btree_set(value: object) -> N
     with pytest.raises(ValueError, match="purls"):
         pixi_lock_v7._validate_pixi_lock(
             lockfile_with_conda_field("purls", value),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("strategy", "lowest-version"),
+        ("strategy", "lowest-version-direct"),
+        ("channel-priority", "disabled"),
+        ("pypi-prerelease-mode", "disallow"),
+        ("pypi-prerelease-mode", "allow"),
+        ("pypi-prerelease-mode", "if-necessary"),
+        ("pypi-prerelease-mode", "explicit"),
+    ),
+)
+def test_v7_environment_options_accept_exact_solver_enums(field: str, value: str) -> None:
+    selected = pixi_lock_v7._validate_pixi_lock(
+        lockfile_with_environment_options({field: value}),
+        environment_name="alignment-tools",
+        resolver_platform="linux-64",
+    )
+
+    assert selected
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("strategy", "lowest"),
+        ("strategy", "Highest"),
+        ("channel-priority", "flexible"),
+        ("channel-priority", "Strict"),
+        ("pypi-prerelease-mode", "if_needed"),
+        ("pypi-prerelease-mode", "always"),
+    ),
+)
+def test_v7_environment_options_reject_values_outside_solver_enums(field: str, value: str) -> None:
+    with pytest.raises(ValueError, match=field):
+        pixi_lock_v7._validate_pixi_lock(
+            lockfile_with_environment_options({field: value}),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("strategy", "highest"),
+        ("channel-priority", "strict"),
+        ("pypi-prerelease-mode", "if-necessary-or-explicit"),
+    ),
+)
+def test_v7_environment_options_rejects_explicit_defaults_omitted_by_serializer(
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(ValueError, match="options|default|canonical"):
+        pixi_lock_v7._validate_pixi_lock(
+            lockfile_with_environment_options({field: value}),
+            environment_name="alignment-tools",
+            resolver_platform="linux-64",
+        )
+
+
+def test_v7_environment_options_rejects_empty_table_omitted_by_serializer() -> None:
+    with pytest.raises(ValueError, match="options|empty|canonical"):
+        pixi_lock_v7._validate_pixi_lock(
+            lockfile_with_environment_options({}),
             environment_name="alignment-tools",
             resolver_platform="linux-64",
         )
@@ -1646,6 +1841,7 @@ def test_verified_x86_host_handle_compiles_arm_target_lock(tmp_path: Path) -> No
             resolver=verified.resolver,
             environment_name="alignment-tools",
             target_platform=ExecutionPlatform.LINUX_ARM64,
+            requested_specs={"samtools": "samtools ==1.20"},
         )
 
     assert compiled.platform is ExecutionPlatform.LINUX_ARM64
@@ -1657,8 +1853,22 @@ def test_private_compiler_stages_exact_bytes_and_uses_locked_no_install(tmp_path
     binary = write_synthetic_pixi(tmp_path / "pixi", binary_content)
     filename = "samtools-1.20-h50ea8bc_0.conda"
     url = f"https://conda.anaconda.org/bioconda/linux-aarch64/{filename}"
-    arm_record = conda_record(arch="aarch64", subdir="linux-aarch64", url=url)
-    pixi_toml_content = b"[workspace]\nname = 'fixture'\nchannels = ['bioconda']\nplatforms = ['linux-aarch64']\n"
+    arm_record = conda_record(
+        arch="aarch64",
+        subdir="linux-aarch64",
+        url=url,
+        requested_spec="==1.20",
+    )
+    pixi_toml_content = (
+        b"[workspace]\n"
+        b"name = 'fixture'\n"
+        b"channels = ['bioconda']\n"
+        b"platforms = ['linux-aarch64']\n"
+        b"[dependencies]\n"
+        b"samtools = '==1.20'\n"
+        b"[environments]\n"
+        b"alignment-tools = []\n"
+    )
     pixi_lock_content = lockfile(
         resolver_platform="linux-aarch64",
         package_references=(("conda", url),),
@@ -1693,6 +1903,669 @@ def test_private_compiler_stages_exact_bytes_and_uses_locked_no_install(tmp_path
     assert command[9] == "--manifest-path"
     assert not stage.exists()
     assert compiled.platform is ExecutionPlatform.LINUX_ARM64
+
+
+def test_private_compiler_rejects_forged_direct_conda_explicitness(tmp_path: Path) -> None:
+    binary_content = b"verified x86 host pixi"
+    binary = write_synthetic_pixi(tmp_path / "pixi", binary_content)
+    pixi_toml_content = (
+        b"[workspace]\n"
+        b"channels = ['bioconda']\n"
+        b"platforms = ['linux-64']\n"
+        b"[dependencies]\n"
+        b"samtools = '==1.20'\n"
+        b"[environments]\n"
+        b"alignment-tools = []\n"
+    )
+    forged = conda_record(is_explicit=False, requested_spec=None)
+
+    with pixi_identity._open_verified_pixi(
+        binary,
+        host_platform=ExecutionPlatform.LINUX_AMD64,
+        distributions=synthetic_distribution_map(binary_content),
+    ) as verified:
+        with pytest.raises(ValueError, match="is_explicit|requested_spec|manifest"):
+            compiler._compile_with_capture_for_test(
+                pixi_toml_content=pixi_toml_content,
+                pixi_lock_content=lockfile(),
+                capture=lambda command, cwd, executable_fd: encoded(forged),
+                verified_pixi=verified,
+                target_platform=ExecutionPlatform.LINUX_AMD64,
+                environment_name="alignment-tools",
+            )
+
+
+def test_private_compiler_rejects_explicit_record_for_dependency_free_environment(tmp_path: Path) -> None:
+    binary_content = b"verified x86 host pixi"
+    binary = write_synthetic_pixi(tmp_path / "pixi", binary_content)
+    pixi_toml_content = (
+        b"[workspace]\n"
+        b"channels = ['bioconda']\n"
+        b"platforms = ['linux-64']\n"
+        b"[environments]\n"
+        b"alignment-tools = { features = [], no-default-feature = true }\n"
+    )
+
+    with pixi_identity._open_verified_pixi(
+        binary,
+        host_platform=ExecutionPlatform.LINUX_AMD64,
+        distributions=synthetic_distribution_map(binary_content),
+    ) as verified:
+        with pytest.raises(ValueError, match="is_explicit|requested_spec|manifest"):
+            compiler._compile_with_capture_for_test(
+                pixi_toml_content=pixi_toml_content,
+                pixi_lock_content=lockfile(),
+                capture=lambda command, cwd, executable_fd: encoded(conda_record()),
+                verified_pixi=verified,
+                target_platform=ExecutionPlatform.LINUX_AMD64,
+                environment_name="alignment-tools",
+            )
+
+
+def test_manifest_projection_matches_selected_features_and_pypi_serializer() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[dependencies]\n"
+        b"python = '>=3.12,<3.13'\n"
+        b"[pypi-dependencies]\n"
+        b"requests = '>=2.31'\n"
+        b"[feature.tools.dependencies]\n"
+        b"samtools = '==1.20'\n"
+        b"[feature.tools.pypi-dependencies]\n"
+        b"numpy = '==2.5.1'\n"
+        b"[feature.tools.target.linux-64.dependencies]\n"
+        b"linux-only = '>=1'\n"
+        b"[environments]\n"
+        b"analysis = { features = ['tools'] }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="analysis",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {
+        "python": ">=3.12,<3.13",
+        "requests": '">=2.31"',
+        "samtools": "==1.20",
+        "numpy": '"==2.5.1"',
+        "linux-only": ">=1",
+    }
+
+
+def test_manifest_projection_serializes_detailed_pypi_spec_exactly() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[feature.server.pypi-dependencies]\n"
+        b"uvicorn = { version = '>=0.27.0', extras = ['standard'] }\n"
+        b"[environments]\n"
+        b"default = { features = ['server'] }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    # Pixi 0.68.1 package/list uses PixiPypiSpec::Display via toml_edit::Value.
+    assert projected == {"uvicorn": '{ version = ">=0.27.0", extras = ["standard"] }'}
+
+
+def test_manifest_projection_honors_no_default_feature_and_ordered_feature_specs() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[dependencies]\n"
+        b"python = '>=3.12'\n"
+        b"[feature.minimum.dependencies]\n"
+        b"samtools = '>=1.19'\n"
+        b"[feature.maximum.dependencies]\n"
+        b"samtools = '<1.21'\n"
+        b"[environments]\n"
+        b"analysis = { features = ['minimum', 'maximum'], no-default-feature = true }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="analysis",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"samtools": ">=1.19, <1.21"}
+
+
+def test_manifest_projection_preserves_implicit_default_environment() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[dependencies]\n"
+        b"python = '>=3.12,<3.13'\n"
+        b"[feature.tools.dependencies]\n"
+        b"samtools = '==1.20'\n"
+        b"[environments]\n"
+        b"analysis = ['tools']\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"python": ">=3.12,<3.13"}
+
+
+def test_manifest_projection_combines_kinds_inside_each_target_before_overwrite() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[build-dependencies]\n"
+        b"shared = '==1'\n"
+        b"[target.linux-64.dependencies]\n"
+        b"shared = '==2'\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"shared": "==2"}
+
+
+def test_manifest_projection_merges_conda_names_case_insensitively_with_first_spelling() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[feature.minimum.dependencies]\n"
+        b"Foo = '>=1'\n"
+        b"[feature.maximum.dependencies]\n"
+        b"foo = '<2'\n"
+        b"[environments]\n"
+        b"analysis = { features = ['minimum', 'maximum'], no-default-feature = true }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="analysis",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"Foo": ">=1, <2"}
+
+
+def test_manifest_projection_applies_pypi_after_same_name_conda() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[dependencies]\n"
+        b"requests = '>=2'\n"
+        b"[pypi-dependencies]\n"
+        b"requests = '>=3'\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"requests": '">=3"'}
+
+
+def test_manifest_projection_overwrites_pypi_target_alias_after_normalization() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[pypi-dependencies]\n"
+        b"Foo_Bar = '>=1'\n"
+        b"[target.linux-64.pypi-dependencies]\n"
+        b"foo-bar = '>=2'\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"foo_bar": '">=2"'}
+
+
+@pytest.mark.parametrize(
+    ("dependency", "expected"),
+    (
+        ("'1.20'", "==1.20"),
+        ("'==03.012.013'", "==3.12.13"),
+        (
+            "{ version = '>=1.20', build = 'h*', build-number = '>=2', file-name = 'samtools.conda', "
+            "channel = 'bioconda', subdir = 'linux-64', license = 'MIT', md5 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', "
+            "sha256 = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }",
+            "version=>=1.20 build=h* build_number=>=2 file_name=samtools.conda channel=bioconda "
+            "subdir=linux-64 license=MIT md5=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "
+            "sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ),
+        (
+            "{ url = 'https://packages.example.org/samtools-1.20-h0.conda', "
+            "sha256 = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }",
+            "https://packages.example.org/samtools-1.20-h0.conda "
+            "sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ),
+        (
+            "{ url = 'HTTPS://CONDA.ANACONDA.ORG:443/conda-forge/linux-64/../linux-64/"
+            "python-3.12.13-hd63d673_0_cpython.conda' }",
+            "https://conda.anaconda.org/conda-forge/linux-64/python-3.12.13-hd63d673_0_cpython.conda",
+        ),
+        (
+            "{ git = 'https://github.com/example/feedstock', tag = 'v1.20', subdirectory = 'recipe/./src' }",
+            "https://github.com/example/feedstock @ v1.20 in recipe/src",
+        ),
+        ("{ path = '../local-package', subdirectory = '../ignored' }", "../local-package"),
+        ("{ version = '>=1', subdirectory = '../ignored' }", "version=>=1"),
+    ),
+)
+def test_manifest_projection_serializes_all_conda_spec_variants(dependency: str, expected: str) -> None:
+    manifest = (
+        "[workspace]\n"
+        "channels = ['conda-forge']\n"
+        "platforms = ['linux-64']\n"
+        "preview = ['pixi-build']\n"
+        "[dependencies]\n"
+        f"package = {dependency}\n"
+    ).encode()
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"package": expected}
+
+
+@pytest.mark.parametrize(
+    ("dependency", "expected"),
+    (
+        (
+            "{ version = '>=1', extras = ['testing'], index = 'https://packages.example.org/simple', "
+            "env-markers = 'os_name == \"posix\"' }",
+            '{ version = ">=1", extras = ["testing"], index = "https://packages.example.org/simple", '
+            "env-markers = \"os_name == 'posix'\" }",
+        ),
+        (
+            "{ git = 'https://github.com/example/package', branch = 'main', subdirectory = 'python/./src', "
+            "extras = ['testing'] }",
+            '{ git = "https://github.com/example/package", branch = "main", subdirectory = "python/src", '
+            'extras = ["testing"] }',
+        ),
+        (
+            "{ path = './local-package', editable = true, extras = ['testing'] }",
+            '{ path = "./local-package", editable = true, extras = ["testing"] }',
+        ),
+        (
+            "{ path = './local-package', editable = false, subdirectory = '../ignored' }",
+            '{ path = "./local-package" }',
+        ),
+        (
+            "{ url = 'https://packages.example.org/package-1.0-py3-none-any.whl', "
+            "subdirectory = 'python/./src', extras = ['testing'] }",
+            '{ url = "https://packages.example.org/package-1.0-py3-none-any.whl", '
+            'subdirectory = "python/src", extras = ["testing"] }',
+        ),
+        (
+            "{ version = '==0.16.0', editable = false, subdirectory = '../ignored' }",
+            '"==0.16.0"',
+        ),
+    ),
+)
+def test_manifest_projection_serializes_all_pypi_spec_variants(dependency: str, expected: str) -> None:
+    manifest = (
+        "[workspace]\n"
+        "channels = ['conda-forge']\n"
+        "platforms = ['linux-64']\n"
+        "[pypi-dependencies]\n"
+        f"package = {dependency}\n"
+    ).encode()
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"package": expected}
+
+
+def test_manifest_projection_normalizes_pypi_versions_and_extras() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[pypi-dependencies]\n"
+        b"package = { version = '<4.0, >=3.7, !=3.9.0, >=3.7', extras = ['Foo_Bar', 'foo.bar'] }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"package": '{ version = ">=3.7, >=3.7, !=3.9.0, <4.0", extras = ["foo-bar", "foo-bar"] }'}
+
+
+def test_manifest_projection_canonicalizes_pypi_marker_tree() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[pypi-dependencies]\n"
+        b"package = { version = '>=1', env-markers = \"os_name == 'posix' and os_name == 'posix'\" }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"package": '{ version = ">=1", env-markers = "os_name == \'posix\'" }'}
+
+
+def test_manifest_projection_rejects_nonboolean_ignored_pypi_editable() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[pypi-dependencies]\n"
+        b"package = { version = '>=1', editable = 'yes' }\n"
+    )
+
+    with pytest.raises(ValueError, match="editable|boolean"):
+        pixi_manifest._derive_requested_specs(
+            manifest,
+            environment_name="default",
+            target_platform=ExecutionPlatform.LINUX_AMD64,
+        )
+
+
+@pytest.mark.parametrize(
+    ("marker", "expected"),
+    (
+        ("python_version >= '3.8'", "python_full_version >= '3.8'"),
+        (
+            "python_version >= '3.8' and python_version >= '3.9'",
+            "python_full_version >= '3.9'",
+        ),
+        ("'3.8' <= python_version", "python_full_version >= '3.8'"),
+        ("python_version == '3.12'", "python_full_version == '3.12.*'"),
+        ("python_version == '3.9.0'", "python_full_version == '3.9.*'"),
+        ("python_version != '3.11'", "python_full_version != '3.11.*'"),
+        ("python_version < '4'", "python_full_version < '4'"),
+        ("python_version <= '3.12'", "python_full_version < '3.13'"),
+        ("python_version > '3.11'", "python_full_version >= '3.12'"),
+        (
+            "python_version in '3.9 3.11'",
+            "python_full_version == '3.9.*' or python_full_version == '3.11.*'",
+        ),
+        (
+            "python_version in '3.9 3.10 3.11'",
+            "python_full_version >= '3.9' and python_full_version < '3.12'",
+        ),
+        (
+            "python_version not in '3.9 3.11'",
+            "python_full_version < '3.9' or python_full_version == '3.10.*' or python_full_version >= '3.12'",
+        ),
+        (
+            "python_version < '3.17' or python_version < '3.18'",
+            "python_full_version < '3.18'",
+        ),
+        (
+            "python_version < '3.17' and python_version == '3.18'",
+            "python_version < '0'",
+        ),
+    ),
+)
+def test_manifest_projection_normalizes_python_version_markers(marker: str, expected: str) -> None:
+    manifest = (
+        "[workspace]\n"
+        "channels = ['conda-forge']\n"
+        "platforms = ['linux-64']\n"
+        "[pypi-dependencies]\n"
+        f"package = {{ version = '>=1', env-markers = \"{marker}\" }}\n"
+    ).encode()
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"package": f'{{ version = ">=1", env-markers = "{expected}" }}'}
+
+
+def test_manifest_projection_omits_tautological_pypi_marker() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[pypi-dependencies]\n"
+        b"package = { version = '>=1', env-markers = \"os_name == 'posix' or os_name != 'posix'\" }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"package": '">=1"'}
+
+
+@pytest.mark.parametrize(
+    ("marker", "expected"),
+    (
+        (
+            "python_version == '3.9.1'",
+            '{ version = ">=1", env-markers = "python_version < \'0\'" }',
+        ),
+        ("python_version != '3.9.1'", '">=1"'),
+    ),
+)
+def test_manifest_projection_resolves_nonzero_python_version_patches(marker: str, expected: str) -> None:
+    manifest = (
+        "[workspace]\n"
+        "channels = ['conda-forge']\n"
+        "platforms = ['linux-64']\n"
+        "[pypi-dependencies]\n"
+        f"package = {{ version = '>=1', env-markers = \"{marker}\" }}\n"
+    ).encode()
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"package": expected}
+
+
+def test_manifest_projection_applies_pypi_marker_absorption() -> None:
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[pypi-dependencies]\n"
+        b"package = { version = '>=1', env-markers = \"os_name == 'posix' or "
+        b"(os_name == 'posix' and sys_platform == 'linux')\" }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    assert projected == {"package": '{ version = ">=1", env-markers = "os_name == \'posix\'" }'}
+
+
+def test_manifest_projection_deduplicates_conda_specs_by_semantic_identity() -> None:
+    url = "https://packages.example.org/package-1.0-0.conda"
+    manifest = (
+        b"[workspace]\n"
+        b"channels = ['conda-forge']\n"
+        b"platforms = ['linux-64']\n"
+        b"[feature.first.dependencies]\n"
+        + f"package = {{ url = '{url}', subdirectory = 'first' }}\n".encode()
+        + b"[feature.second.dependencies]\n"
+        + f"package = {{ url = '{url}', subdirectory = 'second' }}\n".encode()
+        + b"[environments]\n"
+        + b"default = { features = ['first', 'second'], no-default-feature = true }\n"
+    )
+
+    projected = pixi_manifest._derive_requested_specs(
+        manifest,
+        environment_name="default",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+    )
+
+    # UrlSpec::Display omits subdirectory, while PixiSpec::Eq retains it.
+    assert projected == {"package": f"{url}, {url}"}
+
+
+def test_reconciliation_accepts_exact_direct_and_transitive_conda_projection() -> None:
+    direct = conda_record(requested_spec="==1.20")
+    dependency_filename = "htslib-1.20-h81da01d_0.conda"
+    transitive = conda_record(
+        name="htslib",
+        version="1.20",
+        build="h81da01d_0",
+        file_name=dependency_filename,
+        url=f"https://conda.anaconda.org/bioconda/linux-64/{dependency_filename}",
+        sha256=SHA_B,
+        is_explicit=False,
+        requested_spec=None,
+    )
+    references = tuple(
+        sorted(
+            (("conda", str(direct["url"])), ("conda", str(transitive["url"]))),
+            key=lambda reference: reference[1],
+        )
+    )
+
+    native_lock = lockfile(package_references=references).replace(
+        f"  sha256: {SHA_A}\n".encode(),
+        f"  sha256: {SHA_B}\n".encode(),
+        1,
+    )
+    compiled = pixi_lock_v7._compile_captured_platform_lock(
+        pixi_list_content=encoded(direct, transitive),
+        pixi_lock_content=native_lock,
+        resolver=resolver_identity(),
+        environment_name="alignment-tools",
+        target_platform=ExecutionPlatform.LINUX_AMD64,
+        requested_specs={"samtools": "==1.20"},
+    )
+
+    assert tuple(artifact.name for artifact in compiled.artifacts) == ("htslib", "samtools")
+
+
+@pytest.mark.parametrize(
+    ("direct_updates", "transitive_updates"),
+    (
+        ({"is_explicit": False}, {}),
+        ({"requested_spec": "==1.19"}, {}),
+        ({}, {"is_explicit": True}),
+        ({}, {"requested_spec": ">=1.20"}),
+        ({}, {"is_explicit": True, "requested_spec": ">=1.20"}),
+    ),
+)
+def test_reconciliation_rejects_forged_conda_explicitness_projection(
+    direct_updates: dict[str, object],
+    transitive_updates: dict[str, object],
+) -> None:
+    direct = conda_record(**{"requested_spec": "==1.20", **direct_updates})
+    dependency_filename = "htslib-1.20-h81da01d_0.conda"
+    transitive = conda_record(
+        **{
+            "name": "htslib",
+            "version": "1.20",
+            "build": "h81da01d_0",
+            "file_name": dependency_filename,
+            "url": f"https://conda.anaconda.org/bioconda/linux-64/{dependency_filename}",
+            "sha256": SHA_B,
+            "is_explicit": False,
+            "requested_spec": None,
+            **transitive_updates,
+        }
+    )
+    references = tuple(
+        sorted(
+            (("conda", str(direct["url"])), ("conda", str(transitive["url"]))),
+            key=lambda reference: reference[1],
+        )
+    )
+    native_lock = lockfile(package_references=references).replace(
+        f"  sha256: {SHA_A}\n".encode(),
+        f"  sha256: {SHA_B}\n".encode(),
+        1,
+    )
+
+    with pytest.raises(ValueError, match="is_explicit|requested_spec"):
+        pixi_lock_v7._compile_captured_platform_lock(
+            pixi_list_content=encoded(direct, transitive),
+            pixi_lock_content=native_lock,
+            resolver=resolver_identity(),
+            environment_name="alignment-tools",
+            target_platform=ExecutionPlatform.LINUX_AMD64,
+            requested_specs={"samtools": "==1.20"},
+        )
+
+
+def test_reconciliation_rejects_forged_direct_pypi_and_explicit_transitive_records() -> None:
+    python = python_record()
+    wheel = pypi_record(
+        name="requests",
+        version="2.31.0",
+        url="https://files.pythonhosted.org/packages/requests-2.31.0-py3-none-any.whl",
+        requested_spec='">=2.31"',
+    )
+    transitive = pypi_record(
+        name="urllib3",
+        version="2.2.0",
+        url="https://files.pythonhosted.org/packages/urllib3-2.2.0-py3-none-any.whl",
+        is_explicit=True,
+        requested_spec='">=2.0"',
+    )
+    references = (
+        ("conda", str(python["url"])),
+        ("pypi", str(wheel["url"])),
+        ("pypi", str(transitive["url"])),
+    )
+    native_lock = lockfile(package_references=references)
+
+    with pytest.raises(ValueError, match="is_explicit|requested_spec|manifest"):
+        pixi_lock_v7._compile_captured_platform_lock(
+            pixi_list_content=encoded(python, wheel, transitive),
+            pixi_lock_content=native_lock,
+            resolver=resolver_identity(),
+            environment_name="alignment-tools",
+            target_platform=ExecutionPlatform.LINUX_AMD64,
+            requested_specs={"python": ">=3.11,<3.12", "requests": '">=2.31"'},
+        )
 
 
 @pytest.mark.parametrize(
@@ -1731,6 +2604,16 @@ def test_private_compiler_requires_exact_bounded_manifest_bytes(
 def test_private_compiler_accepts_manifest_at_one_mib_limit(tmp_path: Path) -> None:
     binary_content = b"verified x86 host pixi"
     binary = write_synthetic_pixi(tmp_path / "pixi", binary_content)
+    manifest_prefix = (
+        b"[workspace]\n"
+        b"channels = ['bioconda']\n"
+        b"platforms = ['linux-64']\n"
+        b"[dependencies]\n"
+        b"samtools = '==1.20'\n"
+        b"[environments]\n"
+        b"alignment-tools = []\n"
+    )
+    pixi_toml_content = manifest_prefix + b"#" * (1024 * 1024 - len(manifest_prefix))
 
     with pixi_identity._open_verified_pixi(
         binary,
@@ -1738,9 +2621,9 @@ def test_private_compiler_accepts_manifest_at_one_mib_limit(tmp_path: Path) -> N
         distributions=synthetic_distribution_map(binary_content),
     ) as verified:
         compiled = compiler._compile_with_capture_for_test(
-            pixi_toml_content=b"#" * (1024 * 1024),
+            pixi_toml_content=pixi_toml_content,
             pixi_lock_content=lockfile(),
-            capture=lambda command, cwd, executable_fd: encoded(conda_record()),
+            capture=lambda command, cwd, executable_fd: encoded(conda_record(requested_spec="==1.20")),
             verified_pixi=verified,
             target_platform=ExecutionPlatform.LINUX_AMD64,
             environment_name="alignment-tools",
@@ -1911,7 +2794,14 @@ def test_capture_timeout_kills_and_reaps_child(
 def test_private_compiler_cleans_stage_after_capture_failure(tmp_path: Path) -> None:
     binary_content = b"verified x86 host pixi"
     binary = write_synthetic_pixi(tmp_path / "pixi", binary_content)
-    pixi_toml_content = b"[workspace]\nname = 'fixture'\nchannels = ['bioconda']\nplatforms = ['linux-64']\n"
+    pixi_toml_content = (
+        b"[workspace]\n"
+        b"name = 'fixture'\n"
+        b"channels = ['bioconda']\n"
+        b"platforms = ['linux-64']\n"
+        b"[environments]\n"
+        b"alignment-tools = { features = [], no-default-feature = true }\n"
+    )
     pixi_lock_content = lockfile()
     stages: list[Path] = []
 
@@ -1941,7 +2831,14 @@ def test_private_compiler_cleans_stage_after_capture_failure(tmp_path: Path) -> 
 def test_private_compiler_rejects_stage_mutation_after_capture_error(tmp_path: Path) -> None:
     binary_content = b"verified x86 host pixi"
     binary = write_synthetic_pixi(tmp_path / "pixi", binary_content)
-    pixi_toml_content = b"[workspace]\nname = 'fixture'\nchannels = ['bioconda']\nplatforms = ['linux-64']\n"
+    pixi_toml_content = (
+        b"[workspace]\n"
+        b"name = 'fixture'\n"
+        b"channels = ['bioconda']\n"
+        b"platforms = ['linux-64']\n"
+        b"[environments]\n"
+        b"alignment-tools = { features = [], no-default-feature = true }\n"
+    )
     pixi_lock_content = lockfile()
 
     def capture(command: tuple[str, ...], cwd: Path, executable_fd: int) -> bytes:
@@ -1974,8 +2871,21 @@ def test_public_compiler_opens_verified_host_and_compiles_target(
     binary = write_synthetic_pixi(tmp_path / "pixi", binary_content)
     filename = "samtools-1.20-h50ea8bc_0.conda"
     url = f"https://conda.anaconda.org/bioconda/linux-aarch64/{filename}"
-    arm_record = conda_record(arch="aarch64", subdir="linux-aarch64", url=url)
-    pixi_toml_content = b"[workspace]\nplatforms = ['linux-aarch64']\n"
+    arm_record = conda_record(
+        arch="aarch64",
+        subdir="linux-aarch64",
+        url=url,
+        requested_spec="==1.20",
+    )
+    pixi_toml_content = (
+        b"[workspace]\n"
+        b"channels = ['bioconda']\n"
+        b"platforms = ['linux-aarch64']\n"
+        b"[dependencies]\n"
+        b"samtools = '==1.20'\n"
+        b"[environments]\n"
+        b"alignment-tools = []\n"
+    )
     pixi_lock_content = lockfile(
         resolver_platform="linux-aarch64",
         package_references=(("conda", url),),
@@ -2038,3 +2948,50 @@ def test_public_compiler_exposes_only_exact_byte_verified_binary_boundary() -> N
     assert not hasattr(compiler, "VerifiedPixiExecutable")
     assert not hasattr(pixi_lock_v7, "admit_pixi_records")
     assert hasattr(pixi_lock_v7, "_admit_pixi_records")
+    assert (
+        inspect.signature(pixi_lock_v7._compile_captured_platform_lock).parameters["requested_specs"].default
+        is inspect.Parameter.empty
+    )
+
+
+def test_environment_compiler_modules_enforce_ownership_and_public_api_gates() -> None:
+    modules = (compiler, package_url, pixi_identity, pixi_lock_v7, pixi_manifest, pixi_specs)
+    public_platform_lock_compilers = []
+    for module in modules:
+        for name, value in vars(module).items():
+            if (
+                inspect.isfunction(value)
+                and value.__module__ == module.__name__
+                and not name.startswith("_")
+                and inspect.signature(value).return_annotation == "PlatformLock"
+            ):
+                public_platform_lock_compilers.append((module.__name__, name))
+    assert public_platform_lock_compilers == [
+        ("bionodulo.nodes.environment_compiler.compiler", "compile_pixi_platform_lock")
+    ]
+
+    compiler_tree = ast.parse(Path(cast(str, compiler.__file__)).read_text(encoding="utf-8"))
+    lock_tree = ast.parse(Path(cast(str, pixi_lock_v7.__file__)).read_text(encoding="utf-8"))
+    identity_tree = ast.parse(Path(cast(str, pixi_identity.__file__)).read_text(encoding="utf-8"))
+
+    def imported_roots(tree: ast.AST) -> set[str]:
+        roots: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                roots.add(node.module.split(".", 1)[0])
+        return roots
+
+    assert imported_roots(compiler_tree).isdisjoint({"hashlib", "json", "pydantic", "yaml"})
+    assert imported_roots(lock_tree).isdisjoint({"selectors", "signal", "subprocess", "tempfile"})
+    assert imported_roots(identity_tree).isdisjoint({"json", "subprocess", "tempfile", "yaml"})
+
+    forbidden_public_tokens = ("admit", "asserted", "capture", "captured", "runner", "verified")
+    for module in modules:
+        public_owned_callables = {
+            name
+            for name, value in vars(module).items()
+            if callable(value) and getattr(value, "__module__", None) == module.__name__ and not name.startswith("_")
+        }
+        assert not any(token in name for name in public_owned_callables for token in forbidden_public_tokens)
