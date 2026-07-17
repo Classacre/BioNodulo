@@ -5,6 +5,8 @@ import inspect
 import json
 import os
 import subprocess
+import sys
+import time
 from copy import deepcopy
 from pathlib import Path
 from typing import cast
@@ -1751,64 +1753,159 @@ def test_capture_owns_subprocess_fd_cwd_and_pipes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    command = ("/proc/self/fd/41", "list", "--locked", "--no-install", "--json")
-    calls: list[tuple[tuple[str, ...], Path, tuple[int, ...], bool, int, int]] = []
+    command = (
+        sys.executable,
+        "-c",
+        f"import sys;sys.stdout.buffer.write({encoded(conda_record())!r})",
+    )
+    calls: list[tuple[tuple[str, ...], Path, tuple[int, ...], int, int, bool]] = []
+    real_popen = compiler.subprocess.Popen
 
-    def run(
+    def popen(
         invoked: tuple[str, ...],
         *,
         cwd: Path,
         pass_fds: tuple[int, ...],
-        check: bool,
         stdout: int,
         stderr: int,
-    ) -> subprocess.CompletedProcess[bytes]:
-        calls.append((invoked, cwd, pass_fds, check, stdout, stderr))
-        return subprocess.CompletedProcess(invoked, 0, stdout=encoded(conda_record()), stderr=b"")
+        start_new_session: bool,
+    ) -> subprocess.Popen[bytes]:
+        calls.append((invoked, cwd, pass_fds, stdout, stderr, start_new_session))
+        return real_popen(
+            invoked,
+            cwd=cwd,
+            pass_fds=pass_fds,
+            stdout=stdout,
+            stderr=stderr,
+            start_new_session=start_new_session,
+        )
 
-    monkeypatch.setattr(compiler.subprocess, "run", run)
+    monkeypatch.setattr(compiler.subprocess, "Popen", popen)
 
-    captured = compiler._capture_pixi_list(command, tmp_path, 41)
+    executable_fd = os.open(os.devnull, os.O_RDONLY)
+    try:
+        captured = compiler._capture_pixi_list(command, tmp_path, executable_fd)
+    finally:
+        os.close(executable_fd)
 
     assert captured == encoded(conda_record())
     assert calls == [
         (
             command,
             tmp_path,
-            (41,),
+            (executable_fd,),
+            subprocess.PIPE,
+            subprocess.PIPE,
             True,
-            subprocess.PIPE,
-            subprocess.PIPE,
         )
     ]
 
 
 def test_capture_reports_bounded_nonzero_exit_stderr(
     tmp_path: Path,
+) -> None:
+    stderr_content = b"controlled failure\n" + b"x" * 100
+    command = (
+        sys.executable,
+        "-c",
+        f"import sys;sys.stderr.buffer.write({stderr_content!r});sys.exit(23)",
+    )
+    executable_fd = os.open(os.devnull, os.O_RDONLY)
+    try:
+        with pytest.raises(ValueError, match="exit code 23: controlled failure") as captured:
+            compiler._capture_pixi_list(command, tmp_path, executable_fd)
+    finally:
+        os.close(executable_fd)
+
+    assert len(str(captured.value)) < 256
+    assert isinstance(captured.value.__cause__, subprocess.CalledProcessError)
+
+
+def _assert_process_reaped(pid_path: Path) -> None:
+    pid = int(pid_path.read_text(encoding="ascii"))
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+
+
+def test_capture_kills_and_reaps_child_when_stdout_exceeds_bound(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    command = ("/proc/self/fd/41", "list", "--locked", "--no-install", "--json")
-    stderr_content = b"controlled failure\n" + b"x" * 5000 + b"must-not-escape"
+    pid_path = tmp_path / "stdout.pid"
+    monkeypatch.setattr(pixi_lock_v7, "_MAX_PIXI_LIST_BYTES", 1024)
+    command = (
+        sys.executable,
+        "-c",
+        (
+            "import os,pathlib,sys,time;"
+            f"pathlib.Path({str(pid_path)!r}).write_text(str(os.getpid()),encoding='ascii');"
+            "sys.stdout.buffer.write(b'x'*2048);sys.stdout.flush();time.sleep(2)"
+        ),
+    )
+    executable_fd = os.open(os.devnull, os.O_RDONLY)
+    started = time.monotonic()
+    try:
+        with pytest.raises(ValueError, match="Pixi list JSON exceeds 1024 bytes"):
+            compiler._capture_pixi_list(command, tmp_path, executable_fd)
+    finally:
+        os.close(executable_fd)
 
-    def run(
-        invoked: tuple[str, ...],
-        *,
-        cwd: Path,
-        pass_fds: tuple[int, ...],
-        check: bool,
-        stdout: int,
-        stderr: int,
-    ) -> subprocess.CompletedProcess[bytes]:
-        raise subprocess.CalledProcessError(23, invoked, output=b"ignored", stderr=stderr_content)
+    assert time.monotonic() - started < 1.5
+    _assert_process_reaped(pid_path)
 
-    monkeypatch.setattr(compiler.subprocess, "run", run)
 
-    with pytest.raises(ValueError, match="exit code 23: controlled failure") as captured:
-        compiler._capture_pixi_list(command, tmp_path, 41)
+def test_capture_kills_and_reaps_child_when_stderr_exceeds_bound(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pid_path = tmp_path / "stderr.pid"
+    monkeypatch.setattr(compiler, "_MAX_CAPTURE_ERROR_BYTES", 128)
+    command = (
+        sys.executable,
+        "-c",
+        (
+            "import os,pathlib,sys,time;"
+            f"pathlib.Path({str(pid_path)!r}).write_text(str(os.getpid()),encoding='ascii');"
+            "sys.stderr.buffer.write(b'x'*256);sys.stderr.flush();time.sleep(2)"
+        ),
+    )
+    executable_fd = os.open(os.devnull, os.O_RDONLY)
+    started = time.monotonic()
+    try:
+        with pytest.raises(ValueError, match="stderr exceeds 128 bytes"):
+            compiler._capture_pixi_list(command, tmp_path, executable_fd)
+    finally:
+        os.close(executable_fd)
 
-    assert len(str(captured.value)) < 4200
-    assert "must-not-escape" not in str(captured.value)
-    assert isinstance(captured.value.__cause__, subprocess.CalledProcessError)
+    assert time.monotonic() - started < 1.5
+    _assert_process_reaped(pid_path)
+
+
+def test_capture_timeout_kills_and_reaps_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pid_path = tmp_path / "timeout.pid"
+    monkeypatch.setattr(compiler, "_PIXI_CAPTURE_TIMEOUT_SECONDS", 0.1, raising=False)
+    command = (
+        sys.executable,
+        "-c",
+        (
+            "import os,pathlib,time;"
+            f"pathlib.Path({str(pid_path)!r}).write_text(str(os.getpid()),encoding='ascii');"
+            "time.sleep(2)"
+        ),
+    )
+    executable_fd = os.open(os.devnull, os.O_RDONLY)
+    started = time.monotonic()
+    try:
+        with pytest.raises(ValueError, match="timed out"):
+            compiler._capture_pixi_list(command, tmp_path, executable_fd)
+    finally:
+        os.close(executable_fd)
+
+    assert time.monotonic() - started < 1.5
+    _assert_process_reaped(pid_path)
 
 
 def test_private_compiler_cleans_stage_after_capture_failure(tmp_path: Path) -> None:

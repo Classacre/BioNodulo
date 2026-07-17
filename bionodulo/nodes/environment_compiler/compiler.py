@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import selectors
+import signal
 import stat
 import subprocess
+import time
 from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -15,6 +19,8 @@ from bionodulo.nodes.environment_compiler import pixi_identity, pixi_lock_v7
 
 _MAX_PIXI_TOML_BYTES = 1024 * 1024
 _MAX_CAPTURE_ERROR_BYTES = 4096
+_PIXI_CAPTURE_TIMEOUT_SECONDS = 120.0
+_CAPTURE_CHUNK_BYTES = 64 * 1024
 _PixiCapture: TypeAlias = Callable[[tuple[str, ...], Path, int], bytes]
 
 
@@ -39,24 +45,84 @@ def _verify_staged_inputs(
             raise ValueError(f"staged {filename} changed during locked Pixi capture")
 
 
-def _capture_pixi_list(command: tuple[str, ...], cwd: Path, executable_fd: int) -> bytes:
+def _kill_and_reap(process: subprocess.Popen[bytes]) -> None:
     try:
-        completed = subprocess.run(
-            command,
-            cwd=cwd,
-            pass_fds=(executable_fd,),
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except subprocess.CalledProcessError as error:
-        stderr = error.stderr if type(error.stderr) is bytes else b""
-        detail = stderr[:_MAX_CAPTURE_ERROR_BYTES].decode("utf-8", errors="replace").strip()
-        suffix = f": {detail}" if detail else ""
-        raise ValueError(f"locked Pixi list capture failed with exit code {error.returncode}{suffix}") from error
-    if len(completed.stdout) > pixi_lock_v7._MAX_PIXI_LIST_BYTES:
-        raise ValueError(f"Pixi list JSON exceeds {pixi_lock_v7._MAX_PIXI_LIST_BYTES} bytes")
-    return completed.stdout
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
+    if process.stdout is not None:
+        process.stdout.close()
+    if process.stderr is not None:
+        process.stderr.close()
+
+
+def _capture_pixi_list(command: tuple[str, ...], cwd: Path, executable_fd: int) -> bytes:
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        pass_fds=(executable_fd,),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    if process.stdout is None or process.stderr is None:  # pragma: no cover - PIPE contract
+        _kill_and_reap(process)
+        raise RuntimeError("Pixi capture pipes were not created")
+    stdout_pipe = process.stdout
+    stderr_pipe = process.stderr
+    captured_stdout = bytearray()
+    captured_stderr = bytearray()
+    selector = selectors.DefaultSelector()
+    selector.register(stdout_pipe, selectors.EVENT_READ, data="stdout")
+    selector.register(stderr_pipe, selectors.EVENT_READ, data="stderr")
+    deadline = time.monotonic() + _PIXI_CAPTURE_TIMEOUT_SECONDS
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError(f"locked Pixi list capture timed out after {_PIXI_CAPTURE_TIMEOUT_SECONDS:g} seconds")
+            for key, _ in selector.select(min(remaining, 0.1)):
+                if key.data == "stdout":
+                    target = captured_stdout
+                    maximum = pixi_lock_v7._MAX_PIXI_LIST_BYTES
+                    pipe = stdout_pipe
+                else:
+                    target = captured_stderr
+                    maximum = _MAX_CAPTURE_ERROR_BYTES
+                    pipe = stderr_pipe
+                read_size = min(_CAPTURE_CHUNK_BYTES, maximum - len(target) + 1)
+                chunk = os.read(key.fd, read_size)
+                if not chunk:
+                    selector.unregister(pipe)
+                    pipe.close()
+                    continue
+                target.extend(chunk)
+                if len(target) > maximum:
+                    label = "Pixi list JSON" if key.data == "stdout" else "Pixi capture stderr"
+                    raise ValueError(f"{label} exceeds {maximum} bytes")
+        returncode = process.wait()
+        if returncode != 0:
+            stderr = bytes(captured_stderr)
+            detail = stderr.decode("utf-8", errors="replace").strip()
+            suffix = f": {detail}" if detail else ""
+            error = subprocess.CalledProcessError(
+                returncode,
+                command,
+                output=bytes(captured_stdout),
+                stderr=stderr,
+            )
+            raise ValueError(f"locked Pixi list capture failed with exit code {returncode}{suffix}") from error
+        return bytes(captured_stdout)
+    except BaseException:
+        _kill_and_reap(process)
+        raise
+    finally:
+        selector.close()
+        if not stdout_pipe.closed:
+            stdout_pipe.close()
+        if not stderr_pipe.closed:
+            stderr_pipe.close()
 
 
 def _compile_with_capture_for_test(
