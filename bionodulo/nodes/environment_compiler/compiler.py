@@ -1,236 +1,136 @@
-"""Pixi identity checks and environment-lock compilation orchestration."""
+"""Isolated orchestration for verified, locked Pixi list capture."""
 
 from __future__ import annotations
 
-import hashlib
-from collections.abc import Callable, Iterable
+import stat
+import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, TypeAlias
+from tempfile import TemporaryDirectory
+from typing import TypeAlias
 
-from pydantic import StringConstraints, field_validator
-
-from bionodulo.nodes.contract.artifacts import _StrictFrozenModel
-from bionodulo.nodes.contract.environments import (
-    ExecutionPlatform,
-    PlatformLock,
-    ResolverIdentity,
-    Sha256Digest,
-)
+from bionodulo.nodes.contract.environments import ExecutionPlatform, PlatformLock
 from bionodulo.nodes.environment_compiler import pixi_identity, pixi_lock_v7
 
 
-PIXI_VERSION = pixi_identity.PIXI_VERSION
-PIXI_TAG_COMMIT = pixi_identity.PIXI_TAG_COMMIT
-PixiDistribution = pixi_identity.PixiDistribution
-PIXI_DISTRIBUTIONS = pixi_identity.PIXI_DISTRIBUTIONS
-_MAX_WORKSPACE_STATE_BYTES = 512 * 1024 * 1024
+_MAX_PIXI_TOML_BYTES = 1024 * 1024
+_MAX_CAPTURE_ERROR_BYTES = 4096
+_PixiCapture: TypeAlias = Callable[[tuple[str, ...], Path, int], bytes]
 
 
-class VerifiedPixiExecutable(_StrictFrozenModel):
-    """Caller-verified executable provenance bound to one pinned release archive."""
-
-    executable_path: Path
-    version: Annotated[str, StringConstraints(min_length=1, max_length=128)]
-    distribution: PixiDistribution
-
-    @field_validator("executable_path")
-    @classmethod
-    def _validate_executable_path(cls, value: Path) -> Path:
-        if not value.is_absolute() or ".." in value.parts:
-            raise ValueError("verified Pixi executable path must be absolute, not a PATH lookup name")
-        if value.name != "pixi":
-            raise ValueError("verified Pixi executable path must identify the pixi binary")
-        return value
-
-
-_PIXI_PLATFORM = pixi_lock_v7.PIXI_PLATFORM
-
-# Compatibility re-exports retained until the public compiler API is narrowed.
-PixiCondaListRecord = pixi_lock_v7.PixiCondaListRecord
-PixiPypiListRecord = pixi_lock_v7.PixiPypiListRecord
-PixiListRecord = pixi_lock_v7.PixiListRecord
-decode_pixi_list_json = pixi_lock_v7.decode_pixi_list_json
-_validate_pixi_lock = pixi_lock_v7._validate_pixi_lock
-
-_VerifiedPixi = VerifiedPixiExecutable | pixi_identity._VerifiedPixiHandle
-
-
-def _verified_pixi_for_platform(
-    pixi: _VerifiedPixi | None,
+def _verify_staged_inputs(
+    stage: Path,
     *,
-    platform: ExecutionPlatform,
-) -> _VerifiedPixi:
-    if pixi is None:
-        raise ValueError("capture requires an explicit verified Pixi executable identity")
-    if isinstance(pixi, pixi_identity._VerifiedPixiHandle):
-        _ = pixi.fd
-        return pixi
-    validated = VerifiedPixiExecutable.model_validate(pixi)
-    if validated.version != PIXI_VERSION:
-        raise ValueError(f"verified Pixi version must be exactly {PIXI_VERSION}")
-    if validated.distribution != PIXI_DISTRIBUTIONS[platform]:
-        raise ValueError("verified Pixi distribution does not match the target platform archive identity")
-    return validated
+    pixi_toml_content: bytes,
+    pixi_lock_content: bytes,
+) -> None:
+    expected = {
+        "pixi.toml": pixi_toml_content,
+        "pixi.lock": pixi_lock_content,
+    }
+    if {path.name for path in stage.iterdir()} != set(expected):
+        raise ValueError("isolated Pixi stage must contain only pixi.toml and pixi.lock")
+    for filename, content in expected.items():
+        path = stage / filename
+        metadata = path.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or path.is_symlink():
+            raise ValueError(f"staged {filename} must remain a regular file")
+        if path.read_bytes() != content:
+            raise ValueError(f"staged {filename} changed during locked Pixi capture")
 
 
-def _resolver_identity(pixi: _VerifiedPixi) -> ResolverIdentity:
-    if isinstance(pixi, pixi_identity._VerifiedPixiHandle):
-        return pixi.resolver
-    return ResolverIdentity(
-        name="pixi",
-        version=pixi.version,
-        config_digest=pixi.distribution.sha256,
-    )
+def _capture_pixi_list(command: tuple[str, ...], cwd: Path, executable_fd: int) -> bytes:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            pass_fds=(executable_fd,),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as error:
+        stderr = error.stderr if type(error.stderr) is bytes else b""
+        detail = stderr[:_MAX_CAPTURE_ERROR_BYTES].decode("utf-8", errors="replace").strip()
+        suffix = f": {detail}" if detail else ""
+        raise ValueError(f"locked Pixi list capture failed with exit code {error.returncode}{suffix}") from error
+    if len(completed.stdout) > pixi_lock_v7._MAX_PIXI_LIST_BYTES:
+        raise ValueError(f"Pixi list JSON exceeds {pixi_lock_v7._MAX_PIXI_LIST_BYTES} bytes")
+    return completed.stdout
 
 
-def admit_pixi_records(
-    records: Iterable[PixiListRecord],
+def _compile_with_capture_for_test(
     *,
-    pixi: _VerifiedPixi | None = None,
+    pixi_toml_content: bytes,
+    pixi_lock_content: bytes,
+    capture: _PixiCapture,
+    verified_pixi: pixi_identity._VerifiedPixiHandle,
+    target_platform: ExecutionPlatform,
     environment_name: str,
-    platform: ExecutionPlatform,
-    native_lock_sha256: Sha256Digest,
 ) -> PlatformLock:
-    """Compatibility wrapper around lock-v7 record admission."""
-
-    verified_pixi = _verified_pixi_for_platform(pixi, platform=platform)
-    return pixi_lock_v7.admit_pixi_records(
-        records,
-        resolver=_resolver_identity(verified_pixi),
+    if type(pixi_toml_content) is not bytes:
+        raise TypeError("pixi.toml content must be exact bytes")
+    if not pixi_toml_content or len(pixi_toml_content) > _MAX_PIXI_TOML_BYTES:
+        raise ValueError(f"pixi.toml size must be between 1 and {_MAX_PIXI_TOML_BYTES} bytes")
+    pixi_lock_v7._validate_pixi_lock(
+        pixi_lock_content,
         environment_name=environment_name,
-        target_platform=platform,
-        native_lock_sha256=native_lock_sha256,
+        resolver_platform=pixi_lock_v7.PIXI_PLATFORM[target_platform],
     )
+    with TemporaryDirectory(prefix="bionodulo-pixi-") as temporary_directory:
+        stage = Path(temporary_directory)
+        (stage / "pixi.toml").write_bytes(pixi_toml_content)
+        (stage / "pixi.lock").write_bytes(pixi_lock_content)
+        command = (
+            verified_pixi.executable,
+            "list",
+            "--locked",
+            "--no-install",
+            "--json",
+            "--environment",
+            environment_name,
+            "--platform",
+            pixi_lock_v7.PIXI_PLATFORM[target_platform],
+            "--manifest-path",
+            str(stage / "pixi.toml"),
+        )
+        try:
+            pixi_list_content = capture(command, stage, verified_pixi.fd)
+        finally:
+            _verify_staged_inputs(
+                stage,
+                pixi_toml_content=pixi_toml_content,
+                pixi_lock_content=pixi_lock_content,
+            )
+        return pixi_lock_v7._compile_captured_platform_lock(
+            pixi_list_content=pixi_list_content,
+            pixi_lock_content=pixi_lock_content,
+            resolver=verified_pixi.resolver,
+            environment_name=environment_name,
+            target_platform=target_platform,
+        )
 
 
 def compile_pixi_platform_lock(
-    pixi_list_content: bytes,
+    pixi_toml_content: bytes,
     pixi_lock_content: bytes,
     *,
-    pixi: _VerifiedPixi | None = None,
+    pixi_executable: Path,
+    host_platform: ExecutionPlatform,
+    target_platform: ExecutionPlatform,
     environment_name: str,
-    platform: ExecutionPlatform,
 ) -> PlatformLock:
-    """Compatibility wrapper for captured lock-v7 compilation."""
+    """Compile one target lock through a verified host Pixi binary."""
 
-    verified_pixi = _verified_pixi_for_platform(pixi, platform=platform)
-    return pixi_lock_v7._compile_captured_platform_lock(
-        pixi_list_content=pixi_list_content,
-        pixi_lock_content=pixi_lock_content,
-        resolver=_resolver_identity(verified_pixi),
-        environment_name=environment_name,
-        target_platform=platform,
-    )
-
-
-PixiRunner: TypeAlias = Callable[[tuple[str, ...], Path], bytes]
-
-
-def _workspace_lock_content(workspace_root: Path) -> bytes:
-    try:
-        return (workspace_root / "pixi.lock").read_bytes()
-    except OSError as error:
-        raise ValueError("workspace pixi.lock must be readable") from error
-
-
-def _optional_workspace_file(path: Path) -> bytes | None:
-    try:
-        return path.read_bytes()
-    except FileNotFoundError:
-        return None
-    except OSError as error:
-        raise ValueError(f"workspace control file must be readable: {path.name}") from error
-
-
-def _hash_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    try:
-        with path.open("rb") as handle:
-            while chunk := handle.read(1024 * 1024):
-                digest.update(chunk)
-    except OSError as error:
-        raise ValueError("workspace .pixi state must be readable") from error
-    return digest.hexdigest()
-
-
-def _pixi_tree_state(workspace_root: Path) -> tuple[tuple[object, ...], ...]:
-    pixi_root = workspace_root / ".pixi"
-    if not pixi_root.exists() and not pixi_root.is_symlink():
-        return ()
-    state: list[tuple[object, ...]] = []
-    total_bytes = 0
-    try:
-        paths = sorted(pixi_root.rglob("*"), key=lambda path: path.as_posix())
-        for path in (pixi_root, *paths):
-            relative = path.relative_to(workspace_root).as_posix()
-            stat = path.lstat()
-            if path.is_symlink():
-                state.append((relative, "symlink", path.readlink().as_posix()))
-            elif path.is_file():
-                total_bytes += stat.st_size
-                if total_bytes > _MAX_WORKSPACE_STATE_BYTES:
-                    raise ValueError("workspace .pixi state exceeds bounded read-only verification size")
-                state.append((relative, "file", stat.st_mode, stat.st_size, _hash_file(path)))
-            elif path.is_dir():
-                state.append((relative, "directory", stat.st_mode))
-            else:
-                state.append((relative, "other", stat.st_mode, stat.st_size))
-    except OSError as error:
-        raise ValueError("workspace .pixi state must be readable") from error
-    return tuple(state)
-
-
-def _read_only_workspace_state(workspace_root: Path) -> tuple[bytes | None, tuple[tuple[object, ...], ...]]:
-    return _optional_workspace_file(workspace_root / "pixi.toml"), _pixi_tree_state(workspace_root)
-
-
-def compile_pixi_platform_lock_with_runner(
-    runner: PixiRunner,
-    *,
-    pixi: VerifiedPixiExecutable | None = None,
-    workspace_root: Path,
-    pixi_lock_content: bytes,
-    environment_name: str,
-    platform: ExecutionPlatform,
-) -> PlatformLock:
-    """Capture one frozen, no-install list from an explicitly verified Pixi binary."""
-
-    verified_pixi = _verified_pixi_for_platform(pixi, platform=platform)
-    assert isinstance(verified_pixi, VerifiedPixiExecutable)
-    _validate_pixi_lock(
-        pixi_lock_content,
-        environment_name=environment_name,
-        resolver_platform=_PIXI_PLATFORM[platform],
-    )
-    if _workspace_lock_content(workspace_root) != pixi_lock_content:
-        raise ValueError("supplied pixi.lock bytes must equal workspace pixi.lock")
-    workspace_state = _read_only_workspace_state(workspace_root)
-    try:
-        list_content = runner(
-            (
-                str(verified_pixi.executable_path),
-                "list",
-                "--frozen",
-                "--no-install",
-                "--json",
-                "--environment",
-                environment_name,
-                "--platform",
-                _PIXI_PLATFORM[platform],
-                "--manifest-path",
-                str(workspace_root / "pixi.toml"),
-            ),
-            workspace_root,
+    with pixi_identity._open_verified_pixi(
+        pixi_executable,
+        host_platform=host_platform,
+    ) as verified_pixi:
+        return _compile_with_capture_for_test(
+            pixi_toml_content=pixi_toml_content,
+            pixi_lock_content=pixi_lock_content,
+            capture=_capture_pixi_list,
+            verified_pixi=verified_pixi,
+            target_platform=target_platform,
+            environment_name=environment_name,
         )
-    finally:
-        if _workspace_lock_content(workspace_root) != pixi_lock_content:
-            raise ValueError("workspace pixi.lock changed during locked Pixi commands")
-        if _read_only_workspace_state(workspace_root) != workspace_state:
-            raise ValueError("Pixi capture must be read-only and must not mutate pixi.toml or .pixi")
-    return compile_pixi_platform_lock(
-        list_content,
-        pixi_lock_content,
-        pixi=verified_pixi,
-        environment_name=environment_name,
-        platform=platform,
-    )
