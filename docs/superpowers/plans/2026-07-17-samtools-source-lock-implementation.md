@@ -1,5 +1,10 @@
 # Samtools 1.23.1 Source Lock Implementation Plan
 
+> **Status: Superseded on 2026-07-18.** The user directed the rebuild away from
+> generic verifier and environment hardening and toward quarantined runtime
+> nodes. Do not execute this plan. Use
+> `docs/superpowers/plans/2026-07-18-samtools-first-wave-implementation.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a reusable, read-only upstream Git source-lock verifier and bind all 27 stable Samtools node IDs to exact Samtools 1.23.1 Git objects, manpages, dispatcher ownership, and implementation files before any NodeSpec is authored.
