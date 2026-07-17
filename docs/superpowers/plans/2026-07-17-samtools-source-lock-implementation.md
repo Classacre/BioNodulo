@@ -2,13 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a reusable, read-only upstream Git source-lock verifier and bind all 27 stable Samtools node IDs to the exact Samtools 1.23.1 tag, commit, manpages, dispatcher entries, and implementation source files before any NodeSpec is authored.
+**Goal:** Add a reusable, read-only upstream Git source-lock verifier and bind all 27 stable Samtools node IDs to exact Samtools 1.23.1 Git objects, manpages, dispatcher ownership, and implementation files before any NodeSpec is authored.
 
-**Architecture:** A strict build-time source-lock model lives in the catalog foundation and verifies immutable Git objects without checking out or executing the tool. The Samtools family contributes one canonical JSON lock under its exclusive package path. The lock records source-file SHA-256 identities and operation ownership only; evidence claims, parameters, outputs, environment locks, smoke results, and maturity remain separate and quarantined.
+**Architecture:** The catalog integration owner implements a format-neutral build-time source lock that proves Git revision and file identities without checking out, building, installing, or executing a tool. The Samtools lane adds a narrow verifier for its C dispatcher and opaque entrypoint markers, plus one canonical lock under its exclusive package. A source lock is not schema-v2 evidence: parameter/output claims still require compiler-owned byte or language-aware locators in the subsequent evidence plan, and every Samtools node remains quarantined.
 
 **Tech Stack:** Python 3.11+, Pydantic v2, Git object plumbing, pytest, Ruff, mypy
 
 ---
+
+## Execution Preconditions
+
+- Tasks 1-2 are shared foundation work and are owned by the catalog integration owner, not a family agent.
+- Tasks 3-4 run only after the migration queue has independent specification and quality approval and its reviewed commit is integrated into this branch. The current candidate is commit `fec63a42c42be1451bc6cccf6b1d279e2483dc36`, whose canonical queue digest is `sha256:896c6cb255b47f5ab7156f011aca0a4e345c62aaad441333e962767533a82a7f`. If either identity changes during review, amend this plan before execution.
+- Use the existing repository environment from this linked worktree through `../../.venv/bin/python`, `../../.venv/bin/ruff`, and `../../.venv/bin/mypy`. Do not create a second environment inside the worktree.
+- The pinned upstream repository is available read-only at `/tmp/bionodulo-samtools-1.23.1`. Do not fetch, build, install, or run Samtools on this host.
 
 ## File Structure
 
@@ -20,27 +27,39 @@ tests/catalog/test_source_lock.py
 bionodulo/nodes/catalog/tools/samtools/
   __init__.py
   source-lock.json
+  verification.py
 
 tests/catalog/tools/samtools/
   test_source_lock.py
 ```
 
-`source_lock.py` owns parsing, canonical serialization, digesting, and read-only Git verification. The Samtools package contains data only in this phase. Package `__init__.py` stays empty.
+`source_lock.py` owns strict parsing, canonical serialization, digesting, and read-only Git file verification. `tools/samtools/verification.py` owns only the pinned Samtools dispatcher/opaque-marker sanity checks. Package `__init__.py` remains empty.
 
 ### Task 1: Implement the Generic Source-Lock Contract
+
+**Owner:** Catalog integration owner
 
 **Files:**
 - Create: `bionodulo/nodes/catalog/source_lock.py`
 - Create: `tests/catalog/test_source_lock.py`
 
-- [ ] **Step 1: Write failing strict-model tests**
+- [ ] **Step 1: Write all strict-model failure tests**
 
-Define tests for this public API:
+Start with this public API:
 
 ```python
-from bionodulo.nodes.catalog.source_lock import ToolSourceLock, canonical_source_lock_bytes
+from bionodulo.nodes.catalog.source_lock import (
+    AnnotatedTagPin,
+    LightweightTagPin,
+    ToolSourceLock,
+    canonical_source_lock_bytes,
+    load_tool_source_lock,
+)
+```
 
+Tests must be RED for every behavior before implementation:
 
+```python
 def test_source_lock_requires_canonical_order_and_closed_fields() -> None:
     value = minimal_lock()
     value["operations"] = list(reversed(value["operations"]))
@@ -53,33 +72,60 @@ def test_source_lock_requires_canonical_order_and_closed_fields() -> None:
         ToolSourceLock.model_validate(value)
 
 
-def test_source_lock_bytes_are_deterministic() -> None:
-    lock = ToolSourceLock.model_validate(minimal_lock())
-    assert canonical_source_lock_bytes(lock).endswith(b"\n")
-    assert canonical_source_lock_bytes(lock) == canonical_source_lock_bytes(lock)
-    assert lock.lock_digest().startswith("sha256:")
+def test_tag_pin_is_a_closed_discriminated_union() -> None:
+    annotated = minimal_lock()["revision"]
+    assert isinstance(AnnotatedTagPin.model_validate(annotated), AnnotatedTagPin)
+
+    lightweight = {
+        "kind": "lightweight",
+        "release_tag": "v1.0.0",
+        "commit": "2" * 40,
+    }
+    assert isinstance(LightweightTagPin.model_validate(lightweight), LightweightTagPin)
+
+    with pytest.raises(ValueError, match="extra"):
+        LightweightTagPin.model_validate({**lightweight, "tag_object": "3" * 40})
+
+
+def test_command_bindings_are_unique_but_operations_may_reuse_them() -> None:
+    value = minimal_lock()
+    value["operations"].append(
+        {"node_id": "second_node", "upstream_commands": ["view"]}
+    )
+    value["operations"].sort(key=lambda item: item["node_id"])
+    lock = ToolSourceLock.model_validate(value)
+    assert [item.upstream_commands for item in lock.operations] == [("view",), ("view",)]
 ```
 
-`minimal_lock()` must use a two-file temporary fixture: one text manual and one C source file. It must include an annotated tag object and exact commit, one command, and one stable node ID.
+Also test duplicate source IDs, repository paths, command IDs, node IDs, and per-item references; missing/orphan references; noncanonical arrays; traversal paths; wrong source roles; malformed URLs/digests/Git IDs; duplicate roles; and self-consistent unknown fields. One source ID and one command binding may be referenced by many command or operation bindings.
 
-- [ ] **Step 2: Run the tests and verify RED**
-
-Run:
+- [ ] **Step 2: Run tests and verify RED**
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/test_source_lock.py
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/test_source_lock.py
 ```
 
 Expected: collection fails because `bionodulo.nodes.catalog.source_lock` does not exist.
 
 - [ ] **Step 3: Implement strict immutable models**
 
-Create frozen, `extra="forbid"` models with these exact fields:
+Create frozen `extra="forbid"` models with these exact fields:
 
 ```text
+AnnotatedTagPin
+  kind: annotated
+  release_tag
+  tag_object
+  commit
+
+LightweightTagPin
+  kind: lightweight
+  release_tag
+  commit
+
 ToolSourceFile
   source_id
-  kind: documentation | implementation | dispatcher
+  roles: documentation | implementation | dispatcher (nonempty canonical tuple)
   repository_path
   content_format: text | source_code
   content_sha256
@@ -87,9 +133,8 @@ ToolSourceFile
 ToolCommandBinding
   command
   documentation_source_ids
-  dispatcher_source_id
   implementation_source_id
-  implementation_symbol
+  entrypoint
 
 ToolOperationBinding
   node_id
@@ -100,11 +145,8 @@ ToolSourceLock
   tool_id
   tool_version
   repository_url
-  release_tag
-  tag_kind: annotated | lightweight
-  tag_object
-  commit
-  release_date
+  revision: AnnotatedTagPin | LightweightTagPin
+  dispatcher_source_id
   source_files
   command_bindings
   operations
@@ -112,129 +154,166 @@ ToolSourceLock
 
 Validation requirements:
 
-- Git object IDs are exactly 40 lowercase hex characters. An annotated tag must resolve to a Git `tag` object that peels to `commit`; a lightweight tag must resolve directly to the declared commit.
+- Git object IDs are exactly 40 lowercase hexadecimal characters.
+- A release tag is a bounded literal ref component; it must pass both the local canonical character policy and `git check-ref-format` when verified. Do not reject names based on words such as `latest`; exact ref/object identity is the source-lock guarantee.
 - Repository URL is canonical HTTPS with no credentials, query, fragment, escapes, or mutable branch field.
-- Repository paths are ASCII, repository-relative POSIX paths with no empty, dot, traversal, or backslash components.
-- SHA-256 values use `sha256:` plus 64 lowercase hex characters.
-- Source IDs, commands, symbols, and node IDs are canonical bounded identifiers.
-- Source files sort by `source_id`; commands sort by `command`; operations sort by `node_id`.
-- All IDs are unique, every reference resolves, every source is used, every command is owned exactly once, and every operation references at least one command.
-- Documentation bindings may reference only documentation sources; implementation bindings may reference only implementation sources; dispatcher bindings may reference only dispatcher sources.
+- Repository paths are unique ASCII repository-relative POSIX paths with no empty, dot, traversal, control, or backslash components.
+- SHA-256 values use `sha256:` plus 64 lowercase hexadecimal characters.
+- Source files sort by `source_id`; commands by `command`; operations by `node_id`; source roles, documentation source IDs, and upstream commands are unique sorted tuples.
+- Every source and command binding is referenced at least once. A source may serve multiple roles and bindings. Each command has one binding, while any number of operations may reuse that binding.
+- Every reference resolves. Documentation references require a documentation role, implementation references require an implementation role, and the dispatcher source requires a dispatcher role.
 - `canonical_source_lock_bytes()` uses ASCII canonical JSON with sorted keys, compact separators, no NaN, and one trailing newline. `lock_digest()` hashes those exact bytes.
+- `load_tool_source_lock()` accepts at most 1 MiB, rejects BOM/non-UTF-8/duplicate keys/unsafe keys/depth over 64, validates schema version explicitly, and requires the supplied bytes to equal canonical bytes.
 
-- [ ] **Step 4: Add adversarial model tests**
-
-Tests must reject duplicate source/command/node IDs, missing references, orphan sources, a mutable tag such as `latest`, malformed URLs, traversal paths, wrong source kinds, duplicate upstream commands, noncanonical order, and self-consistent extra fields.
-
-- [ ] **Step 5: Run focused tests**
-
-Expected: all generic source-lock model tests pass.
-
-- [ ] **Step 6: Commit the generic contract**
+- [ ] **Step 4: Run focused tests and commit**
 
 ```bash
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/test_source_lock.py
+../../.venv/bin/ruff check bionodulo/nodes/catalog/source_lock.py tests/catalog/test_source_lock.py
+../../.venv/bin/mypy bionodulo/nodes/catalog/source_lock.py
 git add bionodulo/nodes/catalog/source_lock.py tests/catalog/test_source_lock.py
 git commit -m "feat(catalog): add immutable upstream source locks"
 ```
 
-### Task 2: Add Read-Only Git Object Verification
+### Task 2: Add Bounded Read-Only Git Object Verification
+
+**Owner:** Catalog integration owner
 
 **Files:**
 - Modify: `bionodulo/nodes/catalog/source_lock.py`
 - Create: `scripts/verify_tool_source_lock.py`
 - Modify: `tests/catalog/test_source_lock.py`
 
-- [ ] **Step 1: Write failing Git-verification tests**
+- [ ] **Step 1: Write all verifier and Git-safety failure tests**
 
-Create a temporary Git repository with one annotated tag, one manual, and one C file. Test:
+Create temporary Git repositories with annotated and lightweight tags. Before production changes, record RED for:
 
 ```python
-def test_verify_source_lock_reads_exact_git_objects_without_checkout_mutation(tmp_path: Path) -> None:
+def test_verify_source_lock_reads_exact_git_objects_without_mutation(tmp_path: Path) -> None:
     repository, lock_path, expected_commit = tagged_fixture_repository(tmp_path)
-    before = subprocess.run(
-        ["git", "status", "--porcelain=v1"], cwd=repository, check=True, capture_output=True
-    ).stdout
+    before = git_status(repository)
 
-    report = verify_tool_source_lock(repository, load_tool_source_lock(lock_path))
+    report = verify_tool_source_lock(repository, load_tool_source_lock(lock_path.read_bytes()))
 
-    after = subprocess.run(
-        ["git", "status", "--porcelain=v1"], cwd=repository, check=True, capture_output=True
-    ).stdout
     assert report.commit == expected_commit
     assert report.verified_files == 2
-    assert before == after
+    assert git_status(repository) == before
 
 
 def test_verify_source_lock_rejects_wrong_tag_object_or_file_digest(tmp_path: Path) -> None:
-    repository, lock_path, _ = tagged_fixture_repository(tmp_path)
-    value = json.loads(lock_path.read_text(encoding="utf-8"))
-    value["tag_object"] = "0" * 40
+    repository, value = tagged_fixture_repository_value(tmp_path)
+    value["revision"]["tag_object"] = "0" * 40
     with pytest.raises(SourceLockVerificationError, match="tag object"):
         verify_tool_source_lock(repository, ToolSourceLock.model_validate(value))
 
-    value = json.loads(lock_path.read_text(encoding="utf-8"))
+    value = tagged_fixture_repository_value(tmp_path)[1]
     value["source_files"][0]["content_sha256"] = "sha256:" + "0" * 64
     with pytest.raises(SourceLockVerificationError, match="content digest"):
         verify_tool_source_lock(repository, ToolSourceLock.model_validate(value))
 ```
 
-- [ ] **Step 2: Verify RED**
+Additional RED tests must cover: lightweight tag with an unexpected ref target; invalid ref syntax containing `~`, `^`, `:`, `@{`, or `..`; injected `GIT_DIR`, `GIT_WORK_TREE`, object directory, alternate object directory, namespace, and replace-ref environment variables; active replace objects; Git timeout; stderr overflow; a source blob over 8 MiB; aggregate verified source bytes over 64 MiB; more than 4,096 source files; and a changed working tree that remains byte-for-byte unchanged after verification.
 
-Expected: tests fail because `verify_tool_source_lock()` and the CLI do not exist.
+- [ ] **Step 2: Run verifier tests and verify RED**
 
-- [ ] **Step 3: Implement verification with Git plumbing only**
+Expected: failures are caused by missing verifier behavior, not malformed test fixtures.
 
-The verifier must use explicit argument arrays and these read-only operations:
+- [ ] **Step 3: Implement safe read-only verification**
+
+All subprocesses use an explicit executable argument array, a ten-second timeout, bounded stderr, and a sanitized environment. Set `GIT_NO_REPLACE_OBJECTS=1`, use `git --no-replace-objects -C <repo>`, remove inherited repository/object/namespace/config-selection `GIT_*` variables, and never interpolate a revision expression from unchecked text.
+
+Verification sequence:
 
 ```text
-git rev-parse --verify refs/tags/<release_tag>^{object}
-git cat-file -t <tag_object>
-git rev-parse <tag_object>^{commit}
-git cat-file blob <commit>:<repository_path>
+git check-ref-format refs/tags/<release_tag>
+git show-ref --verify --hash refs/tags/<release_tag>
+git cat-file -t <exact object ID>
+git rev-parse --verify <exact annotated tag object>^{commit}
+git cat-file -s <exact commit>:<validated repository path>
+git cat-file blob <exact commit>:<validated repository path>
 ```
 
-It must never run checkout, switch, reset, clean, fetch, pull, install, build, or the upstream executable. It verifies the declared tag kind and object, peeled commit, every exact file SHA-256, and that each declared implementation symbol occurs as exactly one top-level C function definition in its declared implementation file. The C selector accepts only a line beginning `int <symbol>(` and rejects missing or ambiguous matches; it is a source-lock sanity check, not the later schema-v2 evidence selector.
+Use `--end-of-options` and `--` where supported. For an annotated pin, the exact ref target must equal `tag_object`, `cat-file -t` must return `tag`, and peeling must equal `commit`. For a lightweight pin, the exact ref target and object type must be the declared `commit`. Check size before reading, stream/hash at most 8 MiB per blob and 64 MiB across the lock, and compare every SHA-256. The verifier does not parse a language or assert biological/CLI semantics.
 
-Return a strict `SourceLockVerificationReport` containing only tool/version, tag object, commit, lock digest, verified file count, verified command count, and verified operation count.
+Return a strict `SourceLockVerificationReport` containing only tool/version, tag kind, optional tag object, commit, lock digest, verified file count, verified command count, and verified operation count.
 
-- [ ] **Step 4: Implement the CLI**
+- [ ] **Step 4: Implement and test the non-writing CLI**
 
 ```bash
-.venv/bin/python scripts/verify_tool_source_lock.py \
+../../.venv/bin/python scripts/verify_tool_source_lock.py \
   --repository /path/to/upstream/git/repository \
   --lock bionodulo/nodes/catalog/tools/samtools/source-lock.json
 ```
 
-The CLI loads exact bytes, rejects duplicate JSON keys, requires canonical bytes, verifies the repository, prints one summary line, and exits nonzero on any mismatch. It does not write files.
+The CLI loads exact canonical bytes, verifies the repository, prints one summary line, exits nonzero on any mismatch, and never writes or fetches.
 
-- [ ] **Step 5: Add bounds and command-injection tests**
-
-Reject lock files over 1 MiB, JSON nesting over 64 levels, more than 4,096 sources/commands/operations, duplicate JSON keys, noncanonical bytes, NUL/control characters, and release tags or paths that could be interpreted as Git options. Pass `--` where Git supports it and reject values beginning with `-`.
-
-- [ ] **Step 6: Run focused checks and commit**
+- [ ] **Step 5: Run focused checks and commit**
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/test_source_lock.py
-.venv/bin/ruff check bionodulo/nodes/catalog/source_lock.py scripts/verify_tool_source_lock.py tests/catalog/test_source_lock.py
-.venv/bin/mypy bionodulo/nodes/catalog/source_lock.py scripts/verify_tool_source_lock.py
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/test_source_lock.py
+../../.venv/bin/ruff check bionodulo/nodes/catalog/source_lock.py scripts/verify_tool_source_lock.py tests/catalog/test_source_lock.py
+../../.venv/bin/mypy bionodulo/nodes/catalog/source_lock.py scripts/verify_tool_source_lock.py
 git add bionodulo/nodes/catalog/source_lock.py scripts/verify_tool_source_lock.py tests/catalog/test_source_lock.py
 git commit -m "feat(catalog): verify pinned upstream git sources"
 ```
 
-### Task 3: Lock All 27 Samtools Operations
+### Task 3: Add the Samtools Dispatcher Sanity Verifier
+
+**Owner:** Samtools family lane
 
 **Files:**
 - Create: `bionodulo/nodes/catalog/tools/samtools/__init__.py`
-- Create: `bionodulo/nodes/catalog/tools/samtools/source-lock.json`
+- Create: `bionodulo/nodes/catalog/tools/samtools/verification.py`
 - Create: `tests/catalog/tools/samtools/test_source_lock.py`
+
+- [ ] **Step 1: Write all dispatcher and opaque-marker tests**
+
+The family verifier accepts only compiler-owned bytes already verified by the generic source lock. It parses the pinned `bamtk.c` `else if` dispatch chain into literal command-to-entrypoint mappings, including multi-name branches such as `fasta`/`fastq` and `idxstat`/`idxstats`.
+
+Before implementation, record RED for exact 23-command equality, missing/duplicate/ambiguous dispatcher entries, missing opaque implementation markers, and this swapped-binding regression:
+
+```python
+def test_swapped_samtools_command_binding_is_rejected(verified_sources) -> None:
+    bindings = valid_command_bindings()
+    bindings["sort"] = bindings["view"].model_copy(update={"command": "sort"})
+
+    with pytest.raises(SamtoolsSourceBindingError, match="sort.*main_samview"):
+        verify_samtools_source_bindings(bindings, verified_sources)
+```
+
+- [ ] **Step 2: Run tests and verify RED**
+
+Expected: the Samtools verifier module does not exist.
+
+- [ ] **Step 3: Implement the narrow family verifier**
+
+`parse_samtools_dispatcher()` is intentionally specific to the pinned `bamtk.c` structure. It returns literal command names and entrypoint identifiers and rejects any unparsed or ambiguous selected branch. `verify_samtools_source_bindings()` requires every lock command to map to the declared entrypoint. It then performs one downgraded opaque sanity check: the exact line prefix `int <entrypoint>(` occurs once in the declared, hash-verified implementation file. This marker is not called a C parser or evidence proof. A subsequent evidence compiler must use language-aware symbol selection or exact content locators before a node can pass `evidence_verified`.
+
+- [ ] **Step 4: Run focused tests and commit**
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog/tools/samtools/test_source_lock.py
+../../.venv/bin/ruff check bionodulo/nodes/catalog/tools/samtools/verification.py tests/catalog/tools/samtools/test_source_lock.py
+../../.venv/bin/mypy bionodulo/nodes/catalog/tools/samtools/verification.py
+git add bionodulo/nodes/catalog/tools/samtools tests/catalog/tools/samtools
+git commit -m "test(catalog): verify samtools command ownership"
+```
+
+### Task 4: Lock All 27 Samtools Operations
+
+**Owner:** Samtools family lane
+
+**Files:**
+- Create: `bionodulo/nodes/catalog/tools/samtools/source-lock.json`
+- Modify: `tests/catalog/tools/samtools/test_source_lock.py`
 
 - [ ] **Step 1: Write the failing 27-ID and ownership tests**
 
-The test loads `baseline-ledger.json`, the reviewed migration queue, and the Samtools lock. It asserts:
+The test loads `baseline-ledger.json`, the approved integrated migration queue, and the wished-for Samtools lock. It asserts exact queue commit/digest preconditions and this exact mapping:
 
 ```python
 EXPECTED_NODE_COMMANDS = {
-    "samtools_ampliconclip": ("ampliconclip", "sort"),
+    "samtools_ampliconclip": ("ampliconclip", "collate", "fixmate", "sort"),
     "samtools_bam_to_cram": ("view",),
     "samtools_bam_to_sam": ("view",),
     "samtools_bedcov": ("bedcov",),
@@ -245,7 +324,7 @@ EXPECTED_NODE_COMMANDS = {
     "samtools_cram_to_bam": ("view",),
     "samtools_depth": ("depth",),
     "samtools_faidx": ("faidx",),
-    "samtools_fastx": ("fasta", "fastq"),
+    "samtools_fastx": ("fasta", "fastq", "sort"),
     "samtools_fixmate": ("fixmate",),
     "samtools_flagstat": ("flagstat",),
     "samtools_idxstats": ("idxstats",),
@@ -264,32 +343,81 @@ EXPECTED_NODE_COMMANDS = {
 }
 ```
 
-The exact set must equal the 27 `samtools_` baseline IDs and the confirmed Samtools queue lane. Every operation remains `quarantined` and `evidence_pending`; this lock must not mutate catalog maturity.
+The exact node set must equal the 27 `samtools_` baseline and approved queue IDs. All remain `quarantined` and `evidence_pending`; source locking must not alter maturity.
 
-- [ ] **Step 2: Verify RED**
+- [ ] **Step 2: Run tests and verify RED**
 
-Expected: the Samtools lock file and package do not exist.
+Expected: the Samtools lock file does not exist.
 
-- [ ] **Step 3: Author the exact upstream identity**
+- [ ] **Step 3: Author the exact immutable revision**
 
-The lock must contain:
-
-```text
-tool_id: samtools
-tool_version: 1.23.1
-repository_url: https://github.com/samtools/samtools
-release_tag: 1.23.1
-tag_kind: annotated
-tag_object: 4ac78a7e9938dbef3c6f97d549758feceb0252db
-commit: 6efb9b6da35224cf804921dedecf9fb8f411365d
-release_date: 2026-03-18
+```json
+{
+  "kind": "annotated",
+  "release_tag": "1.23.1",
+  "tag_object": "4ac78a7e9938dbef3c6f97d549758feceb0252db",
+  "commit": "6efb9b6da35224cf804921dedecf9fb8f411365d"
+}
 ```
 
-Add the dispatcher `bamtk.c`, canonical manpages, and implementation files with the SHA-256 values independently verified from that commit. `samtools-fastq.1` is an alias containing `.so samtools-fasta.1`; both files are locked. The `fastq` command binding references both alias and canonical manual source IDs, while `samtools-fasta.1` is the canonical documentation source for both `fasta` and `fastq` commands.
+The enclosing lock uses `tool_id` `samtools`, `tool_version` `1.23.1`, and repository URL `https://github.com/samtools/samtools`. It contains no release date, branch, mutable ref, evidence claim, or maturity assertion.
 
-Use these command-to-source bindings:
+- [ ] **Step 4: Author the exact 44-file source table**
 
-| Command | Documentation path | Implementation path | Symbol |
+Use these exact content identities; do not fetch or substitute newer files:
+
+```text
+bam2depth.c sha256:088faff6c5c37dfbf16bd278d4a2d19d8fd86cc35786d579d4fd26006b9486cd
+bam_ampliconclip.c sha256:c48ac868c488edebb0c9a59cb1e3cf9a451f6d9086b749d17b76af9ac302c38a
+bam_consensus.c sha256:d58bef6fc9460bf2a23fce448a0f36525f1d7716e7e5d993578b8df69df4d84e
+bam_fastq.c sha256:227134159604f9a29975a64d7b899f85da27fe2117c91f2503fdb7059d688695
+bam_index.c sha256:ac7e0f4157c655c654cc8f264e66bb749c6938a9e3b7eaa85c40440207e4718b
+bam_markdup.c sha256:9352675009926d2ba35c4d18d9322d0972eb1663fd61c2ffe5c65fa3e1c52d3d
+bam_mate.c sha256:d01338f188c64a9f9d62308e084465d3252374374d15e1651791d42b89f15ecb
+bam_md.c sha256:3f2ade44f1d26a8b511a6b27194103eb838d6836a8ea84041f08ac402bf8206a
+bam_plcmd.c sha256:6d51e9dd20f49d205ef9342a568a9880cd5c6df036fe5d89a7f0e312b94ab7db
+bam_reheader.c sha256:0dbbdb8c973eeb462db1e03c858180b15a690338692ede383d70a4bc8b041bef
+bam_sort.c sha256:398e25e740dd3fb1ed0379c352c8da19248342ceb4ddf2931bb0a260f2b0a7d6
+bam_split.c sha256:d2d6495f0420fac64933ec6cda5d615c675a69a291fc7c4c7d95b829a7840897
+bam_stat.c sha256:9a5623b2f3534045627ed7f6ed658a7e3645ab395ef6f5819dbbfca215f50c62
+bamshuf.c sha256:098fc15d22e0997f9707464858a12c645d7d2e4b60245393474218f2a3c999ef
+bamtk.c sha256:41a44dca3d105fe8b454d78bfa4469ae691de64df7aabd24495c70ba52bd864c
+bedcov.c sha256:70ea5a6cff47bd5125f0ad492f8b36fb8d314970eed5c7a0d89b7bedf4872a06
+coverage.c sha256:22cda7bb3a7b1581dfaa4f1c493018d1b36c2d0648221fd910075a913f995d88
+doc/samtools-ampliconclip.1 sha256:af564b82af88dd161a59e26da678f956f0d7de6636ac7ea8f6e1e618f01475bc
+doc/samtools-bedcov.1 sha256:bca67d7043f2d458ce6e33bb14c4c5fccdab6f58c74d66966dea49e9cdc846ca
+doc/samtools-calmd.1 sha256:d22538e0a63d0eea3dd674a8c9efb416703eb21c5e2d87a4b334615faf95137d
+doc/samtools-collate.1 sha256:4a4546a49904ea0ee117f6eb3d136eb0dcb5de574563955399c1dd14517aab6d
+doc/samtools-consensus.1 sha256:b78ce4bc85e9e5cd4091453aa9ade8bca67fa201fab1bde3da88ec288785c97e
+doc/samtools-coverage.1 sha256:3c21142d430bb96c3e4c7944c0192047ff7ad23022ef302a04375f87da995522
+doc/samtools-depth.1 sha256:c33e62cf3551e929e38c9a1e366f1ba54fd5065575f7084628dadb8540a6c603
+doc/samtools-faidx.1 sha256:80e96f97d23755ac272824996430a67c7654ea342d40d7973c4ab1de08346248
+doc/samtools-fasta.1 sha256:89b3ef7044638f9fa8c168c43f794872876262976525b569bd90fcb206331061
+doc/samtools-fastq.1 sha256:8f9967a5488028f0fd31aba1bd4441d6bb00d57933cad7099456b12bdcb23e2c
+doc/samtools-fixmate.1 sha256:f91e0ae8f6e8d25d3431744386f71f1b2edf8d6009c4e7e19b5354d078134a7d
+doc/samtools-flagstat.1 sha256:38ac635d440c7d8a0758842ac217512e39df136a26c3cfafd9830afe69e26965
+doc/samtools-idxstats.1 sha256:00b88570bcaaf6573dac063b46b6a4c6613c0232909f0f770e1db55c9f38d8c7
+doc/samtools-index.1 sha256:4eaf8f0b0298291d52ef5706056e74012dccfaa97d8fbf9a6777fac1585d1e6e
+doc/samtools-markdup.1 sha256:42f3cd5f96188ece990929e1115584e2f8ad8d0ece63411a62b6176dfd2a8667
+doc/samtools-merge.1 sha256:4f7f8e2e356f9b75ba1a26685995c096ce824781fe734e324b5be4b9efe70b0b
+doc/samtools-mpileup.1 sha256:2f52e469c64fe59b96b9c8c6116508fbc8577cdfae01e3577b7611b263b3c551
+doc/samtools-phase.1 sha256:1a4b531b5d4cb70310d6d2f583ffeb10ce226518d6b0f995d0dd6702f7c10e12
+doc/samtools-reheader.1 sha256:33a6b9fa23d9d278272a169355a36aa259e2187f025c44dcd216c1a3e9154f6f
+doc/samtools-sort.1 sha256:38a72be83b39bf93e8aee8a23d5c197ff0f296a9a251bc2d56a7afbebaa2434c
+doc/samtools-split.1 sha256:a0ed3c5c135d4cde3868c566db4b2e3f30ff3988b19ef48175770497645008e0
+doc/samtools-stats.1 sha256:bde9c0528f8de5353bf8f112adc001b6ef9a03bc6d8f6eb3ee3b51b4a9c8fa01
+doc/samtools-view.1 sha256:c4efdd51e9ad6a9f5ae1d8f752f3ed5412816cce1ff51063d108c603b99db05a
+faidx.c sha256:9af86df7a660c54494a192240280d0cb1be3859842c930a9072ac6285e40cad9
+phase.c sha256:71dcef380a1d15e9c9da0bd0418a06c344058489ba652f7b27ccfc7e784251b5
+sam_view.c sha256:49102b2145657ed84e519423934050119990ca5aaf7a823df2cc4a63cb0e9c35
+stats.c sha256:81d67e5aa1ce22521a0c9973614fa0cb25bc163f265d7c7bd4b5d259676e24f5
+```
+
+Use source ID `samtools-dispatch-bamtk` for `bamtk.c`; `samtools-doc-<manual>` for canonical manpages; `samtools-doc-fastq-alias` for `samtools-fastq.1`; and `samtools-src-<basename-with-underscores>` for implementation files. The `fastq` command references both `samtools-doc-fasta` and `samtools-doc-fastq-alias`. Shared implementation source IDs are reused rather than duplicated.
+
+- [ ] **Step 5: Author and verify exact command bindings**
+
+| Command | Documentation path | Implementation path | Entrypoint |
 | --- | --- | --- | --- |
 | `ampliconclip` | `doc/samtools-ampliconclip.1` | `bam_ampliconclip.c` | `amplicon_clip_main` |
 | `bedcov` | `doc/samtools-bedcov.1` | `bedcov.c` | `main_bedcov` |
@@ -300,7 +428,7 @@ Use these command-to-source bindings:
 | `depth` | `doc/samtools-depth.1` | `bam2depth.c` | `main_depth` |
 | `faidx` | `doc/samtools-faidx.1` | `faidx.c` | `faidx_main` |
 | `fasta` | `doc/samtools-fasta.1` | `bam_fastq.c` | `main_bam2fq` |
-| `fastq` | `doc/samtools-fasta.1` | `bam_fastq.c` | `main_bam2fq` |
+| `fastq` | `doc/samtools-fasta.1`, `doc/samtools-fastq.1` | `bam_fastq.c` | `main_bam2fq` |
 | `fixmate` | `doc/samtools-fixmate.1` | `bam_mate.c` | `bam_mating` |
 | `flagstat` | `doc/samtools-flagstat.1` | `bam_stat.c` | `bam_flagstat` |
 | `idxstats` | `doc/samtools-idxstats.1` | `bam_index.c` | `bam_idxstats` |
@@ -315,24 +443,15 @@ Use these command-to-source bindings:
 | `stats` | `doc/samtools-stats.1` | `stats.c` | `main_stats` |
 | `view` | `doc/samtools-view.1` | `sam_view.c` | `main_samview` |
 
-Every command also references dispatcher source `bamtk.c`. Do not use the legacy BioNodulo wrapper, Galaxy XML, blogs, or mutable HTML as source-lock authority.
+Every binding uses dispatcher source `samtools-dispatch-bamtk` and passes the Samtools-specific dispatcher verifier. Do not use legacy BioNodulo source, Galaxy wrappers, blogs, or mutable web pages as source-lock authority.
 
-- [ ] **Step 4: Run structural tests**
+- [ ] **Step 6: Run structural and pinned-source verification**
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider -q \
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q \
   tests/catalog/test_source_lock.py \
   tests/catalog/tools/samtools/test_source_lock.py
-```
-
-Expected: exact 27-ID equality, exact command mapping, canonical JSON, and no maturity changes.
-
-- [ ] **Step 5: Verify against the pinned local clone**
-
-Run on this host without installing or executing Samtools:
-
-```bash
-.venv/bin/python scripts/verify_tool_source_lock.py \
+../../.venv/bin/python scripts/verify_tool_source_lock.py \
   --repository /tmp/bionodulo-samtools-1.23.1 \
   --lock bionodulo/nodes/catalog/tools/samtools/source-lock.json
 ```
@@ -340,17 +459,17 @@ Run on this host without installing or executing Samtools:
 Expected summary:
 
 ```text
-samtools 1.23.1: 27 operations and 23 commands verified at 6efb9b6da35224cf804921dedecf9fb8f411365d
+samtools 1.23.1: 44 files, 23 commands, and 27 operations verified at 6efb9b6da35224cf804921dedecf9fb8f411365d
 ```
 
-- [ ] **Step 6: Commit the family lock**
+- [ ] **Step 7: Commit the family lock**
 
 ```bash
-git add bionodulo/nodes/catalog/tools/samtools tests/catalog/tools/samtools
+git add bionodulo/nodes/catalog/tools/samtools/source-lock.json tests/catalog/tools/samtools/test_source_lock.py
 git commit -m "feat(catalog): lock samtools 1.23.1 sources"
 ```
 
-### Task 4: Independent Review and Handoff
+### Task 5: Independent Review and Handoff
 
 **Files:**
 - Verify all files above
@@ -358,19 +477,19 @@ git commit -m "feat(catalog): lock samtools 1.23.1 sources"
 - [ ] **Step 1: Run full lightweight verification**
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog
-.venv/bin/ruff check bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py tests/catalog
-.venv/bin/mypy bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py
+PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -q tests/catalog
+../../.venv/bin/ruff check bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py tests/catalog
+../../.venv/bin/mypy bionodulo/nodes/catalog/source_lock.py bionodulo/nodes/catalog/tools/samtools scripts/verify_tool_source_lock.py
 ```
 
 - [ ] **Step 2: Run specification review**
 
-Verify exact 27-ID coverage, no mutable refs, correct tag peeling, read-only Git behavior, exact source hashes, command/source ownership, and continued quarantine.
+Verify exact 27-ID coverage, 44 file hashes, 23 command bindings, annotated tag peeling, safe Git plumbing, file bounds, dispatcher ownership, continued quarantine, and zero source-lock claims about parameters, outputs, environments, biological behavior, or maturity.
 
 - [ ] **Step 3: Run a separate code-quality review**
 
-Review parser bounds, duplicate-key handling, Git argument safety, canonical byte identity, error specificity, test realism, and separation from evidence/maturity responsibilities.
+Review parser bounds, duplicate-key handling, Git environment isolation, argument safety, timeout/output bounds, canonical bytes, exact source reuse, error specificity, family/foundation ownership, and test realism.
 
 - [ ] **Step 4: Fix confirmed findings with failing regression tests**
 
-Do not write NodeSpecs in this phase. The next Samtools plan starts only after this source lock is approved and the catalog environment foundation can produce a verified `samtools==1.23.1` Pixi lock for each supported platform.
+Do not write NodeSpecs in this phase. A separate evidence/contract plan begins only after this source lock is approved and the catalog environment foundation can produce verified `samtools==1.23.1` Pixi locks for each supported platform.
