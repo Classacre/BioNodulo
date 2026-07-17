@@ -240,9 +240,7 @@ def derive_environment_registry(node_specs: Iterable[NodeSpec]) -> EnvironmentRe
             continue
         previous_environment, previous_lock_set, runtime_bindings = previous
         if previous_environment != environment or previous_lock_set != lock_set:
-            raise ValueError(
-                f"NodeSpecs disagree about environment {environment.environment_id} content or lock set"
-            )
+            raise ValueError(f"NodeSpecs disagree about environment {environment.environment_id} content or lock set")
         runtime_bindings.append(runtime_binding)
     if not captured:
         raise ValueError("NodeSpecs do not declare any locked environments")

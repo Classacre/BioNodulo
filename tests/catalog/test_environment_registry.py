@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from bionodulo.nodes.catalog import environment_registry as registry
-from bionodulo.nodes.contract.environments import ExecutionPlatform
+from bionodulo.nodes.contract.environments import ExecutionPlatform, PixiEnvironment
+from bionodulo.nodes.contract.model import NodeSpec
 from test_node_spec import evidence_record, external_identity, external_spec, pixi_environment
 
 
@@ -72,7 +73,7 @@ def environment_registry() -> registry.EnvironmentRegistry:
     )
 
 
-def validated_node_specs() -> tuple[object, object]:
+def validated_node_specs() -> tuple[NodeSpec, NodeSpec]:
     samtools = external_spec()
     bcftools = external_spec(
         identity=external_identity(
@@ -241,8 +242,9 @@ def test_one_byte_registry_mutation_changes_registry_digest() -> None:
 
 def test_registry_is_derived_from_validated_node_spec_environment_and_runtime_binding() -> None:
     spec = external_spec()
-    assert spec.environment is not None
+    assert isinstance(spec.environment, PixiEnvironment)
     assert spec.runtime_binding is not None
+    assert spec.runtime_binding.package_name is not None
 
     source = registry.derive_environment_registry((spec,))
 
@@ -300,9 +302,7 @@ def test_registry_validation_rejects_environment_and_runtime_binding_substitutio
             captured.model_copy(
                 update={
                     "environment_digest": "sha256:" + "0" * 64,
-                    "runtime_bindings": (
-                        captured.runtime_bindings[0].model_copy(update={"binding_id": "bcftools"}),
-                    ),
+                    "runtime_bindings": (captured.runtime_bindings[0].model_copy(update={"binding_id": "bcftools"}),),
                 }
             ),
         ),
@@ -316,7 +316,7 @@ def test_persisted_registry_decoder_requires_unique_canonical_versioned_json_byt
     spec = external_spec()
     content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
     duplicate = content.replace(b'{"environments":', b'{"schema_version":2,"environments":', 1)
-    omitted_version = content.replace(b',"schema_version":2}', b'}', 1)
+    omitted_version = content.replace(b',"schema_version":2}', b"}", 1)
 
     with pytest.raises(ValueError, match="duplicate JSON key: schema_version"):
         registry.decode_environment_registry(duplicate, node_specs=(spec,))
@@ -367,6 +367,7 @@ def test_persisted_registry_decoder_rejects_unsafe_keys_at_any_depth(unsafe_key:
 
 def test_request_admission_reopens_exact_registry_bytes_and_rejects_stale_or_tampered_content() -> None:
     spec = external_spec()
+    assert spec.environment is not None
     source = registry.derive_environment_registry((spec,))
     content = source.canonical_json_bytes()
     selection = registry.WorkflowEnvironmentSelection(
@@ -380,20 +381,19 @@ def test_request_admission_reopens_exact_registry_bytes_and_rejects_stale_or_tam
     )
     stale_content = source.model_copy(
         update={
-            "environments": (
-                source.environments[0].model_copy(
-                    update={"environment_digest": "sha256:" + "0" * 64}
-                ),
-            )
+            "environments": (source.environments[0].model_copy(update={"environment_digest": "sha256:" + "0" * 64}),)
         }
     ).canonical_json_bytes()
 
     assert request.environments[0].environment_digest == spec.environment.environment_digest()
-    assert registry.admit_workflow_environment_request(
-        request,
-        registry_content=content,
-        node_specs=(spec,),
-    ) == request
+    assert (
+        registry.admit_workflow_environment_request(
+            request,
+            registry_content=content,
+            node_specs=(spec,),
+        )
+        == request
+    )
     with pytest.raises(ValueError, match="registry|digest|NodeSpec"):
         registry.admit_workflow_environment_request(
             request,
@@ -404,6 +404,7 @@ def test_request_admission_reopens_exact_registry_bytes_and_rejects_stale_or_tam
 
 def test_request_admission_rejects_forged_stored_raw_registry_digest() -> None:
     spec = external_spec()
+    assert spec.environment is not None
     content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
     request = registry.compile_workflow_environment_request(
         content,
@@ -452,7 +453,7 @@ def test_workflow_request_compiler_is_stable_under_input_order_and_duplicates() 
 
 def test_workflow_request_projection_has_a_deterministic_cross_language_wire_shape() -> None:
     spec = external_spec()
-    assert spec.environment is not None
+    assert isinstance(spec.environment, PixiEnvironment)
     source = registry.derive_environment_registry((spec,))
     content = source.canonical_json_bytes()
     request = registry.compile_workflow_environment_request(
