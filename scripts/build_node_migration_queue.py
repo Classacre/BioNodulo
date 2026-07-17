@@ -12,91 +12,44 @@ import stat
 import tempfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 from urllib.parse import urlsplit
+
+if TYPE_CHECKING:
+    from scripts import node_migration_ledger_validation as _ledger_validation
+elif __package__:
+    from scripts import node_migration_ledger_validation as _ledger_validation
+else:
+    import node_migration_ledger_validation as _ledger_validation
+
+EXPECTED_NODE_COUNT = _ledger_validation.EXPECTED_NODE_COUNT
+_HEX40_RE = _ledger_validation.HEX40_RE
+MigrationQueueError = _ledger_validation.MigrationQueueError
+canonical_json_bytes = _ledger_validation.canonical_json_bytes
+_expect_mapping = _ledger_validation.expect_mapping
+_expect_string = _ledger_validation.expect_string
+_safe_identifier = _ledger_validation.safe_identifier
+_validated_baseline = _ledger_validation.validate_baseline
 
 
 DEFAULT_BASELINE = Path("bionodulo/nodes/generated/baseline-ledger.json")
 DEFAULT_RULES = Path("bionodulo/nodes/catalog/family-assignment-rules.json")
 DEFAULT_OUTPUT = Path("bionodulo/nodes/generated/migration-queue.json")
-EXPECTED_NODE_COUNT = 943
-_SAFE_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,127}$")
 _SAFE_PATH_RE = re.compile(r"^[a-z0-9_./-]+$")
-_REPOSITORY_PATH_RE = re.compile(r"^[A-Za-z0-9_./-]+$")
 _CLOUD_JOB_LABEL_RE = re.compile(r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
 _NODE_ID_PREFIX_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_$")
-_PYTHON_REFERENCE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+$")
 _HOST_RE = re.compile(
     r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$"
 )
-_HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
-_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _RELEASE_TAG_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
 _LITERAL_PREFIX_SCOPE_FIELDS = ("fixture_prefix", "r2_test_prefix")
 _NODE_OWNERSHIP_VALUES = frozenset({"bionodulo_core", "external_tool", "external_library", "external_provider"})
 _MAX_NODE_ID_PREFIX_LENGTH = 128
+_MAX_JSON_INPUT_BYTES = 8 * 1024 * 1024
+_MAX_JSON_DEPTH = 64
 _MAX_QUEUE_BYTES = 8 * 1024 * 1024
-_BASELINE_FIELDS = frozenset(
-    {
-        "aggregate_sha256",
-        "anomalies",
-        "canonicalizer",
-        "current_snapshot",
-        "digests",
-        "entries",
-        "origin_collisions",
-        "refs",
-        "schema_version",
-        "summary",
-    }
-)
-_BASELINE_ENTRY_FIELDS = frozenset(
-    {
-        "alias_of",
-        "behavior_source",
-        "comparison_locations",
-        "current_source",
-        "immediate_split_locations",
-        "node_id",
-        "origin",
-        "qualified_class",
-        "rebuild",
-        "semantic_candidates",
-        "template_references",
-    }
-)
-_CURRENT_SOURCE_FIELDS = frozenset(
-    {
-        "ast_sha256",
-        "comparison_git_blob",
-        "comparison_path",
-        "module",
-        "path",
-        "qualified_class",
-        "raw_class_sha256",
-    }
-)
-_TEMPLATE_REFERENCE_FIELDS = frozenset(
-    {"input_ports", "instance_id", "kind", "output_ports", "source_blob", "source_path"}
-)
-
-
-class MigrationQueueError(RuntimeError):
-    """Raised when family assignments are incomplete or ambiguous."""
-
-
-def canonical_json_bytes(value: object) -> bytes:
-    return (
-        json.dumps(
-            value,
-            ensure_ascii=True,
-            allow_nan=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
-        + "\n"
-    ).encode("ascii")
+_UNSAFE_JSON_KEYS = frozenset({"__proto__", "constructor", "prototype"})
 
 
 def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -104,47 +57,28 @@ def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     for key, value in pairs:
         if key in result:
             raise MigrationQueueError(f"duplicate JSON object member {key!r}")
+        if key in _UNSAFE_JSON_KEYS:
+            raise MigrationQueueError(f"unsafe JSON object member {key!r}")
         result[key] = value
     return result
 
 
+def _validate_json_depth(value: object, path: Path) -> None:
+    if not isinstance(value, (dict, list)):
+        return
+    stack: list[tuple[dict[Any, Any] | list[Any], int]] = [(value, 1)]
+    while stack:
+        current, depth = stack.pop()
+        if depth > _MAX_JSON_DEPTH:
+            raise MigrationQueueError(f"JSON nesting depth exceeds {_MAX_JSON_DEPTH}: {path}")
+        children = current.values() if isinstance(current, dict) else current
+        for child in children:
+            if isinstance(child, (dict, list)):
+                stack.append((child, depth + 1))
+
+
 def _sha256(value: object) -> str:
     return "sha256:" + hashlib.sha256(canonical_json_bytes(value)).hexdigest()
-
-
-def _verify_baseline_aggregate(baseline: Mapping[str, Any]) -> str:
-    if "aggregate_sha256" not in baseline:
-        raise MigrationQueueError("baseline aggregate_sha256 is missing")
-    aggregate = baseline["aggregate_sha256"]
-    if not isinstance(aggregate, str) or _HEX64_RE.fullmatch(aggregate) is None:
-        raise MigrationQueueError("baseline aggregate_sha256 must be 64 lowercase hexadecimal characters")
-    preimage = dict(baseline)
-    del preimage["aggregate_sha256"]
-    try:
-        actual = hashlib.sha256(canonical_json_bytes(preimage)).hexdigest()
-    except (TypeError, ValueError) as error:
-        raise MigrationQueueError("baseline ledger cannot be encoded as canonical JSON") from error
-    if actual != aggregate:
-        raise MigrationQueueError("baseline aggregate_sha256 mismatch")
-    return aggregate
-
-
-def _expect_mapping(value: object, label: str) -> Mapping[str, Any]:
-    if not isinstance(value, dict):
-        raise MigrationQueueError(f"{label} must be an object")
-    return value
-
-
-def _expect_string(value: object, label: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise MigrationQueueError(f"{label} must be a nonempty string")
-    return value
-
-
-def _safe_identifier(value: str, label: str) -> str:
-    if _SAFE_ID_RE.fullmatch(value) is None:
-        raise MigrationQueueError(f"{label} must be a canonical lowercase identifier")
-    return value
 
 
 def _safe_path(value: str, label: str) -> str:
@@ -157,188 +91,6 @@ def _safe_path(value: str, label: str) -> str:
     ):
         raise MigrationQueueError(f"{label} must be a canonical repository-relative path")
     return value
-
-
-def _closed_mapping(value: object, label: str, expected_fields: frozenset[str]) -> Mapping[str, Any]:
-    mapping = _expect_mapping(value, label)
-    if set(mapping) != expected_fields:
-        raise MigrationQueueError(f"{label} contains unknown or missing fields")
-    return mapping
-
-
-def _hex_digest(value: object, label: str, pattern: re.Pattern[str], length: int) -> str:
-    digest = _expect_string(value, label)
-    if pattern.fullmatch(digest) is None:
-        raise MigrationQueueError(f"{label} must be {length} lowercase hexadecimal characters")
-    return digest
-
-
-def _repository_path(value: object, label: str) -> str:
-    path = _expect_string(value, label)
-    if (
-        len(path) > 512
-        or _REPOSITORY_PATH_RE.fullmatch(path) is None
-        or path.startswith("/")
-        or path.endswith("/")
-        or "//" in path
-        or any(part in ("", ".", "..") for part in path.split("/"))
-    ):
-        raise MigrationQueueError(f"{label} must be a canonical repository-relative path")
-    return path
-
-
-def _stable_node_id(value: object, label: str) -> str:
-    node_id = _expect_string(value, label)
-    try:
-        node_id.encode("ascii")
-    except UnicodeEncodeError as error:
-        raise MigrationQueueError(f"{label} must be a safe stable identifier") from error
-    if (
-        len(node_id) > 128
-        or node_id != node_id.strip()
-        or "/" in node_id
-        or "\\" in node_id
-        or any(ord(character) < 32 or ord(character) == 127 for character in node_id)
-    ):
-        raise MigrationQueueError(f"{label} must be a safe stable identifier")
-    return node_id
-
-
-def _python_reference(value: object, label: str) -> str:
-    reference = _expect_string(value, label)
-    if len(reference) > 512 or _PYTHON_REFERENCE_RE.fullmatch(reference) is None:
-        raise MigrationQueueError(f"{label} must be a canonical dotted Python reference")
-    return reference
-
-
-def _canonical_port_ids(value: object, label: str) -> list[str]:
-    if not isinstance(value, list):
-        raise MigrationQueueError(f"{label} must be an array")
-    ports = [
-        _safe_identifier(_expect_string(port, f"{label}[{index}]"), f"{label}[{index}]")
-        for index, port in enumerate(value)
-    ]
-    if len(ports) != len(set(ports)) or ports != sorted(ports):
-        raise MigrationQueueError(f"{label} must be canonical sorted unique identifiers")
-    return ports
-
-
-def _validated_current_source(value: object, label: str) -> dict[str, str]:
-    source = _closed_mapping(value, label, _CURRENT_SOURCE_FIELDS)
-    path = _repository_path(source["path"], f"{label} path")
-    comparison_path = _repository_path(source["comparison_path"], f"{label} comparison_path")
-    module = _python_reference(source["module"], f"{label} module")
-    qualified_class = _python_reference(source["qualified_class"], f"{label} qualified_class")
-    if not path.startswith("bionodulo/nodes/builtin/") or not path.endswith(".py"):
-        raise MigrationQueueError(f"{label} path must identify a builtin Python source")
-    if not comparison_path.startswith("bionodulo/nodes/builtin/") or not comparison_path.endswith(".py"):
-        raise MigrationQueueError(f"{label} comparison_path must identify a builtin Python source")
-    if not module.startswith("bionodulo.nodes.builtin."):
-        raise MigrationQueueError(f"{label} module must identify a builtin Python module")
-    if not qualified_class.startswith(module + "."):
-        raise MigrationQueueError(f"{label} qualified_class must belong to its module")
-    return {
-        "ast_sha256": _hex_digest(source["ast_sha256"], f"{label} ast_sha256", _HEX64_RE, 64),
-        "comparison_git_blob": _hex_digest(
-            source["comparison_git_blob"],
-            f"{label} comparison_git_blob",
-            _HEX40_RE,
-            40,
-        ),
-        "comparison_path": comparison_path,
-        "module": module,
-        "path": path,
-        "qualified_class": qualified_class,
-        "raw_class_sha256": _hex_digest(
-            source["raw_class_sha256"],
-            f"{label} raw_class_sha256",
-            _HEX64_RE,
-            64,
-        ),
-    }
-
-
-def _validated_template_reference(value: object, label: str) -> dict[str, Any]:
-    reference = _closed_mapping(value, label, _TEMPLATE_REFERENCE_FIELDS)
-    source_path = _repository_path(reference["source_path"], f"{label} source_path")
-    if not source_path.endswith(".json") or not source_path.startswith(("templates/", "examples/workflows/")):
-        raise MigrationQueueError(f"{label} source_path must identify a template or example JSON document")
-    kind = _expect_string(reference["kind"], f"{label} kind")
-    if kind not in {"template", "example"}:
-        raise MigrationQueueError(f"{label} kind must be template or example")
-    expected_kind = "template" if source_path.startswith("templates/") else "example"
-    if kind != expected_kind:
-        raise MigrationQueueError(f"{label} kind must agree with source_path namespace")
-    return {
-        "input_ports": _canonical_port_ids(reference["input_ports"], f"{label} input_ports"),
-        "instance_id": _safe_identifier(
-            _expect_string(reference["instance_id"], f"{label} instance_id"),
-            f"{label} instance_id",
-        ),
-        "kind": kind,
-        "output_ports": _canonical_port_ids(reference["output_ports"], f"{label} output_ports"),
-        "source_blob": _hex_digest(reference["source_blob"], f"{label} source_blob", _HEX40_RE, 40),
-        "source_path": source_path,
-    }
-
-
-def _validated_template_references(value: object, label: str) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        raise MigrationQueueError(f"{label} must be an array")
-    references = [
-        _validated_template_reference(reference, f"template reference {index}") for index, reference in enumerate(value)
-    ]
-    keys = [(reference["source_path"], reference["instance_id"]) for reference in references]
-    if len(keys) != len(set(keys)):
-        raise MigrationQueueError(f"{label} must contain unique workflow instances")
-    if keys != sorted(keys):
-        raise MigrationQueueError(f"{label} must use canonical order")
-    return references
-
-
-def _validated_baseline_entry(value: object, index: int) -> dict[str, Any]:
-    label = f"baseline entry {index}"
-    entry = _expect_mapping(value, label)
-    if "current_source" not in entry or not isinstance(entry["current_source"], dict):
-        raise MigrationQueueError(f"{label} current_source must be an object")
-    if set(entry) != _BASELINE_ENTRY_FIELDS:
-        raise MigrationQueueError(f"{label} contains unknown or missing fields")
-    alias = entry["alias_of"]
-    if alias is not None:
-        alias = _stable_node_id(alias, f"{label} alias_of")
-    _python_reference(entry["qualified_class"], f"{label} qualified_class")
-    return {
-        "alias_of": alias,
-        "current_source": _validated_current_source(entry["current_source"], f"{label} current_source"),
-        "node_id": _stable_node_id(entry["node_id"], f"{label} node_id"),
-        "template_references": _validated_template_references(
-            entry["template_references"],
-            f"{label} template_references",
-        ),
-    }
-
-
-def _validated_baseline(baseline: Mapping[str, Any]) -> tuple[str, list[dict[str, Any]]]:
-    aggregate = _verify_baseline_aggregate(baseline)
-    if set(baseline) != _BASELINE_FIELDS:
-        raise MigrationQueueError("baseline ledger contains unknown or missing fields")
-    if type(baseline["schema_version"]) is not int or baseline["schema_version"] != 1:
-        raise MigrationQueueError("baseline schema_version must be exact integer 1")
-    raw_entries = baseline["entries"]
-    if not isinstance(raw_entries, list) or len(raw_entries) != EXPECTED_NODE_COUNT:
-        raise MigrationQueueError(f"baseline ledger must contain exactly {EXPECTED_NODE_COUNT} entries")
-    entries = [_validated_baseline_entry(entry, index) for index, entry in enumerate(raw_entries)]
-    node_ids = [entry["node_id"] for entry in entries]
-    if node_ids != sorted(node_ids):
-        raise MigrationQueueError("baseline entries must use canonical node_id order")
-    if len(node_ids) != len(set(node_ids)):
-        raise MigrationQueueError("baseline entries contain duplicate node IDs")
-    node_id_set = set(node_ids)
-    for entry in entries:
-        alias = entry["alias_of"]
-        if alias is not None and alias not in node_id_set:
-            raise MigrationQueueError(f"node {entry['node_id']} alias_of references unknown node {alias}")
-    return aggregate, entries
 
 
 def _exclusive_path(value: object) -> str:
@@ -740,12 +492,26 @@ def build_queue(
 
 def _read_json(path: Path) -> object:
     try:
-        return json.loads(
-            path.read_text(encoding="utf-8"),
-            object_pairs_hook=_unique_json_object,
-        )
-    except (OSError, json.JSONDecodeError) as error:
+        with path.open("rb") as source:
+            payload = source.read(_MAX_JSON_INPUT_BYTES + 1)
+    except OSError as error:
         raise MigrationQueueError(f"cannot read canonical JSON from {path}") from error
+    if len(payload) > _MAX_JSON_INPUT_BYTES:
+        raise MigrationQueueError(f"JSON input exceeds {_MAX_JSON_INPUT_BYTES} bytes: {path}")
+    if payload.startswith(b"\xef\xbb\xbf"):
+        raise MigrationQueueError(f"JSON input uses a UTF-8 BOM: {path}")
+    try:
+        decoded = payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise MigrationQueueError(f"JSON input is not valid UTF-8: {path}") from error
+    try:
+        value = json.loads(decoded, object_pairs_hook=_unique_json_object)
+    except ValueError as error:
+        raise MigrationQueueError(f"cannot read canonical JSON from {path}") from error
+    except RecursionError as error:
+        raise MigrationQueueError(f"JSON decoder recursion limit exceeded: {path}") from error
+    _validate_json_depth(value, path)
+    return value
 
 
 def write_or_check(path: Path, payload: bytes, *, check: bool) -> None:

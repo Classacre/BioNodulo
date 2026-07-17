@@ -108,14 +108,6 @@ def refresh_baseline_aggregate(baseline: dict[str, Any]) -> None:
     baseline["aggregate_sha256"] = hashlib.sha256(canonical_json_bytes(baseline)).hexdigest()
 
 
-def baseline_entry(baseline: dict[str, Any], node_id: str = "abricate") -> dict[str, Any]:
-    return next(entry for entry in baseline["entries"] if entry["node_id"] == node_id)
-
-
-def baseline_entry_with_references(baseline: dict[str, Any]) -> dict[str, Any]:
-    return next(entry for entry in baseline["entries"] if len(entry["template_references"]) >= 2)
-
-
 def rules_with_second_family() -> tuple[dict[str, Any], dict[str, Any]]:
     rules = samtools_rules()
     family = copy.deepcopy(rules["confirmed_families"][0])
@@ -302,228 +294,6 @@ def test_overlapping_confirmed_rules_are_fatal() -> None:
 
     with pytest.raises(MigrationQueueError, match="assigned by multiple confirmed"):
         build_queue(load_baseline(), rules)
-
-
-def test_modified_baseline_entry_with_stale_aggregate_is_fatal() -> None:
-    baseline = load_baseline()
-    samtools_sort = next(entry for entry in baseline["entries"] if entry["node_id"] == "samtools_sort")
-    samtools_sort["node_id"] = "tampered_stable_id"
-
-    with pytest.raises(MigrationQueueError, match="baseline aggregate_sha256 mismatch"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_missing_baseline_aggregate_is_rejected_before_rule_assignment() -> None:
-    baseline = load_baseline()
-    del baseline["aggregate_sha256"]
-    rules = samtools_rules()
-    rules["confirmed_families"][0]["expected_count"] = 28
-
-    with pytest.raises(MigrationQueueError, match="baseline aggregate_sha256 is missing"):
-        build_queue(baseline, rules)
-
-
-@pytest.mark.parametrize(
-    "aggregate_sha256",
-    ["sha256:" + "a" * 64, "A" * 64, "not-a-digest"],
-)
-def test_malformed_baseline_aggregate_is_fatal(aggregate_sha256: str) -> None:
-    baseline = load_baseline()
-    baseline["aggregate_sha256"] = aggregate_sha256
-
-    with pytest.raises(MigrationQueueError, match="baseline aggregate_sha256.*64 lowercase hexadecimal"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_baseline_ledger_top_level_shape_is_closed() -> None:
-    baseline = load_baseline()
-    baseline["unexpected"] = "ignored"
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="baseline ledger.*unknown or missing fields"):
-        build_queue(baseline, samtools_rules())
-
-
-@pytest.mark.parametrize("schema_version", [True, False, 1.0, "1", 2])
-def test_baseline_schema_version_requires_exact_integer_one(schema_version: object) -> None:
-    baseline = load_baseline()
-    baseline["schema_version"] = schema_version
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="baseline schema_version.*exact integer 1"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_baseline_entries_require_canonical_node_id_order() -> None:
-    baseline = load_baseline()
-    baseline["entries"].reverse()
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="baseline entries.*canonical node_id order"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_baseline_entry_shape_is_closed() -> None:
-    baseline = load_baseline()
-    baseline_entry(baseline)["unexpected"] = "ignored"
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="baseline entry.*unknown or missing fields"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_baseline_entry_requires_current_source_without_legacy_fallback() -> None:
-    baseline = load_baseline()
-    del baseline_entry(baseline)["current_source"]
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="current_source.*object"):
-        build_queue(baseline, samtools_rules())
-
-
-@pytest.mark.parametrize("current_source", [None, [], "legacy fallback"])
-def test_baseline_entry_rejects_non_object_current_source(current_source: object) -> None:
-    baseline = load_baseline()
-    baseline_entry(baseline)["current_source"] = current_source
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="current_source.*object"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_current_source_shape_is_closed() -> None:
-    baseline = load_baseline()
-    baseline_entry(baseline)["current_source"]["unexpected"] = "ignored"
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="current_source.*unknown or missing fields"):
-        build_queue(baseline, samtools_rules())
-
-
-@pytest.mark.parametrize(
-    ("field", "value", "message"),
-    [
-        ("ast_sha256", "not-a-digest", "current_source ast_sha256"),
-        ("raw_class_sha256", "not-a-digest", "current_source raw_class_sha256"),
-        ("comparison_git_blob", "not-a-blob", "current_source comparison_git_blob"),
-        ("path", "../source.py", "current_source path"),
-        ("comparison_path", "../comparison.py", "current_source comparison_path"),
-        ("module", "not a module", "current_source module"),
-        ("module", "external.module", "current_source module"),
-        ("qualified_class", "not a class", "current_source qualified_class"),
-    ],
-)
-def test_current_source_fields_require_canonical_values(field: str, value: str, message: str) -> None:
-    baseline = load_baseline()
-    baseline_entry(baseline)["current_source"][field] = value
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match=message):
-        build_queue(baseline, samtools_rules())
-
-
-def test_current_source_qualified_class_must_belong_to_its_module() -> None:
-    baseline = load_baseline()
-    baseline_entry(baseline)["current_source"]["qualified_class"] = "external.module.Node"
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="current_source qualified_class.*module"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_baseline_node_id_requires_a_safe_stable_identifier() -> None:
-    baseline = load_baseline()
-    baseline_entry(baseline)["node_id"] = "../unsafe"
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="node_id.*safe stable identifier"):
-        build_queue(baseline, samtools_rules())
-
-
-@pytest.mark.parametrize("reference", [None, "reference", []])
-def test_template_references_reject_non_object_members(reference: object) -> None:
-    baseline = load_baseline()
-    baseline_entry_with_references(baseline)["template_references"].append(reference)
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="template reference.*object"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_template_reference_shape_is_closed() -> None:
-    baseline = load_baseline()
-    reference = baseline_entry_with_references(baseline)["template_references"][0]
-    reference["unexpected"] = "ignored"
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="template reference.*unknown or missing fields"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_template_reference_kind_must_match_its_source_namespace() -> None:
-    baseline = load_baseline()
-    reference = baseline_entry_with_references(baseline)["template_references"][0]
-    assert reference["source_path"].startswith("templates/")
-    reference["kind"] = "example"
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="template reference.*kind.*source_path"):
-        build_queue(baseline, samtools_rules())
-
-
-@pytest.mark.parametrize(
-    ("field", "value", "message"),
-    [
-        ("source_path", "../template.json", "template reference.*source_path"),
-        ("source_blob", "not-a-blob", "template reference.*source_blob"),
-        ("kind", "unknown", "template reference.*kind"),
-        ("instance_id", "bad instance", "template reference.*instance_id"),
-        ("input_ports", "not-an-array", "template reference.*input_ports"),
-        ("output_ports", ["../port"], "template reference.*output_ports"),
-    ],
-)
-def test_template_reference_fields_require_canonical_values(field: str, value: object, message: str) -> None:
-    baseline = load_baseline()
-    reference = baseline_entry_with_references(baseline)["template_references"][0]
-    reference[field] = value
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match=message):
-        build_queue(baseline, samtools_rules())
-
-
-def test_template_references_require_canonical_order() -> None:
-    baseline = load_baseline()
-    baseline_entry_with_references(baseline)["template_references"].reverse()
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="template_references.*canonical order"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_template_references_must_be_unique() -> None:
-    baseline = load_baseline()
-    references = baseline_entry_with_references(baseline)["template_references"]
-    references.append(copy.deepcopy(references[0]))
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="template_references.*unique"):
-        build_queue(baseline, samtools_rules())
-
-
-def test_template_reference_ports_require_canonical_order() -> None:
-    baseline = load_baseline()
-    reference = next(
-        reference
-        for entry in baseline["entries"]
-        for reference in entry["template_references"]
-        if len(reference["input_ports"]) >= 2
-    )
-    reference["input_ports"].reverse()
-    refresh_baseline_aggregate(baseline)
-
-    with pytest.raises(MigrationQueueError, match="template reference.*input_ports.*canonical"):
-        build_queue(baseline, samtools_rules())
 
 
 @pytest.mark.parametrize(
@@ -730,22 +500,22 @@ def test_provisional_lane_scopes_are_deterministic_unique_and_nonoverlapping() -
 
 
 def test_colliding_legacy_module_slugs_get_distinct_deterministic_scopes() -> None:
-    baseline = load_baseline()
-    entries = {entry["node_id"]: entry for entry in baseline["entries"]}
-    entries["abricate"]["current_source"]["module"] = "bionodulo.nodes.builtin.collision.foo.bar"
-    entries["abricate"]["current_source"]["qualified_class"] = "bionodulo.nodes.builtin.collision.foo.bar.AbricateNode"
-    entries["abritamr"]["current_source"]["module"] = "bionodulo.nodes.builtin.collision.foo_bar"
-    entries["abritamr"]["current_source"]["qualified_class"] = "bionodulo.nodes.builtin.collision.foo_bar.AbritamrNode"
-    refresh_baseline_aggregate(baseline)
+    modules = {
+        "bionodulo.nodes.builtin.collision.foo.bar",
+        "bionodulo.nodes.builtin.collision.foo_bar",
+    }
+    first = migration_queue_builder._legacy_lanes(modules)
+    second = migration_queue_builder._legacy_lanes(modules)
+    lane_ids = list(first.values())
 
-    queue = build_queue(baseline, samtools_rules())
-    assignments = {item["node_id"]: item for item in queue["assignments"]}
-    abricate = assignments["abricate"]
-    abritamr = assignments["abritamr"]
-
-    assert abricate["lane_id"] != abritamr["lane_id"]
-    assert abricate["exclusive_path"] != abritamr["exclusive_path"]
-    assert abricate["agent_scope"] != abritamr["agent_scope"]
+    assert first == second
+    assert len(set(lane_ids)) == 2
+    assert len({f"bionodulo/nodes/catalog/migration_lanes/{lane_id}" for lane_id in lane_ids}) == 2
+    for prefixes in (
+        [f"{lane_id}/" for lane_id in lane_ids],
+        [f"catalog-tests/{lane_id}/" for lane_id in lane_ids],
+    ):
+        assert not (prefixes[0].startswith(prefixes[1]) or prefixes[1].startswith(prefixes[0]))
 
 
 def test_queue_bytes_are_deterministic_and_digest_bound() -> None:
@@ -853,6 +623,166 @@ def test_check_mode_is_read_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     write_or_check(output, payload, check=True)
 
     assert output.read_bytes() == payload
+
+
+def test_read_json_rejects_input_larger_than_eight_mib(tmp_path: Path) -> None:
+    source = tmp_path / "oversized.json"
+    source.write_bytes(b" " * (8 * 1024 * 1024 + 1))
+
+    with pytest.raises(MigrationQueueError, match=r"exceeds 8388608 bytes"):
+        migration_queue_builder._read_json(source)
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (b'\xef\xbb\xbf{"schema_version":1}\n', "UTF-8 BOM"),
+        (b'{"schema_version":"\xff"}\n', "valid UTF-8"),
+    ],
+)
+def test_read_json_rejects_noncanonical_utf8(payload: bytes, message: str, tmp_path: Path) -> None:
+    source = tmp_path / "invalid-utf8.json"
+    source.write_bytes(payload)
+
+    with pytest.raises(MigrationQueueError, match=message):
+        migration_queue_builder._read_json(source)
+
+
+@pytest.mark.parametrize("unsafe_key", ["__proto__", "prototype", "constructor"])
+def test_read_json_rejects_recursive_unsafe_object_members(unsafe_key: str, tmp_path: Path) -> None:
+    source = tmp_path / "unsafe-key.json"
+    source.write_bytes(canonical_json_bytes({"outer": [{unsafe_key: {"value": 1}}]}))
+
+    with pytest.raises(MigrationQueueError, match=rf"unsafe JSON object member {unsafe_key!r}"):
+        migration_queue_builder._read_json(source)
+
+
+def nested_array_json(depth: int) -> bytes:
+    return b"[" * depth + b"0" + b"]" * depth
+
+
+def test_read_json_accepts_json_at_depth_limit(tmp_path: Path) -> None:
+    source = tmp_path / "depth-64.json"
+    source.write_bytes(nested_array_json(64))
+
+    assert migration_queue_builder._read_json(source) is not None
+
+
+def test_read_json_rejects_json_beyond_depth_limit(tmp_path: Path) -> None:
+    source = tmp_path / "depth-65.json"
+    source.write_bytes(nested_array_json(65))
+
+    with pytest.raises(MigrationQueueError, match=r"nesting depth exceeds 64"):
+        migration_queue_builder._read_json(source)
+
+
+@pytest.mark.parametrize(
+    ("decoder_error", "message"),
+    [
+        (RecursionError("decoder recursion"), "JSON decoder recursion limit"),
+        (ValueError("decoder value limit"), "cannot read canonical JSON"),
+    ],
+)
+def test_read_json_normalizes_decoder_errors(
+    decoder_error: Exception,
+    message: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "decoder-recursion.json"
+    source.write_bytes(b"{}\n")
+
+    def fail_decode(*_arguments: object, **_keywords: object) -> object:
+        raise decoder_error
+
+    monkeypatch.setattr(json, "loads", fail_decode)
+
+    with pytest.raises(MigrationQueueError, match=message):
+        migration_queue_builder._read_json(source)
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    [
+        ("oversized", "exceeds 8388608 bytes"),
+        ("bom", "UTF-8 BOM"),
+        ("malformed_utf8", "valid UTF-8"),
+        ("duplicate", "duplicate JSON object member"),
+        ("unsafe_key", "unsafe JSON object member"),
+        ("depth", "nesting depth exceeds 64"),
+    ],
+)
+def test_cli_rejects_hostile_json_without_traceback_or_output_mutation(
+    case: str,
+    message: str,
+    tmp_path: Path,
+) -> None:
+    rules = tmp_path / "hostile-rules.json"
+    output = tmp_path / "migration-queue.json"
+    output.write_bytes(b"existing artifact\n")
+    payloads = {
+        "oversized": b" " * (8 * 1024 * 1024 + 1),
+        "bom": b'\xef\xbb\xbf{"schema_version":1,"confirmed_families":[]}\n',
+        "malformed_utf8": b'{"schema_version":"\xff","confirmed_families":[]}\n',
+        "duplicate": b'{"schema_version":1,"schema_version":1,"confirmed_families":[]}\n',
+        "unsafe_key": b'{"schema_version":1,"confirmed_families":[],"nested":{"constructor":{}}}\n',
+        "depth": nested_array_json(65),
+    }
+    rules.write_bytes(payloads[case])
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_node_migration_queue.py",
+            "--baseline",
+            str(BASELINE_PATH),
+            "--rules",
+            str(rules),
+            "--output",
+            str(output),
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert message in result.stderr
+    assert "Traceback" not in result.stderr
+    assert output.read_bytes() == b"existing artifact\n"
+
+
+def test_cli_rejects_internally_inconsistent_baseline_without_output_mutation(tmp_path: Path) -> None:
+    baseline = load_baseline()
+    baseline["digests"]["entries_sha256"] = "0" * 64
+    refresh_baseline_aggregate(baseline)
+    baseline_path = tmp_path / "invalid-baseline.json"
+    baseline_path.write_bytes(canonical_json_bytes(baseline))
+    output = tmp_path / "migration-queue.json"
+    output.write_bytes(b"existing artifact\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/build_node_migration_queue.py",
+            "--baseline",
+            str(baseline_path),
+            "--rules",
+            str(RULES_PATH),
+            "--output",
+            str(output),
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "entries_sha256 mismatch" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert output.read_bytes() == b"existing artifact\n"
 
 
 def test_repository_rules_build_the_reviewed_samtools_lane() -> None:
@@ -972,6 +902,26 @@ def test_cli_rejects_duplicate_json_object_members(tmp_path: Path) -> None:
 def test_standalone_cli_checks_with_available_supported_python(python_executable: str) -> None:
     result = subprocess.run(
         [python_executable, "scripts/build_node_migration_queue.py", "--check"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+
+    assert "943 nodes queued" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        ["scripts/build_node_migration_queue.py"],
+        ["-m", "scripts.build_node_migration_queue"],
+    ],
+)
+def test_cli_supports_direct_script_and_package_invocation(invocation: list[str]) -> None:
+    result = subprocess.run(
+        [sys.executable, *invocation, "--check"],
         cwd=REPO_ROOT,
         check=True,
         capture_output=True,
