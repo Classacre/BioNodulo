@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from bionodulo.nodes.contract.model import NodeOwnership
 from scripts.build_node_migration_queue import (
     MigrationQueueError,
     build_queue,
@@ -20,6 +21,33 @@ from scripts.build_node_migration_queue import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_PATH = REPO_ROOT / "bionodulo/nodes/generated/baseline-ledger.json"
 RULES_PATH = REPO_ROOT / "bionodulo/nodes/catalog/family-assignment-rules.json"
+INVALID_UPSTREAM_URLS = (
+    "http://repo.example.org/owner/project",
+    "HTTPS://repo.example.org/owner/project",
+    "https://repo.example.org:notaport/owner/project",
+    "https://repo.example.org:0/owner/project",
+    "https://repo.example.org:65536/owner/project",
+    "https://repo.example.org:443/owner/project",
+    "https://repo.example.org:08443/owner/project",
+    "https://REPO.example.org/owner/project",
+    "https://repo.example.org./owner/project",
+    "https://user@repo.example.org/owner/project",
+    "https://user:secret@repo.example.org/owner/project",
+    "https://repo.example.org/%6fwner/project",
+    "https://repo.example.org/owner/project?version=1",
+    "https://repo.example.org/owner/project?",
+    "https://repo.example.org/owner/project#section",
+    "https://repo.example.org/owner/project#",
+    "https://repo.example.org/owner//project",
+    "https://repo.example.org/owner/./project",
+    "https://repo.example.org/owner/../project",
+    "https://repo.example.org",
+    "https://repo.example.org/",
+    "https://repo.example.org/owner\\project",
+    "https://repo.example.org/owner project",
+    "https://repo.example.org/owner/project\n",
+    "https://repo.example.org:/owner/project",
+)
 
 
 def samtools_rules() -> dict[str, Any]:
@@ -149,6 +177,96 @@ def test_rule_count_mismatch_is_fatal() -> None:
 
     with pytest.raises(MigrationQueueError, match="samtools.*expected 28.*found 27"):
         build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize("schema_version", [True, False, 1.0, "1", "schema-v1"])
+def test_assignment_rules_schema_version_requires_exact_integer_one(schema_version: object) -> None:
+    rules = samtools_rules()
+    rules["schema_version"] = schema_version
+
+    with pytest.raises(MigrationQueueError, match="schema_version.*exact integer 1"):
+        build_queue(load_baseline(), rules)
+
+
+def test_assignment_rules_schema_version_accepts_exact_integer_one() -> None:
+    rules = samtools_rules()
+    rules["schema_version"] = 1
+
+    assert build_queue(load_baseline(), rules)["summary"]["stable_node_ids"] == 943
+
+
+@pytest.mark.parametrize("expected_count", [True, False, 1.0, 0, -1, 944])
+def test_expected_count_requires_a_bounded_exact_integer(expected_count: object) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["expected_count"] = expected_count
+
+    with pytest.raises(MigrationQueueError, match="expected_count.*exact integer between 1 and 943"):
+        build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize("ownership", [owner.value for owner in NodeOwnership])
+def test_confirmed_family_accepts_every_node_ownership_wire_value(ownership: str) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["ownership"] = ownership
+
+    queue = build_queue(load_baseline(), rules)
+    confirmed = [item for item in queue["assignments"] if item["family_id"] == "samtools"]
+
+    assert {item["ownership"] for item in confirmed} == {ownership}
+
+
+@pytest.mark.parametrize(
+    "ownership",
+    [
+        None,
+        True,
+        1,
+        1.0,
+        {},
+        [],
+        "unresolved",
+        "arbitrary_owner",
+    ],
+)
+def test_confirmed_family_rejects_values_outside_node_ownership(ownership: object) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["ownership"] = ownership
+
+    with pytest.raises(MigrationQueueError, match="ownership.*NodeOwnership"):
+        build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize(
+    "node_id_prefix",
+    [
+        "",
+        "../samtools_",
+        "sam tools_",
+        "samtools*_",
+        "Samtools_",
+        "_samtools_",
+        "samtools__",
+        "samtools__tools_",
+        "samtools",
+        "samtools-_",
+        "samtools/",
+        "samtools_é_",
+        "a" * 128 + "_",
+    ],
+)
+def test_node_id_prefix_requires_a_canonical_bounded_machine_prefix(node_id_prefix: str) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["node_id_prefix"] = node_id_prefix
+
+    with pytest.raises(MigrationQueueError, match="node_id_prefix.*canonical lowercase machine-ID prefix"):
+        build_queue(load_baseline(), rules)
+
+
+def test_node_id_prefix_accepts_a_canonical_family_prefix() -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["node_id_prefix"] = "samtools_"
+
+    assert build_queue(load_baseline(), rules)["summary"]["confirmed_family_nodes"] == 27
 
 
 def test_overlapping_confirmed_rules_are_fatal() -> None:
@@ -351,6 +469,28 @@ def test_confirmed_upstream_identity_is_closed_and_immutable() -> None:
     rules["confirmed_families"][0]["upstream"]["documentation_url"] = "http://www.htslib.org/doc/samtools.html"
     with pytest.raises(MigrationQueueError, match="documentation_url.*HTTPS"):
         build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize("field", ["repository_url", "documentation_url"])
+@pytest.mark.parametrize("url", INVALID_UPSTREAM_URLS)
+def test_confirmed_upstream_urls_reject_noncanonical_https_spellings(field: str, url: str) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["upstream"][field] = url
+
+    with pytest.raises(MigrationQueueError, match=rf"{field}.*canonical HTTPS"):
+        build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize("field", ["repository_url", "documentation_url"])
+def test_confirmed_upstream_urls_preserve_one_canonical_https_spelling(field: str) -> None:
+    canonical = "https://repo.example.org:8443/owner/project"
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["upstream"][field] = canonical
+
+    queue = build_queue(load_baseline(), rules)
+    assignment = next(item for item in queue["assignments"] if item["node_id"] == "samtools_sort")
+
+    assert assignment["upstream"][field] == canonical
 
 
 def test_cli_writes_and_checks_exact_canonical_bytes(tmp_path: Path) -> None:

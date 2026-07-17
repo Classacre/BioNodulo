@@ -10,7 +10,9 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-from urllib.parse import urlsplit
+
+from bionodulo.nodes.contract.environments import _validate_https_url
+from bionodulo.nodes.contract.model import MACHINE_ID_PATTERN, NodeOwnership
 
 
 DEFAULT_BASELINE = Path("bionodulo/nodes/generated/baseline-ledger.json")
@@ -20,10 +22,13 @@ EXPECTED_NODE_COUNT = 943
 _SAFE_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,127}$")
 _SAFE_PATH_RE = re.compile(r"^[a-z0-9_./-]+$")
 _CLOUD_JOB_LABEL_RE = re.compile(r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
+_NODE_ID_PREFIX_RE = re.compile(MACHINE_ID_PATTERN.removesuffix("$") + r"_$")
 _HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _RELEASE_TAG_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
 _PATH_SCOPE_FIELDS = ("exclusive_path", "fixture_prefix", "r2_test_prefix")
+_NODE_OWNERSHIP_VALUES = frozenset(owner.value for owner in NodeOwnership)
+_MAX_NODE_ID_PREFIX_LENGTH = 128
 
 
 class MigrationQueueError(RuntimeError):
@@ -143,23 +148,25 @@ def _validate_scope_collisions(scopes: Sequence[tuple[str, Mapping[str, str]]]) 
 def _https_url(value: object, label: str) -> str:
     source = _expect_string(value, label)
     try:
-        source.encode("ascii")
-        parsed = urlsplit(source)
-    except (UnicodeEncodeError, ValueError) as error:
+        return _validate_https_url(source, require_path=True)
+    except ValueError as error:
         raise MigrationQueueError(f"{label} must be a canonical HTTPS URL") from error
+
+
+def _node_ownership(value: object) -> str:
+    if not isinstance(value, str) or value not in _NODE_OWNERSHIP_VALUES:
+        raise MigrationQueueError("ownership must be one of the closed NodeOwnership values")
+    return value
+
+
+def _node_id_prefix(value: object) -> str:
     if (
-        parsed.scheme != "https"
-        or parsed.hostname is None
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
-        or not parsed.path
-        or "\\" in source
-        or "%" in source
+        not isinstance(value, str)
+        or len(value) > _MAX_NODE_ID_PREFIX_LENGTH
+        or _NODE_ID_PREFIX_RE.fullmatch(value) is None
     ):
-        raise MigrationQueueError(f"{label} must be a canonical HTTPS URL")
-    return source
+        raise MigrationQueueError("node_id_prefix must be a canonical lowercase machine-ID prefix ending in _")
+    return value
 
 
 def _validated_upstream(value: object) -> Mapping[str, str]:
@@ -242,8 +249,8 @@ def _validated_scope(exclusive_path: object, agent_scope_value: object) -> dict[
 def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
     if set(rules) != {"schema_version", "confirmed_families"}:
         raise MigrationQueueError("assignment rules contain unknown or missing fields")
-    if rules["schema_version"] != 1:
-        raise MigrationQueueError("assignment rules schema_version must equal 1")
+    if type(rules["schema_version"]) is not int or rules["schema_version"] != 1:
+        raise MigrationQueueError("assignment rules schema_version must be exact integer 1")
     families = rules["confirmed_families"]
     if not isinstance(families, list):
         raise MigrationQueueError("confirmed_families must be an array")
@@ -269,15 +276,25 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
         if family_id in family_ids:
             raise MigrationQueueError(f"duplicate confirmed family {family_id}")
         family_ids.add(family_id)
+        expected_count = family["expected_count"]
+        if type(expected_count) is not int or not 1 <= expected_count <= EXPECTED_NODE_COUNT:
+            raise MigrationQueueError(f"expected_count must be an exact integer between 1 and {EXPECTED_NODE_COUNT}")
         scope = {
             "cloud_job_label": _cloud_job_label(family["cloud_job_label"]),
             "exclusive_path": _exclusive_path(family["exclusive_path"]),
             "fixture_prefix": _relative_prefix(family["fixture_prefix"], "fixture_prefix"),
             "r2_test_prefix": _relative_prefix(family["r2_test_prefix"], "r2_test_prefix"),
         }
-        if not isinstance(family["expected_count"], int) or family["expected_count"] < 1:
-            raise MigrationQueueError("expected_count must be a positive integer")
-        result.append({**family, **scope, "upstream": _validated_upstream(family["upstream"])})
+        result.append(
+            {
+                **family,
+                **scope,
+                "expected_count": expected_count,
+                "node_id_prefix": _node_id_prefix(family["node_id_prefix"]),
+                "ownership": _node_ownership(family["ownership"]),
+                "upstream": _validated_upstream(family["upstream"]),
+            }
+        )
     _validate_scope_collisions([(str(family["family_id"]), family) for family in result])
     return tuple(result)
 
