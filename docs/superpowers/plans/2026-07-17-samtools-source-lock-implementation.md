@@ -13,7 +13,7 @@
 ## Execution Preconditions
 
 - Tasks 1-2 are shared foundation work and are owned by the catalog integration owner, not a family agent.
-- Tasks 3-4 run only after the migration queue has independent specification and quality approval and its reviewed commit is integrated into this branch. The current candidate is commit `fec63a42c42be1451bc6cccf6b1d279e2483dc36`, whose canonical queue digest is `sha256:896c6cb255b47f5ab7156f011aca0a4e345c62aaad441333e962767533a82a7f`. If either identity changes during review, amend this plan before execution.
+- Tasks 3-4 run only after the migration queue has independent specification and quality approval and its reviewed commit is integrated into this branch. The approved queue is commit `05db7fe84656624ae85abde713988d28f541c520`, whose canonical queue digest is `sha256:e3930ac5de25d18b2d70340c680adc4de318a39240abc2b18859ccefa84486fd`, rules digest is `sha256:76ff27225d51f5b0cbb0a58361b7c0419bc77cd4db39617617ab81274157e6c2`, and artifact file SHA-256 is `34e1a5a6cc1811ffc23a49b08819b09f1d782b074b711c8be02f92b90052c781`. If any identity changes after integration, amend this plan before execution.
 - Use the existing repository environment from this linked worktree through `../../.venv/bin/python`, `../../.venv/bin/ruff`, and `../../.venv/bin/mypy`. Do not create a second environment inside the worktree.
 - The pinned upstream repository is available read-only at `/tmp/bionodulo-samtools-1.23.1`. Do not fetch, build, install, or run Samtools on this host.
 
