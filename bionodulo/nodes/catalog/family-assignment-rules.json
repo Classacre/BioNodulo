@@ -6,6 +6,8 @@
       "ownership": "external_tool",
       "node_id_prefix": "samtools_",
       "expected_count": 27,
+      "source_module": "bionodulo.nodes.builtin.samtools.samtools",
+      "source_path": "bionodulo/nodes/builtin/samtools/samtools.py",
       "exclusive_path": "bionodulo/nodes/catalog/tools/samtools",
       "fixture_prefix": "samtools/",
       "cloud_job_label": "catalog-samtools",

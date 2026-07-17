@@ -19,6 +19,7 @@ from bionodulo.nodes.contract.environments import (
 )
 from bionodulo.nodes.contract.model import MACHINE_ID_PATTERN, NodeOwnership
 import scripts.build_node_migration_queue as migration_queue_builder
+import scripts.node_migration_ledger_validation as migration_ledger_validation
 from scripts.build_node_migration_queue import (
     MigrationQueueError,
     build_queue,
@@ -80,6 +81,8 @@ def samtools_rules() -> dict[str, Any]:
                 "ownership": "external_tool",
                 "node_id_prefix": "samtools_",
                 "expected_count": 27,
+                "source_module": "bionodulo.nodes.builtin.samtools.samtools",
+                "source_path": "bionodulo/nodes/builtin/samtools/samtools.py",
                 "exclusive_path": "bionodulo/nodes/catalog/tools/samtools",
                 "fixture_prefix": "samtools/",
                 "cloud_job_label": "catalog-samtools",
@@ -107,6 +110,50 @@ def load_rules() -> dict[str, Any]:
 def refresh_baseline_aggregate(baseline: dict[str, Any]) -> None:
     baseline.pop("aggregate_sha256", None)
     baseline["aggregate_sha256"] = hashlib.sha256(canonical_json_bytes(baseline)).hexdigest()
+
+
+def refresh_current_source_digests(baseline: dict[str, Any]) -> None:
+    entries = baseline["entries"]
+    baseline["digests"]["entries_sha256"] = hashlib.sha256(canonical_json_bytes(entries)).hexdigest()
+    current_inventory = [
+        {
+            "ast_sha256": entry["current_source"]["ast_sha256"],
+            "module": entry["current_source"]["module"],
+            "node_id": entry["node_id"],
+            "path": entry["current_source"]["path"],
+            "qualified_class": entry["current_source"]["qualified_class"],
+            "raw_class_sha256": entry["current_source"]["raw_class_sha256"],
+        }
+        for entry in entries
+    ]
+    snapshot = baseline["current_snapshot"]
+    snapshot["projected_inventory_sha256"] = hashlib.sha256(canonical_json_bytes(current_inventory)).hexdigest()
+    snapshot["repair_map"] = [
+        {
+            "comparison_path": entry["current_source"]["comparison_path"],
+            "current_path": entry["current_source"]["path"],
+            "node_id": entry["node_id"],
+        }
+        for entry in entries
+        if entry["current_source"]["path"] != entry["current_source"]["comparison_path"]
+    ]
+    snapshot["repair_map_sha256"] = hashlib.sha256(canonical_json_bytes(snapshot["repair_map"])).hexdigest()
+    snapshot_identity = dict(snapshot)
+    snapshot_identity.pop("snapshot_sha256", None)
+    snapshot["snapshot_sha256"] = hashlib.sha256(canonical_json_bytes(snapshot_identity)).hexdigest()
+    refresh_baseline_aggregate(baseline)
+
+
+def replace_current_source_identity(baseline: dict[str, Any], node_id: str, donor_node_id: str) -> None:
+    entries = {entry["node_id"]: entry for entry in baseline["entries"]}
+    current = entries[node_id]["current_source"]
+    donor = entries[donor_node_id]["current_source"]
+    old_module = current["module"]
+    qualified_name = current["qualified_class"][len(old_module) + 1 :]
+    current["module"] = donor["module"]
+    current["path"] = donor["path"]
+    current["qualified_class"] = f"{donor['module']}.{qualified_name}"
+    refresh_current_source_digests(baseline)
 
 
 def rules_with_second_family() -> tuple[dict[str, Any], dict[str, Any]]:
@@ -264,6 +311,108 @@ def test_expected_count_requires_a_bounded_exact_integer(expected_count: object)
     rules["confirmed_families"][0]["expected_count"] = expected_count
 
     with pytest.raises(MigrationQueueError, match="expected_count.*exact integer between 1 and 943"):
+        build_queue(load_baseline(), rules)
+
+
+def test_confirmed_family_rejects_matching_node_from_another_current_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    baseline = load_baseline()
+    replace_current_source_identity(baseline, "samtools_sort", "abricate")
+    monkeypatch.setattr(
+        migration_ledger_validation,
+        "EXPECTED_BASELINE_AGGREGATE_SHA256",
+        baseline["aggregate_sha256"],
+    )
+    rules = samtools_rules()
+    families = tuple(rules["confirmed_families"])
+    monkeypatch.setattr(migration_queue_builder, "_validated_rules", lambda _rules: families)
+
+    with pytest.raises(
+        MigrationQueueError,
+        match=r"confirmed family samtools source mismatch for node samtools_sort",
+    ):
+        build_queue(baseline, rules)
+
+
+@pytest.mark.parametrize("field", ["source_module", "source_path"])
+def test_confirmed_family_rule_requires_exact_source_identity_fields(field: str) -> None:
+    rules = samtools_rules()
+    del rules["confirmed_families"][0][field]
+
+    with pytest.raises(MigrationQueueError, match=r"confirmed_families\[0\].*unknown or missing fields"):
+        build_queue(load_baseline(), rules)
+
+
+def test_confirmed_family_source_identity_schema_is_closed() -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["source_qualified_classes"] = ["SamtoolsSortNode"]
+
+    with pytest.raises(MigrationQueueError, match=r"confirmed_families\[0\].*unknown or missing fields"):
+        build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize(
+    "source_module",
+    [
+        "bionodulo/nodes/builtin/samtools/samtools",
+        ".bionodulo.nodes.builtin.samtools.samtools",
+        "bionodulo.nodes..builtin.samtools.samtools",
+        "bionodulo.nodes.builtin.sam-tools.samtools",
+        "bionodulo.nodes.builtin.samtools.samtoolsé",
+    ],
+)
+def test_confirmed_family_source_module_requires_canonical_ascii_python_identity(source_module: str) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["source_module"] = source_module
+
+    with pytest.raises(MigrationQueueError, match="source_module.*canonical ASCII Python module"):
+        build_queue(load_baseline(), rules)
+
+
+def test_confirmed_family_source_module_is_length_bounded() -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["source_module"] = "a" * 1025
+
+    with pytest.raises(MigrationQueueError, match="source_module.*1024 ASCII characters"):
+        build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize(
+    "source_path",
+    [
+        "/bionodulo/nodes/builtin/samtools/samtools.py",
+        "bionodulo/nodes/builtin/../samtools/samtools.py",
+        "bionodulo/nodes/builtin/samtools\\samtools.py",
+        "bionodulo/nodes/builtin/samtools/samtoolsé.py",
+        "bionodulo/nodes/catalog/samtools/samtools.py",
+        "bionodulo/nodes/builtin/samtools/samtools.pyi",
+    ],
+)
+def test_confirmed_family_source_path_requires_canonical_builtin_python_identity(source_path: str) -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["source_path"] = source_path
+
+    with pytest.raises(
+        MigrationQueueError,
+        match="source_path.*canonical repository-relative builtin Python path",
+    ):
+        build_queue(load_baseline(), rules)
+
+
+def test_confirmed_family_source_path_is_length_bounded() -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["source_path"] = "bionodulo/nodes/builtin/" + "a" * 1024 + ".py"
+
+    with pytest.raises(MigrationQueueError, match="source_path.*1024 ASCII characters"):
+        build_queue(load_baseline(), rules)
+
+
+def test_confirmed_family_source_module_must_be_derived_from_source_path() -> None:
+    rules = samtools_rules()
+    rules["confirmed_families"][0]["source_module"] = "bionodulo.nodes.builtin.annotation.abricate"
+
+    with pytest.raises(MigrationQueueError, match="source_module.*derived from source_path"):
         build_queue(load_baseline(), rules)
 
 

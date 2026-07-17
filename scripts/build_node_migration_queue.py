@@ -17,10 +17,13 @@ from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
     from scripts import node_migration_ledger_validation as _ledger_validation
+    from scripts import node_source_identity as _source_identity
 elif __package__:
     from scripts import node_migration_ledger_validation as _ledger_validation
+    from scripts import node_source_identity as _source_identity
 else:
     import node_migration_ledger_validation as _ledger_validation
+    import node_source_identity as _source_identity
 
 EXPECTED_NODE_COUNT = _ledger_validation.EXPECTED_NODE_COUNT
 MAX_CANONICAL_JSON_BYTES = _ledger_validation.MAX_CANONICAL_JSON_BYTES
@@ -40,6 +43,8 @@ DEFAULT_OUTPUT = Path("bionodulo/nodes/generated/migration-queue.json")
 _SAFE_PATH_RE = re.compile(r"^[a-z0-9_./-]+$")
 _CLOUD_JOB_LABEL_RE = re.compile(r"^[a-z0-9]+(?:[-_][a-z0-9]+)*$")
 _NODE_ID_PREFIX_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*_$")
+_PYTHON_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_REPOSITORY_SOURCE_PATH_RE = re.compile(r"^[A-Za-z0-9_./-]+$")
 _HOST_RE = re.compile(
     r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$"
@@ -223,6 +228,32 @@ def _node_id_prefix(value: object) -> str:
     return value
 
 
+def _source_module(value: object) -> str:
+    module = _expect_string(value, "source_module")
+    if len(module) > _MAX_PATH_LENGTH:
+        raise MigrationQueueError(f"source_module must not exceed {_MAX_PATH_LENGTH} ASCII characters")
+    if _PYTHON_MODULE_RE.fullmatch(module) is None:
+        raise MigrationQueueError("source_module must be a canonical ASCII Python module")
+    return module
+
+
+def _source_path(value: object) -> str:
+    path = _expect_string(value, "source_path")
+    if len(path) > _MAX_PATH_LENGTH:
+        raise MigrationQueueError(f"source_path must not exceed {_MAX_PATH_LENGTH} ASCII characters")
+    if (
+        _REPOSITORY_SOURCE_PATH_RE.fullmatch(path) is None
+        or path.startswith("/")
+        or path.endswith("/")
+        or "//" in path
+        or any(part in ("", ".", "..") for part in path.split("/"))
+        or not path.startswith("bionodulo/nodes/builtin/")
+        or not path.endswith(".py")
+    ):
+        raise MigrationQueueError("source_path must be a canonical repository-relative builtin Python path")
+    return path
+
+
 def _validated_upstream(value: object) -> Mapping[str, str]:
     upstream = _expect_mapping(value, "upstream")
     expected = {
@@ -320,6 +351,8 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
             "ownership",
             "node_id_prefix",
             "expected_count",
+            "source_module",
+            "source_path",
             "exclusive_path",
             "fixture_prefix",
             "cloud_job_label",
@@ -335,6 +368,10 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
         expected_count = family["expected_count"]
         if type(expected_count) is not int or not 1 <= expected_count <= EXPECTED_NODE_COUNT:
             raise MigrationQueueError(f"expected_count must be an exact integer between 1 and {EXPECTED_NODE_COUNT}")
+        source_path = _source_path(family["source_path"])
+        source_module = _source_module(family["source_module"])
+        if source_module != _source_identity.module_name(source_path):
+            raise MigrationQueueError("source_module must equal the module derived from source_path")
         scope = {
             "cloud_job_label": _cloud_job_label(family["cloud_job_label"]),
             "exclusive_path": _exclusive_path(family["exclusive_path"]),
@@ -348,6 +385,8 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
                 "expected_count": expected_count,
                 "node_id_prefix": _node_id_prefix(family["node_id_prefix"]),
                 "ownership": _node_ownership(family["ownership"]),
+                "source_module": source_module,
+                "source_path": source_path,
                 "upstream": _validated_upstream(family["upstream"]),
             }
         )
@@ -367,16 +406,32 @@ def build_queue(
     matched_rules: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for family in families:
         prefix = _expect_string(family["node_id_prefix"], "node_id_prefix")
-        matching = sorted(
-            entry["node_id"]
-            for entry in entries
-            if isinstance(entry, dict) and isinstance(entry.get("node_id"), str) and entry["node_id"].startswith(prefix)
+        matching_entries = sorted(
+            (
+                entry
+                for entry in entries
+                if isinstance(entry, dict)
+                and isinstance(entry.get("node_id"), str)
+                and entry["node_id"].startswith(prefix)
+            ),
+            key=lambda entry: entry["node_id"],
         )
+        matching = [entry["node_id"] for entry in matching_entries]
         expected_count = family["expected_count"]
         if len(matching) != expected_count:
             raise MigrationQueueError(
                 f"{family['family_id']} expected {expected_count} matching nodes, found {len(matching)}"
             )
+        expected_module = family["source_module"]
+        expected_path = family["source_path"]
+        for entry in matching_entries:
+            current = entry["current_source"]
+            if current["module"] != expected_module or current["path"] != expected_path:
+                raise MigrationQueueError(
+                    f"confirmed family {family['family_id']} source mismatch for node {entry['node_id']}: "
+                    f"expected current_source.module {expected_module!r} and current_source.path {expected_path!r}; "
+                    f"found current_source.module {current['module']!r} and current_source.path {current['path']!r}"
+                )
         for node_id in matching:
             matched_rules[node_id].append(family)
 
