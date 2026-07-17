@@ -1499,23 +1499,49 @@ def test_compiler_reconciles_pypi_list_depends_with_native_requires_dist() -> No
     assert any(artifact.kind == "pypi" for artifact in compiled.artifacts)
 
 
-def test_compiler_accepts_pypi_list_record_without_cached_size() -> None:
+def test_compiler_discards_cache_derived_pypi_size_from_platform_lock_identity() -> None:
     python = python_record()
-    wheel = pypi_record(size_bytes=None)
+    cached_wheel = pypi_record()
+    uncached_wheel = pypi_record(size_bytes=None)
     references = (
         ("conda", str(python["url"])),
-        ("pypi", str(wheel["url"])),
+        ("pypi", str(cached_wheel["url"])),
     )
+    native_lock = lockfile(package_references=references)
 
-    compiled = compile_captured_platform_lock(
-        encoded(python, wheel),
-        lockfile(package_references=references),
-        environment_name="alignment-tools",
-        platform=ExecutionPlatform.LINUX_AMD64,
+    cached, uncached = (
+        compile_captured_platform_lock(
+            encoded(python, wheel),
+            native_lock,
+            environment_name="alignment-tools",
+            platform=ExecutionPlatform.LINUX_AMD64,
+        )
+        for wheel in (cached_wheel, uncached_wheel)
     )
+    cached_projection = cached.model_dump(mode="json")
+    uncached_projection = uncached.model_dump(mode="json")
+    cached_bytes = json.dumps(
+        cached_projection,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+    uncached_bytes = json.dumps(
+        uncached_projection,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
 
-    pypi_artifact = next(artifact for artifact in compiled.artifacts if artifact.kind == "pypi")
-    assert pypi_artifact.size_bytes is None
+    assert cached_projection == uncached_projection
+    assert cached_bytes == uncached_bytes
+    assert cached.lock_digest() == uncached.lock_digest()
+    assert all(
+        next(artifact for artifact in lock.artifacts if artifact.kind == "pypi").size_bytes is None
+        for lock in (cached, uncached)
+    )
 
 
 def test_compiler_preserves_custom_pypi_index_url_spelling() -> None:

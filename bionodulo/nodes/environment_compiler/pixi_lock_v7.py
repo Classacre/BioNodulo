@@ -177,7 +177,7 @@ def _admit_pypi(record: PixiPypiListRecord) -> PypiLockedArtifact:
         filename=filename,
         url=url,
         sha256="sha256:" + _required(record.sha256, field="sha256", kind="PyPI"),
-        size_bytes=record.size_bytes,
+        size_bytes=None,
     )
 
 
