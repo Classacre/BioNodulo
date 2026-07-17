@@ -22,6 +22,7 @@ from bionodulo.nodes.contract.model import NodeSpec
 
 
 _MAX_REGISTRY_BYTES = 1024 * 1024
+_MAX_REQUEST_BYTES = 1024 * 1024
 _MAX_JSON_NESTING_DEPTH = 64
 _UNSAFE_JSON_KEYS = frozenset({"__proto__", "constructor", "prototype"})
 
@@ -49,7 +50,7 @@ def _reject_json_constant(value: str) -> object:
     raise ValueError(f"non-finite JSON number is forbidden: {value}")
 
 
-def _validate_json_nesting(text: str) -> None:
+def _validate_json_nesting(text: str, *, label: str = "environment registry") -> None:
     depth = 0
     in_string = False
     escaped = False
@@ -66,9 +67,38 @@ def _validate_json_nesting(text: str) -> None:
         elif character in "[{":
             depth += 1
             if depth > _MAX_JSON_NESTING_DEPTH:
-                raise ValueError(f"environment registry JSON nesting depth may be at most {_MAX_JSON_NESTING_DEPTH}")
+                raise ValueError(f"{label} JSON nesting depth may be at most {_MAX_JSON_NESTING_DEPTH}")
         elif character in "]}":
             depth -= 1
+
+
+def _decode_canonical_json_object(
+    content: bytes,
+    *,
+    label: str,
+    maximum_bytes: int,
+) -> dict[str, object]:
+    if type(content) is not bytes:
+        raise TypeError(f"{label} content must be exact bytes")
+    if not content or len(content) > maximum_bytes:
+        raise ValueError(f"{label} must be between 1 and {maximum_bytes} bytes")
+    if content.startswith(b"\xef\xbb\xbf"):
+        raise ValueError(f"{label} must be UTF-8 without a BOM")
+    try:
+        text = content.decode("utf-8")
+        _validate_json_nesting(text, label=label)
+        document = json.loads(
+            text,
+            object_pairs_hook=_unique_json_object,
+            parse_constant=_reject_json_constant,
+        )
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{label} must be strict UTF-8 JSON: {error}") from error
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{label} must be strict UTF-8 JSON: {error}") from error
+    if type(document) is not dict:
+        raise ValueError(f"{label} must be a JSON object")
+    return document
 
 
 class _CanonicalModel(_StrictFrozenModel):
@@ -280,22 +310,11 @@ def decode_environment_registry(
 ) -> EnvironmentRegistry:
     """Decode exact canonical persisted bytes and bind them to NodeSpec authority."""
 
-    if type(content) is not bytes:
-        raise TypeError("environment registry content must be exact bytes")
-    if not content or len(content) > _MAX_REGISTRY_BYTES:
-        raise ValueError(f"environment registry must be between 1 and {_MAX_REGISTRY_BYTES} bytes")
-    try:
-        text = content.decode("ascii")
-        _validate_json_nesting(text)
-        document = json.loads(
-            text,
-            object_pairs_hook=_unique_json_object,
-            parse_constant=_reject_json_constant,
-        )
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ValueError(f"environment registry must be strict ASCII JSON: {error}") from error
-    if type(document) is not dict:
-        raise ValueError("environment registry must be a JSON object")
+    document = _decode_canonical_json_object(
+        content,
+        label="environment registry",
+        maximum_bytes=_MAX_REGISTRY_BYTES,
+    )
     if "schema_version" not in document:
         raise ValueError("environment registry requires schema_version")
     decoded = EnvironmentRegistry.model_validate_json(content)
@@ -388,14 +407,23 @@ def compile_workflow_environment_request(
 
 
 def admit_workflow_environment_request(
-    request: WorkflowEnvironmentRequest,
+    request_content: bytes,
     *,
     registry_content: bytes,
     node_specs: Iterable[NodeSpec],
 ) -> WorkflowEnvironmentRequest:
-    """Reopen registry bytes and recompute the complete request before admission."""
+    """Decode exact request bytes and recompute their complete authoritative projection."""
 
-    validated_request = WorkflowEnvironmentRequest.model_validate(request)
+    document = _decode_canonical_json_object(
+        request_content,
+        label="workflow environment request",
+        maximum_bytes=_MAX_REQUEST_BYTES,
+    )
+    if "schema_version" not in document:
+        raise ValueError("workflow environment request requires schema_version")
+    validated_request = WorkflowEnvironmentRequest.model_validate_json(request_content)
+    if validated_request.canonical_json_bytes() != request_content:
+        raise ValueError("workflow environment request bytes must use canonical JSON encoding")
     specs = tuple(node_specs)
     decoded = decode_environment_registry(registry_content, node_specs=specs)
     raw_digest = environment_registry_digest(registry_content)

@@ -87,6 +87,23 @@ def validated_node_specs() -> tuple[NodeSpec, NodeSpec]:
     return samtools, bcftools
 
 
+def workflow_request_bytes() -> tuple[NodeSpec, bytes, bytes]:
+    spec = external_spec()
+    assert spec.environment is not None
+    registry_content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
+    request = registry.compile_workflow_environment_request(
+        registry_content,
+        (
+            registry.WorkflowEnvironmentSelection(
+                environment_id=spec.environment.environment_id,
+                platform=ExecutionPlatform.LINUX_AMD64,
+            ),
+        ),
+        node_specs=(spec,),
+    )
+    return spec, registry_content, request.canonical_json_bytes()
+
+
 def test_environment_registry_and_request_protocol_is_schema_version_two() -> None:
     spec = external_spec()
     source = registry.derive_environment_registry((spec,))
@@ -379,6 +396,7 @@ def test_request_admission_reopens_exact_registry_bytes_and_rejects_stale_or_tam
         (selection,),
         node_specs=(spec,),
     )
+    request_content = request.canonical_json_bytes()
     stale_content = source.model_copy(
         update={
             "environments": (source.environments[0].model_copy(update={"environment_digest": "sha256:" + "0" * 64}),)
@@ -388,7 +406,7 @@ def test_request_admission_reopens_exact_registry_bytes_and_rejects_stale_or_tam
     assert request.environments[0].environment_digest == spec.environment.environment_digest()
     assert (
         registry.admit_workflow_environment_request(
-            request,
+            request_content,
             registry_content=content,
             node_specs=(spec,),
         )
@@ -396,8 +414,15 @@ def test_request_admission_reopens_exact_registry_bytes_and_rejects_stale_or_tam
     )
     with pytest.raises(ValueError, match="registry|digest|NodeSpec"):
         registry.admit_workflow_environment_request(
-            request,
+            request_content,
             registry_content=stale_content,
+            node_specs=(spec,),
+        )
+
+    with pytest.raises(TypeError, match="request content must be exact bytes"):
+        registry.admit_workflow_environment_request(
+            request,  # type: ignore[arg-type]
+            registry_content=content,
             node_specs=(spec,),
         )
 
@@ -420,8 +445,131 @@ def test_request_admission_rejects_forged_stored_raw_registry_digest() -> None:
 
     with pytest.raises(ValueError, match="raw registry|digest"):
         registry.admit_workflow_environment_request(
-            forged,
+            forged.canonical_json_bytes(),
             registry_content=content,
+            node_specs=(spec,),
+        )
+
+
+def test_request_admission_requires_exact_bounded_bytes() -> None:
+    spec, registry_content, request_content = workflow_request_bytes()
+
+    with pytest.raises(TypeError, match="exact bytes"):
+        registry.admit_workflow_environment_request(
+            bytearray(request_content),  # type: ignore[arg-type]
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+    with pytest.raises(ValueError, match="between 1 and 1048576"):
+        registry.admit_workflow_environment_request(
+            b"",
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+    with pytest.raises(ValueError, match="between 1 and 1048576"):
+        registry.admit_workflow_environment_request(
+            request_content + b" " * (1024 * 1024 + 1 - len(request_content)),
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+
+
+@pytest.mark.parametrize(
+    "request_content",
+    (
+        b"\xef\xbb\xbf{}",
+        b'{"schema_version":2,"value":"\xff"}',
+    ),
+)
+def test_request_admission_rejects_bom_and_invalid_utf8(request_content: bytes) -> None:
+    spec, registry_content, _ = workflow_request_bytes()
+
+    with pytest.raises(ValueError, match="UTF-8|BOM"):
+        registry.admit_workflow_environment_request(
+            request_content,
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+
+
+def test_request_admission_rejects_duplicate_and_unsafe_json_keys() -> None:
+    spec, registry_content, request_content = workflow_request_bytes()
+    duplicate = request_content.replace(
+        b'{"environment_registry_sha256":',
+        b'{"schema_version":2,"environment_registry_sha256":',
+        1,
+    )
+    unsafe = request_content.replace(
+        b'{"environment_digest":',
+        b'{"__proto__":{},"environment_digest":',
+        1,
+    )
+
+    with pytest.raises(ValueError, match="duplicate JSON key: schema_version"):
+        registry.admit_workflow_environment_request(
+            duplicate,
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+    with pytest.raises(ValueError, match="unsafe JSON key: __proto__"):
+        registry.admit_workflow_environment_request(
+            unsafe,
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+
+
+def test_request_admission_enforces_64_level_json_nesting_without_recursion() -> None:
+    spec, registry_content, request_content = workflow_request_bytes()
+    depth_64 = request_content[:-1] + b',"unknown":' + b"[" * 63 + b"0" + b"]" * 63 + b"}"
+    depth_65 = request_content[:-1] + b',"unknown":' + b"[" * 64 + b"0" + b"]" * 64 + b"}"
+
+    with pytest.raises(ValidationError, match="unknown|extra"):
+        registry.admit_workflow_environment_request(
+            depth_64,
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+    with pytest.raises(ValueError, match="nesting depth.*64|64.*nesting depth"):
+        registry.admit_workflow_environment_request(
+            depth_65,
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+
+
+def test_request_admission_requires_schema_v2_and_canonical_bytes() -> None:
+    spec, registry_content, request_content = workflow_request_bytes()
+    omitted = request_content.replace(b',"schema_version":2}', b"}", 1)
+    wrong = request_content.replace(b'"schema_version":2', b'"schema_version":1', 1)
+
+    for invalid in (omitted, wrong):
+        with pytest.raises((ValidationError, ValueError), match="schema_version"):
+            registry.admit_workflow_environment_request(
+                invalid,
+                registry_content=registry_content,
+                node_specs=(spec,),
+            )
+    with pytest.raises(ValueError, match="canonical"):
+        registry.admit_workflow_environment_request(
+            request_content + b"\n",
+            registry_content=registry_content,
+            node_specs=(spec,),
+        )
+
+
+def test_request_admission_rejects_forged_projection_bytes() -> None:
+    spec, registry_content, request_content = workflow_request_bytes()
+    forged = request_content.replace(
+        request_content[request_content.index(b'"environment_digest":"') + 22 :][:71],
+        b"sha256:" + b"0" * 64,
+        1,
+    )
+
+    with pytest.raises(ValueError, match="projection"):
+        registry.admit_workflow_environment_request(
+            forged,
+            registry_content=registry_content,
             node_specs=(spec,),
         )
 
