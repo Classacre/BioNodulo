@@ -97,6 +97,20 @@ def test_command_bindings_are_unique_but_operations_may_reuse_them() -> None:
     value["operations"].sort(key=lambda item: item["node_id"])
     lock = ToolSourceLock.model_validate(value)
     assert [item.upstream_commands for item in lock.operations] == [("view",), ("view",)]
+
+
+def test_source_lock_collections_are_deeply_immutable() -> None:
+    lock = ToolSourceLock.model_validate(minimal_lock())
+
+    assert isinstance(lock.source_files, tuple)
+    assert isinstance(lock.command_bindings, tuple)
+    assert isinstance(lock.operations, tuple)
+    assert isinstance(lock.source_files[0].roles, tuple)
+    assert isinstance(lock.command_bindings[0].documentation_source_ids, tuple)
+    assert isinstance(lock.operations[0].upstream_commands, tuple)
+
+    with pytest.raises((AttributeError, TypeError, ValidationError)):
+        lock.operations += lock.operations
 ```
 
 Also test duplicate source IDs, repository paths, command IDs, node IDs, and per-item references; missing/orphan references; noncanonical arrays; traversal paths; wrong source roles; malformed URLs/digests/Git IDs; duplicate roles; and self-consistent unknown fields. One source ID and one command binding may be referenced by many command or operation bindings.
@@ -197,10 +211,15 @@ def test_verify_source_lock_reads_exact_git_objects_without_mutation(tmp_path: P
     repository, lock_path, expected_commit = tagged_fixture_repository(tmp_path)
     before = git_status(repository)
 
-    report = verify_tool_source_lock(repository, load_tool_source_lock(lock_path.read_bytes()))
+    lock = load_tool_source_lock(lock_path.read_bytes())
+    verified = verify_tool_source_lock(repository, lock)
 
-    assert report.commit == expected_commit
-    assert report.verified_files == 2
+    assert verified.lock == lock
+    assert verified.report.commit == expected_commit
+    assert verified.report.verified_files == 2
+    assert tuple(verified.source_bytes) == tuple(source.source_id for source in lock.source_files)
+    with pytest.raises(TypeError):
+        verified.source_bytes[lock.source_files[0].source_id] = b"forged"
     assert git_status(repository) == before
 
 
@@ -245,7 +264,7 @@ git cat-file blob <exact commit>:<validated repository path>
 
 Use `--end-of-options` and `--` where supported. For an annotated pin, the exact ref target must equal `tag_object`, `cat-file -t` must return `tag`, and peeling must equal `commit`. For a lightweight pin, the exact ref target and object type must be the declared `commit`. Check size before reading, stream/hash at most 8 MiB per blob and 64 MiB across the lock, and compare every SHA-256. The verifier does not parse a language or assert biological/CLI semantics.
 
-Return `VerifiedToolSources`, a frozen result containing a strict `SourceLockVerificationReport` plus an immutable source-ID-to-`bytes` mapping. Every value is a fresh immutable `bytes` snapshot covered by the checked digest, and the mapping retains the same 8 MiB per-file and 64 MiB aggregate bounds. The report contains only tool/version, tag kind, optional tag object, commit, lock digest, verified file count, declared command count, and declared operation count. The generic CLI discards source contents after printing the report; family verifiers consume them synchronously without reopening paths.
+Return `VerifiedToolSources`, a frozen result containing the exact validated `ToolSourceLock` value, a strict `SourceLockVerificationReport`, and a read-only source-ID-to-`bytes` mapping. Production code constructs it only inside `verify_tool_source_lock()`; downstream consumers nevertheless recheck its lock/report digest invariant rather than treating Python constructor privacy as a security boundary. Every value is a fresh immutable `bytes` snapshot covered by the checked digest, and the mapping is a `MappingProxyType` over a fresh dictionary with the same 8 MiB per-file and 64 MiB aggregate bounds. The report contains only tool/version, tag kind, optional tag object, commit, lock digest, verified file count, declared command count, and declared operation count. Tests require `verified.lock.lock_digest() == verified.report.lock_digest`, tuple-backed nested lock collections, frozen nested models, and assignment failure for the returned byte mapping. The generic CLI discards source contents after printing the report; family verifiers consume the complete result synchronously without reopening paths.
 
 - [ ] **Step 4: Implement and test the non-writing CLI**
 
@@ -281,15 +300,28 @@ git commit -m "feat(catalog): verify pinned upstream git sources"
 
 The family verifier accepts only compiler-owned bytes already verified by the generic source lock. It parses the pinned `bamtk.c` `else if` dispatch chain into literal command-to-entrypoint mappings, including multi-name branches such as `fasta`/`fastq` and `idxstat`/`idxstats`.
 
-Before implementation, record RED for exact 23-command equality, missing/duplicate/ambiguous dispatcher entries, missing opaque implementation markers, and the wrapper CLI's success/mismatch/non-writing paths. Test empty, control-containing, over-128-byte, and metacharacter entrypoints against `^[A-Za-z_][A-Za-z0-9_]{0,127}$`. Include this swapped-binding regression:
+Before implementation, record RED for exact 23-command equality, missing/duplicate/ambiguous dispatcher entries, missing opaque implementation markers, a forged lock/result digest mismatch, and the wrapper CLI's success/mismatch/non-writing paths. Test empty, control-containing, over-128-byte, and metacharacter entrypoints against `^[A-Za-z_][A-Za-z0-9_]{0,127}$`. Do not import the not-yet-created family module at test-collection time: import it inside each test or fixture so the CLI subprocess RED cases also execute. Include these regressions:
+
+`verified_sources_for()` is a test-only helper in this file. It starts from the complete valid synthetic Samtools lock fixture, replaces its canonical `command_bindings` tuple with the supplied bindings, recalculates canonical lock bytes/digest through the real model, and calls the real generic verifier against the temporary pinned Git fixture. It never fabricates a `SourceLockVerificationReport` or byte mapping.
 
 ```python
 def test_swapped_samtools_command_binding_is_rejected(verified_sources) -> None:
     bindings = valid_command_bindings()
     bindings["sort"] = bindings["view"].model_copy(update={"command": "sort"})
+    verified = verified_sources_for(command_bindings=bindings)
 
     with pytest.raises(SamtoolsSourceBindingError, match="sort.*main_samview"):
-        verify_samtools_source_bindings(bindings, verified_sources)
+        verify_samtools_source_bindings(verified)
+
+
+def test_samtools_verifier_rejects_a_lock_from_another_verified_result(
+    verified_sources,
+) -> None:
+    other_lock = verified_sources.lock.model_copy(update={"tool_version": "1.23.0"})
+    forged = dataclasses.replace(verified_sources, lock=other_lock)
+
+    with pytest.raises(SamtoolsSourceBindingError, match="lock digest"):
+        verify_samtools_source_bindings(forged)
 ```
 
 - [ ] **Step 2: Run tests and verify RED**
@@ -302,9 +334,9 @@ Expected: the Samtools verifier and wrapper CLI do not exist.
 
 - [ ] **Step 3: Implement the narrow family verifier**
 
-`parse_samtools_dispatcher()` is intentionally specific to the pinned `bamtk.c` structure. It returns literal command names and entrypoint identifiers and rejects any unparsed or ambiguous selected branch. `verify_samtools_source_bindings()` accepts the exact immutable `VerifiedToolSources` result, requires every lock command to map to the declared entrypoint, and never reopens a file. It then performs one downgraded opaque sanity check: the exact line prefix `int <entrypoint>(` occurs once in the declared, hash-verified implementation bytes. This marker is not called a C parser or evidence proof. A subsequent evidence compiler must use language-aware symbol selection or exact content locators before a node can pass `evidence_verified`.
+`parse_samtools_dispatcher()` is intentionally specific to the pinned `bamtk.c` structure. It returns literal command names and entrypoint identifiers and rejects any unparsed or ambiguous selected branch. `verify_samtools_source_bindings()` accepts only the exact immutable `VerifiedToolSources` result, first recomputes `verified.lock.lock_digest()` and requires equality with `verified.report.lock_digest`, then consumes command, dispatcher, and implementation metadata only from `verified.lock`. It requires every lock command to map to the declared entrypoint and never accepts separately supplied bindings or reopens a file. It then performs one downgraded opaque sanity check: the exact line prefix `int <entrypoint>(` occurs once in the declared, hash-verified implementation bytes. This marker is not called a C parser or evidence proof. A subsequent evidence compiler must use language-aware symbol selection or exact content locators before a node can pass `evidence_verified`.
 
-`scripts/verify_samtools_source_lock.py` is the composed entrypoint: load canonical lock bytes, run generic Git verification, pass the returned exact bytes to `verify_samtools_source_bindings()`, then print the 44-file/23-command/27-operation summary. The generic CLI reports file identity only and must not claim that Samtools command dispatch was verified.
+`scripts/verify_samtools_source_lock.py` is the composed entrypoint: load canonical lock bytes, run generic Git verification, pass the complete returned result to `verify_samtools_source_bindings()`, then print a summary that distinguishes 44 verified file identities, 23 verified dispatcher command bindings, and 27 declared operation mappings. The generic CLI reports file identity only and must not claim that Samtools command dispatch was verified.
 
 - [ ] **Step 4: Run focused tests and commit**
 
@@ -486,7 +518,7 @@ PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest -p no:cacheprovider -
 Expected summary:
 
 ```text
-samtools 1.23.1: 44 files, 23 commands, and 27 operations verified at 6efb9b6da35224cf804921dedecf9fb8f411365d
+samtools 1.23.1: 44 files and 23 dispatcher commands verified; 27 operations declared at 6efb9b6da35224cf804921dedecf9fb8f411365d
 ```
 
 - [ ] **Step 7: Commit the family lock**
