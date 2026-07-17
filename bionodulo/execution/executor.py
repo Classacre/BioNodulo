@@ -120,13 +120,19 @@ class ExecutionContext:
         cwd: str | Path | None = None,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        stdout_path: str | Path | None = None,
+        stderr_path: str | Path | None = None,
     ) -> dict[str, Any]:
         """Run a subprocess command within this execution context.
 
         If ``env_prefix`` is set, commands are wrapped for isolated execution.
+        Stream paths default to the node's existing ``stdout.log`` and
+        ``stderr.log`` files.
         """
-        stdout_path = self.node_dir / "stdout.log"
-        stderr_path = self.node_dir / "stderr.log"
+        if stdout_path is None:
+            stdout_path = self.node_dir / "stdout.log"
+        if stderr_path is None:
+            stderr_path = self.node_dir / "stderr.log"
 
         # Wrap command with environment prefix if isolated execution is configured
         wrapped_cmd: str | list[str] = cmd

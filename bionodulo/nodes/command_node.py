@@ -76,6 +76,9 @@ class CommandNode(BaseNode):
     ENV_VARS: ClassVar[dict[str, str]] = {}
     """Additional environment variables for the command."""
 
+    STDOUT_OUTPUT_INDEX: ClassVar[int | None] = None
+    """Optional planned-output index that receives the command's stdout."""
+
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> str | list[str]:
         """Render the COMMAND template with actual input values.
@@ -239,6 +242,11 @@ class CommandNode(BaseNode):
             paths.append(node_out / f"{name}{ext}")
         return paths
 
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Prepare deterministic artifacts or inputs before command rendering."""
+        return None
+
     async def run(self, **kwargs: Any) -> Union[tuple[Any, ...], dict[str, Any]]:
         """Execute the command via the workflow context.
 
@@ -326,13 +334,29 @@ class CommandNode(BaseNode):
             if validation is not True:
                 raise ValueError(f"Input validation failed: {validation}")
 
-            # Render command
+            # Plan outputs using the REAL output dir so returned paths are stable.
+            # Preparation may use those paths and update inputs consumed by rendering.
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, real_output_dir)
+            stdout_output_index = self.__class__.STDOUT_OUTPUT_INDEX
+            stdout_path: Path | None = None
+            if stdout_output_index is not None:
+                if (
+                    isinstance(stdout_output_index, bool)
+                    or not isinstance(stdout_output_index, int)
+                    or not 0 <= stdout_output_index < len(outputs)
+                ):
+                    raise ValueError(
+                        f"{self.__class__.NODE_ID}.STDOUT_OUTPUT_INDEX "
+                        f"{stdout_output_index!r} is invalid for {len(outputs)} planned output(s)"
+                    )
+                stdout_path = outputs[stdout_output_index]
+
+            self.__class__.PREPARE_EXECUTION(kwargs, outputs)
+
+            # Render command from the prepared inputs.
             cmd: str | list[str] = self.__class__.render_command(kwargs)
             if not cmd:
                 raise RuntimeError(f"No command rendered for {self.__class__.NODE_ID}")
-
-            # Plan outputs using the REAL output dir so returned paths are stable
-            outputs = self.__class__.PLAN_OUTPUTS(kwargs, real_output_dir)
 
             # When SHELL=True, join command list so shell operators (>, |) work.
             # Arguments with whitespace or special chars are safely quoted;
@@ -350,11 +374,13 @@ class CommandNode(BaseNode):
 
                 # Execute via context if available
                 if context is not None and hasattr(context, "run_command"):
-                    result = await context.run_command(
-                        cmd,
-                        env=self.__class__.ENV_VARS or None,
-                        cwd=self.__class__.WORKING_DIR or output_dir,
-                    )
+                    command_kwargs: dict[str, Any] = {
+                        "env": self.__class__.ENV_VARS or None,
+                        "cwd": self.__class__.WORKING_DIR or output_dir,
+                    }
+                    if stdout_path is not None:
+                        command_kwargs["stdout_path"] = stdout_path
+                    result = await context.run_command(cmd, **command_kwargs)
                 else:
                     # Fallback: direct subprocess execution via run_subprocess
                     # for consistency and proper shell handling.
@@ -362,7 +388,11 @@ class CommandNode(BaseNode):
                     result = await run_subprocess(
                         cmd,
                         cwd=output_dir,
-                        stdout_path=Path(output_dir) / "stdout.log" if output_dir else None,
+                        stdout_path=(
+                            stdout_path
+                            if stdout_path is not None
+                            else Path(output_dir) / "stdout.log" if output_dir else None
+                        ),
                         stderr_path=Path(output_dir) / "stderr.log" if output_dir else None,
                     )
 
