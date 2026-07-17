@@ -7,7 +7,7 @@ import json
 from collections.abc import Iterable
 from typing import Annotated, Literal, Self
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from bionodulo.nodes.contract.artifacts import ArtifactId, _StrictFrozenModel
 from bionodulo.nodes.contract.environments import (
@@ -21,7 +21,9 @@ from bionodulo.nodes.contract.environments import (
 from bionodulo.nodes.contract.model import NodeSpec
 
 
-_MAX_REGISTRY_BYTES = 8 * 1024 * 1024
+_MAX_REGISTRY_BYTES = 1024 * 1024
+_MAX_JSON_NESTING_DEPTH = 64
+_UNSAFE_JSON_KEYS = frozenset({"__proto__", "constructor", "prototype"})
 
 
 def environment_registry_digest(content: bytes) -> str:
@@ -35,6 +37,8 @@ def environment_registry_digest(content: bytes) -> str:
 def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
+        if key in _UNSAFE_JSON_KEYS:
+            raise ValueError(f"unsafe JSON key: {key}")
         if key in result:
             raise ValueError(f"duplicate JSON key: {key}")
         result[key] = value
@@ -43,6 +47,28 @@ def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 def _reject_json_constant(value: str) -> object:
     raise ValueError(f"non-finite JSON number is forbidden: {value}")
+
+
+def _validate_json_nesting(text: str) -> None:
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > _MAX_JSON_NESTING_DEPTH:
+                raise ValueError(f"environment registry JSON nesting depth may be at most {_MAX_JSON_NESTING_DEPTH}")
+        elif character in "]}":
+            depth -= 1
 
 
 class _CanonicalModel(_StrictFrozenModel):
@@ -94,6 +120,15 @@ class EnvironmentRuntimeBinding(_CanonicalModel):
     binding_kind: Literal["package", "probe", "container"]
     binding_id: Annotated[str, StringConstraints(min_length=1, max_length=512)]
 
+    @field_validator("tool_version", "binding_id")
+    @classmethod
+    def _validate_printable_ascii(cls, value: str) -> str:
+        if any(ord(character) < 0x20 or ord(character) > 0x7E for character in value):
+            raise ValueError("runtime binding values must contain only printable ASCII characters")
+        if value != value.strip():
+            raise ValueError("runtime binding values must not have outer whitespace")
+        return value
+
 
 class EnvironmentRegistryEntry(_CanonicalModel):
     environment_id: ArtifactId
@@ -112,7 +147,7 @@ class EnvironmentRegistryEntry(_CanonicalModel):
 
 
 class EnvironmentRegistry(_CanonicalModel):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     environments: Annotated[tuple[EnvironmentRegistryEntry, ...], Field(min_length=1, max_length=4096)]
 
     @model_validator(mode="after")
@@ -224,7 +259,7 @@ def derive_environment_registry(node_specs: Iterable[NodeSpec]) -> EnvironmentRe
                 runtime_bindings=tuple(sorted(runtime_bindings, key=lambda binding: binding.node_id)),
             )
         )
-    return EnvironmentRegistry(schema_version=1, environments=tuple(entries))
+    return EnvironmentRegistry(schema_version=2, environments=tuple(entries))
 
 
 def validate_environment_registry(
@@ -253,6 +288,7 @@ def decode_environment_registry(
         raise ValueError(f"environment registry must be between 1 and {_MAX_REGISTRY_BYTES} bytes")
     try:
         text = content.decode("ascii")
+        _validate_json_nesting(text)
         document = json.loads(
             text,
             object_pairs_hook=_unique_json_object,
@@ -285,7 +321,7 @@ class WorkflowEnvironmentRequestItem(_CanonicalModel):
 
 
 class WorkflowEnvironmentRequest(_CanonicalModel):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     environment_registry_sha256: Sha256Digest
     environments: Annotated[tuple[WorkflowEnvironmentRequestItem, ...], Field(max_length=8192)] = ()
 
@@ -330,7 +366,7 @@ def _project_workflow_environment_request(
             lock_set_digest=entry.lock_set.lock_set_digest(),
         )
     return WorkflowEnvironmentRequest(
-        schema_version=1,
+        schema_version=2,
         environment_registry_sha256=registry_digest,
         environments=tuple(requested[key] for key in sorted(requested)),
     )

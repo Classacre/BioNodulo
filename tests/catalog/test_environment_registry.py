@@ -57,7 +57,7 @@ def entry(
 
 def environment_registry() -> registry.EnvironmentRegistry:
     return registry.EnvironmentRegistry(
-        schema_version=1,
+        schema_version=2,
         environments=(
             entry(),
             entry(
@@ -86,6 +86,62 @@ def validated_node_specs() -> tuple[object, object]:
     return samtools, bcftools
 
 
+def test_environment_registry_and_request_protocol_is_schema_version_two() -> None:
+    spec = external_spec()
+    source = registry.derive_environment_registry((spec,))
+    request = registry.compile_workflow_environment_request(
+        source.canonical_json_bytes(),
+        (
+            registry.WorkflowEnvironmentSelection(
+                environment_id=source.environments[0].environment_id,
+                platform=ExecutionPlatform.LINUX_AMD64,
+            ),
+        ),
+        node_specs=(spec,),
+    )
+
+    assert source.schema_version == 2
+    assert request.schema_version == 2
+    with pytest.raises(ValidationError, match="schema_version"):
+        registry.EnvironmentRegistry.model_validate({**source.model_dump(mode="python"), "schema_version": 1})
+    with pytest.raises(ValidationError, match="schema_version"):
+        registry.WorkflowEnvironmentRequest.model_validate({**request.model_dump(mode="python"), "schema_version": 1})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("tool_version", "1.0\n"),
+        ("tool_version", "1.0β"),
+        ("binding_id", "samtools\x7f"),
+        ("binding_id", "samtoolsβ"),
+    ),
+)
+def test_environment_runtime_binding_requires_printable_ascii(field: str, value: str) -> None:
+    payload = entry().runtime_bindings[0].model_dump(mode="python")
+    payload[field] = value
+
+    with pytest.raises(ValidationError, match="printable ASCII"):
+        registry.EnvironmentRuntimeBinding.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("tool_version", " 1.0"),
+        ("tool_version", "1.0 "),
+        ("binding_id", " samtools"),
+        ("binding_id", "samtools "),
+    ),
+)
+def test_environment_runtime_binding_rejects_outer_whitespace(field: str, value: str) -> None:
+    payload = entry().runtime_bindings[0].model_dump(mode="python")
+    payload[field] = value
+
+    with pytest.raises(ValidationError, match="outer whitespace"):
+        registry.EnvironmentRuntimeBinding.model_validate(payload)
+
+
 def test_lock_set_descriptor_binds_environment_name_and_platform_digests() -> None:
     descriptor = lock_set()
     renamed = descriptor.model_copy(update={"environment_name": "other-environment"})
@@ -112,19 +168,19 @@ def test_registry_entries_bind_unique_sorted_ids_and_names() -> None:
     second = entry("env.python-analysis", environment_name="python-analysis")
 
     with pytest.raises(ValidationError, match="canonical"):
-        registry.EnvironmentRegistry(schema_version=1, environments=(second, first))
+        registry.EnvironmentRegistry(schema_version=2, environments=(second, first))
     with pytest.raises(ValidationError, match="environment IDs.*unique"):
-        registry.EnvironmentRegistry(schema_version=1, environments=(first, first))
+        registry.EnvironmentRegistry(schema_version=2, environments=(first, first))
     with pytest.raises(ValidationError, match="environment names.*unique"):
         registry.EnvironmentRegistry(
-            schema_version=1,
+            schema_version=2,
             environments=(first, entry("env.other", environment_name="alignment-tools")),
         )
 
 
 def test_registry_canonical_bytes_are_exact_and_omit_catalog_digest() -> None:
     value = registry.EnvironmentRegistry(
-        schema_version=1,
+        schema_version=2,
         environments=(entry(),),
     )
 
@@ -153,7 +209,7 @@ def test_registry_canonical_bytes_are_exact_and_omit_catalog_digest() -> None:
                 ],
             }
         ],
-        "schema_version": 1,
+        "schema_version": 2,
     }
     assert value.canonical_json_bytes() == json.dumps(
         expected,
@@ -212,7 +268,7 @@ def test_registry_validation_rejects_zero_digest_substitution_for_same_environme
     source = registry.derive_environment_registry((spec,))
     captured = source.environments[0]
     substituted = registry.EnvironmentRegistry(
-        schema_version=1,
+        schema_version=2,
         environments=(
             captured.model_copy(
                 update={
@@ -239,7 +295,7 @@ def test_registry_validation_rejects_environment_and_runtime_binding_substitutio
     source = registry.derive_environment_registry((spec,))
     captured = source.environments[0]
     substituted = registry.EnvironmentRegistry(
-        schema_version=1,
+        schema_version=2,
         environments=(
             captured.model_copy(
                 update={
@@ -259,8 +315,8 @@ def test_registry_validation_rejects_environment_and_runtime_binding_substitutio
 def test_persisted_registry_decoder_requires_unique_canonical_versioned_json_bytes() -> None:
     spec = external_spec()
     content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
-    duplicate = content.replace(b'{"environments":', b'{"schema_version":1,"environments":', 1)
-    omitted_version = content.replace(b',"schema_version":1}', b'}', 1)
+    duplicate = content.replace(b'{"environments":', b'{"schema_version":2,"environments":', 1)
+    omitted_version = content.replace(b',"schema_version":2}', b'}', 1)
 
     with pytest.raises(ValueError, match="duplicate JSON key: schema_version"):
         registry.decode_environment_registry(duplicate, node_specs=(spec,))
@@ -268,6 +324,45 @@ def test_persisted_registry_decoder_requires_unique_canonical_versioned_json_byt
         registry.decode_environment_registry(omitted_version, node_specs=(spec,))
     with pytest.raises(ValueError, match="canonical"):
         registry.decode_environment_registry(content + b"\n", node_specs=(spec,))
+
+
+def test_persisted_registry_decoder_limits_transport_to_one_mibibyte() -> None:
+    spec = external_spec()
+    content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
+    oversized = content + b" " * (1024 * 1024 + 1 - len(content))
+
+    assert len(oversized) == 1024 * 1024 + 1
+    with pytest.raises(ValueError, match="1048576|size|between"):
+        registry.decode_environment_registry(oversized, node_specs=(spec,))
+
+
+def test_persisted_registry_decoder_enforces_64_level_json_nesting_bound() -> None:
+    registry._validate_json_nesting("[" * 64 + "0" + "]" * 64)
+    registry._validate_json_nesting(json.dumps("[" * 128 + "]" * 128))
+
+    with pytest.raises(ValueError, match="nesting depth.*64|64.*nesting depth"):
+        registry._validate_json_nesting("[" * 65 + "0" + "]" * 65)
+
+    spec = external_spec()
+    content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
+    nested = b"[" * 65 + b"0" + b"]" * 65
+    noncanonical = content[:-1] + b',"unknown":' + nested + b"}"
+    with pytest.raises(ValueError, match="nesting depth.*64|64.*nesting depth"):
+        registry.decode_environment_registry(noncanonical, node_specs=(spec,))
+
+
+@pytest.mark.parametrize("unsafe_key", ("__proto__", "constructor", "prototype"))
+def test_persisted_registry_decoder_rejects_unsafe_keys_at_any_depth(unsafe_key: str) -> None:
+    spec = external_spec()
+    content = registry.derive_environment_registry((spec,)).canonical_json_bytes()
+    injected = content.replace(
+        b'{"environment_name":',
+        b'{"' + unsafe_key.encode("ascii") + b'":{},"environment_name":',
+        1,
+    )
+
+    with pytest.raises(ValueError, match=f"unsafe JSON key: {unsafe_key}"):
+        registry.decode_environment_registry(injected, node_specs=(spec,))
 
 
 def test_request_admission_reopens_exact_registry_bytes_and_rejects_stale_or_tampered_content() -> None:
@@ -382,7 +477,7 @@ def test_workflow_request_projection_has_a_deterministic_cross_language_wire_sha
                 "platform_lock_digest": spec.environment.locks[0].lock_digest(),
             }
         ],
-        "schema_version": 1,
+        "schema_version": 2,
     }
 
     assert request.canonical_json_bytes() == json.dumps(
