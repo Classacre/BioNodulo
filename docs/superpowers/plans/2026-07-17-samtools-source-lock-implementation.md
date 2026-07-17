@@ -237,7 +237,7 @@ def test_verify_source_lock_rejects_wrong_tag_object_or_file_digest(tmp_path: Pa
 
 Additional RED tests must cover: lightweight tag with an unexpected ref target; invalid ref syntax containing `~`, `^`, `:`, `@{`, or `..`; injected `GIT_DIR`, `GIT_WORK_TREE`, object directory, alternate object directory, namespace, and replace-ref environment variables; active replace objects; Git timeout; stderr overflow; a source blob over 8 MiB; aggregate verified source bytes over 64 MiB; more than 4,096 source files; and a changed working tree that remains byte-for-byte unchanged after verification.
 
-Write CLI tests in this same RED batch. A temporary-repository success case must assert exact stdout and an unchanged worktree. Separate cases must assert noncanonical lock bytes, a source mismatch, and a tag mismatch exit nonzero without writing. Invoke `scripts/verify_tool_source_lock.py` through `subprocess.run()` before that script exists and record the expected RED failure.
+Write CLI tests in this same RED batch. Import the not-yet-created verifier functions inside individual tests rather than at collection time, so the CLI subprocess cases execute while the verifier is still RED. A temporary-repository success case must assert exact stdout and an unchanged worktree. Separate cases must assert noncanonical lock bytes, a source mismatch, and a tag mismatch exit nonzero without writing. Invoke `scripts/verify_tool_source_lock.py` through `subprocess.run()` before that script exists and record the expected RED failure.
 
 - [ ] **Step 2: Run verifier tests and verify RED**
 
@@ -307,7 +307,9 @@ Before implementation, record RED for exact 23-command equality, missing/duplica
 ```python
 def test_swapped_samtools_command_binding_is_rejected(verified_sources) -> None:
     bindings = valid_command_bindings()
-    bindings["sort"] = bindings["view"].model_copy(update={"command": "sort"})
+    bindings["sort"] = bindings["sort"].model_copy(
+        update={"entrypoint": bindings["view"].entrypoint}
+    )
     verified = verified_sources_for(command_bindings=bindings)
 
     with pytest.raises(SamtoolsSourceBindingError, match="sort.*main_samview"):
