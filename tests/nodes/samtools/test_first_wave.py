@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import errno
 import importlib
+import os
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,12 @@ NODES = {
 
 THREADS_4 = ("INT", {"default": 4, "min": 1, "max": 64})
 THREADS_2 = ("INT", {"default": 2, "min": 1, "max": 64})
+ALLOWED_LINK_FALLBACK_ERRORS = tuple(
+    (name, getattr(errno, name))
+    for name in ("EXDEV", "ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EPERM")
+    if hasattr(errno, name)
+)
+PROPAGATED_LINK_ERRORS = (("EACCES", errno.EACCES), ("EIO", errno.EIO))
 
 
 EXPECTED_INPUT_TYPES = {
@@ -111,7 +119,11 @@ OUTPUT_CONTRACTS = {
         ("marked_bam", "duplicate_stats"),
         ("marked_bam.bam", "duplicate_stats.stats.txt"),
     ),
-    "samtools_index": (("BAI",), ("bai",), ("indexed_bam.bam.bai",)),
+    "samtools_index": (
+        ("BAM", "BAI"),
+        ("indexed_bam", "bai"),
+        ("indexed_bam.bam", "indexed_bam.bam.bai"),
+    ),
     "samtools_flagstat": (("STATS_FILE",), ("stats",), ("stats.stats.txt",)),
 }
 
@@ -152,7 +164,13 @@ def test_default_argv_is_exact(node_id: str, tmp_path: Path) -> None:
     node_output = tmp_path / node_id
     output_paths = [node_output / filename for filename in OUTPUT_CONTRACTS[node_id][2]]
     command_inputs = {input_name: input_path, "output": str(node_output)}
-    expected = {
+    if node_id == "samtools_index":
+        source = tmp_path / input_path
+        source.write_bytes(b"BAM payload")
+        command_inputs[input_name] = str(source)
+        node.PREPARE_EXECUTION(command_inputs, output_paths)
+        input_path = str(output_paths[0])
+    expected_by_node = {
         "samtools_view": [
             "samtools", "view", "-b", "-@", "4", "-o", str(output_paths[0]), input_path,
         ],
@@ -171,13 +189,200 @@ def test_default_argv_is_exact(node_id: str, tmp_path: Path) -> None:
             "samtools", "markdup", "-@", "4", "-f", str(node_output / "duplicate_stats.stats.txt"),
             input_path, str(output_paths[0]),
         ],
-        "samtools_index": [
-            "samtools", "index", "-@", "2", "-b", "-o", str(output_paths[0]), input_path,
-        ],
         "samtools_flagstat": ["samtools", "flagstat", "-@", "2", input_path],
-    }[node_id]
+    }
+    if node_id == "samtools_index":
+        expected = [
+            "samtools", "index", "-@", "2", "-b", "-o", str(output_paths[1]), input_path,
+        ]
+    else:
+        expected = expected_by_node[node_id]
 
     assert node.render_command(command_inputs) == expected
+
+
+def test_index_prepares_colocated_bam_as_hard_link(tmp_path: Path) -> None:
+    node = _node("samtools_index")
+    source = tmp_path / "source alignment.bam"
+    source.write_bytes(b"coordinate-sorted BAM")
+    outputs = node.PLAN_OUTPUTS({}, tmp_path)
+    inputs = {"bam": source, "threads": 2, "output": str(outputs[0].parent)}
+
+    node.PREPARE_EXECUTION(inputs, outputs)
+
+    assert outputs[0].read_bytes() == source.read_bytes()
+    assert os.path.samefile(source, outputs[0])
+    assert inputs["bam"] == str(outputs[0])
+    assert outputs[1] == Path(f"{outputs[0]}.bai")
+    assert node.render_command(inputs) == [
+        "samtools",
+        "index",
+        "-@",
+        "2",
+        "-b",
+        "-o",
+        str(outputs[1]),
+        str(outputs[0]),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("errno_name", "errno_value"),
+    ALLOWED_LINK_FALLBACK_ERRORS,
+    ids=[name for name, _value in ALLOWED_LINK_FALLBACK_ERRORS],
+)
+def test_index_copies_for_supported_hard_link_fallback_errors(
+    errno_name: str,
+    errno_value: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index_module = importlib.import_module("bionodulo.nodes.builtin.samtools_family.index")
+    node = index_module.SamtoolsIndexNode
+    source = tmp_path / "source.bam"
+    source.write_bytes(b"copy fallback")
+    outputs = node.PLAN_OUTPUTS({}, tmp_path)
+
+    def raise_link_error(_source: Path, _destination: Path) -> None:
+        raise OSError(errno_value, errno_name)
+
+    monkeypatch.setattr(index_module.os, "link", raise_link_error)
+    inputs = {"bam": source, "threads": 2}
+
+    node.PREPARE_EXECUTION(inputs, outputs)
+
+    assert outputs[0].read_bytes() == source.read_bytes()
+    assert not os.path.samefile(source, outputs[0])
+    assert inputs["bam"] == str(outputs[0])
+
+
+@pytest.mark.parametrize(
+    ("errno_name", "errno_value"),
+    PROPAGATED_LINK_ERRORS,
+    ids=[name for name, _value in PROPAGATED_LINK_ERRORS],
+)
+def test_index_propagates_disallowed_hard_link_errors(
+    errno_name: str,
+    errno_value: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index_module = importlib.import_module("bionodulo.nodes.builtin.samtools_family.index")
+    node = index_module.SamtoolsIndexNode
+    source = tmp_path / "source.bam"
+    source.write_bytes(b"input")
+    outputs = node.PLAN_OUTPUTS({}, tmp_path)
+
+    def raise_link_error(_source: Path, _destination: Path) -> None:
+        raise OSError(errno_value, errno_name)
+
+    monkeypatch.setattr(index_module.os, "link", raise_link_error)
+
+    with pytest.raises(OSError, match=errno_name):
+        node.PREPARE_EXECUTION({"bam": source, "threads": 2}, outputs)
+
+
+def test_index_does_not_replace_a_lexically_identical_source(tmp_path: Path) -> None:
+    node = _node("samtools_index")
+    source = tmp_path / "indexed_bam.bam"
+    source.write_bytes(b"same path")
+    inputs = {"bam": source, "threads": 2}
+
+    node.PREPARE_EXECUTION(inputs, [source, Path(f"{source}.bai")])
+
+    assert source.read_bytes() == b"same path"
+    assert inputs["bam"] == str(source)
+
+
+def test_index_does_not_replace_source_reached_through_output_alias(tmp_path: Path) -> None:
+    real_output = tmp_path / "output directory"
+    staged_bam = real_output / "samtools_index" / "indexed_bam.bam"
+    staged_bam.parent.mkdir(parents=True)
+    staged_bam.write_bytes(b"same file through alias")
+    alias_output = tmp_path / "output_alias"
+    alias_output.symlink_to(real_output, target_is_directory=True)
+    aliased_bam = alias_output / "samtools_index" / "indexed_bam.bam"
+    inputs = {"bam": staged_bam, "threads": 2}
+
+    _node("samtools_index").PREPARE_EXECUTION(
+        inputs,
+        [aliased_bam, Path(f"{aliased_bam}.bai")],
+    )
+
+    assert staged_bam.read_bytes() == b"same file through alias"
+    assert inputs["bam"] == str(aliased_bam)
+
+
+def test_index_replaces_staged_leaf_symlink_with_regular_hard_link(tmp_path: Path) -> None:
+    source = tmp_path / "source.bam"
+    source.write_bytes(b"staged BAM contents")
+    staged_bam = tmp_path / "samtools_index" / "indexed_bam.bam"
+    staged_bam.parent.mkdir(parents=True)
+    staged_bam.symlink_to(source)
+    inputs = {"bam": source, "threads": 2}
+
+    _node("samtools_index").PREPARE_EXECUTION(
+        inputs,
+        [staged_bam, Path(f"{staged_bam}.bai")],
+    )
+
+    assert staged_bam.exists()
+    assert not staged_bam.is_symlink()
+    assert staged_bam.read_bytes() == source.read_bytes()
+    assert os.path.samefile(source, staged_bam)
+    assert inputs["bam"] == str(staged_bam)
+
+
+@pytest.mark.asyncio
+async def test_index_fake_execution_returns_stable_bam_and_bai_paths(tmp_path: Path) -> None:
+    node = _node("samtools_index")
+    source = tmp_path / "source.bam"
+    source.write_bytes(b"indexed input")
+    output_dir = tmp_path / "output directory with spaces"
+
+    class IndexContext:
+        def __init__(self) -> None:
+            self.node_dir = output_dir
+            self.command: list[str] | None = None
+
+        async def run_command(self, cmd: str | list[str], **_kwargs: Any) -> dict[str, Any]:
+            assert isinstance(cmd, list)
+            self.command = cmd
+            staged_bam = Path(cmd[-1])
+            bai = Path(cmd[-2])
+            assert staged_bam.exists()
+            assert os.path.samefile(source, staged_bam)
+            bai.write_bytes(b"BAI")
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    context = IndexContext()
+
+    result = await node().run(
+        bam=source,
+        threads=2,
+        context=context,
+        output_dir=output_dir,
+    )
+
+    stable_bam = output_dir / "samtools_index" / "indexed_bam.bam"
+    stable_bai = Path(f"{stable_bam}.bai")
+    assert context.command == [
+        "samtools",
+        "index",
+        "-@",
+        "2",
+        "-b",
+        "-o",
+        context.command[-2],
+        context.command[-1],
+    ]
+    assert " " not in context.command[-2]
+    assert " " not in context.command[-1]
+    assert Path(context.command[-2]) == Path(f"{context.command[-1]}.bai")
+    assert stable_bam.exists()
+    assert stable_bai.read_bytes() == b"BAI"
+    assert os.path.samefile(source, stable_bam)
+    assert result == (str(stable_bam), str(stable_bai))
 
 
 def test_view_option_argv_order_is_exact(tmp_path: Path) -> None:

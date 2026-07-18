@@ -899,7 +899,7 @@ def test_delly_is_registered_for_frontend_discovery() -> None:
     assert "long-read sv" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "reference", "mode"}
+    assert set(inputs["required"]) == {"bam", "bam_index", "reference", "mode"}
     assert set(inputs["optional"]) == {"exclude_regions", "map_qual"}
 
 
@@ -976,7 +976,7 @@ def test_delly_call_is_registered_for_workflow_discovery() -> None:
     assert "sv caller" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "reference", "mode"}
+    assert set(inputs["required"]) == {"bam", "bam_index", "reference", "mode"}
     assert set(inputs["optional"]) == {"exclude_regions", "map_qual"}
 
 
@@ -1039,7 +1039,7 @@ def test_manta_is_registered_for_frontend_discovery() -> None:
     assert "somatic sv" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "reference", "threads"}
+    assert set(inputs["required"]) == {"bam", "bam_index", "reference", "threads"}
     assert set(inputs["optional"]) == {"normal_bam", "exome", "rna"}
 
 
@@ -1105,7 +1105,7 @@ def test_manta_call_is_registered_for_workflow_discovery() -> None:
     assert "sv caller" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "reference", "threads"}
+    assert set(inputs["required"]) == {"bam", "bam_index", "reference", "threads"}
     assert set(inputs["optional"]) == {"normal_bam", "exome", "rna"}
 
 

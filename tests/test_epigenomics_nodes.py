@@ -745,7 +745,7 @@ def test_deeptools_bamcoverage_is_registered_for_epigenomics_discovery() -> None
     assert "atac-seq" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "threads", "normalize_using"}
+    assert set(inputs["required"]) == {"bam", "bam_index", "threads", "normalize_using"}
     assert set(inputs["optional"]) == {
         "bin_size",
         "effective_genome_size",

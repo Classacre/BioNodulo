@@ -159,6 +159,7 @@ def test_coverage_plot_is_registered_for_frontend_discovery() -> None:
     assert info["coverage_plot"]["output"] == ["IMAGE"]
     assert info["coverage_plot"]["output_node"] is True
     assert node_class.metadata()["input_types"]["optional"]["format"][0] == ["png", "svg", "html"]
+    assert node_class.metadata()["input_types"]["optional"]["alignment_index"][0] == "BAI"
 
 
 def test_phylogenetic_tree_viewer_is_registered_for_frontend_discovery() -> None:

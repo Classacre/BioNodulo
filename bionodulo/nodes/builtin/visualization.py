@@ -1581,7 +1581,13 @@ def _read_coverage_table(path: Path, *, region: tuple[str, int, int]) -> list[Co
     return bins
 
 
-def _read_bam_coverage(path: Path, *, region: tuple[str, int, int], window_size: int) -> list[CoverageBin]:
+def _read_bam_coverage(
+    path: Path,
+    *,
+    region: tuple[str, int, int],
+    window_size: int,
+    index_path: Path | None = None,
+) -> list[CoverageBin]:
     try:
         import pysam  # type: ignore[import-not-found]
     except ImportError as exc:
@@ -1590,7 +1596,10 @@ def _read_bam_coverage(path: Path, *, region: tuple[str, int, int], window_size:
     chromosome, region_start, region_end = region
     window = max(window_size, 1)
     bins: list[CoverageBin] = []
-    with pysam.AlignmentFile(str(path), "rb") as alignment:
+    alignment_kwargs = (
+        {"index_filename": str(index_path)} if index_path is not None else {}
+    )
+    with pysam.AlignmentFile(str(path), "rb", **alignment_kwargs) as alignment:
         for start in range(region_start, region_end, window):
             end = min(start + window, region_end)
             total = 0
@@ -1668,12 +1677,18 @@ def _read_coverage_bins(
     *,
     region: tuple[str, int, int],
     window_size: int,
+    alignment_index: Path | None = None,
 ) -> list[CoverageBin]:
     suffixes = {suffix.lower() for suffix in path.suffixes}
     if suffixes & {".bam", ".cram"}:
         if not path.exists():
             raise FileNotFoundError(f"Coverage input not found: {path}")
-        return _read_bam_coverage(path, region=region, window_size=window_size)
+        return _read_bam_coverage(
+            path,
+            region=region,
+            window_size=window_size,
+            index_path=alignment_index,
+        )
     if suffixes & {".bw", ".bigwig"}:
         if not path.exists():
             raise FileNotFoundError(f"Coverage input not found: {path}")
@@ -7395,6 +7410,10 @@ class CoveragePlotNode(BaseNode):
                 "region": ("STRING", {"default": "chr1:1-1000"}),
             },
             "optional": {
+                "alignment_index": (
+                    "BAI",
+                    {"description": "Explicit BAM index used by pysam"},
+                ),
                 "window_size": ("INT", {"default": 50, "min": 1, "max": 1000000}),
                 "title": ("STRING", {"default": "Coverage Plot"}),
                 "fill_color": ("STRING", {"default": "#2563EB"}),
@@ -7414,10 +7433,23 @@ class CoveragePlotNode(BaseNode):
 
         region = _parse_region(str(kwargs.get("region", "") or ""))
         window_size = max(_coerce_int(kwargs.get("window_size", 50), 50), 1)
+        alignment_path = Path(str(kwargs["alignment"]))
+        alignment_index_value = kwargs.get("alignment_index")
+        if alignment_path.suffix.lower() == ".bam" and not str(
+            alignment_index_value or ""
+        ).strip():
+            raise ValueError("alignment_index is required when alignment is a BAM file")
+        alignment_index = (
+            Path(str(alignment_index_value))
+            if alignment_path.suffix.lower() == ".bam"
+            and str(alignment_index_value or "").strip()
+            else None
+        )
         bins = _read_coverage_bins(
-            Path(str(kwargs["alignment"])),
+            alignment_path,
             region=region,
             window_size=window_size,
+            alignment_index=alignment_index,
         )
         bounds = _coverage_bounds(bins, region)
         width_px, height_px = _pixel_dimensions(

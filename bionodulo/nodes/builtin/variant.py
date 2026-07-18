@@ -11,6 +11,8 @@ from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
 
+from ._bam_index import validate_colocated_bam_index
+
 
 class Sniffles2Node(CommandNode):
     """Call structural variants from long-read alignments with Sniffles2."""
@@ -1029,6 +1031,7 @@ class DellyNode(CommandNode):
         return {
             "required": {
                 "bam": ("BAM", {"description": "Input BAM (sorted and indexed)"}),
+                "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
                 "reference": ("FASTA", {"description": "Reference FASTA"}),
                 "mode": ("STRING", {"default": "call", "options": ["call", "lr"]}),
             },
@@ -1040,6 +1043,13 @@ class DellyNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        return validate_colocated_bam_index(inputs)
 
 
 class DellyCallNode(DellyNode):
@@ -1166,6 +1176,7 @@ class MantaNode(CommandNode):
         return {
             "required": {
                 "bam": ("BAM", {"description": "Input BAM (sorted and indexed)"}),
+                "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
                 "reference": ("FASTA", {"description": "Reference FASTA (indexed)"}),
                 "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
             },
@@ -1178,6 +1189,13 @@ class MantaNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        return validate_colocated_bam_index(inputs)
 
 
 class MantaCallNode(MantaNode):
@@ -1620,6 +1638,7 @@ class GatkHaplotypeCallerNode(CommandNode):
         return {
             "required": {
                 "bam": ("BAM", {"description": "Input BAM (sorted, indexed, with read groups)"}),
+                "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
                 "reference": ("FASTA", {"description": "Reference FASTA (indexed)"}),
                 "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
             },
@@ -1635,6 +1654,13 @@ class GatkHaplotypeCallerNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        return validate_colocated_bam_index(inputs)
 
 
 class GatkGenotypeGVCFsNode(CommandNode):
@@ -2104,6 +2130,7 @@ class FreeBayesNode(CommandNode):
         return {
             "required": {
                 "bam": ("BAM", {"description": "Input BAM file (sorted, indexed)"}),
+                "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
                 "reference": ("FASTA", {"description": "Reference FASTA"}),
             },
             "optional": {
@@ -2117,6 +2144,13 @@ class FreeBayesNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        return validate_colocated_bam_index(inputs)
 
 
 class VcfToolsFilterNode(CommandNode):

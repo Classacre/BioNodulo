@@ -6,6 +6,8 @@ from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
 
+from ._bam_index import validate_colocated_bam_index
+
 DSS_DMR_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "dss_dmr.R"
 
 
@@ -547,6 +549,7 @@ class DeepToolsBamCoverageNode(CommandNode):
         return {
             "required": {
                 "bam": ("BAM", {"description": "Sorted, indexed BAM"}),
+                "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
                 "threads": ("INT", {"default": 4, "min": 1, "max": 64}),
                 "normalize_using": (
                     "STRING",
@@ -568,6 +571,13 @@ class DeepToolsBamCoverageNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        return validate_colocated_bam_index(inputs)
 
 
 class DeepToolsComputeMatrixNode(CommandNode):
