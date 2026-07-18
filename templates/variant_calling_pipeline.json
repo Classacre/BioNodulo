@@ -509,8 +509,8 @@
     {
       "id": "e7",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "index_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "gatk_retry_001",
@@ -526,6 +526,17 @@
       "to": {
         "node": "gatk_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e7_bai",
+      "from": {
+        "node": "index_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "gatk_001",
+        "input": "bam_index"
       }
     },
     {
@@ -663,8 +674,8 @@
     {
       "id": "e18",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "index_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "coverage_plot_001",
@@ -672,14 +683,36 @@
       }
     },
     {
+      "id": "e18_bai",
+      "from": {
+        "node": "index_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "coverage_plot_001",
+        "input": "alignment_index"
+      }
+    },
+    {
       "id": "e21",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "index_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "manta_sv_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e21_bai",
+      "from": {
+        "node": "index_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "bam_index"
       }
     },
     {
@@ -696,12 +729,23 @@
     {
       "id": "e23",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "index_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "delly_sv_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e23_bai",
+      "from": {
+        "node": "index_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "bam_index"
       }
     },
     {

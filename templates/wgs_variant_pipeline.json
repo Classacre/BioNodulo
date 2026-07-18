@@ -528,12 +528,23 @@
     {
       "id": "e8",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "idx_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "fb_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e8_bai",
+      "from": {
+        "node": "idx_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "fb_001",
+        "input": "bam_index"
       }
     },
     {
@@ -660,8 +671,8 @@
     {
       "id": "e18",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "idx_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "coverage_plot_001",
@@ -669,14 +680,36 @@
       }
     },
     {
+      "id": "e18_bai",
+      "from": {
+        "node": "idx_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "coverage_plot_001",
+        "input": "alignment_index"
+      }
+    },
+    {
       "id": "e19a",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "idx_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "manta_sv_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e19a_bai",
+      "from": {
+        "node": "idx_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "bam_index"
       }
     },
     {
@@ -693,12 +726,23 @@
     {
       "id": "e19c",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "idx_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "delly_sv_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e19c_bai",
+      "from": {
+        "node": "idx_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "bam_index"
       }
     },
     {

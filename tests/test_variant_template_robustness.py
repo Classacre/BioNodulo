@@ -34,6 +34,7 @@ def test_variant_template_retries_gatk_haplotype_caller() -> None:
 
     assert node_types["gatk_retry_001"] == "retry"
     assert node_types["gatk_001"] == "gatk_haplotype_caller"
+    assert node_types["index_001"] == "samtools_index"
 
     retry = _node_by_id(workflow, "gatk_retry_001")
     assert retry["params"]["max_retries"] == 2
@@ -42,8 +43,11 @@ def test_variant_template_retries_gatk_haplotype_caller() -> None:
     assert retry["params"]["retry_on"] == "all"
     assert retry["params"]["only_retry_specific_nodes"] == "gatk_001"
 
-    assert _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
+    assert _has_edge(workflow, "markdup_001", "marked_bam", "index_001", "bam")
+    assert _has_edge(workflow, "index_001", "indexed_bam", "gatk_retry_001", "input")
     assert _has_edge(workflow, "gatk_retry_001", "passthrough", "gatk_001", "bam")
+    assert _has_edge(workflow, "index_001", "bai", "gatk_001", "bam_index")
     assert _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
+    assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_001", "bam")
     assert workflow["outputs"]["gatk_retry_policy"] == "gatk_retry_001"

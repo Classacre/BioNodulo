@@ -266,6 +266,18 @@
       }
     },
     {
+      "id": "index_001",
+      "type": "samtools_index",
+      "position": [
+        2240,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "samtools index"
+      }
+    },
+    {
       "id": "coverage_001",
       "type": "deeptools_bamcoverage",
       "position": [
@@ -462,14 +474,36 @@
       }
     },
     {
-      "id": "e4a",
+      "id": "e4_index",
       "from": {
         "node": "sort_001",
         "output": "sorted_bam"
       },
       "to": {
+        "node": "index_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e4a",
+      "from": {
+        "node": "index_001",
+        "output": "indexed_bam"
+      },
+      "to": {
         "node": "coverage_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e4a_bai",
+      "from": {
+        "node": "index_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "coverage_001",
+        "input": "bam_index"
       }
     },
     {

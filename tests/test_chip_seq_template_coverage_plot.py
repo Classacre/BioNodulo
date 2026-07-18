@@ -33,6 +33,7 @@ def test_chip_seq_template_plots_bigwig_signal_in_final_report() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["coverage_001"] == "deeptools_bamcoverage"
+    assert node_types["index_001"] == "samtools_index"
     assert node_types["chip_signal_plot_001"] == "coverage_plot"
     assert "render_chip_signal_plot_ima_2" not in node_types
 
@@ -42,5 +43,14 @@ def test_chip_seq_template_plots_bigwig_signal_in_final_report() -> None:
     assert plot["params"]["title"] == "ChIP-Seq Signal Coverage"
     assert plot["params"]["format"] == "html"
 
+    assert _has_edge(workflow, "sort_001", "sorted_bam", "index_001", "bam")
+    assert _has_edge(workflow, "index_001", "indexed_bam", "coverage_001", "bam")
+    assert _has_edge(workflow, "index_001", "bai", "coverage_001", "bam_index")
+    assert not _has_edge(workflow, "sort_001", "sorted_bam", "coverage_001", "bam")
     assert _has_edge(workflow, "coverage_001", "coverage_bw", "chip_signal_plot_001", "alignment")
+    assert not any(
+        edge.get("from", {}).get("node") == "index_001"
+        and edge.get("to", {}).get("node") == "chip_signal_plot_001"
+        for edge in workflow["edges"]
+    )
     assert workflow["outputs"]["chip_signal_plot"] == "chip_signal_plot_001"

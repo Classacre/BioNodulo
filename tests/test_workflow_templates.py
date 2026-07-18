@@ -38,6 +38,22 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
     )
 
 
+def _assert_edge(
+    workflow: dict[str, Any],
+    edge_id: str,
+    source: str,
+    source_output: str,
+    target: str,
+    target_input: str,
+) -> None:
+    expected = {
+        "id": edge_id,
+        "from": {"node": source, "output": source_output},
+        "to": {"node": target, "input": target_input},
+    }
+    assert [edge for edge in workflow["edges"] if edge.get("id") == edge_id] == [expected]
+
+
 def test_official_samtools_view_and_sort_edges_use_canonical_alignment_ports() -> None:
     expected_edges = {
         "variant_calling_pipeline.json": (
@@ -86,6 +102,7 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     node_types = _node_types(workflow)
 
     assert node_types["markdup_001"] == "samtools_markdup"
+    assert node_types["index_001"] == "samtools_index"
     assert node_types["snpeff_001"] == "snpeff"
     assert node_types["vep_001"] == "vep"
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
@@ -94,9 +111,13 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert _has_edge(workflow, "collate_001", "name_collated_bam", "fixmate_001", "bam")
     assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "alignment")
     assert _has_edge(workflow, "sort_001", "sorted_bam", "markdup_001", "bam")
-    assert _has_edge(workflow, "markdup_001", "marked_bam", "index_001", "bam")
-    assert _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
-    assert _has_edge(workflow, "gatk_retry_001", "passthrough", "gatk_001", "bam")
+    _assert_edge(workflow, "e6", "markdup_001", "marked_bam", "index_001", "bam")
+    _assert_edge(workflow, "e7", "index_001", "indexed_bam", "gatk_retry_001", "input")
+    _assert_edge(workflow, "e7_retry", "gatk_retry_001", "passthrough", "gatk_001", "bam")
+    _assert_edge(workflow, "e7_bai", "index_001", "bai", "gatk_001", "bam_index")
+    _assert_edge(workflow, "e10", "markdup_001", "marked_bam", "flagstat_001", "bam")
+    assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
+    assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_001", "bam")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
@@ -157,7 +178,7 @@ def test_variant_calling_template_validates_multiqc_report_before_preview() -> N
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
-def test_variant_calling_template_adds_coverage_plot_from_marked_bam() -> None:
+def test_variant_calling_template_adds_coverage_plot_from_indexed_bam_pair() -> None:
     workflow = _load_template("variant_calling_pipeline.json")
     node_types = _node_types(workflow)
 
@@ -166,7 +187,9 @@ def test_variant_calling_template_adds_coverage_plot_from_marked_bam() -> None:
     assert coverage["params"]["region"] == "Wildtype:1-50000"
     assert coverage["params"]["window_size"] == 100
     assert coverage["params"]["format"] == "html"
-    assert _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
+    _assert_edge(workflow, "e18", "index_001", "indexed_bam", "coverage_plot_001", "alignment")
+    _assert_edge(workflow, "e18_bai", "index_001", "bai", "coverage_plot_001", "alignment_index")
+    assert not _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
     assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
 
 
@@ -199,6 +222,7 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     node_types = _node_types(workflow)
 
     assert node_types["markdup_001"] == "samtools_markdup"
+    assert node_types["idx_001"] == "samtools_index"
     assert node_types["snpeff_001"] == "snpeff"
     assert node_types["vep_001"] == "vep"
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
@@ -207,8 +231,10 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert _has_edge(workflow, "collate_001", "name_collated_bam", "fixmate_001", "bam")
     assert _has_edge(workflow, "fixmate_001", "fixmate_bam", "sort_001", "alignment")
     assert _has_edge(workflow, "sort_001", "sorted_bam", "markdup_001", "bam")
-    assert _has_edge(workflow, "markdup_001", "marked_bam", "idx_001", "bam")
-    assert _has_edge(workflow, "markdup_001", "marked_bam", "fb_001", "bam")
+    _assert_edge(workflow, "e7", "markdup_001", "marked_bam", "idx_001", "bam")
+    _assert_edge(workflow, "e8", "idx_001", "indexed_bam", "fb_001", "bam")
+    _assert_edge(workflow, "e8_bai", "idx_001", "bai", "fb_001", "bam_index")
+    assert not _has_edge(workflow, "markdup_001", "marked_bam", "fb_001", "bam")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
@@ -269,7 +295,7 @@ def test_wgs_variant_template_validates_multiqc_report_before_preview() -> None:
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
-def test_wgs_variant_template_adds_coverage_plot_from_marked_bam() -> None:
+def test_wgs_variant_template_adds_coverage_plot_from_indexed_bam_pair() -> None:
     workflow = _load_template("wgs_variant_pipeline.json")
     node_types = _node_types(workflow)
 
@@ -278,7 +304,9 @@ def test_wgs_variant_template_adds_coverage_plot_from_marked_bam() -> None:
     assert coverage["params"]["region"] == "NC_000913.3:1-50000"
     assert coverage["params"]["window_size"] == 100
     assert coverage["params"]["format"] == "html"
-    assert _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
+    _assert_edge(workflow, "e18", "idx_001", "indexed_bam", "coverage_plot_001", "alignment")
+    _assert_edge(workflow, "e18_bai", "idx_001", "bai", "coverage_plot_001", "alignment_index")
+    assert not _has_edge(workflow, "markdup_001", "marked_bam", "coverage_plot_001", "alignment")
     assert workflow["outputs"]["coverage_plot"] == "coverage_plot_001"
 
 
@@ -1100,13 +1128,18 @@ def test_chip_seq_template_generates_bigwig_coverage_track() -> None:
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
 
+    assert node_types["index_001"] == "samtools_index"
     assert node_types["coverage_001"] == "deeptools_bamcoverage"
     coverage = next(node for node in workflow["nodes"] if node["id"] == "coverage_001")
     assert coverage["params"]["threads"] == 4
     assert coverage["params"]["normalize_using"] == "CPM"
     assert coverage["params"]["bin_size"] == 10
     assert coverage["params"]["ignore_duplicates"] is True
-    assert _has_edge(workflow, "sort_001", "sorted_bam", "coverage_001", "bam")
+    _assert_edge(workflow, "e4", "sort_001", "sorted_bam", "macs2_001", "treatment")
+    _assert_edge(workflow, "e4_index", "sort_001", "sorted_bam", "index_001", "bam")
+    _assert_edge(workflow, "e4a", "index_001", "indexed_bam", "coverage_001", "bam")
+    _assert_edge(workflow, "e4a_bai", "index_001", "bai", "coverage_001", "bam_index")
+    assert not _has_edge(workflow, "sort_001", "sorted_bam", "coverage_001", "bam")
     assert workflow["outputs"]["coverage_track"] == "coverage_001"
 
 
