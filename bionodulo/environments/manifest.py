@@ -41,11 +41,15 @@ def _version_spec(pkg: str) -> str:
 def get_env_id(packages: list[str]) -> str:
     """Compute a content hash for a set of packages.
 
-    Two identical package lists (ignoring order and duplicates)
-    will always produce the same env_id, allowing automatic
-    deduplication of workflow environments.
+    Package names and their effective constraints identify the environment.
+    Order and duplicate package names do not affect the ID.
     """
-    canonical = json.dumps(sorted({_norm_pkg(p) for p in packages}), separators=(",", ":"))
+    normalized = sorted({_norm_pkg(package) for package in packages})
+    canonical = json.dumps(
+        {package: _version_spec(package) for package in normalized},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 

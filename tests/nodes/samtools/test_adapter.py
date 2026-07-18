@@ -9,6 +9,7 @@ from bionodulo.environments.constants import PACKAGE_MIN_VERSIONS
 from bionodulo.environments.manifest import generate_manifest
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode
+from bionodulo.nodes.registry import NodeRegistry
 from scripts.gen_node_index import build_index
 
 
@@ -36,6 +37,15 @@ def test_live_builtin_index_assigns_each_stable_id_to_its_operation_module() -> 
 
     for operation, _class_name, node_id, _manpage, _source in OPERATIONS:
         assert live_index[node_id] == _module_name(operation)
+
+
+def test_fresh_lazy_registry_resolves_each_stable_id_to_its_operation_module() -> None:
+    registry = NodeRegistry.create_isolated()
+
+    for operation, _class_name, node_id, _manpage, _source in OPERATIONS:
+        node = registry.get(node_id)
+        assert node is not None
+        assert node.__module__ == _module_name(operation)
 
 
 def test_legacy_samtools_module_no_longer_owns_the_migrated_ids() -> None:
