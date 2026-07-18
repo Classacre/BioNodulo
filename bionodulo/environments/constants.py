@@ -206,7 +206,7 @@ R_PACKAGE_TO_CONDA_PACKAGE: dict[str, str] = {
 # Minimum version constraints for critical bioinformatics tools.
 # Used by generate_manifest() to ensure reproducible behaviour.
 PACKAGE_MIN_VERSIONS: dict[str, str] = {
-    "bwa": ">=0.7.17",
+    "bwa": "0.7.19",
     "bowtie2": ">=2.5.0",
     "samtools": "1.23.1",
     "bcftools": ">=1.15",
@@ -215,8 +215,8 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "gatk4": "4.6.2.0",
     "star": ">=2.7.10",
     "spades": ">=3.15.0",
-    "fastqc": ">=0.12.0",
-    "multiqc": ">=1.15",
+    "fastqc": "0.12.1",
+    "multiqc": "1.33",
     "blast": ">=2.14.0",
     "hisat2": ">=2.2.1",
     "minimap2": ">=2.26",
@@ -249,7 +249,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "nanoplot": ">=1.44.1",
     "medaka": ">=2.0.1",
     "dorado": ">=0.9.6",
-    "fastp": ">=0.23.0",
+    "fastp": "0.24.0",
     "trimmomatic": ">=0.39",
     "cutadapt": ">=4.0",
     "trim-galore": ">=0.6.10",

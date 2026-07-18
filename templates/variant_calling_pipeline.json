@@ -149,6 +149,7 @@
       ],
       "params": {
         "threads": 8,
+        "read_group": "@RG\\tID:sample1\\tSM:sample1\\tPL:ILLUMINA",
         "mark_shorter_splits": true
       },
       "ui": {

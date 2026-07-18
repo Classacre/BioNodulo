@@ -46,7 +46,7 @@ def test_fastq_qc_template_aggregates_fastp_and_fastqc_reports_in_multiqc() -> N
     assert node_types["fastqc_001"] == "fastqc"
     assert node_types["multiqc_001"] == "multiqc"
 
-    assert _has_edge(workflow, "fastp_001", "report", "multiqc_001", "reports")
+    assert _has_edge(workflow, "fastp_001", "json_report", "multiqc_001", "reports")
     assert _has_edge(workflow, "fastqc_001", "report_dir", "multiqc_001", "reports")
     assert _has_edge(workflow, "multiqc_001", "report", "validate_multiqc_001", "input")
 

@@ -171,6 +171,9 @@ def test_variant_calling_template_validates_reads_before_alignment_and_qc() -> N
     assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
     assert _has_edge(workflow, "reads_001", "reads", "bwa_001", "reads")
     assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    bwa = _node_by_id(workflow, "bwa_001")
+    assert bwa["params"]["read_group"] == "@RG\\tID:sample1\\tSM:sample1\\tPL:ILLUMINA"
+    assert bwa["params"]["mark_shorter_splits"] is True
     assert workflow["outputs"]["validated_reads"] == "reads_001"
 
 
@@ -290,6 +293,9 @@ def test_wgs_variant_template_validates_reads_before_trimming_and_qc() -> None:
     assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
     assert _has_edge(workflow, "reads_001", "reads", "fastp_001", "reads")
     assert _has_edge(workflow, "reads_001", "reads", "qc_001", "reads")
+    bwa = _node_by_id(workflow, "bwa_001")
+    assert bwa["params"]["read_group"] == "@RG\\tID:wgs1\\tSM:wgs1\\tPL:ILLUMINA"
+    assert bwa["params"]["mark_shorter_splits"] is True
     assert workflow["outputs"]["validated_reads"] == "reads_001"
 
 

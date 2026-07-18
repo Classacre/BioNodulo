@@ -1457,6 +1457,34 @@ class WorkflowExecutor:
         node_class: Any,
         planned_paths: list[Path] | tuple[Any, ...] | dict[str, Any],
     ) -> dict[str, Any]:
+        custom_mapper = getattr(node_class, "MAP_PLANNED_OUTPUTS", None)
+        if callable(custom_mapper):
+            mapped = custom_mapper(planned_paths)
+            if not isinstance(mapped, dict):
+                raise TypeError(
+                    f"{getattr(node_class, 'NODE_ID', node_class)!r} "
+                    "MAP_PLANNED_OUTPUTS must return a mapping"
+                )
+
+            def normalize(value: Any) -> Any:
+                if isinstance(value, Path):
+                    return str(value)
+                if isinstance(value, list):
+                    return [normalize(item) for item in value]
+                if isinstance(value, tuple):
+                    return tuple(normalize(item) for item in value)
+                if isinstance(value, dict):
+                    return {
+                        str(name): normalize(item)
+                        for name, item in value.items()
+                    }
+                return value
+
+            return {
+                str(name): normalize(value)
+                for name, value in mapped.items()
+            }
+
         if isinstance(planned_paths, dict):
             return {
                 str(name): str(path) if isinstance(path, Path) else path

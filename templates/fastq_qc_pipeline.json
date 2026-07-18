@@ -200,7 +200,7 @@
       "id": "e2a",
       "from": {
         "node": "fastp_001",
-        "output": "report"
+        "output": "json_report"
       },
       "to": {
         "node": "multiqc_001",

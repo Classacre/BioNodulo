@@ -162,7 +162,9 @@
         80
       ],
       "params": {
-        "threads": 16
+        "threads": 16,
+        "read_group": "@RG\\tID:wgs1\\tSM:wgs1\\tPL:ILLUMINA",
+        "mark_shorter_splits": true
       },
       "ui": {
         "title": "BWA-MEM"
