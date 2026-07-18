@@ -8,10 +8,12 @@ import {
   createCloudWorkflow,
   saveCloudWorkflow,
   submitCloudRun,
+  type CloudRunInputs,
 } from '../../api/website';
 import { cloudConfigAtom } from '../../state/appAtoms';
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
+import { collectLocalFilePaths } from '../../utils/workflowFiles';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -296,23 +298,51 @@ export function useWorkflow() {
      *  mode (persist to the team DB + submit to Batch instead of the local host). */
     forceCloud?: boolean;
     /** Cloud run inputs (e.g. uploaded-file key map from the pre-flight). */
-    inputs?: Record<string, unknown>;
+    inputs?: CloudRunInputs;
   }) => {
     // Cloud editor OR local "Run on Cloud": persist the current definition, then
     // submit to the cloud Batch runner. Dry-run previews still use the local
     // editing backend.
     if ((editorMode || options?.forceCloud) && !options?.dry_run) {
+      const unsupportedOptions = [
+        options?.target_nodes?.length ? 'target_nodes' : null,
+        options?.force_nodes?.length ? 'force_nodes' : null,
+        options?.resume_checkpoint !== undefined ? 'resume_checkpoint' : null,
+        options?.environment ? 'environment' : null,
+        options?.no_cache === true ? 'no_cache' : null,
+      ].filter((option): option is string => option !== null);
+      if (unsupportedOptions.length > 0) {
+        throw new Error(
+          `Cloud runs do not yet support these execution options: ${unsupportedOptions.join(', ')}`,
+        );
+      }
+      const stagedPaths = new Set(Object.keys(options?.inputs?.files ?? {}));
+      const unstagedPaths = collectLocalFilePaths(wf, options?.parameters ?? {})
+        .filter(path => !stagedPaths.has(path));
+      if (unstagedPaths.length > 0) {
+        throw new Error(
+          `Cloud run has unstaged local input paths: ${unstagedPaths.join(', ')}`,
+        );
+      }
       // Ensure the workflow exists in the DB (it normally does after load), then
       // persist the latest definition and submit to the cloud Batch runner.
-      let id = wf.id;
+      // A local workflow id is generated client-side and does not identify a DB
+      // row. Forced cloud runs therefore always create a server-owned workflow.
+      let id = options?.forceCloud && !editorMode ? undefined : wf.id;
       if (!id) id = await createCloudWorkflow(wf.name || i18n.t('common.untitled'));
       const persisted = { ...wf, id };
       try {
         await saveCloudWorkflow(persisted);
       } catch (err) {
         logError('cloud.run.save', err);
+        throw err;
       }
-      const res = await submitCloudRun(id, options?.compute, options?.inputs);
+      const res = await submitCloudRun(
+        id,
+        options?.compute,
+        options?.inputs,
+        options?.parameters,
+      );
       return {
         run_id: res.runId,
         status: 'submitted',

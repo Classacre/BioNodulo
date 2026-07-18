@@ -103,6 +103,8 @@ export function saveCloudWorkflow(wf: Workflow): Promise<WorkflowRow> {
         edges: rest.edges ?? [],
         groups: rest.groups ?? [],
         outputs: rest.outputs ?? {},
+        environment: rest.environment,
+        dependencies: rest.dependencies,
         parameters: rest.parameters ?? [],
         comments: rest.comments ?? [],
         version: rest.version,
@@ -110,6 +112,11 @@ export function saveCloudWorkflow(wf: Workflow): Promise<WorkflowRow> {
       },
     }),
   });
+}
+
+/** Canonical uploaded-file manifest accepted by the website run API. */
+export interface CloudRunInputs {
+  files?: Record<string, string>;
 }
 
 /**
@@ -120,11 +127,17 @@ export function saveCloudWorkflow(wf: Workflow): Promise<WorkflowRow> {
 export function submitCloudRun(
   workflowId: string,
   compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } },
-  inputs?: Record<string, unknown>,
+  inputs?: CloudRunInputs,
+  parameters?: Record<string, unknown>,
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
   return call('/runs', {
     method: 'POST',
-    body: JSON.stringify({ workflowId, ...(compute ?? {}), ...(inputs ? { inputs } : {}) }),
+    body: JSON.stringify({
+      workflowId,
+      ...(compute ?? {}),
+      ...(inputs ? { inputs } : {}),
+      ...(parameters ? { parameters } : {}),
+    }),
   });
 }
 
@@ -263,6 +276,8 @@ function rowToWorkflow(row: WorkflowRow): Workflow {
     edges: (def.edges as Workflow['edges']) ?? [],
     groups: (def.groups as Workflow['groups']) ?? [],
     outputs: (def.outputs as Workflow['outputs']) ?? {},
+    environment: def.environment as Workflow['environment'],
+    dependencies: def.dependencies as Workflow['dependencies'],
     parameters: (def.parameters as Workflow['parameters']) ?? [],
     comments: (def.comments as Workflow['comments']) ?? [],
   };

@@ -45,8 +45,8 @@ describe('App inline history workflow parameters', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
     expect(appSource).toContain("import { promptWorkflowRunParameters } from './utils/workflowParameters';");
-    expect(appSource.match(/promptWorkflowRunParameters\(activeWorkflow\.parameters, promptDialog/g)).toHaveLength(2);
-    expect(appSource.match(/parameters: parameterOverrides/g)).toHaveLength(2);
+    expect(appSource.match(/promptWorkflowRunParameters\(activeWorkflow\.parameters, promptDialog/g)).toHaveLength(3);
+    expect(appSource.match(/parameters: parameterOverrides/g)).toHaveLength(3);
     expect(appSource).toContain('if (parameterOverrides === null)');
   });
 

@@ -27,6 +27,9 @@ from bionodulo.environments.constants import (
 
 logger = logging.getLogger(__name__)
 
+_COMMITTED_LOCKS_ROOT = Path(__file__).with_name("locks")
+_LOCK_DIGEST_MARKER = ".bionodulo-lock-sha256"
+
 
 def _norm_pkg(name: str) -> str:
     """Normalise a package name for stable hashing."""
@@ -117,14 +120,7 @@ def workflow_to_packages(
     return sorted_packages
 
 
-def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
-    """Write a pixi.toml manifest for the given packages.
-
-    Returns the path to the written manifest.
-    """
-    env_dir = Path(env_dir)
-    env_dir.mkdir(parents=True, exist_ok=True)
-
+def _manifest_text(packages: list[str]) -> str:
     toml_lines = [
         '[workspace]',
         'name = "bionodulo-workflow"',
@@ -139,11 +135,65 @@ def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
         toml_lines.append(f'{pkg} = "{_version_spec(pkg)}"')
 
     toml_lines.append("")
+    return "\n".join(toml_lines)
+
+
+def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
+    """Write a pixi.toml manifest for the given packages.
+
+    Returns the path to the written manifest.
+    """
+    env_dir = Path(env_dir)
+    env_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_path = env_dir / "pixi.toml"
-    manifest_path.write_text("\n".join(toml_lines), encoding="utf-8")
+    manifest_path.write_text(_manifest_text(packages), encoding="utf-8")
     logger.info("Generated manifest at %s with %d packages", manifest_path, len(packages))
     return manifest_path
+
+
+def materialize_committed_lock(env_dir: str | Path, packages: list[str]) -> str | None:
+    """Copy a repository-owned manifest/lock pair into ``env_dir``.
+
+    Committed bundles are keyed by the same environment ID used at runtime. A
+    partial or stale bundle is an error; returning ``None`` means this package
+    set has no committed lock and may use the legacy solve path.
+    """
+    source_dir = _COMMITTED_LOCKS_ROOT / get_env_id(packages)
+    source_manifest = source_dir / "pixi.toml"
+    source_lock = source_dir / "pixi.lock"
+    if not source_manifest.exists() and not source_lock.exists():
+        return None
+    if not source_manifest.is_file() or not source_lock.is_file():
+        raise RuntimeError(f"Committed environment bundle is incomplete: {source_dir}")
+    if source_manifest.read_text(encoding="utf-8") != _manifest_text(packages):
+        raise RuntimeError(f"Committed environment manifest is stale: {source_manifest}")
+
+    env_path = Path(env_dir)
+    env_path.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_manifest, env_path / "pixi.toml")
+    shutil.copy2(source_lock, env_path / "pixi.lock")
+    return hashlib.sha256(source_lock.read_bytes()).hexdigest()
+
+
+def is_env_ready_for_lock(env_dir: str | Path, lock_digest: str | None) -> bool:
+    """Return whether an installed environment attests to ``lock_digest``."""
+    if not is_env_ready(env_dir):
+        return False
+    if lock_digest is None:
+        return True
+    marker = Path(env_dir) / _LOCK_DIGEST_MARKER
+    return marker.is_file() and marker.read_text(encoding="ascii").strip() == lock_digest
+
+
+def mark_env_lock_installed(env_dir: str | Path, lock_digest: str | None) -> None:
+    """Record the committed lock digest after a successful locked install."""
+    if lock_digest is None:
+        return
+    (Path(env_dir) / _LOCK_DIGEST_MARKER).write_text(
+        f"{lock_digest}\n",
+        encoding="ascii",
+    )
 
 
 def is_manifest_current(env_dir: str | Path, packages: list[str]) -> bool:
@@ -306,6 +356,7 @@ async def run_pixi_install(
     timeout: int = _PIXI_INSTALL_TIMEOUT,
     emit: Callable[[str, dict[str, Any]], Any] | None = None,
     job_id: str | None = None,
+    locked: bool = False,
 ) -> tuple[bool, str]:
     """Run `pixi install` in the environment directory.
 
@@ -330,8 +381,11 @@ async def run_pixi_install(
 
     proc: asyncio.subprocess.Process | None = None
     try:
+        command = [str(pixi), "install"]
+        if locked:
+            command.append("--locked")
         proc = await asyncio.create_subprocess_exec(
-            str(pixi), "install",
+            *command,
             cwd=str(env_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -381,13 +435,14 @@ async def ensure_workflow_env(
     Returns a status dict with keys: ready, env_dir, packages, message.
     """
     env_dir = Path(env_dir)
+    committed_lock_digest = materialize_committed_lock(env_dir, packages)
 
     # Write default display name if provided and not already set
     if name and not get_env_name(env_dir):
         set_env_meta(env_dir, name=name)
 
     # Step 1: manifest
-    if not is_manifest_current(env_dir, packages):
+    if committed_lock_digest is None and not is_manifest_current(env_dir, packages):
         generate_manifest(env_dir, packages)
         # Lockfile is now stale
         lockfile = env_dir / "pixi.lock"
@@ -396,16 +451,22 @@ async def ensure_workflow_env(
 
     # Step 2: lockfile
     lockfile = env_dir / "pixi.lock"
-    if not lockfile.exists():
+    if committed_lock_digest is None and not lockfile.exists():
         ok, msg = await run_pixi_lock(env_dir, emit=emit, job_id=job_id)
         if not ok:
             return {"ready": False, "env_dir": str(env_dir), "packages": packages, "message": msg}
 
     # Step 3: install
-    if not is_env_ready(env_dir):
-        ok, msg = await run_pixi_install(env_dir, emit=emit, job_id=job_id)
+    if not is_env_ready_for_lock(env_dir, committed_lock_digest):
+        ok, msg = await run_pixi_install(
+            env_dir,
+            emit=emit,
+            job_id=job_id,
+            locked=committed_lock_digest is not None,
+        )
         if not ok:
             return {"ready": False, "env_dir": str(env_dir), "packages": packages, "message": msg}
+        mark_env_lock_installed(env_dir, committed_lock_digest)
 
     return {
         "ready": True,

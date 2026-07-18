@@ -100,7 +100,7 @@ import { recoverAndReprompt } from './collab/collabAuthRecovery';
 import { setCollabRemoteBase } from './collab/remoteBase';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
-import { getCloudRun, getCloudCredits } from './api/website';
+import { getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';
 import {
   mapCloudRunStatus,
   isTerminalCloudStatus,
@@ -1902,11 +1902,22 @@ export default function App() {
     setIsRunning(true);
     try {
       await validate(activeWorkflow);
+      const parameterOverrides = await promptWorkflowRunParameters(activeWorkflow.parameters, promptDialog, {
+        title: t('parameters.runPromptTitle'),
+        message: parameter => (
+          parameter.description
+            ? `${parameter.name} (${parameter.type}) — ${parameter.description}`
+            : `${parameter.name} (${parameter.type})`
+        ),
+        confirmLabel: t('parameters.runPromptConfirm'),
+        cancelLabel: t('parameters.runPromptCancel'),
+      });
+      if (parameterOverrides === null) return;
       // Pre-flight: upload any referenced LOCAL workspace files to the cloud so
       // the run can reach them. Files <50 MB upload silently; if any is >=50 MB
       // the user confirms first. The uploaded key map rides along as run inputs.
-      let inputs: Record<string, unknown> | undefined;
-      const localPaths = collectLocalFilePaths(activeWorkflow);
+      let inputs: CloudRunInputs | undefined;
+      const localPaths = collectLocalFilePaths(activeWorkflow, parameterOverrides, objectInfo);
       if (localPaths.length > 0) {
         const sizes = await Promise.all(localPaths.map(async p => ({ path: p, size: await localFileSize(p) })));
         const big = sizes.filter(s => s.size >= 50 * 1024 * 1024);
@@ -1919,7 +1930,8 @@ export default function App() {
         const fileKeys: Record<string, string> = {};
         for (const { path } of sizes) {
           const key = await uploadWorkspaceFileToCloud(path, baseName(path)).catch(() => null);
-          if (key) fileKeys[path] = key;
+          if (!key) throw new Error(`Cloud upload failed for ${baseName(path)}`);
+          fileKeys[path] = key;
         }
         if (Object.keys(fileKeys).length > 0) inputs = { files: fileKeys };
       }
@@ -1928,6 +1940,7 @@ export default function App() {
         name: activeWorkflow.name,
         compute: specToRunBody(computeSpec),
         inputs,
+        parameters: parameterOverrides,
       }) as RunRecord & { cloud?: boolean; dashboard_url?: string };
       addLog({
         run_id: result.run_id || 'cloud', node_id: 'engine', level: 'info',
@@ -1957,7 +1970,7 @@ export default function App() {
     } finally {
       setIsRunning(false);
     }
-  }, [authUser, cloudConfig, clerk, editorMode, validate, activeWorkflow, submitRun, computeSpec, addLog, addRun, pollCloudRun, setConsoleVisible, setRailTab, setRunsDrawerOpen, setIsRunning, t]);
+  }, [authUser, cloudConfig, clerk, editorMode, validate, activeWorkflow, objectInfo, promptDialog, submitRun, computeSpec, addLog, addRun, pollCloudRun, setConsoleVisible, setRailTab, setRunsDrawerOpen, setIsRunning, t]);
 
   const handleRunSelected = useCallback(async (nodeIds: string[]) => {
     if (nodeIds.length === 0) return;

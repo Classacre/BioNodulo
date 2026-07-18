@@ -130,42 +130,63 @@ class DependencyInstaller:
                 from bionodulo.environments.manifest import (
                     generate_manifest,
                     is_env_ready,
+                    is_env_ready_for_lock,
                     is_manifest_current,
+                    mark_env_lock_installed,
+                    materialize_committed_lock,
                     run_pixi_install,
                     run_pixi_lock,
                 )
 
-                # Step 1: manifest
-                if not is_manifest_current(env_dir, packages):
-                    job.progress.message = "Generating pixi.toml manifest..."
-                    if emit:
-                        emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
-                    generate_manifest(env_dir, packages)
-                    # CRITICAL FIX: Delete stale lockfile so pixi lock will regenerate it
-                    lockfile = env_dir / "pixi.lock"
-                    if lockfile.exists():
-                        lockfile.unlink()
-
-                # Step 2: lock
-                if not is_env_ready(env_dir):
-                    job.progress.message = "Locking dependencies with pixi (this may take a moment)..."
-                    if emit:
-                        emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
-                    ok, msg = await run_pixi_lock(env_dir, emit=emit, job_id=job_id)
-                    if not ok:
-                        job.progress.status = "failed"
-                        job.progress.message = msg
-                        job.progress.errors.append(msg)
+                # A committed bundle is authoritative for package sets that have
+                # one.  Materialization also verifies the manifest bytes, so this
+                # path must never regenerate a lock from the network.
+                committed_lock_digest = materialize_committed_lock(env_dir, packages)
+                if committed_lock_digest is None:
+                    # Step 1: manifest
+                    if not is_manifest_current(env_dir, packages):
+                        job.progress.message = "Generating pixi.toml manifest..."
                         if emit:
                             emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
-                        return
+                        generate_manifest(env_dir, packages)
+                        # CRITICAL FIX: Delete stale lockfile so pixi lock will regenerate it
+                        lockfile = env_dir / "pixi.lock"
+                        if lockfile.exists():
+                            lockfile.unlink()
+
+                    # Step 2: lock
+                    if not is_env_ready(env_dir):
+                        job.progress.message = "Locking dependencies with pixi (this may take a moment)..."
+                        if emit:
+                            emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
+                        ok, msg = await run_pixi_lock(env_dir, emit=emit, job_id=job_id)
+                        if not ok:
+                            job.progress.status = "failed"
+                            job.progress.message = msg
+                            job.progress.errors.append(msg)
+                            if emit:
+                                emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
+                            return
+
+                    environment_ready = is_env_ready(env_dir)
+                    locked_install = False
+                else:
+                    # The committed lock already supplies the manifest and lock;
+                    # only install when the environment lacks a matching digest.
+                    environment_ready = is_env_ready_for_lock(env_dir, committed_lock_digest)
+                    locked_install = True
 
                 # Step 3: install
-                if not is_env_ready(env_dir):
+                if not environment_ready:
                     job.progress.message = "Installing packages into environment..."
                     if emit:
                         emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
-                    ok, msg = await run_pixi_install(env_dir, emit=emit, job_id=job_id)
+                    ok, msg = await run_pixi_install(
+                        env_dir,
+                        emit=emit,
+                        job_id=job_id,
+                        locked=locked_install,
+                    )
                     if not ok:
                         job.progress.status = "failed"
                         job.progress.message = msg
@@ -173,6 +194,8 @@ class DependencyInstaller:
                         if emit:
                             emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
                         return
+                    if committed_lock_digest is not None:
+                        mark_env_lock_installed(env_dir, committed_lock_digest)
 
                 job.progress.status = "completed"
                 job.progress.message = f"Environment {env_id[:8]} ready with {len(packages)} packages"
