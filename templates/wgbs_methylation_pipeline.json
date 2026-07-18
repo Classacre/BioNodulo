@@ -245,9 +245,7 @@
         300,
         382
       ],
-      "params": {
-        "aligner": "bowtie2"
-      },
+      "params": {},
       "ui": {
         "title": "Bismark Genome Preparation"
       }
@@ -345,7 +343,7 @@
     {
       "from": {
         "node": "bismark_methylation_001",
-        "output": "methylation_output"
+        "output": "mbias_report"
       },
       "to": {
         "node": "render_bismark_methylation_tab_0",

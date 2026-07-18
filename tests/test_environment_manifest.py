@@ -6,7 +6,10 @@ from typing import Any
 
 import pytest
 
-from bionodulo.environments.constants import PACKAGE_MIN_VERSIONS
+from bionodulo.environments.constants import (
+    EXECUTABLE_TO_CONDA_PACKAGE,
+    PACKAGE_MIN_VERSIONS,
+)
 from bionodulo.environments import manifest as environment_manifest
 from bionodulo.environments.manifest import (
     ensure_workflow_env,
@@ -20,6 +23,21 @@ from bionodulo.environments.manifest import (
 )
 from bionodulo.manager.resolver import resolve_workflow
 from bionodulo.manager.installer import DependencyInstaller
+
+
+def test_wave_two_environment_contracts_are_exact() -> None:
+    assert {
+        package: PACKAGE_MIN_VERSIONS[package]
+        for package in ("bowtie2", "hisat2", "bismark", "spades", "megahit", "quast")
+    } == {
+        "bowtie2": "2.5.5",
+        "hisat2": "2.2.2",
+        "bismark": "3.1.0",
+        "spades": "4.2.0",
+        "megahit": "1.2.9",
+        "quast": "5.3.0",
+    }
+    assert EXECUTABLE_TO_CONDA_PACKAGE["bismark_genome_preparation"] == "bismark"
 
 
 def test_environment_id_changes_with_effective_package_constraint(monkeypatch) -> None:
