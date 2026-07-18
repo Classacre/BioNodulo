@@ -86,29 +86,28 @@ lines and the markdup `COMMAND` statistic contain paths. It is not sufficient
 for the text artifacts. `WorkflowExecutor` defaults `embed_provenance` to true
 and appends a provenance block containing a fresh UTC `embedded_at` value to
 both `duplicate_stats.stats.txt` and `stats.stats.txt` after execution. The
-current cloud worker passes only `stop_on_error`, so it retains that default.
-Raw finalized text hashes therefore cannot match across runs today.
+source-remediated cloud worker now passes an explicit provenance option that
+defaults to `embed_provenance=false`; a future local baseline must select the
+same mode. No execution has verified raw hash equality yet.
 
-Before any output-hash gate, a supported launcher/worker option must set
-`embed_provenance=false` for both the local and cloud runs, or the project must
-adopt a deterministic, versioned normalization with focused tests. Record the
-chosen provenance mode. Download outputs only after worker finalization and
-hash those exact finalized bytes; pre-embedding artifact metadata, planned
-paths, and object-listing metadata are not hash evidence. If normalization is
-used, preserve each finalized raw hash and separately record the normalized
-digest.
+For an output-hash gate, record the chosen provenance mode. Download outputs
+only after worker finalization and hash those exact finalized bytes;
+pre-embedding artifact metadata, planned paths, and object-listing metadata are
+not hash evidence. If normalization is used instead, preserve each finalized
+raw hash and separately record the normalized digest.
 
 This dry-run is not a local execution baseline. After the path, provenance,
 and environment-lock prerequisites exist, execute locally under this canonical
 identity and record all finalized artifact evidence in the worker record.
 
-## Existing Cloud Topology and Current Insufficiency
+## Historical Cloud Gap Audit (`dc188ee05b1dec99e12be61caa3bf9c2f94fb406`)
 
 Set `BIONODULO_WEBSITE_ROOT` to a local checkout of the website/worker repository
 at commit `dc188ee05b1dec99e12be61caa3bf9c2f94fb406`. All website paths below
-are relative to `$BIONODULO_WEBSITE_ROOT`. This commit pins the current-gap
-claims only. A later commit containing the required fixes must be re-audited,
-deployed, and recorded as the actual worker-source commit for a future run.
+are relative to `$BIONODULO_WEBSITE_ROOT`. This commit pins the historical gap
+claims below. They describe that exact checkout, not the later source-level
+remediation. The fixed source must still be deployed and recorded as the actual
+worker-source commit for a future run.
 
 The existing authenticated editor/website topology is:
 
@@ -217,7 +216,7 @@ there is no checked-in controller or object-store cleanup command, and cancel
 is not proof that the controller, VM, workspace, and temporary objects were
 torn down. Verify those resources separately in the evidence record.
 
-## Environment Reproducibility Blocker
+## Historical Environment Reproducibility Blocker
 
 `40db091121c94941` is only the environment manifest key derived from the
 normalized constraint set `samtools = "1.23.1"`. It is not a digest of resolved
@@ -237,20 +236,107 @@ include Samtools, HTSlib, and every transitive package's name, version, build
 identifier/build number, immutable package URL, and package hash. The same lock
 digest and resolved records must be verified on both machines.
 
-Until verified submission and provenance interfaces, a shared committed
-environment lock with resolved builds, exact AWS x86_64 `us-east-1` routing
-controls, immutable worker-image/source attestation, and teardown verification
-exist, the remote evidence record below must remain `NOT RUN` and the seven
-nodes remain quarantined.
+These were blockers at the historical website commit above. The following
+section records their source-level remediation; deployment and execution
+evidence are still absent.
+
+## Source-Level Remediation (Undeployed)
+
+The application-side remediation is committed at:
+
+- `1d280cdae25de8473851d9b8ea69a5adecf7b3f1` — explicit reference sidecars and
+  repaired official variant/WGS DAGs;
+- `185c67887199dbdf79a8d04c6883c4999396eb51` — committed Pixi lock plus local
+  installer and client cloud-handoff fixes.
+
+This wave rebuilds one additional stable node, `samtools_faidx`, for a
+cumulative `8/943`. The GATK HaplotypeCaller, FreeBayes, Manta, and Delly edits
+repair sidecar contracts in their existing monolithic family and are not counted
+as rebuilt nodes.
+
+Pinned node-contract authorities for this wave are:
+
+- Samtools `1.23.1`: `6efb9b6da35224cf804921dedecf9fb8f411365d`;
+- GATK `4.6.2.0`: `76edc75c26504da94bbaee66584e107e76ee15de`;
+- FreeBayes `1.3.10`: `b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993`;
+- Manta `1.6.0`: `ab9f5502985a29ec74cfafb4963179b9cc185e55`;
+- Delly `1.2.6`: `e6246dbb18b7f6df2b7b381d542cdeaea6be8c82`.
+
+The website/worker remediation is committed at:
+
+- `e43ed6ceb179954c395a7618b26b8693de0da0d9` — canonical runtime parameters and
+  uploaded-file manifest, worker path rewriting, locked environment install,
+  x86 routing, immutable identity, durable output attestation, lifecycle CAS,
+  cleanup, and SkyPilot dispatch compatibility.
+
+That website commit is tested against SkyPilot `0.12.3.post1`, upstream release
+commit `e60704b3e0174ff0461fdf7c219b2bbdeac7ee41`. The committed dispatch
+configuration uses `jobs.controller.resources.autostop` with
+`idle_minutes: 5` and `down: true`.
+
+The remediated source now provides:
+
+- runtime `parameters` preserved from the editor through `POST /api/runs` and
+  into `WorkflowExecutor.options.parameters`;
+- one canonical `inputs.files[originalPath] = uploadKey` contract, fail-closed
+  staging, bounded manifest/object validation, and exact recursive path rewrite
+  after worker download;
+- fail-closed workflow persistence and explicit rejection of unsupported cloud
+  selected-node, resume, environment-override, force-node, and no-cache modes;
+- `linux-64` routing that cannot select ARM;
+- full app/website Git identities and digest-pinned worker images required at
+  submission;
+- provenance defaulting to disabled for cloud execution;
+- `run_attestation.json` uploaded last, only after artifact upload and workspace
+  cleanup, with source, worker, environment, artifact-size, and SHA-256 evidence;
+- reconciliation recovery from that exact run-owned attestation when a durable
+  completion callback is lost;
+- atomic final billing/status metadata, stale-progress and duplicate-fallback
+  protection, absolute runtime deadlines across SkyPilot recoveries, and
+  idempotent job/controller/temporary-object cleanup paths.
+
+The shared Samtools environment bundle is:
+
+```text
+path: bionodulo/environments/locks/40db091121c94941/
+pixi.lock SHA-256: da58ebe2f489d3d740f23c302e9495ab23068491bad714f605438a92fb8afaa4
+Samtools: 1.23.1 build ha83d96e_0
+HTSlib: 1.23.1 build h633afcb_0
+platform: linux-64
+```
+
+Both local installation paths and the cloud worker materialize this committed
+manifest/lock pair, skip `pixi lock`, invoke `pixi install --locked`, and record
+the lock digest marker. A workflow with external packages and no committed lock
+fails closed in the cloud.
+
+This is source evidence only. The fixed website/worker commit is not deployed,
+no immutable worker image containing these commits has been attested, no real
+Samtools process has run, and no local or cloud output-artifact hashes exist. The
+browser upload path also still uses a single presigned PUT with a 5 GiB limit;
+multipart upload remains required for WGS-scale BAMs even though worker staging
+is bounded at 1 TiB per object and 4 TiB total.
+
+```text
+Real local Samtools execution: NOT RUN
+Disposable cloud canary: NOT RUN
+Fixed website deployment: NOT RUN
+Credentials/API keys used: NO
+All 943 nodes quarantined/evidence-pending: YES
+Release-ready: NO
+```
 
 ## Disposable NA Worker Record
 
 Complete every field for a real run. Leave `NOT RUN` rather than guessing.
 
 ```text
-BioNodulo commit containing fixture and nodes:
+BioNodulo fixture/first-wave commit: 2316c3ca54326229fe0aa236868369cfd442bfbd
+BioNodulo reference-sidecar commit: 1d280cdae25de8473851d9b8ea69a5adecf7b3f1
+BioNodulo lock/client-handoff commit: 185c67887199dbdf79a8d04c6883c4999396eb51
 Audited current-gap website commit: dc188ee05b1dec99e12be61caa3bf9c2f94fb406
-Actually deployed fixed worker-source commit and re-audit reference:
+Fixed website/worker source commit (not deployed): e43ed6ceb179954c395a7618b26b8693de0da0d9
+Actually deployed fixed worker-source commit and re-audit reference: NOT RUN
 Fixture SHA-256 (tiny.sam):
 Workflow SHA-256 (workflow.json):
 Exact submission command or authenticated UI/API request:
@@ -338,9 +424,11 @@ hashes for audit. A reviewer must record `HOLD` when any provenance, lock,
 path, build, image/source attestation, routing, teardown, or semantic check is
 unavailable or disagrees.
 
-Cloud topology evidence is pinned to `$BIONODULO_WEBSITE_ROOT` at commit
-`dc188ee05b1dec99e12be61caa3bf9c2f94fb406`. Upstream Samtools source evidence
-is the public repository at commit
+Historical cloud-gap evidence is pinned to `$BIONODULO_WEBSITE_ROOT` at commit
+`dc188ee05b1dec99e12be61caa3bf9c2f94fb406`. Source-level remediation is pinned
+to `e43ed6ceb179954c395a7618b26b8693de0da0d9`, but remains undeployed and has no
+cloud execution evidence. Upstream Samtools source evidence is the public
+repository at commit
 `6efb9b6da35224cf804921dedecf9fb8f411365d`:
 
 - https://github.com/samtools/samtools/commit/6efb9b6da35224cf804921dedecf9fb8f411365d
