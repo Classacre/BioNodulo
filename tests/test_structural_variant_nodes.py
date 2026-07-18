@@ -899,7 +899,13 @@ def test_delly_is_registered_for_frontend_discovery() -> None:
     assert "long-read sv" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "bam_index", "reference", "mode"}
+    assert set(inputs["required"]) == {
+        "bam",
+        "bam_index",
+        "reference",
+        "reference_index",
+        "mode",
+    }
     assert set(inputs["optional"]) == {"exclude_regions", "map_qual"}
 
 
@@ -976,7 +982,13 @@ def test_delly_call_is_registered_for_workflow_discovery() -> None:
     assert "sv caller" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "bam_index", "reference", "mode"}
+    assert set(inputs["required"]) == {
+        "bam",
+        "bam_index",
+        "reference",
+        "reference_index",
+        "mode",
+    }
     assert set(inputs["optional"]) == {"exclude_regions", "map_qual"}
 
 
@@ -1032,15 +1044,26 @@ def test_manta_is_registered_for_frontend_discovery() -> None:
     assert node_info["category"] == "variant"
     assert node_info["description"].startswith("Call structural variants")
     assert node_info["output"] == ["VCF_GZ", "VCF_GZ"]
-    assert node_info["output_name"] == ["candidate_sv", "diploid_sv"]
+    assert node_info["output_name"] == ["candidate_sv", "primary_sv"]
     assert node_info["required_executables"] == ["configManta.py", "runWorkflow.py"]
     assert node_info["required_conda_packages"] == ["manta"]
     assert "germline sv" in node_info["search_aliases"]
     assert "somatic sv" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "bam_index", "reference", "threads"}
-    assert set(inputs["optional"]) == {"normal_bam", "exome", "rna"}
+    assert set(inputs["required"]) == {
+        "bam",
+        "bam_index",
+        "reference",
+        "reference_index",
+        "threads",
+    }
+    assert set(inputs["optional"]) == {
+        "normal_bam",
+        "normal_bam_index",
+        "exome",
+        "rna",
+    }
 
 
 def test_manta_renders_configure_and_run_workflow_command() -> None:
@@ -1058,14 +1081,14 @@ def test_manta_renders_configure_and_run_workflow_command() -> None:
 
     assert cmd == [
         "configManta.py",
-        "--bam",
+        "--normalBam",
+        "normal.sorted.bam",
+        "--tumorBam",
         "tumor.sorted.bam",
         "--referenceFasta",
         "GRCh38.fa",
         "--runDir",
         "/tmp/run/manta",
-        "--normalBam",
-        "normal.sorted.bam",
         "--exome",
         "--rna",
         "&&",
@@ -1088,6 +1111,20 @@ def test_manta_plans_nested_variant_outputs() -> None:
     ]
 
 
+def test_manta_plans_somatic_output_for_tumor_normal_mode() -> None:
+    node_class = _node_class("manta")
+
+    outputs = node_class.PLAN_OUTPUTS(
+        {"normal_bam": "normal.sorted.bam"},
+        "/tmp/run",
+    )
+
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/manta/results/variants/candidateSV.vcf.gz",
+        "/tmp/run/manta/results/variants/somaticSV.vcf.gz",
+    ]
+
+
 def test_manta_call_is_registered_for_workflow_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -1105,8 +1142,19 @@ def test_manta_call_is_registered_for_workflow_discovery() -> None:
     assert "sv caller" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"bam", "bam_index", "reference", "threads"}
-    assert set(inputs["optional"]) == {"normal_bam", "exome", "rna"}
+    assert set(inputs["required"]) == {
+        "bam",
+        "bam_index",
+        "reference",
+        "reference_index",
+        "threads",
+    }
+    assert set(inputs["optional"]) == {
+        "normal_bam",
+        "normal_bam_index",
+        "exome",
+        "rna",
+    }
 
 
 def test_manta_call_renders_workflow_compatible_command() -> None:
@@ -1124,14 +1172,14 @@ def test_manta_call_renders_workflow_compatible_command() -> None:
 
     assert cmd == [
         "configManta.py",
-        "--bam",
+        "--normalBam",
+        "normal.sorted.bam",
+        "--tumorBam",
         "tumor.sorted.bam",
         "--referenceFasta",
         "GRCh38.fa",
         "--runDir",
         "/tmp/run/manta_call",
-        "--normalBam",
-        "normal.sorted.bam",
         "--exome",
         "&&",
         "/tmp/run/manta_call/runWorkflow.py",

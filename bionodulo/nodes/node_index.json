@@ -787,7 +787,7 @@
   "samtools_coverage": "bionodulo.nodes.builtin.samtools",
   "samtools_cram_to_bam": "bionodulo.nodes.builtin.samtools",
   "samtools_depth": "bionodulo.nodes.builtin.samtools",
-  "samtools_faidx": "bionodulo.nodes.builtin.samtools",
+  "samtools_faidx": "bionodulo.nodes.builtin.samtools_family.faidx",
   "samtools_fastx": "bionodulo.nodes.builtin.samtools",
   "samtools_fixmate": "bionodulo.nodes.builtin.samtools_family.fixmate",
   "samtools_flagstat": "bionodulo.nodes.builtin.samtools_family.flagstat",

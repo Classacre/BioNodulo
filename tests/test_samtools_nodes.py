@@ -238,9 +238,9 @@ def test_samtools_bionodulo_builtin_batch_nodes_expose_citation_and_dependency_m
         },
         "samtools_faidx": {
             "display_name": "Samtools Faidx",
-            "output": ["TSV"],
-            "output_name": ["fai_index"],
-            "aliases": ["BioNodulo builtin", "faidx", "FASTA index"],
+            "output": ["FASTA", "FASTA_INDEX", "SEQUENCE_DICTIONARY"],
+            "output_name": ["reference", "fai_index", "sequence_dictionary"],
+            "aliases": ["BioNodulo builtin", "faidx", "FASTA index", "sequence dictionary"],
         },
         "samtools_coverage": {
             "display_name": "Samtools Coverage",
@@ -351,52 +351,38 @@ def test_samtools_depth_renders_region_filtered_depth_command_and_output(tmp_pat
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_depth" / "depth.tsv"]
 
 
-def test_samtools_faidx_renders_fastq_and_compressed_index_commands(tmp_path: Path) -> None:
+def test_samtools_faidx_renders_reference_sidecar_commands(tmp_path: Path) -> None:
     node_class = _node_class("samtools_faidx")
 
     assert node_class.render_command(
         {
-            "input": "reads.fastq.gz",
-            "fastq": True,
-            "compressed": True,
+            "reference": "/work/samtools_faidx/reference.fa",
+            "threads": 1,
             "output": "/work/samtools_faidx",
         }
     ) == [
-        "ln",
-        "-sf",
-        "reads.fastq.gz",
-        "/work/samtools_faidx/input.gz",
-        "&&",
         "samtools",
         "faidx",
-        "--fastq",
-        "/work/samtools_faidx/input.gz",
+        "-@",
+        "1",
         "--fai-idx",
-        "/work/samtools_faidx/fai_index.tsv",
-        "--gzi-idx",
-        "/work/samtools_faidx/input.gz.gzi",
-        "||",
-        "(",
-        "echo",
-        "Failed to index compressed reference. Trying decompressed ...",
-        "1>&2",
-        "&&",
-        "gzip",
-        "-dc",
-        "/work/samtools_faidx/input.gz",
-        ">",
-        "/work/samtools_faidx/input.plain",
+        "/work/samtools_faidx/reference.fa.fai",
+        "/work/samtools_faidx/reference.fa",
         "&&",
         "samtools",
-        "faidx",
-        "--fastq",
-        "/work/samtools_faidx/input.plain",
-        "--fai-idx",
-        "/work/samtools_faidx/fai_index.tsv",
-        ")",
+        "dict",
+        "-u",
+        "file:reference.fa",
+        "-o",
+        "/work/samtools_faidx/reference.dict",
+        "/work/samtools_faidx/reference.fa",
     ]
 
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "samtools_faidx" / "fai_index.tsv"]
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "samtools_faidx" / "reference.fa",
+        tmp_path / "samtools_faidx" / "reference.fa.fai",
+        tmp_path / "samtools_faidx" / "reference.dict",
+    ]
 
 
 def test_samtools_coverage_renders_table_and_histogram_commands(tmp_path: Path) -> None:

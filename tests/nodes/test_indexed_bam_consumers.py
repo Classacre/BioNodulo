@@ -43,7 +43,11 @@ def _cli_inputs(node_id: str, tmp_path: Path) -> dict[str, Any]:
         "output": str(tmp_path / node_id),
     }
     if node_id != "deeptools_bamcoverage":
-        inputs["reference"] = tmp_path / "reference.fa"
+        reference = tmp_path / "reference.fa"
+        inputs["reference"] = reference
+        inputs["reference_index"] = Path(f"{reference}.fai")
+        if node_id == "gatk_haplotype_caller":
+            inputs["sequence_dictionary"] = reference.with_suffix(".dict")
     if node_id in {"gatk_haplotype_caller", "manta", "manta_call"}:
         inputs["threads"] = 4
     if node_id in {"delly", "delly_call"}:
@@ -352,6 +356,30 @@ def test_generated_catalog_exposes_indexed_bam_contracts() -> None:
     assert len(index) == 943
     assert metadata["samtools_index"]["output"] == ["BAM", "BAI"]
     assert metadata["samtools_index"]["output_name"] == ["indexed_bam", "bai"]
+    assert metadata["samtools_faidx"]["output"] == [
+        "FASTA",
+        "FASTA_INDEX",
+        "SEQUENCE_DICTIONARY",
+    ]
+    assert metadata["samtools_faidx"]["output_name"] == [
+        "reference",
+        "fai_index",
+        "sequence_dictionary",
+    ]
     for node_id in CLI_NODES:
         assert metadata[node_id]["input"]["required"]["bam_index"][0] == "BAI"
+    for node_id in {
+        "gatk_haplotype_caller",
+        "freebayes",
+        "manta",
+        "manta_call",
+        "delly",
+        "delly_call",
+    }:
+        assert metadata[node_id]["input"]["required"]["reference_index"][0] == "FASTA_INDEX"
+    assert (
+        metadata["gatk_haplotype_caller"]["input"]["required"]
+        ["sequence_dictionary"][0]
+        == "SEQUENCE_DICTIONARY"
+    )
     assert metadata["coverage_plot"]["input"]["optional"]["alignment_index"][0] == "BAI"

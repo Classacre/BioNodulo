@@ -59,10 +59,12 @@ def test_variant_template_adds_parallel_manta_and_delly_sv_calling() -> None:
 
     _assert_edge(workflow, "e21", "index_001", "indexed_bam", "manta_sv_001", "bam")
     _assert_edge(workflow, "e21_bai", "index_001", "bai", "manta_sv_001", "bam_index")
-    assert _has_edge(workflow, "ref_001", "reference", "manta_sv_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "reference", "manta_sv_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "fai_index", "manta_sv_001", "reference_index")
     _assert_edge(workflow, "e23", "index_001", "indexed_bam", "delly_sv_001", "bam")
     _assert_edge(workflow, "e23_bai", "index_001", "bai", "delly_sv_001", "bam_index")
-    assert _has_edge(workflow, "ref_001", "reference", "delly_sv_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "reference", "delly_sv_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "fai_index", "delly_sv_001", "reference_index")
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "manta_sv_001", "bam")
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "delly_sv_001", "bam")
     assert workflow["outputs"]["manta_sv"] == "manta_sv_001"

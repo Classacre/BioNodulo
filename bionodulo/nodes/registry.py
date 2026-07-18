@@ -653,6 +653,7 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "FASTQ_LIST",
         "FASTA",
         "FASTA_INDEX",
+        "SEQUENCE_DICTIONARY",
         "SAM",
         "BAM",
         "BAI",

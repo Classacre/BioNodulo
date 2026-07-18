@@ -72,6 +72,20 @@
       }
     },
     {
+      "id": "ref_sidecars_001",
+      "type": "samtools_faidx",
+      "position": [
+        440,
+        270
+      ],
+      "params": {
+        "threads": 1
+      },
+      "ui": {
+        "title": "Reference FAI + Dictionary"
+      }
+    },
+    {
       "id": "bwa_idx_001",
       "type": "bwa_index",
       "position": [
@@ -466,6 +480,17 @@
         "output": "reference"
       },
       "to": {
+        "node": "ref_sidecars_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e3a_reference",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "reference"
+      },
+      "to": {
         "node": "bwa_idx_001",
         "input": "reference"
       }
@@ -550,12 +575,23 @@
     {
       "id": "e9",
       "from": {
-        "node": "ref_001",
+        "node": "ref_sidecars_001",
         "output": "reference"
       },
       "to": {
         "node": "fb_001",
         "input": "reference"
+      }
+    },
+    {
+      "id": "e9_fai",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "fb_001",
+        "input": "reference_index"
       }
     },
     {
@@ -715,12 +751,23 @@
     {
       "id": "e19b",
       "from": {
-        "node": "ref_001",
+        "node": "ref_sidecars_001",
         "output": "reference"
       },
       "to": {
         "node": "manta_sv_001",
         "input": "reference"
+      }
+    },
+    {
+      "id": "e19b_fai",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "reference_index"
       }
     },
     {
@@ -748,12 +795,23 @@
     {
       "id": "e19d",
       "from": {
-        "node": "ref_001",
+        "node": "ref_sidecars_001",
         "output": "reference"
       },
       "to": {
         "node": "delly_sv_001",
         "input": "reference"
+      }
+    },
+    {
+      "id": "e19d_fai",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "reference_index"
       }
     },
     {

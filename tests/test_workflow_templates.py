@@ -140,10 +140,19 @@ def test_variant_calling_template_validates_reference_before_alignment_and_calli
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
-    assert _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
-    assert _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
-    assert _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
-    assert _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
+    assert node_types["ref_sidecars_001"] == "samtools_faidx"
+    assert _has_edge(workflow, "ref_001", "reference", "ref_sidecars_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "reference", "bwa_idx_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "reference", "gatk_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "fai_index", "gatk_001", "reference_index")
+    assert _has_edge(
+        workflow,
+        "ref_sidecars_001",
+        "sequence_dictionary",
+        "gatk_001",
+        "sequence_dictionary",
+    )
+    assert not _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
     assert workflow["outputs"]["validated_reference"] == "ref_001"
 
 
@@ -257,10 +266,12 @@ def test_wgs_variant_template_validates_reference_before_alignment_and_calling()
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "ref_001", "reference", "validate_reference_001", "input")
-    assert _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
-    assert _has_edge(workflow, "ref_001", "reference", "fb_001", "reference")
-    assert _has_edge(workflow, "ref_001", "reference", "bwa_idx_001", "reference")
-    assert _has_edge(workflow, "ref_001", "reference", "fb_001", "reference")
+    assert node_types["ref_sidecars_001"] == "samtools_faidx"
+    assert _has_edge(workflow, "ref_001", "reference", "ref_sidecars_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "reference", "bwa_idx_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "reference", "fb_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "fai_index", "fb_001", "reference_index")
+    assert not _has_edge(workflow, "ref_001", "reference", "fb_001", "reference")
     assert workflow["outputs"]["validated_reference"] == "ref_001"
 
 

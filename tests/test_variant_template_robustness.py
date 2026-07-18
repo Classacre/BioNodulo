@@ -47,7 +47,15 @@ def test_variant_template_retries_gatk_haplotype_caller() -> None:
     assert _has_edge(workflow, "index_001", "indexed_bam", "gatk_retry_001", "input")
     assert _has_edge(workflow, "gatk_retry_001", "passthrough", "gatk_001", "bam")
     assert _has_edge(workflow, "index_001", "bai", "gatk_001", "bam_index")
-    assert _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "reference", "gatk_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "fai_index", "gatk_001", "reference_index")
+    assert _has_edge(
+        workflow,
+        "ref_sidecars_001",
+        "sequence_dictionary",
+        "gatk_001",
+        "sequence_dictionary",
+    )
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_001", "bam")
     assert workflow["outputs"]["gatk_retry_policy"] == "gatk_retry_001"

@@ -12,6 +12,10 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 from ._bam_index import validate_colocated_bam_index
+from ._reference_sidecars import (
+    validate_colocated_reference_index,
+    validate_colocated_sequence_dictionary,
+)
 
 
 class Sniffles2Node(CommandNode):
@@ -1007,6 +1011,9 @@ class DellyNode(CommandNode):
     REQUIRED_CONDA_PACKAGES = ["delly"]
     DOCUMENTATION_URL = "https://github.com/dellytools/delly"
     VERSION = "1.2.6"
+    GIT_URL = "https://github.com/dellytools/delly.git"
+    GIT_COMMIT = "e6246dbb18b7f6df2b7b381d542cdeaea6be8c82"
+    UPSTREAM_SOURCE = "src/delly.h"
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -1032,7 +1039,8 @@ class DellyNode(CommandNode):
             "required": {
                 "bam": ("BAM", {"description": "Input BAM (sorted and indexed)"}),
                 "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
-                "reference": ("FASTA", {"description": "Reference FASTA"}),
+                "reference": ("FASTA", {"description": "Reference FASTA with colocated FAI"}),
+                "reference_index": ("FASTA_INDEX", {"description": "FAI colocated with reference FASTA"}),
                 "mode": ("STRING", {"default": "call", "options": ["call", "lr"]}),
             },
             "optional": {
@@ -1049,7 +1057,10 @@ class DellyNode(CommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        return validate_colocated_bam_index(inputs)
+        validation = validate_colocated_bam_index(inputs)
+        if validation is not True:
+            return validation
+        return validate_colocated_reference_index(inputs)
 
 
 class DellyCallNode(DellyNode):
@@ -1126,11 +1137,16 @@ class MantaNode(CommandNode):
         "somatic sv",
     ]
     RETURN_TYPES = ("VCF_GZ", "VCF_GZ")
-    RETURN_NAMES = ("candidate_sv", "diploid_sv")
+    RETURN_NAMES = ("candidate_sv", "primary_sv")
     REQUIRED_EXECUTABLES = ["configManta.py", "runWorkflow.py"]
     REQUIRED_CONDA_PACKAGES = ["manta"]
     DOCUMENTATION_URL = "https://github.com/Illumina/manta"
     VERSION = "1.6.0"
+    GIT_URL = "https://github.com/Illumina/manta.git"
+    GIT_COMMIT = "ab9f5502985a29ec74cfafb4963179b9cc185e55"
+    UPSTREAM_SOURCE = "src/python/bin/configManta.py"
+    UPSTREAM_REFERENCE_SOURCE = "src/python/lib/mantaOptions.py"
+    UPSTREAM_BAM_INDEX_SOURCE = "src/python/lib/configureUtil.py"
     SHELL = True
 
     @classmethod
@@ -1138,25 +1154,31 @@ class MantaNode(CommandNode):
         node_out = Path(output_dir) / cls.NODE_ID
         variants_dir = node_out / "results" / "variants"
         variants_dir.mkdir(parents=True, exist_ok=True)
+        primary_vcf = "somaticSV.vcf.gz" if inputs.get("normal_bam") else "diploidSV.vcf.gz"
         return [
             variants_dir / "candidateSV.vcf.gz",
-            variants_dir / "diploidSV.vcf.gz",
+            variants_dir / primary_vcf,
         ]
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         out_dir = str(inputs.get("output", "."))
-        cmd = [
-            "configManta.py",
-            "--bam",
-            str(inputs.get("bam", "")),
+        cmd = ["configManta.py"]
+        if inputs.get("normal_bam"):
+            cmd.extend([
+                "--normalBam",
+                str(inputs["normal_bam"]),
+                "--tumorBam",
+                str(inputs.get("bam", "")),
+            ])
+        else:
+            cmd.extend(["--bam", str(inputs.get("bam", ""))])
+        cmd.extend([
             "--referenceFasta",
             str(inputs.get("reference", "")),
             "--runDir",
             out_dir,
-        ]
-        if inputs.get("normal_bam"):
-            cmd.extend(["--normalBam", str(inputs["normal_bam"])])
+        ])
         if inputs.get("exome"):
             cmd.append("--exome")
         if inputs.get("rna"):
@@ -1175,13 +1197,15 @@ class MantaNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "bam": ("BAM", {"description": "Input BAM (sorted and indexed)"}),
+                "bam": ("BAM", {"description": "Single-sample BAM, or tumor BAM when normal_bam is provided"}),
                 "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
-                "reference": ("FASTA", {"description": "Reference FASTA (indexed)"}),
+                "reference": ("FASTA", {"description": "Reference FASTA with colocated FAI"}),
+                "reference_index": ("FASTA_INDEX", {"description": "FAI colocated with reference FASTA"}),
                 "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
                 "normal_bam": ("BAM", {"description": "Normal BAM for somatic mode", "advanced": True}),
+                "normal_bam_index": ("BAI", {"description": "BAI colocated with normal_bam", "advanced": True}),
                 "exome": ("BOOLEAN", {"default": False, "description": "Exome/targeted mode", "advanced": True}),
                 "rna": ("BOOLEAN", {"default": False, "description": "RNA-seq mode", "advanced": True}),
             },
@@ -1195,7 +1219,24 @@ class MantaNode(CommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        return validate_colocated_bam_index(inputs)
+        validation = validate_colocated_bam_index(inputs)
+        if validation is not True:
+            return validation
+        validation = validate_colocated_reference_index(inputs)
+        if validation is not True:
+            return validation
+
+        normal_bam = inputs.get("normal_bam")
+        normal_bam_index = inputs.get("normal_bam_index")
+        if normal_bam:
+            return validate_colocated_bam_index(
+                inputs,
+                bam_key="normal_bam",
+                index_key="normal_bam_index",
+            )
+        if normal_bam_index:
+            return "Input 'normal_bam_index' requires input 'normal_bam'"
+        return True
 
 
 class MantaCallNode(MantaNode):
@@ -1609,6 +1650,9 @@ class GatkHaplotypeCallerNode(CommandNode):
     REQUIRED_EXECUTABLES = ["gatk"]
     DOCUMENTATION_URL = "https://gatk.broadinstitute.org/hc/en-us/articles/360037225632-HaplotypeCaller"
     VERSION = "4.6.2.0"
+    GIT_URL = "https://github.com/broadinstitute/gatk.git"
+    GIT_COMMIT = "76edc75c26504da94bbaee66584e107e76ee15de"
+    UPSTREAM_SOURCE = "src/main/java/org/broadinstitute/hellbender/engine/ReferenceDataSource.java"
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -1639,7 +1683,9 @@ class GatkHaplotypeCallerNode(CommandNode):
             "required": {
                 "bam": ("BAM", {"description": "Input BAM (sorted, indexed, with read groups)"}),
                 "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
-                "reference": ("FASTA", {"description": "Reference FASTA (indexed)"}),
+                "reference": ("FASTA", {"description": "Reference FASTA with colocated FAI and sequence dictionary"}),
+                "reference_index": ("FASTA_INDEX", {"description": "FAI colocated with reference FASTA"}),
+                "sequence_dictionary": ("SEQUENCE_DICTIONARY", {"description": "Sequence dictionary colocated with reference FASTA"}),
                 "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {
@@ -1660,7 +1706,13 @@ class GatkHaplotypeCallerNode(CommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        return validate_colocated_bam_index(inputs)
+        validation = validate_colocated_bam_index(inputs)
+        if validation is not True:
+            return validation
+        validation = validate_colocated_reference_index(inputs)
+        if validation is not True:
+            return validation
+        return validate_colocated_sequence_dictionary(inputs)
 
 
 class GatkGenotypeGVCFsNode(CommandNode):
@@ -2106,6 +2158,9 @@ class FreeBayesNode(CommandNode):
     REQUIRED_EXECUTABLES = ["freebayes"]
     DOCUMENTATION_URL = "https://github.com/freebayes/freebayes"
     VERSION = "1.3.10"
+    GIT_URL = "https://github.com/freebayes/freebayes.git"
+    GIT_COMMIT = "b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993"
+    UPSTREAM_SOURCE = "src/FBFasta.cpp"
     SHELL = True
 
     @classmethod
@@ -2131,7 +2186,8 @@ class FreeBayesNode(CommandNode):
             "required": {
                 "bam": ("BAM", {"description": "Input BAM file (sorted, indexed)"}),
                 "bam_index": ("BAI", {"description": "BAI colocated with input BAM"}),
-                "reference": ("FASTA", {"description": "Reference FASTA"}),
+                "reference": ("FASTA", {"description": "Reference FASTA with colocated FAI"}),
+                "reference_index": ("FASTA_INDEX", {"description": "FAI colocated with reference FASTA"}),
             },
             "optional": {
                 "pooled": ("BOOLEAN", {"default": False, "description": "Enable pooled calling"}),
@@ -2150,7 +2206,10 @@ class FreeBayesNode(CommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        return validate_colocated_bam_index(inputs)
+        validation = validate_colocated_bam_index(inputs)
+        if validation is not True:
+            return validation
+        return validate_colocated_reference_index(inputs)
 
 
 class VcfToolsFilterNode(CommandNode):

@@ -575,7 +575,7 @@ def test_funcotator_alias_plans_outputs_under_funcotator_directory() -> None:
 
 def test_funcotate_table_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["gatk"] == "gatk4"
-    assert PACKAGE_MIN_VERSIONS["gatk4"] == ">=4.4.0"
+    assert PACKAGE_MIN_VERSIONS["gatk4"] == "4.6.2.0"
 
 
 def test_bcftools_annotate_is_registered_for_frontend_discovery() -> None:
