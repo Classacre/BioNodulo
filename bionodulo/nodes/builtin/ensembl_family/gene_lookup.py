@@ -9,7 +9,14 @@ from bionodulo.nodes.base import BaseNode
 
 from .adapter import (
     COMMON_ENSEMBL_SPECIES_OPTIONS,
+    ENSEMBL_API_REVISION,
+    ENSEMBL_API_VERSION,
+    ENSEMBL_GRCH37_HOMOLOGY_DOCUMENTATION_SHA256,
+    ENSEMBL_HOMOLOGY_DOCUMENTATION_SHA256,
+    ENSEMBL_ID_LOOKUP_DOCUMENTATION_SHA256,
+    ENSEMBL_LOOKUP_DOCUMENTATION_SHA256,
     ENSEMBL_SOURCE_COMMIT,
+    ENSEMBL_SOURCE_REVISION,
     base_url_for_assembly,
     coerce_species_list,
     is_stable_id,
@@ -47,12 +54,28 @@ class EnsemblGeneLookupNode(BaseNode):
     RETURN_NAMES = ("gene_info", "transcripts")
     REQUIRES_EXTERNAL_TOOLS = False
     EXPERIMENTAL = True
-    VERSION = "Ensembl REST source snapshot 2026-07-19"
+    VERSION = f"Ensembl REST {ENSEMBL_API_VERSION} contract snapshot"
     GIT_URL = "https://github.com/Ensembl/ensembl-rest.git"
     GIT_COMMIT = ENSEMBL_SOURCE_COMMIT
-    SOURCE_URL = GIT_URL
     DOCUMENTATION_URL = "https://rest.ensembl.org/documentation/info/symbol_lookup"
-    UPSTREAM_SOURCE = "root/documentation/lookup.conf; lib/EnsEMBL/REST/Controller/Lookup.pm"
+    SOURCE_URL = DOCUMENTATION_URL
+    SOURCE_REVISION = ENSEMBL_API_REVISION
+    SOURCE_SHA256 = ENSEMBL_LOOKUP_DOCUMENTATION_SHA256
+    ID_LOOKUP_SOURCE_URL = "https://rest.ensembl.org/documentation/info/lookup"
+    ID_LOOKUP_SOURCE_SHA256 = ENSEMBL_ID_LOOKUP_DOCUMENTATION_SHA256
+    HOMOLOGY_SOURCE_URL = "https://rest.ensembl.org/documentation/info/homology_species_gene_id"
+    HOMOLOGY_SOURCE_SHA256 = ENSEMBL_HOMOLOGY_DOCUMENTATION_SHA256
+    GRCH37_HOMOLOGY_SOURCE_URL = (
+        "https://grch37.rest.ensembl.org/documentation/info/homology_species_gene_id"
+    )
+    GRCH37_HOMOLOGY_SOURCE_SHA256 = ENSEMBL_GRCH37_HOMOLOGY_DOCUMENTATION_SHA256
+    UPSTREAM_SOURCE_REVISION = ENSEMBL_SOURCE_REVISION
+    UPSTREAM_SOURCE = (
+        "root/documentation/lookup.conf; root/documentation/compara.conf; "
+        "root/documentation/compara_grch37.conf; "
+        "lib/EnsEMBL/REST/Controller/Lookup.pm; "
+        "lib/EnsEMBL/REST/Controller/Homology.pm"
+    )
     NETWORK_SEMANTICS = "Responses reflect the live Ensembl release; GRCh37 requests use the dedicated human GRCh37 host."
 
     @classmethod
@@ -64,7 +87,7 @@ class EnsemblGeneLookupNode(BaseNode):
             "optional": {
                 "gene_symbol": ("STRING", {"default": "", "description": "Gene symbol or Ensembl stable ID"}),
                 "query": ("STRING", {"default": "", "advanced": True, "description": "Compatibility alias"}),
-                "expand": ("BOOLEAN", {"default": True}),
+                "expand": ("BOOLEAN", {"default": False}),
                 "assembly": ("STRING", {"default": "current", "options": ["current", "GRCh37"]}),
                 "fetch_homologs": ("BOOLEAN", {"default": False}),
                 "homolog_species": ("STRING", {"default": "", "description": "Comma-separated target species"}),
@@ -86,20 +109,30 @@ class EnsemblGeneLookupNode(BaseNode):
             if is_stable_id(query)
             else f"lookup/symbol/{quote(species, safe='')}/{quote(query, safe='')}"
         )
-        payload = await request_json(resource, {"expand": 1 if kwargs.get("expand", True) else 0}, base_url=base_url)
+        lookup_params: dict[str, Any] = {"expand": 1 if kwargs.get("expand", False) else 0}
+        if is_stable_id(query):
+            lookup_params["species"] = species
+        payload = await request_json(resource, lookup_params, base_url=base_url)
         transcripts = payload.get("Transcript", [])
         if not isinstance(transcripts, list):
             transcripts = []
         gene_info = dict(payload)
         gene_info["summary"] = _summary(payload)
         gene_id = str(payload.get("id", "") or "")
-        if kwargs.get("fetch_homologs", False) and gene_id:
+        if kwargs.get("fetch_homologs", False):
+            if assembly.strip().upper() == "GRCH37":
+                raise ValueError("Ensembl GRCh37 does not support orthologue lookup")
+            if not gene_id or str(payload.get("object_type", "")).lower() != "gene":
+                raise ValueError("Ensembl homology/id requires a resolved gene stable ID")
             targets = coerce_species_list(kwargs.get("homolog_species", ""))
+            homology_resource = (
+                f"homology/id/{quote(species, safe='')}/{quote(gene_id, safe='')}"
+            )
             if len(targets) > 1:
                 gene_info["homologs_by_species"] = {}
                 for target in targets:
                     gene_info["homologs_by_species"][target] = await request_json(
-                        f"homology/id/{quote(gene_id, safe='')}",
+                        homology_resource,
                         {"type": "orthologues", "target_species": target},
                         base_url=base_url,
                     )
@@ -107,7 +140,5 @@ class EnsemblGeneLookupNode(BaseNode):
                 params: dict[str, Any] = {"type": "orthologues"}
                 if targets:
                     params["target_species"] = targets[0]
-                gene_info["homologs"] = await request_json(
-                    f"homology/id/{quote(gene_id, safe='')}", params, base_url=base_url
-                )
+                gene_info["homologs"] = await request_json(homology_resource, params, base_url=base_url)
         return {"outputs": {"gene_info": gene_info, "transcripts": transcripts}}

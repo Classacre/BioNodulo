@@ -16,8 +16,22 @@ ENSEMBL_BASE_URL = "https://rest.ensembl.org"
 ENSEMBL_GRCH37_BASE_URL = "https://grch37.rest.ensembl.org"
 ENSEMBL_USER_AGENT = "BioNodulo/2.0 (Ensembl REST nodes)"
 ENSEMBL_SOURCE_COMMIT = "79f8dcc5cb3a0e8aef81273d118d7a514d43358d"
-ENSEMBL_API_CACHE = APICache.from_environment(default_ttl_seconds=300.0)
-ENSEMBL_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=5.0, burst=1)
+ENSEMBL_SOURCE_REVISION = "2026-04-07T09:29:16+01:00"
+ENSEMBL_API_VERSION = "15.12"
+ENSEMBL_API_REVISION = "2026-07"
+ENSEMBL_LOOKUP_DOCUMENTATION_SHA256 = "7ac58aff9772fea75ef3178767648d3bff889a7e5a58e5a86c842776e4d9ee00"
+ENSEMBL_ID_LOOKUP_DOCUMENTATION_SHA256 = "81b1cf120ebcc6cc007885afc7b2a59869d2b7656e0d0906582b0e7c18e325c4"
+ENSEMBL_HOMOLOGY_DOCUMENTATION_SHA256 = "3a0cdb7cbeb7b6a843b4687f6fb023bb06359171730b9c3f139ad32a9c784f37"
+ENSEMBL_GRCH37_HOMOLOGY_DOCUMENTATION_SHA256 = "5fa524b1922b961cdde3f87673d7c8bffb95a31350e94d78f7a2a30ef2ac418e"
+ENSEMBL_VEP_REGION_DOCUMENTATION_SHA256 = "6c26cc4d1baa6eda1d8773884d8f762660cdf941ef84de92e7ad173ee6497464"
+ENSEMBL_VEP_HGVS_DOCUMENTATION_SHA256 = "dc03a41b4a2575569f3b6bf7fa7f8cf25f046e449dd25a31948ed1029a288646"
+MAX_RETRIES = 3
+RETRY_DELAY_SECONDS = 1.0
+REQUEST_TIMEOUT_SECONDS = 30.0
+CACHE_TTL_SECONDS = 300.0
+ENSEMBL_API_CACHE = APICache.from_environment(default_ttl_seconds=CACHE_TTL_SECONDS)
+# The pinned production middleware advertises a public limit of 15 requests/second.
+ENSEMBL_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=15.0, burst=1)
 ENSEMBL_JSON_HEADERS = {
     "Accept": "application/json",
     "Content-Type": "application/json",
@@ -46,12 +60,15 @@ def base_url_for_assembly(assembly: str) -> str:
 
 
 def validate_assembly_species(assembly: str, species: str) -> None:
-    if str(assembly).strip().upper() == "GRCH37" and species != "homo_sapiens":
-        raise ValueError("Ensembl GRCh37 REST host is supported only for homo_sapiens")
+    normalized = str(assembly).strip().upper()
+    if normalized not in {"CURRENT", "GRCH37", "GRCH38"}:
+        raise ValueError(f"Unsupported Ensembl assembly: {assembly}")
+    if normalized in {"GRCH37", "GRCH38"} and species != "homo_sapiens":
+        raise ValueError(f"Ensembl {assembly} is supported only for homo_sapiens")
 
 
 def is_stable_id(query: str) -> bool:
-    return bool(re.match(r"^ENS[A-Z]*[GTPE]\d+", query.strip(), re.IGNORECASE))
+    return bool(re.fullmatch(r"ENS[A-Z]*[GTPE]\d+(?:\.\d+)?", query.strip(), re.IGNORECASE))
 
 
 def coerce_species_list(value: Any) -> list[str]:
@@ -65,8 +82,8 @@ async def request(
     params: dict[str, Any] | None = None,
     json_body: dict[str, Any] | None = None,
     base_url: str = ENSEMBL_BASE_URL,
-    retries: int = 3,
-    timeout: float = 30.0,
+    retries: int = MAX_RETRIES,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
 ) -> httpx.Response:
     url = f"{base_url.rstrip('/')}/{resource.lstrip('/')}"
     client = APIHttpClient(cache=ENSEMBL_API_CACHE, rate_limiter=ENSEMBL_RATE_LIMITER)
@@ -79,8 +96,8 @@ async def request(
             headers=ENSEMBL_JSON_HEADERS,
             timeout=timeout,
             retries=retries,
-            retry_delay=1.0,
-            cache_ttl=300.0 if method.upper() == "GET" else None,
+            retry_delay=RETRY_DELAY_SECONDS,
+            cache_ttl=CACHE_TTL_SECONDS if method.upper() == "GET" else None,
         )
     except httpx.HTTPStatusError as exc:
         raise RuntimeError(
@@ -96,8 +113,12 @@ async def request_json(
     *,
     base_url: str = ENSEMBL_BASE_URL,
 ) -> dict[str, Any]:
-    payload = (await request("GET", resource, params=params, base_url=base_url)).json()
-    return payload if isinstance(payload, dict) else {}
+    payload = _decode_json(await request("GET", resource, params=params, base_url=base_url), resource)
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Ensembl {resource} returned a non-object JSON response")
+    if "error" in payload:
+        raise RuntimeError(f"Ensembl {resource} returned an error response: {str(payload['error'])[:500]}")
+    return payload
 
 
 async def post_json(
@@ -107,4 +128,12 @@ async def post_json(
     *,
     base_url: str = ENSEMBL_BASE_URL,
 ) -> Any:
-    return (await request("POST", resource, params=params, json_body=json_body, base_url=base_url)).json()
+    response = await request("POST", resource, params=params, json_body=json_body, base_url=base_url)
+    return _decode_json(response, resource)
+
+
+def _decode_json(response: httpx.Response, resource: str) -> Any:
+    try:
+        return response.json()
+    except ValueError:
+        raise RuntimeError(f"Ensembl {resource} returned invalid JSON") from None
