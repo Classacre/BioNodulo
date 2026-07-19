@@ -5,22 +5,51 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from bionodulo.nodes.command_node import CommandNode
+
 from .evidence import attach_evidence
-from .legacy import ANNOVARNode as _LegacyANNOVARNode
 
 
 @attach_evidence
-class ANNOVARNode(_LegacyANNOVARNode):
+class ANNOVARNode(CommandNode):
+    """Annotate variants with the licensed ANNOVAR distribution."""
+
     NODE_ID = "annovar"
+    DISPLAY_NAME = "ANNOVAR"
+    CATEGORY = "annotation"
+    DESCRIPTION = (
+        "Comprehensive variant annotation: gene-based, region-based, "
+        "filter-based. Clinical interpretation."
+    )
+    SEARCH_ALIASES = ["annovar", "variant annotation", "clinical", "clinvar", "gnomad"]
     RETURN_TYPES = ("VCF", "TABULAR")
     RETURN_NAMES = ("annotated_vcf", "multianno_table")
     REQUIRED_EXECUTABLES = ["table_annovar.pl"]
     REQUIRED_CONDA_PACKAGES: list[str] = []
+    DOCUMENTATION_URL = "https://annovar.openbioinformatics.org/"
     INSTALLATION_REQUIRED = "User-supplied licensed ANNOVAR 2020-06-08 distribution"
     SHELL = False
+    EXPERIMENTAL = True
 
     DEFAULT_PROTOCOL = "refGene,cytoBand,gnomad40_genome,clinvar_20220320"
     DEFAULT_OPERATION = "g,r,f,f"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "vcf": ("VCF_GZ", {"description": "Input VCF"}),
+                "humandb_dir": ("DIRECTORY", {"description": "ANNOVAR humandb"}),
+                "buildver": ("STRING", {"default": "hg38", "options": ["hg38", "hg19"]}),
+                "protocol": ("STRING", {"default": cls.DEFAULT_PROTOCOL}),
+                "operation": (
+                    "STRING",
+                    {"default": cls.DEFAULT_OPERATION, "description": "g=gene,r=region,f=filter"},
+                ),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
 
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:

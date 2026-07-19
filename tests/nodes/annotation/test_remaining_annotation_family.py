@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,44 @@ from bionodulo.nodes.builtin.annotation_family import (
     InterProScanNode,
     VEPAnnotateNode,
 )
+from scripts.gen_node_index import build_index
+
+
+def test_annotation_legacy_extraction_has_six_focused_owners_and_aliases() -> None:
+    owners = {
+        "annotate_vcf": (
+            AnnotateVCFNode,
+            "bionodulo.nodes.builtin.annotation_family.annotate_vcf",
+        ),
+        "annovar": (ANNOVARNode, "bionodulo.nodes.builtin.annotation_family.annovar"),
+        "bakta": (BaktaNode, "bionodulo.nodes.builtin.annotation_family.bakta"),
+        "bcftools_annotate": (
+            BcftoolsAnnotateNode,
+            "bionodulo.nodes.builtin.annotation_family.bcftools_annotate",
+        ),
+        "eggnog_mapper": (
+            EggNOGMapperNode,
+            "bionodulo.nodes.builtin.annotation_family.eggnog_mapper",
+        ),
+        "interproscan": (
+            InterProScanNode,
+            "bionodulo.nodes.builtin.annotation_family.interproscan",
+        ),
+    }
+    live_index = build_index()
+    facade = importlib.import_module("bionodulo.nodes.builtin.annotation")
+
+    for node_id, (node_class, module_name) in owners.items():
+        assert live_index[node_id] == module_name
+        assert node_class.__module__ == module_name
+        assert all(not base.__module__.endswith(".legacy") for base in node_class.__mro__)
+        module = importlib.import_module(module_name)
+        source = Path(module.__file__).read_text(encoding="utf-8")
+        assert "from .legacy" not in source
+        assert getattr(facade, node_class.__name__) is node_class
+
+    family_dir = Path(importlib.import_module("bionodulo.nodes.builtin.annotation_family").__file__).parent
+    assert not (family_dir / "legacy.py").exists()
 
 
 @pytest.mark.parametrize(

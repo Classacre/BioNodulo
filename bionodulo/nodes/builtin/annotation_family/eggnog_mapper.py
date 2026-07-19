@@ -8,28 +8,69 @@ from typing import Any
 from bionodulo.nodes.command_node import CommandNode
 
 from .evidence import attach_evidence
-from .legacy import EggNOGMapperNode as _LegacyEggNOGMapperNode
 
 
 @attach_evidence
-class EggNOGMapperNode(_LegacyEggNOGMapperNode):
+class EggNOGMapperNode(CommandNode):
+    """Annotate proteins with an explicitly staged eggNOG data directory."""
+
     NODE_ID = "eggnog_mapper"
+    DISPLAY_NAME = "eggNOG-mapper"
+    CATEGORY = "annotation"
+    DESCRIPTION = "Fast genome-wide functional annotation via orthology"
+    SEARCH_ALIASES = ["eggnog", "emapper", "functional", "cog", "go"]
+    RETURN_TYPES = ("TSV",)
+    RETURN_NAMES = ("annotations",)
+    REQUIRED_EXECUTABLES = ["emapper.py"]
+    REQUIRED_CONDA_PACKAGES = ["eggnog-mapper"]
+    DOCUMENTATION_URL = "https://github.com/eggnogdb/eggnog-mapper"
+    COMMAND = [
+        "emapper.py",
+        "-i",
+        "{inputs.proteins}",
+        "--output",
+        "{inputs.prefix}",
+        "--output_dir",
+        "{output}",
+        "-m",
+        "{inputs.mode}",
+        "--cpu",
+        "{inputs.threads}",
+    ]
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
-        contract = super().INPUT_TYPES()
-        required = dict(contract["required"])
-        required["data_dir"] = (
-            "DIRECTORY",
-            {"description": "Pre-downloaded eggNOG-mapper data directory"},
-        )
-        optional = dict(contract["optional"])
-        optional.pop("data_dir", None)
-        optional["mode"] = (
-            "STRING",
-            {"default": "diamond", "options": ["diamond", "mmseqs"], "description": "Search backend"},
-        )
-        return {**contract, "required": required, "optional": optional}
+        return {
+            "required": {
+                "proteins": ("FASTA", {"description": "Protein FASTA file (.faa)"}),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 64, "display": "slider"}),
+                "prefix": ("STRING", {"default": "annotations"}),
+                "data_dir": (
+                    "DIRECTORY",
+                    {"description": "Pre-downloaded eggNOG-mapper data directory"},
+                ),
+            },
+            "optional": {
+                "mode": (
+                    "STRING",
+                    {
+                        "default": "diamond",
+                        "options": ["diamond", "mmseqs"],
+                        "description": "Search backend",
+                    },
+                ),
+                "itype": (
+                    "STRING",
+                    {
+                        "default": "proteins",
+                        "options": ["proteins", "CDS", "genome", "metagenome"],
+                        "label": "Input Type",
+                        "advanced": True,
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
 
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
