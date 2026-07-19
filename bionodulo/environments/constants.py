@@ -210,7 +210,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "bwa": "0.7.19",
     "bowtie2": "2.5.5",
     "samtools": "1.23.1",
-    "bcftools": ">=1.15",
+    "bcftools": "1.24",
     "gffread": ">=0.12.7",
     "seqtk": ">=1.4",
     "gatk4": "4.6.2.0",

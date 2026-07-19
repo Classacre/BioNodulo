@@ -707,7 +707,7 @@ def test_bcftools_annotate_plans_outputs() -> None:
 
 def test_bcftools_annotate_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["bcftools"] == "bcftools"
-    assert PACKAGE_MIN_VERSIONS["bcftools"] == ">=1.15"
+    assert PACKAGE_MIN_VERSIONS["bcftools"] == "1.24"
 
 
 def test_annotate_vcf_is_registered_for_frontend_discovery() -> None:

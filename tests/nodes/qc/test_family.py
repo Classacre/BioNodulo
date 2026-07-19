@@ -58,8 +58,7 @@ def test_legacy_qc_module_no_longer_owns_the_migrated_ids() -> None:
         if issubclass(obj, BaseNode) and obj not in {BaseNode, CommandNode} and obj.__module__ == legacy.__name__
     }
 
-    assert {"fastqc", "multiqc"}.isdisjoint(owned_ids)
-    assert {"qualimap", "qualimap_bamqc"}.issubset(owned_ids)
+    assert {"fastqc", "multiqc", "qualimap", "qualimap_bamqc"}.isdisjoint(owned_ids)
 
 
 def test_nodes_pin_exact_official_release_authorities() -> None:
