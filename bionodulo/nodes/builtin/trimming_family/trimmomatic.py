@@ -19,7 +19,7 @@ class TrimmomaticNode(CommandNode):
     CATEGORY = "trimming"
     DESCRIPTION = "Trim Illumina paired-end FASTQ reads with Trimmomatic PE."
     SEARCH_ALIASES = ["trimmomatic", "trim", "adapter removal", "illumina", "paired end"]
-    RETURN_TYPES = ("FASTQ_LIST", "FASTQ_LIST", "FASTQ_LIST", "FASTQ_LIST")
+    RETURN_TYPES = ("FASTQ", "FASTQ", "FASTQ", "FASTQ")
     RETURN_NAMES = ("R1_paired", "R1_unpaired", "R2_paired", "R2_unpaired")
     REQUIRED_EXECUTABLES = ["trimmomatic", "java"]
     REQUIRED_CONDA_PACKAGES = ["trimmomatic", "openjdk"]
@@ -29,10 +29,40 @@ class TrimmomaticNode(CommandNode):
     GIT_URL = "https://github.com/usadellab/Trimmomatic.git"
     GIT_COMMIT = "7c9e862f7a050fdde034b63363ed4a99bf70d6b3"
     DOCUMENTATION_URL = "https://github.com/usadellab/Trimmomatic/tree/v0.40"
+    SOURCE_URL = (
+        "https://github.com/usadellab/Trimmomatic/blob/"
+        f"{GIT_COMMIT}/README.md"
+    )
     CITATION_DOIS = ["10.1093/bioinformatics/btu170"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btu170"]
     UPSTREAM_README = "README.md"
     UPSTREAM_CLI_SOURCE = "src/main/java/org/usadellab/trimmomatic/TrimmomaticPE.java"
+    UPSTREAM_MAIN_SOURCE = "src/main/java/org/usadellab/trimmomatic/Trimmomatic.java"
+    UPSTREAM_SOURCE_PATHS = (UPSTREAM_README, UPSTREAM_CLI_SOURCE, UPSTREAM_MAIN_SOURCE)
+    UPSTREAM_SOURCE_URLS = (
+        SOURCE_URL,
+        "https://github.com/usadellab/Trimmomatic/blob/"
+        f"{GIT_COMMIT}/{UPSTREAM_CLI_SOURCE}",
+        "https://github.com/usadellab/Trimmomatic/blob/"
+        f"{GIT_COMMIT}/{UPSTREAM_MAIN_SOURCE}",
+    )
+    PRESET_SOURCE = "README.md paired-end reference command"
+    PRESET_STEPS = (
+        "ILLUMINACLIP:{adapters}:2:30:10",
+        "LEADING:3",
+        "TRAILING:3",
+        "SLIDINGWINDOW:4:15",
+        "MINLEN:36",
+    )
+    PRESET_SEMANTICS = (
+        "The exposed trimming steps and values are the official README paired-end preset; "
+        "Trimmomatic itself has no implicit trimming-step defaults."
+    )
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "Trimmomatic returns 0 after successful completion and exits 1 for usage, "
+        "quality-detection, template, or uncaught processing failures."
+    )
     OUTPUT_FILENAMES = (
         "R1_paired.fastq.gz",
         "R1_unpaired.fastq.gz",
@@ -45,7 +75,7 @@ class TrimmomaticNode(CommandNode):
         return {
             "required": {
                 "reads": ("FASTQ_LIST", {"description": "Exactly two ordered paired-end FASTQs [R1, R2]"}),
-                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
+                "threads": ("INT", {"default": 0, "min": 0, "max": 64, "display": "slider"}),
                 "adapters": ("FILE", {"description": "Adapter FASTA passed to ILLUMINACLIP"}),
             },
             "optional": {
@@ -72,7 +102,7 @@ class TrimmomaticNode(CommandNode):
         if len(adapters) != 1:
             return "adapters must be exactly one FASTA path."
         for key, default, minimum, maximum in (
-            ("threads", 4, 1, 64),
+            ("threads", 0, 0, 64),
             ("leading", 3, 0, None),
             ("trailing", 3, 0, None),
             ("quality", 15, 0, None),
@@ -95,7 +125,7 @@ class TrimmomaticNode(CommandNode):
     def MAP_PLANNED_OUTPUTS(cls, planned_paths: list[Path]) -> dict[str, Any]:
         if len(planned_paths) != 4:
             raise ValueError("Trimmomatic PE must plan four FASTQ outputs")
-        return {name: [path] for name, path in zip(cls.RETURN_NAMES, planned_paths, strict=True)}
+        return dict(zip(cls.RETURN_NAMES, planned_paths, strict=True))
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -110,7 +140,7 @@ class TrimmomaticNode(CommandNode):
             "trimmomatic",
             "PE",
             "-threads",
-            str(inputs.get("threads", 4)),
+            str(inputs.get("threads", 0)),
             reads[0],
             reads[1],
             *(str(path) for path in outputs),
@@ -130,4 +160,4 @@ class TrimmomaticNode(CommandNode):
             base_output_dir = "."
         await super().run(**kwargs)
         mapped = self.__class__.MAP_PLANNED_OUTPUTS(self.__class__.PLAN_OUTPUTS(kwargs, base_output_dir))
-        return {"outputs": {name: [str(path) for path in paths] for name, paths in mapped.items()}}
+        return {"outputs": {name: str(path) for name, path in mapped.items()}}

@@ -28,8 +28,23 @@ class TrimGaloreNode(CommandNode):
     GIT_URL = "https://github.com/FelixKrueger/TrimGalore.git"
     GIT_COMMIT = "4edff97d22f3837d42a29e4afbfaeb6e07ffb11b"
     DOCUMENTATION_URL = "https://github.com/FelixKrueger/TrimGalore/tree/0.6.10"
+    SOURCE_URL = (
+        "https://github.com/FelixKrueger/TrimGalore/blob/"
+        f"{GIT_COMMIT}/trim_galore"
+    )
     UPSTREAM_CLI_SOURCE = "trim_galore"
     UPSTREAM_USER_GUIDE = "Docs/Trim_Galore_User_Guide.md"
+    UPSTREAM_SOURCE_PATHS = (UPSTREAM_CLI_SOURCE, UPSTREAM_USER_GUIDE)
+    UPSTREAM_SOURCE_URLS = (
+        SOURCE_URL,
+        "https://github.com/FelixKrueger/TrimGalore/blob/"
+        f"{GIT_COMMIT}/{UPSTREAM_USER_GUIDE}",
+    )
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "Trim Galore uses fatal Perl errors for invalid options and processing failures; "
+        "the node additionally requires every planned artifact after a zero exit."
+    )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -39,7 +54,7 @@ class TrimGaloreNode(CommandNode):
                 "threads": ("INT", {"default": 1, "min": 1, "max": 8, "display": "slider"}),
             },
             "optional": {
-                "paired": ("BOOLEAN", {"default": True, "description": "Run paired-end validation"}),
+                "paired": ("BOOLEAN", {"default": False, "description": "Run paired-end validation"}),
                 "quality": ("INT", {"default": 20, "min": 0, "max": 40}),
                 "length": ("INT", {"default": 20, "min": 0}),
                 "clip_r1": ("INT", {"default": 0, "min": 0, "max": 99}),
@@ -53,9 +68,15 @@ class TrimGaloreNode(CommandNode):
                 ),
                 "gzip": (
                     "BOOLEAN",
-                    {"default": True, "description": "Force gzip output; gzip inputs remain compressed regardless"},
+                    {
+                        "default": False,
+                        "description": "Force gzip output; gzip inputs remain compressed regardless",
+                    },
                 ),
-                "fastqc": ("BOOLEAN", {"default": True, "description": "Run FastQC on final trimmed reads"}),
+                "fastqc": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Run FastQC on final trimmed reads"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -70,7 +91,7 @@ class TrimGaloreNode(CommandNode):
         except (TypeError, ValueError) as exc:
             return str(exc)
 
-        paired = inputs.get("paired", True)
+        paired = inputs.get("paired", False)
         if not isinstance(paired, bool):
             return "paired must be a boolean."
         expected = 2 if paired else 1
@@ -93,7 +114,7 @@ class TrimGaloreNode(CommandNode):
                 return result
 
         for key in ("rrbs", "non_directional", "gzip", "fastqc"):
-            if not isinstance(inputs.get(key, key in {"gzip", "fastqc"}), bool):
+            if not isinstance(inputs.get(key, False), bool):
                 return f"{key} must be a boolean."
         if inputs.get("non_directional", False) and not inputs.get("rrbs", False):
             return "non_directional requires rrbs."
@@ -120,8 +141,8 @@ class TrimGaloreNode(CommandNode):
             raise ValueError(str(validation))
 
         reads = read_paths(inputs.get("reads"))
-        paired = bool(inputs.get("paired", True))
-        force_gzip = bool(inputs.get("gzip", True))
+        paired = bool(inputs.get("paired", False))
+        force_gzip = bool(inputs.get("gzip", False))
         node_out = output_dir(base_output_dir, cls.NODE_ID)
         trimmed: list[Path] = []
         for index, read in enumerate(reads, start=1):
@@ -134,7 +155,7 @@ class TrimGaloreNode(CommandNode):
 
         reports = [node_out / f"{Path(read).name}_trimming_report.txt" for read in reads]
         fastqc_reports: list[Path] = []
-        if inputs.get("fastqc", True):
+        if inputs.get("fastqc", False):
             for path in trimmed:
                 name = path.name[:-3] if path.name.endswith(".gz") else path.name
                 for suffix in (".fastq", ".fq"):
@@ -168,7 +189,7 @@ class TrimGaloreNode(CommandNode):
             raise ValueError(str(validation))
 
         command = ["trim_galore"]
-        if inputs.get("paired", True):
+        if inputs.get("paired", False):
             command.append("--paired")
         command.extend(["--cores", str(inputs.get("threads", 1))])
         for key, flag in (
@@ -179,16 +200,18 @@ class TrimGaloreNode(CommandNode):
             ("three_prime_clip_r1", "--three_prime_clip_R1"),
             ("three_prime_clip_r2", "--three_prime_clip_R2"),
         ):
-            value = int(inputs.get(key, 0) or 0)
-            if value > 0:
+            if key not in inputs:
+                continue
+            value = int(inputs[key])
+            if key in {"quality", "length"} or value > 0:
                 command.extend([flag, str(value)])
         if inputs.get("rrbs", False):
             command.append("--rrbs")
         if inputs.get("non_directional", False):
             command.append("--non_directional")
-        if inputs.get("gzip", True):
+        if inputs.get("gzip", False):
             command.append("--gzip")
-        if inputs.get("fastqc", True):
+        if inputs.get("fastqc", False):
             command.append("--fastqc")
         command.extend(["-o", str(inputs.get("output", inputs.get("output_dir", ".")))])
         command.extend(read_paths(inputs.get("reads")))

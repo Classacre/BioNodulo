@@ -28,12 +28,25 @@ class CutadaptNode(CommandNode):
     GIT_URL = "https://github.com/marcelm/cutadapt.git"
     GIT_COMMIT = "ef852629f667637439f28761499bb56126e390a1"
     DOCUMENTATION_URL = "https://cutadapt.readthedocs.io/en/v5.2/"
+    SOURCE_URL = (
+        "https://github.com/marcelm/cutadapt/blob/"
+        f"{GIT_COMMIT}/src/cutadapt/cli.py"
+    )
     CITATION_DOIS = ["10.14806/ej.17.1.200"]
     CITATION_URLS = ["https://doi.org/10.14806/ej.17.1.200"]
     UPSTREAM_CLI_SOURCE = "src/cutadapt/cli.py"
     UPSTREAM_REFERENCE = "doc/reference.rst"
-    DEFAULT_ADAPTER_R1 = "AGATCGGAAGAGCACACGTCTGAACTCCAGTCA"
-    DEFAULT_ADAPTER_R2 = "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT"
+    UPSTREAM_SOURCE_PATHS = (UPSTREAM_CLI_SOURCE, UPSTREAM_REFERENCE)
+    UPSTREAM_SOURCE_URLS = (
+        SOURCE_URL,
+        "https://github.com/marcelm/cutadapt/blob/"
+        f"{GIT_COMMIT}/{UPSTREAM_REFERENCE}",
+    )
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "Cutadapt returns 0 on success, 2 for command-line contract errors, "
+        "1 for I/O/format failures, and 130 when interrupted."
+    )
     READ1_FILENAME = "trimmed_reads.fastq.gz"
     READ2_FILENAME = "trimmed_reads_2.fastq.gz"
 
@@ -42,13 +55,25 @@ class CutadaptNode(CommandNode):
         return {
             "required": {
                 "reads": ("FASTQ_LIST", {"description": "One FASTQ or an ordered paired-end collection [R1, R2]"}),
-                "threads": ("INT", {"default": 4, "min": 0, "max": 64, "display": "slider"}),
-                "adapter_r1": ("STRING", {"default": cls.DEFAULT_ADAPTER_R1}),
+                "threads": ("INT", {"default": 1, "min": 0, "display": "slider"}),
+                "adapter_r1": (
+                    "STRING",
+                    {"description": "3-prime adapter specification for R1; Cutadapt has no adapter default"},
+                ),
             },
             "optional": {
-                "adapter_r2": ("STRING", {"default": cls.DEFAULT_ADAPTER_R2}),
-                "minimum_length": ("INT", {"default": 20, "min": 0}),
-                "quality_cutoff": ("INT", {"default": 20, "min": 0}),
+                "adapter_r2": (
+                    "STRING",
+                    {"description": "Optional 3-prime adapter specification for paired-end R2"},
+                ),
+                "minimum_length": (
+                    "STRING",
+                    {"description": "Cutadapt -m value in LEN[:LEN2] form; unset by default"},
+                ),
+                "quality_cutoff": (
+                    "STRING",
+                    {"description": "Cutadapt -q value in [5-prime,]3-prime form; unset by default"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -64,24 +89,46 @@ class CutadaptNode(CommandNode):
             return str(exc)
         if len(reads) not in (1, 2):
             return "Cutadapt requires exactly one single-end FASTQ or two paired FASTQs."
-        adapter_r1 = inputs.get("adapter_r1", cls.DEFAULT_ADAPTER_R1)
+        adapter_r1 = inputs.get("adapter_r1")
         if not isinstance(adapter_r1, str) or not adapter_r1.strip():
             return "adapter_r1 must be a non-empty Cutadapt adapter specification."
-        if len(reads) == 2:
-            adapter_r2 = inputs.get("adapter_r2", cls.DEFAULT_ADAPTER_R2)
+        adapter_r2 = inputs.get("adapter_r2")
+        if adapter_r2 is not None:
             if not isinstance(adapter_r2, str) or not adapter_r2.strip():
-                return "adapter_r2 must be a non-empty Cutadapt adapter specification for paired reads."
-        for key, default, minimum, maximum in (
-            ("threads", 4, 0, 64),
-            ("minimum_length", 20, 0, None),
-            ("quality_cutoff", 20, 0, None),
-        ):
-            value = inputs.get(key, default)
-            if value is None and key != "threads":
-                continue
-            result = validate_int(value, key, minimum=minimum, maximum=maximum)
-            if result is not True:
-                return result
+                return "adapter_r2 must be a non-empty Cutadapt adapter specification."
+            if len(reads) != 2:
+                return "adapter_r2 is only valid for paired-end reads."
+
+        result = validate_int(inputs.get("threads", 1), "threads", minimum=0)
+        if result is not True:
+            return result
+
+        minimum_length = inputs.get("minimum_length")
+        if minimum_length is not None:
+            if not isinstance(minimum_length, str) or not minimum_length.strip():
+                return "minimum_length must use Cutadapt LEN[:LEN2] syntax."
+            fields = minimum_length.split(":")
+            if len(fields) not in (1, 2) or all(not field for field in fields):
+                return "minimum_length must use Cutadapt LEN[:LEN2] syntax."
+            try:
+                for field in fields:
+                    if field:
+                        int(field)
+            except ValueError:
+                return "minimum_length must use Cutadapt LEN[:LEN2] syntax."
+
+        quality_cutoff = inputs.get("quality_cutoff")
+        if quality_cutoff is not None:
+            if not isinstance(quality_cutoff, str) or not quality_cutoff.strip():
+                return "quality_cutoff must use Cutadapt [5-prime,]3-prime syntax."
+            fields = quality_cutoff.split(",")
+            if len(fields) not in (1, 2) or any(not field for field in fields):
+                return "quality_cutoff must use Cutadapt [5-prime,]3-prime syntax."
+            try:
+                for field in fields:
+                    int(field)
+            except ValueError:
+                return "quality_cutoff must use Cutadapt [5-prime,]3-prime syntax."
         return True
 
     @classmethod
@@ -112,17 +159,17 @@ class CutadaptNode(CommandNode):
             raise ValueError(str(validation))
         reads = read_paths(inputs.get("reads"))
         node_out = Path(str(inputs.get("output", inputs.get("output_dir", "."))))
-        command = ["cutadapt", "-a", str(inputs.get("adapter_r1", cls.DEFAULT_ADAPTER_R1))]
-        if len(reads) == 2:
-            command.extend(["-A", str(inputs.get("adapter_r2", cls.DEFAULT_ADAPTER_R2))])
+        command = ["cutadapt", "-a", str(inputs["adapter_r1"])]
+        if inputs.get("adapter_r2") is not None:
+            command.extend(["-A", str(inputs["adapter_r2"])])
         command.extend(["-o", str(node_out / cls.READ1_FILENAME)])
         if len(reads) == 2:
             command.extend(["-p", str(node_out / cls.READ2_FILENAME)])
-        command.extend(["-j", str(inputs.get("threads", 4))])
-        if inputs.get("minimum_length", 20) is not None:
-            command.extend(["-m", str(inputs.get("minimum_length", 20))])
-        if inputs.get("quality_cutoff", 20) is not None:
-            command.extend(["-q", str(inputs.get("quality_cutoff", 20))])
+        command.extend(["-j", str(inputs.get("threads", 1))])
+        if inputs.get("minimum_length") is not None:
+            command.extend(["-m", str(inputs["minimum_length"])])
+        if inputs.get("quality_cutoff") is not None:
+            command.extend(["-q", str(inputs["quality_cutoff"])])
         command.extend(reads)
         return command
 

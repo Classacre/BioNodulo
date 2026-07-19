@@ -53,16 +53,31 @@ class FastpNode(CommandNode):
     RETURN_NAMES = ("trimmed_reads", "report", "json_report")
     REQUIRED_EXECUTABLES = ["fastp"]
     REQUIRED_CONDA_PACKAGES = ["fastp"]
+    PACKAGE_CONSTRAINTS = ("fastp==0.24.0",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
     DOCUMENTATION_URL = "https://github.com/OpenGene/fastp/tree/v0.24.0"
     VERSION = "0.24.0"
     GIT_URL = "https://github.com/OpenGene/fastp.git"
     GIT_COMMIT = "4f273f1d8afac977a82460e1de174daa3e66f3f5"
+    SOURCE_URL = f"https://github.com/OpenGene/fastp/tree/{GIT_COMMIT}"
     CITATION_DOIS = ["10.1002/imt2.107"]
     CITATION_URLS = ["https://doi.org/10.1002/imt2.107"]
     CITATION_TEXT = "Ultrafast one-pass FASTQ data preprocessing, quality control, and deduplication using fastp."
     UPSTREAM_README = "README.md"
     UPSTREAM_CLI_SOURCE = "src/main.cpp"
     UPSTREAM_VALIDATION_SOURCE = "src/options.cpp"
+    UPSTREAM_ERROR_SOURCE = "src/util.h"
+    UPSTREAM_SOURCE_PATHS = (
+        UPSTREAM_README,
+        UPSTREAM_CLI_SOURCE,
+        UPSTREAM_VALIDATION_SOURCE,
+        UPSTREAM_ERROR_SOURCE,
+    )
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "fastp returns 0 on success; validation and I/O failures call error_exit, "
+        "which exits -1 (reported as 255 by POSIX shells)."
+    )
 
     READ1_FILENAME = "trimmed_reads.fastq.gz"
     READ2_FILENAME = "trimmed_reads_2.fastq.gz"
@@ -120,7 +135,7 @@ class FastpNode(CommandNode):
                     "INT",
                     {
                         "default": 15,
-                        "min": 0,
+                        "min": 1,
                         "description": ("Discard reads shorter than this length (fastp default: 15)"),
                     },
                 ),
@@ -156,8 +171,8 @@ class FastpNode(CommandNode):
         length_required = inputs.get("length_required", 15)
         if isinstance(length_required, bool) or not isinstance(length_required, int):
             return "length_required must be an integer"
-        if length_required < 0:
-            return "length_required must be zero or greater"
+        if length_required <= 0:
+            return "length_required must be greater than zero"
         return True
 
     @classmethod

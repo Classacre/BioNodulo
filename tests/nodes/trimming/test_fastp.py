@@ -61,13 +61,26 @@ def test_fastp_contract_and_pinned_upstream_authority_are_exact() -> None:
     assert FastpNode.RETURN_NAMES == ("trimmed_reads", "report", "json_report")
     assert FastpNode.REQUIRED_EXECUTABLES == ["fastp"]
     assert FastpNode.REQUIRED_CONDA_PACKAGES == ["fastp"]
+    assert FastpNode.PACKAGE_CONSTRAINTS == ("fastp==0.24.0",)
     assert FastpNode.VERSION == "0.24.0"
     assert FastpNode.GIT_URL == "https://github.com/OpenGene/fastp.git"
     assert FastpNode.GIT_COMMIT == "4f273f1d8afac977a82460e1de174daa3e66f3f5"
     assert FastpNode.DOCUMENTATION_URL == ("https://github.com/OpenGene/fastp/tree/v0.24.0")
+    assert FastpNode.SOURCE_URL == (
+        "https://github.com/OpenGene/fastp/tree/4f273f1d8afac977a82460e1de174daa3e66f3f5"
+    )
     assert FastpNode.UPSTREAM_README == "README.md"
     assert FastpNode.UPSTREAM_CLI_SOURCE == "src/main.cpp"
     assert FastpNode.UPSTREAM_VALIDATION_SOURCE == "src/options.cpp"
+    assert FastpNode.UPSTREAM_ERROR_SOURCE == "src/util.h"
+    assert FastpNode.UPSTREAM_SOURCE_PATHS == (
+        "README.md",
+        "src/main.cpp",
+        "src/options.cpp",
+        "src/util.h",
+    )
+    assert FastpNode.AUDIT_STATUS == "contract-checked-no-external-execution"
+    assert "exits -1" in FastpNode.EXIT_SEMANTICS
     assert FastpNode.CITATION_DOIS == ["10.1002/imt2.107"]
 
 
@@ -90,7 +103,7 @@ def test_fastp_input_defaults_and_documented_ranges_are_exact() -> None:
     assert inputs["optional"]["qualified_quality_phred"][1]["min"] == 0
     assert inputs["optional"]["qualified_quality_phred"][1]["max"] == 93
     assert inputs["optional"]["length_required"][1]["default"] == 15
-    assert inputs["optional"]["length_required"][1]["min"] == 0
+    assert inputs["optional"]["length_required"][1]["min"] == 1
     assert inputs["optional"]["cut_front"][1]["default"] is False
     assert inputs["optional"]["cut_tail"][1]["default"] is False
     assert inputs["hidden"] == {"output": ("STRING", {})}
@@ -194,7 +207,7 @@ def test_paired_end_option_argv_is_exact(tmp_path: Path) -> None:
         ({"threads": 17}, "threads must be between 1 and 16"),
         ({"compression": 0}, "compression must be between 1 and 9"),
         ({"qualified_quality_phred": 94}, "must be between 0 and 93"),
-        ({"length_required": -1}, "must be zero or greater"),
+        ({"length_required": 0}, "must be greater than zero"),
         ({"cut_front": "yes"}, "must be a boolean"),
     ],
 )
