@@ -41,8 +41,8 @@ class RSeQCMismatchProfileNode(RSeQCCommandNode):
         return {
             "required": {
                 "input": (
-                    ("BAM", "SAM"),
-                    {"description": "Input BAM or SAM alignment file containing MD tags"},
+                    "BAM",
+                    {"description": "Input BAM alignment file containing MD tags"},
                 ),
                 "read_align_length": (
                     "INT",

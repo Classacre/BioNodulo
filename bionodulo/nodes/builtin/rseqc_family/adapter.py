@@ -10,21 +10,53 @@ from typing import Any, ClassVar
 from bionodulo.nodes.command_node import CommandNode
 
 
+RSEQC_PACKAGE_VERSION = "5.0.3"
+RSEQC_UPSTREAM_SCRIPT_VERSION = "5.0.2"
+RSEQC_SOURCE_URL = (
+    "https://files.pythonhosted.org/packages/8a/a0/"
+    "49c6c15dd12c6219ea33d2286ec8ed7b77e793d3e817efab00bfd711dd85/"
+    "RSeQC-5.0.3.tar.gz"
+)
+RSEQC_SOURCE_SHA256 = "869f542e08f50c8874280d58e4f5565857b0aebac66a8eceef3f23016175061e"
+RSEQC_DOCUMENTATION_URL = "https://rseqc.sourceforge.net/"
+RSEQC_DOCUMENTATION_REVISION = "2024-10-03T18:06:49Z"
+RSEQC_DOCUMENTATION_SHA256 = "5106df3ab8ed63375254a33a059bfb3a471a76ba337f8c2308b872864cf6f839"
+RSEQC_PACKAGE_CONSTRAINT = f"rseqc=={RSEQC_PACKAGE_VERSION}"
+
+
 class RSeQCCommandNode(CommandNode):
     """Pinned source identity and helpers shared by focused RSeQC scripts."""
 
     CATEGORY = "rna_seq"
     REQUIRED_CONDA_PACKAGES = ["rseqc"]
-    VERSION = "5.0.3"
+    CONDA_PACKAGE_CONSTRAINTS = {"rseqc": RSEQC_PACKAGE_VERSION}
+    PACKAGE_CONSTRAINTS = (RSEQC_PACKAGE_CONSTRAINT,)
+    PACKAGE_CONSTRAINT = RSEQC_PACKAGE_CONSTRAINT
+    VERSION = RSEQC_PACKAGE_VERSION
+    PACKAGE_VERSION = RSEQC_PACKAGE_VERSION
+    UPSTREAM_SCRIPT_VERSION = RSEQC_UPSTREAM_SCRIPT_VERSION
     GIT_URL = ""
     GIT_COMMIT = ""
-    SOURCE_URL = (
-        "https://files.pythonhosted.org/packages/8a/a0/"
-        "49c6c15dd12c6219ea33d2286ec8ed7b77e793d3e817efab00bfd711dd85/"
-        "RSeQC-5.0.3.tar.gz"
+    SOURCE_URL = RSEQC_SOURCE_URL
+    SOURCE_SHA256 = RSEQC_SOURCE_SHA256
+    SOURCE_REVISION = f"sha256:{RSEQC_SOURCE_SHA256}"
+    DOCUMENTATION_URL = RSEQC_DOCUMENTATION_URL
+    DOCUMENTATION_REVISION = RSEQC_DOCUMENTATION_REVISION
+    DOCUMENTATION_SHA256 = RSEQC_DOCUMENTATION_SHA256
+    SOURCE_AUTHORITIES = {
+        "pypi_sdist": (SOURCE_URL, SOURCE_REVISION),
+        "official_documentation": (
+            RSEQC_DOCUMENTATION_URL,
+            RSEQC_DOCUMENTATION_REVISION,
+            RSEQC_DOCUMENTATION_SHA256,
+        ),
+    }
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "Many upstream scripts exit 0 for missing required arguments or paths, and internal "
+        "Rscript or wigToBigWig failures may be swallowed. BioNodulo rejects non-zero process "
+        "results and success without every planned artifact, so missing outputs fail the node."
     )
-    SOURCE_SHA256 = "869f542e08f50c8874280d58e4f5565857b0aebac66a8eceef3f23016175061e"
-    DOCUMENTATION_URL = "http://rseqc.sourceforge.net/"
     CITATION_DOIS = ["10.1093/bioinformatics/bts356"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/bts356"]
     CITATION_TEXT = "RSeQC: quality control of RNA-seq experiments."
@@ -108,6 +140,12 @@ class RSeQCCommandNode(CommandNode):
         allowed = tuple(choices)
         if str(value) not in allowed:
             return f"Input '{key}' must be one of: {', '.join(allowed)}"
+        return True
+
+    @staticmethod
+    def validate_bool(value: Any, key: str) -> bool | str:
+        if not isinstance(value, bool):
+            return f"Input '{key}' must be a boolean"
         return True
 
     @staticmethod

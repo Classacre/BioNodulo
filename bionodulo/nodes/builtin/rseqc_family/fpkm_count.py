@@ -62,6 +62,10 @@ class RSeQCFPKMCountNode(RSeQCCommandNode):
         validation = cls.validate_bam_index(inputs)
         if validation is not True:
             return validation
+        for key in ("skip_multi_hits", "only_exonic"):
+            validation = cls.validate_bool(inputs.get(key, False), key)
+            if validation is not True:
+                return validation
         validation = cls.validate_int(inputs.get("mapq", 30), "mapq", minimum=0, maximum=255)
         if validation is not True:
             return validation

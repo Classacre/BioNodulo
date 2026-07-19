@@ -27,6 +27,7 @@ class RSeQCReadQualityNode(RSeQCCommandNode):
     DOCUMENTATION_URL = "https://rseqc.sourceforge.net/#read-quality-py"
     UPSTREAM_SCRIPT = "scripts/read_quality.py"
     UPSTREAM_SOURCE = UPSTREAM_SCRIPT
+    UPSTREAM_SCRIPT_VERSION = "2.6.2"
     UPSTREAM_OUTPUT_SOURCE = "lib/qcmodule/SAM.py:readsQual_boxplot"
     OUTPUT_FILENAMES = (
         "output.qual.r",

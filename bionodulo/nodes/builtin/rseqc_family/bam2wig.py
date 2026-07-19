@@ -96,6 +96,9 @@ class RSeQCBam2WigNode(RSeQCCommandNode):
         validation = cls.validate_bam_index(inputs)
         if validation is not True:
             return validation
+        validation = cls.validate_bool(inputs.get("skip_multi_hits", False), "skip_multi_hits")
+        if validation is not True:
+            return validation
         if inputs.get("wigsum") not in (None, ""):
             validation = cls.validate_int(inputs["wigsum"], "wigsum")
             if validation is not True:
