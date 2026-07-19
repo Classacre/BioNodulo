@@ -36,8 +36,30 @@ class SplitFileNode(PythonDataTransformNode):
     RETURN_NAMES = ("chunks_dir",)
     REQUIRES_EXTERNAL_TOOLS = False
     VERSION = "1.0.0"
-    PRODUCT_SOURCE_COMMIT = "b43aa78217410abe83d886821c8b8194734ece88"
-    PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/split_file.py"
+    PRODUCT_SOURCE_COMMIT = "45518cfd3754b40ae44304bd65bc17d5ee6e2816"
+    PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/data_transform_family/split_file.py"
+    PRODUCT_SOURCE_SYMBOL = "SplitFileNode"
+    GIT_URL = "https://github.com/Classacre/BioNodulo.git"
+    GIT_COMMIT = PRODUCT_SOURCE_COMMIT
+    SOURCE_URL = (
+        f"https://github.com/Classacre/BioNodulo/blob/{PRODUCT_SOURCE_COMMIT}/"
+        f"{PRODUCT_SOURCE_PATH}"
+    )
+    UPSTREAM_SOURCE = f"{PRODUCT_SOURCE_PATH}:{PRODUCT_SOURCE_SYMBOL}"
+    DOCUMENTATION_URL = "https://docs.python.org/3.12/library/csv.html"
+    RUNTIME_DOCUMENTATION_URLS = (
+        DOCUMENTATION_URL,
+        "https://docs.python.org/3.12/library/pathlib.html",
+    )
+    SOURCE_AUTHORITIES = {
+        "product_contract": SOURCE_URL,
+        "python_csv_runtime": RUNTIME_DOCUMENTATION_URLS[0],
+        "python_pathlib_runtime": RUNTIME_DOCUMENTATION_URLS[1],
+    }
+    EXIT_SEMANTICS = (
+        "This in-process node has no subprocess exit code; unsupported split modes, invalid chunk "
+        "sizes, malformed records or tables, missing columns, and file I/O errors raise."
+    )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

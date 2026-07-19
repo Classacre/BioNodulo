@@ -129,8 +129,30 @@ class SampleSubsetNode(PythonDataTransformNode):
     RETURN_NAMES = ("subset_file",)
     REQUIRES_EXTERNAL_TOOLS = False
     VERSION = "1.0.0"
-    PRODUCT_SOURCE_COMMIT = "3e6970cfcdac1ac2c452aa94f5190ba61ba3ce6d"
-    PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/sample_subset.py"
+    PRODUCT_SOURCE_COMMIT = "45518cfd3754b40ae44304bd65bc17d5ee6e2816"
+    PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/data_transform_family/sample_subset.py"
+    PRODUCT_SOURCE_SYMBOL = "SampleSubsetNode"
+    GIT_URL = "https://github.com/Classacre/BioNodulo.git"
+    GIT_COMMIT = PRODUCT_SOURCE_COMMIT
+    SOURCE_URL = (
+        f"https://github.com/Classacre/BioNodulo/blob/{PRODUCT_SOURCE_COMMIT}/"
+        f"{PRODUCT_SOURCE_PATH}"
+    )
+    UPSTREAM_SOURCE = f"{PRODUCT_SOURCE_PATH}:{PRODUCT_SOURCE_SYMBOL}"
+    DOCUMENTATION_URL = "https://docs.python.org/3.12/library/random.html"
+    RUNTIME_DOCUMENTATION_URLS = (
+        DOCUMENTATION_URL,
+        "https://docs.python.org/3.12/library/csv.html",
+    )
+    SOURCE_AUTHORITIES = {
+        "product_contract": SOURCE_URL,
+        "python_random_runtime": RUNTIME_DOCUMENTATION_URLS[0],
+        "python_csv_runtime": RUNTIME_DOCUMENTATION_URLS[1],
+    }
+    EXIT_SEMANTICS = (
+        "This in-process node has no subprocess exit code; malformed FASTA/FASTQ/table records, "
+        "unsupported modes or formats, invalid sampling values, and file I/O errors raise."
+    )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

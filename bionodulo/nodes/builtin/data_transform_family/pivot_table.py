@@ -21,8 +21,26 @@ class PivotTableNode(PythonDataTransformNode):
     RETURN_NAMES = ("reshaped_table",)
     REQUIRES_EXTERNAL_TOOLS = False
     VERSION = "1.0.0"
-    PRODUCT_SOURCE_COMMIT = "9c56cf0fe43457732e2496ad4445d9348da75a64"
-    PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/pivot_table.py"
+    PRODUCT_SOURCE_COMMIT = "45518cfd3754b40ae44304bd65bc17d5ee6e2816"
+    PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/data_transform_family/pivot_table.py"
+    PRODUCT_SOURCE_SYMBOL = "PivotTableNode"
+    GIT_URL = "https://github.com/Classacre/BioNodulo.git"
+    GIT_COMMIT = PRODUCT_SOURCE_COMMIT
+    SOURCE_URL = (
+        f"https://github.com/Classacre/BioNodulo/blob/{PRODUCT_SOURCE_COMMIT}/"
+        f"{PRODUCT_SOURCE_PATH}"
+    )
+    UPSTREAM_SOURCE = f"{PRODUCT_SOURCE_PATH}:{PRODUCT_SOURCE_SYMBOL}"
+    DOCUMENTATION_URL = "https://docs.python.org/3.12/library/csv.html"
+    RUNTIME_DOCUMENTATION_URLS = (DOCUMENTATION_URL,)
+    SOURCE_AUTHORITIES = {
+        "product_contract": SOURCE_URL,
+        "python_csv_runtime": DOCUMENTATION_URL,
+    }
+    EXIT_SEMANTICS = (
+        "This in-process node has no subprocess exit code; missing columns, unsupported pivot or "
+        "aggregate modes, malformed numeric values, and file I/O errors raise before success."
+    )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -280,6 +298,16 @@ class ReshapeTableNode(PivotTableNode):
     NODE_ID = "reshape_table"
     DISPLAY_NAME = "Reshape Table"
     VERSION = "1.0.0"
+    PRODUCT_SOURCE_SYMBOL = "ReshapeTableNode"
+    UPSTREAM_SOURCE = f"{PivotTableNode.PRODUCT_SOURCE_PATH}:{PRODUCT_SOURCE_SYMBOL}"
+    SOURCE_AUTHORITIES = {
+        "product_contract": PivotTableNode.SOURCE_URL,
+        "python_csv_runtime": PivotTableNode.DOCUMENTATION_URL,
+    }
+    EXIT_SEMANTICS = (
+        "This in-process node has no subprocess exit code; unsupported directions, missing reshape "
+        "columns, malformed tables, and file I/O errors raise before success."
+    )
     DESCRIPTION = "Convert tables between wide and long formats using melt and pivot operations."
     SEARCH_ALIASES = ["reshape", "melt", "pivot_longer", "pivot_wider", "wide", "long", "table", "csv", "tsv"]
 

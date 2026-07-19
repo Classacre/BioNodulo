@@ -37,8 +37,32 @@ class NormalizeDataNode(PythonDataTransformNode):
     RETURN_NAMES = ("normalized_table",)
     REQUIRES_EXTERNAL_TOOLS = False
     VERSION = "1.0.0"
-    PRODUCT_SOURCE_COMMIT = "b99776d746d22e3ec343bb88b86a3341fb31ad80"
-    PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/normalize_data.py"
+    PRODUCT_SOURCE_COMMIT = "45518cfd3754b40ae44304bd65bc17d5ee6e2816"
+    PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/data_transform_family/normalize_data.py"
+    PRODUCT_SOURCE_SYMBOL = "NormalizeDataNode"
+    GIT_URL = "https://github.com/Classacre/BioNodulo.git"
+    GIT_COMMIT = PRODUCT_SOURCE_COMMIT
+    SOURCE_URL = (
+        f"https://github.com/Classacre/BioNodulo/blob/{PRODUCT_SOURCE_COMMIT}/"
+        f"{PRODUCT_SOURCE_PATH}"
+    )
+    UPSTREAM_SOURCE = f"{PRODUCT_SOURCE_PATH}:{PRODUCT_SOURCE_SYMBOL}"
+    DOCUMENTATION_URL = "https://docs.python.org/3.12/library/statistics.html"
+    RUNTIME_DOCUMENTATION_URLS = (
+        DOCUMENTATION_URL,
+        "https://docs.python.org/3.12/library/math.html",
+        "https://docs.python.org/3.12/library/csv.html",
+    )
+    SOURCE_AUTHORITIES = {
+        "product_contract": SOURCE_URL,
+        "python_statistics_runtime": RUNTIME_DOCUMENTATION_URLS[0],
+        "python_math_runtime": RUNTIME_DOCUMENTATION_URLS[1],
+        "python_csv_runtime": RUNTIME_DOCUMENTATION_URLS[2],
+    }
+    EXIT_SEMANTICS = (
+        "This in-process node has no subprocess exit code; unsupported modes, malformed numeric "
+        "values, invalid domains, missing columns, and file I/O errors raise before success."
+    )
 
     _METHODS = [
         "min_max",

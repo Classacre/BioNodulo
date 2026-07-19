@@ -9,8 +9,8 @@ from typing import Any
 from bionodulo.nodes.base import BaseNode
 
 
-INTERNAL_BASELINE_COMMIT = "09c1316eabc70cdf1804fece6966a1847002b896"
-INTERNAL_BASELINE_BLOB = "c3698c4f852dd609f472441a34598389adae8eeb"
+_PRODUCT_SOURCE_COMMIT = "827ffffc57530d60becfc66f190c35e79d2df7fc"
+_PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/r_family/dataframe_builder.py"
 
 
 def _csv_values(value: Any) -> list[str]:
@@ -31,8 +31,29 @@ class DataFrameBuilderNode(BaseNode):
     REQUIRES_EXTERNAL_TOOLS = False
     VERSION = "1.0.0"
     GIT_URL = "https://github.com/Classacre/BioNodulo.git"
-    GIT_COMMIT = INTERNAL_BASELINE_COMMIT
-    UPSTREAM_SOURCE = f"bionodulo/nodes/builtin/r_script.py blob {INTERNAL_BASELINE_BLOB}"
+    GIT_COMMIT = _PRODUCT_SOURCE_COMMIT
+    PRODUCT_SOURCE_COMMIT = _PRODUCT_SOURCE_COMMIT
+    PRODUCT_SOURCE_PATH = _PRODUCT_SOURCE_PATH
+    PRODUCT_SOURCE_SYMBOL = "DataFrameBuilderNode"
+    SOURCE_URL = (
+        f"https://github.com/Classacre/BioNodulo/blob/{PRODUCT_SOURCE_COMMIT}/"
+        f"{PRODUCT_SOURCE_PATH}"
+    )
+    UPSTREAM_SOURCE = f"{PRODUCT_SOURCE_PATH}:{PRODUCT_SOURCE_SYMBOL}"
+    DOCUMENTATION_URL = "https://docs.python.org/3.12/library/csv.html"
+    RUNTIME_DOCUMENTATION_URLS = (
+        DOCUMENTATION_URL,
+        "https://stat.ethz.ch/R-manual/R-devel/library/base/html/data.frame.html",
+    )
+    SOURCE_AUTHORITIES = {
+        "product_contract": SOURCE_URL,
+        "python_csv_runtime": RUNTIME_DOCUMENTATION_URLS[0],
+        "r_downstream_data_frame": RUNTIME_DOCUMENTATION_URLS[1],
+    }
+    EXIT_SEMANTICS = (
+        "This Python in-process node does not execute R and has no subprocess exit code; invalid "
+        "column/value shapes and file I/O errors raise before a rectangular CSV is returned."
+    )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
