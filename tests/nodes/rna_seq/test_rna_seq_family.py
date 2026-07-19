@@ -97,6 +97,13 @@ def test_pinned_sources_and_output_contracts_are_exact() -> None:
     assert FeatureCountsNode.SOURCE_SHA256 == (
         "6392d7c66831cdd767e58251892a79a51b6fab8ed0ba9671ad5e85ff1ab01eaa"
     )
+    assert FeatureCountsNode.CONDA_PACKAGE_CONSTRAINTS == {
+        "subread": "2.1.1",
+        "samtools": "1.23.1",
+    }
+    assert FeatureCountsNode.SOURCE_AUTHORITIES["cli_contract"] == "src/readSummary.c"
+    assert FeatureCountsNode.AUDIT_STATUS == "contract-checked-no-binary-execution"
+    assert "non-zero" in FeatureCountsNode.EXIT_SEMANTICS
 
     assert SalmonIndexNode.RETURN_TYPES == ("INDEX_DIR",)
     assert SalmonQuantNode.RETURN_TYPES == ("COUNTS", "DIRECTORY")
@@ -507,6 +514,38 @@ def test_featurecounts_uses_threads_and_enforces_documented_constraints(tmp_path
     )
     assert "requires only_both_ends" in str(
         FeatureCountsNode.VALIDATE_INPUTS({**inputs, "only_both_ends": False})
+    )
+    assert "between 1 and 32" in str(
+        FeatureCountsNode.VALIDATE_INPUTS({**inputs, "threads": 33})
+    )
+
+
+def test_featurecounts_long_read_mode_enforces_source_thread_and_read_constraints(tmp_path: Path) -> None:
+    inputs = {
+        "alignment": _materialize_file(tmp_path / "long_reads.bam", "BAM\n"),
+        "anno_select": "history",
+        "reference_gene_sets": _materialize_file(
+            tmp_path / "genes.gtf",
+            'chr1\tsource\texon\t1\t4\t.\t+\t.\tgene_id "g1";\n',
+        ),
+        "threads": 1,
+        "long_reads": True,
+        "paired_end_status": "single_end",
+    }
+
+    assert FeatureCountsNode.VALIDATE_INPUTS(inputs) is True
+    command = FeatureCountsNode.render_command(
+        {**inputs, "output": str(tmp_path / "featurecounts")}
+    )
+    assert "-T 1" in command
+    assert "-L" in command
+    assert "long_reads requires threads=1" == FeatureCountsNode.VALIDATE_INPUTS(
+        {**inputs, "threads": 2}
+    )
+    assert "supports reads only" in str(
+        FeatureCountsNode.VALIDATE_INPUTS(
+            {**inputs, "paired_end_status": "PE_fragments", "count_read_pairs": True}
+        )
     )
 
 

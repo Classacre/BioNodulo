@@ -35,6 +35,8 @@ class FeatureCountsNode(CommandNode):
     NODE_ID = "featurecounts"
     DISPLAY_NAME = "featureCounts"
     REQUIRED_CONDA_PACKAGES = ["subread", "samtools"]
+    CONDA_PACKAGE_CONSTRAINTS = {"subread": "2.1.1", "samtools": "1.23.1"}
+    PACKAGE_CONSTRAINTS = ("subread=2.1.1", "samtools=1.23.1")
     CATEGORY = "rna_seq"
     DESCRIPTION = "Measure gene expression by counting SAM/BAM reads assigned to genomic features with featureCounts."
     SEARCH_ALIASES = [
@@ -62,6 +64,17 @@ class FeatureCountsNode(CommandNode):
     SOURCE_SHA256 = "6392d7c66831cdd767e58251892a79a51b6fab8ed0ba9671ad5e85ff1ab01eaa"
     UPSTREAM_CLI_SOURCE = "src/readSummary.c"
     UPSTREAM_MANUAL_SOURCE = "doc/SubreadUsersGuide.tex"
+    UPSTREAM_SOURCE = "src/readSummary.c:print_usage; doc/SubreadUsersGuide.tex:featureCounts"
+    SOURCE_AUTHORITIES = {
+        "source_archive": (SOURCE_URL, SOURCE_SHA256),
+        "cli_contract": UPSTREAM_CLI_SOURCE,
+        "manual_contract": UPSTREAM_MANUAL_SOURCE,
+    }
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    EXIT_SEMANTICS = (
+        "A non-zero featureCounts, text-processing, or samtools exit is fatal; success additionally "
+        "requires the counts and summary plus every selected optional artifact to exist."
+    )
     SHELL = True
 
     ANNO_SELECT_OPTIONS = ["builtin", "cached", "history"]
@@ -290,6 +303,9 @@ class FeatureCountsNode(CommandNode):
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
         if not cls._alignment(inputs).strip():
             return "alignment is required"
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
         anno_select = cls._anno_select(inputs)
         if anno_select not in cls.ANNO_SELECT_OPTIONS:
             return f"anno_select must be one of: {', '.join(cls.ANNO_SELECT_OPTIONS)}"
@@ -332,8 +348,13 @@ class FeatureCountsNode(CommandNode):
         threads = inputs.get("threads", 2)
         if isinstance(threads, bool) or not isinstance(threads, int):
             return "threads must be an integer"
-        if not 1 <= threads <= 64:
-            return "threads must be between 1 and 64"
+        if not 1 <= threads <= 32:
+            return "threads must be between 1 and 32"
+        if inputs.get("long_reads"):
+            if threads != 1:
+                return "long_reads requires threads=1"
+            if paired_end_status != "single_end" or inputs.get("count_read_pairs"):
+                return "long_reads supports reads only and cannot use paired-end fragment counting"
         if inputs.get("fraction") and not multifeat:
             return "fraction requires -M, -O, or both via multifeat"
         if inputs.get("check_distance"):
@@ -439,7 +460,7 @@ class FeatureCountsNode(CommandNode):
                 "bam": ("BAM", {"default": "", "description": "Compatibility alias for alignment"}),
                 "threads": (
                     "INT",
-                    {"default": 2, "min": 1, "max": 64, "display": "slider"},
+                    {"default": 2, "min": 1, "max": 32, "display": "slider"},
                 ),
                 "count_read_pairs": ("BOOLEAN", {"default": False, "advanced": True}),
                 "feature_type": ("STRING", {"default": "", "advanced": True}),

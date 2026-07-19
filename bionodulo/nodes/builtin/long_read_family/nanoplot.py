@@ -30,6 +30,7 @@ class NanoPlotQCNode(LongReadCommandNode):
     OUTPUT_FILENAMES = ("NanoPlot-report.html", "NanoStats.txt")
     REQUIRED_EXECUTABLES = ["NanoPlot"]
     REQUIRED_CONDA_PACKAGES = ["nanoplot"]
+    CONDA_PACKAGE_CONSTRAINTS = {"nanoplot": "1.44.1"}
     PACKAGE_CONSTRAINT = "nanoplot = 1.44.1"
     VERSION = "1.44.1"
     SOURCE_URL = (
@@ -40,6 +41,12 @@ class NanoPlotQCNode(LongReadCommandNode):
     SOURCE_SHA256 = "c9d6b3c807d46fb3eb293bc826a94b699d17f50fb7fd0dcc3f17f56b0cee8e57"
     DOCUMENTATION_URL = "https://github.com/wdecoster/NanoPlot"
     UPSTREAM_SOURCE = "nanoplot/utils.py; nanoplot/NanoPlot.py"
+    SOURCE_AUTHORITIES = {
+        "pypi_sdist": (SOURCE_URL, SOURCE_SHA256),
+        "argv_parser": "nanoplot/utils.py:get_args",
+        "native_outputs": "nanoplot/NanoPlot.py:make_stats,make_report",
+    }
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
     CITATION_DOIS = ["10.1093/bioinformatics/bty149"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/bty149"]
     CITATION_TEXT = "NanoPack: visualizing and processing long-read sequencing data."

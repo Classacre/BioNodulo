@@ -18,7 +18,17 @@ class CellRangerCountNode(CommandNode):
     CATEGORY = "single_cell"
     DESCRIPTION = "Run 10x Genomics Cell Ranger count and expose its native feature-barcode outputs."
     SEARCH_ALIASES = ["BioNodulo builtin", "Cell Ranger", "10x", "scRNA-seq", "count", "single cell"]
-    RETURN_TYPES = ("CELL_RANGER_OUT", "FILE", "CSV", "DIRECTORY", "FILE", "DIRECTORY", "FILE")
+    RETURN_TYPES = (
+        "CELL_RANGER_OUT",
+        "FILE",
+        "CSV",
+        "DIRECTORY",
+        "FILE",
+        "DIRECTORY",
+        "FILE",
+        "BAM",
+        "FILE",
+    )
     RETURN_NAMES = (
         "output_dir",
         "web_summary",
@@ -27,20 +37,64 @@ class CellRangerCountNode(CommandNode):
         "filtered_feature_bc_matrix_h5",
         "raw_feature_bc_matrix",
         "raw_feature_bc_matrix_h5",
+        "possorted_bam",
+        "possorted_bam_index",
     )
     REQUIRED_EXECUTABLES = ["cellranger"]
     REQUIRED_CONDA_PACKAGES: list[str] = []
     VERSION = "9.0.1"
+    GIT_URL = "https://github.com/10XGenomics/cellranger.git"
+    GIT_COMMIT = "6ebad209b8354353b4a9ee3eed1cb248d102af88"
+    SOURCE_TAG = "cellranger-9.0.1"
+    SOURCE_URL = f"https://github.com/10XGenomics/cellranger/tree/{GIT_COMMIT}"
     DOCUMENTATION_URL = (
         "https://www.10xgenomics.com/support/software/cell-ranger/9.0/analysis/running-pipelines/cr-gex-count"
     )
     RELEASE_NOTES_URL = "https://www.10xgenomics.com/support/software/cell-ranger/9.0/release-notes"
-    DISTRIBUTION = "Licensed 10x Genomics Cell Ranger 9.0.1 binary; not available from Bioconda/conda-forge."
-    UPSTREAM_SOURCE = "10x Cell Ranger 9.0 count documentation and 9.0.1 release notes"
-    PACKAGE_CONSTRAINT = "external binary cellranger 9.0.1"
-    EXIT_SEMANTICS = "Cell Ranger exit code 0 plus every declared native output is success; non-zero fails."
+    OUTPUT_DOCUMENTATION_URL = (
+        "https://www.10xgenomics.com/support/software/cell-ranger/9.0/analysis/outputs/"
+        "cr-outputs-overview"
+    )
+    LICENSE_URL = f"https://github.com/10XGenomics/cellranger/blob/{GIT_COMMIT}/LICENSE"
+    DISTRIBUTION = (
+        "BYOL only: the supported Cell Ranger 9.0.1 binary and compatible reference must be "
+        "obtained from 10x Genomics under its account and license terms; no Conda package or "
+        "automatic download is available."
+    )
+    UPSTREAM_SOURCE = (
+        "bin/sc_rna/count; bin/tenkit/common/_includes; lib/rust/cr_wrap/src/create_bam_arg.rs; "
+        "mro/rna/sc_rna_counter_cs.mro"
+    )
+    SOURCE_AUTHORITIES = {
+        "source": SOURCE_URL,
+        "count_cli": "bin/sc_rna/count; bin/tenkit/common/_includes",
+        "create_bam_cli": "lib/rust/cr_wrap/src/create_bam_arg.rs",
+        "native_outputs": "mro/rna/sc_rna_counter_cs.mro",
+        "license": LICENSE_URL,
+    }
+    PACKAGE_CONSTRAINT = "external BYOL binary cellranger 9.0.1"
+    ACCESS_CONSTRAINTS = (
+        "10x account and license acceptance for supported binary/reference downloads",
+        "complete compatible Cell Ranger reference directory staged as one input artifact",
+        "linux-64 worker with the externally provisioned cellranger 9.0.1 executable",
+    )
+    QUARANTINE_STATUS = "byol-evidence-only-no-binary-execution"
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    EXIT_SEMANTICS = (
+        "Cell Ranger exit code 0 plus every declared native output is success. When create_bam is "
+        "true, possorted_genome_bam.bam and exactly one BAI or CSI index are additionally required."
+    )
     RUN_IN_NODE_OUTPUT_DIR = True
     SHELL = False
+    EXPERIMENTAL = True
+    ENVIRONMENT = {
+        "provisioning": "external_worker_binary",
+        "executable": "cellranger",
+        "version": "9.0.1",
+        "platform": "linux-64",
+        "telemetry": "disabled with TENX_DISABLE_TELEMETRY=1",
+        "access": "BYOL",
+    }
     ENV_VARS = {"TENX_DISABLE_TELEMETRY": "1"}
 
     @classmethod
@@ -48,7 +102,15 @@ class CellRangerCountNode(CommandNode):
         return {
             "required": {
                 "fastq_dir": ("DIRECTORY", {"description": "Directory containing Cell Ranger-compatible FASTQs"}),
-                "transcriptome": ("DIRECTORY", {"description": "Cell Ranger reference transcriptome"}),
+                "transcriptome": (
+                    "DIRECTORY",
+                    {
+                        "description": (
+                            "Complete compatible Cell Ranger reference directory, staged together; "
+                            "the node does not download references"
+                        )
+                    },
+                ),
                 "threads": ("INT", {"default": 16, "min": 1, "max": 64}),
                 "memory": ("INT", {"default": 64, "min": 8, "description": "Local memory in GiB"}),
                 "run_id": ("STRING", {"default": "cellranger_count"}),
@@ -67,7 +129,7 @@ class CellRangerCountNode(CommandNode):
         run_dir = node_dir / str(inputs.get("run_id", "cellranger_count"))
         outs = run_dir / "outs"
         node_dir.mkdir(parents=True, exist_ok=True)
-        return [
+        outputs = [
             run_dir,
             outs / "web_summary.html",
             outs / "metrics_summary.csv",
@@ -76,6 +138,33 @@ class CellRangerCountNode(CommandNode):
             outs / "raw_feature_bc_matrix",
             outs / "raw_feature_bc_matrix.h5",
         ]
+        if inputs.get("create_bam", False):
+            outputs.append(outs / "possorted_genome_bam.bam")
+        return outputs
+
+    @classmethod
+    def MAP_PLANNED_OUTPUTS(cls, planned_paths: list[Path], create_bam: bool) -> dict[str, Path]:
+        names = list(cls.RETURN_NAMES[:7])
+        if create_bam:
+            names.append("possorted_bam")
+        if len(planned_paths) != len(names):
+            raise RuntimeError(
+                f"Cell Ranger planned {len(planned_paths)} outputs; expected {len(names)}"
+            )
+        return dict(zip(names, planned_paths, strict=True))
+
+    @classmethod
+    def RESOLVE_BAM_INDEX(cls, run_dir: str | Path) -> Path:
+        outs = Path(run_dir) / "outs"
+        candidates = [
+            outs / "possorted_genome_bam.bam.bai",
+            outs / "possorted_genome_bam.bam.csi",
+        ]
+        existing = [path for path in candidates if path.is_file()]
+        if len(existing) != 1:
+            found = ", ".join(path.name for path in existing) or "none"
+            raise RuntimeError(f"Cell Ranger must create exactly one BAM index (BAI or CSI); found {found}")
+        return existing[0]
 
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
@@ -127,4 +216,20 @@ class CellRangerCountNode(CommandNode):
         if inputs.get("expect_cells") is not None:
             command.extend(["--expect-cells", str(inputs["expect_cells"])])
         command.append(f"--create-bam={'true' if inputs.get('create_bam', False) else 'false'}")
+        command.append("--disable-ui")
         return command
+
+    async def run(self, **kwargs: Any) -> Any:
+        result = await super().run(**kwargs)
+        if not isinstance(result, tuple):
+            return result
+        create_bam = bool(kwargs.get("create_bam", False))
+        mapped = self.__class__.MAP_PLANNED_OUTPUTS(
+            [Path(path) for path in result],
+            create_bam,
+        )
+        if create_bam:
+            mapped["possorted_bam_index"] = self.__class__.RESOLVE_BAM_INDEX(
+                mapped["output_dir"]
+            )
+        return {"outputs": {name: str(path) for name, path in mapped.items()}}

@@ -33,9 +33,14 @@ def test_wave_has_four_stable_source_backed_ids() -> None:
 
 def test_environment_contracts_distinguish_licensed_binary_from_conda_tools() -> None:
     assert CellRangerCountNode.VERSION == "9.0.1"
+    assert CellRangerCountNode.GIT_COMMIT == "6ebad209b8354353b4a9ee3eed1cb248d102af88"
     assert CellRangerCountNode.REQUIRED_EXECUTABLES == ["cellranger"]
     assert CellRangerCountNode.REQUIRED_CONDA_PACKAGES == []
-    assert "not available" in CellRangerCountNode.DISTRIBUTION
+    assert "BYOL only" in CellRangerCountNode.DISTRIBUTION
+    assert CellRangerCountNode.ENVIRONMENT["access"] == "BYOL"
+    assert CellRangerCountNode.QUARANTINE_STATUS == "byol-evidence-only-no-binary-execution"
+    assert CellRangerCountNode.EXPERIMENTAL is True
+    assert "complete compatible Cell Ranger reference" in CellRangerCountNode.ACCESS_CONSTRAINTS[1]
     assert CellRangerCountNode.ENV_VARS == {"TENX_DISABLE_TELEMETRY": "1"}
     assert ScanpyUmapNode.CONDA_PACKAGE_CONSTRAINTS == {
         "scanpy": "1.12.2",
@@ -74,6 +79,7 @@ def test_cellranger_count_renders_official_count_subset_and_native_outputs(tmp_p
         "--expect-cells",
         "100",
         "--create-bam=false",
+        "--disable-ui",
     ]
     run_dir = tmp_path / "cellranger_count" / "tinygex"
     assert CellRangerCountNode.PLAN_OUTPUTS(inputs, tmp_path) == [
@@ -85,6 +91,15 @@ def test_cellranger_count_renders_official_count_subset_and_native_outputs(tmp_p
         run_dir / "outs" / "raw_feature_bc_matrix",
         run_dir / "outs" / "raw_feature_bc_matrix.h5",
     ]
+    assert CellRangerCountNode.RETURN_NAMES[-2:] == (
+        "possorted_bam",
+        "possorted_bam_index",
+    )
+    assert CellRangerCountNode.RETURN_TYPES[-2:] == ("BAM", "FILE")
+    with_bam = {**inputs, "create_bam": True}
+    assert CellRangerCountNode.PLAN_OUTPUTS(with_bam, tmp_path)[-1] == (
+        run_dir / "outs" / "possorted_genome_bam.bam"
+    )
     assert CellRangerCountNode.RUN_IN_NODE_OUTPUT_DIR is True
 
 
@@ -106,6 +121,63 @@ def test_cellranger_count_rejects_invalid_release_contracts(overrides: dict[str,
         **overrides,
     }
     assert message in str(CellRangerCountNode.VALIDATE_INPUTS(inputs))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("index_suffix", [None, ".bai", ".csi"])
+async def test_cellranger_count_maps_conditional_bam_and_exactly_one_native_index(
+    index_suffix: str | None,
+    tmp_path: Path,
+) -> None:
+    create_bam = index_suffix is not None
+    inputs = {
+        "fastq_dir": "/data/fastqs",
+        "transcriptome": "/refs/refdata-gex-GRCh38-2024-A",
+        "threads": 8,
+        "memory": 32,
+        "run_id": "sample",
+        "create_bam": create_bam,
+    }
+    planned = CellRangerCountNode.PLAN_OUTPUTS(inputs, tmp_path)
+
+    class Context:
+        node_dir = tmp_path
+
+        async def run_command(self, command: list[str], **_kwargs: Any) -> dict[str, Any]:
+            assert f"--create-bam={'true' if create_bam else 'false'}" in command
+            for path in planned:
+                if path.suffix in {".html", ".csv", ".h5", ".bam"}:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b"synthetic")
+                else:
+                    path.mkdir(parents=True, exist_ok=True)
+            if index_suffix is not None:
+                Path(f"{planned[-1]}{index_suffix}").write_bytes(b"index")
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    result = await CellRangerCountNode().run(
+        **inputs,
+        context=Context(),
+        output_dir=tmp_path,
+    )
+    expected_names = set(CellRangerCountNode.RETURN_NAMES[:7])
+    if create_bam:
+        expected_names.update({"possorted_bam", "possorted_bam_index"})
+    assert set(result["outputs"]) == expected_names
+    if index_suffix is not None:
+        assert result["outputs"]["possorted_bam_index"].endswith(index_suffix)
+
+
+def test_cellranger_count_rejects_missing_or_ambiguous_bam_sidecar(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    outs = run_dir / "outs"
+    outs.mkdir(parents=True)
+    with pytest.raises(RuntimeError, match="found none"):
+        CellRangerCountNode.RESOLVE_BAM_INDEX(run_dir)
+    for suffix in (".bai", ".csi"):
+        (outs / f"possorted_genome_bam.bam{suffix}").write_bytes(b"index")
+    with pytest.raises(RuntimeError, match="found possorted_genome_bam.bam.bai, possorted_genome_bam.bam.csi"):
+        CellRangerCountNode.RESOLVE_BAM_INDEX(run_dir)
 
 
 def test_scanpy_umap_writes_pinned_pipeline_with_explicit_determinism(tmp_path: Path) -> None:

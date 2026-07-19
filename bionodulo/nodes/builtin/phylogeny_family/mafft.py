@@ -19,6 +19,8 @@ class MAFFTNode(PhylogenyCommandNode):
     RETURN_NAMES = ("alignment",)
     REQUIRED_EXECUTABLES = ["mafft"]
     REQUIRED_CONDA_PACKAGES = ["mafft"]
+    CONDA_PACKAGE_CONSTRAINTS = {"mafft": "7.525"}
+    PACKAGE_CONSTRAINT = "mafft = 7.525"
     REQUIRED_PATH_INPUTS = ("input",)
     OUTPUT_FILENAMES = ("alignment.fasta",)
     STDOUT_OUTPUT_INDEX = 0
@@ -27,6 +29,20 @@ class MAFFTNode(PhylogenyCommandNode):
     SOURCE_SHA256 = "2876f4adc1a2de4ed206bc40896763bf208bf1a02bda52f8bfdd91cf52d73e4a"
     DOCUMENTATION_URL = "https://mafft.cbrc.jp/alignment/software/manual/manual.html"
     UPSTREAM_SOURCE = "README.md; core/mafft.tmpl"
+    SOURCE_AUTHORITIES = {
+        "source_archive": (SOURCE_URL, SOURCE_SHA256),
+        "version_and_examples": "README.md",
+        "argv_parser": "core/mafft.tmpl",
+    }
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    EXIT_SEMANTICS = (
+        "A non-zero MAFFT exit is fatal; exit zero is accepted only when the captured stdout "
+        "alignment exists at alignment.fasta."
+    )
+    DETERMINISM_SEMANTICS = (
+        "MAFFT documents that iterative refinement can vary with multiple threads; use threads=0 "
+        "when source-level reproducibility is required."
+    )
     CITATION_DOIS = ["10.1093/molbev/mst010"]
     CITATION_URLS = ["https://doi.org/10.1093/molbev/mst010"]
     CITATION_TEXT = "MAFFT multiple sequence alignment software version 7."

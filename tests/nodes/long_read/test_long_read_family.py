@@ -397,6 +397,13 @@ def test_modkit_requires_exact_bam_and_reference_sidecars() -> None:
 
 
 def test_nanoplot_renders_one_source_with_documented_defaults_and_flags() -> None:
+    assert NanoPlotQCNode.VERSION == "1.44.1"
+    assert NanoPlotQCNode.CONDA_PACKAGE_CONSTRAINTS == {"nanoplot": "1.44.1"}
+    assert NanoPlotQCNode.SOURCE_SHA256 == (
+        "c9d6b3c807d46fb3eb293bc826a94b699d17f50fb7fd0dcc3f17f56b0cee8e57"
+    )
+    assert NanoPlotQCNode.SOURCE_AUTHORITIES["argv_parser"] == "nanoplot/utils.py:get_args"
+    assert NanoPlotQCNode.AUDIT_STATUS == "contract-checked-no-binary-execution"
     command = NanoPlotQCNode.render_command(
         {
             "fastq": ["reads_1.fastq.gz", "reads_2.fastq.gz"],

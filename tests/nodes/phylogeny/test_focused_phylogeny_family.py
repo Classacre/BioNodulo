@@ -18,6 +18,9 @@ def test_focused_phylogeny_nodes_are_source_pinned_and_discoverable() -> None:
     assert registry.get("mafft") is MAFFTNode
     assert MAFFTNode.VERSION == "7.525"
     assert MAFFTNode.SOURCE_SHA256 == "2876f4adc1a2de4ed206bc40896763bf208bf1a02bda52f8bfdd91cf52d73e4a"
+    assert MAFFTNode.CONDA_PACKAGE_CONSTRAINTS == {"mafft": "7.525"}
+    assert MAFFTNode.SOURCE_AUTHORITIES["argv_parser"] == "core/mafft.tmpl"
+    assert MAFFTNode.AUDIT_STATUS == "contract-checked-no-binary-execution"
     assert registry.get("iqtree") is IQTREENode
     assert IQTREENode.VERSION == "2.3.4"
     assert IQTREENode.GIT_COMMIT == "33b2ab64cfa3a42364a175752ede881bfe5daf05"
@@ -41,6 +44,8 @@ def test_mafft_renders_documented_strategies_and_captures_stdout(tmp_path: Path)
     ]
     assert MAFFTNode.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "mafft" / "alignment.fasta"]
     assert MAFFTNode.STDOUT_OUTPUT_INDEX == 0
+    assert "threads=0" in MAFFTNode.DETERMINISM_SEMANTICS
+    assert "captured stdout" in MAFFTNode.EXIT_SEMANTICS
     assert MAFFTNode.VALIDATE_INPUTS({"input": "sequences.fa", "threads": -1}) is True
     assert MAFFTNode.VALIDATE_INPUTS({"input": "sequences.fa", "threads": 0}) is True
 
