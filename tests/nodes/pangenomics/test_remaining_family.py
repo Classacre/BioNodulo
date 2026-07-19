@@ -34,6 +34,7 @@ from bionodulo.nodes.builtin.pangenomics_family.evidence import (
     VG_FASTAHACK_COMMIT,
     VG_TABIXPP_COMMIT,
     VG_VCFLIB_COMMIT,
+    PangenomicsCommandContract,
 )
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -61,6 +62,15 @@ def test_registry_and_legacy_facade_use_twelve_focused_owners() -> None:
         assert registry.get(node_class.NODE_ID) is node_class
         assert "pangenomics_family" in node_class.__module__
         assert getattr(legacy_pangenomics, node_class.__name__) is node_class
+        assert node_class.__bases__ == (PangenomicsCommandContract,)
+        assert node_class.__module__ == (
+            f"bionodulo.nodes.builtin.pangenomics_family.{node_class.NODE_ID}"
+        )
+    family_dir = Path(VGConstructNode.__module__.replace(".", "/"))
+    assert family_dir.name == "vg_construct"
+    assert not Path(legacy_pangenomics.__file__).with_name("pangenomics_family").joinpath(
+        "legacy.py"
+    ).exists()
 
 
 @pytest.mark.parametrize("node_class", CLASSES)
@@ -88,6 +98,7 @@ def test_exact_authority_commits_are_recorded() -> None:
     assert CACTUS_COMMIT == "3147387e9ca6ad9710b3cdebf029c5c2574e8367"
     assert CactusGalaxyNode.GALAXY_WRAPPER_GIT_COMMIT == TOOLS_IUC_COMMIT
     assert CactusExportNode.GALAXY_WRAPPER_GIT_COMMIT == TOOLS_IUC_COMMIT
+    assert "src/index_registry.cpp" in NODE_EVIDENCE["vg_index"].source_paths
 
 
 def test_runtime_package_resolution_is_exact_for_the_wave() -> None:
@@ -361,6 +372,8 @@ def test_panacus_contract_contains_only_033_histgrowth_options() -> None:
     assert "--gff" not in command
     assert "--html" not in command
     assert set(PangenomeStatsNode.INPUT_TYPES()["required"]) == {"graph"}
+    assert PangenomeStatsNode.INPUT_TYPES()["optional"]["threads"][1]["default"] == 0
+    assert "not a Panacus artifact" in PangenomeStatsNode.ADAPTER_OUTPUT_POLICY
     assert PangenomeStatsNode.VALIDATE_INPUTS(
         {"graph": "g.gfa", "groupby": "groups.tsv", "groupby_sample": True}
     ) == "groupby, groupby_sample, and groupby_haplotype are mutually exclusive"
@@ -385,6 +398,8 @@ def test_panaroo_contract_uses_only_documented_inputs_and_outputs() -> None:
     assert "--remove-invalid-genes" in command
     assert "--merge_paralogs" in command
     assert "orthologs" not in PangenomeGeneNode.INPUT_TYPES()["required"]
+    assert PangenomeGeneNode.INPUT_TYPES()["optional"]["remove_invalid_genes"][1]["default"] is False
+    assert "not a Panaroo artifact" in PangenomeGeneNode.ADAPTER_OUTPUT_POLICY
     assert [path.name for path in PangenomeGeneNode.PLAN_OUTPUTS({}, "/tmp/run")] == [
         "presence_matrix.tsv", "pan_genome_plot.svg",
     ]
@@ -415,6 +430,16 @@ def test_minigraph_modes_emit_gfa_or_gaf_with_named_sparse_outputs() -> None:
     ) == (
         "construct mode requires a reference plus at least one assembly"
     )
+    assert MinigraphNode.VALIDATE_INPUTS(
+        {
+            "mode": "align",
+            "preset": "ggs",
+            "graph_gfa": "graph.gfa",
+            "query_fasta": "query.fa",
+            "threads": 8,
+        }
+    ) == "align mode preset must be one of: asm, lr"
+    assert "no single preset" in MinigraphNode.MODE_PRESET_POLICY
 
 
 def test_minigraph_cactus_tracks_only_requested_primary_artifacts() -> None:

@@ -42,7 +42,11 @@ class PangenomicsEvidence:
 
 VG_EVIDENCE = {
     "vg_construct": ("src/subcommand/construct_main.cpp",),
-    "vg_index": ("src/subcommand/autoindex_main.cpp", "src/subcommand/convert_main.cpp"),
+    "vg_index": (
+        "src/subcommand/autoindex_main.cpp",
+        "src/subcommand/convert_main.cpp",
+        "src/index_registry.cpp",
+    ),
     "vg_map": (
         "src/subcommand/giraffe_main.cpp",
         "src/subcommand/map_main.cpp",
