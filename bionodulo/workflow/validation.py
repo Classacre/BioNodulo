@@ -11,7 +11,13 @@ import fnmatch
 import re
 from typing import Any
 
-from bionodulo.workflow.graph import edge_source, edge_target, edge_target_port, topological_sort
+from bionodulo.workflow.graph import (
+    edge_source,
+    edge_source_port,
+    edge_target,
+    edge_target_port,
+    topological_sort,
+)
 
 
 WORKFLOW_PARAMETER_REFERENCE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}")
@@ -122,6 +128,26 @@ def validate_workflow(
             errors.append(f"Edge references unknown target node '{dst}'")
         if src == dst:
             warnings.append(f"Self-loop on node '{src}'")
+
+        source_port = edge_source_port(edge, "")
+        if not src or not source_port or source_port == "default" or src not in nodes:
+            continue
+        source_node = nodes[src]
+        source_type = (
+            source_node.get("type", "")
+            if isinstance(source_node, dict)
+            else getattr(source_node, "type", "")
+        )
+        source_meta = registry_lookup(str(source_type))
+        if isinstance(source_meta, dict):
+            output_names = source_meta.get("output_name", source_meta.get("return_names", []))
+        else:
+            output_names = getattr(source_meta, "RETURN_NAMES", ()) if source_meta else ()
+        if output_names and source_port not in {str(name) for name in output_names}:
+            errors.append(
+                f"Edge from node '{src}' ({source_type}) references unknown "
+                f"output port '{source_port}'"
+            )
 
     # Check 3: No cycles
     try:

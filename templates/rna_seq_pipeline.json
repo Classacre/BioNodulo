@@ -189,7 +189,8 @@
       ],
       "params": {
         "gff_feature_type": "gene",
-        "gff_feature_attribute": "gene_id"
+        "gff_feature_attribute": "ID",
+        "paired_end_status": "PE_fragments"
       },
       "ui": {
         "title": "featureCounts"

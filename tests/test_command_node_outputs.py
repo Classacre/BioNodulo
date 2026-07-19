@@ -17,6 +17,7 @@ class _RecordingContext:
         self.produced_output = produced_output
         self.command: str | list[str] | None = None
         self.stdout_path: Path | None = None
+        self.stderr_path: Path | None = None
 
     async def run_command(
         self,
@@ -30,9 +31,14 @@ class _RecordingContext:
         )
         self.stdout_path.parent.mkdir(parents=True, exist_ok=True)
         self.stdout_path.write_text("command output\n", encoding="utf-8")
+        raw_stderr_path = kwargs.get("stderr_path")
+        if raw_stderr_path is not None:
+            self.stderr_path = Path(raw_stderr_path)
+            self.stderr_path.parent.mkdir(parents=True, exist_ok=True)
+            self.stderr_path.write_text("command error\n", encoding="utf-8")
         if self.produced_output is not None and self.produced_output != self.stdout_path:
             self.produced_output.write_text("created artifact\n", encoding="utf-8")
-        return {"returncode": 0, "stdout": "command output\n", "stderr": ""}
+        return {"returncode": 0, "stdout": "command output\n", "stderr": "command error\n"}
 
 
 def test_command_node_default_prepare_execution_is_noop() -> None:
@@ -172,6 +178,50 @@ async def test_command_node_direct_fallback_redirects_stdout_to_declared_output(
 
 
 @pytest.mark.asyncio
+async def test_command_node_redirects_stderr_to_declared_output(tmp_path: Path) -> None:
+    class StderrCommandNode(CommandNode):
+        NODE_ID = "stderr_command"
+        COMMAND = ["fake-tool"]
+        RETURN_TYPES = ("TXT",)
+        RETURN_NAMES = ("report",)
+        STDERR_OUTPUT_INDEX = 0
+
+    expected_output = tmp_path / "stderr_command" / "report.out"
+    context = _RecordingContext(tmp_path)
+
+    result = await StderrCommandNode().run(context=context, output_dir=tmp_path)
+
+    assert context.stderr_path == expected_output
+    assert expected_output.read_text(encoding="utf-8") == "command error\n"
+    assert not (tmp_path / "stderr.log").exists()
+    assert result == (str(expected_output),)
+
+
+@pytest.mark.asyncio
+async def test_command_node_direct_fallback_redirects_stderr_to_declared_output(
+    tmp_path: Path,
+) -> None:
+    class DirectStderrCommandNode(CommandNode):
+        NODE_ID = "direct_stderr_command"
+        COMMAND = [
+            sys.executable,
+            "-c",
+            "import sys; print('direct error', file=sys.stderr)",
+        ]
+        RETURN_TYPES = ("TXT",)
+        RETURN_NAMES = ("report",)
+        STDERR_OUTPUT_INDEX = 0
+
+    expected_output = tmp_path / "direct_stderr_command" / "report.out"
+
+    result = await DirectStderrCommandNode().run(output_dir=tmp_path)
+
+    assert expected_output.read_text(encoding="utf-8").strip() == "direct error"
+    assert not (tmp_path / "stderr.log").exists()
+    assert result == (str(expected_output),)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("invalid_index", [-1, 1])
 async def test_command_node_rejects_invalid_stdout_output_index_before_execution(
     tmp_path: Path,
@@ -196,6 +246,35 @@ async def test_command_node_rejects_invalid_stdout_output_index_before_execution
 
     with pytest.raises(ValueError, match=r"STDOUT_OUTPUT_INDEX.*planned output"):
         await InvalidStdoutCommandNode().run(context=context, output_dir=tmp_path)
+
+    assert context.executed is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid_index", [-1, 1])
+async def test_command_node_rejects_invalid_stderr_output_index_before_execution(
+    tmp_path: Path,
+    invalid_index: int,
+) -> None:
+    class InvalidStderrCommandNode(CommandNode):
+        NODE_ID = "invalid_stderr_command"
+        COMMAND = ["must-not-run"]
+        RETURN_TYPES = ("FILE",)
+        RETURN_NAMES = ("artifact",)
+        STDERR_OUTPUT_INDEX = invalid_index
+
+    class NeverRunContext:
+        node_dir = tmp_path
+        executed = False
+
+        async def run_command(self, _cmd: str | list[str], **_kwargs: Any) -> dict[str, Any]:
+            self.executed = True
+            raise AssertionError("command execution should not be reached")
+
+    context = NeverRunContext()
+
+    with pytest.raises(ValueError, match=r"STDERR_OUTPUT_INDEX.*planned output"):
+        await InvalidStderrCommandNode().run(context=context, output_dir=tmp_path)
 
     assert context.executed is False
 

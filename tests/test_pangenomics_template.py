@@ -114,7 +114,11 @@ def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() ->
     assert pggb["params"]["threads"] >= 8
     assert pggb["params"]["map_pct_id"] == 90
     assert pggb["params"]["segment_length"] == 5000
-    assert pggb["params"]["graph_poas"] == 2
+    assert pggb["params"]["min_match_length"] == 23
+    assert pggb["params"]["poa_length_target"] == "700,1100"
+    assert "graph_poas" not in pggb["params"]
+    assert "consensus_spec" not in pggb["params"]
+    assert "do_layout" not in pggb["params"]
     assert gfa_validator["expected_format"] == "text"
     assert gfa_validator["fail_on_error"] is True
     assert odgi_build["params"]["output_name"] == "pangenome_graph"

@@ -73,11 +73,9 @@
         "threads": 16,
         "map_pct_id": 90,
         "segment_length": 5000,
-        "min_match_length": 19,
-        "graph_poas": 2,
-        "consensus_spec": "",
-        "do_viz": true,
-        "do_layout": false
+        "min_match_length": 23,
+        "poa_length_target": "700,1100",
+        "do_viz": true
       },
       "ui": {
         "title": "PGGB Build",

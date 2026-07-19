@@ -40,6 +40,33 @@ def test_wave_two_environment_contracts_are_exact() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["bismark_genome_preparation"] == "bismark"
 
 
+def test_wave_three_environment_contracts_are_exact() -> None:
+    assert {
+        package: PACKAGE_MIN_VERSIONS[package]
+        for package in (
+            "salmon",
+            "kallisto",
+            "subread",
+            "qualimap",
+            "macs2",
+            "deeptools",
+            "bedtools",
+            "odgi",
+            "pggb",
+        )
+    } == {
+        "salmon": "2.3.4",
+        "kallisto": "0.52.0",
+        "subread": "2.1.1",
+        "qualimap": "2.3",
+        "macs2": "2.2.9.1",
+        "deeptools": "3.5.6",
+        "bedtools": "2.31.1",
+        "odgi": "0.9.2",
+        "pggb": "0.7.4",
+    }
+
+
 def test_environment_id_changes_with_effective_package_constraint(monkeypatch) -> None:
     monkeypatch.setitem(PACKAGE_MIN_VERSIONS, "samtools", ">=1.15")
     old_id = get_env_id(["samtools"])

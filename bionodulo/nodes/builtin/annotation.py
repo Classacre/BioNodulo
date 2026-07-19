@@ -1336,68 +1336,7 @@ class AnnotateVCFNode(CommandNode):
         return Path(output_dir) / f"{stem}.annotated.vcf.gz"
 
 
-class BEDToolsClosestNode(CommandNode):
-    """Find nearest annotation features for variant or region intervals."""
-    NODE_ID = "bedtools_closest"
-    DISPLAY_NAME = "BEDTools Closest"
-    CATEGORY = "annotation"
-    DESCRIPTION = "Find the closest features in a BED file to variants or regions."
-    SEARCH_ALIASES = ["bedtools", "closest", "nearest gene", "nearest feature", "bed annotation"]
-    RETURN_TYPES = ("BED",)
-    RETURN_NAMES = ("closest",)
-    REQUIRED_EXECUTABLES = ["bedtools"]
-    REQUIRED_CONDA_PACKAGES = ["bedtools"]
-    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/closest.html"
-    VERSION = "2.31.0"
-    SHELL = True
-
-    @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        out_dir = inputs.get("output", ".")
-        cmd = [
-            "bedtools",
-            "closest",
-            "-a",
-            str(inputs.get("variants", "")),
-            "-b",
-            str(inputs.get("annotations", "")),
-        ]
-        if inputs.get("distance"):
-            cmd.append("-d")
-        strand = str(inputs.get("strand", "ignore"))
-        if strand == "same":
-            cmd.append("-s")
-        elif strand == "opposite":
-            cmd.append("-S")
-        cmd.extend(["-t", str(inputs.get("mode", "first"))])
-        if inputs.get("sorted"):
-            cmd.append("-sorted")
-        cmd.extend([">", f"{out_dir}/closest.bed"])
-        return cmd
-
-    @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
-        node_out = Path(output_dir) / cls.NODE_ID
-        node_out.mkdir(parents=True, exist_ok=True)
-        return [node_out / "closest.bed"]
-
-    @classmethod
-    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
-        return {
-            "required": {
-                "variants": ("BED", {"description": "Variants or regions in BED format"}),
-                "annotations": ("BED", {"description": "Annotation features in BED format"}),
-            },
-            "optional": {
-                "mode": ("STRING", {"default": "first", "options": ["first", "last", "all"]}),
-                "distance": ("BOOLEAN", {"default": True, "description": "Include distance to closest feature"}),
-                "strand": ("STRING", {"default": "ignore", "options": ["ignore", "same", "opposite"]}),
-                "sorted": ("BOOLEAN", {"default": False, "advanced": True}),
-            },
-            "hidden": {
-                "output": ("STRING", {}),
-            },
-        }
+from bionodulo.nodes.builtin.bedtools_family.closest import BEDToolsClosestNode  # noqa: E402,F401
 
 
 class IntersectGenesNode(BaseNode):

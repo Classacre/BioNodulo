@@ -64,11 +64,11 @@ def test_qualimap_alias_renders_and_plans_with_alias_output_path() -> None:
         "-bam",
         "sample.bam",
         "-outdir",
-        f"{output}/report_dir.out",
+        f"{output}/report",
         "-nt",
         "4",
     ]
     assert planned_outputs == [
-        Path("/tmp/run/qualimap/report.html"),
-        Path("/tmp/run/qualimap/report_dir.out"),
+        Path("/tmp/run/qualimap/report/qualimapReport.html"),
+        Path("/tmp/run/qualimap/report"),
     ]

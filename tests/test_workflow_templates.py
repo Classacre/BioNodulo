@@ -601,7 +601,8 @@ def test_rna_seq_template_normalizes_featurecounts_output() -> None:
     normalizer = next(node for node in workflow["nodes"] if node["id"] == "normalize_counts_001")
     heatmap = next(node for node in workflow["nodes"] if node["id"] == "counts_heatmap_001")
     assert counts["params"]["gff_feature_type"] == "gene"
-    assert counts["params"]["gff_feature_attribute"] == "gene_id"
+    assert counts["params"]["gff_feature_attribute"] == "ID"
+    assert counts["params"]["paired_end_status"] == "PE_fragments"
     assert _has_edge(workflow, "sort_001", "sorted_bam", "counts_001", "alignment")
     assert _has_edge(workflow, "annot_001", "annotation", "counts_001", "reference_gene_sets")
     assert normalizer["params"]["method"] == "cpm"
@@ -864,8 +865,10 @@ def test_differential_expression_template_aggregates_both_quantifiers_in_multiqc
     node_types = _node_types(workflow)
 
     assert node_types["mqc_001"] == "multiqc"
-    assert _has_edge(workflow, "salmon_quant_001", "counts", "mqc_001", "reports")
-    assert _has_edge(workflow, "kallisto_quant_001", "abundance", "mqc_001", "reports")
+    assert _has_edge(workflow, "salmon_quant_001", "quant_dir", "mqc_001", "reports")
+    assert _has_edge(workflow, "kallisto_quant_001", "report", "mqc_001", "reports")
+    assert not _has_edge(workflow, "salmon_quant_001", "counts", "mqc_001", "reports")
+    assert not _has_edge(workflow, "kallisto_quant_001", "abundance", "mqc_001", "reports")
     assert not _has_edge(workflow, "mqc_001", "report", "validate_multiqc_001", "input")
     assert workflow["outputs"]["report"] == "mqc_001"
 

@@ -12,6 +12,7 @@ class VersionedValidationNode(BaseNode):
     NODE_ID = "versioned_validation"
     VERSION = "1.1.0"
     RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("value",)
 
     async def run(self, **kwargs: Any) -> tuple[str]:
         return ("",)
@@ -223,3 +224,27 @@ def test_validation_allows_node_local_template_placeholders() -> None:
 
     assert result.valid is True
     assert result.errors == []
+
+
+def test_validation_rejects_explicit_unknown_source_output_ports() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.register(VersionedValidationNode)
+    workflow = {
+        "nodes": [
+            {"id": "source", "type": "versioned_validation", "params": {}},
+            {"id": "target", "type": "versioned_validation", "params": {}},
+        ],
+        "edges": [
+            {
+                "from": {"node": "source", "output": "removed_output"},
+                "to": {"node": "target", "input": "value"},
+            }
+        ],
+    }
+
+    result = validate_workflow(workflow, registry)
+
+    assert result.valid is False
+    assert result.errors == [
+        "Edge from node 'source' (versioned_validation) references unknown output port 'removed_output'"
+    ]

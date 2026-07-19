@@ -79,6 +79,9 @@ class CommandNode(BaseNode):
     STDOUT_OUTPUT_INDEX: ClassVar[int | None] = None
     """Optional planned-output index that receives the command's stdout."""
 
+    STDERR_OUTPUT_INDEX: ClassVar[int | None] = None
+    """Optional planned-output index that receives the command's stderr."""
+
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> str | list[str]:
         """Render the COMMAND template with actual input values.
@@ -338,7 +341,9 @@ class CommandNode(BaseNode):
             # Preparation may use those paths and update inputs consumed by rendering.
             outputs = self.__class__.PLAN_OUTPUTS(kwargs, real_output_dir)
             stdout_output_index = self.__class__.STDOUT_OUTPUT_INDEX
+            stderr_output_index = self.__class__.STDERR_OUTPUT_INDEX
             stdout_path: Path | None = None
+            stderr_path: Path | None = None
             if stdout_output_index is not None:
                 if (
                     isinstance(stdout_output_index, bool)
@@ -350,6 +355,22 @@ class CommandNode(BaseNode):
                         f"{stdout_output_index!r} is invalid for {len(outputs)} planned output(s)"
                     )
                 stdout_path = outputs[stdout_output_index]
+            if stderr_output_index is not None:
+                if (
+                    isinstance(stderr_output_index, bool)
+                    or not isinstance(stderr_output_index, int)
+                    or not 0 <= stderr_output_index < len(outputs)
+                ):
+                    raise ValueError(
+                        f"{self.__class__.NODE_ID}.STDERR_OUTPUT_INDEX "
+                        f"{stderr_output_index!r} is invalid for {len(outputs)} planned output(s)"
+                    )
+                stderr_path = outputs[stderr_output_index]
+            if stdout_path is not None and stderr_path == stdout_path:
+                raise ValueError(
+                    f"{self.__class__.NODE_ID} cannot capture stdout and stderr "
+                    "to the same planned output"
+                )
 
             prepare_outputs = outputs
             if symlink is not None:
@@ -393,6 +414,8 @@ class CommandNode(BaseNode):
                     }
                     if stdout_path is not None:
                         command_kwargs["stdout_path"] = stdout_path
+                    if stderr_path is not None:
+                        command_kwargs["stderr_path"] = stderr_path
                     result = await context.run_command(cmd, **command_kwargs)
                 else:
                     # Fallback: direct subprocess execution via run_subprocess
@@ -406,7 +429,11 @@ class CommandNode(BaseNode):
                             if stdout_path is not None
                             else Path(output_dir) / "stdout.log" if output_dir else None
                         ),
-                        stderr_path=Path(output_dir) / "stderr.log" if output_dir else None,
+                        stderr_path=(
+                            stderr_path
+                            if stderr_path is not None
+                            else Path(output_dir) / "stderr.log" if output_dir else None
+                        ),
                     )
 
             if result.get("returncode", 0) != 0:

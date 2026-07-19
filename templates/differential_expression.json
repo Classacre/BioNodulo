@@ -304,7 +304,7 @@
       "id": "e7",
       "from": {
         "node": "salmon_quant_001",
-        "output": "counts"
+        "output": "quant_dir"
       },
       "to": {
         "node": "mqc_001",
@@ -315,7 +315,7 @@
       "id": "e9",
       "from": {
         "node": "kallisto_quant_001",
-        "output": "abundance"
+        "output": "report"
       },
       "to": {
         "node": "mqc_001",
