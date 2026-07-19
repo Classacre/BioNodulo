@@ -39,7 +39,7 @@ EXPECTED_OUTPUTS = {
     "hmmer_hmmscan": ("output.txt", "results.tblout", "domains.domtblout", "pfam.tblout"),
     "hmmer_hmmsearch": ("output.txt", "results.tblout", "domains.domtblout", "pfam.tblout"),
     "hmmer_jackhmmer": ("output.txt", "results.tblout", "domains.domtblout"),
-    "hmmer_nhmmer": ("output.txt", "results.tblout", "dfam.tblout"),
+    "hmmer_nhmmer": ("output.txt", "results.tblout", "dfam.tblout", "alignment_scores.txt"),
     "hmmer_nhmmscan": ("output.txt", "results.tblout", "dfam.tblout"),
     "hmmer_phmmer": ("output.txt", "results.tblout", "domains.domtblout", "pfam.tblout"),
     "kaiju": ("kaiju_taxonomy.tsv",),
@@ -128,16 +128,21 @@ def _sample_value(name: str, spec: Any) -> Any:
 
 
 def _sample_inputs(node_class: type[BaseNode]) -> dict[str, Any]:
-    inputs = {
-        name: _sample_value(name, spec)
-        for name, spec in node_class.INPUT_TYPES().get("required", {}).items()
-    }
+    inputs = {name: _sample_value(name, spec) for name, spec in node_class.INPUT_TYPES().get("required", {}).items()}
     inputs["output"] = f"/work/{node_class.NODE_ID}"
 
     if node_class.NODE_ID == "centrifuge":
         inputs["unpaired_reads"] = ["/inputs/reads.fastq"]
-    elif node_class.NODE_ID == "hmmer_nhmmscan":
-        inputs.update(hmm_source="history", hmmfile="/inputs/profiles.hmm")
+    elif node_class.NODE_ID == "hmmer_alimask":
+        inputs["ranges"] = ["1-10"]
+    elif node_class.NODE_ID in {"hmmer_hmmscan", "hmmer_nhmmscan"}:
+        inputs.update(
+            hmmdb="/inputs/profiles.hmm",
+            hmmdb_h3f="/inputs/profiles.hmm.h3f",
+            hmmdb_h3i="/inputs/profiles.hmm.h3i",
+            hmmdb_h3m="/inputs/profiles.hmm.h3m",
+            hmmdb_h3p="/inputs/profiles.hmm.h3p",
+        )
     elif node_class.NODE_ID in {"mmseqs2_easy_linsearch", "mmseqs2_easy_rbh"}:
         inputs.update(target_source="history", target_fasta="/inputs/target.fasta")
     elif node_class.NODE_ID in {"mmseqs2_easy_taxonomy", "mmseqs2_taxonomy_assignment"}:
@@ -229,11 +234,11 @@ def test_exact_tools_iuc_wrapper_commit_is_attached_to_galaxy_contracts() -> Non
     ("node_id", "inputs", "error"),
     [
         ("diamond_align", {"query": "q.fa", "database": "db.dmnd", "method": "tblastn"}, "method"),
-        ("hmmer_nhmmscan", {"hmm_source": "history", "seqfile": "q.fa"}, "hmmfile"),
+        ("hmmer_nhmmscan", {"seqfile": "q.fa"}, "hmmdb"),
         (
             "hmmer_nhmmscan",
-            {"hmm_source": "indexed", "hmmfile": "profiles.hmm", "seqfile": "q.fa"},
-            "hmmdb",
+            {"hmmdb": "profiles.hmm", "seqfile": "q.fa"},
+            "hmmdb_h3f",
         ),
         (
             "mmseqs2_easy_linsearch",
@@ -285,8 +290,8 @@ def test_representative_commands_preserve_documented_argument_order() -> None:
             {"hmmfile": "profiles.hmm", "seqdb": "proteins.fa", "output": "/work/hmmer"}
         )
     )
-    assert hmmer.startswith("hmmsearch --cpu 1 --tblout /work/hmmer/results.tblout")
-    assert hmmer.endswith("-o /work/hmmer/output.txt profiles.hmm proteins.fa")
+    assert hmmer.startswith("hmmsearch -o /work/hmmer/output.txt --tblout /work/hmmer/results.tblout")
+    assert hmmer.endswith("--cpu 2 --seed 42 profiles.hmm proteins.fa")
 
     linsearch = classes["mmseqs2_easy_linsearch"].render_command(
         {

@@ -23,6 +23,9 @@ class ToolEvidence:
     container: str | None = None
     container_digest: str | None = None
     documentation_url: str | None = None
+    source_paths: tuple[str, ...] = ()
+    documentation_locator: str | None = None
+    exit_semantics: str | None = None
 
 
 def _github(
@@ -81,6 +84,13 @@ TOOL_EVIDENCE: dict[str, ToolEvidence] = {
         source_url="https://cmpg.unibe.ch/software/BayeScan/files/BayeScan2.1.zip",
         source_sha256="c6bbc52a5a6a30e895951faf2bd6291ca47fdccdc708e693fce02389548d5547",
         documentation_url="https://cmpg.unibe.ch/software/BayeScan/files/BayeScan2.1_manual.pdf",
+        source_paths=("source/start.cpp", "source/read_write.cpp"),
+        documentation_locator="BayeScan2.1_manual.pdf pages 3-4 and 8",
+        exit_semantics=(
+            "Input, file-open, and invalid-prior failures return 1. An invocation without "
+            "options prints usage and exits 0, so BioNodulo also validates the required input "
+            "and requires every planned result artifact to exist."
+        ),
     ),
     "bellavista": ToolEvidence(
         version="0.0.2",
@@ -359,6 +369,10 @@ def pin_contract(node_class: type[Any]) -> type[Any]:
     node_class.UPSTREAM_TAG = evidence.tag
     node_class.GIT_COMMIT = evidence.commit
     node_class.SOURCE_SHA256 = evidence.source_sha256
+    if evidence.source_paths:
+        node_class.SOURCE_PATHS = evidence.source_paths
+    if evidence.documentation_locator:
+        node_class.DOCUMENTATION_LOCATOR = evidence.documentation_locator
     node_class.CONTAINER_DIGEST = evidence.container_digest
     if evidence.documentation_url:
         node_class.DOCUMENTATION_URL = evidence.documentation_url
@@ -373,10 +387,12 @@ def pin_contract(node_class: type[Any]) -> type[Any]:
         "upstream": evidence.source_url,
         "documentation": node_class.DOCUMENTATION_URL,
         "artifact_sha256": evidence.source_sha256,
+        "source_paths": evidence.source_paths,
+        "documentation_locator": evidence.documentation_locator,
         "container": evidence.container,
         "container_digest": evidence.container_digest,
     }
-    node_class.EXIT_SEMANTICS = (
+    node_class.EXIT_SEMANTICS = evidence.exit_semantics or (
         "The execution context must treat any non-zero process exit as failure; planned outputs are "
         "not execution evidence and must exist before a successful result is returned."
     )
