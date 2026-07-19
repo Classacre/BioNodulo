@@ -17,20 +17,48 @@ class iBioSimModelNode(SyntheticBiologyCommandNode):
     SEARCH_ALIASES = ["BioNodulo builtin", "iBioSim", "BioSimulators", "COMBINE", "OMEX", "SED-ML"]
     RETURN_TYPES = ("DIRECTORY", "LOG")
     RETURN_NAMES = ("results_dir", "log")
-    REQUIRED_EXECUTABLES = ["iBioSim"]
+    REQUIRED_EXECUTABLES = ["iBioSim", "java"]
     REQUIRED_CONDA_PACKAGES: list[str] = []
     REQUIRED_PATH_INPUTS = ("archive_file",)
     VERSION = "0.0.1"
     SIMULATOR_VERSION = "3.1.0"
     GIT_COMMIT = "905de27812f011dd63c37f41347ed89839936161"
-    SOURCE_URL = "https://github.com/biosimulators/Biosimulators_iBioSim/tree/0.0.1"
+    GIT_URL = "https://github.com/biosimulators/Biosimulators_iBioSim.git"
+    SOURCE_URL = f"https://github.com/biosimulators/Biosimulators_iBioSim/tree/{GIT_COMMIT}"
+    RELEASE_TAG_URL = "https://github.com/biosimulators/Biosimulators_iBioSim/tree/0.0.1"
     DOCUMENTATION_URL = "https://github.com/biosimulators/Biosimulators_iBioSim"
-    UPSTREAM_SOURCE = "setup.py; biosimulators_ibiosim/__main__.py; biosimulators_ibiosim/core.py; Dockerfile"
+    LICENSE = "Apache-2.0"
+    LICENSE_URL = f"https://github.com/biosimulators/Biosimulators_iBioSim/blob/{GIT_COMMIT}/LICENSE"
+    UPSTREAM_SOURCE = (
+        "README.md; setup.py; biosimulators_ibiosim/__main__.py; "
+        "biosimulators_ibiosim/core.py; tests/test_all.py; Dockerfile"
+    )
+    SOURCE_AUTHORITIES = {
+        "cli": "README.md; biosimulators_ibiosim/__main__.py",
+        "execution_callback": "biosimulators_ibiosim/core.py:exec_sedml_docs_in_combine_archive",
+        "known_skipped_execution": "tests/test_all.py",
+        "simulator_and_image_recipe": "Dockerfile; biosimulators.json",
+        "license": LICENSE_URL,
+    }
+    PACKAGE_CONSTRAINT = "external BioSimulators-iBioSim 0.0.1 with iBioSim 3.1.0"
+    ACCESS_CONSTRAINTS = (
+        "worker-provisioned case-sensitive iBioSim wrapper executable",
+        "worker-provisioned Java runtime and IBIOSIM_PATH JAR",
+        "patched immutable runtime required before promotion",
+    )
+    QUARANTINE_STATUS = "blocked-upstream-incomplete-no-binary-execution"
+    AUDIT_STATUS = "contract-checked-upstream-incomplete-no-binary-execution"
+    UPSTREAM_EXECUTION_STATUS = "incomplete-at-pinned-tag"
     EXIT_SEMANTICS = (
-        "The wrapper's non-zero exit is fatal; BioNodulo requires the requested results directory and captured log."
+        "A missing archive raises FileNotFoundError and a non-zero Java exit propagates through "
+        "subprocess.check_call. Exit zero does not prove result placement in upstream 0.0.1, so "
+        "BioNodulo also requires the requested results directory and captured log."
     )
     KNOWN_LIMITATION = (
-        "No verified immutable public image or conda package is available; a worker must provision the exact iBioSim executable."
+        "Upstream 0.0.1 is incomplete: core.py accepts but never uses out_dir, its execution test is "
+        "skipped as 'Method not yet implemented', its container test is skipped as 'Docker image not "
+        "yet built', and the release commit says the Dockerfile does not succeed. No verified immutable "
+        "image or Conda package is available."
     )
     EXPERIMENTAL = True
     SHELL = True

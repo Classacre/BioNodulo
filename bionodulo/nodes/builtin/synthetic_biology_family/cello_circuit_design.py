@@ -29,16 +29,45 @@ class CelloCircuitDesignNode(SyntheticBiologyCommandNode):
     OPTIONAL_PATH_INPUTS = ("options_file", "netlist_constraint_file")
     VERSION = "0.1"
     GIT_COMMIT = "e5fed2256089f5defe3afd0c90eafea2fa1e13f0"
-    SOURCE_URL = "https://github.com/CIDARLAB/Cello-v2/tree/v0.1"
+    GIT_URL = "https://github.com/CIDARLAB/Cello-v2.git"
+    SOURCE_URL = f"https://github.com/CIDARLAB/Cello-v2/tree/{GIT_COMMIT}"
+    RELEASE_TAG_URL = "https://github.com/CIDARLAB/Cello-v2/tree/v0.1"
     DOCUMENTATION_URL = "https://github.com/CIDARLAB/Cello-v2/tree/v0.1#option-2-prepackaged-jar-file"
+    LICENSE = "MIT"
     UPSTREAM_SOURCE = (
-        "README.md; cello/cello-common/src/main/java/org/cellocad/v2/common/runtime/environment/RuntimeEnv.java; "
+        "README.md; cello/cello-common/src/main/java/org/cellocad/v2/common/Utils.java; "
+        "cello/cello-common/src/main/java/org/cellocad/v2/common/runtime/environment/RuntimeEnv.java; "
         "cello/cello-dnacompiler/src/main/java/org/cellocad/v2/DNACompiler/runtime/Main.java"
     )
-    EXIT_SEMANTICS = (
-        "A non-zero Java exit is fatal; BioNodulo requires the DNACompiler output directory and captured log."
+    SOURCE_AUTHORITIES = {
+        "runtime_dependencies_and_cli": "README.md",
+        "argument_requiredness_and_defaults": (
+            "cello/cello-common/src/main/java/org/cellocad/v2/common/runtime/environment/RuntimeEnv.java"
+        ),
+        "output_filename": "cello/cello-common/src/main/java/org/cellocad/v2/common/Utils.java:getFilename",
+        "compiler_and_outputs": (
+            "cello/cello-dnacompiler/src/main/java/org/cellocad/v2/DNACompiler/runtime/Main.java"
+        ),
+        "license": "MIT notices in the pinned Java source headers",
+    }
+    PACKAGE_CONSTRAINT = "external staged Cello-v2 v0.1 DNACompiler JAR"
+    ACCESS_CONSTRAINTS = (
+        "externally supplied and attested DNACompiler JAR built from the pinned source",
+        "Java 8 runtime",
+        "Python 3 with dnaplotlib, Yosys, and Graphviz",
     )
-    KNOWN_LIMITATION = "The Cello JAR is an explicit staged input because no verified conda package is available."
+    QUARANTINE_STATUS = "byol-evidence-only-no-binary-execution"
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    EXIT_SEMANTICS = (
+        "An uncaught Java exception or non-zero Java exit is fatal; BioNodulo additionally requires "
+        "the DNACompiler output directory, the source-derived <netlist-stem>_outputNetlist.json, and "
+        "the captured process log."
+    )
+    KNOWN_LIMITATION = (
+        "Upstream v0.1 documents the latest release or snapshot JAR without an immutable artifact "
+        "digest. The staged cello_jar identity and the unpinned dnaplotlib runtime must therefore be "
+        "attested externally before this node can leave quarantine."
+    )
     EXPERIMENTAL = True
     SHELL = True
 

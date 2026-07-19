@@ -5,6 +5,7 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .adapter import SyntheticBiologyCommandNode, path_value, validate_bool, validate_choice
 
@@ -20,12 +21,38 @@ class SBOLDesignImportNode(SyntheticBiologyCommandNode):
     RETURN_NAMES = ("normalized_sbol", "summary")
     REQUIRED_EXECUTABLES = ["python"]
     REQUIRED_CONDA_PACKAGES = ["pysbol3"]
+    CONDA_PACKAGE_CONSTRAINTS = {"pysbol3": "1.1"}
+    PACKAGE_CONSTRAINT = "pysbol3 = 1.1"
     REQUIRED_PATH_INPUTS = ("sbol_file",)
     VERSION = "1.1"
     GIT_COMMIT = "c84ccd16028821f8668473758031e1b6dcdcd628"
-    SOURCE_URL = "https://github.com/SynBioDex/pySBOL3/tree/v1.1"
+    GIT_URL = "https://github.com/SynBioDex/pySBOL3.git"
+    SOURCE_URL = f"https://github.com/SynBioDex/pySBOL3/tree/{GIT_COMMIT}"
+    RELEASE_TAG_URL = "https://github.com/SynBioDex/pySBOL3/tree/v1.1"
     DOCUMENTATION_URL = "https://pysbol3.readthedocs.io/en/v1.1/"
-    UPSTREAM_SOURCE = "sbol3/constants.py; sbol3/document.py; sbol3/validation.py"
+    LICENSE = "MIT"
+    LICENSE_URL = f"https://github.com/SynBioDex/pySBOL3/blob/{GIT_COMMIT}/LICENSE.txt"
+    UPSTREAM_SOURCE = "setup.py; sbol3/constants.py; sbol3/config.py; sbol3/document.py; sbol3/validation.py"
+    SOURCE_AUTHORITIES = {
+        "version_and_dependencies": "setup.py",
+        "format_constants": "sbol3/constants.py",
+        "namespace_validation": "sbol3/config.py:set_namespace",
+        "read_write_validation": "sbol3/document.py:Document.read,Document.write,Document.validate",
+        "validation_report": "sbol3/validation.py:ValidationReport",
+        "manual": DOCUMENTATION_URL,
+        "license": LICENSE_URL,
+    }
+    AUDIT_STATUS = "contract-checked-no-runtime-execution"
+    QUARANTINE_STATUS = "evidence-only-no-runtime-execution"
+    VALIDATION_SEMANTICS = (
+        "Document.validate returns a ValidationReport; findings are serialized into summary.json "
+        "and do not themselves raise or make the process exit non-zero."
+    )
+    EXIT_SEMANTICS = (
+        "Invalid namespaces, unreadable or unparseable RDF, unsupported formats, serialization "
+        "errors, and summary I/O errors raise and make Python exit non-zero. Validation findings "
+        "are reported in summary.json rather than treated as process failures."
+    )
     FORMATS = ("xml", "nt11", "sorted nt", "ttl", "json-ld")
     FORMAT_EXTENSIONS = {
         "xml": ".xml",
@@ -107,7 +134,15 @@ class SBOLDesignImportNode(SyntheticBiologyCommandNode):
         validation = validate_bool(inputs.get("validate", True), "validate")
         if validation is not True:
             return validation
-        return validate_choice(inputs.get("output_format", "xml"), "output_format", cls.FORMATS)
+        validation = validate_choice(inputs.get("output_format", "xml"), "output_format", cls.FORMATS)
+        if validation is not True:
+            return validation
+        namespace = str(inputs.get("namespace", "") or "")
+        if namespace:
+            parsed = urlparse(namespace)
+            if not (parsed.scheme and parsed.netloc):
+                return "Input 'namespace' must be an absolute URL when provided"
+        return True
 
     @classmethod
     def _output_paths(cls, inputs: dict[str, Any], node_dir: Path) -> tuple[Path, Path]:

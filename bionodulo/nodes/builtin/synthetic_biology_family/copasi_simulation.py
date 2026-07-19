@@ -28,11 +28,35 @@ class COPASISimulationNode(SyntheticBiologyCommandNode):
     REQUIRED_PATH_INPUTS = ("model_file",)
     VERSION = "4.46.300"
     GIT_COMMIT = "e9c47d912b55eccd56f70b72e52f19d61f5ab2e2"
-    SOURCE_URL = "https://github.com/copasi/COPASI/tree/Build-300"
+    GIT_URL = "https://github.com/copasi/COPASI.git"
+    SOURCE_URL = f"https://github.com/copasi/COPASI/tree/{GIT_COMMIT}"
+    RELEASE_TAG_URL = "https://github.com/copasi/COPASI/tree/Build-300"
     DOCUMENTATION_URL = "https://copasi.org/Support/User_Manual/Model_Creation/Commandline_Version_and_Commandline_Options/"
+    LICENSE = "Artistic-2.0"
+    LICENSE_URL = f"https://github.com/copasi/COPASI/blob/{GIT_COMMIT}/license.txt"
     UPSTREAM_SOURCE = "copasi/commandline/COptionParser.cpp; copasi/CopasiSE/CopasiSE.cpp"
+    SOURCE_AUTHORITIES = {
+        "cli_parser_and_help": "copasi/commandline/COptionParser.cpp",
+        "import_task_output_and_exit_behavior": "copasi/CopasiSE/CopasiSE.cpp",
+        "manual": DOCUMENTATION_URL,
+        "license": LICENSE_URL,
+    }
+    PACKAGE_CONSTRAINT = "external BYOL CopasiSE 4.46 Build 300"
+    ACCESS_CONSTRAINTS = (
+        "worker-provisioned CopasiSE built from COPASI Build-300",
+        "Artistic License 2.0 terms apply",
+    )
+    QUARANTINE_STATUS = "byol-evidence-only-no-binary-execution"
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    KNOWN_LIMITATION = "No verified Conda package or immutable CopasiSE binary is provisioned by this node."
+    REPORT_SEMANTICS = (
+        "--report-file overrides the target of each task that actually runs. The report is only "
+        "materialized when the CPS task or selected SED-ML task defines report output."
+    )
     EXIT_SEMANTICS = (
-        "CopasiSE non-zero exit is fatal; BioNodulo also requires the configured report, saved CPS, and log."
+        "A non-zero CopasiSE exit is fatal. Build 300 catches some CCopasiException paths without "
+        "changing the return code, so BioNodulo additionally requires the configured report, saved "
+        "CPS, and captured log to exist."
     )
     EXPERIMENTAL = True
     SHELL = True
@@ -90,10 +114,7 @@ class COPASISimulationNode(SyntheticBiologyCommandNode):
         validation = validate_int(inputs.get("max_time", 0), "max_time", minimum=0)
         if validation is not True:
             return validation
-        scheduled_task = str(inputs.get("scheduled_task", "") or "").strip()
         sedml_task = str(inputs.get("sedml_task", "") or "").strip()
-        if scheduled_task and sedml_task:
-            return "Inputs 'scheduled_task' and 'sedml_task' are mutually exclusive"
         if sedml_task and input_format not in {"sedml", "omex"}:
             return "Input 'sedml_task' requires input_format sedml or omex"
         return True

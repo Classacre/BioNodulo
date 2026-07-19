@@ -36,11 +36,16 @@ def test_focused_synthetic_biology_nodes_are_source_pinned_and_discoverable() ->
         assert registry.get(node_id) is node_class
         assert node_class.VERSION == version
         assert node_class.GIT_COMMIT == commit
+        assert node_class.SOURCE_URL.endswith(commit)
+        assert node_class.SOURCE_AUTHORITIES
+        assert "no-" in node_class.AUDIT_STATUS
+        assert node_class.QUARANTINE_STATUS
         assert node_class.__module__.startswith("bionodulo.nodes.builtin.synthetic_biology_family.")
 
 
 def test_synthetic_biology_environment_contracts_are_exact() -> None:
     assert PACKAGE_MIN_VERSIONS["pysbol3"] == "1.1"
+    assert SBOLDesignImportNode.CONDA_PACKAGE_CONSTRAINTS == {"pysbol3": "1.1"}
     assert EXECUTABLE_TO_CONDA_PACKAGE["iBioSim"] == ""
     assert EXECUTABLE_TO_CONDA_PACKAGE["dot"] == "graphviz"
 
@@ -78,6 +83,15 @@ def test_sbol_uses_official_format_constants_and_plans_native_files(tmp_path: Pa
         ({"sbol_file": "", "validate": True, "output_format": "xml"}, "sbol_file"),
         ({"sbol_file": "a.xml", "validate": True, "output_format": "rdfxml"}, "output_format"),
         ({"sbol_file": "a.xml", "validate": "yes", "output_format": "xml"}, "boolean"),
+        (
+            {
+                "sbol_file": "a.xml",
+                "namespace": "example.org/designs",
+                "validate": True,
+                "output_format": "xml",
+            },
+            "absolute URL",
+        ),
     ],
 )
 def test_sbol_rejects_values_outside_pysbol3_contract(inputs: dict[str, Any], message: str) -> None:
@@ -138,19 +152,31 @@ def test_copasi_selects_documented_import_flag(input_format: str, flag: str) -> 
     assert command.count("study.input") == 1
 
 
-def test_copasi_rejects_conflicting_or_inapplicable_task_overrides() -> None:
-    conflict = COPASISimulationNode.VALIDATE_INPUTS(
-        {
-            "model_file": "study.omex",
-            "input_format": "omex",
-            "scheduled_task": "Time-Course",
-            "sedml_task": "task-1",
-        }
-    )
+def test_copasi_accepts_separate_sedml_selection_and_scheduled_task_override() -> None:
+    inputs = {
+        "model_file": "study.omex",
+        "input_format": "omex",
+        "scheduled_task": "Time-Course",
+        "sedml_task": "task-1",
+        "output": "/work/copasi_simulation",
+    }
+    assert COPASISimulationNode.VALIDATE_INPUTS(inputs) is True
+
+    command = COPASISimulationNode.render_command(inputs)
+    assert command[command.index("--scheduled-task") : command.index("--scheduled-task") + 2] == [
+        "--scheduled-task",
+        "Time-Course",
+    ]
+    assert command[command.index("--sedmlTask") : command.index("--sedmlTask") + 2] == [
+        "--sedmlTask",
+        "task-1",
+    ]
+
+
+def test_copasi_rejects_sedml_task_for_non_sedml_input() -> None:
     wrong_format = COPASISimulationNode.VALIDATE_INPUTS(
         {"model_file": "study.cps", "input_format": "cps", "sedml_task": "task-1"}
     )
-    assert "mutually exclusive" in str(conflict)
     assert "requires input_format" in str(wrong_format)
 
 
@@ -177,8 +203,10 @@ def test_ibiosim_uses_case_sensitive_official_wrapper_and_native_directory(tmp_p
         tmp_path / "ibiosim_model" / "results",
         tmp_path / "ibiosim_model" / "ibiosim.log",
     ]
-    assert iBioSimModelNode.REQUIRED_EXECUTABLES == ["iBioSim"]
-    assert "immutable public image" in iBioSimModelNode.KNOWN_LIMITATION
+    assert iBioSimModelNode.REQUIRED_EXECUTABLES == ["iBioSim", "java"]
+    assert iBioSimModelNode.UPSTREAM_EXECUTION_STATUS == "incomplete-at-pinned-tag"
+    assert "never uses out_dir" in iBioSimModelNode.KNOWN_LIMITATION
+    assert "Method not yet implemented" in iBioSimModelNode.KNOWN_LIMITATION
 
 
 def test_cello_renders_official_dna_compiler_artifact_contract(tmp_path: Path) -> None:
