@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,9 @@ from .adapter import (
     NCBI_EUTILS_DOCUMENTATION_URL,
     NCBI_EUTILS_REVISION,
     NCBI_EUTILS_SOURCE_SHA256,
+    NCBI_EDIRECT_REVISION,
+    NCBI_EDIRECT_SOURCE_SHA256,
+    NCBI_EDIRECT_SOURCE_URL,
     chunked,
     coerce_ids,
     identified_params,
@@ -26,6 +31,29 @@ from .adapter import (
 
 EFETCH_RETMODES = ("text", "xml", "json")
 STRUCTURED_RETMODES = frozenset({"xml", "json"})
+
+
+def validate_efetch_response(body: str, *, retmode: str) -> str:
+    """Reject empty or documented E-utilities error bodies before persistence."""
+    if not isinstance(body, str) or not body.strip():
+        raise RuntimeError("NCBI EFetch returned an empty response")
+
+    stripped = body.lstrip("\ufeff \t\r\n")
+    payload: Any = None
+    if retmode == "json" or stripped.startswith("{"):
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            if retmode == "json":
+                raise RuntimeError("NCBI EFetch returned invalid JSON") from None
+        if isinstance(payload, dict) and payload.get("error") not in (None, ""):
+            raise RuntimeError("NCBI EFetch returned an E-utilities error response")
+
+    if re.search(r"<eFetchResult(?:\s[^>]*)?>", body, flags=re.IGNORECASE) and re.search(
+        r"<(?:ERROR|error)(?:\s[^>]*)?\s*/?>", body
+    ):
+        raise RuntimeError("NCBI EFetch returned an E-utilities error response")
+    return body
 
 
 def default_extension(rettype: str, retmode: str) -> str:
@@ -57,10 +85,17 @@ class NCBIEFetchNode(BaseNode):
     SOURCE_URL = NCBI_EUTILS_DOCUMENTATION_URL
     SOURCE_REVISION = NCBI_EUTILS_REVISION
     SOURCE_SHA256 = NCBI_EUTILS_SOURCE_SHA256
-    UPSTREAM_SOURCE = "EFetch: db, id, rettype, retmode; rettype/retmode validity is database-specific"
+    RESPONSE_SOURCE_URL = NCBI_EDIRECT_SOURCE_URL
+    RESPONSE_SOURCE_REVISION = NCBI_EDIRECT_REVISION
+    RESPONSE_SOURCE_SHA256 = NCBI_EDIRECT_SOURCE_SHA256
+    UPSTREAM_SOURCE = (
+        "EFetch: db, id, rettype, retmode; rettype/retmode validity is database-specific; "
+        "official EDirect recognizes empty/XML-error/JSON-error responses"
+    )
     EXIT_SEMANTICS = (
         "Invalid local inputs and unsupported structured multi-batch requests fail before submission; "
-        "HTTP and transport errors are fatal after bounded retries."
+        "HTTP and transport errors are fatal after bounded retries, and empty or documented error "
+        "responses are never written as artifacts."
     )
 
     @classmethod
@@ -141,7 +176,8 @@ class NCBIEFetchNode(BaseNode):
             }
             if api_key:
                 params["api_key"] = api_key
-            record_parts.append(await request_text("efetch.fcgi", params))
+            response = await request_text("efetch.fcgi", params)
+            record_parts.append(validate_efetch_response(response, retmode=retmode))
 
         records = "\n".join(part.rstrip("\n") for part in record_parts if part)
         if records:

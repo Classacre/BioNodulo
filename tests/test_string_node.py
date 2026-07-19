@@ -14,6 +14,22 @@ import pytest
 from bionodulo.nodes.registry import NodeRegistry
 
 
+INTERACTION_TSV = (
+    "stringId_A\tstringId_B\tpreferredName_A\tpreferredName_B\tncbiTaxonId\tscore\tnscore\t"
+    "fscore\tpscore\tascore\tescore\tdscore\ttscore\n"
+    "9606.ENSP00000269305\t9606.ENSP00000258149\tTP53\tMDM2\t9606\t0.999\t0\t0\t0\t0\t0.999\t0\t0\n"
+)
+ENRICHMENT_TSV = (
+    "category\tterm\tnumber_of_genes\tnumber_of_genes_in_background\tncbiTaxonId\tinputGenes\t"
+    "preferredNames\tp_value\tfdr\tdescription\n"
+    "Process\tGO:0006915\t2\t500\t9606\tTP53,MDM2\tTP53,MDM2\t0.001\t0.01\tapoptotic process\n"
+)
+MAPPING_TSV = (
+    "queryItem\tqueryIndex\tstringId\tncbiTaxonId\ttaxonName\tpreferredName\tannotation\n"
+    "TP53\t0\t9606.ENSP00000269305\t9606\tHomo sapiens\tTP53\tCellular tumor antigen p53\n"
+)
+
+
 def _node() -> type:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -28,6 +44,10 @@ def test_string_node_is_version_pinned_and_preserves_template_ports() -> None:
     assert node.__module__ == "bionodulo.nodes.builtin.string_db_family.network"
     assert node.VERSION == "12.0"
     assert module.STRING_BASE_URL == "https://version-12-0.string-db.org/api"
+    assert node.SOURCE_URL == "https://version-12-0.string-db.org/help/api/"
+    assert node.SOURCE_REVISION == "2026-06-02T11:15:10Z"
+    assert node.SOURCE_SHA256 == "4c5af2b0805b739902ea439ac410882969a56f3a00fd6125c7449fc5ba96544c"
+    assert module.STRING_RATE_LIMITER.rate_per_second == 1.0
     assert node.RETURN_NAMES == ("interaction_network", "network_metadata")
     options = node.INPUT_TYPES()
     assert options["required"] == {}
@@ -67,6 +87,52 @@ async def test_string_transport_posts_to_stable_address(monkeypatch: pytest.Monk
     assert calls[0]["method"] == "POST"
     assert calls[0]["url"] == "https://version-12-0.string-db.org/api/tsv/network"
     assert calls[0]["data"] == {"identifiers": "TP53\rMDM2", "species": 9606}
+    assert calls[0]["timeout"] == 30.0
+    assert calls[0]["retries"] == 3
+    assert calls[0]["retry_delay"] == 1.0
+    assert calls[0]["cache_ttl"] is None
+
+
+@pytest.mark.parametrize(
+    ("query_type", "expected_endpoint", "expected_extra"),
+    [
+        (
+            "network",
+            "tsv/network",
+            {"required_score": 700, "add_nodes": 2, "network_type": "physical"},
+        ),
+        (
+            "interactions",
+            "tsv/interaction_partners",
+            {"required_score": 700, "limit": 25, "network_type": "physical"},
+        ),
+        ("enrichment", "tsv/enrichment", {}),
+        ("mapping", "tsv/get_string_ids", {}),
+    ],
+)
+def test_string_all_query_modes_use_documented_post_bodies(
+    query_type: str,
+    expected_endpoint: str,
+    expected_extra: dict[str, Any],
+) -> None:
+    node = _node()
+    module = importlib.import_module(node.__module__)
+    endpoint, body = module._request_contract(
+        identifiers=["TP53", "MDM2"],
+        species=9606,
+        query_type=query_type,
+        required_score=700,
+        add_nodes=2,
+        interaction_limit=25,
+        network_type="physical",
+    )
+    assert endpoint == expected_endpoint
+    assert body == {
+        "identifiers": "TP53\rMDM2",
+        "species": 9606,
+        "caller_identity": "BioNodulo",
+        **expected_extra,
+    }
 
 
 @pytest.mark.asyncio
@@ -77,7 +143,7 @@ async def test_string_network_uses_documented_text_parameters(
     node = _node()
     module = importlib.import_module(node.__module__)
     calls: list[tuple[str, dict[str, Any]]] = []
-    response = "preferredName_A\tpreferredName_B\tscore\nTP53\tMDM2\t0.999\n"
+    response = INTERACTION_TSV
 
     async def fake_text(endpoint: str, data: dict[str, Any]) -> str:
         calls.append((endpoint, dict(data)))
@@ -119,7 +185,7 @@ async def test_string_preserves_zero_required_score(monkeypatch: pytest.MonkeyPa
 
     async def fake_text(endpoint: str, data: dict[str, Any]) -> str:
         assert data["required_score"] == 0
-        return "preferredName_A\tpreferredName_B\nTP53\tMDM2\n"
+        return INTERACTION_TSV
 
     monkeypatch.setattr(module, "_request_text", fake_text)
     await node().run(
@@ -141,7 +207,7 @@ async def test_string_reads_template_table_and_rejects_removed_image_mode(
 
     async def fake_text(endpoint: str, data: dict[str, Any]) -> str:
         assert data["identifiers"] == "TP53\rMDM2"
-        return "category\tterm\nProcess\tGO:0006915\n"
+        return ENRICHMENT_TSV
 
     monkeypatch.setattr(module, "_request_text", fake_text)
     await node().run(
@@ -153,3 +219,56 @@ async def test_string_reads_template_table_and_rejects_removed_image_mode(
     )
     with pytest.raises(ValueError, match="Unsupported STRING query_type"):
         await node().run(protein_ids="TP53", query_type="image")
+
+
+@pytest.mark.parametrize(
+    ("query_type", "response"),
+    [
+        ("network", INTERACTION_TSV),
+        ("interactions", INTERACTION_TSV),
+        ("enrichment", ENRICHMENT_TSV),
+        ("mapping", MAPPING_TSV),
+    ],
+)
+def test_string_parser_accepts_documented_query_specific_headers(query_type: str, response: str) -> None:
+    node = _node()
+    module = importlib.import_module(node.__module__)
+    assert len(module._parse_tsv(response, query_type)) == 1
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        ("", "empty TSV response"),
+        ("Error: identifier is not recognized\n", "invalid TSV header"),
+        ("preferredName_A\tpreferredName_B\nTP53\tMDM2\n", "missing documented fields"),
+        (
+            INTERACTION_TSV.splitlines()[0] + "\n9606.ENSP00000269305\t9606.ENSP00000258149\n",
+            "malformed TSV row",
+        ),
+    ],
+)
+def test_string_parser_rejects_empty_error_and_malformed_success_bodies(response: str, message: str) -> None:
+    node = _node()
+    module = importlib.import_module(node.__module__)
+    with pytest.raises(RuntimeError, match=message):
+        module._parse_tsv(response, "network")
+
+
+@pytest.mark.asyncio
+async def test_string_transport_reports_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    node = _node()
+    module = importlib.import_module(node.__module__)
+
+    class FakeClient:
+        def __init__(self, *, cache: object | None = None, rate_limiter: object | None = None) -> None:
+            pass
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            request = httpx.Request(method, url)
+            response = httpx.Response(503, text="temporarily unavailable", request=request)
+            raise httpx.HTTPStatusError("service unavailable", request=request, response=response)
+
+    monkeypatch.setattr(module, "APIHttpClient", FakeClient)
+    with pytest.raises(RuntimeError, match="STRING tsv/network failed with HTTP 503"):
+        await module._request_text("tsv/network", {"identifiers": "TP53", "species": 9606})

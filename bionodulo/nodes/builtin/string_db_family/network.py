@@ -19,11 +19,61 @@ STRING_VERSION = "12.0"
 STRING_STABLE_ADDRESS = "https://version-12-0.string-db.org"
 STRING_BASE_URL = f"{STRING_STABLE_ADDRESS}/api"
 STRING_VERSION_ENDPOINT = "https://string-db.org/api/json/version"
+STRING_API_DOCUMENTATION_URL = f"{STRING_STABLE_ADDRESS}/help/api/"
+STRING_API_DOCUMENTATION_REVISION = "2026-06-02T11:15:10Z"
+# SHA-256 of the help HTML fetched with ``Range: bytes=0-``, which omits Cloudflare's injected link.
+STRING_API_DOCUMENTATION_SHA256 = "4c5af2b0805b739902ea439ac410882969a56f3a00fd6125c7449fc5ba96544c"
 STRING_USER_AGENT = "BioNodulo/2.0 (STRING 12.0 node)"
 STRING_API_CACHE = APICache.from_environment(default_ttl_seconds=300.0)
-STRING_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=3.0, burst=1)
+STRING_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=1.0, burst=1)
 STRING_QUERY_TYPES = ("network", "interactions", "enrichment", "mapping")
 NETWORK_TYPES = ("functional", "physical")
+
+INTERACTION_COLUMNS = frozenset(
+    {
+        "stringId_A",
+        "stringId_B",
+        "preferredName_A",
+        "preferredName_B",
+        "ncbiTaxonId",
+        "score",
+        "nscore",
+        "fscore",
+        "pscore",
+        "ascore",
+        "escore",
+        "dscore",
+        "tscore",
+    }
+)
+STRING_REQUIRED_TSV_COLUMNS = {
+    "network": INTERACTION_COLUMNS,
+    "interactions": INTERACTION_COLUMNS,
+    "enrichment": frozenset(
+        {
+            "category",
+            "term",
+            "number_of_genes",
+            "number_of_genes_in_background",
+            "ncbiTaxonId",
+            "inputGenes",
+            "preferredNames",
+            "p_value",
+            "fdr",
+            "description",
+        }
+    ),
+    "mapping": frozenset(
+        {
+            "queryIndex",
+            "stringId",
+            "ncbiTaxonId",
+            "taxonName",
+            "preferredName",
+            "annotation",
+        }
+    ),
+}
 
 
 def _node_output_dir(node: BaseNode, context: Any) -> Path:
@@ -74,8 +124,25 @@ def _read_identifier_table(path: str | Path, column: str) -> list[str]:
         return [str(row.get(column, "")).strip() for row in reader if str(row.get(column, "")).strip()]
 
 
-def _parse_tsv(text: str) -> list[dict[str, str]]:
-    return [dict(row) for row in csv.DictReader(StringIO(text), delimiter="\t")] if text.strip() else []
+def _parse_tsv(text: str, query_type: str) -> list[dict[str, str]]:
+    if not text.strip():
+        raise RuntimeError(f"STRING {query_type} returned an empty TSV response")
+
+    reader = csv.DictReader(StringIO(text.lstrip("\ufeff")), delimiter="\t")
+    fieldnames = reader.fieldnames or []
+    missing = sorted(STRING_REQUIRED_TSV_COLUMNS[query_type].difference(fieldnames))
+    if missing:
+        raise RuntimeError(
+            f"STRING {query_type} returned an invalid TSV header; missing documented fields: "
+            f"{', '.join(missing)}"
+        )
+
+    rows: list[dict[str, str]] = []
+    for line_number, row in enumerate(reader, start=2):
+        if None in row or any(value is None for value in row.values()):
+            raise RuntimeError(f"STRING {query_type} returned a malformed TSV row at line {line_number}")
+        rows.append(dict(row))
+    return rows
 
 
 async def _request_text(endpoint: str, data: dict[str, Any]) -> str:
@@ -150,9 +217,19 @@ class STRINGDBNode(BaseNode):
     REQUIRES_EXTERNAL_TOOLS = False
     EXPERIMENTAL = True
     VERSION = STRING_VERSION
-    SOURCE_URL = STRING_VERSION_ENDPOINT
-    DOCUMENTATION_URL = "https://string-db.org/help/api/"
-    UPSTREAM_SOURCE = "version endpoint; network, interaction_partners, enrichment, and get_string_ids contracts"
+    SOURCE_URL = STRING_API_DOCUMENTATION_URL
+    SOURCE_REVISION = STRING_API_DOCUMENTATION_REVISION
+    SOURCE_SHA256 = STRING_API_DOCUMENTATION_SHA256
+    DOCUMENTATION_URL = STRING_API_DOCUMENTATION_URL
+    VERSION_SOURCE_URL = STRING_VERSION_ENDPOINT
+    UPSTREAM_SOURCE = (
+        "version-specific API help: common conventions plus network, interaction_partners, enrichment, "
+        "and get_string_ids contracts"
+    )
+    EXIT_SEMANTICS = (
+        "HTTP and transport errors are fatal after three attempts; successful responses must contain the "
+        "documented query-specific TSV header and structurally complete rows."
+    )
     NETWORK_SEMANTICS = (
         "Production calls use the official version-specific STRING 12.0 address and POST bodies for long identifier lists."
     )
@@ -225,7 +302,7 @@ class STRINGDBNode(BaseNode):
             network_type=network_type,
         )
         text = await _request_text(endpoint, request_data)
-        rows = _parse_tsv(text)
+        rows = _parse_tsv(text, query_type)
         output = _node_output_dir(self, context)
         tsv_path = output / "interaction_network.tsv"
         metadata_path = output / "network_metadata.json"

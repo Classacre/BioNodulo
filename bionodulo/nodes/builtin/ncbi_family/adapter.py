@@ -21,6 +21,12 @@ NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 NCBI_EUTILS_DOCUMENTATION_URL = "https://www.ncbi.nlm.nih.gov/books/NBK25499/"
 NCBI_EUTILS_REVISION = "2026-03-04"
 NCBI_EUTILS_SOURCE_SHA256 = "69c3cbd73e1fe38484809221f46e2380cee7d5a354b7dffa2b5f612a52785ee1"
+NCBI_EDIRECT_SOURCE_URL = (
+    "https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/versions/26.0.20260717/"
+    "edirect-26.0.20260717.tar.gz"
+)
+NCBI_EDIRECT_REVISION = "26.0.20260717"
+NCBI_EDIRECT_SOURCE_SHA256 = "c674a022027fc3451883f6dbebb99caa5b58f54bc842ca1ece12f73159cbac33"
 NCBI_BLAST_DOCUMENTATION_URL = "https://blast.ncbi.nlm.nih.gov/doc/blast-help/urlapi.html"
 NCBI_BLAST_DEVELOPER_URL = "https://blast.ncbi.nlm.nih.gov/doc/blast-help/developerinfo.html"
 NCBI_BLAST_URL_API_SHA256 = "c864df25b8608d705cde6aee9344aba3e3a5ef7b16a0c8ca9e221e418aab83f3"
@@ -75,6 +81,15 @@ def identified_params(*, email: str = "") -> dict[str, str]:
     return params
 
 
+def redact_eutils_error(value: Any, params: dict[str, Any]) -> str:
+    """Remove request credentials from bounded upstream error text."""
+    text = str(value)
+    api_key = str(params.get("api_key", "") or "")
+    if api_key:
+        text = text.replace(api_key, "***")
+    return text
+
+
 async def request_json(endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
     response = await request_eutils(endpoint, params)
     payload = response.json()
@@ -104,10 +119,13 @@ async def request_eutils(endpoint: str, params: dict[str, Any]) -> httpx.Respons
             cache_ttl=NCBI_CACHE_TTL_SECONDS,
         )
     except httpx.HTTPStatusError as exc:
-        body = exc.response.text[:500]
-        raise RuntimeError(f"NCBI {endpoint} failed with HTTP {exc.response.status_code}: {body}") from exc
+        body = redact_eutils_error(exc.response.text, clean)[:500]
+        raise RuntimeError(
+            f"NCBI {endpoint} failed with HTTP {exc.response.status_code}: {body}"
+        ) from None
     except httpx.HTTPError as exc:
-        raise RuntimeError(f"NCBI {endpoint} request failed: {exc}") from exc
+        message = redact_eutils_error(exc, clean)
+        raise RuntimeError(f"NCBI {endpoint} request failed: {message}") from None
 
 
 async def request_blast_text(method: str, params: dict[str, Any]) -> str:

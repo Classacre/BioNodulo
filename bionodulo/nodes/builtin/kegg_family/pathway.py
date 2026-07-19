@@ -15,6 +15,13 @@ from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucke
 
 
 KEGG_BASE_URL = "https://rest.kegg.jp"
+KEGG_API_MANUAL_URL = "https://www.kegg.jp/kegg/rest/keggapi.html"
+KEGG_API_POLICY_URL = "https://www.kegg.jp/kegg/rest/"
+KEGG_LEGAL_URL = "https://www.kegg.jp/kegg/legal.html"
+KEGG_SOURCE_REVISION = "2026-07-20"
+KEGG_API_MANUAL_SHA256 = "702ac03a09ad800cbc3ec689ad6788ceffc336b441166876b7ffd6a5cc645d2f"
+KEGG_API_POLICY_SHA256 = "789b45cf28fb2e6951fbfc6fec476ac9d1e2835d02c2efdc084967055f887872"
+KEGG_LEGAL_SHA256 = "b87105e6251b08a2cd0f0208ee4615d021fe448f4ad46983eb7b576358ddd8e7"
 KEGG_USER_AGENT = "BioNodulo/2.0 (KEGG REST node)"
 KEGG_API_CACHE = APICache.from_environment(default_ttl_seconds=300.0)
 KEGG_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=3.0, burst=1)
@@ -50,14 +57,19 @@ def _normalise_pathway_id(query: str, organism: str) -> str:
     return f"{organism}{text}" if re.fullmatch(r"\d{5}", text) else text
 
 
+def _normalise_gene_id(query: str, organism: str) -> str:
+    text = str(query or "").strip()
+    return text if not text or ":" in text else f"{organism}:{text}"
+
+
 def _resource_for(query: str, query_type: str, organism: str) -> tuple[str, str]:
     if query_type == "pathway_genes":
         effective = _normalise_pathway_id(query, organism)
-        return f"link/genes/{quote(effective, safe=':')}", effective
+        return f"link/{quote(organism, safe='')}/{quote(effective, safe=':')}", effective
     if query_type == "list_pathways":
         return f"list/pathway/{quote(organism, safe='')}", f"pathway:{organism}"
     if query_type == "gene_info":
-        effective = str(query or "").strip()
+        effective = _normalise_gene_id(query, organism)
         return f"get/{quote(effective, safe=':')}", effective
     if query_type == "find_genes":
         effective = str(query or "").strip().replace(" ", "+")
@@ -174,10 +186,17 @@ class KEGGPathwayNode(BaseNode):
     RETURN_NAMES = ("pathway_data", "gene_list_tsv")
     REQUIRES_EXTERNAL_TOOLS = False
     EXPERIMENTAL = True
-    VERSION = "KEGG REST 2026-07-19 contract snapshot"
-    SOURCE_URL = "https://www.kegg.jp/kegg/rest/keggapi.html"
+    VERSION = f"KEGG REST {KEGG_SOURCE_REVISION} contract snapshot"
+    SOURCE_URL = KEGG_API_MANUAL_URL
+    SOURCE_REVISION = KEGG_SOURCE_REVISION
+    SOURCE_SHA256 = KEGG_API_MANUAL_SHA256
     DOCUMENTATION_URL = SOURCE_URL
-    UPSTREAM_SOURCE = "KEGG API operations get, list, find, and link"
+    POLICY_SOURCE_URL = KEGG_API_POLICY_URL
+    POLICY_SOURCE_SHA256 = KEGG_API_POLICY_SHA256
+    LICENSE_SOURCE_URL = KEGG_LEGAL_URL
+    LICENSE_SOURCE_SHA256 = KEGG_LEGAL_SHA256
+    UPSTREAM_SOURCE = "KEGG API naming conventions, status codes, and get/list/find/link operations"
+    EXIT_SEMANTICS = "HTTP 400/404 and exhausted transport/server failures are fatal; empty successful searches are valid."
     RATE_LIMIT_SEMANTICS = "Requests are limited to the KEGG-documented maximum of three per second."
     LICENSE_SEMANTICS = (
         "KEGG REST is provided for academic use; commercial use and redistribution may require a KEGG subscription/license."
