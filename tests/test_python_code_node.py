@@ -99,6 +99,43 @@ async def test_python_code_appends_missing_uidmap_prerequisites_to_sandbox_failu
 
 
 @pytest.mark.asyncio
+async def test_python_code_uses_the_workflow_python_to_launch_its_sandbox(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node = _node_class("python_code")()
+    context = _context(tmp_path, "workflow-env")
+    context.env_prefix = tmp_path / "pixi-env"
+    captured: dict[str, object] = {}
+
+    async def capture_command(
+        _context: SimpleNamespace,
+        command: list[str],
+        out_dir: Path,
+        timeout_seconds: int,
+    ) -> dict[str, object]:
+        captured.update(command=command, out_dir=out_dir, timeout=timeout_seconds)
+        (out_dir / "result.json").write_text('{"ok": true}\n', encoding="utf-8")
+        return {"stdout": ""}
+
+    monkeypatch.setattr(node, "_run_sandbox_command", capture_command)
+    _result_json, result, _stdout = await node.run(
+        code='output = {"ok": True}',
+        inputs_json="{}",
+        timeout_seconds=5,
+        context=context,
+    )
+
+    command = captured["command"]
+    assert isinstance(command, list)
+    assert command[0] == "python"
+    assert Path(command[1]).name == "sandbox_launcher.py"
+    assert command[2] == str(captured["out_dir"])
+    assert "bwrap" not in command
+    assert result == {"ok": True}
+
+
+@pytest.mark.asyncio
 async def test_python_code_node_executes_json_inputs_in_bwrap(tmp_path: Path) -> None:
     _require_bwrap()
     node = _node_class("python_code")()

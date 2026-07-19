@@ -38927,56 +38927,6 @@ def test_bedops_sort_bed_galaxy_id_inherits_validation() -> None:
     )
 
 
-def test_bwa_mem2_idx_exposes_galaxy_metadata_and_bwa_citations() -> None:
-    node_info = _registry().object_info()["bwa_mem2_idx"]
-
-    assert node_info["display_name"] == "BWA-MEM2 Indexer"
-    assert node_info["category"] == "alignment"
-    assert node_info["description"] == "Build a BWA-MEM2 reference index from a FASTA sequence."
-    assert node_info["output"] == ["BWA_MEM2_INDEX"]
-    assert node_info["output_name"] == ["index"]
-    assert node_info["required_executables"] == ["bwa-mem2"]
-    assert node_info["required_conda_packages"] == ["bwa-mem2"]
-    assert node_info["documentation_url"] == "https://github.com/bwa-mem2/bwa-mem2"
-    assert node_info["citation_dois"] == [
-        "10.1109/IPDPS.2019.00041",
-        "10.1093/bioinformatics/btp324",
-        "10.1093/bioinformatics/btp698",
-    ]
-    assert "http://arxiv.org/abs/1303.3997" in node_info["citation_urls"]
-    assert "BWA-MEM2 acceleration of the BWA-MEM algorithm" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "BWA-MEM2 reference index" in node_info["search_aliases"]
-
-
-def test_bwa_mem2_idx_renders_galaxy_index_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bwa_mem2_idx")
-
-    assert node_class.render_command({"reference": "ref.fa", "output": "/work/bwa_mem2_idx"}) == [
-        "mkdir",
-        "-p",
-        "/work/bwa_mem2_idx/index",
-        "&&",
-        "cd",
-        "/work/bwa_mem2_idx/index",
-        "&&",
-        "bwa-mem2",
-        "index",
-        "-p",
-        "reference",
-        "ref.fa",
-    ]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa_mem2_idx" / "index"]
-
-
-def test_bwa_mem2_idx_validates_reference_input() -> None:
-    node_class = _node_class("bwa_mem2_idx")
-
-    assert node_class.VALIDATE_INPUTS({}) == "reference is required"
-    assert node_class.VALIDATE_INPUTS({"reference": ""}) == "reference is required"
-    assert node_class.VALIDATE_INPUTS({"reference": "ref.fa"}) is True
-
-
 def test_bwa_mem2_index_type_is_file_compatible() -> None:
     assert BioType.BWA_MEM2_INDEX.value == "BWA_MEM2_INDEX"
     assert is_compatible("BWA_MEM2_INDEX", "DIRECTORY")
@@ -38984,1024 +38934,11 @@ def test_bwa_mem2_index_type_is_file_compatible() -> None:
     assert file_extension_for("BWA_MEM2_INDEX") == ".bwa_mem2_index"
 
 
-def test_bwa_mem2_exposes_galaxy_metadata_inputs_and_bwa_citations() -> None:
-    node_info = _registry().object_info()["bwa_mem2"]
-
-    assert node_info["display_name"] == "BWA-MEM2"
-    assert node_info["category"] == "alignment"
-    assert node_info["description"].startswith("Map medium and long reads")
-    assert node_info["output"] == ["BAM"]
-    assert node_info["output_name"] == ["bam_output"]
-    assert node_info["required_executables"] == ["bwa-mem2", "samtools"]
-    assert node_info["required_conda_packages"] == ["bwa-mem2", "samtools"]
-    assert node_info["documentation_url"] == "https://github.com/bwa-mem2/bwa-mem2"
-    assert node_info["citation_dois"] == [
-        "10.1109/IPDPS.2019.00041",
-        "10.1093/bioinformatics/btp324",
-        "10.1093/bioinformatics/btp698",
-    ]
-    assert "http://arxiv.org/abs/1303.3997" in node_info["citation_urls"]
-    assert "BWA-MEM2 acceleration of the BWA-MEM algorithm" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "bwa-mem2 mem" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["ref_file"][0] == "BWA_MEM2_INDEX"
-    assert node_info["input"]["required"]["fastq_input_selector"][1]["options"] == [
-        "paired",
-        "single",
-        "paired_collection",
-        "paired_iv",
-    ]
-    assert node_info["input"]["optional"]["analysis_type_selector"][1]["options"] == [
-        "illumina",
-        "pacbio",
-        "ont2d",
-        "intractg",
-        "full",
-    ]
-    assert node_info["input"]["optional"]["output_sort"][1]["options"] == ["coordinate", "name", "unsorted"]
-
-
-def test_bwa_mem2_renders_paired_coordinate_sorted_cached_index_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bwa_mem2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "history",
-            "ref_file": "/indexes/hg38",
-            "ref_file_type": "bwa_mem2_index",
-            "fastq_input_selector": "paired",
-            "fastq_input1": "reads_R1.fq",
-            "fastq_input2": "reads_R2.fq",
-            "iset_stats": "250,25",
-            "analysis_type_selector": "illumina",
-            "output_sort": "coordinate",
-            "output": "/work/bwa_mem2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bwa-mem2",
-        "mem",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-v",
-        "1",
-        "-I",
-        "250,25",
-        "/indexes/hg38/reference",
-        "reads_R1.fq",
-        "reads_R2.fq",
-        "|",
-        "samtools",
-        "sort",
-        "-@${GALAXY_SLOTS:-2}",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "-o",
-        "/work/bwa_mem2/aligned.bam",
-    ]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa_mem2" / "aligned.bam"]
-
-
-def test_bwa_mem2_renders_history_fasta_full_mode_read_group_and_name_sort() -> None:
-    node_class = _node_class("bwa_mem2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "history",
-            "ref_file": "ref.fa",
-            "ref_file_type": "fasta",
-            "fastq_input_selector": "single",
-            "fastq_input1": "reads.fq",
-            "analysis_type_selector": "full",
-            "algorithmic_options_selector": "set",
-            "k": 17,
-            "w": 80,
-            "d": 90,
-            "r": 2.0,
-            "y": 19,
-            "c": 200,
-            "D": 0.4,
-            "W": 10,
-            "m": 40,
-            "S": True,
-            "P": True,
-            "e": True,
-            "scoring_options_selector": "set",
-            "A": 2,
-            "B": 5,
-            "O": "6,7",
-            "E": "1,2",
-            "L": "4,4",
-            "U": 18,
-            "io_options_selector": "set",
-            "T": 25,
-            "h": 4,
-            "a": True,
-            "C": True,
-            "V": True,
-            "Y": True,
-            "M": True,
-            "five": True,
-            "q": True,
-            "K": 1000000,
-            "rg_selector": "set",
-            "rg_id": "rg1",
-            "rg_sm": "sample1",
-            "rg_pl": "ILLUMINA",
-            "rg_lb": "lib1",
-            "rg_cn": "center",
-            "output_sort": "name",
-            "output": "/work/bwa_mem2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "ln",
-        "-s",
-        "ref.fa",
-        "localref.fa",
-        "&&",
-        "bwa-mem2",
-        "index",
-        "localref.fa",
-        "&&",
-        "bwa-mem2",
-        "mem",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-v",
-        "1",
-        "-k",
-        "17",
-        "-w",
-        "80",
-        "-d",
-        "90",
-        "-r",
-        "2.0",
-        "-y",
-        "19",
-        "-c",
-        "200",
-        "-D",
-        "0.4",
-        "-W",
-        "10",
-        "-m",
-        "40",
-        "-S",
-        "-P",
-        "-e",
-        "-A",
-        "2",
-        "-B",
-        "5",
-        "-O",
-        "6,7",
-        "-E",
-        "1,2",
-        "-L",
-        "4,4",
-        "-U",
-        "18",
-        "-T",
-        "25",
-        "-h",
-        "4",
-        "-a",
-        "-C",
-        "-V",
-        "-Y",
-        "-M",
-        "-5",
-        "-q",
-        "-K",
-        "1000000",
-        "-R",
-        "@RG\\tID:rg1\\tSM:sample1\\tPL:ILLUMINA\\tLB:lib1\\tCN:center",
-        "localref.fa",
-        "reads.fq",
-        "|",
-        "samtools",
-        "sort",
-        "-n",
-        "-@${GALAXY_SLOTS:-2}",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "-o",
-        "/work/bwa_mem2/aligned.bam",
-    ]
-
-
-def test_bwa_mem2_renders_interleaved_preset_and_unsorted_bam() -> None:
-    node_class = _node_class("bwa_mem2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "cached",
-            "ref_file": "/refs/mtgenome/reference",
-            "fastq_input_selector": "paired_iv",
-            "fastq_input1": "interleaved.fq.gz",
-            "iset_stats": "300",
-            "analysis_type_selector": "pacbio",
-            "output_sort": "unsorted",
-            "output": "/work/bwa_mem2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bwa-mem2",
-        "mem",
-        "-t",
-        "1",
-        "-v",
-        "1",
-        "-p",
-        "-I",
-        "300",
-        "-x",
-        "pacbio",
-        "/refs/mtgenome/reference",
-        "interleaved.fq.gz",
-        "|",
-        "samtools",
-        "view",
-        "-@",
-        "${GALAXY_SLOTS:-2}",
-        "-bS",
-        "-",
-        "-o",
-        "/work/bwa_mem2/aligned.bam",
-    ]
-
-
-def test_bwa_mem2_validates_reference_reads_modes_and_options() -> None:
-    node_class = _node_class("bwa_mem2")
-
-    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "fastq_input1 is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "fastq_input_selector": "bad"}) == (
-        "fastq_input_selector must be one of: paired, single, paired_collection, paired_iv"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "fastq_input_selector": "paired"}
-    ) == "fastq_input2 is required for paired input"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "bad"}) == (
-        "analysis_type_selector must be one of: illumina, pacbio, ont2d, intractg, full"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "output_sort": "bad"}) == (
-        "output_sort must be one of: coordinate, name, unsorted"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "full", "k": 0}
-    ) == "k must be at least 1"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq"}) is True
-
-
-def test_bwa_exposes_galaxy_metadata_inputs_and_bwa_citations() -> None:
-    node_info = _registry().object_info()["bwa"]
-
-    assert node_info["display_name"] == "Map with BWA"
-    assert node_info["category"] == "alignment"
-    assert node_info["description"].startswith("Map short reads")
-    assert node_info["output"] == ["BAM"]
-    assert node_info["output_name"] == ["bam_output"]
-    assert node_info["required_executables"] == ["bwa", "samtools"]
-    assert node_info["required_conda_packages"] == ["bwa", "samtools"]
-    assert node_info["documentation_url"] == "https://bio-bwa.sourceforge.net/bwa.shtml"
-    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btp324", "10.1093/bioinformatics/btp698"]
-    assert "https://doi.org/10.1093/bioinformatics/btp324" in node_info["citation_urls"]
-    assert "Burrows-Wheeler Transform" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "bwa aln" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["input_type_selector"][1]["options"] == [
-        "paired",
-        "paired_collection",
-        "single",
-        "paired_bam",
-        "single_bam",
-    ]
-    assert node_info["input"]["optional"]["analysis_type_selector"][1]["options"] == ["illumina", "full"]
-    assert node_info["input"]["optional"]["index_a"][1]["options"] == ["auto", "is", "bwtsw"]
-
-
-def test_bwa_renders_single_fastq_history_reference_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bwa")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "history",
-            "ref_file": "ref.fa",
-            "index_a": "bwtsw",
-            "input_type_selector": "single",
-            "fastq_input1": "reads.fa",
-            "analysis_type_selector": "illumina",
-            "output": "/work/bwa",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "ln",
-        "-s",
-        "ref.fa",
-        "localref.fa",
-        "&&",
-        "bwa",
-        "index",
-        "-a",
-        "bwtsw",
-        "localref.fa",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "localref.fa",
-        "reads.fa",
-        ">",
-        "first.sai",
-        "&&",
-        "bwa",
-        "samse",
-        "localref.fa",
-        "first.sai",
-        "reads.fa",
-        "|",
-        "samtools",
-        "sort",
-        "-@${GALAXY_SLOTS:-2}",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "-o",
-        "/work/bwa/aligned.bam",
-    ]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa" / "aligned.bam"]
-
-
-def test_bwa_renders_paired_fastq_full_options_and_read_group() -> None:
-    node_class = _node_class("bwa")
-
-    command = node_class.render_command(
-        {
-            "reference_source_selector": "cached",
-            "ref_file": "/refs/hg19/bwa",
-            "input_type_selector": "paired",
-            "fastq_input1": "r1.fq",
-            "fastq_input2": "r2.fq",
-            "analysis_type_selector": "full",
-            "n": "0.02",
-            "o": 2,
-            "e": 1,
-            "i": 4,
-            "d": 8,
-            "l": 28,
-            "k": 1,
-            "m": 1000000,
-            "M": 4,
-            "O": 10,
-            "E": 3,
-            "R": 20,
-            "q": 5,
-            "B": 6,
-            "L": 1.2,
-            "adv_pe_options_selector": "set",
-            "a": 700,
-            "pe_o": 90000,
-            "pe_n": 4,
-            "N": 12,
-            "c": 0.0001,
-            "rg_selector": "set",
-            "rg_id": "rg1",
-            "rg_sm": "sample1",
-            "rg_pl": "CAPILLARY",
-            "rg_lb": "lib1",
-            "output": "/work/bwa",
-        }
-    )
-
-    assert command[:50] == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-n",
-        "0.02",
-        "-o",
-        "2",
-        "-e",
-        "1",
-        "-i",
-        "4",
-        "-d",
-        "8",
-        "-l",
-        "28",
-        "-k",
-        "1",
-        "-m",
-        "1000000",
-        "-M",
-        "4",
-        "-O",
-        "10",
-        "-E",
-        "3",
-        "-R",
-        "20",
-        "-q",
-        "5",
-        "-B",
-        "6",
-        "-L",
-        "1.2",
-        "/refs/hg19/bwa",
-        "r1.fq",
-        ">",
-        "first.sai",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-n",
-        "0.02",
-        "-o",
-    ]
-    assert command[command.index("sampe") - 1 : command.index("|")] == [
-        "bwa",
-        "sampe",
-        "-a",
-        "700",
-        "-o",
-        "90000",
-        "-n",
-        "4",
-        "-N",
-        "12",
-        "-c",
-        "0.0001",
-        "-r",
-        "@RG\\tID:rg1\\tSM:sample1\\tPL:CAPILLARY\\tLB:lib1",
-        "/refs/hg19/bwa",
-        "first.sai",
-        "second.sai",
-        "r1.fq",
-        "r2.fq",
-    ]
-    assert command[-10:] == [
-        "|",
-        "samtools",
-        "sort",
-        "-@${GALAXY_SLOTS:-2}",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "-o",
-        "/work/bwa/aligned.bam",
-    ]
-
-
-def test_bwa_renders_bam_input_modes() -> None:
-    node_class = _node_class("bwa")
-
-    paired = node_class.render_command(
-        {
-            "reference_source_selector": "cached",
-            "ref_file": "/refs/hg19/bwa",
-            "input_type_selector": "paired_bam",
-            "bam_input": "unaligned.bam",
-            "analysis_type_selector": "illumina",
-            "output": "/work/bwa",
-        }
-    )
-    assert paired[:23] == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-b",
-        "-1",
-        "/refs/hg19/bwa",
-        "unaligned.bam",
-        ">",
-        "first.sai",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-b",
-        "-2",
-        "/refs/hg19/bwa",
-        "unaligned.bam",
-    ]
-    assert ["bwa", "sampe", "/refs/hg19/bwa", "first.sai", "second.sai", "unaligned.bam", "unaligned.bam"] == paired[
-        paired.index("sampe") - 1 : paired.index("|")
-    ]
-
-    single = node_class.render_command(
-        {
-            "reference_source_selector": "cached",
-            "ref_file": "/refs/hg19/bwa",
-            "input_type_selector": "single_bam",
-            "bam_input": "unaligned.bam",
-            "analysis_type_selector": "illumina",
-            "output": "/work/bwa",
-        }
-    )
-    assert single[4:13] == ["bwa", "aln", "-t", "${GALAXY_SLOTS:-1}", "-b", "-0", "/refs/hg19/bwa", "unaligned.bam", ">"]
-    assert ["bwa", "samse", "/refs/hg19/bwa", "first.sai", "unaligned.bam"] == single[
-        single.index("samse") - 1 : single.index("|")
-    ]
-
-
-def test_bwa_validates_reference_reads_modes_and_options() -> None:
-    node_class = _node_class("bwa")
-
-    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "fastq_input1 is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_type_selector": "bad", "fastq_input1": "r1.fq"}) == (
-        "input_type_selector must be one of: paired, paired_collection, single, paired_bam, single_bam"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "input_type_selector": "paired", "fastq_input1": "r1.fq"}
-    ) == "fastq_input2 is required for paired input"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_type_selector": "paired_bam"}) == (
-        "bam_input is required for BAM input"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "bad"}) == (
-        "analysis_type_selector must be one of: illumina, full"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "index_a": "bad"}) == (
-        "index_a must be one of: auto, is, bwtsw"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "full", "o": 0}
-    ) == "o must be at least 1"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq"}) is True
-
-
-def test_bowtie2_exposes_galaxy_metadata_inputs_and_citation() -> None:
-    node_info = _registry().object_info()["bowtie2"]
-
-    assert node_info["display_name"] == "Bowtie2"
-    assert node_info["category"] == "alignment"
-    assert node_info["description"].startswith("Map reads against a reference genome")
-    assert node_info["output"] == ["BAM", "TXT", "FASTQ", "FASTQ", "FASTQ", "FASTQ"]
-    assert node_info["output_name"] == [
-        "alignments",
-        "mapping_stats",
-        "unaligned_reads",
-        "aligned_reads",
-        "unaligned_read_pairs",
-        "aligned_read_pairs",
-    ]
-    assert node_info["required_executables"] == ["bowtie2", "bowtie2-build", "samtools"]
-    assert node_info["required_conda_packages"] == ["bowtie2", "samtools"]
-    assert node_info["documentation_url"] == "https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml"
-    assert node_info["citation_dois"] == ["10.1038/nmeth.1923"]
-    assert node_info["citation_urls"] == ["https://doi.org/10.1038/nmeth.1923"]
-    assert "Fast gapped-read alignment with Bowtie 2" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "bowtie2" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["ref_file"][0] == "BOWTIE2_INDEX"
-    assert node_info["input"]["required"]["library_type"][1]["options"] == ["single", "paired_collection"]
-    assert node_info["input"]["optional"]["preset"][1]["options"] == [
-        "no_presets",
-        "--very-fast",
-        "--fast",
-        "--sensitive",
-        "--very-sensitive",
-        "--very-fast-local",
-        "--fast-local",
-        "--sensitive-local",
-        "--very-sensitive-local",
-    ]
-    assert node_info["input"]["optional"]["sam_output_format"][1]["options"] == ["bam", "sam", "qname_input_sorted_bam"]
-
-
 def test_bowtie2_index_type_is_file_compatible() -> None:
     assert BioType.BOWTIE2_INDEX.value == "BOWTIE2_INDEX"
     assert is_compatible("BOWTIE2_INDEX", "DIRECTORY")
     assert is_compatible("BOWTIE2_INDEX", "STRING")
     assert file_extension_for("BOWTIE2_INDEX") == ".bowtie2_index"
-
-
-def test_bowtie2_renders_single_history_reference_with_stats_and_unaligned_output(tmp_path: Path) -> None:
-    node_class = _node_class("bowtie2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "history",
-            "ref_file": "genome.fa",
-            "library_type": "single",
-            "input_1": "reads.fq",
-            "preset": "--very-sensitive",
-            "save_mapping_stats": True,
-            "unaligned_file": True,
-            "output": "/work/bowtie2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bowtie2-build",
-        "--threads",
-        "${GALAXY_SLOTS:-4}",
-        "genome.fa",
-        "genome",
-        "&&",
-        "bowtie2",
-        "-p",
-        "${GALAXY_SLOTS:-1}",
-        "-x",
-        "genome",
-        "-U",
-        "reads.fq",
-        "--un",
-        "/work/bowtie2/unaligned_reads.fastq",
-        "--very-sensitive",
-        "2>",
-        "/work/bowtie2/mapping_stats.txt",
-        "|",
-        "samtools",
-        "sort",
-        "-l",
-        "0",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "|",
-        "samtools",
-        "view",
-        "--no-PG",
-        "-O",
-        "bam",
-        "-@",
-        "${GALAXY_SLOTS:-1}",
-        "-o",
-        "/work/bowtie2/alignments.bam",
-    ]
-    assert node_class.PLAN_OUTPUTS(
-        {"save_mapping_stats": True, "unaligned_file": True},
-        tmp_path,
-    ) == [
-        tmp_path / "bowtie2" / "alignments.bam",
-        tmp_path / "bowtie2" / "mapping_stats.txt",
-        tmp_path / "bowtie2" / "unaligned_reads.fastq",
-    ]
-
-
-def test_bowtie2_renders_paired_cached_index_full_options_read_group_and_sam_output() -> None:
-    node_class = _node_class("bowtie2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "indexed",
-            "ref_file": "/indexes/hg38/bowtie2",
-            "library_type": "paired_collection",
-            "input_1": {"forward": "R1.fa", "reverse": "R2.fa"},
-            "reads_format": "fasta",
-            "aligned_file": True,
-            "paired_options_selector": "yes",
-            "I": 20,
-            "X": 900,
-            "fr_rf_ff": "--rf",
-            "no_mixed": True,
-            "no_discordant": True,
-            "dovetail": True,
-            "analysis_type_selector": "full",
-            "input_options_selector": "yes",
-            "skip": 3,
-            "qupto": 100,
-            "trim5": 2,
-            "trim3": 4,
-            "qv_encoding": "--phred64",
-            "alignment_options_selector": "yes",
-            "N": 1,
-            "seed_L": 18,
-            "i": "S,1,1.25",
-            "n_ceil": "L,0,0.10",
-            "dpad": 12,
-            "gbar": 3,
-            "ignore_quals": True,
-            "nofw": True,
-            "align_mode_selector": "local",
-            "score_min_loc": "G,18,7",
-            "scoring_options_selector": "yes",
-            "ma": 3,
-            "mp": "7,3",
-            "np": 2,
-            "rdg_read_open": 6,
-            "rdg_read_extend": 2,
-            "rfg_ref_open": 7,
-            "rfg_ref_extend": 3,
-            "reporting_options_selector": "k",
-            "k": 5,
-            "effort_options_selector": "yes",
-            "D": 20,
-            "R": 4,
-            "d": True,
-            "other_options_selector": "yes",
-            "seed": 42,
-            "non_deterministic": True,
-            "rg_selector": "set",
-            "rg_id": "rg1",
-            "rg_sm": "sample1",
-            "rg_pl": "ILLUMINA",
-            "rg_lb": "lib1",
-            "sam_options_selector": "yes",
-            "sam_output_format": "sam",
-            "no_unal": True,
-            "omit_sec_seq": True,
-            "xeq": True,
-            "output": "/work/bowtie2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bowtie2",
-        "-p",
-        "${GALAXY_SLOTS:-1}",
-        "-x",
-        "/indexes/hg38/bowtie2",
-        "-f",
-        "-1",
-        "R1.fa",
-        "-2",
-        "R2.fa",
-        "--al-conc",
-        "/work/bowtie2/aligned_reads",
-        "-I",
-        "20",
-        "-X",
-        "900",
-        "--rf",
-        "--no-mixed",
-        "--no-discordant",
-        "--dovetail",
-        "--rg-id",
-        "rg1",
-        "--rg",
-        "SM:sample1",
-        "--rg",
-        "PL:ILLUMINA",
-        "--rg",
-        "LB:lib1",
-        "--skip",
-        "3",
-        "--qupto",
-        "100",
-        "--trim5",
-        "2",
-        "--trim3",
-        "4",
-        "--phred64",
-        "-N",
-        "1",
-        "-L",
-        "18",
-        "-i",
-        "S,1,1.25",
-        "--n-ceil",
-        "L,0,0.10",
-        "--dpad",
-        "12",
-        "--gbar",
-        "3",
-        "--ignore-quals",
-        "--nofw",
-        "--local",
-        "--score-min",
-        "G,18,7",
-        "--ma",
-        "3",
-        "--mp",
-        "7,3",
-        "--np",
-        "2",
-        "--rdg",
-        "6,2",
-        "--rfg",
-        "7,3",
-        "-k",
-        "5",
-        "-D",
-        "20",
-        "-R",
-        "4",
-        "-d",
-        "--non-deterministic",
-        "--seed",
-        "42",
-        "--no-unal",
-        "--omit-sec-seq",
-        "--xeq",
-        ">",
-        "/work/bowtie2/alignments.sam",
-    ]
-
-
-def test_bowtie2_renders_reordered_bam_with_paired_collection_outputs() -> None:
-    node_class = _node_class("bowtie2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "indexed",
-            "ref_file": "/indexes/mm10/bowtie2",
-            "library_type": "paired_collection",
-            "input_1": ["reads_R1.fq.gz", "reads_R2.fq.gz"],
-            "reads_compression": "gz",
-            "unaligned_file": True,
-            "aligned_file": True,
-            "sam_options_selector": "yes",
-            "sam_output_format": "qname_input_sorted_bam",
-            "output": "/work/bowtie2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bowtie2",
-        "-p",
-        "${GALAXY_SLOTS:-1}",
-        "-x",
-        "/indexes/mm10/bowtie2",
-        "-1",
-        "reads_R1.fq.gz",
-        "-2",
-        "reads_R2.fq.gz",
-        "--un-conc-gz",
-        "/work/bowtie2/unaligned_reads",
-        "--al-conc-gz",
-        "/work/bowtie2/aligned_reads",
-        "--reorder",
-        "|",
-        "samtools",
-        "view",
-        "--no-PG",
-        "-b",
-        "-o",
-        "/work/bowtie2/alignments.bam",
-    ]
-    assert node_class.PLAN_OUTPUTS(
-        {"library_type": "paired_collection", "unaligned_file": True, "aligned_file": True},
-        Path("/tmp/out"),
-    ) == [
-        Path("/tmp/out/bowtie2/alignments.bam"),
-        Path("/tmp/out/bowtie2/unaligned_reads.1.fastq"),
-        Path("/tmp/out/bowtie2/unaligned_reads.2.fastq"),
-        Path("/tmp/out/bowtie2/aligned_reads.1.fastq"),
-        Path("/tmp/out/bowtie2/aligned_reads.2.fastq"),
-    ]
-
-
-def test_bowtie2_validates_reference_reads_modes_and_options() -> None:
-    node_class = _node_class("bowtie2")
-
-    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "input_1 is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "library_type": "bad"}) == (
-        "library_type must be one of: single, paired_collection"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "reference_source_selector": "bad"}) == (
-        "reference_source_selector must be one of: indexed, history"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "analysis_type_selector": "bad"}) == (
-        "analysis_type_selector must be one of: simple, full"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "input_1": "r1.fq", "paired_options_selector": "yes", "I": -1}
-    ) == "I must be at least 0"
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "input_1": "r1.fq", "analysis_type_selector": "full", "N": 2}
-    ) == "N must be at most 1"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "sam_output_format": "cram"}) == (
-        "sam_output_format must be one of: bam, sam, qname_input_sorted_bam"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq"}) is True
-
-
-def test_bamleftalign_exposes_freebayes_citation_and_dependency_metadata() -> None:
-    node_info = _registry().object_info()["bamleftalign"]
-
-    assert node_info["display_name"] == "BamLeftAlign"
-    assert node_info["category"] == "variant"
-    assert node_info["description"].startswith("Left-realign indels in BAM")
-    assert node_info["output"] == ["BAM"]
-    assert node_info["output_name"] == ["realigned_bam"]
-    assert node_info["required_executables"] == ["bamleftalign", "samtools"]
-    assert node_info["required_conda_packages"] == ["freebayes", "samtools", "coreutils"]
-    assert node_info["documentation_url"] == "https://github.com/freebayes/freebayes#citation"
-    assert "10.48550/arXiv.1207.3907" in node_info["citation_dois"]
-    assert "https://doi.org/10.48550/arXiv.1207.3907" in node_info["citation_urls"]
-    assert "http://arxiv.org/abs/1207.3907" in node_info["citation_urls"]
-    assert "Haplotype-based variant detection from short-read sequencing" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "left realignment" in node_info["search_aliases"]
-
-
-def test_bamleftalign_renders_history_reference_pipeline_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bamleftalign")
-
-    assert node_class.render_command(
-        {
-            "input_bam": "alignments.bam",
-            "reference": "ref.fa",
-            "reference_source": "history",
-            "iterations": 7,
-            "output": "/work/bamleftalign",
-        }
-    ) == [
-        "samtools",
-        "faidx",
-        "ref.fa",
-        "&&",
-        "cat",
-        "alignments.bam",
-        "|",
-        "bamleftalign",
-        "--fasta-reference",
-        "ref.fa",
-        "-c",
-        "--max-iterations",
-        "7",
-        ">",
-        "/work/bamleftalign/realigned.bam",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bamleftalign" / "realigned.bam"]
-
-
-def test_bamleftalign_supports_cached_reference_and_legacy_aliases() -> None:
-    node_class = _node_class("bamleftalign")
-
-    assert node_class.render_command(
-        {
-            "bam": "sample.bam",
-            "ref_file": "/refs/hg38.fa",
-            "reference_source_selector": "cached",
-            "iterations": 5,
-            "output": "/work/bamleftalign",
-        }
-    ) == [
-        "cat",
-        "sample.bam",
-        "|",
-        "bamleftalign",
-        "--fasta-reference",
-        "/refs/hg38.fa",
-        "-c",
-        "--max-iterations",
-        "5",
-        ">",
-        "/work/bamleftalign/realigned.bam",
-    ]
-
-
-def test_bamleftalign_validates_required_inputs_reference_source_and_iterations() -> None:
-    node_class = _node_class("bamleftalign")
-
-    assert node_class.VALIDATE_INPUTS({}) == "input_bam is required"
-    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference_source": "history"}) == (
-        "reference is required"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa", "reference_source": "bad"}) == (
-        "reference_source must be one of: history, cached"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa", "iterations": 0}) == (
-        "iterations must be at least 1"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa"}) is True
 
 
 def test_bcftools_annotate_renders_tabular_annotation_command_and_output(tmp_path: Path) -> None:
@@ -40188,13 +39125,13 @@ def test_cnvkit_access_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["output"] == ["BED"]
     assert info["output_name"] == ["out_sample_access"]
     assert info["required_executables"] == ["cnvkit.py"]
-    assert info["required_conda_packages"] == ["cnvkit", "samtools"]
+    assert info["required_conda_packages"] == ["cnvkit"]
     assert info["documentation_url"] == "https://cnvkit.readthedocs.io/en/stable/pipeline.html#access"
     assert info["citation_dois"] == ["10.1371/journal.pcbi.1004873"]
     assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1004873"]
     assert "Genome-Wide Copy Number Detection and Visualization" in info["citation_text"]
     assert "sequence-accessible coordinates" in info["search_aliases"]
-    assert info["version"] == "0.9.12+galaxy0"
+    assert info["version"] == "0.9.12"
 
 
 def test_cnvkit_access_renders_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -40211,13 +39148,19 @@ def test_cnvkit_access_renders_command_outputs_and_validation(tmp_path: Path) ->
             "output": "/work/cnvkit_access",
         }
     )
-    assert command == (
-        "ln -s 'reference genome.fa' ./genome.fasta && "
-        "ln -s 'excluded regions.bed' centromeres_and_telomeres.bed && "
-        "ln -s blacklist.bed blacklist.bed && "
-        "cnvkit.py access ./genome.fasta --exclude centromeres_and_telomeres.bed "
-        "--exclude blacklist.bed --min-gap-size 2500 --output /work/cnvkit_access/access-excludes.bed"
-    )
+    assert command == [
+        "cnvkit.py",
+        "access",
+        "reference genome.fa",
+        "--exclude",
+        "excluded regions.bed",
+        "--exclude",
+        "blacklist.bed",
+        "--min-gap-size",
+        "2500",
+        "--output",
+        "/work/cnvkit_access/access-excludes.bed",
+    ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cnvkit_access" / "access-excludes.bed"]
     assert node_class.VALIDATE_INPUTS({}) == "fa_fname is required"
     assert node_class.VALIDATE_INPUTS({"fa_fname": "genome.fa", "min_gap_size": -1}) == (
@@ -40239,18 +39182,18 @@ def test_cnvkit_antitarget_exposes_galaxy_metadata_inputs_outputs_and_doi() -> N
     assert info["input"]["optional"]["access"][0] == "BED"
     assert info["input"]["optional"]["avg_size"][1]["default"] == 150000
     assert info["input"]["optional"]["avg_size"][1]["min"] == 1
-    assert info["input"]["optional"]["min_size"][1]["default"] == 25000
+    assert info["input"]["optional"]["min_size"][1]["default"] == ""
     assert info["input"]["optional"]["min_size"][1]["min"] == 1
     assert info["output"] == ["BED"]
     assert info["output_name"] == ["out_capture_antitarget"]
     assert info["required_executables"] == ["cnvkit.py"]
-    assert info["required_conda_packages"] == ["cnvkit", "samtools"]
+    assert info["required_conda_packages"] == ["cnvkit"]
     assert info["documentation_url"] == "https://cnvkit.readthedocs.io/en/stable/pipeline.html#antitarget"
     assert info["citation_dois"] == ["10.1371/journal.pcbi.1004873"]
     assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1004873"]
     assert "Genome-Wide Copy Number Detection and Visualization" in info["citation_text"]
     assert "antitarget regions" in info["search_aliases"]
-    assert info["version"] == "0.9.12+galaxy0"
+    assert info["version"] == "0.9.12"
 
 
 def test_cnvkit_antitarget_renders_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -40265,12 +39208,19 @@ def test_cnvkit_antitarget_renders_command_outputs_and_validation(tmp_path: Path
             "output": "/work/cnvkit_antitarget",
         }
     )
-    assert command == (
-        "ln -s 'capture targets.bed' ./capture.bed && "
-        "ln -s 'access excludes.bed' ./access.bed && "
-        "cnvkit.py antitarget ./capture.bed --access ./access.bed "
-        "--avg-size 120000 --min-size 20000 --output /work/cnvkit_antitarget/capture.antitarget.bed"
-    )
+    assert command == [
+        "cnvkit.py",
+        "antitarget",
+        "capture targets.bed",
+        "--access",
+        "access excludes.bed",
+        "--avg-size",
+        "120000",
+        "--min-size",
+        "20000",
+        "--output",
+        "/work/cnvkit_antitarget/capture.antitarget.bed",
+    ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cnvkit_antitarget" / "capture.antitarget.bed"]
     assert node_class.VALIDATE_INPUTS({}) == "targets_file is required"
     assert node_class.VALIDATE_INPUTS({"targets_file": "capture.bed", "avg_size": 0}) == (
@@ -40294,18 +39244,18 @@ def test_cnvkit_target_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["input"]["optional"]["short_names"][1]["default"] is False
     assert info["input"]["optional"]["split"][0] == "BOOLEAN"
     assert info["input"]["optional"]["split"][1]["default"] is False
-    assert info["input"]["optional"]["avg_size"][1]["default"] == 266
+    assert info["input"]["optional"]["avg_size"][1]["default"] == ""
     assert info["input"]["optional"]["avg_size"][1]["min"] == 1
     assert info["output"] == ["BED"]
     assert info["output_name"] == ["out_capture_target"]
     assert info["required_executables"] == ["cnvkit.py"]
-    assert info["required_conda_packages"] == ["cnvkit", "samtools"]
+    assert info["required_conda_packages"] == ["cnvkit"]
     assert info["documentation_url"] == "https://cnvkit.readthedocs.io/en/stable/pipeline.html#target"
     assert info["citation_dois"] == ["10.1371/journal.pcbi.1004873"]
     assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1004873"]
     assert "Genome-Wide Copy Number Detection and Visualization" in info["citation_text"]
     assert "baited regions" in info["search_aliases"]
-    assert info["version"] == "0.9.12+galaxy0"
+    assert info["version"] == "0.9.12"
 
 
 def test_cnvkit_target_renders_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -40321,12 +39271,19 @@ def test_cnvkit_target_renders_command_outputs_and_validation(tmp_path: Path) ->
             "output": "/work/cnvkit_target",
         }
     )
-    assert command == (
-        "ln -s 'capture targets.bed' ./capture.bed && "
-        "ln -s 'gene models.refFlat' ./annotate.bed && "
-        "cnvkit.py target 'capture targets.bed' --output /work/cnvkit_target/capture.split.bed "
-        "--annotate ./annotate.bed --short-names --split --avg-size 400"
-    )
+    assert command == [
+        "cnvkit.py",
+        "target",
+        "capture targets.bed",
+        "--output",
+        "/work/cnvkit_target/capture.split.bed",
+        "--annotate",
+        "gene models.refFlat",
+        "--short-names",
+        "--split",
+        "--avg-size",
+        "400",
+    ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cnvkit_target" / "capture.split.bed"]
     assert node_class.VALIDATE_INPUTS({}) == "input_file is required"
     assert node_class.VALIDATE_INPUTS({"input_file": "capture.bed", "avg_size": 0}) == "avg_size must be at least 1"

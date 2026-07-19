@@ -78,6 +78,7 @@ class ExecutionContext:
     run_metadata: dict[str, Any] = field(default_factory=dict)
     executor: Any | None = None
     registry: Any | None = field(default=None, repr=False)
+    hpc_backend: Any | None = field(default=None, repr=False)
 
     # Mutable state set during execution
     _previews: list[dict[str, Any]] = field(default_factory=list, repr=False)
@@ -174,12 +175,14 @@ class WorkflowExecutor:
         workspace_dir: str | Path = "./workspace",
         registry: Any | None = None,
         settings: Any | None = None,
+        hpc_backend: Any | None = None,
     ) -> None:
         self.workspace_dir = Path(workspace_dir)
         self.cache = CacheStore(cache_dir or self.workspace_dir / "cache")
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
         self.registry = registry
         self.settings = settings
+        self.hpc_backend = hpc_backend
 
     def _api_secrets_for_options(self, options: dict[str, Any]) -> dict[str, str]:
         configured = getattr(self.settings, "api_secrets", {}) if self.settings is not None else {}
@@ -662,6 +665,7 @@ class WorkflowExecutor:
                         run_metadata=run_metadata,
                         executor=self,
                         registry=self.registry,
+                        hpc_backend=self.hpc_backend,
                     )
                     cached_outputs = await self._apply_inline_output_validations(
                         ctx=ctx,
@@ -732,6 +736,7 @@ class WorkflowExecutor:
                     run_metadata=run_metadata,
                     executor=self,
                     registry=self.registry,
+                    hpc_backend=self.hpc_backend,
                 )
 
                 # ---- Execute the node ----
@@ -2034,6 +2039,7 @@ class WorkflowExecutor:
                         run_metadata=ctx.run_metadata,
                         executor=ctx.executor or self,
                         registry=ctx.registry if ctx.registry is not None else self.registry,
+                        hpc_backend=ctx.hpc_backend,
                     )
                     body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                     outputs = body_result.get("outputs", {})
@@ -2216,6 +2222,7 @@ class WorkflowExecutor:
                     run_metadata=ctx.run_metadata,
                     executor=ctx.executor or self,
                     registry=ctx.registry if ctx.registry is not None else self.registry,
+                    hpc_backend=ctx.hpc_backend,
                 )
                 body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                 outputs = body_result.get("outputs", {})
@@ -2427,6 +2434,7 @@ class WorkflowExecutor:
                             run_metadata=ctx.run_metadata,
                             executor=ctx.executor or self,
                             registry=ctx.registry if ctx.registry is not None else self.registry,
+                            hpc_backend=ctx.hpc_backend,
                         )
                         body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                         outputs = body_result.get("outputs", {})
@@ -2844,6 +2852,7 @@ class WorkflowExecutor:
                 run_metadata=ctx.run_metadata,
                 executor=ctx.executor or self,
                 registry=ctx.registry if ctx.registry is not None else self.registry,
+                hpc_backend=ctx.hpc_backend,
             )
             body_result = await self._execute_node(body_ctx, body_node, body_inputs)
             outputs = body_result.get("outputs", {})

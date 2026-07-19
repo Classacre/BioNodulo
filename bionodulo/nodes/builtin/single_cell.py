@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from bionodulo.nodes.builtin.single_cell_spatial_family.cellranger_count import CellRangerCountNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.cellranger_mkref import CellRangerMkrefNode
 from bionodulo.nodes.command_node import CommandNode
 
 
@@ -92,9 +93,9 @@ class _LegacyCellRangerCountNode(CommandNode):
         }
 
 
-class CellRangerMkrefNode(CommandNode):
+class _LegacyCellRangerMkrefNode(CommandNode):
     """Build Cell Ranger reference transcriptome."""
-    NODE_ID = "cellranger_mkref"
+    LEGACY_NODE_ID = "cellranger_mkref"
     DISPLAY_NAME = "Cell Ranger mkref"
     REQUIRED_CONDA_PACKAGES = ['cellranger']
     CATEGORY = "single_cell"

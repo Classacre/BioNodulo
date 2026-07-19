@@ -5,14 +5,23 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from bionodulo.nodes.builtin.single_cell_spatial_family.baysor import BaysorNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.cell2location import Cell2LocationNode
 from bionodulo.nodes.builtin.single_cell_spatial_family.scanpy_spatial import ScanpySpatialNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.seurat_spatial import SeuratSpatialNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.spaceranger import SpaceRangerCompatibilityNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.spaceranger_count import SpaceRangerNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.squidpy import SquidpyNode
 from bionodulo.nodes.builtin.single_cell_spatial_family.squidpy_qc import SquidpyQCNode
 from bionodulo.nodes.command_node import CommandNode
 
+# Preserve the historical public class spelling while focused ownership uses PEP 8 casing.
+Cell2locationNode = Cell2LocationNode
 
-class SpaceRangerNode(CommandNode):
+
+class _LegacySpaceRangerNode(CommandNode):
     """Run Space Ranger count for 10x Genomics Visium data."""
-    NODE_ID = "spaceranger_count"
+    LEGACY_NODE_ID = "spaceranger_count"
     DISPLAY_NAME = "Space Ranger Count"
     CATEGORY = "spatial_transcriptomics"
     DESCRIPTION = "Process 10x Genomics Visium: alignment, feature-barcode counting, tissue detection."
@@ -87,10 +96,10 @@ class SpaceRangerNode(CommandNode):
         }
 
 
-class SpaceRangerCompatibilityNode(SpaceRangerNode):
+class _LegacySpaceRangerCompatibilityNode(_LegacySpaceRangerNode):
     """Compatibility wrapper for the original Space Ranger roadmap node ID."""
 
-    NODE_ID = "spaceranger"
+    LEGACY_NODE_ID = "spaceranger"
     DISPLAY_NAME = "Space Ranger"
     DESCRIPTION = "Process 10x Genomics Visium data with Space Ranger count."
     SEARCH_ALIASES = ["spaceranger", "space ranger", "10x visium", "spatial transcriptomics", "visium"]
@@ -179,10 +188,11 @@ print("Done")
         }
 
 
-class SquidpyNode(SquidpyQCNode):
+class _LegacySquidpyNode(SquidpyQCNode):
     """Compatibility wrapper for the original Squidpy roadmap node ID."""
 
-    NODE_ID = "squidpy"
+    NODE_ID = ""
+    LEGACY_NODE_ID = "squidpy"
     DISPLAY_NAME = "Squidpy"
     DESCRIPTION = "Run Visium QC, preprocessing, and spatial analysis with Squidpy."
     SEARCH_ALIASES = ["squidpy", "spatial", "visium", "quality control", "spatial analysis"]
@@ -312,10 +322,10 @@ print("Done")
         }
 
 
-class SeuratSpatialNode(CommandNode):
+class _LegacySeuratSpatialNode(CommandNode):
     """Cluster spatial transcriptomics count matrices with Seurat."""
 
-    NODE_ID = "seurat_spatial"
+    LEGACY_NODE_ID = "seurat_spatial"
     DISPLAY_NAME = "Seurat Spatial"
     CATEGORY = "spatial_transcriptomics"
     DESCRIPTION = "Cluster spatial transcriptomics count matrices and export markers with Seurat."
@@ -403,9 +413,9 @@ print("Done")
         }
 
 
-class Cell2locationNode(CommandNode):
+class _LegacyCell2LocationNode(CommandNode):
     """Deconvolute spatial spots into cell type proportions."""
-    NODE_ID = "cell2location"
+    LEGACY_NODE_ID = "cell2location"
     DISPLAY_NAME = "Cell2location"
     CATEGORY = "spatial_transcriptomics"
     DESCRIPTION = "Deconvolute spatial transcriptomics spots into cell type proportions using scRNA-seq reference."
@@ -479,9 +489,9 @@ print("Done")
         }
 
 
-class BaysorNode(CommandNode):
+class _LegacyBaysorNode(CommandNode):
     """Run Baysor cell segmentation for molecular spatial data."""
-    NODE_ID = "baysor"
+    LEGACY_NODE_ID = "baysor"
     DISPLAY_NAME = "Baysor Segmentation"
     CATEGORY = "spatial_transcriptomics"
     DESCRIPTION = "Cell segmentation for MERFISH/Xenium high-resolution spatial transcriptomics."

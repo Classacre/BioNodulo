@@ -198,7 +198,7 @@ async def test_http_request_passes_cache_and_rate_limit_options_to_shared_client
     )
 
     assert response.text == "ok"
-    assert calls[0]["init"]["cache"] is not None
+    assert calls[0]["init"]["cache"] is module.HTTP_API_CACHE
     assert calls[0]["init"]["rate_limiter"] is not None
     assert calls[1] == {
         "request": {
@@ -216,3 +216,79 @@ async def test_http_request_passes_cache_and_rate_limit_options_to_shared_client
             },
         }
     }
+
+
+@pytest.mark.asyncio
+async def test_http_request_reuses_cache_and_parses_redirect_boolean_strictly(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("http_request")
+    module = importlib.import_module(node_class.__module__)
+    calls: list[dict[str, Any]] = []
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "text/plain"}
+        content = b"ok"
+        text = "ok"
+        url = "https://api.example.test/resource"
+
+    async def fake_request(**kwargs: Any) -> FakeResponse:
+        calls.append(kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr(module, "_request", fake_request)
+    await node_class().run(
+        url="https://api.example.test/resource",
+        method="GET",
+        follow_redirects="false",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    assert calls[0]["follow_redirects"] is False
+    assert node_class.VALIDATE_INPUTS(
+        {"url": "https://api.example.test/resource", "follow_redirects": "sometimes"}
+    ) == "follow_redirects must be a boolean"
+    assert node_class.VALIDATE_INPUTS(
+        {"url": "https://api.example.test/resource", "body_format": "invalid", "body": ""}
+    ) == "Unsupported body_format: invalid"
+
+
+@pytest.mark.asyncio
+async def test_http_request_redacts_credentials_from_metadata_url(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    node_class = _node_class("http_request")
+    module = importlib.import_module(node_class.__module__)
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "application/json"}
+        content = b'{"ok": true}'
+        text = '{"ok": true}'
+        url = "https://user:password@example.test/data?gene=TP53&api_key=secret&access_token=token"
+
+        @staticmethod
+        def json() -> dict[str, bool]:
+            return {"ok": True}
+
+    async def fake_request(**_kwargs: Any) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(module, "_request", fake_request)
+    result = await node_class().run(
+        url="https://example.test/data",
+        method="GET",
+        context=SimpleNamespace(node_dir=tmp_path),
+    )
+
+    metadata_url = result["outputs"]["metadata"]["url"]
+    assert metadata_url == (
+        "https://[REDACTED]@example.test/data?"
+        "gene=TP53&api_key=%5BREDACTED%5D&access_token=%5BREDACTED%5D"
+    )
+    assert "password" not in metadata_url
+    assert "secret" not in metadata_url
+    assert "token=token" not in metadata_url

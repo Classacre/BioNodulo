@@ -47,8 +47,8 @@ def staged_reference(prefix: Path) -> Path | None:
     return None
 
 
-def find_index_prefix(index_dir: str | os.PathLike[str]) -> Path:
-    """Resolve the one complete, colocated FASTA/index prefix in a directory."""
+def find_index_prefix(index_dir: str | os.PathLike[str], *, require_reference: bool = True) -> Path:
+    """Resolve one complete BWA prefix, optionally requiring its source FASTA."""
     directory = Path(index_dir)
     if not directory.exists():
         raise FileNotFoundError(f"BWA index directory not found: {directory}")
@@ -58,12 +58,15 @@ def find_index_prefix(index_dir: str | os.PathLike[str]) -> Path:
     candidates: list[Path] = []
     for bwt_path in sorted(directory.glob("*.bwt")):
         prefix = Path(str(bwt_path)[: -len(".bwt")])
-        if staged_reference(prefix) is not None and all(sidecar.is_file() for sidecar in index_sidecars(prefix)):
+        has_reference = staged_reference(prefix) is not None
+        if (has_reference or not require_reference) and all(sidecar.is_file() for sidecar in index_sidecars(prefix)):
             candidates.append(prefix)
 
     if not candidates:
-        required = ", ".join(("staged FASTA", *BWA_INDEX_SUFFIXES))
-        raise FileNotFoundError(f"BWA index directory {directory} has no complete colocated prefix ({required})")
+        members = (*(("staged FASTA",) if require_reference else ()), *BWA_INDEX_SUFFIXES)
+        required = ", ".join(members)
+        layout = "colocated" if require_reference else "sibling"
+        raise FileNotFoundError(f"BWA index directory {directory} has no complete {layout} prefix ({required})")
     if len(candidates) != 1:
         names = ", ".join(prefix.name for prefix in candidates)
         raise ValueError(f"BWA index directory {directory} contains multiple complete prefixes: {names}")

@@ -2411,6 +2411,18 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
 # HPC
 # ---------------------------------------------------------------------------
 
+_HPC_MEMORY_SIZE = re.compile(r"([1-9]\d*(?:\.\d+)?)([KMGT])(?:i?B)?", re.IGNORECASE)
+
+
+def _hpc_memory_mb(value: str) -> int:
+    match = _HPC_MEMORY_SIZE.fullmatch(str(value or "").strip())
+    if match is None:
+        raise ValueError("HPC default_memory must be a positive size such as 4096M or 32G")
+    factor = {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1024 * 1024}[
+        match.group(2).upper()
+    ]
+    return max(1, int(float(match.group(1)) * factor))
+
 @router.get("/hpc/status")
 async def hpc_status(request: Request) -> dict[str, Any]:
     """Get HPC connection and job status.
@@ -2486,10 +2498,24 @@ async def hpc_configure(
             backend_class = LocalBackend
 
         if backend_class:
-            backend = backend_class(**{k: v for k, v in config_data.items() if v is not None})
+            backend_config = {k: v for k, v in config_data.items() if v is not None}
+            backend_config["default_memory_mb"] = _hpc_memory_mb(body.default_memory)
+            backend_config.pop("default_memory", None)
+            if body.backend in {"pbs", "sge"} and body.partition:
+                backend_config["queue"] = body.partition
+            backend = backend_class(backend_config)
             if hasattr(backend, "connect"):
                 await backend.connect()
             request.app.state.hpc_backend = backend
+            queue = getattr(request.app.state, "run_queue", None)
+            executor = getattr(queue, "executor", None)
+            if executor is not None and hasattr(executor, "hpc_backend"):
+                executor.hpc_backend = backend
+            elif executor is not None:
+                logger.warning(
+                    "Configured HPC backend is unavailable to run-queue executor %s",
+                    type(executor).__name__,
+                )
             return {"configured": True, "backend": body.backend, "connected": True}
 
     except ImportError as exc:

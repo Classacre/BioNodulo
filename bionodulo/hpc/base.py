@@ -37,6 +37,8 @@ class HPCJob:
 class HPCBackend(abc.ABC):
     """Abstract base class for HPC job scheduling backends."""
 
+    scheduler = "generic"
+
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         self.config = config or {}
 
@@ -73,6 +75,8 @@ class HPCBackend(abc.ABC):
         env_setup: list[str] | None = None,
         modules: list[str] | None = None,
         scheduler: str = "generic",
+        nodes: int | None = None,
+        account: str | None = None,
     ) -> str:
         """Generate a batch job script.
 
@@ -88,6 +92,8 @@ class HPCBackend(abc.ABC):
             env_setup: Lines to add at the start of the script.
             modules: Modules to load.
             scheduler: Target scheduler type (slurm, pbs, sge, generic).
+            nodes: Number of scheduler nodes to request.
+            account: Scheduler account or project to charge.
 
         Returns:
             The job script content as a string.
@@ -96,11 +102,47 @@ class HPCBackend(abc.ABC):
         lines: list[str] = []
 
         if scheduler == "slurm":
-            lines.extend(self._slurm_directives(job_name, output_dir, walltime, cpus, memory_mb, queue, email))
+            lines.extend(
+                self._slurm_directives(
+                    job_name,
+                    output_dir,
+                    walltime,
+                    cpus,
+                    memory_mb,
+                    queue,
+                    email,
+                    nodes,
+                    account,
+                )
+            )
         elif scheduler in ("pbs", "torque"):
-            lines.extend(self._pbs_directives(job_name, output_dir, walltime, cpus, memory_mb, queue, email))
+            lines.extend(
+                self._pbs_directives(
+                    job_name,
+                    output_dir,
+                    walltime,
+                    cpus,
+                    memory_mb,
+                    queue,
+                    email,
+                    nodes,
+                    account,
+                )
+            )
         elif scheduler == "sge":
-            lines.extend(self._sge_directives(job_name, output_dir, walltime, cpus, memory_mb, queue, email))
+            lines.extend(
+                self._sge_directives(
+                    job_name,
+                    output_dir,
+                    walltime,
+                    cpus,
+                    memory_mb,
+                    queue,
+                    email,
+                    nodes,
+                    account,
+                )
+            )
         else:
             lines.append("#!/bin/bash")
             lines.append("# Job: " + job_name)
@@ -124,6 +166,7 @@ class HPCBackend(abc.ABC):
     def _slurm_directives(
         self, job_name: str, output_dir: Path, walltime: str | None,
         cpus: int | None, memory_mb: int | None, queue: str | None, email: str | None,
+        nodes: int | None, account: str | None,
     ) -> list[str]:
         lines = ["#!/bin/bash"]
         lines.append("#SBATCH --job-name=" + job_name)
@@ -133,10 +176,14 @@ class HPCBackend(abc.ABC):
             lines.append("#SBATCH --partition=" + queue)
         if walltime:
             lines.append("#SBATCH --time=" + walltime)
+        if nodes:
+            lines.append("#SBATCH --nodes=" + str(nodes))
         if cpus:
             lines.append("#SBATCH --cpus-per-task=" + str(cpus))
         if memory_mb:
             lines.append("#SBATCH --mem=" + str(memory_mb) + "M")
+        if account:
+            lines.append("#SBATCH --account=" + account)
         if email:
             lines.append("#SBATCH --mail-user=" + email)
             lines.append("#SBATCH --mail-type=END,FAIL")
@@ -145,6 +192,7 @@ class HPCBackend(abc.ABC):
     def _pbs_directives(
         self, job_name: str, output_dir: Path, walltime: str | None,
         cpus: int | None, memory_mb: int | None, queue: str | None, email: str | None,
+        nodes: int | None, account: str | None,
     ) -> list[str]:
         lines = ["#!/bin/bash"]
         lines.append("#PBS -N " + job_name)
@@ -155,12 +203,16 @@ class HPCBackend(abc.ABC):
         if walltime:
             lines.append("#PBS -l walltime=" + walltime)
         resource_parts = []
+        if nodes:
+            resource_parts.append("select=" + str(nodes))
         if cpus:
             resource_parts.append("ncpus=" + str(cpus))
         if memory_mb:
             resource_parts.append("mem=" + str(memory_mb) + "mb")
         if resource_parts:
             lines.append("#PBS -l " + ":".join(resource_parts))
+        if account:
+            lines.append("#PBS -A " + account)
         if email:
             lines.append("#PBS -M " + email)
             lines.append("#PBS -m ae")
@@ -169,7 +221,10 @@ class HPCBackend(abc.ABC):
     def _sge_directives(
         self, job_name: str, output_dir: Path, walltime: str | None,
         cpus: int | None, memory_mb: int | None, queue: str | None, email: str | None,
+        nodes: int | None, account: str | None,
     ) -> list[str]:
+        if nodes not in (None, 1):
+            raise ValueError("SGE backend does not support multi-node requests")
         lines = ["#!/bin/bash"]
         lines.append("#$ -N " + job_name)
         lines.append("#$ -o " + str(output_dir) + "/" + job_name + ".out")
@@ -182,6 +237,8 @@ class HPCBackend(abc.ABC):
             lines.append("#$ -pe smp " + str(cpus))
         if memory_mb:
             lines.append("#$ -l h_vmem=" + str(memory_mb) + "M")
+        if account:
+            lines.append("#$ -A " + account)
         if email:
             lines.append("#$ -M " + email)
             lines.append("#$ -m ae")

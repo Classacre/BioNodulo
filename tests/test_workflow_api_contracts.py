@@ -396,6 +396,41 @@ def test_hpc_submit_forwards_runtime_parameters_to_backend(
     assert backend.calls[0]["parameters"] == {"sample_id": "S1"}
 
 
+def test_hpc_configure_wires_normalized_backend_into_run_queue_executor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    monkeypatch.setenv("BIONODULO_EXECUTION_BACKEND", "local")
+
+    with TestClient(create_app()) as client:
+        executor = client.app.state.run_queue.executor
+        response = client.post(
+            "/api/hpc/configure",
+            json={
+                "backend": "pbs",
+                "partition": "batch",
+                "account": "research-project",
+                "default_cpus": 12,
+                "default_memory": "16G",
+                "default_walltime": "08:00:00",
+            },
+        )
+        backend = client.app.state.hpc_backend
+
+        assert response.status_code == 200
+        assert response.json() == {"configured": True, "backend": "pbs", "connected": True}
+        assert backend.scheduler == "pbs"
+        assert backend.queue == "batch"
+        assert backend.account == "research-project"
+        assert backend.default_cpus == 12
+        assert backend.default_memory_mb == 16 * 1024
+        assert backend.default_walltime == "08:00:00"
+        assert executor.hpc_backend is backend
+
+
 def test_hpc_submit_rejects_parameterized_run_when_backend_cannot_accept_parameters(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

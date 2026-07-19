@@ -16448,7 +16448,7 @@ const objectInfo = {
         rg_pl: { type: 'STRING', default: '' },
         rg_lb: { type: 'STRING', default: '' },
         sam_options_selector: { type: 'STRING', default: 'no', options: ['no', 'yes'] },
-        sam_output_format: { type: 'STRING', default: 'bam', options: ['bam', 'sam', 'qname_input_sorted_bam'] },
+        sam_output_format: { type: 'STRING', default: 'bam', options: ['bam', 'sam', 'input_order_bam'] },
         save_mapping_stats: { type: 'BOOLEAN', default: false },
       },
     },

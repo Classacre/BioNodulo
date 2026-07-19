@@ -16,6 +16,9 @@ from bionodulo.nodes.builtin.protein_database_family.alphafold_db import (
     AlphaFoldDBNode,
     AlphaFoldNode,
 )
+from bionodulo.nodes.builtin.protein_structure_design_family.colabfold_batch import ColabFoldBatchNode
+from bionodulo.nodes.builtin.protein_structure_design_family.esmfold_predict import ESMFoldPredictNode
+from bionodulo.nodes.builtin.protein_structure_design_family.proteinmpnn_design import ProteinMPNNDesignNode
 
 
 ALPHAFOLD_BASE_URL = "https://alphafold.ebi.ac.uk/api"
@@ -256,10 +259,10 @@ class _LegacyAlphaFoldNode(_LegacyAlphaFoldDBNode):
     SEARCH_ALIASES = ["alphafold", "alphafold db", "structure", "prediction", "protein folding", "mmcif"]
 
 
-class ColabFoldBatchNode(CommandNode):
+class _LegacyColabFoldBatchNode(CommandNode):
     """Predict protein structures with the ColabFold batch CLI."""
 
-    NODE_ID = "colabfold_batch"
+    LEGACY_NODE_ID = "colabfold_batch"
     DISPLAY_NAME = "ColabFold Batch"
     CATEGORY = "ai"
     DESCRIPTION = "Predict protein structures from FASTA sequences with ColabFold batch."
@@ -304,10 +307,10 @@ class ColabFoldBatchNode(CommandNode):
         return [prediction_dir]
 
 
-class ESMFoldPredictNode(CommandNode):
+class _LegacyESMFoldPredictNode(CommandNode):
     """Predict protein structures with the ESMFold CLI."""
 
-    NODE_ID = "esmfold_predict"
+    LEGACY_NODE_ID = "esmfold_predict"
     DISPLAY_NAME = "ESMFold Predict"
     CATEGORY = "ai"
     DESCRIPTION = "Predict protein structures from FASTA sequences with ESMFold."
@@ -375,10 +378,10 @@ class ESMFoldPredictNode(CommandNode):
         return [pdb_dir]
 
 
-class ProteinMPNNDesignNode(CommandNode):
+class _LegacyProteinMPNNDesignNode(CommandNode):
     """Design protein sequences for a backbone with a local ProteinMPNN checkout."""
 
-    NODE_ID = "proteinmpnn_design"
+    LEGACY_NODE_ID = "proteinmpnn_design"
     DISPLAY_NAME = "ProteinMPNN Design"
     CATEGORY = "ai"
     DESCRIPTION = "Design protein sequences from a backbone PDB using ProteinMPNN."

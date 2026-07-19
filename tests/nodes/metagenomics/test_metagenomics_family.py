@@ -8,9 +8,12 @@ from typing import Any
 import pytest
 
 from bionodulo.nodes.builtin.metagenomics_family.bracken import BrackenNode
+from bionodulo.nodes.builtin.metagenomics_family.checkm import CheckMNode
 from bionodulo.nodes.builtin.metagenomics_family.humann import HUMAnNNode
 from bionodulo.nodes.builtin.metagenomics_family.kraken2 import Kraken2Node
+from bionodulo.nodes.builtin.metagenomics_family.kraken2_build import FINAL_DATABASE_FILES, Kraken2BuildNode
 from bionodulo.nodes.builtin.metagenomics_family.krona import KronaTaxonomyNode
+from bionodulo.nodes.builtin.metagenomics_family.maxbin import MaxBinNode
 from bionodulo.nodes.builtin.metagenomics_family.metaphlan import MetaPhlAnNode
 
 
@@ -336,6 +339,125 @@ def test_krona_argv_supplies_the_required_taxonomy_database() -> None:
         "-o",
         "/work/krona/krona.html",
         "classification.kraken",
+    ]
+
+
+def test_database_and_binning_nodes_have_exact_source_pins() -> None:
+    assert Kraken2BuildNode.VERSION == "2.17.1"
+    assert Kraken2BuildNode.GIT_COMMIT == "5e2aa928d00b96d61f204d517437637863da1d8c"
+    assert MaxBinNode.VERSION == "2.2.7"
+    assert MaxBinNode.SOURCE_SHA256 == "cb6429e857280c2b75823c8cd55058ed169c93bc707a46bde0c4383f2bffe09e"
+    assert CheckMNode.VERSION == "1.2.5"
+    assert CheckMNode.GIT_COMMIT == "acb42ba20b29661054933d0df44a78fd28fd0bcc"
+    assert all(
+        node.__module__.startswith("bionodulo.nodes.builtin.metagenomics_family.")
+        for node in (Kraken2BuildNode, MaxBinNode, CheckMNode)
+    )
+
+
+def test_kraken2_build_uses_an_explicit_prior_database_and_final_sidecars(tmp_path: Path) -> None:
+    prior = tmp_path / "prior"
+    (prior / "taxonomy").mkdir(parents=True)
+    (prior / "taxonomy" / "nodes.dmp").write_text("synthetic\n", encoding="ascii")
+    outputs = Kraken2BuildNode.PLAN_OUTPUTS({"operation": "build"}, tmp_path / "run")
+    inputs = {
+        "operation": "build",
+        "database": str(prior),
+        "threads": 8,
+        "kmer_len": 35,
+        "minimizer_len": 31,
+        "minimizer_spaces": 7,
+        "load_factor": 0.7,
+        "output": str(tmp_path / "run" / "kraken2_build"),
+    }
+    Kraken2BuildNode.PREPARE_EXECUTION(inputs, outputs)
+    assert (outputs[0] / "taxonomy" / "nodes.dmp").is_file()
+    assert Kraken2BuildNode.render_command(inputs) == [
+        "kraken2-build",
+        "--build",
+        "--db",
+        str(tmp_path / "run" / "kraken2_build" / "database"),
+        "--threads",
+        "8",
+        "--kmer-len",
+        "35",
+        "--minimizer-len",
+        "31",
+        "--minimizer-spaces",
+        "7",
+        "--load-factor",
+        "0.7",
+    ]
+    assert FINAL_DATABASE_FILES == ("hash.k2d", "opts.k2d", "taxo.k2d")
+
+
+def test_maxbin_exposes_documented_prefix_artifacts_and_list_inputs(tmp_path: Path) -> None:
+    outputs = MaxBinNode.PLAN_OUTPUTS({}, tmp_path)
+    inputs = {
+        "contigs": "contigs.fa",
+        "reads": ["r1.fastq", "r2.fastq"],
+        "abundance_files": [],
+        "threads": 4,
+        "prob_threshold": 0.8,
+        "markerset": "40",
+        "output": str(tmp_path / "maxbin"),
+    }
+    MaxBinNode.PREPARE_EXECUTION(inputs, outputs)
+    assert MaxBinNode.render_command(inputs) == [
+        "run_MaxBin.pl",
+        "-contig",
+        "contigs.fa",
+        "-out",
+        str(tmp_path / "maxbin" / "maxbin"),
+        "-reads_list",
+        str(tmp_path / "maxbin" / "reads.list"),
+        "-thread",
+        "4",
+        "-prob_threshold",
+        "0.8",
+        "-markerset",
+        "40",
+    ]
+    assert [path.name for path in outputs[1:]] == [
+        "maxbin.summary",
+        "maxbin.log",
+        "maxbin.marker",
+        "maxbin.noclass",
+        "maxbin.tooshort",
+        "maxbin.marker_of_each_gene.tar.gz",
+    ]
+
+
+def test_checkm_lineage_workflow_stages_reference_data_and_report() -> None:
+    assert CheckMNode.render_command(
+        {
+            "bins": "/inputs/bins",
+            "checkm_data": "/refs/checkm",
+            "extension": "fa",
+            "threads": 8,
+            "pplacer_threads": 2,
+            "reduced_tree": True,
+            "output": "/work/checkm",
+        }
+    ) == [
+        "env",
+        "CHECKM_DATA_PATH=/refs/checkm",
+        "checkm",
+        "lineage_wf",
+        "-x",
+        "fa",
+        "-t",
+        "8",
+        "--pplacer_threads",
+        "2",
+        "--aai_strain",
+        "0.9",
+        "--reduced_tree",
+        "--tab_table",
+        "-f",
+        "/work/checkm/quality_report.tsv",
+        "/inputs/bins",
+        "/work/checkm/analysis",
     ]
 
 

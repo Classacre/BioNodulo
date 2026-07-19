@@ -20,9 +20,12 @@ _HPC_CMD_TIMEOUT_S = 30
 class SGEBackend(HPCBackend):
     """Sun Grid Engine HPC backend implementation."""
 
+    scheduler = "sge"
+
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self.queue = self.config.get("queue", "")
+        self.account = self.config.get("account", "")
         self.pe = self.config.get("parallel_environment", "smp")
         self.default_walltime = self.config.get("default_walltime", "01:00:00")
         self.default_cpus = self.config.get("default_cpus", 1)
@@ -187,6 +190,8 @@ class SGEBackend(HPCBackend):
         email: str | None = None,
         env_setup: list[str] | None = None,
         modules: list[str] | None = None,
+        nodes: int | None = None,
+        account: str | None = None,
     ) -> str:
         """Generate an SGE batch job script."""
         return self.generate_job_script(
@@ -194,4 +199,5 @@ class SGEBackend(HPCBackend):
             walltime=walltime or self.default_walltime, cpus=cpus or self.default_cpus,
             memory_mb=memory_mb or self.default_memory_mb, queue=queue or self.queue,
             email=email, env_setup=env_setup, modules=modules, scheduler="sge",
+            nodes=nodes, account=account or self.account,
         )

@@ -90,6 +90,12 @@ def test_legacy_module_no_longer_owns_template_metabolomics_ids() -> None:
     assert metabolomics.XCMSPeakDetectionNode is XCMSPeakDetectionNode
     assert metabolomics.XCMSRetentionCorrectionNode is XCMSRetentionCorrectionNode
     assert metabolomics.CAMERAAnnotationNode is CAMERAAnnotationNode
-    assert metabolomics._LegacyXCMSPeakDetectionNode.NODE_ID == ""
-    assert metabolomics._LegacyXCMSRetentionCorrectionNode.NODE_ID == ""
-    assert metabolomics._LegacyCAMERAAnnotationNode.NODE_ID == ""
+    assert metabolomics.__all__ == [
+        "CAMERAAnnotationNode",
+        "MSDIALProcessingNode",
+        "MZmineBatchProcessingNode",
+        "MetaboAnalystStatsNode",
+        "SiriusFormulaIDNode",
+        "XCMSPeakDetectionNode",
+        "XCMSRetentionCorrectionNode",
+    ]
