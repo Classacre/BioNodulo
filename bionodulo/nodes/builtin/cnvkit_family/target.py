@@ -26,6 +26,7 @@ class CNVkitTargetNode(CNVkitCommandNode):
     RETURN_NAMES = ("out_capture_target",)
     DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/en/stable/pipeline.html#target"
     UPSTREAM_SOURCE = "cnvlib/commands.py P_target and cnvlib/target.py do_target"
+    SOURCE_PATHS = ("cnvlib/commands.py", "cnvlib/target.py", "doc/pipeline.rst")
     OUTPUT_FILENAME = "capture.split.bed"
 
     @classmethod

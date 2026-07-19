@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
+import pytest
+
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -11,6 +16,28 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def test_all_six_cnvkit_operations_pin_the_official_v0912_source() -> None:
+    expected_paths = {
+        "cnvkit_access": "cnvlib/access.py",
+        "cnvkit_antitarget": "cnvlib/antitarget.py",
+        "cnvkit_batch": "cnvlib/batch.py",
+        "cnvkit_call": "cnvlib/call.py",
+        "cnvkit_plot": "cnvlib/scatter.py",
+        "cnvkit_target": "cnvlib/target.py",
+    }
+    for node_id, source_path in expected_paths.items():
+        node = _node_class(node_id)
+        assert node.VERSION == "0.9.12"
+        assert node.GIT_TAG == "v0.9.12"
+        assert node.GIT_COMMIT == "dd834b0b5b482f174d1dcb7c35b358087309c6b3"
+        assert node.SOURCE_REF == node.GIT_COMMIT
+        assert source_path in node.SOURCE_PATHS
+        assert node.SOURCE_FILE_SHA256[source_path]
+        assert node.PACKAGE_CONSTRAINTS == ("cnvkit==0.9.12",)
+        assert node.EXIT_SEMANTICS
+        assert node.AUDIT_STATUS == "contract-checked-no-external-execution"
+
+
 def test_cnvkit_call_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -19,9 +46,9 @@ def test_cnvkit_call_is_registered_for_frontend_discovery() -> None:
     node_info = info["cnvkit_call"]
     assert node_info["display_name"] == "CNVkit Call"
     assert node_info["category"] == "variant"
-    assert node_info["description"].startswith("Convert segmented CNV ratios")
-    assert node_info["output"] == ["VCF"]
-    assert node_info["output_name"] == ["cnv_calls"]
+    assert node_info["description"].startswith("Convert CNVkit log2 ratios")
+    assert node_info["output"] == ["TSV"]
+    assert node_info["output_name"] == ["called_segments"]
     assert node_info["required_executables"] == ["cnvkit.py"]
     assert node_info["required_conda_packages"] == ["cnvkit"]
     assert "copy number" in node_info["search_aliases"]
@@ -29,7 +56,24 @@ def test_cnvkit_call_is_registered_for_frontend_discovery() -> None:
 
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"cns_file"}
-    assert set(inputs["optional"]) == {"vcf", "sample_sex", "ploidy", "purity", "method"}
+    assert set(inputs["optional"]) == {
+        "center",
+        "center_at",
+        "diploid_parx_genome",
+        "drop_low_coverage",
+        "filters",
+        "male_reference",
+        "method",
+        "min_variant_depth",
+        "normal_id",
+        "ploidy",
+        "purity",
+        "sample_id",
+        "sample_sex",
+        "thresholds",
+        "vcf",
+        "zygosity_freq",
+    }
 
 
 def test_cnvkit_call_renders_copy_number_command() -> None:
@@ -37,11 +81,19 @@ def test_cnvkit_call_renders_copy_number_command() -> None:
 
     cmd = node_class.render_command({
         "cns_file": "tumor.cns",
+        "center": "median",
+        "filters": ["ci", "sem"],
         "vcf": "tumor.snvs.vcf.gz",
+        "sample_id": "TUMOR",
+        "normal_id": "NORMAL",
+        "zygosity_freq": 0.25,
         "sample_sex": "female",
         "ploidy": 3,
         "purity": 0.72,
         "method": "clonal",
+        "drop_low_coverage": True,
+        "male_reference": True,
+        "diploid_parx_genome": "grch38",
         "output": "/tmp/run/cnvkit_call",
     })
 
@@ -49,18 +101,37 @@ def test_cnvkit_call_renders_copy_number_command() -> None:
         "cnvkit.py",
         "call",
         "tumor.cns",
-        "-o",
-        "/tmp/run/cnvkit_call/cnv_calls.vcf",
-        "--vcf",
-        "tumor.snvs.vcf.gz",
-        "--sample-sex",
-        "female",
+        "--center",
+        "median",
+        "--filter",
+        "ci",
+        "--filter",
+        "sem",
+        "--method",
+        "clonal",
+        "--thresholds=-1.1,-0.25,0.2,0.7",
         "--ploidy",
         "3",
         "--purity",
         "0.72",
-        "--method",
-        "clonal",
+        "--drop-low-coverage",
+        "--sample-sex",
+        "female",
+        "--male-reference",
+        "--output",
+        "/tmp/run/cnvkit_call/called_segments.call.cns",
+        "--vcf",
+        "tumor.snvs.vcf.gz",
+        "--sample-id",
+        "TUMOR",
+        "--normal-id",
+        "NORMAL",
+        "--min-variant-depth",
+        "20",
+        "--zygosity-freq",
+        "0.25",
+        "--diploid-parx-genome",
+        "grch38",
     ]
 
 
@@ -77,17 +148,40 @@ def test_cnvkit_call_omits_empty_optional_flags() -> None:
         "cnvkit.py",
         "call",
         "tumor.cns",
-        "-o",
-        "/tmp/run/cnvkit_call/cnv_calls.vcf",
+        "--method",
+        "threshold",
+        "--thresholds=-1.1,-0.25,0.2,0.7",
+        "--ploidy",
+        "2",
+        "--output",
+        "/tmp/run/cnvkit_call/called_segments.call.cns",
     ]
 
 
-def test_cnvkit_call_plans_vcf_output() -> None:
+def test_cnvkit_call_plans_cns_output() -> None:
     node_class = _node_class("cnvkit_call")
 
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
-    assert [str(path) for path in outputs] == ["/tmp/run/cnvkit_call/cnv_calls.vcf"]
+    assert [str(path) for path in outputs] == [
+        "/tmp/run/cnvkit_call/called_segments.call.cns"
+    ]
+
+
+def test_cnvkit_call_rejects_source_invalid_option_combinations() -> None:
+    node = _node_class("cnvkit_call")
+    base = {"cns_file": "tumor.cns"}
+
+    assert node.VALIDATE_INPUTS({**base, "center": "median", "center_at": 0.2}) == (
+        "center and center_at are mutually exclusive"
+    )
+    assert node.VALIDATE_INPUTS({**base, "purity": 0}) == "purity must be greater than 0"
+    assert node.VALIDATE_INPUTS({**base, "sample_id": "TUMOR"}) == (
+        "sample_id, normal_id, and zygosity_freq require a VCF input"
+    )
+    assert node.VALIDATE_INPUTS({**base, "thresholds": "bad"}) == (
+        "thresholds must be comma-separated numbers"
+    )
 
 
 def test_cnvkit_plot_is_registered_for_frontend_discovery() -> None:
@@ -98,7 +192,7 @@ def test_cnvkit_plot_is_registered_for_frontend_discovery() -> None:
     node_info = info["cnvkit_plot"]
     assert node_info["display_name"] == "CNVkit Plot"
     assert node_info["category"] == "variant"
-    assert node_info["description"].startswith("Generate scatter plots and heatmaps")
+    assert node_info["description"].startswith("Generate CNVkit scatter and heatmap")
     assert node_info["output"] == ["PDF_REPORT", "PDF_REPORT"]
     assert node_info["output_name"] == ["scatter_plot", "heatmap_plot"]
     assert node_info["required_executables"] == ["cnvkit.py"]
@@ -108,7 +202,16 @@ def test_cnvkit_plot_is_registered_for_frontend_discovery() -> None:
 
     inputs = node_info["input"]
     assert set(inputs["required"]) == {"cnr_file", "cns_file"}
-    assert set(inputs["optional"]) == {"chromosome", "gene"}
+    assert set(inputs["optional"]) == {
+        "by_bin",
+        "chromosome",
+        "delimit_samples",
+        "desaturate",
+        "gene",
+        "title",
+        "trend",
+        "vertical",
+    }
 
 
 def test_cnvkit_plot_renders_scatter_and_heatmap_commands() -> None:
@@ -119,6 +222,12 @@ def test_cnvkit_plot_renders_scatter_and_heatmap_commands() -> None:
         "cns_file": "tumor.cns",
         "chromosome": "chr7",
         "gene": "EGFR",
+        "title": "Tumor CNV",
+        "by_bin": True,
+        "trend": True,
+        "desaturate": True,
+        "vertical": True,
+        "delimit_samples": True,
         "output": "/tmp/run/cnvkit_plot",
     })
 
@@ -126,22 +235,32 @@ def test_cnvkit_plot_renders_scatter_and_heatmap_commands() -> None:
         "cnvkit.py",
         "scatter",
         "tumor.cnr",
-        "-s",
+        "--segment",
         "tumor.cns",
-        "-o",
+        "--output",
         "/tmp/run/cnvkit_plot/scatter_plot.pdf",
-        "-c",
+        "--chromosome",
         "chr7",
-        "-g",
+        "--gene",
         "EGFR",
+        "--title",
+        "Tumor CNV",
+        "--by-bin",
+        "--trend",
         "&&",
         "cnvkit.py",
         "heatmap",
         "tumor.cns",
-        "-o",
+        "--output",
         "/tmp/run/cnvkit_plot/heatmap_plot.pdf",
-        "-c",
+        "--chromosome",
         "chr7",
+        "--title",
+        "Tumor CNV",
+        "--by-bin",
+        "--desaturate",
+        "--vertical",
+        "--delimit-samples",
     ]
 
 
@@ -160,15 +279,15 @@ def test_cnvkit_plot_omits_empty_optional_flags() -> None:
         "cnvkit.py",
         "scatter",
         "tumor.cnr",
-        "-s",
+        "--segment",
         "tumor.cns",
-        "-o",
+        "--output",
         "/tmp/run/cnvkit_plot/scatter_plot.pdf",
         "&&",
         "cnvkit.py",
         "heatmap",
         "tumor.cns",
-        "-o",
+        "--output",
         "/tmp/run/cnvkit_plot/heatmap_plot.pdf",
     ]
 
@@ -192,26 +311,42 @@ def test_cnvkit_batch_is_registered_for_frontend_discovery() -> None:
     node_info = info["cnvkit_batch"]
     assert node_info["display_name"] == "CNVkit Batch Pipeline"
     assert node_info["category"] == "variant"
-    assert node_info["description"].startswith("Complete CNVkit pipeline")
-    assert node_info["output"] == ["DIRECTORY", "DIRECTORY"]
-    assert node_info["output_name"] == ["cnr_files", "cns_files"]
-    assert node_info["required_executables"] == ["cnvkit.py"]
-    assert node_info["required_conda_packages"] == ["cnvkit"]
+    assert node_info["description"].startswith("Build a flat or pooled CNV reference")
+    assert node_info["output"] == ["DIRECTORY", "FILE"]
+    assert node_info["output_name"] == ["results", "reference_cnn"]
+    assert node_info["required_executables"] == ["cnvkit.py", "Rscript"]
+    assert node_info["required_conda_packages"] == ["cnvkit", "r-base"]
     assert "copy number" in node_info["search_aliases"]
     assert "batch" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"tumor_bams", "reference", "threads"}
-    assert set(inputs["optional"]) == {"normal_bams", "targets", "method", "diagram", "scatter"}
+    assert set(inputs["required"]) == {
+        "reference",
+        "reference_index",
+        "tumor_bam_indexes",
+        "tumor_bams",
+    }
+    assert set(inputs["optional"]) == {
+        "diagram",
+        "method",
+        "normal_bam_indexes",
+        "normal_bams",
+        "scatter",
+        "targets",
+        "threads",
+    }
 
 
 def test_cnvkit_batch_renders_complete_batch_command() -> None:
     node_class = _node_class("cnvkit_batch")
 
     cmd = node_class.render_command({
-        "tumor_bams": "tumor.bam",
-        "normal_bams": "normal.bam",
+        "tumor_bams": ["tumor-a.bam", "tumor-b.bam"],
+        "tumor_bam_indexes": ["tumor-a.bam.bai", "tumor-b.bam.bai"],
+        "normal_bams": ["normal-a.bam", "normal-b.bam"],
+        "normal_bam_indexes": ["normal-a.bam.bai", "normal-b.bam.bai"],
         "reference": "hg38.fa",
+        "reference_index": "hg38.fa.fai",
         "targets": "targets.bed",
         "threads": 8,
         "method": "wgs",
@@ -223,36 +358,40 @@ def test_cnvkit_batch_renders_complete_batch_command() -> None:
     assert cmd == [
         "cnvkit.py",
         "batch",
-        "tumor.bam",
+        "tumor-a.bam",
+        "tumor-b.bam",
+        "--normal",
+        "normal-a.bam",
+        "normal-b.bam",
         "--fasta",
         "hg38.fa",
         "--output-reference",
-        "/tmp/run/cnvkit_batch/reference.cnn",
+        "/tmp/run/cnvkit_batch/results/reference.cnn",
         "--output-dir",
-        "/tmp/run/cnvkit_batch",
+        "/tmp/run/cnvkit_batch/results",
         "--processes",
         "8",
-        "--normal",
-        "normal.bam",
+        "--seq-method",
+        "wgs",
         "--targets",
         "targets.bed",
-        "--method",
-        "wgs",
-        "--diagram",
         "--scatter",
+        "--diagram",
     ]
 
 
-def test_cnvkit_batch_omits_empty_optional_flags() -> None:
+def test_cnvkit_batch_renders_documented_flat_wgs_reference_mode() -> None:
     node_class = _node_class("cnvkit_batch")
 
     cmd = node_class.render_command({
         "tumor_bams": "tumor.bam",
+        "tumor_bam_indexes": "tumor.bam.bai",
         "reference": "hg38.fa",
-        "threads": 4,
-        "normal_bams": "",
+        "reference_index": "hg38.fa.fai",
+        "threads": 1,
+        "normal_bams": [],
         "targets": "",
-        "method": "",
+        "method": "wgs",
         "diagram": False,
         "scatter": False,
         "output": "/tmp/run/cnvkit_batch",
@@ -262,26 +401,81 @@ def test_cnvkit_batch_omits_empty_optional_flags() -> None:
         "cnvkit.py",
         "batch",
         "tumor.bam",
+        "--normal",
         "--fasta",
         "hg38.fa",
         "--output-reference",
-        "/tmp/run/cnvkit_batch/reference.cnn",
+        "/tmp/run/cnvkit_batch/results/reference.cnn",
         "--output-dir",
-        "/tmp/run/cnvkit_batch",
+        "/tmp/run/cnvkit_batch/results",
         "--processes",
-        "4",
+        "1",
+        "--seq-method",
+        "wgs",
     ]
 
 
-def test_cnvkit_batch_plans_output_directories() -> None:
+def test_cnvkit_batch_plans_complete_result_directory_and_reference() -> None:
     node_class = _node_class("cnvkit_batch")
 
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == [
-        "/tmp/run/cnvkit_batch/cnr_files",
-        "/tmp/run/cnvkit_batch/cns_files",
+        "/tmp/run/cnvkit_batch/results",
+        "/tmp/run/cnvkit_batch/results/reference.cnn",
     ]
+
+
+def test_cnvkit_batch_enforces_upstream_reference_build_requirements() -> None:
+    node = _node_class("cnvkit_batch")
+    base = {
+        "tumor_bams": ["tumor.bam"],
+        "tumor_bam_indexes": ["tumor.bam.bai"],
+        "reference": "hg38.fa",
+        "reference_index": "hg38.fa.fai",
+        "threads": 1,
+    }
+
+    assert node.VALIDATE_INPUTS(base) == "targets BED is required for CNVkit hybrid batch mode"
+    assert node.VALIDATE_INPUTS({**base, "method": "wgs"}) is True
+    assert node.VALIDATE_INPUTS({**base, "method": "wgs", "threads": -1}) == (
+        "threads must be a non-negative integer"
+    )
+    assert node.VALIDATE_INPUTS({**base, "tumor_bams": []}) == (
+        "tumor_bams must contain at least one non-empty path"
+    )
+    assert "exact colocated index" in str(
+        node.VALIDATE_INPUTS({**base, "tumor_bam_indexes": ["wrong.bai"], "method": "wgs"})
+    )
+    assert "exact colocated" in str(
+        node.VALIDATE_INPUTS({**base, "reference_index": "wrong.fai", "method": "wgs"})
+    )
+
+
+@pytest.mark.asyncio
+async def test_cnvkit_batch_fails_when_zero_exit_omits_source_defined_artifacts(
+    tmp_path: Path,
+) -> None:
+    node = _node_class("cnvkit_batch")()
+
+    class ReferenceOnlyContext:
+        node_dir = tmp_path
+
+        async def run_command(self, command: list[str], **_kwargs: Any) -> dict[str, Any]:
+            reference = Path(command[command.index("--output-reference") + 1])
+            reference.parent.mkdir(parents=True, exist_ok=True)
+            reference.write_text("chromosome\tstart\tend\tgene\tlog2\n", encoding="utf-8")
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    with pytest.raises(RuntimeError, match="did not create expected artifact"):
+        await node.run(
+            context=ReferenceOnlyContext(),
+            tumor_bams=["tumor.bam"],
+            tumor_bam_indexes=["tumor.bam.bai"],
+            reference="hg38.fa",
+            reference_index="hg38.fa.fai",
+            method="wgs",
+        )
 
 
 def test_cnvnator_is_registered_for_frontend_discovery() -> None:

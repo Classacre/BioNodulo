@@ -46,6 +46,7 @@ class CNVkitAccessNode(CNVkitCommandNode):
     RETURN_NAMES = ("out_sample_access",)
     DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/en/stable/pipeline.html#access"
     UPSTREAM_SOURCE = "cnvlib/commands.py P_access and cnvlib/access.py do_access"
+    SOURCE_PATHS = ("cnvlib/commands.py", "cnvlib/access.py", "doc/pipeline.rst")
     OUTPUT_FILENAME = "access-excludes.bed"
 
     @classmethod

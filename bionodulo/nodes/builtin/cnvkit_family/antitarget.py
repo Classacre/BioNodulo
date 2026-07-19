@@ -25,6 +25,7 @@ class CNVkitAntitargetNode(CNVkitCommandNode):
     RETURN_NAMES = ("out_capture_antitarget",)
     DOCUMENTATION_URL = "https://cnvkit.readthedocs.io/en/stable/pipeline.html#antitarget"
     UPSTREAM_SOURCE = "cnvlib/commands.py P_anti and cnvlib/antitarget.py do_antitarget"
+    SOURCE_PATHS = ("cnvlib/commands.py", "cnvlib/antitarget.py", "doc/pipeline.rst")
     OUTPUT_FILENAME = "capture.antitarget.bed"
 
     @classmethod
