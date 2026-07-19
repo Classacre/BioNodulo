@@ -118,7 +118,8 @@ def test_protein_structure_template_validates_outputs_and_database_parameters() 
     assert uniprot_table_validator["min_size_bytes"] > 0
     assert uniprot_table_validator["fail_on_error"] is True
 
-    assert uniprot_retrieve["params"]["accession"] == "P04637"
+    assert uniprot_retrieve["params"]["uniprot_ids"] == "P04637"
+    assert "accession" not in uniprot_retrieve["params"]
     assert uniprot_retrieve["params"]["include_fasta"] is True
     assert uniprot_retrieve["params"]["output_name"] == "tp53"
     assert uniprot_fasta_validator["expected_format"] == "fasta"

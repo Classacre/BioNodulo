@@ -73,8 +73,12 @@
         80
       ],
       "params": {
+        "run_id": "tinygex",
         "sample": "tinygex",
-        "expect_cells": 100
+        "expect_cells": 100,
+        "threads": 16,
+        "memory": 64,
+        "create_bam": false
       },
       "ui": {
         "title": "Cell Ranger Count",

@@ -69,8 +69,8 @@ def test_spatial_transcriptomics_template_covers_visium_qc_and_scanpy_clustering
         "image_preview",
     }.issubset(set(workflow["tools"]))
 
-    # The synthetic count/coordinate CSV inputs were removed: scanpy_spatial now
-    # reads the real Visium .h5 directly (and derives the CSVs from it at run time).
+    # Both stages now consume explicit native artifacts: Squidpy reads the full
+    # Visium directory, then Scanpy consumes the resulting H5AD.
     assert node_types["visium_outs_001"] == "input_directory"
     assert node_types["squidpy_qc_001"] == "squidpy_qc"
     assert node_types["spatial_plot_preview_001"] == "image_preview"
@@ -81,7 +81,7 @@ def test_spatial_transcriptomics_template_covers_visium_qc_and_scanpy_clustering
 
     assert _has_edge(workflow, "visium_outs_001", "directory", "squidpy_qc_001", "visium_path")
     assert _has_edge(workflow, "squidpy_qc_001", "spatial_plot", "spatial_plot_preview_001", "file")
-    assert _has_edge(workflow, "visium_outs_001", "directory", "scanpy_spatial_001", "visium_path")
+    assert _has_edge(workflow, "squidpy_qc_001", "adata", "scanpy_spatial_001", "adata")
     assert _has_edge(workflow, "scanpy_spatial_001", "umap", "scanpy_umap_preview_001", "file")
 
 
@@ -109,10 +109,9 @@ def test_spatial_transcriptomics_template_validates_outputs_and_analysis_paramet
     assert squidpy_validator["expected_format"] == "auto"
     assert squidpy_validator["fail_on_error"] is True
 
-    # scanpy_spatial reads the real Visium directory (no CSV inputs).
-    assert _has_edge(workflow, "visium_outs_001", "directory", "scanpy_spatial_001", "visium_path")
+    assert _has_edge(workflow, "squidpy_qc_001", "adata", "scanpy_spatial_001", "adata")
     assert scanpy["params"]["sample_name"] == "visium_sample"
-    assert scanpy["params"]["delimiter"] == "comma"
+    assert "delimiter" not in scanpy["params"]
     assert scanpy["params"]["min_cells"] == 3
     assert scanpy["params"]["min_genes"] == 200
     assert scanpy["params"]["n_hvg"] == 2000

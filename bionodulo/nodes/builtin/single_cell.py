@@ -2,17 +2,19 @@
 
 Provides nodes for 10x Genomics Cell Ranger count and reference building.
 """
+# ruff: noqa: F401
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Optional
 
+from bionodulo.nodes.builtin.single_cell_spatial_family.cellranger_count import CellRangerCountNode
 from bionodulo.nodes.command_node import CommandNode
 
 
-class CellRangerCountNode(CommandNode):
+class _LegacyCellRangerCountNode(CommandNode):
     """Run Cell Ranger count for 10x Genomics scRNA-seq."""
-    NODE_ID = "cellranger_count"
+    LEGACY_NODE_ID = "cellranger_count"
     DISPLAY_NAME = "Cell Ranger Count"
     REQUIRED_CONDA_PACKAGES = ['cellranger']
     CATEGORY = "single_cell"

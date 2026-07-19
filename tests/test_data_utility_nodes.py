@@ -896,7 +896,7 @@ def test_format_converter_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["gffread"] == "gffread"
     assert EXECUTABLE_TO_CONDA_PACKAGE["seqtk"] == "seqtk"
     assert PACKAGE_MIN_VERSIONS["gffread"] == ">=0.12.7"
-    assert PACKAGE_MIN_VERSIONS["seqtk"] == ">=1.4"
+    assert PACKAGE_MIN_VERSIONS["seqtk"] == "1.4"
 
 
 @pytest.mark.asyncio

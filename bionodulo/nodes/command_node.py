@@ -72,6 +72,9 @@ class CommandNode(BaseNode):
     WORKING_DIR: ClassVar[Optional[str]] = None
     """Optional working directory for command execution."""
 
+    RUN_IN_NODE_OUTPUT_DIR: ClassVar[bool] = False
+    """Run commands in the node output directory when a tool writes cwd-relative files."""
+
     # Environment variable overrides
     ENV_VARS: ClassVar[dict[str, str]] = {}
     """Additional environment variables for the command."""
@@ -410,7 +413,10 @@ class CommandNode(BaseNode):
                 if context is not None and hasattr(context, "run_command"):
                     command_kwargs: dict[str, Any] = {
                         "env": self.__class__.ENV_VARS or None,
-                        "cwd": self.__class__.WORKING_DIR or output_dir,
+                        "cwd": (
+                            self.__class__.WORKING_DIR
+                            or (str(node_out) if self.__class__.RUN_IN_NODE_OUTPUT_DIR else output_dir)
+                        ),
                     }
                     if stdout_path is not None:
                         command_kwargs["stdout_path"] = stdout_path
@@ -423,7 +429,10 @@ class CommandNode(BaseNode):
                     from bionodulo.execution.subprocess_runner import run_subprocess
                     result = await run_subprocess(
                         cmd,
-                        cwd=output_dir,
+                        cwd=(
+                            self.__class__.WORKING_DIR
+                            or (str(node_out) if self.__class__.RUN_IN_NODE_OUTPUT_DIR else output_dir)
+                        ),
                         stdout_path=(
                             stdout_path
                             if stdout_path is not None

@@ -10,6 +10,7 @@ Both follow the script/command-runner pattern used by ``r_plot``: build the
 command (or a Python script), run it via the execution context, then register
 the resulting figure as an inline preview.
 """
+# ruff: noqa: F401
 
 from __future__ import annotations
 
@@ -18,12 +19,14 @@ from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin.metagenomics_family.krona import KronaTaxonomyNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.scanpy_umap import ScanpyUmapNode
 
 
-class KronaTaxonomyNode(BaseNode):
+class _LegacyKronaTaxonomyNode(BaseNode):
     """Interactive Krona taxonomy chart from a Kraken2-style classification."""
 
-    NODE_ID = "krona"
+    LEGACY_NODE_ID = "krona"
     DISPLAY_NAME = "Krona Taxonomy Chart"
     CATEGORY = "metagenomics"
     DESCRIPTION = "Interactive Krona sunburst of taxonomic classifications (the metagenomics standard)"
@@ -98,10 +101,10 @@ class KronaTaxonomyNode(BaseNode):
         ]
 
 
-class ScanpyUmapNode(BaseNode):
+class _LegacyScanpyUmapNode(BaseNode):
     """Scanpy single-cell QC + UMAP embedding from a 10x matrix."""
 
-    NODE_ID = "scanpy_umap"
+    LEGACY_NODE_ID = "scanpy_umap"
     DISPLAY_NAME = "Scanpy UMAP + QC"
     CATEGORY = "single_cell"
     DESCRIPTION = "Standard Scanpy single-cell pipeline: QC violins, PCA, neighbors, Leiden clusters, UMAP"

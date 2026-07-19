@@ -3,6 +3,7 @@
 Provides nodes for taxonomic classification (Kraken2, Bracken, MetaPhlAn),
 functional profiling (HUMAnN), binning (MaxBin), and quality assessment (CheckM).
 """
+# ruff: noqa: F401
 from __future__ import annotations
 
 import shlex
@@ -10,6 +11,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 from bionodulo.nodes.command_node import CommandNode, _shell_join
+from bionodulo.nodes.builtin.metagenomics_family.bracken import BrackenNode
+from bionodulo.nodes.builtin.metagenomics_family.humann import HUMAnNNode
+from bionodulo.nodes.builtin.metagenomics_family.kraken2 import Kraken2Node
+from bionodulo.nodes.builtin.metagenomics_family.krona import KronaTaxonomyNode
+from bionodulo.nodes.builtin.metagenomics_family.metaphlan import MetaPhlAnNode
 
 
 DOI_URL = "https://doi.org/"
@@ -47,10 +53,10 @@ def _shell_join_allow_substitution(cmd: list[str]) -> str:
     return " ".join(parts)
 
 
-class Kraken2Node(CommandNode):
+class _LegacyKraken2Node(CommandNode):
     """Taxonomic classification with Kraken2."""
 
-    NODE_ID = "kraken2"
+    LEGACY_NODE_ID = "kraken2"
     DISPLAY_NAME = "Kraken2"
     REQUIRED_CONDA_PACKAGES = ["kraken2"]
     CATEGORY = "metagenomics"
@@ -342,10 +348,10 @@ class Kraken2BuildNode(CommandNode):
         }
 
 
-class BrackenNode(CommandNode):
+class _LegacyBrackenNode(CommandNode):
     """Abundance estimation with Bracken."""
 
-    NODE_ID = "bracken"
+    LEGACY_NODE_ID = "bracken"
     DISPLAY_NAME = "Bracken"
     REQUIRED_CONDA_PACKAGES = ["bracken"]
     CATEGORY = "metagenomics"
@@ -477,10 +483,10 @@ class BrackenNode(CommandNode):
         }
 
 
-class MetaPhlAnNode(CommandNode):
+class _LegacyMetaPhlAnNode(CommandNode):
     """Taxonomic profiling with MetaPhlAn."""
 
-    NODE_ID = "metaphlan"
+    LEGACY_NODE_ID = "metaphlan"
     DISPLAY_NAME = "MetaPhlAn"
     REQUIRED_CONDA_PACKAGES = ["metaphlan"]
     CATEGORY = "metagenomics"
@@ -951,10 +957,10 @@ class MetaPhlAnNode(CommandNode):
         }
 
 
-class HUMAnNNode(CommandNode):
+class _LegacyHUMAnNNode(CommandNode):
     """Functional profiling with HUMAnN."""
 
-    NODE_ID = "humann"
+    LEGACY_NODE_ID = "humann"
     DISPLAY_NAME = "HUMAnN"
     REQUIRED_CONDA_PACKAGES = ["humann"]
     CATEGORY = "metagenomics"

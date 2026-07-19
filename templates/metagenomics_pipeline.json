@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "Metagenomics pipeline: classifies taxa with Kraken2/Bracken and profiles functions with HUMAnN.\n\nData source: Zenodo record 17661262 (Galaxy Training Network).\nreads_forward.fastq (3.0M), reads_reverse.fastq (3.0M).\nCoffee fermentation metagenome subset for assembly tutorial.\nURL: https://zenodo.org/records/17661262\nNote: Kraken2 database directory is a placeholder. Provide your own database."
+        "text": "Metagenomics pipeline: classifies taxa with Kraken2/Bracken and MetaPhlAn, profiles functions with HUMAnN, and renders Krona taxonomy.\n\nData source: Zenodo record 17661262 (Galaxy Training Network).\nreads_forward.fastq (3.0M), reads_reverse.fastq (3.0M).\nCoffee fermentation metagenome subset for assembly tutorial.\nURL: https://zenodo.org/records/17661262\nAll database, taxonomy, and HUMAnN single-file inputs are explicit placeholders and must be staged before execution."
       },
       "ui": {
         "title": "Notes",
@@ -68,6 +68,77 @@
             }
           }
         }
+      }
+    },
+    {
+      "id": "metaphlan_db_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        430
+      ],
+      "params": {
+        "directory": "metaphlan_db"
+      },
+      "ui": {
+        "title": "MetaPhlAn DB"
+      }
+    },
+    {
+      "id": "humann_reads_001",
+      "type": "input_file",
+      "position": [
+        80,
+        590
+      ],
+      "params": {
+        "file": "examples/data/metagenomics/reads_interleaved.fastq",
+        "source": "local"
+      },
+      "ui": {
+        "title": "HUMAnN Reads"
+      }
+    },
+    {
+      "id": "humann_nucleotide_db_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        750
+      ],
+      "params": {
+        "directory": "chocophlan_db"
+      },
+      "ui": {
+        "title": "ChocoPhlAn DB"
+      }
+    },
+    {
+      "id": "humann_protein_db_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        910
+      ],
+      "params": {
+        "directory": "uniref_db"
+      },
+      "ui": {
+        "title": "UniRef DB"
+      }
+    },
+    {
+      "id": "krona_taxonomy_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        1070
+      ],
+      "params": {
+        "directory": "krona_taxonomy"
+      },
+      "ui": {
+        "title": "Krona Taxonomy DB"
       }
     },
     {
@@ -199,7 +270,7 @@
       ],
       "params": {
         "threads": 8,
-        "bt2_db": "metaphlan_db"
+        "index": "mpa_vJun23_CHOCOPhlAnSGB_202403"
       },
       "ui": {
         "title": "MetaPhlAn",
@@ -518,8 +589,8 @@
     {
       "id": "e10",
       "from": {
-        "node": "gate_trimmed_reads_001",
-        "output": "output"
+        "node": "humann_reads_001",
+        "output": "file"
       },
       "to": {
         "node": "humann_retry_001",
@@ -534,7 +605,7 @@
       },
       "to": {
         "node": "humann_001",
-        "input": "reads"
+        "input": "input"
       }
     },
     {
@@ -604,6 +675,61 @@
       }
     },
     {
+      "id": "e19",
+      "from": {
+        "node": "metaphlan_db_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "metaphlan_001",
+        "input": "database"
+      }
+    },
+    {
+      "id": "e20",
+      "from": {
+        "node": "metaphlan_001",
+        "output": "profile"
+      },
+      "to": {
+        "node": "humann_001",
+        "input": "taxonomic_profile"
+      }
+    },
+    {
+      "id": "e21",
+      "from": {
+        "node": "humann_nucleotide_db_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "humann_001",
+        "input": "nucleotide_database"
+      }
+    },
+    {
+      "id": "e22",
+      "from": {
+        "node": "humann_protein_db_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "humann_001",
+        "input": "protein_database"
+      }
+    },
+    {
+      "id": "e23",
+      "from": {
+        "node": "krona_taxonomy_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "krona_001",
+        "input": "taxonomy"
+      }
+    },
+    {
       "id": "e17",
       "from": {
         "node": "qc_001",
@@ -668,7 +794,7 @@
     {
       "from": {
         "node": "kraken2_001",
-        "output": "output"
+        "output": "classification"
       },
       "to": {
         "node": "krona_001",

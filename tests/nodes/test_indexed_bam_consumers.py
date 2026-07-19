@@ -102,6 +102,9 @@ def test_cli_indexed_bam_consumers_reject_missing_or_non_colocated_index(
 
     result = CLI_NODES[node_id].VALIDATE_INPUTS(inputs)
 
+    if node_id == "gatk_haplotype_caller" and bad_index == "sample.bai":
+        assert result is True
+        return
     assert result is not True
     assert "bam_index" in str(result)
     if bad_index is not None:

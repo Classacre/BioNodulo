@@ -1,4 +1,5 @@
 """Metabolomics workflow nodes."""
+# ruff: noqa: F401
 from __future__ import annotations
 
 import re
@@ -7,6 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
+from bionodulo.nodes.builtin.metabolomics_family import (
+    CAMERAAnnotationNode,
+    XCMSPeakDetectionNode,
+    XCMSRetentionCorrectionNode,
+)
 
 
 def _safe_output_stem(value: Any, fallback: str) -> str:
@@ -44,10 +50,10 @@ def _r_bool(value: Any) -> str:
     return "TRUE" if bool(value) else "FALSE"
 
 
-class XCMSPeakDetectionNode(CommandNode):
+class _LegacyXCMSPeakDetectionNode(CommandNode):
     """Detect chromatographic peaks in LC-MS data with XCMS."""
 
-    NODE_ID = "xcms_peak_detection"
+    LEGACY_NODE_ID = "xcms_peak_detection"
     DISPLAY_NAME = "XCMS Peak Detection"
     CATEGORY = "metabolomics"
     DESCRIPTION = "Detect LC-MS chromatographic peaks with XCMS centWave and export feature intensities."
@@ -173,10 +179,10 @@ class XCMSPeakDetectionNode(CommandNode):
         }
 
 
-class XCMSRetentionCorrectionNode(CommandNode):
+class _LegacyXCMSRetentionCorrectionNode(CommandNode):
     """Correct retention time, align, and fill XCMS chromatographic peaks."""
 
-    NODE_ID = "xcms_retention_correction"
+    LEGACY_NODE_ID = "xcms_retention_correction"
     DISPLAY_NAME = "XCMS Retention Time Correction"
     CATEGORY = "metabolomics"
     DESCRIPTION = "Correct retention time, align grouped peaks, and fill missing LC-MS features with XCMS."
@@ -298,10 +304,10 @@ class XCMSRetentionCorrectionNode(CommandNode):
         }
 
 
-class CAMERAAnnotationNode(CommandNode):
+class _LegacyCAMERAAnnotationNode(CommandNode):
     """Annotate XCMS peak lists with CAMERA isotope and adduct calls."""
 
-    NODE_ID = "camera_annotation"
+    LEGACY_NODE_ID = "camera_annotation"
     DISPLAY_NAME = "CAMERA Annotation"
     CATEGORY = "metabolomics"
     DESCRIPTION = "Annotate LC-MS peaks with CAMERA pseudospectra, isotope, and adduct assignments."

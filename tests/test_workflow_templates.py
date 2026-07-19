@@ -435,8 +435,12 @@ def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
     assert "render_tree_viewer_ima_0" not in node_types
     assert node_types["image_preview_001"] == "image_preview"
     tree_viewer = next(node for node in workflow["nodes"] if node["id"] == "tree_viewer_001")
+    iqtree = next(node for node in workflow["nodes"] if node["id"] == "iqtree_001")
     assert tree_viewer["params"]["format"] == "png"
     assert tree_viewer["params"]["layout"] == "rectangular"
+    assert iqtree["params"]["ufboot_replicates"] == 1000
+    assert iqtree["params"]["alrt_replicates"] == 1000
+    assert "bootstrap" not in iqtree["params"]
     assert _has_edge(workflow, "iqtree_001", "tree", "tree_viewer_001", "tree_file")
     assert _has_edge(workflow, "msa_view_001", "alignment_image", "image_preview_001", "file")
     assert workflow["outputs"]["tree_image"] == "tree_viewer_001"
@@ -1271,11 +1275,27 @@ def test_metagenomics_template_gates_trimmed_reads_before_profiling() -> None:
     assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "kraken2_retry_001", "input")
     assert _has_edge(workflow, "kraken2_retry_001", "passthrough", "kraken2_001", "reads")
     assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "metaphlan_001", "reads")
-    assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "humann_retry_001", "input")
-    assert _has_edge(workflow, "humann_retry_001", "passthrough", "humann_001", "reads")
+    assert node_types["humann_reads_001"] == "input_file"
+    assert _has_edge(workflow, "humann_reads_001", "file", "humann_retry_001", "input")
+    assert _has_edge(workflow, "humann_retry_001", "passthrough", "humann_001", "input")
+    assert _has_edge(workflow, "metaphlan_001", "profile", "humann_001", "taxonomic_profile")
+    assert _has_edge(
+        workflow,
+        "humann_nucleotide_db_001",
+        "directory",
+        "humann_001",
+        "nucleotide_database",
+    )
+    assert _has_edge(
+        workflow,
+        "humann_protein_db_001",
+        "directory",
+        "humann_001",
+        "protein_database",
+    )
     assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "kraken2_001", "reads")
     assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "metaphlan_001", "reads")
-    assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "humann_001", "reads")
+    assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "humann_001", "input")
     assert workflow["outputs"]["trimmed_reads_quality_gate"] == "gate_trimmed_reads_001"
 
 
@@ -1291,8 +1311,9 @@ def test_metagenomics_template_validates_database_directory_before_profiling() -
     assert not _has_edge(workflow, "db_001", "directory", "validate_db_001", "input")
     assert _has_edge(workflow, "db_001", "directory", "kraken2_001", "db")
     assert _has_edge(workflow, "db_001", "directory", "bracken_001", "db")
-    assert _has_edge(workflow, "db_001", "directory", "kraken2_001", "db")
-    assert _has_edge(workflow, "db_001", "directory", "bracken_001", "db")
+    assert _has_edge(workflow, "metaphlan_db_001", "directory", "metaphlan_001", "database")
+    assert _has_edge(workflow, "krona_taxonomy_001", "directory", "krona_001", "taxonomy")
+    assert _has_edge(workflow, "kraken2_001", "classification", "krona_001", "classification")
     assert workflow["outputs"]["validated_db"] == "db_001"
 
 

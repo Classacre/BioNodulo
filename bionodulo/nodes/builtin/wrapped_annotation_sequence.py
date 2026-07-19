@@ -1,5 +1,5 @@
 """BioNodulo built-in wrapped tool nodes split by tool family."""
-# ruff: noqa: F403,F405
+# ruff: noqa: E402,F401,F403,F405
 from __future__ import annotations
 
 from bionodulo.nodes.builtin._wrapped_tool_utils import *
@@ -2547,10 +2547,10 @@ class SeqKitStatsNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKCompNode(CommandNode):
+class _LegacySeqTKCompNode(CommandNode):
     """Report nucleotide composition for FASTA/Q records with seqtk comp."""
 
-    NODE_ID = "seqtk_comp"
+    LEGACY_NODE_ID = "seqtk_comp"
     DISPLAY_NAME = "SeqTK Composition"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk"]
     CATEGORY = "sequence"
@@ -2610,10 +2610,10 @@ class SeqTKCompNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKCutNNode(CommandNode):
+class _LegacySeqTKCutNNode(CommandNode):
     """Split FASTA/Q records at long N tracts with seqtk cutN."""
 
-    NODE_ID = "seqtk_cutN"
+    LEGACY_NODE_ID = "seqtk_cutN"
     DISPLAY_NAME = "SeqTK CutN"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -2720,10 +2720,10 @@ class SeqTKCutNNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKDropSENode(CommandNode):
+class _LegacySeqTKDropSENode(CommandNode):
     """Remove unpaired records from interleaved paired-end FASTA/Q with seqtk dropse."""
 
-    NODE_ID = "seqtk_dropse"
+    LEGACY_NODE_ID = "seqtk_dropse"
     DISPLAY_NAME = "SeqTK DropSE"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -2806,10 +2806,10 @@ class SeqTKDropSENode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKFqchkNode(CommandNode):
+class _LegacySeqTKFqchkNode(CommandNode):
     """Report FASTQ base composition and quality summaries with seqtk fqchk."""
 
-    NODE_ID = "seqtk_fqchk"
+    LEGACY_NODE_ID = "seqtk_fqchk"
     DISPLAY_NAME = "SeqTK FASTQ Check"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk"]
     CATEGORY = "qc"
@@ -2872,10 +2872,10 @@ class SeqTKFqchkNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKHetyNode(CommandNode):
+class _LegacySeqTKHetyNode(CommandNode):
     """Report regional heterozygosity with seqtk hety."""
 
-    NODE_ID = "seqtk_hety"
+    LEGACY_NODE_ID = "seqtk_hety"
     DISPLAY_NAME = "SeqTK Heterozygosity"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk"]
     CATEGORY = "sequence"
@@ -2945,10 +2945,10 @@ class SeqTKHetyNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKListHetNode(CommandNode):
+class _LegacySeqTKListHetNode(CommandNode):
     """List heterozygous ambiguity-base positions with seqtk listhet."""
 
-    NODE_ID = "seqtk_listhet"
+    LEGACY_NODE_ID = "seqtk_listhet"
     DISPLAY_NAME = "SeqTK List Heterozygous Bases"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk"]
     CATEGORY = "sequence"
@@ -3003,10 +3003,10 @@ class SeqTKListHetNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKMergeFANode(CommandNode):
+class _LegacySeqTKMergeFANode(CommandNode):
     """Merge two FASTA/Q files into FASTA with seqtk mergefa."""
 
-    NODE_ID = "seqtk_mergefa"
+    LEGACY_NODE_ID = "seqtk_mergefa"
     DISPLAY_NAME = "SeqTK Merge FASTA"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -3107,10 +3107,10 @@ class SeqTKMergeFANode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKMergePENode(CommandNode):
+class _LegacySeqTKMergePENode(CommandNode):
     """Interleave paired FASTA/Q files with seqtk mergepe."""
 
-    NODE_ID = "seqtk_mergepe"
+    LEGACY_NODE_ID = "seqtk_mergepe"
     DISPLAY_NAME = "SeqTK Merge Paired-End"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -3204,10 +3204,10 @@ class SeqTKMergePENode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKMutFANode(CommandNode):
+class _LegacySeqTKMutFANode(CommandNode):
     """Apply point mutations to FASTA/Q records with seqtk mutfa."""
 
-    NODE_ID = "seqtk_mutfa"
+    LEGACY_NODE_ID = "seqtk_mutfa"
     DISPLAY_NAME = "SeqTK Mutate FASTA"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -3306,10 +3306,10 @@ class SeqTKMutFANode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKRandBaseNode(CommandNode):
+class _LegacySeqTKRandBaseNode(CommandNode):
     """Randomly resolve ambiguous bases with seqtk randbase."""
 
-    NODE_ID = "seqtk_randbase"
+    LEGACY_NODE_ID = "seqtk_randbase"
     DISPLAY_NAME = "SeqTK Random Base"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -3400,10 +3400,10 @@ class SeqTKRandBaseNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKSampleNode(CommandNode):
+class _LegacySeqTKSampleNode(CommandNode):
     """Randomly subsample FASTA/Q records with seqtk sample."""
 
-    NODE_ID = "seqtk_sample"
+    LEGACY_NODE_ID = "seqtk_sample"
     DISPLAY_NAME = "SeqTK Sample"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -3524,10 +3524,10 @@ class SeqTKSampleNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKSeqNode(CommandNode):
+class _LegacySeqTKSeqNode(CommandNode):
     """Transform FASTA/Q records with seqtk seq."""
 
-    NODE_ID = "seqtk_seq"
+    LEGACY_NODE_ID = "seqtk_seq"
     DISPLAY_NAME = "SeqTK Seq"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -3702,10 +3702,10 @@ class SeqTKSeqNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKSubseqNode(CommandNode):
+class _LegacySeqTKSubseqNode(CommandNode):
     """Extract selected FASTA/Q records with seqtk subseq."""
 
-    NODE_ID = "seqtk_subseq"
+    LEGACY_NODE_ID = "seqtk_subseq"
     DISPLAY_NAME = "SeqTK Subsequence"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "gawk", "pigz"]
     CATEGORY = "sequence"
@@ -3851,10 +3851,10 @@ class SeqTKSubseqNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKTeloNode(CommandNode):
+class _LegacySeqTKTeloNode(CommandNode):
     """Find telomeric repeats with seqtk telo."""
 
-    NODE_ID = "seqtk_telo"
+    LEGACY_NODE_ID = "seqtk_telo"
     DISPLAY_NAME = "SeqTK Telomere"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "sequence"
@@ -3931,10 +3931,10 @@ class SeqTKTeloNode(CommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
-class SeqTKTrimFQNode(CommandNode):
+class _LegacySeqTKTrimFQNode(CommandNode):
     """Trim FASTQ reads with seqtk trimfq."""
 
-    NODE_ID = "seqtk_trimfq"
+    LEGACY_NODE_ID = "seqtk_trimfq"
     DISPLAY_NAME = "SeqTK Trim FASTQ"
     REQUIRED_CONDA_PACKAGES = ["seqtk", "pigz"]
     CATEGORY = "trimming"
@@ -4985,3 +4985,21 @@ def __getattr__(name: str) -> Any:
 
         return FeatureCountsNode
     raise AttributeError(name)
+
+
+# Preserve historical imports while live ownership resides in focused modules.
+from bionodulo.nodes.builtin.seqtk_family.comp import SeqTKCompNode
+from bionodulo.nodes.builtin.seqtk_family.cutn import SeqTKCutNNode
+from bionodulo.nodes.builtin.seqtk_family.dropse import SeqTKDropSENode
+from bionodulo.nodes.builtin.seqtk_family.fqchk import SeqTKFqchkNode
+from bionodulo.nodes.builtin.seqtk_family.hety import SeqTKHetyNode
+from bionodulo.nodes.builtin.seqtk_family.listhet import SeqTKListHetNode
+from bionodulo.nodes.builtin.seqtk_family.mergefa import SeqTKMergeFANode
+from bionodulo.nodes.builtin.seqtk_family.mergepe import SeqTKMergePENode
+from bionodulo.nodes.builtin.seqtk_family.mutfa import SeqTKMutFANode
+from bionodulo.nodes.builtin.seqtk_family.randbase import SeqTKRandBaseNode
+from bionodulo.nodes.builtin.seqtk_family.sample import SeqTKSampleNode
+from bionodulo.nodes.builtin.seqtk_family.seq import SeqTKSeqNode
+from bionodulo.nodes.builtin.seqtk_family.subseq import SeqTKSubseqNode
+from bionodulo.nodes.builtin.seqtk_family.telo import SeqTKTeloNode
+from bionodulo.nodes.builtin.seqtk_family.trimfq import SeqTKTrimFQNode

@@ -20,6 +20,8 @@ import httpx
 
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
+from bionodulo.nodes.builtin.phylogeny_family.iqtree import IQTREENode as IQTREENode
+from bionodulo.nodes.builtin.phylogeny_family.mafft import MAFFTNode as MAFFTNode
 from bionodulo.nodes.command_node import CommandNode
 
 
@@ -271,76 +273,6 @@ def _canonical_newick(path: Path) -> str:
     return handle.getvalue().strip()
 
 
-class MAFFTNode(CommandNode):
-    """Multiple sequence alignment with MAFFT."""
-    NODE_ID = "mafft"
-    DISPLAY_NAME = "MAFFT"
-    REQUIRED_CONDA_PACKAGES = ['mafft']
-    CATEGORY = "phylogeny"
-    DESCRIPTION = "Multiple sequence alignment with MAFFT (fast FFT-based)"
-    SEARCH_ALIASES = ["mafft", "align", "msa", "multiple alignment"]
-    RETURN_TYPES = ("ALIGNMENT",)
-    RETURN_NAMES = ("alignment",)
-    REQUIRED_EXECUTABLES = ["mafft"]
-    DOCUMENTATION_URL = "https://mafft.cbrc.jp/alignment/software/"
-    VERSION = "7.520"
-    COMMAND = [
-        "mafft",
-        "--thread", "{inputs.threads}",
-        "{inputs.input}",
-    ]
-
-    @classmethod
-    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
-        return {
-            "required": {
-                "input": ("FASTA", {"description": "Input sequences FASTA"}),
-                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
-            },
-            "optional": {
-                "strategy": ("STRING", {"default": "auto", "description": "Alignment strategy: auto, linsi, ginsi, einsi"}),
-            },
-            "hidden": {
-                "output": ("STRING", {}),
-            },
-        }
-
-    @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> str:
-        # MAFFT writes the alignment to STDOUT (it has no output-file flag). The
-        # previous approach ran a bare arg list and tried to copy stdout.log to
-        # the output in a run() override — but CommandNode.run() validates the
-        # expected output and RAISES before that override's copy could run, so
-        # the file was never produced ("did not create expected output"). Emit a
-        # shell command that redirects stdout straight into the planned output
-        # file; run_subprocess runs a str command via the shell, so `>` works and
-        # CommandNode's output check then passes.
-        strategy = str(inputs.get("strategy", "auto")).strip().lower()
-        # linsi/ginsi/einsi are wrapper names, NOT `--flags` — map them to the
-        # equivalent mafft options. `auto` and any explicit `--flag` pass through.
-        strategy_flags = {
-            "auto": ["--auto"],
-            "linsi": ["--localpair", "--maxiterate", "1000"],
-            "ginsi": ["--globalpair", "--maxiterate", "1000"],
-            "einsi": ["--genafpair", "--maxiterate", "1000"],
-            "": ["--auto"],
-        }
-        if strategy.startswith("--"):
-            flags = [strategy]
-        else:
-            flags = strategy_flags.get(strategy, ["--auto"])
-        out_dir = str(inputs.get("output", "."))
-        out_file = f"{out_dir}/alignment.aln.fasta"
-        parts = [
-            "mafft",
-            "--thread", str(inputs.get("threads", 4)),
-            *flags,
-            shlex.quote(str(inputs.get("input", ""))),
-            ">", shlex.quote(out_file),
-        ]
-        return " ".join(parts)
-
-
 class ClustalONode(CommandNode):
     """Multiple sequence alignment with Clustal Omega."""
     NODE_ID = "clustalo"
@@ -491,77 +423,6 @@ class TrimAlNode(CommandNode):
         if inputs.get("htmlout"):
             cmd.extend(["-htmlout", f"{out_dir}/stats.html"])
         return cmd
-
-
-class IQTREENode(CommandNode):
-    """Phylogenetic tree inference with IQ-TREE."""
-    NODE_ID = "iqtree"
-    DISPLAY_NAME = "IQ-TREE"
-    REQUIRED_CONDA_PACKAGES = ['iqtree']
-    CATEGORY = "phylogeny"
-    DESCRIPTION = "Efficient phylogenomic inference with maximum likelihood"
-    SEARCH_ALIASES = ["iqtree", "maximum likelihood", "tree", "phylogeny"]
-    RETURN_TYPES = ("PHYLOGENY_TREE",)
-    RETURN_NAMES = ("tree",)
-    REQUIRED_EXECUTABLES = ["iqtree"]
-    DOCUMENTATION_URL = "http://www.iqtree.org/"
-    VERSION = "2.3.4"
-    COMMAND = [
-        "iqtree",
-        "-s", "{inputs.alignment}",
-        "-nt", "{inputs.threads}",
-        "-pre", "{output}/tree",
-        "-m", "{inputs.model}",
-    ]
-
-    @classmethod
-    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
-        return {
-            "required": {
-                "alignment": ("ALIGNMENT", {"description": "Multiple sequence alignment"}),
-                "threads": ("INT", {"default": 4, "min": 1, "max": 64, "display": "slider"}),
-            },
-            "optional": {
-                "model": ("STRING", {"default": "MFP", "description": "Substitution model: MFP, GTR+I+G, LG+I+G, etc."}),
-                "bootstrap": ("INT", {"default": 1000, "min": 0, "max": 10000, "step": 100, "display": "slider"}),
-                "alrt": ("INT", {"default": 1000, "min": 0}),
-            },
-            "hidden": {
-                "output": ("STRING", {}),
-            },
-        }
-
-    @classmethod
-    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        # IQ-TREE hard-errors ("You have specified more threads than CPU cores
-        # available") when -nt exceeds the machine's cores. Runs land on
-        # variable-size spot VMs, so a fixed thread count from the template can
-        # exceed the box. Use `-nt AUTO -ntmax <n>`: iqtree auto-picks an optimal
-        # thread count, capped at the requested value, and never overcommits.
-        threads = str(inputs.get("threads", 4))
-        cmd = [
-            "iqtree",
-            "-s", str(inputs.get("alignment", "")),
-            "-nt", "AUTO",
-            "-ntmax", threads,
-            "-pre", f"{inputs.get('output', '.')}/tree",
-            "-m", str(inputs.get("model", "MFP")),
-        ]
-        if inputs.get("bootstrap"):
-            cmd.extend(["-bb", str(inputs["bootstrap"])])
-        if inputs.get("alrt"):
-            cmd.extend(["-alrt", str(inputs["alrt"])])
-        return cmd
-
-    @classmethod
-    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
-        # IQ-TREE writes the ML tree as `<prefix>.treefile` (we pass
-        # `-pre <node_out>/tree`), NOT `tree.nwk` that the default PLAN_OUTPUTS
-        # would derive from the PHYLOGENY_TREE return type. Point at the real file
-        # so the output check passes and downstream nodes get a valid Newick tree.
-        node_out = Path(output_dir) / cls.NODE_ID
-        node_out.mkdir(parents=True, exist_ok=True)
-        return [node_out / "tree.treefile"]
 
 
 class FastTreeNode(CommandNode):

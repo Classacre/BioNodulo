@@ -3,6 +3,7 @@
 Provides nodes for variant calling with bcftools, GATK, FreeBayes,
 and filtering with bcftools and VCFtools.
 """
+# ruff: noqa: E402,F401
 from __future__ import annotations
 
 import shlex
@@ -998,9 +999,9 @@ class SmooveNode(CommandNode):
         }
 
 
-class DellyNode(CommandNode):
+class _LegacyDellyNode(CommandNode):
     """Call structural variants with DELLY."""
-    NODE_ID = "delly"
+    LEGACY_NODE_ID = "delly"
     DISPLAY_NAME = "DELLY SV Caller"
     CATEGORY = "variant"
     DESCRIPTION = "Paired-end + split-read SV caller. Supports germline, somatic, and long-read modes."
@@ -1063,10 +1064,10 @@ class DellyNode(CommandNode):
         return validate_colocated_reference_index(inputs)
 
 
-class DellyCallNode(DellyNode):
+class _LegacyDellyCallNode(_LegacyDellyNode):
     """Workflow-compatible DELLY caller that emits an indexed VCF."""
 
-    NODE_ID = "delly_call"
+    LEGACY_NODE_ID = "delly_call"
     DISPLAY_NAME = "DELLY Call"
     DESCRIPTION = "Call structural variants with DELLY and convert BCF output to indexed VCF."
     SEARCH_ALIASES = ["delly_call", "delly", "structural variant", "sv caller", "somatic sv", "long-read sv"]
@@ -1119,9 +1120,9 @@ class DellyCallNode(DellyNode):
         return cmd
 
 
-class MantaNode(CommandNode):
+class _LegacyMantaNode(CommandNode):
     """Call paired-end structural variants with Manta."""
-    NODE_ID = "manta"
+    LEGACY_NODE_ID = "manta"
     DISPLAY_NAME = "Manta SV Caller"
     CATEGORY = "variant"
     DESCRIPTION = (
@@ -1239,10 +1240,10 @@ class MantaNode(CommandNode):
         return True
 
 
-class MantaCallNode(MantaNode):
+class _LegacyMantaCallNode(_LegacyMantaNode):
     """Workflow-compatible Manta structural variant caller alias."""
 
-    NODE_ID = "manta_call"
+    LEGACY_NODE_ID = "manta_call"
     DISPLAY_NAME = "Manta Call"
     DESCRIPTION = "Call paired-end structural variants with Manta for multi-caller SV workflows."
     SEARCH_ALIASES = ["manta_call", "manta", "structural variant", "sv caller", "illumina sv", "germline sv"]
@@ -1637,9 +1638,9 @@ class BcftoolsIndexNode(CommandNode):
         return result
 
 
-class GatkHaplotypeCallerNode(CommandNode):
+class _LegacyGatkHaplotypeCallerNode(CommandNode):
     """Call variants with GATK HaplotypeCaller."""
-    NODE_ID = "gatk_haplotype_caller"
+    LEGACY_NODE_ID = "gatk_haplotype_caller"
     DISPLAY_NAME = "GATK HaplotypeCaller"
     REQUIRED_CONDA_PACKAGES = ['gatk4']
     CATEGORY = "variant"
@@ -1715,9 +1716,9 @@ class GatkHaplotypeCallerNode(CommandNode):
         return validate_colocated_sequence_dictionary(inputs)
 
 
-class GatkGenotypeGVCFsNode(CommandNode):
+class _LegacyGatkGenotypeGVCFsNode(CommandNode):
     """Joint genotype sample GVCFs with GATK GenotypeGVCFs."""
-    NODE_ID = "gatk_genotype_gvcfs"
+    LEGACY_NODE_ID = "gatk_genotype_gvcfs"
     DISPLAY_NAME = "GATK GenotypeGVCFs"
     REQUIRED_CONDA_PACKAGES = ["gatk4"]
     CATEGORY = "variant"
@@ -1773,9 +1774,9 @@ class GatkGenotypeGVCFsNode(CommandNode):
         }
 
 
-class Mutect2Node(CommandNode):
+class _LegacyMutect2Node(CommandNode):
     """Call somatic variants with GATK Mutect2."""
-    NODE_ID = "mutect2"
+    LEGACY_NODE_ID = "mutect2"
     DISPLAY_NAME = "Mutect2"
     REQUIRED_CONDA_PACKAGES = ["gatk4"]
     CATEGORY = "variant"
@@ -2060,9 +2061,9 @@ class Clair3Node(CommandNode):
         }
 
 
-class GatkBaseRecalibratorNode(CommandNode):
+class _LegacyGatkBaseRecalibratorNode(CommandNode):
     """Base quality score recalibration with GATK."""
-    NODE_ID = "gatk_base_recalibrator"
+    LEGACY_NODE_ID = "gatk_base_recalibrator"
     DISPLAY_NAME = "GATK BaseRecalibrator"
     REQUIRED_CONDA_PACKAGES = ['gatk4']
     CATEGORY = "variant"
@@ -2109,9 +2110,9 @@ class GatkBaseRecalibratorNode(CommandNode):
         }
 
 
-class GatkApplyBQSRNode(CommandNode):
+class _LegacyGatkApplyBQSRNode(CommandNode):
     """Apply BQSR recalibration with GATK."""
-    NODE_ID = "gatk_apply_bqsr"
+    LEGACY_NODE_ID = "gatk_apply_bqsr"
     DISPLAY_NAME = "GATK ApplyBQSR"
     CATEGORY = "variant"
     DESCRIPTION = "Apply base quality score recalibration to a BAM file"
@@ -2145,9 +2146,9 @@ class GatkApplyBQSRNode(CommandNode):
         }
 
 
-class FreeBayesNode(CommandNode):
+class _LegacyFreeBayesNode(CommandNode):
     """Call variants with FreeBayes."""
-    NODE_ID = "freebayes"
+    LEGACY_NODE_ID = "freebayes"
     DISPLAY_NAME = "FreeBayes"
     REQUIRED_CONDA_PACKAGES = ['freebayes']
     CATEGORY = "variant"
@@ -2281,3 +2282,16 @@ class VcfToolsFilterNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
+
+# Preserve historical imports while live ownership resides in focused modules.
+from bionodulo.nodes.builtin.variant_family.delly import DellyNode
+from bionodulo.nodes.builtin.variant_family.delly_call import DellyCallNode
+from bionodulo.nodes.builtin.variant_family.freebayes import FreeBayesNode
+from bionodulo.nodes.builtin.variant_family.gatk_apply_bqsr import GatkApplyBQSRNode
+from bionodulo.nodes.builtin.variant_family.gatk_base_recalibrator import GatkBaseRecalibratorNode
+from bionodulo.nodes.builtin.variant_family.gatk_genotype_gvcfs import GatkGenotypeGVCFsNode
+from bionodulo.nodes.builtin.variant_family.gatk_haplotype_caller import GatkHaplotypeCallerNode
+from bionodulo.nodes.builtin.variant_family.manta import MantaNode
+from bionodulo.nodes.builtin.variant_family.manta_call import MantaCallNode
+from bionodulo.nodes.builtin.variant_family.mutect2 import Mutect2Node

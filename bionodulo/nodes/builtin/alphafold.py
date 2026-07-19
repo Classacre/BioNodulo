@@ -1,4 +1,5 @@
 """AlphaFold Protein Structure Database integration nodes."""
+# ruff: noqa: F401
 from __future__ import annotations
 
 import json
@@ -11,6 +12,10 @@ import httpx
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.builtin.api.http import APICache, APIHttpClient, TokenBucketRateLimiter
+from bionodulo.nodes.builtin.protein_database_family.alphafold_db import (
+    AlphaFoldDBNode,
+    AlphaFoldNode,
+)
 
 
 ALPHAFOLD_BASE_URL = "https://alphafold.ebi.ac.uk/api"
@@ -133,10 +138,10 @@ def _pae_url(entry: dict[str, Any]) -> str:
     return str(entry.get("paeDocUrl") or entry.get("paeUrl") or entry.get("paeJsonUrl") or "")
 
 
-class AlphaFoldDBNode(BaseNode):
+class _LegacyAlphaFoldDBNode(BaseNode):
     """Fetch predicted protein structures from AlphaFold DB."""
 
-    NODE_ID = "alphafold_db"
+    LEGACY_NODE_ID = "alphafold_db"
     DISPLAY_NAME = "AlphaFold DB"
     CATEGORY = "databases"
     DESCRIPTION = "Fetch predicted protein structures and metadata from the AlphaFold Protein Structure Database."
@@ -242,10 +247,10 @@ class AlphaFoldDBNode(BaseNode):
         }
 
 
-class AlphaFoldNode(AlphaFoldDBNode):
+class _LegacyAlphaFoldNode(_LegacyAlphaFoldDBNode):
     """Compatibility wrapper for the original AlphaFold roadmap node ID."""
 
-    NODE_ID = "alphafold"
+    LEGACY_NODE_ID = "alphafold"
     DISPLAY_NAME = "AlphaFold"
     DESCRIPTION = "Fetch predicted protein structures and metadata from AlphaFold DB."
     SEARCH_ALIASES = ["alphafold", "alphafold db", "structure", "prediction", "protein folding", "mmcif"]

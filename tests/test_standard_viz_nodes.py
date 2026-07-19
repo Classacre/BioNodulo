@@ -64,7 +64,16 @@ def test_scanpy_script_runs_standard_pipeline() -> None:
         h5="m.h5", min_genes=200, min_cells=3, n_pcs=30, n_neighbors=15,
         resolution=1.0, umap_png="umap.png", violin_png="qc.png",
     )
-    for needle in ("import scanpy as sc", "read_10x_h5", "sc.tl.pca", "sc.tl.umap", "sc.tl.leiden", "umap.png", "qc.png"):
+    for needle in (
+        "import scanpy as sc",
+        "read_10x_h5",
+        "sc.pp.pca",
+        "sc.tl.umap",
+        "sc.tl.leiden",
+        'flavor="igraph"',
+        "umap.png",
+        "qc.png",
+    ):
         assert needle in script
 
 

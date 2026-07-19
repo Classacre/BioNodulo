@@ -3,6 +3,7 @@
 Provides nodes for prokaryotic genome annotation with Prokka and Bakta,
 and functional annotation with eggNOG-mapper.
 """
+# ruff: noqa: E402,F401
 from __future__ import annotations
 
 import csv
@@ -13,6 +14,10 @@ from typing import Any
 
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode, _shell_join
+from bionodulo.nodes.builtin.annotation_family.intersect_genes import IntersectGenesNode
+from bionodulo.nodes.builtin.annotation_family.prokka import ProkkaNode
+from bionodulo.nodes.builtin.annotation_family.snpeff import SnpEffNode
+from bionodulo.nodes.builtin.annotation_family.vep import VEPNode
 
 
 DOI_URL = "https://doi.org/"
@@ -121,9 +126,9 @@ def _read_gene_sets(path: str | Path, database_format: str, case_sensitive: bool
     return gene_sets
 
 
-class ProkkaNode(CommandNode):
+class _LegacyProkkaNode(CommandNode):
     """Prokaryotic genome annotation with Prokka."""
-    NODE_ID = "prokka"
+    LEGACY_NODE_ID = "prokka"
     DISPLAY_NAME = "Prokka"
     REQUIRED_CONDA_PACKAGES = ['prokka']
     CATEGORY = "annotation"
@@ -163,6 +168,7 @@ class ProkkaNode(CommandNode):
                 "output": ("STRING", {}),
             },
         }
+
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -560,9 +566,9 @@ class EggNOGMapperNode(CommandNode):
         return result
 
 
-class SnpEffNode(CommandNode):
+class _LegacySnpEffNode(CommandNode):
     """Annotate variants and predict effects with SnpEff."""
-    NODE_ID = "snpeff"
+    LEGACY_NODE_ID = "snpeff"
     DISPLAY_NAME = "SnpEff"
     CATEGORY = "annotation"
     DESCRIPTION = "Fast variant annotation: missense, nonsense, frameshift, splice site. Supports many genomes."
@@ -625,9 +631,9 @@ class SnpEffNode(CommandNode):
         }
 
 
-class VEPNode(CommandNode):
+class _LegacyVEPNode(CommandNode):
     """Annotate variants with Ensembl Variant Effect Predictor."""
-    NODE_ID = "vep"
+    LEGACY_NODE_ID = "vep"
     DISPLAY_NAME = "VEP"
     CATEGORY = "annotation"
     DESCRIPTION = "Ensembl Variant Effect Predictor. Comprehensive functional annotation with frequencies, clinical significance."
@@ -711,7 +717,7 @@ class VEPNode(CommandNode):
         }
 
 
-class VEPAnnotateNode(VEPNode):
+class VEPAnnotateNode(_LegacyVEPNode):
     """Compatibility wrapper for the VEP annotation roadmap node ID."""
 
     NODE_ID = "vep_annotate"
@@ -1339,9 +1345,9 @@ class AnnotateVCFNode(CommandNode):
 from bionodulo.nodes.builtin.bedtools_family.closest import BEDToolsClosestNode  # noqa: E402,F401
 
 
-class IntersectGenesNode(BaseNode):
+class _LegacyIntersectGenesNode(BaseNode):
     """Intersect a query gene list with pathway or gene set databases."""
-    NODE_ID = "intersect_genes"
+    LEGACY_NODE_ID = "intersect_genes"
     DISPLAY_NAME = "Intersect Genes"
     CATEGORY = "annotation"
     DESCRIPTION = "Intersect variant or gene lists with pathway or gene set databases."

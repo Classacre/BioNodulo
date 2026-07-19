@@ -89,15 +89,14 @@
         80
       ],
       "params": {
-        "threads": 8,
+        "batch_size": 1,
         "precursor_tol_ppm": 20.0,
         "fragment_tol_da": 0.05,
-        "enzyme": "trypsin",
         "missed_cleavages": 2,
         "min_peptide_length": 7,
         "max_peptide_length": 40,
-        "write_pin": true,
-        "parquet": false
+        "decoy_tag": "DECOY_",
+        "generate_decoys": false
       },
       "ui": {
         "title": "Sage Search",
@@ -120,10 +119,11 @@
         80
       ],
       "params": {
+        "search_input": "concatenated",
         "decoy_prefix": "DECOY_",
-        "fdr_psm": 0.01,
-        "fdr_protein": 0.01,
-        "enzyme": "trypsin"
+        "test_fdr": 0.01,
+        "train_fdr": 0.01,
+        "protein_enzyme": "trypsin"
       },
       "ui": {
         "title": "Percolator FDR",

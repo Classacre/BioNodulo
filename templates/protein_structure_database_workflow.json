@@ -71,7 +71,7 @@
         261
       ],
       "params": {
-        "accession": "P04637",
+        "uniprot_ids": "P04637",
         "include_fasta": true,
         "output_name": "tp53"
       },

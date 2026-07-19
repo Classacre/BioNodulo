@@ -39,7 +39,7 @@ def test_xcms_peak_detection_is_registered_for_frontend_discovery() -> None:
         "r-jsonlite",
         "r-readr",
     ]
-    assert node_info["required_r_packages"] == ["xcms", "MsExperiment", "jsonlite", "readr", "BiocParallel"]
+    assert node_info["required_r_packages"] == ["xcms", "MsExperiment", "BiocParallel", "jsonlite", "readr"]
     assert "metabolomics" in node_info["search_aliases"]
     assert "centwave" in node_info["search_aliases"]
     assert "lc-ms" in node_info["search_aliases"]
@@ -90,8 +90,9 @@ def test_xcms_peak_detection_writes_r_script_and_renders_command(tmp_path: Path)
     assert "snthresh = 12" in script
     assert "prefilter = c(4, 120)" in script
     assert "noise = 500" in script
-    assert "BPPARAM = MulticoreParam(workers = 6)" in script
-    assert "xdata <- findChromPeaks(raw_data, param = param" in script
+    assert "workers <- MulticoreParam(workers = 6)" in script
+    assert "xdata <- findChromPeaks(raw_data, param = param, BPPARAM = workers)" in script
+    assert "sample_groups <- rep(1L, nrow(sampleData(xdata)))" in script
     assert "feature_values <- featureValues(xdata, value = \"into\")" in script
     assert f'write_tsv(feature_table, "{output_dir}/study_one.feature_table.tsv")' in script
     assert f'saveRDS(xdata, "{output_dir}/study_one.xcms.rds")' in script
@@ -112,8 +113,8 @@ def test_xcms_peak_detection_accepts_single_file_and_default_output_name(tmp_pat
     script = (output_dir / "xcms_peak_detection.R").read_text()
     assert 'files <- c("/data/sampleA.mzML")' in script
     assert "ppm = 25" in script
-    assert "peakwidth = c(20, 50)" in script
-    assert "BPPARAM = MulticoreParam(workers = 1)" in script
+    assert "peakwidth = c(20.0, 50.0)" in script
+    assert "workers <- MulticoreParam(workers = 1)" in script
     assert f'write_tsv(feature_table, "{output_dir}/sampleA.feature_table.tsv")' in script
     assert f'saveRDS(xdata, "{output_dir}/sampleA.xcms.rds")' in script
 
@@ -137,9 +138,9 @@ def test_xcms_peak_detection_environment_metadata_is_declared() -> None:
     assert R_PACKAGE_TO_CONDA_PACKAGE["xcms"] == "bioconductor-xcms"
     assert R_PACKAGE_TO_CONDA_PACKAGE["jsonlite"] == "r-jsonlite"
     assert R_PACKAGE_TO_CONDA_PACKAGE["BiocParallel"] == "bioconductor-biocparallel"
-    assert PACKAGE_MIN_VERSIONS["bioconductor-xcms"] == ">=3.20"
-    assert PACKAGE_MIN_VERSIONS["bioconductor-biocparallel"] == ">=1.34"
-    assert PACKAGE_MIN_VERSIONS["r-jsonlite"] == ">=1.8"
+    assert PACKAGE_MIN_VERSIONS["bioconductor-xcms"] == "4.8.0"
+    assert PACKAGE_MIN_VERSIONS["bioconductor-biocparallel"] == "1.44.0"
+    assert PACKAGE_MIN_VERSIONS["r-jsonlite"] == "2.0.0"
 
 
 def test_xcms_retention_correction_is_registered_for_frontend_discovery() -> None:
@@ -150,7 +151,7 @@ def test_xcms_retention_correction_is_registered_for_frontend_discovery() -> Non
     node_info = info["xcms_retention_correction"]
     assert node_info["display_name"] == "XCMS Retention Time Correction"
     assert node_info["category"] == "metabolomics"
-    assert node_info["description"].startswith("Correct retention time")
+    assert node_info["description"].startswith("Align, regroup, and gap-fill")
     assert node_info["output"] == ["TSV", "FILE", "JSON"]
     assert node_info["output_name"] == ["aligned_feature_table", "aligned_xcms_object", "summary"]
     assert node_info["required_executables"] == ["Rscript"]
@@ -204,12 +205,15 @@ def test_xcms_retention_correction_writes_r_script_and_renders_command(tmp_path:
     assert 'library("readr")' in script
     assert 'xdata <- readRDS("/data/study.xcms.rds")' in script
     assert 'sample_groups <- c("case", "control")' in script
-    assert 'adjust_param <- ObiwarpParam(binSize = 0.5)' in script
-    assert "xdata <- adjustRtime(xdata, param = adjust_param, BPPARAM = MulticoreParam(workers = 4))" in script
-    assert "group_param <- PeakDensityParam(sampleGroups = sample_groups, bw = 4, minFraction = 0.75)" in script
+    assert "workers <- MulticoreParam(workers = 4)" in script
+    assert "xdata <- adjustRtime(xdata, param = ObiwarpParam(binSize = 0.5), BPPARAM = workers)" in script
+    assert "group_param <- PeakDensityParam(" in script
+    assert "sampleGroups = sample_groups" in script
+    assert "bw = 4" in script
+    assert "minFraction = 0.75" in script
     assert "xdata <- groupChromPeaks(xdata, param = group_param)" in script
     assert "groupChromPeaks(xdata, param = group_param, BPPARAM" not in script
-    assert "xdata <- fillChromPeaks(xdata, BPPARAM = MulticoreParam(workers = 4))" in script
+    assert "xdata <- fillChromPeaks(xdata, param = ChromPeakAreaParam(), BPPARAM = workers)" in script
     assert "feature_values <- featureValues(xdata, value = \"into\")" in script
     assert f'write_tsv(feature_table, "{output_dir}/aligned_study.aligned_feature_table.tsv")' in script
     assert f'saveRDS(xdata, "{output_dir}/aligned_study.aligned.xcms.rds")' in script
@@ -228,10 +232,12 @@ def test_xcms_retention_correction_defaults_to_single_group_and_input_stem(tmp_p
 
     assert cmd == ["Rscript", str(output_dir / "xcms_retention_correction.R")]
     script = (output_dir / "xcms_retention_correction.R").read_text()
-    assert 'sample_groups <- rep(1L, length(fileNames(xdata)))' in script
-    assert "adjust_param <- ObiwarpParam(binSize = 1.0)" in script
-    assert "group_param <- PeakDensityParam(sampleGroups = sample_groups, bw = 5.0, minFraction = 0.5)" in script
+    assert 'sample_groups <- rep(1L, nrow(sampleData(xdata)))' in script
+    assert "ObiwarpParam(binSize = 1.0)" in script
+    assert "bw = 30.0" in script
+    assert "minFraction = 0.5" in script
     assert "MulticoreParam(workers = 1)" in script
+    assert "param = ChromPeakAreaParam()" in script
     assert f'write_tsv(feature_table, "{output_dir}/study.aligned_feature_table.tsv")' in script
     assert f'saveRDS(xdata, "{output_dir}/study.aligned.xcms.rds")' in script
 
@@ -253,7 +259,7 @@ def test_xcms_retention_correction_plans_outputs() -> None:
 
 def test_xcms_retention_correction_environment_metadata_is_declared() -> None:
     assert R_PACKAGE_TO_CONDA_PACKAGE["BiocParallel"] == "bioconductor-biocparallel"
-    assert PACKAGE_MIN_VERSIONS["bioconductor-biocparallel"] == ">=1.34"
+    assert PACKAGE_MIN_VERSIONS["bioconductor-biocparallel"] == "1.44.0"
 
 
 def test_camera_annotation_is_registered_for_frontend_discovery() -> None:
@@ -264,7 +270,7 @@ def test_camera_annotation_is_registered_for_frontend_discovery() -> None:
     node_info = info["camera_annotation"]
     assert node_info["display_name"] == "CAMERA Annotation"
     assert node_info["category"] == "metabolomics"
-    assert node_info["description"].startswith("Annotate LC-MS peaks")
+    assert node_info["description"].startswith("Annotate XCMS LC-MS peaks")
     assert node_info["output"] == ["TSV", "FILE", "JSON"]
     assert node_info["output_name"] == ["annotated_peaklist", "camera_object", "summary"]
     assert node_info["required_executables"] == ["Rscript"]
@@ -334,11 +340,17 @@ def test_camera_annotation_writes_r_script_and_renders_command(tmp_path: Path) -
     assert 'library("readr")' in script
     assert 'xdata <- readRDS("/data/study.aligned.xcms.rds")' in script
     assert 'if (is(xdata, "xcmsSet")) {' in script
-    assert 'if (any(msLevel(xdata) > 1)) stop("CAMERA conversion from XCMSnExp to xcmsSet supports MS1-only objects.' in script
+    assert 'is(xdata, "XcmsExperiment") || is(xdata, "XCMSnExp")' in script
     assert 'xset <- as(xdata, "xcmsSet")' in script
     assert 'xsa <- xsAnnotate(xset, polarity = "negative")' in script
-    assert 'xsa <- groupFWHM(xsa, sigma = 5, perfwhm = 0.7, intval = "into")' in script
-    assert 'xsa <- findIsotopes(xsa, maxcharge = 2, maxiso = 5, ppm = 7, mzabs = 0.02, intval = "into")' in script
+    assert "xsa <- groupFWHM(" in script
+    assert "sigma = 5" in script
+    assert "perfwhm = 0.7" in script
+    assert "xsa <- findIsotopes(" in script
+    assert "maxcharge = 2" in script
+    assert "maxiso = 5" in script
+    assert "ppm = 7" in script
+    assert "mzabs = 0.02" in script
     assert 'xsa <- groupCorr(xsa, cor_eic_th = 0.8, pval = 0.01, calcIso = TRUE, intval = "into")' in script
     assert 'xsa <- findAdducts(xsa, ppm = 6, mzabs = 0.015, polarity = "negative", intval = "into")' in script
     assert 'peaklist <- as.data.frame(getPeaklist(xsa, intval = "into"))' in script
@@ -362,8 +374,11 @@ def test_camera_annotation_can_skip_correlation_and_adduct_steps(tmp_path: Path)
     assert cmd == ["Rscript", str(output_dir / "camera_annotation.R")]
     script = (output_dir / "camera_annotation.R").read_text()
     assert 'xsa <- xsAnnotate(xset, polarity = "positive")' in script
-    assert 'xsa <- groupFWHM(xsa, sigma = 6, perfwhm = 0.6, intval = "into")' in script
-    assert 'xsa <- findIsotopes(xsa, maxcharge = 3, maxiso = 4, ppm = 5, mzabs = 0.01, intval = "into")' in script
+    assert 'sigma = 6.0' in script
+    assert 'perfwhm = 0.6' in script
+    assert 'maxcharge = 3' in script
+    assert 'maxiso = 4' in script
+    assert 'intval = "maxo"' in script
     assert "groupCorr(" not in script
     assert "findAdducts(" not in script
     assert f'write_tsv(peaklist, "{output_dir}/study.aligned.camera_peaklist.tsv")' in script
@@ -387,7 +402,7 @@ def test_camera_annotation_plans_outputs() -> None:
 
 def test_camera_annotation_environment_metadata_is_declared() -> None:
     assert R_PACKAGE_TO_CONDA_PACKAGE["CAMERA"] == "bioconductor-camera"
-    assert PACKAGE_MIN_VERSIONS["bioconductor-camera"] == ">=1.66"
+    assert PACKAGE_MIN_VERSIONS["bioconductor-camera"] == "1.66.0"
 
 
 def test_sirius_formula_id_is_registered_for_frontend_discovery() -> None:

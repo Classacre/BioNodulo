@@ -22,12 +22,15 @@ AUTHORITIES = {
     "gatk_haplotype_caller": (
         "4.6.2.0",
         "76edc75c26504da94bbaee66584e107e76ee15de",
-        "src/main/java/org/broadinstitute/hellbender/engine/ReferenceDataSource.java",
+        (
+            "src/main/java/org/broadinstitute/hellbender/tools/walkers/"
+            "haplotypecaller/HaplotypeCaller.java"
+        ),
     ),
     "freebayes": (
         "1.3.10",
         "b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993",
-        "src/FBFasta.cpp",
+        "src/Parameters.cpp",
     ),
     "manta": (
         "1.6.0",
@@ -167,8 +170,11 @@ def test_manta_renders_documented_tumor_normal_roles(node_id: str) -> None:
     command = _node_class(node_id).render_command(
         {
             "bam": "tumor.bam",
+            "bam_index": "tumor.bam.bai",
             "normal_bam": "normal.bam",
+            "normal_bam_index": "normal.bam.bai",
             "reference": "reference.fa",
+            "reference_index": "reference.fa.fai",
             "threads": 4,
             "output": f"/tmp/{node_id}",
         }
@@ -191,7 +197,9 @@ def test_manta_keeps_documented_bam_alias_for_single_sample(node_id: str) -> Non
     command = _node_class(node_id).render_command(
         {
             "bam": "sample.bam",
+            "bam_index": "sample.bam.bai",
             "reference": "reference.fa",
+            "reference_index": "reference.fa.fai",
             "threads": 4,
             "output": f"/tmp/{node_id}",
         }

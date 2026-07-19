@@ -109,7 +109,6 @@
       ],
       "params": {
         "sample_name": "visium_sample",
-        "delimiter": "comma",
         "min_cells": 3,
         "min_genes": 200,
         "n_hvg": 2000,
@@ -178,12 +177,12 @@
     },
     {
       "from": {
-        "node": "visium_outs_001",
-        "output": "directory"
+        "node": "squidpy_qc_001",
+        "output": "adata"
       },
       "to": {
         "node": "scanpy_spatial_001",
-        "input": "visium_path"
+        "input": "adata"
       }
     }
   ],

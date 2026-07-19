@@ -1,9 +1,12 @@
 """Spatial transcriptomics workflow nodes."""
+# ruff: noqa: F401
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
+from bionodulo.nodes.builtin.single_cell_spatial_family.scanpy_spatial import ScanpySpatialNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.squidpy_qc import SquidpyQCNode
 from bionodulo.nodes.command_node import CommandNode
 
 
@@ -93,9 +96,9 @@ class SpaceRangerCompatibilityNode(SpaceRangerNode):
     SEARCH_ALIASES = ["spaceranger", "space ranger", "10x visium", "spatial transcriptomics", "visium"]
 
 
-class SquidpyQCNode(CommandNode):
+class _LegacySquidpyQCNode(CommandNode):
     """Run Visium QC and spatial neighborhood analysis with Squidpy."""
-    NODE_ID = "squidpy_qc"
+    LEGACY_NODE_ID = "squidpy_qc"
     DISPLAY_NAME = "Squidpy QC"
     CATEGORY = "spatial_transcriptomics"
     DESCRIPTION = "Visium QC, preprocessing, spatial neighborhood analysis, and visualization with Squidpy."
@@ -185,10 +188,10 @@ class SquidpyNode(SquidpyQCNode):
     SEARCH_ALIASES = ["squidpy", "spatial", "visium", "quality control", "spatial analysis"]
 
 
-class ScanpySpatialNode(CommandNode):
+class _LegacyScanpySpatialNode(CommandNode):
     """Cluster spatial transcriptomics count matrices with Scanpy."""
 
-    NODE_ID = "scanpy_spatial"
+    LEGACY_NODE_ID = "scanpy_spatial"
     DISPLAY_NAME = "Scanpy Spatial"
     CATEGORY = "spatial_transcriptomics"
     DESCRIPTION = "Cluster spatial transcriptomics count matrices and render a UMAP with Scanpy."
