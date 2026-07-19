@@ -69,6 +69,30 @@
       }
     },
     {
+      "id": "heatmap_annotation_001",
+      "type": "input_file",
+      "position": [
+        80,
+        533
+      ],
+      "params": {
+        "file": "examples/data/biopython/heatmap_annotation.csv"
+      },
+      "ui": {
+        "title": "Heatmap Annotation",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "csv",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "deseq2_001",
       "type": "deseq2_analysis",
       "position": [
@@ -95,7 +119,6 @@
       ],
       "params": {
         "scale": "row",
-        "annotation_csv": "examples/data/biopython/heatmap_annotation.csv",
         "cluster_rows": true,
         "cluster_cols": true,
         "show_rownames": true,
@@ -341,6 +364,17 @@
       "to": {
         "node": "deseq2_001",
         "input": "sample_info"
+      }
+    },
+    {
+      "id": "e2c",
+      "from": {
+        "node": "heatmap_annotation_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "heatmap_001",
+        "input": "annotation_csv"
       }
     },
     {

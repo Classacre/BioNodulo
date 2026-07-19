@@ -209,9 +209,9 @@ def test_seurat_spatial_plans_outputs() -> None:
 
 def test_seurat_spatial_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["Rscript"] == "r-base"
-    assert PACKAGE_MIN_VERSIONS["r-base"] == ">=4.3.0"
+    assert PACKAGE_MIN_VERSIONS["r-base"] == "4.5.3"
     assert PACKAGE_MIN_VERSIONS["r-seurat"] == ">=5.0"
-    assert PACKAGE_MIN_VERSIONS["r-ggplot2"] == ">=3.5"
+    assert PACKAGE_MIN_VERSIONS["r-ggplot2"] == "4.0.3"
     assert PACKAGE_MIN_VERSIONS["r-patchwork"] == ">=1.2"
 
 
@@ -285,7 +285,7 @@ def test_cell2location_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["python"] == "python"
     assert PACKAGE_MIN_VERSIONS["cell2location"] == ">=0.1"
     assert PACKAGE_MIN_VERSIONS["torch"] == ">=2.0"
-    assert PACKAGE_MIN_VERSIONS["scanpy"] == ">=1.10"
+    assert PACKAGE_MIN_VERSIONS["scanpy"] == "1.11.5"
     assert PACKAGE_MIN_VERSIONS["anndata"] == ">=0.10"
 
 

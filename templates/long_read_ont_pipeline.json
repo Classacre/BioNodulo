@@ -96,7 +96,7 @@
         382
       ],
       "params": {
-        "directory": "examples/data/long_read/models/simplex"
+        "directory": "external/dorado/models/simplex"
       },
       "ui": {
         "title": "Dorado Simplex Model",
@@ -119,7 +119,7 @@
         533
       ],
       "params": {
-        "directory": "examples/data/long_read/models/modified_bases"
+        "directory": "external/dorado/models/modified_bases"
       },
       "ui": {
         "title": "Dorado Modified-Base Model",

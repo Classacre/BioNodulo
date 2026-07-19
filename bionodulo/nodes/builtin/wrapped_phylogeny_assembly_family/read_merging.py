@@ -1,0 +1,408 @@
+"""Paired-read merging wrapper contracts."""
+# ruff: noqa: F403,F405
+from __future__ import annotations
+
+from bionodulo.nodes.builtin._wrapped_tool_utils import *
+
+from .evidence import pin_contract
+
+class FLASHNode(CommandNode):
+    """Merge overlapping paired-end reads with FLASH."""
+
+    NODE_ID = "flash"
+    DISPLAY_NAME = "FLASH"
+    REQUIRED_CONDA_PACKAGES = ["flash"]
+    CATEGORY = "trimming"
+    DESCRIPTION = "Merge paired-end reads with FLASH and emit merged, unmerged, log, and histogram outputs."
+    SEARCH_ALIASES = [
+        BIONODULO_BUILTIN_ALIAS,
+        "FLASH",
+        "flash",
+        "read merging",
+        "paired-end merge",
+        "overlap",
+        "Fast Length Adjustment of SHort reads",
+    ]
+    RETURN_TYPES = (
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "TSV",
+        "STATS_FILE",
+        "STATS_FILE",
+        "TSV",
+        "TSV",
+        "STATS_FILE",
+        "STATS_FILE",
+    )
+    RETURN_NAMES = (
+        "merged_reads",
+        "unmerged_forward_reads",
+        "unmerged_reverse_reads",
+        "histogram_table",
+        "raw_log",
+        "histogram_text",
+        "innie_histogram_table",
+        "outie_histogram_table",
+        "innie_histogram_text",
+        "outie_histogram_text",
+    )
+    REQUIRED_EXECUTABLES = ["flash"]
+    DOCUMENTATION_URL = "https://ccb.jhu.edu/software/FLASH/"
+    CITATION_DOIS = [FLASH_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{FLASH_CITATION_DOI}"]
+    CITATION_TEXT = FLASH_CITATION_TEXT
+    VERSION = "1.2.11.4"
+    SHELL = True
+
+    @classmethod
+    def _read_pair(cls, inputs: dict[str, Any]) -> tuple[str, str]:
+        if str(inputs.get("layout", "individual") or "individual") == "collection":
+            reads = inputs.get("reads")
+            if isinstance(reads, dict):
+                return str(reads.get("forward", "")), str(reads.get("reverse", ""))
+            read_list = _as_list(reads)
+            return (read_list[0] if read_list else "", read_list[1] if len(read_list) > 1 else "")
+        return str(inputs.get("forward", "")), str(inputs.get("reverse", ""))
+
+    @classmethod
+    def _fastq_suffix(cls, inputs: dict[str, Any]) -> str:
+        return ".fastq.gz" if bool(inputs.get("gzip", False)) else ".fastq"
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        forward, reverse = cls._read_pair(inputs)
+        cmd = [
+            "flash",
+            f"--threads=${{GALAXY_SLOTS:-{inputs.get('threads', 1)}}}",
+            "-m",
+            str(inputs.get("min_overlap", 10)),
+            "-M",
+            str(inputs.get("max_overlap", 65)),
+            "-x",
+            str(inputs.get("max_mismatch_density", 0.25)),
+        ]
+        if inputs.get("allow_outies"):
+            cmd.append("--allow-outies")
+        cmd.extend([forward, reverse, "-p", str(inputs.get("phred_offset", 33))])
+        if inputs.get("gzip"):
+            cmd.append("-z")
+        cmd.extend(["--output-prefix", f"{_out(inputs)}/out", "--output-suffix="])
+        if inputs.get("save_log"):
+            _add_shell_redirect(cmd, f"{_out(inputs)}/flash.log")
+        return cmd
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        suffix = cls._fastq_suffix(inputs)
+        outputs = [
+            out / f"out.extendedFrags{suffix}",
+            out / f"out.notCombined_1{suffix}",
+            out / f"out.notCombined_2{suffix}",
+            out / "out.hist",
+        ]
+        if inputs.get("save_log"):
+            outputs.append(out / "flash.log")
+        if inputs.get("generate_histogram"):
+            outputs.append(out / "out.histogram")
+        if inputs.get("allow_outies"):
+            outputs.extend([out / "out.hist.innie", out / "out.hist.outie"])
+            if inputs.get("generate_histogram"):
+                outputs.extend([out / "out.histogram.innie", out / "out.histogram.outie"])
+        return outputs
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        forward, reverse = cls._read_pair(inputs)
+        if str(inputs.get("layout", "individual") or "individual") == "collection":
+            if not forward or not reverse:
+                return "paired collection requires forward and reverse reads"
+        elif not forward or not reverse:
+            return "forward and reverse reads are required"
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "layout": (
+                    "STRING",
+                    {
+                        "default": "individual",
+                        "options": ["individual", "collection"],
+                        "description": "Use individual forward/reverse datasets or a paired collection",
+                    },
+                ),
+                "forward": ("FASTQ", {"description": "Forward reads for individual dataset mode"}),
+                "reverse": ("FASTQ", {"description": "Reverse reads for individual dataset mode"}),
+            },
+            "optional": {
+                "reads": ("FASTQ_LIST", {"default": "", "description": "Paired collection [forward, reverse] or mapping"}),
+                "min_overlap": ("INT", {"default": 10, "min": 1, "description": "Minimum required overlap length"}),
+                "max_overlap": ("INT", {"default": 65, "min": 1, "description": "Maximum expected overlap length"}),
+                "max_mismatch_density": (
+                    "FLOAT",
+                    {"default": 0.25, "min": 0, "description": "Maximum mismatch-to-overlap ratio"},
+                ),
+                "allow_outies": ("BOOLEAN", {"default": False, "description": "Try combining read pairs in both orientations"}),
+                "generate_histogram": ("BOOLEAN", {"default": False, "description": "Emit text histogram outputs"}),
+                "save_log": ("BOOLEAN", {"default": False, "description": "Save FLASH console log"}),
+                "phred_offset": ("INT", {"default": 33, "options": [33, 64], "description": "FASTQ quality score offset"}),
+                "gzip": ("BOOLEAN", {"default": False, "description": "Write gzip-compressed FASTQ outputs"}),
+                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+class PEARNode(CommandNode):
+    """Merge paired-end reads with the Galaxy IUC PEAR wrapper behavior."""
+
+    NODE_ID = "iuc_pear"
+    DISPLAY_NAME = "Pear"
+    REQUIRED_CONDA_PACKAGES = ["pear"]
+    CATEGORY = "trimming"
+    DESCRIPTION = "Merge paired-end reads with PEAR and emit selected assembled, unassembled, or discarded reads."
+    SEARCH_ALIASES = [
+        BIONODULO_BUILTIN_ALIAS,
+        "PEAR",
+        "Pear",
+        "iuc_pear",
+        "PEAR paired-end read merger",
+        "paired-end read merger",
+        "read merging",
+        "Illumina paired-end merge",
+    ]
+    RETURN_TYPES = ("FASTQ", "FASTQ", "FASTQ", "FASTQ")
+    RETURN_NAMES = (
+        "assembled_reads",
+        "unassembled_forward_reads",
+        "unassembled_reverse_reads",
+        "discarded_reads",
+    )
+    REQUIRED_EXECUTABLES = ["pear"]
+    DOCUMENTATION_URL = "https://sco.h-its.org/exelixis/web/software/pear/doc.html"
+    CITATION_DOIS = [PEAR_CITATION_DOI]
+    CITATION_URLS = [f"{DOI_URL}{PEAR_CITATION_DOI}"]
+    CITATION_TEXT = PEAR_CITATION_TEXT
+    VERSION = "0.9.6.4"
+    SHELL = True
+    OUTPUT_CHOICES = ["assembled", "unassembled_forward", "unassembled_reverse", "discarded"]
+    OUTPUT_FILES = {
+        "assembled": "pear.assembled.fastq",
+        "unassembled_forward": "pear.unassembled.forward.fastq",
+        "unassembled_reverse": "pear.unassembled.reverse.fastq",
+        "discarded": "pear.discarded.fastq",
+    }
+    TEST_METHODS = ["1", "2"]
+    SCORE_METHODS = ["1", "2", "3"]
+
+    @classmethod
+    def _read_pair(cls, inputs: dict[str, Any]) -> tuple[str, str]:
+        if str(inputs.get("library_type", "paired") or "paired") == "paired_collection":
+            collection = inputs.get("input_collection")
+            if isinstance(collection, dict):
+                return str(collection.get("forward", "")), str(collection.get("reverse", ""))
+            reads = _as_list(collection)
+            return (reads[0] if reads else "", reads[1] if len(reads) > 1 else "")
+        return str(inputs.get("forward", "")), str(inputs.get("reverse", ""))
+
+    @classmethod
+    def _outputs(cls, inputs: dict[str, Any]) -> list[str]:
+        outputs = _as_list(inputs.get("outputs"))
+        return outputs if outputs else ["assembled"]
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> str:
+        forward, reverse = cls._read_pair(inputs)
+        cmd = [
+            "pear",
+            "-f",
+            forward,
+            "-r",
+            reverse,
+            "--phred-base",
+            str(inputs.get("phred_base", "33")),
+            "--output",
+            f"{_out(inputs)}/pear",
+            "--p-value",
+            str(inputs.get("pvalue", 0.01)),
+            "--min-overlap",
+            str(inputs.get("min_overlap", 10)),
+        ]
+        max_assembly_length = int(inputs.get("max_assembly_length", 0) or 0)
+        if max_assembly_length > 0:
+            cmd.extend(["--max-asm-length", str(max_assembly_length)])
+        cmd.extend(
+            [
+                "--min-asm-length",
+                str(inputs.get("min_assembly_length", 50)),
+                "--min-trim-length",
+                str(inputs.get("min_trim_length", 1)),
+                "--quality-theshold",
+                str(inputs.get("quality_threshold", 0)),
+                "--max-uncalled-base",
+                str(inputs.get("max_uncalled_base", 1.0)),
+                "--test-method",
+                str(inputs.get("test_method", "1")),
+                "--threads",
+                f"${{GALAXY_SLOTS:-{inputs.get('threads', 8)}}}",
+                "--score-method",
+                str(inputs.get("score_method", "2")),
+                "--cap",
+                str(inputs.get("cap", 40)),
+            ]
+        )
+        if inputs.get("empirical_freqs"):
+            cmd.append("--empirical-freqs")
+        if inputs.get("nbase"):
+            cmd.append("--nbase")
+        command = _shell_join(cmd)
+        slot_token = f"${{GALAXY_SLOTS:-{inputs.get('threads', 8)}}}"
+        return command.replace(shlex.quote(slot_token), slot_token)
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        out = Path(output_dir) / cls.NODE_ID
+        out.mkdir(parents=True, exist_ok=True)
+        return [out / cls.OUTPUT_FILES[output] for output in cls._outputs(inputs) if output in cls.OUTPUT_FILES]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        library_type = str(inputs.get("library_type", "paired") or "paired")
+        if library_type not in {"paired", "paired_collection"}:
+            return "library_type must be one of: paired, paired_collection"
+        forward, reverse = cls._read_pair(inputs)
+        if library_type == "paired_collection":
+            if not forward or not reverse:
+                return "paired collection requires forward and reverse reads"
+        elif not forward or not reverse:
+            return "forward and reverse reads are required"
+
+        if str(inputs.get("phred_base", "33")) not in {"33", "64"}:
+            return "phred_base must be one of: 33, 64"
+        if str(inputs.get("test_method", "1")) not in cls.TEST_METHODS:
+            return "test_method must be one of: 1, 2"
+        if str(inputs.get("score_method", "2")) not in cls.SCORE_METHODS:
+            return "score_method must be one of: 1, 2, 3"
+
+        for name in ("pvalue", "max_uncalled_base"):
+            try:
+                value = float(inputs.get(name, {"pvalue": 0.01, "max_uncalled_base": 1.0}[name]))
+            except (TypeError, ValueError):
+                return f"{name} must be a number"
+            if value < 0 or value > 1:
+                return f"{name} must be between 0 and 1"
+        for name, default in (
+            ("min_overlap", 10),
+            ("max_assembly_length", 0),
+            ("min_assembly_length", 50),
+            ("min_trim_length", 1),
+            ("quality_threshold", 0),
+            ("cap", 40),
+        ):
+            try:
+                value = int(inputs.get(name, default))
+            except (TypeError, ValueError):
+                return f"{name} must be an integer"
+            if value < 0:
+                return f"{name} must be >= 0"
+        unsupported_outputs = [output for output in cls._outputs(inputs) if output not in cls.OUTPUT_CHOICES]
+        if unsupported_outputs:
+            return f"outputs contains unsupported values: {', '.join(unsupported_outputs)}"
+
+        base_validation = super().VALIDATE_INPUTS(inputs)
+        if base_validation is not True:
+            return base_validation
+        return True
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "library_type": (
+                    "STRING",
+                    {
+                        "default": "paired",
+                        "options": ["paired", "paired_collection"],
+                        "description": "Use individual forward/reverse datasets or a paired collection",
+                    },
+                ),
+            },
+            "optional": {
+                "forward": ("FASTQ", {"default": "", "description": "Forward reads for paired dataset mode"}),
+                "reverse": ("FASTQ", {"default": "", "description": "Reverse reads for paired dataset mode"}),
+                "input_collection": (
+                    "FASTQ_LIST",
+                    {"default": "", "description": "Paired collection [forward, reverse] or mapping"},
+                ),
+                "phred_base": (
+                    "STRING",
+                    {"default": "33", "options": ["33", "64"], "description": "FASTQ PHRED quality score base"},
+                ),
+                "pvalue": (
+                    "FLOAT",
+                    {
+                        "default": 0.01,
+                        "min": 0,
+                        "max": 1,
+                        "description": "P-value threshold for accepting an assembly overlap",
+                    },
+                ),
+                "min_overlap": ("INT", {"default": 10, "min": 0, "description": "Minimum overlap size"}),
+                "max_assembly_length": (
+                    "INT",
+                    {"default": 0, "min": 0, "description": "Maximum assembled sequence length; 0 disables the cap"},
+                ),
+                "min_assembly_length": ("INT", {"default": 50, "min": 0, "description": "Minimum assembled sequence length"}),
+                "min_trim_length": (
+                    "INT",
+                    {"default": 1, "min": 0, "description": "Minimum read length after low-quality trimming"},
+                ),
+                "quality_threshold": (
+                    "INT",
+                    {"default": 0, "description": "Quality threshold for trimming low-quality read tails"},
+                ),
+                "max_uncalled_base": (
+                    "FLOAT",
+                    {"default": 1.0, "min": 0, "max": 1, "description": "Maximum proportion of uncalled bases"},
+                ),
+                "cap": ("INT", {"default": 40, "min": 0, "description": "Upper bound for resulting quality scores"}),
+                "test_method": (
+                    "STRING",
+                    {"default": "1", "options": cls.TEST_METHODS, "description": "Statistical test method"},
+                ),
+                "empirical_freqs": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Disable empirical base frequencies"},
+                ),
+                "nbase": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use N when a merged base is uncertain"},
+                ),
+                "score_method": (
+                    "STRING",
+                    {"default": "2", "options": cls.SCORE_METHODS, "description": "PEAR scoring method"},
+                ),
+                "threads": ("INT", {"default": 8, "min": 1, "max": 128, "display": "slider"}),
+                "outputs": (
+                    "STRING",
+                    {
+                        "default": ["assembled"],
+                        "multiple": True,
+                        "options": cls.OUTPUT_CHOICES,
+                        "description": "Selected PEAR FASTQ outputs",
+                    },
+                ),
+            },
+            "hidden": {"output": ("STRING", {})},
+        }
+
+pin_contract(FLASHNode)
+pin_contract(PEARNode)
+
+__all__ = ["FLASHNode","PEARNode"]

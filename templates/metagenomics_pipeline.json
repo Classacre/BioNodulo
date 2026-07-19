@@ -92,7 +92,7 @@
         590
       ],
       "params": {
-        "file": "examples/data/metagenomics/reads_interleaved.fastq",
+        "file": "examples/data/metagenomics/reads_forward.fastq",
         "source": "local"
       },
       "ui": {

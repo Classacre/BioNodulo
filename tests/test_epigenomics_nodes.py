@@ -171,7 +171,7 @@ def test_modkit_dmr_is_registered_for_frontend_discovery() -> None:
     assert node_info["output"] == ["BED", "FILE"]
     assert node_info["output_name"] == ["dmr", "log"]
     assert node_info["required_executables"] == ["modkit"]
-    assert node_info["required_conda_packages"] == ["modkit"]
+    assert node_info["required_conda_packages"] == ["ont-modkit"]
     assert "dmr pair" in node_info["search_aliases"]
     assert "differential methylation" in node_info["search_aliases"]
 
@@ -319,9 +319,9 @@ def test_modkit_environment_metadata_is_declared() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
 
-    assert EXECUTABLE_TO_CONDA_PACKAGE["modkit"] == "modkit"
-    assert PACKAGE_MIN_VERSIONS["modkit"] == ">=0.4.3"
-    assert workflow_to_packages({"nodes": [{"id": "dmr", "type": "modkit_dmr"}]}, registry) == ["modkit"]
+    assert EXECUTABLE_TO_CONDA_PACKAGE["modkit"] == "ont-modkit"
+    assert PACKAGE_MIN_VERSIONS["ont-modkit"] == "0.4.3"
+    assert workflow_to_packages({"nodes": [{"id": "dmr", "type": "modkit_dmr"}]}, registry) == ["ont-modkit"]
 
 
 def test_methyldackel_is_registered_for_frontend_discovery() -> None:

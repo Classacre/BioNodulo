@@ -9,6 +9,7 @@ import pytest
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin import rna_seq
 from bionodulo.nodes.builtin.rna_seq_family.featurecounts import FeatureCountsNode
+from bionodulo.nodes.builtin.rna_seq_family.feature_counts_alias import FeatureCountsAliasNode
 from bionodulo.nodes.builtin.rna_seq_family.kallisto import (
     KallistoIndexNode,
     KallistoQuantNode,
@@ -59,6 +60,7 @@ def test_stable_ids_are_owned_by_focused_modules_and_legacy_aliases_remain() -> 
     assert KallistoIndexNode.__module__.endswith("rna_seq_family.kallisto")
     assert KallistoQuantNode.__module__.endswith("rna_seq_family.kallisto")
     assert FeatureCountsNode.__module__.endswith("rna_seq_family.featurecounts")
+    assert FeatureCountsAliasNode.__module__.endswith("rna_seq_family.feature_counts_alias")
     assert rna_seq.SalmonIndexNode is SalmonIndexNode
     assert rna_seq.SalmonQuantNode is SalmonQuantNode
     assert rna_seq.KallistoIndexNode is KallistoIndexNode
@@ -73,7 +75,7 @@ def test_stable_ids_are_owned_by_focused_modules_and_legacy_aliases_remain() -> 
         and obj.NODE_ID
     }
     assert {"salmon_index", "salmon_quant", "kallisto_index", "kallisto_quant"}.isdisjoint(legacy_ids)
-    assert "feature_counts" in legacy_ids
+    assert "feature_counts" not in legacy_ids
     assert wrapped_annotation_sequence.FeatureCountsNode is FeatureCountsNode
     wrapped_ids = {
         obj.NODE_ID

@@ -27,7 +27,7 @@
         246
       ],
       "params": {
-        "id_list": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
+        "accessions": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
         "database": "nuccore",
         "rettype": "fasta",
         "retmode": "text",

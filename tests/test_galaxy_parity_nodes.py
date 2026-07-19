@@ -3292,14 +3292,14 @@ def test_clustering_from_distmat_exposes_galaxy_metadata_inputs_outputs_and_doi(
     assert node_info["output"] == ["PHYLOGENY_TREE", "TSV"]
     assert node_info["output_name"] == ["clustering_dendrogram", "clustering_assignment"]
     assert node_info["required_executables"] == ["python"]
-    assert node_info["required_conda_packages"] == ["python", "scipy"]
+    assert node_info["required_conda_packages"] == ["python", "scipy", "pandas"]
     assert node_info["documentation_url"] == "https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html"
     assert node_info["citation_dois"] == ["10.1038/s41592-019-0686-2"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1038/s41592-019-0686-2"]
     assert "SciPy" in node_info["citation_text"]
     assert "distance matrix" in node_info["search_aliases"]
     assert "cut_tree" in node_info["search_aliases"]
-    assert node_info["version"] == "1.1.1"
+    assert node_info["version"] == "1.1.2+galaxy0"
 
 
 def test_clustering_from_distmat_renders_default_dendrogram_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -3312,8 +3312,8 @@ def test_clustering_from_distmat_renders_default_dendrogram_command_outputs_and_
         }
     ) == (
         "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
-        "python clustering_from_distmat.py 'sample distances.tsv' result --method average && "
-        "mv result.tree.newick clustering_dendrogram.newick"
+        "python clustering_from_distmat.py 'sample distances.tsv' result --method average --newick && "
+        "mv result.tree clustering_dendrogram.newick"
     )
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "clustering_from_distmat" / "clustering_dendrogram.newick",
@@ -3358,8 +3358,8 @@ def test_clustering_from_distmat_renders_assignment_modes_and_optional_dendrogra
         }
     ) == (
         "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
-        "python /tools/clustering_from_distmat.py matrix_nr.tsv result --method complete --nr "
-        "--n-clusters 4 --min-cluster-size 1 && mv result.tree.newick clustering_dendrogram.newick && "
+        "python /tools/clustering_from_distmat.py matrix_nr.tsv result --method complete --nr --newick "
+        "--n-clusters 4 --min-cluster-size 1 && mv result.tree clustering_dendrogram.newick && "
         "mv result.cluster_assignments.tsv clustering_assignment.tsv"
     )
     assert node_class.render_command(
@@ -3372,7 +3372,7 @@ def test_clustering_from_distmat_renders_assignment_modes_and_optional_dendrogra
         }
     ) == (
         "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
-        "python clustering_from_distmat.py matrix_nc.tsv result --method average --nc --height 18 && "
+        "python clustering_from_distmat.py matrix_nc.tsv result --method average --nc --newick --height 18 && "
         "mv result.cluster_assignments.tsv clustering_assignment.tsv"
     )
     assert node_class.PLAN_OUTPUTS({"cluster_assignment": "n-cluster"}, tmp_path) == [
@@ -17443,8 +17443,12 @@ def test_bbtools_bbduk_renders_filtering_command_and_outputs(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "reference_type": "files"}) == (
         "at least one reference FASTA is required when reference_type is files"
     )
-    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "k": 0}) == "k must be >= 1"
-    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "entropy": 2}) == (
+    assert node_class.VALIDATE_INPUTS(
+        {"input_type": "single", "read1": "reads.fq", "outputs_select": "outu", "k": 0}
+    ) == "k must be >= 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_type": "single", "read1": "reads.fq", "outputs_select": "outu", "entropy": 2}
+    ) == (
         "entropy must be between 0 and 1"
     )
     assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "outputs_select": []}) == (
@@ -22347,9 +22351,6 @@ def test_alphagenome_variant_effect_exposes_galaxy_metadata_and_citation() -> No
         "CHIP_HISTONE",
         "CHIP_TF",
         "SPLICE_SITES",
-        "SPLICE_SITE_USAGE",
-        "SPLICE_JUNCTIONS",
-        "CONTACT_MAPS",
         "PROCAP",
     ]
     assert info["input"]["optional"]["ontology_terms"][1]["default"] == ""
@@ -22380,7 +22381,7 @@ def test_alphagenome_variant_effect_renders_command_outputs_and_validates(tmp_pa
         {
             "input_vcf": "variants.vcf",
             "organism": "mouse",
-            "output_types": ["RNA_SEQ", "CONTACT_MAPS"],
+            "output_types": ["RNA_SEQ", "ATAC"],
             "ontology_terms": "UBERON:0002107,CL:0000746",
             "sequence_length": "128KB",
             "max_variants": 3,
@@ -22391,7 +22392,7 @@ def test_alphagenome_variant_effect_renders_command_outputs_and_validates(tmp_pa
     ) == (
         "python /tools/alphagenome/alphagenome_variant_effect.py --input variants.vcf "
         "--output /work/alphagenome_variant_effect/annotated.vcf --organism mouse "
-        "--output-types RNA_SEQ CONTACT_MAPS --sequence-length 128KB --max-variants 3 "
+        "--output-types RNA_SEQ ATAC --sequence-length 128KB --max-variants 3 "
         "--ontology-terms UBERON:0002107,CL:0000746 --test-fixture test-data/fixture_variant_effect.json"
     )
 
@@ -33004,7 +33005,7 @@ def test_bionodulo_builtin_second_batch_nodes_expose_citation_and_dependency_met
             "display_name": "AmpliGone",
             "category": "sequence",
             "required_executables": ["ampligone"],
-            "required_conda_packages": ["AmpliGone"],
+            "required_conda_packages": ["ampligone"],
             "doi": "10.5281/zenodo.7684307",
         },
         "binette": {
@@ -33752,11 +33753,8 @@ def test_lofreq_alnqual_renders_alignment_quality_command_and_output(tmp_path: P
         "lofreq",
         "alnqual",
         "-b",
-        "",
         "reads.bam",
         "ref.fa",
-        ">",
-        "/work/lofreq_alnqual/alnqual.bam",
     ]
     assert node_class.render_command(
         {
@@ -33770,13 +33768,10 @@ def test_lofreq_alnqual_renders_alignment_quality_command_and_output(tmp_path: P
         "lofreq",
         "alnqual",
         "-b",
-        "",
         "-B",
         "-r",
         "reads.bam",
         "ref.fa",
-        ">",
-        "/work/lofreq_alnqual/alnqual.bam",
     ]
     assert node_class.render_command(
         {
@@ -33790,12 +33785,9 @@ def test_lofreq_alnqual_renders_alignment_quality_command_and_output(tmp_path: P
         "lofreq",
         "alnqual",
         "-b",
-        "",
         "-B",
         "reads.bam",
         "ref.fa",
-        ">",
-        "/work/lofreq_alnqual/alnqual.bam",
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_alnqual" / "alnqual.bam"]
@@ -38769,8 +38761,6 @@ def test_bedops_sort_bed_renders_sort_unique_and_duplicate_commands(tmp_path: Pa
         "--tmpdir",
         "/scratch/job",
         "sample.bed",
-        ">",
-        "/work/bedops_sort_bed/sorted.bed",
     ]
 
     assert node_class.render_command(
@@ -38789,8 +38779,6 @@ def test_bedops_sort_bed_renders_sort_unique_and_duplicate_commands(tmp_path: Pa
         "--unique",
         "a.bed",
         "b.bed",
-        ">",
-        "/work/bedops_sort_bed/sorted.bed",
     ]
 
     assert node_class.render_command(
@@ -38809,8 +38797,6 @@ def test_bedops_sort_bed_renders_sort_unique_and_duplicate_commands(tmp_path: Pa
         "--duplicates",
         "a.bed",
         "b.bed",
-        ">",
-        "/work/bedops_sort_bed/sorted.bed",
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bedops_sort_bed" / "sorted.bed"]
@@ -38863,8 +38849,6 @@ def test_bedops_sort_bed_galaxy_id_uses_hyphenated_output_path(tmp_path: Path) -
         "--tmpdir",
         "/scratch/job",
         "sample.bed",
-        ">",
-        "/work/bedops-sort-bed/sorted.bed",
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bedops-sort-bed" / "sorted.bed"]

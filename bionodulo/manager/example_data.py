@@ -232,6 +232,7 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     # long_read — nf-core nanoseq reference + a real tiny ONT pod5
     DataFile("long_read", "reference.fasta", f"{_NFCORE}/nanoseq/reference/chr22_23800000-23980000.fa", description="Nanopore reference (nf-core nanoseq)"),
     DataFile("long_read", "pod5/example.pod5", "https://media.githubusercontent.com/media/nanoporetech/pod5-file-format/master/test_data/multi_fast5_zip_v4.pod5", description="Real tiny ONT pod5"),
+    DataFile("long_read", "demux/barcode01.fastq", "https://raw.githubusercontent.com/nanoporetech/dorado/0949eb8de80dce9a198c08c0e37e31ed1eb627fc/tests/data/barcode_demux/single_end/SQK-RBK114-96_BC01.fastq", description="Dorado 0.9.6 barcode-demultiplexing FASTQ fixture"),
 
     # spatial_transcriptomics — real Visium outs (scanpy_spatial derives the
     # count/coordinate CSVs from this .h5 at run time; squidpy reads it directly)

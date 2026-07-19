@@ -22,12 +22,7 @@ def _node(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
 
 def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
     node = _node(workflow, node_id)
-    return (
-        node.get("ui", {})
-        .get("validation", {})
-        .get("outputs", {})
-        .get(output, {})
-    )
+    return node.get("ui", {}).get("validation", {}).get("outputs", {}).get(output, {})
 
 
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
@@ -51,7 +46,7 @@ def test_biopython_template_fetches_ncbi_fasta_before_sequence_analysis() -> Non
     assert efetch["params"]["database"] == "nuccore"
     assert efetch["params"]["rettype"] == "fasta"
     assert efetch["params"]["retmode"] == "text"
-    assert efetch["params"]["id_list"] == "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1"
+    assert efetch["params"]["accessions"] == ("NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1")
     assert efetch["params"]["output_name"] == "16s_sequences.fasta"
     assert validator["expected_format"] == "fasta"
     assert validator["min_records"] >= 2
@@ -117,7 +112,9 @@ def test_biopython_template_runs_ai_sequence_classification_on_validated_coding_
     assert classifier["params"]["top_k"] == 3
 
     assert _has_edge(workflow, "coding_001", "reference", "sequence_classification_001", "input_fasta")
-    assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "render_sequence_classification_tab_1", "file")
+    assert _has_edge(
+        workflow, "sequence_classification_001", "classifications_csv", "render_sequence_classification_tab_1", "file"
+    )
     assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
     assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
 

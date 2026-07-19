@@ -89,7 +89,7 @@ async def test_copy_input_node_resolves_relative_alias_against_context_workspace
 
 
 @pytest.mark.asyncio
-async def test_fastq_input_preserves_list_output_and_empty_behavior(tmp_path: Path) -> None:
+async def test_fastq_input_preserves_single_or_paired_list_output(tmp_path: Path) -> None:
     r1 = tmp_path / "sample_R1.fastq"
     r2 = tmp_path / "sample_R2.fastq"
     r1.write_text("@r1\nA\n+\n!\n")
@@ -97,16 +97,29 @@ async def test_fastq_input_preserves_list_output_and_empty_behavior(tmp_path: Pa
     out_dir = tmp_path / "out"
 
     result = await InputFASTQNode().run(reads=[str(r1), str(r2)], output_dir=out_dir)
-    empty_result = await InputFASTQNode().run(output_dir=tmp_path / "empty")
 
     assert result == {"outputs": {"reads": [str((out_dir / r1.name).resolve()), str((out_dir / r2.name).resolve())]}}
     assert (out_dir / r1.name).read_text() == r1.read_text()
     assert (out_dir / r2.name).read_text() == r2.read_text()
-    assert empty_result == {"outputs": {"reads": []}}
 
 
 @pytest.mark.asyncio
-async def test_vcf_input_preserves_dual_output_mapping(tmp_path: Path) -> None:
+async def test_fastq_input_rejects_empty_or_more_than_paired_reads(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="one single-end file or two paired-end files"):
+        await InputFASTQNode().run(output_dir=tmp_path / "empty")
+
+    reads = []
+    for index in range(3):
+        read = tmp_path / f"read_{index}.fastq"
+        read.write_text("@r\nA\n+\n!\n")
+        reads.append(str(read))
+
+    with pytest.raises(ValueError, match="one single-end file or two paired-end files"):
+        await InputFASTQNode().run(reads=reads, output_dir=tmp_path / "too-many")
+
+
+@pytest.mark.asyncio
+async def test_vcf_input_exposes_only_the_matching_active_output(tmp_path: Path) -> None:
     source = tmp_path / "variants.vcf.gz"
     source.write_text("##fileformat=VCFv4.2\n")
     out_dir = tmp_path / "out"
@@ -114,7 +127,7 @@ async def test_vcf_input_preserves_dual_output_mapping(tmp_path: Path) -> None:
     result = await InputVCFNode().run(vcf=str(source), output_dir=out_dir)
 
     copied = str((out_dir / source.name).resolve())
-    assert result == {"outputs": {"vcf": copied, "vcf_gz": copied}}
+    assert result == {"outputs": {"vcf": "", "vcf_gz": copied}}
 
 
 @pytest.mark.asyncio
@@ -130,6 +143,37 @@ async def test_directory_input_preserves_dir_path_alias_and_recursive_copy(tmp_p
     copied = out_dir / source_dir.name
     assert result == {"outputs": {"directory": str(copied.resolve())}}
     assert (copied / "nested" / "sample.txt").read_text() == "sample\n"
+
+
+@pytest.mark.asyncio
+async def test_file_and_directory_inputs_validate_source_kind(tmp_path: Path) -> None:
+    source_file = tmp_path / "sample.txt"
+    source_file.write_text("sample\n")
+    source_dir = tmp_path / "data"
+    source_dir.mkdir()
+
+    with pytest.raises(ValueError, match="Expected a file input"):
+        await InputFileNode().run(file=str(source_dir), output_dir=tmp_path / "file-out")
+    with pytest.raises(ValueError, match="Expected a directory input"):
+        await InputDirectoryNode().run(
+            directory=str(source_file), output_dir=tmp_path / "directory-out"
+        )
+
+
+@pytest.mark.asyncio
+async def test_input_copy_is_idempotent_at_destination_and_invalid_modes_fail_closed(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "sample.txt"
+    source.write_text("sample\n")
+
+    result = await InputFileNode().run(file=str(source), output_dir=tmp_path)
+    assert result == {"outputs": {"file": str(source.resolve())}}
+
+    with pytest.raises(ValueError, match="must be one of"):
+        await InputFileNode().run(
+            file=str(source), source="guess", output_dir=tmp_path / "invalid"
+        )
 
 
 def test_ncbi_efetch_url_builder() -> None:

@@ -50,13 +50,18 @@ def test_inline_preview_flag_marks_terminal_visual_nodes() -> None:
 
 
 def test_krona_command_targets_kraken_columns() -> None:
-    cmd = KronaTaxonomyNode.render_command(
-        classification="reads.kraken", query_column=2, taxid_column=3, output="krona.html"
-    )
+    cmd = KronaTaxonomyNode.render_command({
+        "classification": "reads.kraken",
+        "taxonomy": "taxonomy",
+        "query_column": 2,
+        "taxid_column": 3,
+        "output": "krona-output",
+    })
     assert cmd[0] == "ktImportTaxonomy"
     assert "-q" in cmd and "2" in cmd and "-t" in cmd and "3" in cmd
+    assert cmd[cmd.index("-tax") + 1] == "taxonomy"
     assert cmd[-1] == "reads.kraken"
-    assert "krona.html" in cmd
+    assert "krona-output/krona.html" in cmd
 
 
 def test_scanpy_script_runs_standard_pipeline() -> None:
@@ -83,7 +88,8 @@ def test_metagenomics_template_wires_krona_from_kraken() -> None:
     assert types["krona_001"] == "krona"
     # Krona is inline-previewable, so it renders on the node — no separate sink.
     assert "render_krona_html_1" not in types
-    assert _has_edge(wf, "kraken2_001", "output", "krona_001", "classification")
+    assert _has_edge(wf, "kraken2_001", "classification", "krona_001", "classification")
+    assert _has_edge(wf, "krona_taxonomy_001", "directory", "krona_001", "taxonomy")
 
 
 def test_single_cell_template_wires_scanpy_umap() -> None:

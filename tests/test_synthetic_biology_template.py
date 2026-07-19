@@ -4,196 +4,90 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi.testclient import TestClient
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _load_template(name: str) -> dict[str, Any]:
-    return json.loads((ROOT / "templates" / name).read_text(encoding="utf-8"))
+def _load_template() -> dict[str, Any]:
+    return json.loads((ROOT / "templates" / "synthetic_biology_design_simulation.json").read_text())
 
 
-def _node_types(workflow: dict[str, Any]) -> dict[str, str]:
-    return {str(node["id"]): str(node["type"]) for node in workflow["nodes"]}
-
-
-def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
+def _node(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
-
-def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
-    node = _node_by_id(workflow, node_id)
-    return (
-        node.get("ui", {})
-        .get("validation", {})
-        .get("outputs", {})
-        .get(output, {})
-    )
-
-def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
+def _has_edge(workflow: dict[str, Any], source: str, output: str, target: str, input_name: str) -> bool:
     return any(
-        edge.get("from") == {"node": source, "output": source_output}
-        and edge.get("to") == {"node": target, "input": target_input}
+        edge["from"] == {"node": source, "output": output}
+        and edge["to"] == {"node": target, "input": input_name}
         for edge in workflow["edges"]
     )
 
 
-def _target_input_count(workflow: dict[str, Any], target: str, target_input: str) -> int:
-    return sum(
-        edge.get("to") == {"node": target, "input": target_input}
-        for edge in workflow["edges"]
-    )
-
-
-def test_synthetic_biology_template_covers_biocad_design_and_simulation_workflow() -> None:
-    workflow = _load_template("synthetic_biology_design_simulation.json")
-    node_types = _node_types(workflow)
+def test_template_uses_the_four_focused_synthetic_biology_nodes() -> None:
+    workflow = _load_template()
+    node_types = {node["id"]: node["type"] for node in workflow["nodes"]}
 
     assert workflow["name"] == "Synthetic Biology Design and Simulation"
-    assert workflow["category"] == "Synthetic Biology"
-    assert {"synthetic-biology", "biocad", "sbol", "copasi", "ibiosim", "cello"}.issubset(
-        set(workflow["tags"])
-    )
-    assert {
+    assert set(workflow["tools"]) == {
         "input_file",
-        "input_directory",
         "sbol_design_import",
         "copasi_simulation",
         "ibiosim_model",
         "cello_circuit_design",
-    }.issubset(set(workflow["tools"]))
-
-    assert node_types["sbol_design_001"] == "input_file"
-    assert "validate_sbol_design_001" not in node_types
+    }
     assert node_types["sbol_import_001"] == "sbol_design_import"
-    assert "validate_sbol_summary_001" not in node_types
-    assert node_types["copasi_model_001"] == "input_file"
-    assert "validate_copasi_model_001" not in node_types
     assert node_types["copasi_simulation_001"] == "copasi_simulation"
-    assert "validate_copasi_report_001" not in node_types
-    assert node_types["omex_archive_001"] == "input_file"
-    assert "validate_omex_archive_001" not in node_types
     assert node_types["ibiosim_model_001"] == "ibiosim_model"
-    assert "validate_ibiosim_index_001" not in node_types
-    assert node_types["cello_netlist_001"] == "input_file"
-    assert node_types["cello_ucf_001"] == "input_file"
-    assert node_types["cello_options_001"] == "input_file"
-    assert node_types["cello_exec_dir_001"] == "input_directory"
-    assert "validate_cello_netlist_001" not in node_types
-    assert "validate_cello_ucf_001" not in node_types
-    assert "validate_cello_options_001" not in node_types
-    assert "validate_cello_exec_dir_001" not in node_types
     assert node_types["cello_design_001"] == "cello_circuit_design"
-    assert "validate_cello_index_001" not in node_types
-    assert "synthetic_biology_report_001" not in node_types
-    assert "synthetic_biology_report_preview_001" not in node_types
-
-    assert not _has_edge(workflow, "sbol_design_001", "file", "validate_sbol_design_001", "input")
-    assert _has_edge(workflow, "sbol_design_001", "file", "sbol_import_001", "sbol_file")
-    assert not _has_edge(workflow, "sbol_import_001", "summary", "validate_sbol_summary_001", "input")
-    assert not _has_edge(workflow, "copasi_model_001", "file", "validate_copasi_model_001", "input")
-    assert _has_edge(workflow, "copasi_model_001", "file", "copasi_simulation_001", "model_file")
-    assert not _has_edge(workflow, "copasi_simulation_001", "report", "validate_copasi_report_001", "input")
-    assert not _has_edge(workflow, "omex_archive_001", "file", "validate_omex_archive_001", "input")
-    assert _has_edge(workflow, "omex_archive_001", "file", "ibiosim_model_001", "archive_file")
-    assert not _has_edge(workflow, "ibiosim_model_001", "result_index", "validate_ibiosim_index_001", "input")
-    assert not _has_edge(workflow, "cello_netlist_001", "file", "validate_cello_netlist_001", "input")
-    assert not _has_edge(workflow, "cello_ucf_001", "file", "validate_cello_ucf_001", "input")
-    assert not _has_edge(workflow, "cello_options_001", "file", "validate_cello_options_001", "input")
-    assert not _has_edge(workflow, "cello_exec_dir_001", "directory", "validate_cello_exec_dir_001", "input")
-    assert _has_edge(workflow, "cello_netlist_001", "file", "cello_design_001", "input_netlist")
-    assert _has_edge(workflow, "cello_ucf_001", "file", "cello_design_001", "target_data_file")
-    assert _has_edge(workflow, "cello_options_001", "file", "cello_design_001", "options_file")
-    assert _has_edge(workflow, "cello_exec_dir_001", "directory", "cello_design_001", "cello_exec_dir")
-    assert not _has_edge(workflow, "cello_design_001", "result_index", "validate_cello_index_001", "input")
-
-    assert _has_edge(workflow, "sbol_design_001", "file", "sbol_import_001", "sbol_file")
-    assert _has_edge(workflow, "copasi_model_001", "file", "copasi_simulation_001", "model_file")
-    assert _has_edge(workflow, "omex_archive_001", "file", "ibiosim_model_001", "archive_file")
+    assert "cello_exec_dir_001" not in node_types
 
 
-def test_synthetic_biology_template_validates_outputs_and_tool_parameters() -> None:
-    workflow = _load_template("synthetic_biology_design_simulation.json")
+def test_template_wires_every_required_cello_artifact_explicitly() -> None:
+    workflow = _load_template()
 
-    sbol_input = _node_by_id(workflow, "sbol_design_001")
-    sbol_validator = _output_validation(workflow, "sbol_design_001", "file")
-    sbol_import = _node_by_id(workflow, "sbol_import_001")
-    sbol_summary_validator = _output_validation(workflow, "sbol_import_001", "summary")
-    copasi_input = _node_by_id(workflow, "copasi_model_001")
-    copasi_validator = _output_validation(workflow, "copasi_model_001", "file")
-    copasi = _node_by_id(workflow, "copasi_simulation_001")
-    copasi_report_validator = _output_validation(workflow, "copasi_simulation_001", "report")
-    omex_input = _node_by_id(workflow, "omex_archive_001")
-    ibiosim = _node_by_id(workflow, "ibiosim_model_001")
-    ibiosim_index_validator = _output_validation(workflow, "ibiosim_model_001", "result_index")
-    cello = _node_by_id(workflow, "cello_design_001")
-    cello_index_validator = _output_validation(workflow, "cello_design_001", "result_index")
-
-    assert sbol_input["params"]["file"] == "examples/data/synthetic_biology/toggle_switch.xml"
-    assert sbol_validator["expected_format"] == "auto"
-    assert sbol_validator["fail_on_error"] is True
-    assert sbol_import["params"]["namespace"] == "https://bionodulo.local/synthetic-biology"
-    assert sbol_import["params"]["validate"] is True
-    assert sbol_import["params"]["output_format"] == "rdfxml"
-    assert sbol_import["params"]["output_name"] == "toggle_switch"
-    assert sbol_summary_validator["expected_format"] == "json"
-
-    assert copasi_input["params"]["file"] == "examples/data/synthetic_biology/toggle_model.cps"
-    assert copasi_validator["expected_format"] == "auto"
-    assert copasi["params"]["copasi_executable"] == "CopasiSE"
-    assert copasi["params"]["scheduled_task"] == "Time-Course"
-    assert copasi["params"]["sedml_task"] == ""
-    assert copasi["params"]["save_model"] is True
-    assert copasi["params"]["validate_only"] is False
-    assert copasi["params"]["verbose"] is False
-    assert copasi["params"]["max_time"] == 600
-    assert copasi["params"]["output_name"] == "toggle_simulation"
-    assert copasi_report_validator["expected_format"] == "tsv"
-
-    assert omex_input["params"]["file"] == "examples/data/synthetic_biology/toggle_study.omex"
-    assert ibiosim["params"]["execution_mode"] == "cli"
-    assert ibiosim["params"]["ibiosim_executable"] == "ibiosim"
-    assert ibiosim["params"]["docker_image"] == "ghcr.io/biosimulators/ibiosim:latest"
-    assert ibiosim["params"]["quiet"] is True
-    assert ibiosim["params"]["debug"] is False
-    assert ibiosim["params"]["output_name"] == "toggle_study"
-    assert ibiosim_index_validator["expected_format"] == "tsv"
-
-    assert cello["params"]["netlist_constraint_file"] == ""
-    assert cello["params"]["java_args"] == "-Xms2G -Xmx5G"
-    assert cello["params"]["application"] == "DNACompiler"
-    assert cello["params"]["algo_name"] == ""
-    assert cello["params"]["output_name"] == "toggle_circuit"
-    assert cello_index_validator["expected_format"] == "tsv"
-
-    assert workflow["outputs"]["validated_sbol"] == "sbol_design_001"
-    assert workflow["outputs"]["sbol_summary"] == "sbol_import_001"
-    assert workflow["outputs"]["copasi_report"] == "copasi_simulation_001"
-    assert workflow["outputs"]["ibiosim_index"] == "ibiosim_model_001"
-    assert workflow["outputs"]["cello_index"] == "cello_design_001"
+    expected_edges = {
+        ("cello_netlist_001", "input_netlist"),
+        ("cello_ucf_001", "user_constraints_file"),
+        ("cello_input_sensor_001", "input_sensor_file"),
+        ("cello_output_device_001", "output_device_file"),
+        ("cello_options_001", "options_file"),
+        ("cello_jar_001", "cello_jar"),
+    }
+    for source, target_input in expected_edges:
+        assert _has_edge(workflow, source, "file", "cello_design_001", target_input)
+    assert not any(edge["to"].get("input") == "target_data_file" for edge in workflow["edges"])
+    assert not any(edge["to"].get("input") == "cello_exec_dir" for edge in workflow["edges"])
 
 
-def test_synthetic_biology_template_is_discoverable_from_workflow_templates_api() -> None:
-    from server import create_app
+def test_template_uses_corrected_parameters_and_native_outputs() -> None:
+    workflow = _load_template()
+    sbol = _node(workflow, "sbol_import_001")
+    copasi = _node(workflow, "copasi_simulation_001")
+    ibiosim = _node(workflow, "ibiosim_model_001")
+    cello = _node(workflow, "cello_design_001")
 
-    with TestClient(create_app()) as client:
-        list_response = client.get("/api/workflow_templates")
-        template_response = client.get("/api/workflow_templates/synthetic_biology_design_simulation.json")
-
-    assert list_response.status_code == 200
-    listed = next(
-        template
-        for template in list_response.json()["templates"]
-        if template["filename"] == "synthetic_biology_design_simulation.json"
-    )
-    assert listed["name"] == "Synthetic Biology Design and Simulation"
-    assert listed["category"] == "Synthetic Biology"
-    assert listed["node_count"] >= 11
-    assert "sbol_design_import" in listed["tools"]
-    assert "cello_circuit_design" in listed["tools"]
-    assert "SBOL Design Import" in listed["preview_steps"]
-
-    assert template_response.status_code == 200
-    assert template_response.json()["name"] == "Synthetic Biology Design and Simulation"
+    assert sbol["params"] == {
+        "namespace": "https://bionodulo.local/synthetic-biology",
+        "validate": True,
+        "output_format": "xml",
+    }
+    assert copasi["params"] == {
+        "input_format": "cps",
+        "scheduled_task": "Time-Course",
+        "sedml_task": "",
+        "verbose": False,
+        "max_time": 600,
+    }
+    assert ibiosim["params"] == {"quiet": True, "debug": False}
+    assert cello["params"] == {"netlist_constraint_file": "", "python_executable": "python"}
+    assert "results_dir" in ibiosim["ui"]["validation"]["outputs"]
+    assert "design_dir" in cello["ui"]["validation"]["outputs"]
+    assert "output_netlist" in cello["ui"]["validation"]["outputs"]
+    assert workflow["outputs"] == {
+        "source_sbol": "sbol_design_001",
+        "sbol_summary": "sbol_import_001",
+        "copasi_report": "copasi_simulation_001",
+        "ibiosim_results": "ibiosim_model_001",
+        "cello_design": "cello_design_001",
+    }

@@ -221,7 +221,7 @@ class ModkitDMRNode(CommandNode):
     RETURN_TYPES = ("BED", "FILE")
     RETURN_NAMES = ("dmr", "log")
     REQUIRED_EXECUTABLES = ["modkit"]
-    REQUIRED_CONDA_PACKAGES = ["modkit"]
+    REQUIRED_CONDA_PACKAGES = ["ont-modkit"]
     DOCUMENTATION_URL = "https://nanoporetech.github.io/modkit/dmr.html"
     VERSION = "0.4.3"
 

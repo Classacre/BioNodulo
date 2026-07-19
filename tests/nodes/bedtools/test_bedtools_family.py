@@ -155,6 +155,8 @@ def test_bedtools_registry_owns_compatibility_ids_once() -> None:
     assert expected.issubset(registry.all())
     for node_id in expected:
         assert registry.get(node_id).__module__.startswith("bionodulo.nodes.builtin.bedtools_family")
-    assert {node_id for node_id, node_class in registry.all().items() if node_class.__module__.endswith("wrapped_bedtools")} == {
-        "bedops_sort_bed", "bedops-sort-bed"
+    assert not {
+        node_id
+        for node_id, node_class in registry.all().items()
+        if node_class.__module__.endswith("wrapped_bedtools")
     }
