@@ -46,7 +46,7 @@ def test_pivot_table_is_registered_for_frontend_discovery() -> None:
     assert info["pivot_table"]["output_name"] == ["reshaped_table"]
     assert info["pivot_table"]["output"] == ["CSV"]
     assert info["pivot_table"]["python_class"] == (
-        "bionodulo.nodes.builtin.pivot_table.PivotTableNode"
+        "bionodulo.nodes.builtin.data_transform_family.pivot_table.PivotTableNode"
     )
     output_type = info["pivot_table"]["input"]["optional"]["output_type"]
     assert output_type[1]["default"] == "AUTO"
@@ -65,7 +65,7 @@ def test_reshape_table_is_registered_for_frontend_discovery() -> None:
     assert node_info["output_name"] == ["reshaped_table"]
     assert node_info["output"] == ["CSV"]
     assert node_info["python_class"] == (
-        "bionodulo.nodes.builtin.pivot_table.ReshapeTableNode"
+        "bionodulo.nodes.builtin.data_transform_family.pivot_table.ReshapeTableNode"
     )
     assert "melt" in node_info["search_aliases"]
     assert "pivot_longer" in node_info["search_aliases"]

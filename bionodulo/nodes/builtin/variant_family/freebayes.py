@@ -24,6 +24,11 @@ class FreeBayesNode(IndexedBamReferenceNode):
     VERSION = "1.3.10"
     GIT_URL = "https://github.com/freebayes/freebayes.git"
     GIT_COMMIT = "b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993"
+    SOURCE_URL = f"https://github.com/freebayes/freebayes/tree/{GIT_COMMIT}"
+    PACKAGE_CONSTRAINTS = ("freebayes==1.3.10",)
+    PACKAGE_CONSTRAINT = "freebayes==1.3.10"
+    EXIT_SEMANTICS = "Input validation or a non-zero FreeBayes result fails the node."
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     CITATION_URLS = ["https://arxiv.org/abs/1207.3907"]
     CITATION_TEXT = "Haplotype-based variant detection from short-read sequencing."
     UPSTREAM_SOURCE = "src/Parameters.cpp"

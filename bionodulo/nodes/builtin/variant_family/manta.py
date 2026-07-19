@@ -43,6 +43,11 @@ class MantaNode(IndexedBamReferenceNode):
     VERSION = "1.6.0"
     GIT_URL = "https://github.com/Illumina/manta.git"
     GIT_COMMIT = "ab9f5502985a29ec74cfafb4963179b9cc185e55"
+    SOURCE_URL = f"https://github.com/Illumina/manta/tree/{GIT_COMMIT}"
+    PACKAGE_CONSTRAINTS = ("manta==1.6.0",)
+    PACKAGE_CONSTRAINT = "manta==1.6.0"
+    EXIT_SEMANTICS = "Configuration, generated-workflow, or output validation failure fails the node."
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     CITATION_DOIS = ["10.1093/bioinformatics/btv710"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btv710"]
     CITATION_TEXT = "Manta: rapid detection of structural variants and indels for germline and cancer sequencing applications."

@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.environments.manifest import workflow_to_packages
+from bionodulo.nodes.builtin.trimming_family import CutadaptNode, TrimGaloreNode, TrimmomaticNode
 from bionodulo.nodes.registry import NodeRegistry
+from scripts.gen_node_index import build_index
 
 
 def _node_class(node_id: str) -> type:
@@ -22,10 +28,10 @@ def test_trim_galore_is_registered_for_frontend_discovery() -> None:
     assert node_info["display_name"] == "Trim Galore"
     assert node_info["category"] == "trimming"
     assert node_info["description"].startswith("Adapter and quality trimming")
-    assert node_info["output"] == ["FASTQ_LIST", "HTML_REPORT"]
-    assert node_info["output_name"] == ["trimmed_reads", "fastqc_report"]
-    assert node_info["required_executables"] == ["trim_galore"]
-    assert node_info["required_conda_packages"] == ["trim-galore"]
+    assert node_info["output"] == ["FASTQ_LIST", "FILE_LIST", "FILE_LIST"]
+    assert node_info["output_name"] == ["trimmed_reads", "fastqc_report", "trimming_reports"]
+    assert node_info["required_executables"] == ["trim_galore", "cutadapt", "fastqc"]
+    assert node_info["required_conda_packages"] == ["trim-galore", "cutadapt", "fastqc"]
     assert "bisulfite" in node_info["search_aliases"]
     assert "rrbs" in node_info["search_aliases"]
 
@@ -138,38 +144,182 @@ def test_trim_galore_renders_single_end_command_and_omits_disabled_flags() -> No
 def test_trim_galore_plans_paired_trimmed_reads_and_report() -> None:
     node_class = _node_class("trim_galore")
 
-    outputs = node_class.PLAN_OUTPUTS({"reads": ["reads_1.fq.gz", "reads_2.fq.gz"], "paired": True}, "/tmp/run")
+    outputs = node_class.PLAN_OUTPUTS(
+        {"reads": ["reads_1.fq.gz", "reads_2.fq.gz"], "paired": True, "threads": 1},
+        "/tmp/run",
+    )
 
     assert [str(path) for path in outputs] == [
         "/tmp/run/trim_galore/reads_1_val_1.fq.gz",
         "/tmp/run/trim_galore/reads_2_val_2.fq.gz",
-        "/tmp/run/trim_galore/fastqc_report.html",
+        "/tmp/run/trim_galore/reads_1_val_1_fastqc.html",
+        "/tmp/run/trim_galore/reads_2_val_2_fastqc.html",
+        "/tmp/run/trim_galore/reads_1.fq.gz_trimming_report.txt",
+        "/tmp/run/trim_galore/reads_2.fq.gz_trimming_report.txt",
     ]
 
 
 def test_trim_galore_plans_single_end_trimmed_read_and_report() -> None:
     node_class = _node_class("trim_galore")
 
-    outputs = node_class.PLAN_OUTPUTS({"reads": "sample.fastq.gz", "paired": False}, "/tmp/run")
+    outputs = node_class.PLAN_OUTPUTS(
+        {"reads": "sample.fastq.gz", "paired": False, "threads": 1},
+        "/tmp/run",
+    )
 
     assert [str(path) for path in outputs] == [
         "/tmp/run/trim_galore/sample_trimmed.fq.gz",
-        "/tmp/run/trim_galore/fastqc_report.html",
+        "/tmp/run/trim_galore/sample_trimmed_fastqc.html",
+        "/tmp/run/trim_galore/sample.fastq.gz_trimming_report.txt",
     ]
 
 
 def test_trim_galore_rejects_invalid_paired_reads_and_threads() -> None:
     node_class = _node_class("trim_galore")
 
-    assert node_class.VALIDATE_INPUTS({"reads": ["r1.fq"], "paired": True, "threads": 1}) == "paired mode requires exactly two reads."
-    assert node_class.VALIDATE_INPUTS({"reads": ["r1.fq", "r2.fq"], "paired": False, "threads": 1}) == "single-end mode requires exactly one read."
+    assert node_class.VALIDATE_INPUTS({"reads": ["r1.fq"], "paired": True, "threads": 1}) == "paired mode requires exactly 2 reads."
+    assert node_class.VALIDATE_INPUTS({"reads": ["r1.fq", "r2.fq"], "paired": False, "threads": 1}) == "single-end mode requires exactly 1 read."
     assert node_class.VALIDATE_INPUTS({"reads": "r1.fq", "paired": False, "threads": 0}) == "threads must be at least 1."
+
+
+def test_trim_galore_enforces_documented_mode_dependencies_and_uncompressed_outputs() -> None:
+    assert (
+        TrimGaloreNode.VALIDATE_INPUTS({
+            "reads": ["r1.fq", "r2.fq"],
+            "paired": True,
+            "threads": 1,
+            "non_directional": True,
+        })
+        == "non_directional requires rrbs."
+    )
+    assert (
+        TrimGaloreNode.VALIDATE_INPUTS({
+            "reads": "r1.fq",
+            "paired": False,
+            "threads": 1,
+            "clip_r2": 2,
+        })
+        == "read 2 clipping requires paired mode."
+    )
+    outputs = TrimGaloreNode.PLAN_OUTPUTS(
+        {"reads": "sample.fastq", "paired": False, "threads": 1, "gzip": False, "fastqc": False},
+        "/tmp/run",
+    )
+    assert [path.name for path in outputs] == ["sample_trimmed.fq", "sample.fastq_trimming_report.txt"]
 
 
 def test_trim_galore_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["trim_galore"] == "trim-galore"
-    assert PACKAGE_MIN_VERSIONS["trim-galore"] == ">=0.6.10"
+    assert PACKAGE_MIN_VERSIONS["trim-galore"] == "0.6.10"
+    assert PACKAGE_MIN_VERSIONS["trimmomatic"] == "0.40"
+    assert PACKAGE_MIN_VERSIONS["cutadapt"] == "5.2"
 
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
-    assert workflow_to_packages({"nodes": [{"id": "trim", "type": "trim_galore"}]}, registry) == ["trim-galore"]
+    assert workflow_to_packages({"nodes": [{"id": "trim", "type": "trim_galore"}]}, registry) == [
+        "cutadapt",
+        "fastqc",
+        "trim-galore",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("node_id", "node_class", "module", "version", "commit"),
+    [
+        ("trim_galore", TrimGaloreNode, "trim_galore", "0.6.10", "4edff97d22f3837d42a29e4afbfaeb6e07ffb11b"),
+        ("trimmomatic", TrimmomaticNode, "trimmomatic", "0.40", "7c9e862f7a050fdde034b63363ed4a99bf70d6b3"),
+        ("cutadapt", CutadaptNode, "cutadapt", "5.2", "ef852629f667637439f28761499bb56126e390a1"),
+    ],
+)
+def test_remaining_trimming_nodes_have_focused_pinned_ownership(
+    node_id: str,
+    node_class: type,
+    module: str,
+    version: str,
+    commit: str,
+) -> None:
+    assert build_index()[node_id] == f"bionodulo.nodes.builtin.trimming_family.{module}"
+    assert node_class.VERSION == version
+    assert node_class.GIT_COMMIT == commit
+
+
+def test_trimmomatic_pe_contract_has_explicit_adapter_fasta_and_four_outputs(tmp_path: Path) -> None:
+    inputs = {
+        "reads": ["R1.fastq.gz", "R2.fastq.gz"],
+        "threads": 8,
+        "adapters": "TruSeq3-PE.fa",
+        "leading": 3,
+        "trailing": 4,
+        "quality": 15,
+        "minlen": 36,
+        "output": str(tmp_path / "trimmomatic"),
+    }
+    assert TrimmomaticNode.INPUT_TYPES()["required"]["adapters"][0] == "FILE"
+    assert TrimmomaticNode.render_command(inputs) == [
+        "trimmomatic",
+        "PE",
+        "-threads",
+        "8",
+        "R1.fastq.gz",
+        "R2.fastq.gz",
+        str(tmp_path / "trimmomatic" / "R1_paired.fastq.gz"),
+        str(tmp_path / "trimmomatic" / "R1_unpaired.fastq.gz"),
+        str(tmp_path / "trimmomatic" / "R2_paired.fastq.gz"),
+        str(tmp_path / "trimmomatic" / "R2_unpaired.fastq.gz"),
+        "ILLUMINACLIP:TruSeq3-PE.fa:2:30:10",
+        "LEADING:3",
+        "TRAILING:4",
+        "SLIDINGWINDOW:4:15",
+        "MINLEN:36",
+    ]
+    assert [path.name for path in TrimmomaticNode.PLAN_OUTPUTS(inputs, tmp_path)] == list(
+        TrimmomaticNode.OUTPUT_FILENAMES
+    )
+    assert TrimmomaticNode.VALIDATE_INPUTS({**inputs, "reads": ["R1.fastq.gz"]}) == (
+        "Trimmomatic PE requires exactly two reads."
+    )
+
+
+def test_cutadapt_uses_documented_truseq_adapters_and_exact_single_or_paired_outputs(tmp_path: Path) -> None:
+    paired = {
+        "reads": ["R1.fastq.gz", "R2.fastq.gz"],
+        "threads": 4,
+        "adapter_r1": CutadaptNode.DEFAULT_ADAPTER_R1,
+        "adapter_r2": CutadaptNode.DEFAULT_ADAPTER_R2,
+        "minimum_length": 20,
+        "quality_cutoff": 20,
+        "output": str(tmp_path / "cutadapt"),
+    }
+    command = CutadaptNode.render_command(paired)
+    assert command == [
+        "cutadapt",
+        "-a",
+        "AGATCGGAAGAGCACACGTCTGAACTCCAGTCA",
+        "-A",
+        "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+        "-o",
+        str(tmp_path / "cutadapt" / "trimmed_reads.fastq.gz"),
+        "-p",
+        str(tmp_path / "cutadapt" / "trimmed_reads_2.fastq.gz"),
+        "-j",
+        "4",
+        "-m",
+        "20",
+        "-q",
+        "20",
+        "R1.fastq.gz",
+        "R2.fastq.gz",
+    ]
+    assert [path.name for path in CutadaptNode.PLAN_OUTPUTS(paired, tmp_path)] == [
+        "trimmed_reads.fastq.gz",
+        "trimmed_reads_2.fastq.gz",
+    ]
+
+    single = {**paired, "reads": ["R1.fastq.gz"]}
+    single_command = CutadaptNode.render_command(single)
+    assert "-A" not in single_command
+    assert "-p" not in single_command
+    assert [path.name for path in CutadaptNode.PLAN_OUTPUTS(single, tmp_path)] == ["trimmed_reads.fastq.gz"]
+    assert CutadaptNode.VALIDATE_INPUTS({**paired, "reads": []}) == (
+        "Cutadapt requires exactly one single-end FASTQ or two paired FASTQs."
+    )

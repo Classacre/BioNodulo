@@ -67,6 +67,59 @@ def test_wave_three_environment_contracts_are_exact() -> None:
     }
 
 
+def test_current_family_environment_contracts_are_exact() -> None:
+    assert {
+        executable: EXECUTABLE_TO_CONDA_PACKAGE[executable]
+        for executable in ("HiC-Pro", "juicer.sh", "maxquant", "diann")
+    } == {
+        "HiC-Pro": "",
+        "juicer.sh": "",
+        "maxquant": "maxquant",
+        "diann": "",
+    }
+    assert {
+        package: PACKAGE_MIN_VERSIONS[package]
+        for package in (
+            "methyldackel",
+            "cooler",
+            "cooltools",
+            "bioconductor-dss",
+            "maxquant",
+            "msfragger",
+            "fragpipe",
+            "comet-ms",
+            "openms",
+            "vg",
+            "vcflib",
+            "panacus",
+            "panaroo",
+            "minigraph",
+            "cactus",
+            "htslib",
+        )
+    } == {
+        "methyldackel": "0.6.1",
+        "cooler": "0.10.2",
+        "cooltools": "0.7.0",
+        "bioconductor-dss": "2.58.0",
+        "maxquant": "2.0.3.0",
+        "msfragger": "4.2",
+        "fragpipe": "24.0",
+        "comet-ms": "2024011",
+        "openms": "3.5.0",
+        "vg": "1.63.1",
+        "vcflib": "1.0.9",
+        "panacus": "0.3.3",
+        "panaroo": "1.5.0",
+        "minigraph": "0.21",
+        "cactus": "2.9.9",
+        "htslib": "1.23.1",
+    }
+    assert "hic-pro" not in PACKAGE_MIN_VERSIONS
+    assert "juicer" not in PACKAGE_MIN_VERSIONS
+    assert "diann" not in PACKAGE_MIN_VERSIONS
+
+
 def test_environment_id_changes_with_effective_package_constraint(monkeypatch) -> None:
     monkeypatch.setitem(PACKAGE_MIN_VERSIONS, "samtools", ">=1.15")
     old_id = get_env_id(["samtools"])

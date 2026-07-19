@@ -35,6 +35,11 @@ class DellyNode(IndexedBamReferenceNode):
     VERSION = "1.2.6"
     GIT_URL = "https://github.com/dellytools/delly.git"
     GIT_COMMIT = "e6246dbb18b7f6df2b7b381d542cdeaea6be8c82"
+    SOURCE_URL = f"https://github.com/dellytools/delly/tree/{GIT_COMMIT}"
+    PACKAGE_CONSTRAINTS = ("delly==1.2.6",)
+    PACKAGE_CONSTRAINT = "delly==1.2.6"
+    EXIT_SEMANTICS = "Input validation or a non-zero DELLY or conversion command fails the node."
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     CITATION_DOIS = ["10.1093/bioinformatics/bts378"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/bts378"]
     CITATION_TEXT = "DELLY: structural variant discovery by integrated paired-end and split-read analysis."

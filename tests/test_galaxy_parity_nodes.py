@@ -22,6 +22,12 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def _assert_staged_ucsc_command(command: str, output: str, executable: str) -> None:
+    assert f"mkdir -p {output}/ucsc-home" in command
+    assert f"{output}/ucsc-home/.hg.conf" in command
+    assert f"HOME={output}/ucsc-home {executable}" in command
+
+
 def test_bionodulo_builtin_wrapped_nodes_do_not_use_generic_galaxy_alias() -> None:
     info = _registry().object_info()
     allowlist = {"taxonomy_krona_chart"}
@@ -3718,7 +3724,7 @@ def test_bionodulo_builtin_batch_nodes_expose_citation_and_dependency_metadata()
             "display_name": "ANGSD",
             "category": "population_genetics",
             "required_executables": ["angsd", "samtools"],
-            "required_conda_packages": ["angsd", "samtools"],
+            "required_conda_packages": ["angsd", "samtools", "python"],
             "doi": "10.1186/s12859-014-0356-4",
         },
         "angsd_contamination": {
@@ -19449,7 +19455,7 @@ def test_ampvis2_alpha_diversity_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["TSV", "PDF"]
+    assert info["output"] == ["TSV", "IMAGE"]
     assert info["output_name"] == ["alphadiv", "alphadiv_plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -19493,8 +19499,8 @@ def test_ampvis2_alpha_diversity_renders_script_outputs_and_validates(tmp_path: 
     assert "write.table(table, file='/work/ampvis2_alpha_diversity/alphadiv.tsv', quote=FALSE, sep='\\t', row.names=FALSE)" in command
     assert 'ggsave("/work/ampvis2_alpha_diversity/alphadiv_plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 12.5" in command
-    assert ", height = 8" in command
+    assert "    width = 12.5," in command
+    assert "    height = 8" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_alpha_diversity/alpha_diversity.R")
 
     default_command = node_class.render_command(
@@ -19570,7 +19576,7 @@ def test_ampvis2_boxplot_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["tax_show"][1]["default"] == 20
     assert info["input"]["optional"]["tax_empty"][1]["default"] == "best"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -19627,8 +19633,8 @@ def test_ampvis2_boxplot_renders_script_outputs_and_validates(tmp_path: Path) ->
     assert 'ggsave("/work/ampvis2_boxplot/plot.png",' in command
     assert "    print(plot)," in command
     assert 'device = "png"' in command
-    assert ", width = 10" in command
-    assert ", height = 6.5" in command
+    assert "    width = 10," in command
+    assert "    height = 6.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_boxplot/boxplot.R")
 
     default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_boxplot"})
@@ -19704,7 +19710,7 @@ def test_ampvis2_core_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["widths"][1]["min"] == 1
     assert info["input"]["optional"]["heights"][1]["min"] == 1
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -19748,8 +19754,8 @@ def test_ampvis2_core_renders_script_outputs_and_validates(tmp_path: Path) -> No
     assert 'ggsave("/work/ampvis2_core/plot.svg",' in command
     assert "    print(plot)," in command
     assert 'device = "svg"' in command
-    assert ", width = 12" in command
-    assert ", height = 8.5" in command
+    assert "    width = 12," in command
+    assert "    height = 8.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_core/core.R")
 
     default_command = node_class.render_command(
@@ -19975,7 +19981,7 @@ def test_ampvis2_frequency_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -20018,8 +20024,8 @@ def test_ampvis2_frequency_renders_script_outputs_and_validates(tmp_path: Path) 
     assert 'ggsave("/work/ampvis2_frequency/plot.svg",' in command
     assert "    print(plot)," in command
     assert 'device = "svg"' in command
-    assert ", width = 11" in command
-    assert ", height = 7.5" in command
+    assert "    width = 11," in command
+    assert "    height = 7.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_frequency/frequency.R")
 
     default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_frequency"})
@@ -20084,7 +20090,7 @@ def test_ampvis2_heatmap_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["plot_functions_mode"][1]["options"] == ["no", "midasfieldguide", "file"]
     assert info["input"]["optional"]["functions"][1]["multiple"] is True
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg", "tabular"]
-    assert info["output"] == ["PDF", "TSV"]
+    assert info["output"] == ["IMAGE", "TSV"]
     assert info["output_name"] == ["plot", "plot_raw"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -20169,8 +20175,8 @@ def test_ampvis2_heatmap_renders_script_outputs_and_validates(tmp_path: Path) ->
     assert "rel_widths = c(0.75, 0.25)" in command
     assert 'ggsave("/work/ampvis2_heatmap/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 14" in command
-    assert ", height = 9.5" in command
+    assert "    width = 14," in command
+    assert "    height = 9.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_heatmap/heatmap.R")
 
     raw_command = node_class.render_command(
@@ -20576,7 +20582,7 @@ def test_ampvis2_octave_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -20616,8 +20622,8 @@ def test_ampvis2_octave_renders_script_outputs_and_validates(tmp_path: Path) -> 
     assert "num_threads = 1" in command
     assert 'ggsave("/work/ampvis2_octave/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 12" in command
-    assert ", height = 8.5" in command
+    assert "    width = 12," in command
+    assert "    height = 8.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_octave/octave.R")
 
     default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_octave"})
@@ -20686,7 +20692,7 @@ def test_ampvis2_ordinate_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["tax_empty"][1]["default"] == "best"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["output_screeplot"][1]["default"] is False
-    assert info["output"] == ["PDF", "PDF"]
+    assert info["output"] == ["IMAGE", "IMAGE"]
     assert info["output_name"] == ["plot", "screeplot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -20767,8 +20773,8 @@ def test_ampvis2_ordinate_renders_script_outputs_and_validates(tmp_path: Path) -
     assert "plot <- details$plot" in command
     assert 'ggsave("/work/ampvis2_ordinate/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 14" in command
-    assert ", height = 9.5" in command
+    assert "    width = 14," in command
+    assert "    height = 9.5" in command
     assert 'ggsave("/work/ampvis2_ordinate/screeplot.svg", print(details$screeplot), device = "svg")' in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_ordinate/ordinate.R")
 
@@ -20873,7 +20879,7 @@ def test_ampvis2_otu_network_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -20923,8 +20929,8 @@ def test_ampvis2_otu_network_renders_script_outputs_and_validates(tmp_path: Path
     assert "normalise = FALSE" in command
     assert 'ggsave("/work/ampvis2_otu_network/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 12" in command
-    assert ", height = 8.5" in command
+    assert "    width = 12," in command
+    assert "    height = 8.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_otu_network/otu_network.R")
 
     default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_otu_network"})
@@ -20985,7 +20991,7 @@ def test_ampvis2_rankabundance_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21024,8 +21030,8 @@ def test_ampvis2_rankabundance_renders_script_outputs_and_validates(tmp_path: Pa
     assert "log10_x = FALSE" in command
     assert 'ggsave("/work/ampvis2_rankabundance/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 11" in command
-    assert ", height = 7.5" in command
+    assert "    width = 11," in command
+    assert "    height = 7.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_rankabundance/rankabundance.R")
 
     default_command = node_class.render_command(
@@ -21085,7 +21091,7 @@ def test_ampvis2_rarecurve_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21174,7 +21180,7 @@ def test_ampvis2_setmetadata_exposes_galaxy_metadata_and_citation() -> None:
     assert info["output"] == ["FILE", "TSV"]
     assert info["output_name"] == ["ampvis", "metadata_list_out"]
     assert info["required_executables"] == ["Rscript"]
-    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq", "r-lubridate"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
     assert (
         info["documentation_url"]
         == "https://github.com/galaxyproject/tools-iuc/blob/main/tools/ampvis2/setmetadata.xml"
@@ -21469,7 +21475,7 @@ def test_ampvis2_timeseries_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["scales"][1]["default"] == "free_y"
     assert info["input"]["optional"]["normalise"][1]["default"] is True
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21595,7 +21601,7 @@ def test_ampvis2_venn_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["text_size"][1]["min"] == 1
     assert info["input"]["optional"]["normalise"][1]["default"] is False
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21734,6 +21740,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "effect": False,
             "include_sample_summary": True,
             "iterate": True,
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     ) == (
@@ -21750,6 +21757,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "analysis_type": "aldex_corr",
             "group_nums": [1, 2],
             "num_cols_in_groups": [7, 7],
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     )
@@ -21768,6 +21776,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "cutoff_effect": 2,
             "xlab": "Effect size",
             "ylab": "Expected p",
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     )
@@ -21784,6 +21793,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "analysis_type": "aldex_ttest",
             "paired_test": True,
             "hist_plot": True,
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     )
@@ -21797,6 +21807,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "num_cols": [7, 7],
             "analysis_type": "aldex_ttest",
             "hist_plot": "false",
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     )
@@ -22566,7 +22577,7 @@ def test_ancombc_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["zero_cut"][1]["min"] == 0
     assert info["input"]["optional"]["zero_cut"][1]["max"] == 1
     assert info["input"]["optional"]["global_test"][0] == "BOOLEAN"
-    assert info["output"] == ["DIRECTORY"]
+    assert info["output"] == ["FILE_LIST"]
     assert info["output_name"] == ["output_collection"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["bioconductor-ancombc", "r-data.table", "r-optparse"]
@@ -22605,8 +22616,7 @@ def test_ancombc_renders_wrapper_command_outputs_and_validates(tmp_path: Path) -
         "--max_iter 200 --conserve true --alpha 0.01 --global true --output_dir /work/ancombc/output_collection"
     )
 
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ancombc" / "output_collection"]
-    assert node_class.expected_output_files() == [
+    expected_output_files = [
         "feature_table.tabular",
         "zero_ind.tabular",
         "samp_frac.tabular",
@@ -22620,6 +22630,11 @@ def test_ancombc_renders_wrapper_command_outputs_and_validates(tmp_path: Path) -
         "res_q_val.tabular",
         "res_diff_abn.tabular",
         "res_global.tabular",
+    ]
+    assert node_class.expected_output_files() == expected_output_files
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ancombc" / "output_collection" / filename
+        for filename in expected_output_files
     ]
     assert node_class.VALIDATE_INPUTS({"phyloseq": "", "formula": "patient_status"}) == "phyloseq is required"
     assert node_class.VALIDATE_INPUTS({"phyloseq": "input.phyloseq", "formula": ""}) == "formula is required"
@@ -22661,7 +22676,7 @@ def test_angsd_exposes_galaxy_metadata_and_citation() -> None:
     assert info["output"] == ["FILE"]
     assert info["output_name"] == ["internal_counts"]
     assert info["required_executables"] == ["angsd", "samtools"]
-    assert info["required_conda_packages"] == ["angsd", "samtools"]
+    assert info["required_conda_packages"] == ["angsd", "samtools", "python"]
     assert info["documentation_url"] == "http://www.popgen.dk/angsd/index.php/ANGSD"
     assert info["citation_dois"] == ["10.1186/s12859-014-0356-4", "10.7717/peerj.10947"]
     assert info["citation_urls"] == [
@@ -22766,6 +22781,7 @@ def test_angsd_contamination_renders_command_outputs_and_validates(tmp_path: Pat
             "icnts_file": "output.icnts.gz",
             "hapmap_file": "HapMap ChrX.gz",
             "generate_json": True,
+            "script_path": "print_x_contamination.py",
             "output": "/work/angsd_contamination",
         }
     )
@@ -22862,7 +22878,7 @@ def test_miniasm_renders_galaxy_wrapper_command_and_output(tmp_path: Path) -> No
         "min_match must be >= 0"
     )
     assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": "overlaps.paf", "min_iden": -0.1}) == (
-        "min_iden must be >= 0"
+        "min_iden must be between 0 and 1"
     )
     assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": "overlaps.paf"}) is True
 
@@ -22873,7 +22889,7 @@ def test_megahit_contig2fastg_exposes_galaxy_metadata_inputs_outputs_and_citatio
     assert info["display_name"] == "megahit contig2fastg"
     assert info["category"] == "assembly"
     assert info["description"] == "Convert MEGAHIT contigs into FASTG assembly graph format."
-    assert info["output"] == ["GFA"]
+    assert info["output"] == ["FILE"]
     assert info["output_name"] == ["fastg"]
     assert info["required_executables"] == ["megahit_toolkit"]
     assert info["required_conda_packages"] == ["megahit"]
@@ -22918,14 +22934,31 @@ def test_megahit_contig2fastg_renders_conversion_command_outputs_and_validation(
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 
-    assert info["output"] == ["FASTQ", "FASTQ", "FASTQ", "FASTQ", "FASTQ", "FASTQ"]
+    assert info["output"] == [
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ_LIST",
+        "FASTQ_LIST",
+        "FASTQ_LIST",
+    ]
     assert info["output_name"] == [
         "good_sequences",
         "rejected_sequences",
         "good_sequences_1",
         "good_sequences_1_singletons",
+        "rejected_sequences_1",
         "good_sequences_2",
+        "good_sequences_2_singletons",
         "rejected_sequences_2",
+        "good_sequences_collection",
+        "singletons_collection",
+        "rejected_sequences_collection",
     ]
     assert info["citation_dois"] == ["10.1093/bioinformatics/btr026"]
     assert info["required_executables"] == ["prinseq-lite.pl"]
@@ -22961,7 +22994,7 @@ def test_prinseq_renders_single_end_filter_and_trim_command(tmp_path: Path) -> N
         "gzip -c /work/prinseq/tmp/rejected_sequences.fastq > /work/prinseq/rejected_sequences.fastq.gz"
     )
 
-    assert node_class.PLAN_OUTPUTS({"paired": False}, tmp_path) == [
+    assert node_class.PLAN_OUTPUTS({"paired": False, "input_singles": "reads.fastq.gz"}, tmp_path) == [
         tmp_path / "prinseq" / "good_sequences.fastq.gz",
         tmp_path / "prinseq" / "rejected_sequences.fastq.gz",
     ]
@@ -23012,74 +23045,102 @@ def test_vsearch_search_and_cluster_render_commands_and_outputs(tmp_path: Path) 
     search_class = _node_class("vsearch_search")
     cluster_class = _node_class("vsearch_cluster")
 
-    assert search_class.render_command(
-        {
-            "query": "queries.fasta",
-            "database": "db.fasta",
-            "search_mode": "usearch_global",
-            "identity": 0.97,
-            "strand": "both",
-            "maxaccepts": 10,
-            "maxrejects": 32,
-            "threads": 6,
-            "output": "/work/vsearch_search",
-        }
-    ) == [
+    search_inputs = {
+        "query": "queries.fasta",
+        "database": "db.fasta",
+        "search_mode": "usearch_global",
+        "identity": 0.97,
+        "strand": "both",
+        "maxaccepts": 10,
+        "maxrejects": 32,
+        "threads": 6,
+        "outputs": ["blast6out", "alnout", "notmatched"],
+        "advanced": True,
+        "output": "/work/vsearch_search",
+    }
+    assert search_class.render_command(search_inputs) == [
         "vsearch",
-        "--usearch_global",
-        "queries.fasta",
-        "--db",
-        "db.fasta",
-        "--id",
-        "0.97",
-        "--strand",
-        "both",
-        "--maxaccepts",
-        "10",
-        "--maxrejects",
-        "32",
         "--threads",
         "6",
+        "--notrunclabels",
+        "--db",
+        "db.fasta",
+        "--dbmask",
+        "none",
+        "--id",
+        "0.97",
+        "--iddef",
+        "2",
+        "--qmask",
+        "dust",
+        "--strand",
+        "both",
+        "--usearch_global",
+        "queries.fasta",
         "--blast6out",
         "/work/vsearch_search/matches.tsv",
         "--alnout",
         "/work/vsearch_search/alignments.txt",
         "--notmatched",
         "/work/vsearch_search/unmatched.fasta",
+        "--mismatch",
+        "-4",
+        "--maxrejects",
+        "32",
+        "--maxaccepts",
+        "10",
+        "--match",
+        "2",
+        "--wordlength",
+        "8",
     ]
-    assert search_class.PLAN_OUTPUTS({}, tmp_path) == [
+    assert search_class.PLAN_OUTPUTS(search_inputs, tmp_path) == [
         tmp_path / "vsearch_search" / "matches.tsv",
         tmp_path / "vsearch_search" / "alignments.txt",
         tmp_path / "vsearch_search" / "unmatched.fasta",
     ]
 
-    assert cluster_class.render_command(
-        {
-            "sequences": "amplicons.fasta",
-            "cluster_mode": "cluster_fast",
-            "identity": 0.99,
-            "strand": "plus",
-            "sizein": True,
-            "sizeout": True,
-            "threads": 4,
-            "output": "/work/vsearch_cluster",
-        }
-    ) == [
+    cluster_inputs = {
+        "sequences": "amplicons.fasta",
+        "cluster_mode": "cluster_fast",
+        "identity": 0.99,
+        "strand": "plus",
+        "sizein": True,
+        "sizeout": True,
+        "threads": 4,
+        "outputs": ["centroids"],
+        "uc": True,
+        "output": "/work/vsearch_cluster",
+    }
+    assert cluster_class.render_command(cluster_inputs) == [
         "vsearch",
-        "--cluster_fast",
-        "amplicons.fasta",
-        "--id",
-        "0.99",
-        "--strand",
-        "plus",
-        "--sizein",
-        "--sizeout",
         "--threads",
         "4",
+        "--notrunclabels",
+        "--cluster_fast",
+        "amplicons.fasta",
+        "--maxrejects",
+        "32",
+        "--maxaccepts",
+        "1",
+        "--id",
+        "0.99",
+        "--iddef",
+        "2",
         "--centroids",
         "/work/vsearch_cluster/centroids.fasta",
+        "--qmask",
+        "dust",
+        "--sizein",
+        "--sizeout",
+        "--strand",
+        "plus",
         "--uc",
         "/work/vsearch_cluster/clusters.uc",
+    ]
+    assert cluster_class.PLAN_OUTPUTS(cluster_inputs, tmp_path) == [
+        tmp_path / "vsearch_cluster" / "centroids.fasta",
+        tmp_path / "vsearch_cluster" / "clusters.uc",
     ]
 
 
@@ -23174,6 +23235,8 @@ def test_vsearch_masking_renders_maskfasta_command_and_outputs(tmp_path: Path) -
         "--threads",
         "2",
         "--notrunclabels",
+        "--qmask",
+        "none",
         "--maskfasta",
         "db.fasta",
         "--output",
@@ -40840,7 +40903,7 @@ def test_beacon2_import_exposes_galaxy_metadata_inputs_outputs_and_citation() ->
 def test_beacon2_import_renders_import_command_outputs_and_validation(tmp_path: Path) -> None:
     node_class = _node_class("beacon2_import")
 
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "input_json_file": "HG00096.json",
             "database": "beacon",
@@ -40849,22 +40912,20 @@ def test_beacon2_import_renders_import_command_outputs_and_validation(tmp_path: 
             "clearAll": True,
             "clearColl": True,
             "removeCollection": "genomicVariations",
+            "db_auth_source": "admin",
+            "db_user": "root",
+            "db_password": "secret",
             "output": "/work/beacon2_import",
         }
-    ) == (
-        "mkdir -p /work/beacon2_import && "
-        "ln -s HG00096.json /work/beacon2_import/input.json && "
-        "cat > /work/beacon2_import/beacon2_db_auth.json <<'JSON'\n"
-        "{\n"
-        '  "db_auth_source": "admin",\n'
-        '  "db_user": "root",\n'
-        '  "db_password": "example"\n'
-        "}\n"
-        "JSON\n"
-        "beacon2-import --input_json_file /work/beacon2_import/input.json --db-host 20.108.51.167 "
-        "--db-port 27017 --database beacon --collection test --advance-connection --db-auth-config "
-        "/work/beacon2_import/beacon2_db_auth.json --clearAll --clearColl --removeCollection genomicVariations "
-        "> /work/beacon2_import/logs.txt"
+    )
+    assert command.startswith(
+        "mkdir -p /work/beacon2_import && ln -s HG00096.json /work/beacon2_import/input.json && umask 077"
+    )
+    assert "trap 'rm -f /work/beacon2_import/.beacon2_db_auth.json' EXIT" in command
+    assert '"db_password": "secret"' in command
+    assert "--db-auth-config /work/beacon2_import/.beacon2_db_auth.json" in command
+    assert command.endswith(
+        "--clearAll --clearColl --removeCollection genomicVariations > /work/beacon2_import/logs.txt"
     )
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
@@ -40874,15 +40935,24 @@ def test_beacon2_import_renders_import_command_outputs_and_validation(tmp_path: 
     assert node_class.VALIDATE_INPUTS({}) == "input_json_file is required"
     assert node_class.VALIDATE_INPUTS({"input_json_file": "HG00096.json"}) == "database is required"
     assert node_class.VALIDATE_INPUTS({"input_json_file": "HG00096.json", "database": "beacon"}) == "collection is required"
-    assert node_class.VALIDATE_INPUTS(
-        {"input_json_file": "HG00096.json", "database": "beacon", "collection": "test", "db_port": "bad"}
-    ) == "db_port must be an integer"
-    assert node_class.VALIDATE_INPUTS(
-        {"input_json_file": "HG00096.json", "database": "beacon", "collection": "test", "clearColl": True}
-    ) == "removeCollection is required when clearColl is enabled"
+    valid = {
+        "input_json_file": "HG00096.json",
+        "database": "beacon",
+        "collection": "test",
+        "db_auth_source": "admin",
+        "db_user": "root",
+        "db_password": "secret",
+    }
     assert node_class.VALIDATE_INPUTS(
         {"input_json_file": "HG00096.json", "database": "beacon", "collection": "test"}
-    ) is True
+    ) == "db_auth_source is required directly or through a configured credential"
+    assert node_class.VALIDATE_INPUTS(
+        {**valid, "db_port": "bad"}
+    ) == "db_port must be an integer"
+    assert node_class.VALIDATE_INPUTS(
+        {**valid, "clearColl": True}
+    ) == "removeCollection is required when clearColl is enabled"
+    assert node_class.VALIDATE_INPUTS(valid) is True
 
 
 def test_beacon2_individuals_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
@@ -41242,12 +41312,12 @@ def test_beacon2_nodes_expose_galaxy_metadata_inputs_outputs_and_citation() -> N
     assert vcf2bff["description"] == "Convert annotated VCF files to Beacon v2 genomic variations JSON."
     assert vcf2bff["output"] == ["JSON"]
     assert vcf2bff["output_name"] == ["genomicVariationsVcf"]
-    assert vcf2bff["required_executables"] == ["vcf2bff.pl", "gunzip"]
+    assert vcf2bff["required_executables"] == ["vcf2bff.pl", "python"]
     assert vcf2bff["required_conda_packages"] == ["beacon2-ri-tools", "gzip"]
     assert vcf2bff["citation_dois"] == ["10.1093/bioinformatics/btac568"]
     assert vcf2bff["input"]["required"]["input"][0] == "FILE"
     assert vcf2bff["input"]["optional"]["format"][1]["default"] == "bff"
-    assert vcf2bff["input"]["optional"]["format"][1]["options"] == ["bff", "hash", "json"]
+    assert vcf2bff["input"]["optional"]["format"][1]["options"] == ["bff"]
 
 
 def test_beacon2_csv2xlsx_renders_symlinked_csv_command_and_output(tmp_path: Path) -> None:
@@ -41297,19 +41367,23 @@ def test_beacon2_pxf2bff_renders_symlinked_phenopacket_command_and_output(tmp_pa
 def test_beacon2_vcf2bff_renders_vcf_command_and_output(tmp_path: Path) -> None:
     node_class = _node_class("beacon2_vcf2bff")
 
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "input": "variants/test.vcf.gz",
-            "format": "hash",
+            "format": "bff",
             "dataset_id": "beacon",
             "genome": "hg19",
             "output": "/work/beacon2_vcf2bff",
         }
-    ) == (
+    )
+    assert command.startswith(
         "ln -s variants/test.vcf.gz /work/beacon2_vcf2bff/sample.vcf.gz && "
-        "vcf2bff.pl --input /work/beacon2_vcf2bff/sample.vcf.gz --format hash "
-        "--project-dir /work/beacon2_vcf2bff --dataset-id beacon --genome hg19 && "
-        "gunzip /work/beacon2_vcf2bff/genomicVariationsVcf.json.gz"
+        "vcf2bff.pl --input /work/beacon2_vcf2bff/sample.vcf.gz --format bff --project-dir ."
+    )
+    assert "canonicalize_vcf2bff.py" in command
+    assert command.endswith(
+        "/work/beacon2_vcf2bff/genomicVariationsVcf.json.gz "
+        "/work/beacon2_vcf2bff/genomicVariationsVcf.json"
     )
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
@@ -41328,7 +41402,7 @@ def test_beacon2_nodes_validate_required_and_option_inputs() -> None:
     assert pxf2bff.VALIDATE_INPUTS({"input": ["EGAF00005572750.json"]}) is True
     assert vcf2bff.VALIDATE_INPUTS({}) == "input VCF.GZ is required"
     assert vcf2bff.VALIDATE_INPUTS({"input": "test.vcf.gz", "format": "bad"}) == (
-        "format must be one of: bff, hash, json"
+        "format must be bff because hash/json modes do not produce the declared JSON artifact"
     )
     assert vcf2bff.VALIDATE_INPUTS({"input": "test.vcf.gz", "dataset_id": "beacon", "genome": "hg19"}) is True
 
@@ -41414,7 +41488,7 @@ def test_heinz_visualization_exposes_galaxy_metadata_inputs_outputs_and_citation
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "optimal scoring subnetwork" in info["search_aliases"]
     assert info["input"]["required"]["subnetwork"][0] == "FILE"
-    assert info["input"]["optional"]["script_path"][1]["default"] == "visualization.py"
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_heinz_visualization_renders_python_command_and_output(tmp_path: Path) -> None:
@@ -41529,7 +41603,7 @@ def test_heinz_scoring_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["input"]["optional"]["input_bum"][0] == "STRING"
     assert info["input"]["optional"]["lambda_param"][1]["default"] == 0.5
     assert info["input"]["optional"]["alpha"][1]["default"] == 0.5
-    assert info["input"]["optional"]["script_path"][1]["default"] == "heinz_scoring.py"
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_heinz_scoring_renders_commands_outputs_and_validation(tmp_path: Path) -> None:
@@ -41549,13 +41623,15 @@ def test_heinz_scoring_renders_commands_outputs_and_validation(tmp_path: Path) -
         "python /tools/heinz/heinz_scoring.py -n 'genes with p.tsv' -f 0.001 "
         "-o /work/heinz_scoring/score.txt -l 0.546 -a 0.453"
     )
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "node": "genes.tsv",
             "input_bum": "BUM output.txt",
             "output": "/work/heinz_scoring",
         }
-    ) == "python heinz_scoring.py -n genes.tsv -f 0.5 -o /work/heinz_scoring/score.txt -m 'BUM output.txt'"
+    )
+    assert "heinz_scoring.py" in command
+    assert command.endswith("-n genes.tsv -f 0.5 -o /work/heinz_scoring/score.txt -m 'BUM output.txt'")
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "heinz_scoring" / "score.txt",
@@ -41611,7 +41687,7 @@ def test_heinz_bum_exposes_galaxy_metadata_inputs_outputs_and_citations() -> Non
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "BioNet" in info["search_aliases"]
     assert info["input"]["required"]["p_values"][0] == "FILE"
-    assert info["input"]["optional"]["script_path"][1]["default"] == "bum.R"
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_heinz_bum_renders_rscript_command_and_output(tmp_path: Path) -> None:
@@ -41660,7 +41736,7 @@ def test_brew3r_r_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert info["input"]["optional"]["no_add"][0] == "BOOLEAN"
     assert info["input"]["optional"]["exclude_pattern"][1]["default"] == ""
     assert info["input"]["optional"]["filter_unstranded"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["script_path"][1]["default"] == "brew3r.r_script.R"
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_brew3r_r_renders_default_and_optional_commands_and_outputs(tmp_path: Path) -> None:
@@ -41678,7 +41754,7 @@ def test_brew3r_r_renders_default_and_optional_commands_and_outputs(tmp_path: Pa
         "--gtf_to_overlap 'stringtie assembly.gtf' -o /work/brew3r_r/output.gtf"
     )
 
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "gtf_to_extend": "input.gtf",
             "gtf_to_overlap": "second input.gtf",
@@ -41688,8 +41764,10 @@ def test_brew3r_r_renders_default_and_optional_commands_and_outputs(tmp_path: Pa
             "filter_unstranded": True,
             "output": "/work/brew3r_r",
         }
-    ) == (
-        "Rscript brew3r.r_script.R --gtf_to_extend input.gtf --gtf_to_overlap 'second input.gtf' "
+    )
+    assert "brew3r.r_script.R" in command
+    assert command.endswith(
+        "--gtf_to_extend input.gtf --gtf_to_overlap 'second input.gtf' "
         "--sup_output /work/brew3r_r/output_table.tsv --no_add --exclude_pattern '^Gm$' "
         "--filter_unstranded -o /work/brew3r_r/output.gtf"
     )
@@ -42254,7 +42332,7 @@ def test_ucsc_wigtobigwig_exposes_galaxy_metadata_inputs_outputs_and_citations()
 def test_ucsc_wigtobigwig_renders_history_full_and_indexed_preset_commands(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_wigtobigwig")
 
-    assert node_class.render_command(
+    history_command = node_class.render_command(
         {
             "input1": "signal track.wig",
             "genome_type_select": "history",
@@ -42266,13 +42344,15 @@ def test_ucsc_wigtobigwig_renders_history_full_and_indexed_preset_commands(tmp_p
             "unc": False,
             "output": "/work/ucsc_wigtobigwig",
         }
-    ) == (
+    )
+    assert history_command.startswith(
         "mkdir -p /work/ucsc_wigtobigwig && "
         "grep -v '^track' 'signal track.wig' > /work/ucsc_wigtobigwig/trackless && "
         "wigToBigWig /work/ucsc_wigtobigwig/trackless 'hg17 lengths.len' "
         "/work/ucsc_wigtobigwig/out_file1.bw -blockSize=256 -itemsPerSlot=1024 -clip"
     )
-    assert node_class.render_command(
+    assert "needLargeMem: trying to allocate 0 bytes|^Error" in history_command
+    indexed_command = node_class.render_command(
         {
             "input1": "signal.bedgraph",
             "genome_type_select": "indexed",
@@ -42280,12 +42360,14 @@ def test_ucsc_wigtobigwig_renders_history_full_and_indexed_preset_commands(tmp_p
             "settingsType": "preset",
             "output": "/work/ucsc_wigtobigwig",
         }
-    ) == (
+    )
+    assert indexed_command.startswith(
         "mkdir -p /work/ucsc_wigtobigwig && "
         "grep -v '^track' signal.bedgraph > /work/ucsc_wigtobigwig/trackless && "
         "wigToBigWig /work/ucsc_wigtobigwig/trackless /indexes/hg17.len "
         "/work/ucsc_wigtobigwig/out_file1.bw -clip"
     )
+    assert "needLargeMem: trying to allocate 0 bytes|^Error" in indexed_command
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "ucsc_wigtobigwig" / "out_file1.bw",
@@ -42437,7 +42519,7 @@ def test_ucsc_axtchain_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["input"]["required"]["in_aln"][0] == "FILE"
     assert info["input"]["required"]["in_target"][0] == "FASTA"
     assert info["input"]["required"]["in_query"][0] == "FASTA"
-    assert info["input"]["optional"]["alignment_format"][1]["options"] == ["", "axt", "psl"]
+    assert info["input"]["required"]["alignment_format"][1]["options"] == ["axt", "psl"]
     assert info["input"]["optional"]["linear_gap"][1]["default"] == "loose"
     assert info["input"]["optional"]["linear_gap"][1]["options"] == ["loose", "medium", "linear_gap_file"]
     assert info["input"]["optional"]["lineargap_input"][0] == "FILE"
@@ -42454,6 +42536,7 @@ def test_ucsc_axtchain_renders_axt_psl_gap_options_details_and_outputs(tmp_path:
             "in_aln": "hg38 chrM.mm39 chrM.axt.gz",
             "in_target": "hg38.chrM.fa",
             "in_query": "mm39.chrM.fa",
+            "alignment_format": "axt",
             "output": "/work/ucsc_axtchain",
         }
     ) == (
@@ -42484,6 +42567,7 @@ def test_ucsc_axtchain_renders_axt_psl_gap_options_details_and_outputs(tmp_path:
             "in_aln": "aligned.psl.gz",
             "in_target": "target.fa",
             "in_query": "query.fa",
+            "alignment_format": "psl",
             "linear_gap": "medium",
             "output": "/work/ucsc_axtchain",
         }
@@ -42511,17 +42595,45 @@ def test_ucsc_axtchain_validates_required_inputs_formats_gap_options_and_scores(
     )
     assert node_class.VALIDATE_INPUTS(
         {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "alignment_format": "bad"}
-    ) == "alignment_format must be one of: , axt, psl"
+    ) == "alignment_format must be one of: axt, psl"
     assert node_class.VALIDATE_INPUTS(
-        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "linear_gap": "bad"}
+        {
+            "in_aln": "input.axt",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "alignment_format": "axt",
+            "linear_gap": "bad",
+        }
     ) == "linear_gap must be one of: loose, medium, linear_gap_file"
     assert node_class.VALIDATE_INPUTS(
-        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "linear_gap": "linear_gap_file"}
+        {
+            "in_aln": "input.axt",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "alignment_format": "axt",
+            "linear_gap": "linear_gap_file",
+        }
     ) == "lineargap_input is required when linear_gap is linear_gap_file"
     assert node_class.VALIDATE_INPUTS(
-        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "minScore": -1}
+        {
+            "in_aln": "input.axt",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "alignment_format": "axt",
+            "minScore": -1,
+        }
     ) == "minScore must be greater than or equal to 0"
-    assert node_class.VALIDATE_INPUTS({"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa"}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa"}
+    ) == "alignment_format is required because staged paths do not preserve AXT/PSL suffix semantics"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "in_aln": "input.axt",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "alignment_format": "axt",
+        }
+    ) is True
 
 
 def test_ucsc_chainnet_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
@@ -42632,8 +42744,8 @@ def test_fasplit_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     assert info["display_name"] == "faSplit"
     assert info["category"] == "genomics"
     assert info["description"] == "Split a FASTA file into multiple FASTA files."
-    assert info["output"] == ["DIRECTORY"]
-    assert info["output_name"] == ["output_list"]
+    assert info["output"] == ["DIRECTORY", "TXT"]
+    assert info["output_name"] == ["output_list", "lift_file"]
     assert info["required_executables"] == ["faSplit"]
     assert info["required_conda_packages"] == ["ucsc-fasplit"]
     assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/utils/faSplit/faSplit.c"
@@ -42652,7 +42764,7 @@ def test_fasplit_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
         "about",
         "gap",
     ]
-    assert info["input"]["optional"]["count"][1]["default"] == 10
+    assert info["input"]["optional"]["count"][1]["default"] == ""
     assert info["input"]["optional"]["maxN"][1]["min"] == 0
     assert info["input"]["optional"]["oneFile"][0] == "BOOLEAN"
     assert info["input"]["optional"]["extra"][1]["min"] == 0
@@ -42994,18 +43106,19 @@ def test_ucsc_maffetch_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
 def test_ucsc_maffetch_renders_galaxy_config_lookup_and_output(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_maffetch")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "bed_file": "mafFetch.bed",
             "genome": "hg19",
             "track": "multiz46way",
             "output": "/work/ucsc_maffetch",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_maffetch", "mafFetch")
+    assert default_command.endswith(
         "mafFetch hg19 multiz46way mafFetch.bed /work/ucsc_maffetch/out.maf"
     )
-    assert node_class.render_command(
+    custom_command = node_class.render_command(
         {
             "bed_file": "coding regions.bed",
             "genome": "hg38",
@@ -43013,8 +43126,10 @@ def test_ucsc_maffetch_renders_galaxy_config_lookup_and_output(tmp_path: Path) -
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_maffetch",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(custom_command, "/work/ucsc_maffetch", "mafFetch")
+    assert "cp 'custom hg.conf' /work/ucsc_maffetch/ucsc-home/.hg.conf" in custom_command
+    assert custom_command.endswith(
         "mafFetch hg38 multiz100way 'coding regions.bed' /work/ucsc_maffetch/out.maf"
     )
 
@@ -43066,19 +43181,22 @@ def test_ucsc_mafaddirows_renders_flags_nbed_links_and_output(tmp_path: Path) ->
             "output": "/work/ucsc_mafaddirows",
         }
     ) == "mafAddIRows mafIn.maf ref.2bit /work/ucsc_mafaddirows/output.maf -addN"
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "input_maf": "input align.maf",
             "twoBitFile": "reference genome.2bit",
             "nBeds": ["gorGor3.bed", "hg38 regions.bed", "panTro4.bed"],
+            "nBed_element_identifiers": ["gorGor3.bed", "hg38 regions.bed", "panTro4.bed"],
             "addDash": True,
             "output": "/work/ucsc_mafaddirows",
         }
-    ) == (
-        "ln -s gorGor3.bed gorGor3.bed && echo gorGor3.bed >> bed.txt && "
-        "ln -s 'hg38 regions.bed' hg38_regions.bed && echo hg38_regions.bed >> bed.txt && "
-        "ln -s panTro4.bed panTro4.bed && echo panTro4.bed >> bed.txt && "
-        "mafAddIRows 'input align.maf' 'reference genome.2bit' /work/ucsc_mafaddirows/output.maf -nBeds=bed.txt -addDash"
+    )
+    assert "ln -s gorGor3.bed /work/ucsc_mafaddirows/gorGor3.bed" in command
+    assert "ln -s 'hg38 regions.bed' /work/ucsc_mafaddirows/hg38_regions.bed" in command
+    assert "echo panTro4.bed >> /work/ucsc_mafaddirows/bed.txt" in command
+    assert command.endswith(
+        "mafAddIRows 'input align.maf' 'reference genome.2bit' /work/ucsc_mafaddirows/output.maf "
+        "-nBeds=/work/ucsc_mafaddirows/bed.txt -addDash"
     )
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
@@ -43097,6 +43215,15 @@ def test_ucsc_mafaddirows_validates_required_inputs_and_modes() -> None:
     assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "twoBitFile": "ref.2bit"}) is True
     assert node_class.VALIDATE_INPUTS(
         {"input_maf": "input.maf", "twoBitFile": "ref.2bit", "nBeds": ["species.bed"], "addN": True}
+    ) == "nBed_element_identifiers must provide one logical species filename for each nBeds file"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_maf": "input.maf",
+            "twoBitFile": "ref.2bit",
+            "nBeds": ["species.bed"],
+            "nBed_element_identifiers": ["species.bed"],
+            "addN": True,
+        }
     ) is True
 
 
@@ -43129,7 +43256,7 @@ def test_ucsc_maffrag_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
 def test_ucsc_maffrag_renders_region_lookup_outname_and_output(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_maffrag")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "genome": "hg19",
             "track": "multiz46way",
@@ -43139,11 +43266,13 @@ def test_ucsc_maffrag_renders_region_lookup_outname_and_output(tmp_path: Path) -
             "strand": "+",
             "output": "/work/ucsc_maffrag",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    assert default_command.startswith("touch /work/ucsc_maffrag/out.maf && ")
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_maffrag", "mafFrag")
+    assert default_command.endswith(
         "mafFrag hg19 multiz46way chr17 7578370 7578400 + /work/ucsc_maffrag/out.maf"
     )
-    assert node_class.render_command(
+    custom_command = node_class.render_command(
         {
             "genome": "hg38",
             "track": "multiz100way",
@@ -43155,8 +43284,11 @@ def test_ucsc_maffrag_renders_region_lookup_outname_and_output(tmp_path: Path) -
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_maffrag",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    assert custom_command.startswith("touch /work/ucsc_maffrag/out.maf && ")
+    _assert_staged_ucsc_command(custom_command, "/work/ucsc_maffrag", "mafFrag")
+    assert "cp 'custom hg.conf' /work/ucsc_maffrag/ucsc-home/.hg.conf" in custom_command
+    assert custom_command.endswith(
         "mafFrag hg38 multiz100way chr1 100 200 . /work/ucsc_maffrag/out.maf '-outName=custom region'"
     )
 
@@ -43228,18 +43360,19 @@ def test_ucsc_maffrags_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
 def test_ucsc_maffrags_renders_default_flags_orgs_and_output(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_maffrags")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "bed_file": "mafFrag_in.bed",
             "genome": "hg19",
             "track": "multiz46way",
             "output": "/work/ucsc_maffrags",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_maffrags", "mafFrags")
+    assert default_command.endswith(
         "mafFrags hg19 multiz46way mafFrag_in.bed /work/ucsc_maffrags/out.maf"
     )
-    assert node_class.render_command(
+    custom_command = node_class.render_command(
         {
             "bed_file": "regions bed12.bed",
             "genome": "hg38",
@@ -43251,12 +43384,14 @@ def test_ucsc_maffrags_renders_default_flags_orgs_and_output(tmp_path: Path) -> 
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_maffrags",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(custom_command, "/work/ucsc_maffrags", "mafFrags")
+    assert "cp 'custom hg.conf' /work/ucsc_maffrags/ucsc-home/.hg.conf" in custom_command
+    assert custom_command.endswith(
         "mafFrags hg38 multiz100way 'regions bed12.bed' -bed12 -thickOnly -meFirst "
         "'-orgs=species order.txt' /work/ucsc_maffrags/out.maf"
     )
-    assert node_class.render_command(
+    flags_command = node_class.render_command(
         {
             "bed_file": "regions.bed",
             "genome": "hg38",
@@ -43265,8 +43400,9 @@ def test_ucsc_maffrags_renders_default_flags_orgs_and_output(tmp_path: Path) -> 
             "refCoords": True,
             "output": "/work/ucsc_maffrags",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(flags_command, "/work/ucsc_maffrags", "mafFrags")
+    assert flags_command.endswith(
         "mafFrags hg38 multiz100way regions.bed -txStarts -refCoords /work/ucsc_maffrags/out.maf"
     )
 
@@ -43313,10 +43449,10 @@ def test_ucsc_mafgene_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
     assert info["input"]["required"]["db_name"][0] == "STRING"
     assert info["input"]["required"]["maf_file"][0] == "FILE"
     assert info["input"]["required"]["genepred_file"][0] == "FILE"
-    assert info["input"]["required"]["species_list"][0] == "STRING"
+    assert info["input"]["required"]["species_list"][0] == "FILE"
     assert info["input"]["optional"]["selection_type"][1]["options"] == ["all", "single", "list", "bed", "chrom"]
     assert info["input"]["optional"]["gene_name"][0] == "STRING"
-    assert info["input"]["optional"]["gene_list"][0] == "STRING"
+    assert info["input"]["optional"]["gene_list"][0] == "FILE"
     assert info["input"]["optional"]["gene_beds"][0] == "BED"
     assert info["input"]["optional"]["chrom"][0] == "STRING"
     assert info["input"]["optional"]["useFile"][0] == "BOOLEAN"
@@ -43327,7 +43463,7 @@ def test_ucsc_mafgene_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
 def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_mafgene")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "twoBitFile": "sacCer3.2bit",
             "db_name": "sacCer3",
@@ -43336,13 +43472,16 @@ def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path
             "species_list": "species.lst",
             "output": "/work/ucsc_mafgene",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
-        "ln -s sacCer3.2bit input.2bit && ln -s sacCer3.bigMaf sacCer3.bigMaf && "
-        "ln -s sgdGene.gp sgdGene.gp && mafGene -twoBit=input.2bit sacCer3 sacCer3.bigMaf "
-        "sgdGene.gp species.lst /work/ucsc_mafgene/output.fasta -useFile"
     )
-    assert node_class.render_command(
+    assert "ln -s sacCer3.2bit /work/ucsc_mafgene/input.2bit" in default_command
+    assert "ln -s sacCer3.bigMaf /work/ucsc_mafgene/input.bigMaf" in default_command
+    assert "ln -s sgdGene.gp /work/ucsc_mafgene/input.gp" in default_command
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_mafgene", "mafGene")
+    assert default_command.endswith(
+        "mafGene -twoBit=/work/ucsc_mafgene/input.2bit sacCer3 /work/ucsc_mafgene/input.bigMaf "
+        "/work/ucsc_mafgene/input.gp species.lst /work/ucsc_mafgene/output.fasta -useFile"
+    )
+    single_command = node_class.render_command(
         {
             "twoBitFile": "reference genome.2bit",
             "db_name": "hg38",
@@ -43360,16 +43499,18 @@ def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_mafgene",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
-        "ln -s 'reference genome.2bit' input.2bit && "
-        "ln -s 'alignment big maf.bigMaf' alignment_big_maf.bigMaf && "
-        "ln -s 'known genes.gp' known_genes.gp && "
-        "mafGene -twoBit=input.2bit hg38 alignment_big_maf.bigMaf known_genes.gp "
-        "'species order.txt' /work/ucsc_mafgene/output.fasta -geneName=TP53 -exons -noTrans "
-        "-uniqAA -includeUtr -noDash -useFile -delay=2"
     )
-    assert node_class.render_command(
+    assert "ln -s 'reference genome.2bit' /work/ucsc_mafgene/input.2bit" in single_command
+    assert "ln -s 'alignment big maf.bigMaf' /work/ucsc_mafgene/input.bigMaf" in single_command
+    assert "ln -s 'known genes.gp' /work/ucsc_mafgene/input.gp" in single_command
+    _assert_staged_ucsc_command(single_command, "/work/ucsc_mafgene", "mafGene")
+    assert "cp 'custom hg.conf' /work/ucsc_mafgene/ucsc-home/.hg.conf" in single_command
+    assert single_command.endswith(
+        "mafGene -twoBit=/work/ucsc_mafgene/input.2bit hg38 /work/ucsc_mafgene/input.bigMaf "
+        "/work/ucsc_mafgene/input.gp 'species order.txt' /work/ucsc_mafgene/output.fasta "
+        "-geneName=TP53 -exons -noTrans -uniqAA -includeUtr -noDash -useFile -delay=2"
+    )
+    bed_command = node_class.render_command(
         {
             "twoBitFile": "hg38.2bit",
             "db_name": "hg38",
@@ -43380,11 +43521,12 @@ def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path
             "gene_beds": "genes regions.bed",
             "output": "/work/ucsc_mafgene",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
-        "ln -s hg38.2bit input.2bit && ln -s multiz100way multiz100way && "
-        "ln -s knownGene knownGene && mafGene -twoBit=input.2bit hg38 multiz100way knownGene "
-        "species.lst /work/ucsc_mafgene/output.fasta '-geneBeds=genes regions.bed'"
+    )
+    _assert_staged_ucsc_command(bed_command, "/work/ucsc_mafgene", "mafGene")
+    assert bed_command.endswith(
+        "mafGene -twoBit=/work/ucsc_mafgene/input.2bit hg38 /work/ucsc_mafgene/input.bigMaf "
+        "/work/ucsc_mafgene/input.gp species.lst /work/ucsc_mafgene/output.fasta "
+        "'-geneBeds=genes regions.bed' -useFile"
     )
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
@@ -43593,8 +43735,9 @@ def test_gffread_renders_conversion_filtering_fasta_and_merge_outputs(tmp_path: 
             "output": "/work/gffread",
         }
     ) == (
-        "ln -s genome.fa genomeref.fa && gffread features.bed --in-bed -g genomeref.fa -V -H --merge "
-        "--force-exons -Z -K -Q '-d=/work/gffread/dupinfo.txt' -w /work/gffread/exons.fa "
+        "ln -s genome.fa /work/gffread/genomeref.fa && gffread features.bed --in-bed "
+        "-g /work/gffread/genomeref.fa -V -H --merge --force-exons -Z -K -Q "
+        "-d /work/gffread/dupinfo.txt -w /work/gffread/exons.fa "
         "-x /work/gffread/cds.fa -y /work/gffread/pep.fa -W -S --bed -o /work/gffread/output.bed"
     )
 
@@ -43650,9 +43793,7 @@ def test_gffread_validates_required_inputs_modes_ranges_and_reference_outputs() 
     assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "merge_sel": "merge", "merge_options": ["bad"]}) == (
         "merge_options values must be one of: force_exons, merge_close_exons, collapse_contained, relaxed_containment, dupinfo"
     )
-    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "gff_fmt": "gff", "tname": "track name"}) == (
-        "tname must contain only letters, digits, and underscores"
-    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "gff_fmt": "gff", "tname": "track name"}) is True
     assert node_class.VALIDATE_INPUTS({"input": "genes.gtf"}) is True
     assert node_class.VALIDATE_INPUTS(
         {"input": "genes.gtf", "reference_genome_source": "history", "genome_fasta": "genome.fa", "fa_outputs": ["pep"]}
@@ -43856,17 +43997,18 @@ def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations()
 def test_ucsc_mafcoverage_renders_galaxy_config_count_restrict_and_output(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_mafcoverage")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "maf_file": "mafFetch output.maf",
             "genome": "hg19",
             "output": "/work/ucsc_mafcoverage",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_mafcoverage", "mafCoverage")
+    assert default_command.endswith(
         "mafCoverage hg19 'mafFetch output.maf' > /work/ucsc_mafcoverage/coverage.txt"
     )
-    assert node_class.render_command(
+    custom_command = node_class.render_command(
         {
             "maf_file": "mafFetch.maf",
             "genome": "hg38",
@@ -43876,8 +44018,10 @@ def test_ucsc_mafcoverage_renders_galaxy_config_count_restrict_and_output(tmp_pa
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_mafcoverage",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(custom_command, "/work/ucsc_mafcoverage", "mafCoverage")
+    assert "cp 'custom hg.conf' /work/ucsc_mafcoverage/ucsc-home/.hg.conf" in custom_command
+    assert custom_command.endswith(
         "mafCoverage hg38 mafFetch.maf '-restrict=coding regions.bed' -count=2 "
         "> /work/ucsc_mafcoverage/coverage.txt"
     )

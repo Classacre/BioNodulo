@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.builtin.annotation import FuncotateTableNode
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -22,10 +25,10 @@ def test_annovar_is_registered_for_frontend_discovery() -> None:
     assert node_info["display_name"] == "ANNOVAR"
     assert node_info["category"] == "annotation"
     assert node_info["description"].startswith("Comprehensive variant annotation")
-    assert node_info["output"] == ["CSV", "CSV"]
-    assert node_info["output_name"] == ["variant_function", "exonic_variant_function"]
-    assert node_info["required_executables"] == ["table_annovar.pl", "convert2annovar.pl"]
-    assert node_info["required_conda_packages"] == ["annovar"]
+    assert node_info["output"] == ["VCF", "TABULAR"]
+    assert node_info["output_name"] == ["annotated_vcf", "multianno_table"]
+    assert node_info["required_executables"] == ["table_annovar.pl"]
+    assert node_info["required_conda_packages"] == []
     assert node_info["experimental"] is True
     assert "variant annotation" in node_info["search_aliases"]
     assert "clinical" in node_info["search_aliases"]
@@ -37,7 +40,7 @@ def test_annovar_is_registered_for_frontend_discovery() -> None:
     assert inputs["optional"] == {}
 
 
-def test_annovar_renders_convert_and_table_annovar_command() -> None:
+def test_annovar_renders_direct_table_annovar_vcf_command() -> None:
     node_class = _node_class("annovar")
 
     cmd = node_class.render_command({
@@ -50,17 +53,8 @@ def test_annovar_renders_convert_and_table_annovar_command() -> None:
     })
 
     assert cmd == [
-        "convert2annovar.pl",
-        "-format",
-        "vcf4",
-        "-withzyg",
-        "-includeinfo",
-        "variants.vcf.gz",
-        ">",
-        "/tmp/run/annovar/input.avinput",
-        "&&",
         "table_annovar.pl",
-        "/tmp/run/annovar/input.avinput",
+        "variants.vcf.gz",
         "/refs/annovar/humandb",
         "-buildver",
         "hg38",
@@ -99,15 +93,19 @@ def test_annovar_plans_outputs() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == [
-        "/tmp/run/annovar/variant_function.csv",
-        "/tmp/run/annovar/exonic_variant_function.csv",
+        "/tmp/run/annovar/annovar.hg38_multianno.vcf",
+        "/tmp/run/annovar/annovar.hg38_multianno.txt",
     ]
 
 
 def test_annovar_environment_metadata_is_declared() -> None:
-    assert EXECUTABLE_TO_CONDA_PACKAGE["table_annovar.pl"] == "annovar"
-    assert EXECUTABLE_TO_CONDA_PACKAGE["convert2annovar.pl"] == "annovar"
-    assert PACKAGE_MIN_VERSIONS["annovar"] == ">=2020-06-08"
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["table_annovar.pl"] == ""
+    assert EXECUTABLE_TO_CONDA_PACKAGE["convert2annovar.pl"] == ""
+    assert "annovar" not in PACKAGE_MIN_VERSIONS
+    assert workflow_to_packages({"nodes": [{"id": "annotate", "type": "annovar"}]}, registry) == []
 
 
 def test_funcotate_table_is_registered_for_frontend_discovery() -> None:
@@ -119,8 +117,8 @@ def test_funcotate_table_is_registered_for_frontend_discovery() -> None:
     assert node_info["display_name"] == "Funcotate Table"
     assert node_info["category"] == "annotation"
     assert node_info["description"].startswith("Oncotator-style functional annotation")
-    assert node_info["output"] == ["FILE", "FILE"]
-    assert node_info["output_name"] == ["annotated", "summary"]
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["annotated"]
     assert node_info["required_executables"] == ["gatk"]
     assert node_info["required_conda_packages"] == ["gatk4"]
     assert "funcotator" in node_info["search_aliases"]
@@ -128,7 +126,15 @@ def test_funcotate_table_is_registered_for_frontend_discovery() -> None:
     assert "oncotator" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"vcf", "reference", "data_sources", "ref_version"}
+    assert set(inputs["required"]) == {
+        "vcf",
+        "vcf_index",
+        "reference",
+        "reference_index",
+        "sequence_dictionary",
+        "data_sources",
+        "ref_version",
+    }
     assert set(inputs["optional"]) == {
         "output_format",
         "transcript_selection_mode",
@@ -143,7 +149,10 @@ def test_funcotate_table_renders_gatk_funcotator_command() -> None:
 
     cmd = node_class.render_command({
         "vcf": "somatic.vcf.gz",
+        "vcf_index": "somatic.vcf.gz.tbi",
         "reference": "GRCh38.fa",
+        "reference_index": "GRCh38.fa.fai",
+        "sequence_dictionary": "GRCh38.dict",
         "data_sources": "/refs/funcotator",
         "ref_version": "hg38",
         "output_format": "MAF",
@@ -179,11 +188,6 @@ def test_funcotate_table_renders_gatk_funcotator_command() -> None:
         "Tumor_Sample_Barcode:TUMOR",
         "-L",
         "targets.interval_list",
-        "&&",
-        "printf",
-        "'tool\\tgatk Funcotator\\ninput\\tsomatic.vcf.gz\\noutput\\t/tmp/run/funcotate_table/annotated.maf\\nformat\\tMAF\\nref_version\\thg38\\n'",
-        ">",
-        "/tmp/run/funcotate_table/summary.tsv",
     ]
 
 
@@ -192,7 +196,10 @@ def test_funcotate_table_supports_vcf_output_and_omits_empty_optional_flags() ->
 
     cmd = node_class.render_command({
         "vcf": "germline.vcf.gz",
+        "vcf_index": "germline.vcf.gz.tbi",
         "reference": "GRCh37.fa",
+        "reference_index": "GRCh37.fa.fai",
+        "sequence_dictionary": "GRCh37.dict",
         "data_sources": "/refs/funcotator",
         "ref_version": "hg19",
         "output_format": "VCF",
@@ -208,7 +215,6 @@ def test_funcotate_table_supports_vcf_output_and_omits_empty_optional_flags() ->
     assert "--annotation-override" not in cmd
     assert "-L" not in cmd
     assert "/tmp/run/funcotate_table/annotated.vcf" in cmd
-    assert "format\\tVCF" in cmd[-3]
 
 
 def test_funcotate_table_plans_outputs_by_format() -> None:
@@ -219,11 +225,9 @@ def test_funcotate_table_plans_outputs_by_format() -> None:
 
     assert [str(path) for path in maf_outputs] == [
         "/tmp/run/funcotate_table/annotated.maf",
-        "/tmp/run/funcotate_table/summary.tsv",
     ]
     assert [str(path) for path in vcf_outputs] == [
         "/tmp/run/funcotate_table/annotated.vcf",
-        "/tmp/run/funcotate_table/summary.tsv",
     ]
 
 
@@ -238,19 +242,14 @@ def test_funcotator_alias_is_registered_for_frontend_discovery() -> None:
     assert node_class.render_command.__func__ is FuncotateTableNode.render_command.__func__
     assert node_class.PLAN_OUTPUTS.__func__ is FuncotateTableNode.PLAN_OUTPUTS.__func__
     assert node_class.INPUT_TYPES.__func__ is FuncotateTableNode.INPUT_TYPES.__func__
-    assert {name for name in node_class.__dict__ if not name.startswith("_")} == {
-        "NODE_ID",
-        "DISPLAY_NAME",
-        "DESCRIPTION",
-        "SEARCH_ALIASES",
-    }
+    assert {"NODE_ID", "DISPLAY_NAME", "DESCRIPTION", "SEARCH_ALIASES"}.issubset(node_class.__dict__)
 
     node_info = info["funcotator"]
     assert node_info["display_name"] == "Funcotator"
     assert node_info["category"] == "annotation"
     assert node_info["description"] == "Annotate cancer variants with GATK Funcotator."
-    assert node_info["output"] == ["FILE", "FILE"]
-    assert node_info["output_name"] == ["annotated", "summary"]
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["annotated"]
     assert node_info["required_executables"] == ["gatk"]
     assert node_info["required_conda_packages"] == ["gatk4"]
     assert {
@@ -268,7 +267,10 @@ def test_funcotator_alias_renders_gatk_funcotator_command() -> None:
 
     cmd = node_class.render_command({
         "vcf": "somatic.vcf.gz",
+        "vcf_index": "somatic.vcf.gz.tbi",
         "reference": "GRCh38.fa",
+        "reference_index": "GRCh38.fa.fai",
+        "sequence_dictionary": "GRCh38.dict",
         "data_sources": "/refs/funcotator",
         "ref_version": "hg38",
         "output_format": "MAF",
@@ -304,11 +306,6 @@ def test_funcotator_alias_renders_gatk_funcotator_command() -> None:
         "Tumor_Sample_Barcode:TUMOR",
         "-L",
         "targets.interval_list",
-        "&&",
-        "printf",
-        "'tool\\tgatk Funcotator\\ninput\\tsomatic.vcf.gz\\noutput\\t/tmp/run/funcotator/annotated.maf\\nformat\\tMAF\\nref_version\\thg38\\n'",
-        ">",
-        "/tmp/run/funcotator/summary.tsv",
     ]
 
 
@@ -320,11 +317,9 @@ def test_funcotator_alias_plans_outputs_under_funcotator_directory() -> None:
 
     assert [str(path) for path in maf_outputs] == [
         "/tmp/run/funcotator/annotated.maf",
-        "/tmp/run/funcotator/summary.tsv",
     ]
     assert [str(path) for path in vcf_outputs] == [
         "/tmp/run/funcotator/annotated.vcf",
-        "/tmp/run/funcotator/summary.tsv",
     ]
 
 
@@ -346,7 +341,7 @@ def test_bcftools_annotate_is_registered_for_frontend_discovery() -> None:
     assert node_info["output_name"] == ["annotated_vcf"]
     assert node_info["required_executables"] == ["bcftools", "bgzip", "tabix"]
     assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
-    assert node_info["documentation_url"] == "https://www.htslib.org/doc/bcftools.html#annotate"
+    assert node_info["documentation_url"] == "https://samtools.github.io/bcftools/bcftools.html#annotate"
     assert node_info["citation_dois"] == ["10.1093/gigascience/giab008", "10.1093/bioinformatics/btp352"]
     assert "bcftools" in node_info["search_aliases"]
     assert "annotate" in node_info["search_aliases"]
@@ -476,16 +471,15 @@ def test_annotate_vcf_is_registered_for_frontend_discovery() -> None:
     assert node_info["description"].startswith("Annotate VCF records with gene")
     assert node_info["output"] == ["VCF_GZ", "VCF_INDEX"]
     assert node_info["output_name"] == ["annotated_vcf", "annotated_vcf_index"]
-    assert node_info["required_executables"] == ["bcftools", "vcfanno"]
-    assert node_info["required_conda_packages"] == ["bcftools", "vcfanno"]
+    assert node_info["required_executables"] == ["vcfanno", "bcftools"]
+    assert node_info["required_conda_packages"] == ["vcfanno", "bcftools", "htslib"]
     assert "multi-source annotation" in node_info["search_aliases"]
     assert "roadmap" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"vcf"}
+    assert set(inputs["required"]) == {"vcf", "annotation_files", "annotation_indexes"}
     assert set(inputs["optional"]) == {
         "mode",
-        "annotation_files",
         "vcfanno_config",
         "columns",
         "header_lines",
@@ -496,16 +490,24 @@ def test_annotate_vcf_is_registered_for_frontend_discovery() -> None:
 
 def test_annotate_vcf_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["vcfanno"] == "vcfanno"
-    assert PACKAGE_MIN_VERSIONS["vcfanno"] == ">=0.3.5"
+    assert PACKAGE_MIN_VERSIONS["vcfanno"] == "0.3.9"
 
 
-def test_annotate_vcf_renders_vcfanno_multi_source_command() -> None:
+def test_annotate_vcf_renders_vcfanno_multi_source_command(tmp_path: Path) -> None:
     node_class = _node_class("annotate_vcf")
+    config = tmp_path / "annotation.toml"
+    config.write_text(
+        '[[annotation]]\nfile="genes.vcf.gz"\nfields=["GENE"]\nops=["self"]\n'
+        '[[annotation]]\nfile="scores.bed.gz"\ncolumns=[4]\nnames=["SCORE"]\nops=["mean"]\n',
+        encoding="utf-8",
+    )
 
     cmd = node_class.render_command({
         "vcf": "variants.vcf.gz",
         "mode": "vcfanno",
-        "vcfanno_config": "annotation.toml",
+        "vcfanno_config": str(config),
+        "annotation_files": ["genes.vcf.gz", "scores.bed.gz"],
+        "annotation_indexes": ["genes.vcf.gz.tbi", "scores.bed.gz.csi"],
         "threads": 6,
         "output": "/tmp/run/annotate_vcf",
         "output_name": "sample annotations",
@@ -519,7 +521,9 @@ def test_annotate_vcf_renders_vcfanno_multi_source_command() -> None:
         "vcfanno",
         "-p",
         "6",
-        "annotation.toml",
+        "-base-path",
+        "/tmp/run/annotate_vcf/annotation_sources",
+        str(config),
         "variants.vcf.gz",
         "|",
         "bcftools",
@@ -543,6 +547,7 @@ def test_annotate_vcf_renders_bcftools_custom_annotation_command() -> None:
         "vcf": "variants.vcf.gz",
         "mode": "bcftools",
         "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+        "annotation_indexes": "genes.bed.gz.tbi\nclinvar.vcf.gz.csi",
         "columns": "CHROM,FROM,TO,GENE\nID,INFO/CLNSIG",
         "header_lines": "genes.hdr\nclinvar.hdr",
         "threads": 4,
@@ -603,17 +608,22 @@ def test_annotate_vcf_plans_named_outputs() -> None:
 
 def test_annotate_vcf_rejects_missing_mode_inputs_and_invalid_mode() -> None:
     node_class = _node_class("annotate_vcf")
+    paired = {
+        "annotation_files": ["genes.bed.gz"],
+        "annotation_indexes": ["genes.bed.gz.tbi"],
+    }
 
-    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "vcfanno"}) == "vcfanno_config is required in vcfanno mode"
+    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "vcfanno", **paired}) == "vcfanno_config is required in vcfanno mode"
     assert (
         node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "bcftools"})
-        == "At least one annotation file is required in bcftools mode"
+        == "Required input 'annotation_files' is missing"
     )
     assert (
         node_class.VALIDATE_INPUTS({
             "vcf": "variants.vcf.gz",
             "mode": "bcftools",
             "annotation_files": "genes.bed.gz",
+            "annotation_indexes": "genes.bed.gz.tbi",
         })
         == "columns is required in bcftools mode"
     )
@@ -622,6 +632,7 @@ def test_annotate_vcf_rejects_missing_mode_inputs_and_invalid_mode() -> None:
             "vcf": "variants.vcf.gz",
             "mode": "bcftools",
             "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+            "annotation_indexes": "genes.bed.gz.tbi\nclinvar.vcf.gz.tbi",
             "columns": "CHROM,FROM,TO,GENE",
         })
         == "columns must provide one newline-separated entry per bcftools annotation file"
@@ -631,12 +642,13 @@ def test_annotate_vcf_rejects_missing_mode_inputs_and_invalid_mode() -> None:
             "vcf": "variants.vcf.gz",
             "mode": "bcftools",
             "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+            "annotation_indexes": "genes.bed.gz.tbi\nclinvar.vcf.gz.tbi",
             "columns": "CHROM,FROM,TO,GENE\nID,INFO/CLNSIG",
             "header_lines": "genes.hdr",
         })
         == "header_lines must provide one newline-separated entry per bcftools annotation file, using '-' to skip a source"
     )
-    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "custom"}) == "Unsupported annotation mode: custom"
+    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "custom", **paired}) == "Unsupported annotation mode: custom"
 
 
 def test_interproscan_is_registered_for_frontend_discovery() -> None:
@@ -738,7 +750,7 @@ def test_interproscan_plans_outputs() -> None:
 
 def test_interproscan_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["interproscan.sh"] == "interproscan"
-    assert PACKAGE_MIN_VERSIONS["interproscan"] == ">=5.71"
+    assert PACKAGE_MIN_VERSIONS["interproscan"] == "5.59_91.0"
 
 
 def test_pbsv_is_registered_for_frontend_discovery() -> None:

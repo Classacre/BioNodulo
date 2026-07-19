@@ -36,7 +36,7 @@ def test_sample_subset_is_registered_for_frontend_discovery() -> None:
     assert info["sample_subset"]["output_name"] == ["subset_file"]
     assert info["sample_subset"]["output"] == ["FILE"]
     assert info["sample_subset"]["python_class"] == (
-        "bionodulo.nodes.builtin.sample_subset.SampleSubsetNode"
+        "bionodulo.nodes.builtin.data_transform_family.sample_subset.SampleSubsetNode"
     )
 
 

@@ -47,7 +47,14 @@ def test_wgbs_methylation_template_covers_bismark_and_methyldackel_workflow() ->
     assert workflow["name"] == "WGBS Methylation Profiling"
     assert workflow["category"] == "Epigenomics"
     assert {"epigenomics", "wgbs", "bismark", "methyldackel", "methylation"}.issubset(set(workflow["tags"]))
-    assert {"bismark_align", "bismark_methylation_extractor", "methyldackel"}.issubset(set(workflow["tools"]))
+    assert {
+        "bismark_align",
+        "bismark_methylation_extractor",
+        "methyldackel",
+        "samtools_sort",
+        "samtools_index",
+        "samtools_faidx",
+    }.issubset(set(workflow["tools"]))
 
     assert node_types["r1_001"] == "input_file"
     assert node_types["r2_001"] == "input_file"
@@ -61,6 +68,9 @@ def test_wgbs_methylation_template_covers_bismark_and_methyldackel_workflow() ->
     assert node_types["gate_bismark_bam_001"] == "gate"
     assert node_types["bismark_methylation_001"] == "bismark_methylation_extractor"
     assert node_types["methyldackel_001"] == "methyldackel"
+    assert node_types["samtools_sort_methyldackel_001"] == "samtools_sort"
+    assert node_types["samtools_index_methyldackel_001"] == "samtools_index"
+    assert node_types["samtools_faidx_methyldackel_001"] == "samtools_faidx"
     assert "validate_methylation_output_001" not in node_types
     assert "validate_methyldackel_bedgraph_001" not in node_types
     # HTML report replaced by direct table_preview render nodes.
@@ -81,8 +91,13 @@ def test_wgbs_methylation_template_covers_bismark_and_methyldackel_workflow() ->
     assert _has_edge(workflow, "bismark_align_001", "aligned_bam", "gate_bismark_bam_001", "value")
     assert _has_edge(workflow, "gate_bismark_bam_001", "output", "bismark_methylation_001", "bam")
     assert _has_edge(workflow, "bismark_prep_001", "genome_folder", "bismark_methylation_001", "genome_folder")
-    assert _has_edge(workflow, "gate_bismark_bam_001", "output", "methyldackel_001", "bam")
-    assert _has_edge(workflow, "reference_001", "reference", "methyldackel_001", "reference")
+    assert _has_edge(workflow, "gate_bismark_bam_001", "output", "samtools_sort_methyldackel_001", "alignment")
+    assert _has_edge(workflow, "samtools_sort_methyldackel_001", "sorted_bam", "samtools_index_methyldackel_001", "bam")
+    assert _has_edge(workflow, "samtools_index_methyldackel_001", "indexed_bam", "methyldackel_001", "bam")
+    assert _has_edge(workflow, "samtools_index_methyldackel_001", "bai", "methyldackel_001", "bam_index")
+    assert _has_edge(workflow, "reference_001", "reference", "samtools_faidx_methyldackel_001", "reference")
+    assert _has_edge(workflow, "samtools_faidx_methyldackel_001", "reference", "methyldackel_001", "reference")
+    assert _has_edge(workflow, "samtools_faidx_methyldackel_001", "fai_index", "methyldackel_001", "reference_index")
     assert not _has_edge(workflow, "bismark_methylation_001", "methylation_output", "validate_methylation_output_001", "input")
     assert not _has_edge(workflow, "methyldackel_001", "methylation_bedgraph", "validate_methyldackel_bedgraph_001", "input")
     assert _has_edge(workflow, "bismark_methylation_001", "mbias_report", "render_bismark_methylation_tab_0", "file")
@@ -92,6 +107,8 @@ def test_wgbs_methylation_template_covers_bismark_and_methyldackel_workflow() ->
     assert _has_edge(workflow, "r2_001", "file", "bismark_align_001", "r2")
     assert not _has_edge(workflow, "bismark_align_001", "aligned_bam", "bismark_methylation_001", "bam")
     assert not _has_edge(workflow, "bismark_align_001", "aligned_bam", "methyldackel_001", "bam")
+    assert not _has_edge(workflow, "gate_bismark_bam_001", "output", "methyldackel_001", "bam")
+    assert not _has_edge(workflow, "reference_001", "reference", "methyldackel_001", "reference")
 
 
 def test_wgbs_methylation_template_validates_inputs_and_core_outputs() -> None:
@@ -132,6 +149,8 @@ def test_wgbs_methylation_template_validates_inputs_and_core_outputs() -> None:
     assert workflow["outputs"]["validated_reference"] == "reference_001"
     assert workflow["outputs"]["aligned_bam_quality_gate"] == "gate_bismark_bam_001"
     assert workflow["outputs"]["aligned_bam"] == "bismark_align_001"
+    assert workflow["outputs"]["methyldackel_indexed_bam"] == "samtools_index_methyldackel_001"
+    assert workflow["outputs"]["methyldackel_indexed_reference"] == "samtools_faidx_methyldackel_001"
     assert workflow["outputs"]["bismark_methylation"] == "bismark_methylation_001"
     assert workflow["outputs"]["methyldackel_bedgraph"] == "methyldackel_001"
     assert workflow["outputs"]["methyldackel_mbias"] == "methyldackel_001"

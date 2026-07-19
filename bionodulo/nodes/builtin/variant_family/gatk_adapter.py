@@ -280,6 +280,11 @@ class GATKCommandNode(CommandNode):
     VERSION = "4.6.2.0"
     GIT_URL = "https://github.com/broadinstitute/gatk.git"
     GIT_COMMIT = GATK_GIT_COMMIT
+    SOURCE_URL = f"https://github.com/broadinstitute/gatk/tree/{GATK_GIT_COMMIT}"
+    PACKAGE_CONSTRAINTS = ("gatk4==4.6.2.0",)
+    PACKAGE_CONSTRAINT = "gatk4==4.6.2.0"
+    EXIT_SEMANTICS = "Input validation or a non-zero GATK result fails the node."
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     SHELL = False
 
     OUTPUT_FILENAMES: ClassVar[tuple[str, ...]] = ()

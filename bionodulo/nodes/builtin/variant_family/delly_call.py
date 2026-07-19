@@ -27,6 +27,8 @@ class DellyCallNode(DellyNode):
     OUTPUT_FILENAMES = ("sv_vcf.vcf.gz", "sv_vcf.vcf.gz.tbi")
     REQUIRED_EXECUTABLES = ["delly", "bcftools", "tabix"]
     REQUIRED_CONDA_PACKAGES = ["delly", "bcftools", "htslib"]
+    PACKAGE_CONSTRAINTS = ("delly==1.2.6", "bcftools==1.24", "htslib>=1.15")
+    PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     SHELL = True
 
     @classmethod

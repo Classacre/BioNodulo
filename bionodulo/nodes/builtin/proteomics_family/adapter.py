@@ -31,6 +31,46 @@ def path_list(value: Any) -> list[str]:
     return result if result and all(result) else []
 
 
+def require_file(value: Any, key: str) -> Path:
+    path = Path(path_value(value))
+    if not path.is_file():
+        raise ValueError(f"Input '{key}' must be an existing file")
+    return path
+
+
+def stage_file(value: Any, key: str, directory: Path, *, name: str | None = None) -> Path:
+    source = require_file(value, key).resolve()
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / (name or source.name)
+    if target.exists() or target.is_symlink():
+        if target.resolve() != source:
+            raise ValueError(f"Input '{key}' collides with another staged basename: {target.name}")
+        return target
+    target.symlink_to(source)
+    return target
+
+
+def replace_assignments(text: str, replacements: Mapping[str, Any]) -> str:
+    """Replace existing ``key = value`` entries while preserving comments."""
+
+    pending = {str(key): str(value) for key, value in replacements.items()}
+    rendered: list[str] = []
+    for line in text.splitlines():
+        body, marker, comment = line.partition("#")
+        if "=" in body and not body.lstrip().startswith("#"):
+            key, _value = body.split("=", 1)
+            normalized = key.strip()
+            if normalized in pending:
+                line = f"{key.rstrip()} = {pending.pop(normalized)}"
+                if marker:
+                    line += f"  # {comment.strip()}"
+        rendered.append(line)
+    if pending:
+        missing = ", ".join(sorted(pending))
+        raise ValueError(f"Parameter template is missing required entries: {missing}")
+    return "\n".join(rendered) + "\n"
+
+
 def validate_int(
     value: Any,
     key: str,
