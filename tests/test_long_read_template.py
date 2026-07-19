@@ -6,6 +6,9 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.workflow.validation import validate_workflow
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -55,7 +58,7 @@ def test_long_read_ont_template_wires_explicit_models_and_sidecars() -> None:
     assert node_types["basecaller_model_001"] == "input_directory"
     assert node_types["modified_model_001"] == "input_directory"
     assert node_types["ref_sidecars_001"] == "samtools_faidx"
-    assert node_types["selected_demux_fastq_001"] == "input_file"
+    assert node_types["selected_demux_fastq_001"] == "input_fastq"
     assert node_types["dorado_basecaller_001"] == "dorado_basecaller"
     assert node_types["dorado_demux_001"] == "dorado_demux"
     assert node_types["chopper_001"] == "chopper_filter"
@@ -75,7 +78,7 @@ def test_long_read_ont_template_wires_explicit_models_and_sidecars() -> None:
     assert _has_edge(workflow, "ref_sidecars_001", "reference", "dorado_basecaller_001", "reference")
     assert _has_edge(workflow, "dorado_basecaller_001", "basecalled_bam", "gate_basecalled_bam_001", "value")
     assert _has_edge(workflow, "gate_basecalled_bam_001", "output", "dorado_demux_001", "reads")
-    assert _has_edge(workflow, "selected_demux_fastq_001", "file", "chopper_001", "reads")
+    assert _has_edge(workflow, "selected_demux_fastq_001", "read1", "chopper_001", "reads")
     assert not _has_edge(workflow, "dorado_demux_001", "demux_dir", "chopper_001", "reads")
     assert _has_edge(workflow, "chopper_001", "filtered_reads", "gate_filtered_reads_001", "value")
     assert _has_edge(workflow, "gate_filtered_reads_001", "output", "nanoplot_001", "fastq")
@@ -115,7 +118,10 @@ def test_long_read_ont_template_uses_source_native_options_and_explicit_selectio
     assert _output_validation(workflow, "basecaller_model_001", "directory")["expected_format"] == "directory"
     assert _output_validation(workflow, "modified_model_001", "directory")["expected_format"] == "directory"
     assert _output_validation(workflow, "reference_001", "reference")["expected_format"] == "fasta"
-    assert _output_validation(workflow, "selected_demux_fastq_001", "file")["expected_format"] == "fastq"
+    assert _output_validation(workflow, "selected_demux_fastq_001", "read1")["expected_format"] == "fastq"
+    assert _node_by_id(workflow, "selected_demux_fastq_001")["params"]["reads"] == [
+        "examples/data/long_read/demux/barcode01.fastq"
+    ]
     assert _output_validation(workflow, "nanoplot_001", "qc_report")["expected_format"] == "text"
 
     assert basecall_gate["params"]["condition_mode"] == "file_exists"
@@ -129,6 +135,25 @@ def test_long_read_ont_template_uses_source_native_options_and_explicit_selectio
     assert workflow["outputs"]["basecalled_bam_index"] == "dorado_basecaller_001"
     assert workflow["outputs"]["selected_demux_fastq"] == "selected_demux_fastq_001"
     assert workflow["outputs"]["bedmethyl"] == "modkit_001"
+
+
+def test_long_read_selected_fastq_edge_matches_backend_and_editor_port_types() -> None:
+    workflow = _load_template("long_read_ont_pipeline.json")
+    registry = NodeRegistry.create_isolated()
+    result = validate_workflow(workflow, registry)
+    assert result.valid, result.errors
+
+    provider = registry.get("input_fastq")
+    chopper = registry.get("chopper_filter")
+    assert provider is not None
+    assert chopper is not None
+    source_type = provider.RETURN_TYPES[provider.RETURN_NAMES.index("read1")]
+    assert source_type == chopper.INPUT_TYPES()["required"]["reads"][0] == "FASTQ"
+
+    editor_info = NodeRegistry.create_isolated().object_info()
+    provider_info = editor_info["input_fastq"]
+    editor_source_type = provider_info["output"][provider_info["output_name"].index("read1")]
+    assert editor_source_type == editor_info["chopper_filter"]["input"]["required"]["reads"][0] == "FASTQ"
 
 
 def test_long_read_ont_template_is_discoverable_from_workflow_templates_api() -> None:

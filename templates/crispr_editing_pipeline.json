@@ -198,19 +198,21 @@
     },
     {
       "id": "amplicon_r1_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         80,
         231
       ],
       "params": {
-        "file": "examples/data/crispr/amplicon_R1.fastq.gz"
+        "reads": [
+          "examples/data/crispr/amplicon_R1.fastq.gz"
+        ]
       },
       "ui": {
         "title": "Amplicon R1 FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -222,19 +224,21 @@
     },
     {
       "id": "amplicon_r2_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         80,
         382
       ],
       "params": {
-        "file": "examples/data/crispr/amplicon_R2.fastq.gz"
+        "reads": [
+          "examples/data/crispr/amplicon_R2.fastq.gz"
+        ]
       },
       "ui": {
         "title": "Amplicon R2 FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -400,7 +404,7 @@
       "id": "e3",
       "from": {
         "node": "amplicon_r1_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "crispresso2_001",
@@ -411,7 +415,7 @@
       "id": "e4",
       "from": {
         "node": "amplicon_r2_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "crispresso2_001",

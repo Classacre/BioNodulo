@@ -199,20 +199,21 @@
     },
     {
       "id": "selected_demux_fastq_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         1160,
         382
       ],
       "params": {
-        "file": "examples/data/long_read/demux/barcode01.fastq",
-        "source": "local"
+        "reads": [
+          "examples/data/long_read/demux/barcode01.fastq"
+        ]
       },
       "ui": {
         "title": "Selected Demultiplexed FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -418,7 +419,7 @@
       "id": "e8",
       "from": {
         "node": "selected_demux_fastq_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "chopper_001",

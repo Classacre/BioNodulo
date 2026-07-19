@@ -127,6 +127,23 @@
       }
     },
     {
+      "id": "select_assembly_001",
+      "type": "merge",
+      "position": [
+        1700,
+        261
+      ],
+      "params": {
+        "num_inputs": 2,
+        "strategy": "first_valid",
+        "wait_mode": "any",
+        "ignore_none": true
+      },
+      "ui": {
+        "title": "Select Active Assembly"
+      }
+    },
+    {
       "id": "ref_001",
       "type": "input_fasta",
       "position": [
@@ -380,8 +397,8 @@
         "output": "assembly"
       },
       "to": {
-        "node": "validate_assembly_001",
-        "input": "input"
+        "node": "select_assembly_001",
+        "input": "input_0"
       }
     },
     {
@@ -389,6 +406,17 @@
       "from": {
         "node": "megahit_001",
         "output": "contigs"
+      },
+      "to": {
+        "node": "select_assembly_001",
+        "input": "input_1"
+      }
+    },
+    {
+      "id": "e3_selected",
+      "from": {
+        "node": "select_assembly_001",
+        "output": "merged"
       },
       "to": {
         "node": "validate_assembly_001",
@@ -505,8 +533,9 @@
   ],
   "groups": [],
   "outputs": {
-    "assembly": "spades_001",
+    "assembly": "select_assembly_001",
     "assembler_switch": "switch_assembler_001",
+    "selected_assembly": "select_assembly_001",
     "spades_retry_policy": "spades_retry_001",
     "megahit_assembly": "megahit_001",
     "validated_assembly": "validate_assembly_001",

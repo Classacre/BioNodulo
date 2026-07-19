@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import importlib
 from pathlib import Path
 from typing import Any
+
+from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.nodes.types import is_compatible
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,7 +64,7 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert pathway_enrichment["params"]["database_format"] == "json"
     assert pathway_enrichment["params"]["case_sensitive"] is False
     assert string_enrichment["params"]["protein_ids"] == ""
-    assert string_enrichment["params"]["protein_table"] == ""
+    assert "protein_table" not in string_enrichment["params"]
     assert string_enrichment["params"]["id_column"] == "gene"
     assert string_enrichment["params"]["query_type"] == "enrichment"
     assert string_enrichment["params"]["species"] == 4932
@@ -77,7 +81,14 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert _has_edge(workflow, "significant_genes_001", "filtered_table", "pathway_enrichment_001", "input_genes")
     assert _has_edge(workflow, "pathway_gene_sets_001", "file", "pathway_enrichment_001", "database")
     assert _has_edge(workflow, "pathway_enrichment_001", "overlap", "render_pathway_enrichment_tab_4", "file")
-    assert _has_edge(workflow, "significant_genes_001", "filtered_table", "string_enrichment_001", "protein_table")
+    assert _has_edge(workflow, "deseq2_001", "results_csv", "string_enrichment_001", "protein_table")
+    assert not _has_edge(
+        workflow,
+        "significant_genes_001",
+        "filtered_table",
+        "string_enrichment_001",
+        "protein_table",
+    )
     assert _has_edge(workflow, "string_enrichment_001", "interaction_network", "render_string_enrichment_tab_5", "file")
 
     assert workflow["outputs"]["normalized_counts"] == "deseq2_001"
@@ -86,3 +97,25 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert workflow["outputs"]["pathway_enrichment"] == "pathway_enrichment_001"
     assert workflow["outputs"]["string_enrichment"] == "string_enrichment_001"
     assert workflow["outputs"]["normalized_counts_transposed"] == "normalized_counts_transpose_001"
+
+
+def test_deseq2_string_edge_is_type_compatible_and_supplies_runtime_identifiers(tmp_path: Path) -> None:
+    registry = NodeRegistry.create_isolated()
+    deseq2_node = registry.get("deseq2")
+    string_node = registry.get("string_db")
+    assert deseq2_node is not None
+    assert string_node is not None
+
+    results_type = deseq2_node.RETURN_TYPES[deseq2_node.RETURN_NAMES.index("results_csv")]
+    table_type = string_node.INPUT_TYPES()["optional"]["protein_table"][0]
+    assert results_type == "CSV"
+    assert table_type == "FILE"
+    assert is_compatible(results_type, table_type)
+
+    results = tmp_path / "deseq2_results.csv"
+    results.write_text(
+        "gene,baseMean,log2FoldChange,padj\nYAL001C,120.0,2.1,0.001\nYBR160W,85.0,-1.4,0.02\n",
+        encoding="utf-8",
+    )
+    string_module = importlib.import_module(string_node.__module__)
+    assert string_module._read_identifier_table(results, "gene") == ["YAL001C", "YBR160W"]

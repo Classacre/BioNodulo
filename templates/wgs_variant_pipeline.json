@@ -3,6 +3,20 @@
   "app": "bionodulo",
   "name": "WGS Variant Pipeline",
   "description": "Whole genome sequencing variant calling with BWA and FreeBayes",
+  "parameters": [
+    {
+      "name": "snpeff_data_dir",
+      "type": "DIRECTORY",
+      "required": true,
+      "description": "SnpEff data root containing Escherichia_coli_K12/snpEffectPredictor.bin"
+    },
+    {
+      "name": "snpeff_database",
+      "type": "FILE",
+      "required": true,
+      "description": "Exact <snpeff_data_dir>/Escherichia_coli_K12/snpEffectPredictor.bin artifact"
+    }
+  ],
   "nodes": [
     {
       "id": "note_wgs_variant_pipeline",
@@ -237,6 +251,35 @@
       },
       "ui": {
         "title": "bcftools filter"
+      }
+    },
+    {
+      "id": "snpeff_data_dir_001",
+      "type": "input_directory",
+      "position": [
+        3320,
+        500
+      ],
+      "params": {
+        "directory": "{{snpeff_data_dir}}"
+      },
+      "ui": {
+        "title": "SnpEff Data Directory"
+      }
+    },
+    {
+      "id": "snpeff_database_001",
+      "type": "input_file",
+      "position": [
+        3320,
+        700
+      ],
+      "params": {
+        "file": "{{snpeff_database}}",
+        "source": "local"
+      },
+      "ui": {
+        "title": "SnpEff Database Artifact"
       }
     },
     {
@@ -660,6 +703,28 @@
       "to": {
         "node": "snpeff_001",
         "input": "vcf"
+      }
+    },
+    {
+      "id": "e14_snpeff_data_dir",
+      "from": {
+        "node": "snpeff_data_dir_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "snpeff_001",
+        "input": "data_dir"
+      }
+    },
+    {
+      "id": "e14_snpeff_database",
+      "from": {
+        "node": "snpeff_database_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "snpeff_001",
+        "input": "database"
       }
     },
     {

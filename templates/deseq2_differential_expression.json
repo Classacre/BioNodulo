@@ -261,7 +261,6 @@
       ],
       "params": {
         "protein_ids": "",
-        "protein_table": "",
         "id_column": "gene",
         "species": 4932,
         "query_type": "enrichment"
@@ -468,8 +467,8 @@
     {
       "id": "e7j",
       "from": {
-        "node": "significant_genes_001",
-        "output": "filtered_table"
+        "node": "deseq2_001",
+        "output": "results_csv"
       },
       "to": {
         "node": "string_enrichment_001",

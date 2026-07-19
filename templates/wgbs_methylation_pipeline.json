@@ -42,19 +42,21 @@
     },
     {
       "id": "r1_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         80,
         80
       ],
       "params": {
-        "file": "examples/data/epigenomics/sample_R1.fastq.gz"
+        "reads": [
+          "examples/data/epigenomics/sample_R1.fastq.gz"
+        ]
       },
       "ui": {
         "title": "R1 FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -66,19 +68,21 @@
     },
     {
       "id": "r2_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         80,
         231
       ],
       "params": {
-        "file": "examples/data/epigenomics/sample_R2.fastq.gz"
+        "reads": [
+          "examples/data/epigenomics/sample_R2.fastq.gz"
+        ]
       },
       "ui": {
         "title": "R2 FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -303,7 +307,7 @@
       "id": "e5",
       "from": {
         "node": "r1_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "bismark_align_001",
@@ -314,7 +318,7 @@
       "id": "e6",
       "from": {
         "node": "r2_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "bismark_align_001",

@@ -17,6 +17,8 @@ from bionodulo.nodes.builtin.inputs import (
 
 
 def test_input_node_schemas_are_preserved() -> None:
+    assert InputFASTQNode.RETURN_TYPES == ("FASTQ_LIST", "FASTQ", "FASTQ")
+    assert InputFASTQNode.RETURN_NAMES == ("reads", "read1", "read2")
     assert InputFASTQNode.INPUT_TYPES() == {
         "required": {
             "reads": ("FASTQ_LIST", {
@@ -89,7 +91,7 @@ async def test_copy_input_node_resolves_relative_alias_against_context_workspace
 
 
 @pytest.mark.asyncio
-async def test_fastq_input_preserves_single_or_paired_list_output(tmp_path: Path) -> None:
+async def test_fastq_input_preserves_paired_list_and_scalar_outputs(tmp_path: Path) -> None:
     r1 = tmp_path / "sample_R1.fastq"
     r2 = tmp_path / "sample_R2.fastq"
     r1.write_text("@r1\nA\n+\n!\n")
@@ -98,9 +100,29 @@ async def test_fastq_input_preserves_single_or_paired_list_output(tmp_path: Path
 
     result = await InputFASTQNode().run(reads=[str(r1), str(r2)], output_dir=out_dir)
 
-    assert result == {"outputs": {"reads": [str((out_dir / r1.name).resolve()), str((out_dir / r2.name).resolve())]}}
+    copied_r1 = str((out_dir / r1.name).resolve())
+    copied_r2 = str((out_dir / r2.name).resolve())
+    assert result == {
+        "outputs": {
+            "reads": [copied_r1, copied_r2],
+            "read1": copied_r1,
+            "read2": copied_r2,
+        }
+    }
     assert (out_dir / r1.name).read_text() == r1.read_text()
     assert (out_dir / r2.name).read_text() == r2.read_text()
+
+
+@pytest.mark.asyncio
+async def test_fastq_input_single_end_omits_read2_scalar_output(tmp_path: Path) -> None:
+    read = tmp_path / "sample.fastq"
+    read.write_text("@r1\nA\n+\n!\n")
+    out_dir = tmp_path / "out"
+
+    result = await InputFASTQNode().run(reads=[str(read)], output_dir=out_dir)
+
+    copied = str((out_dir / read.name).resolve())
+    assert result == {"outputs": {"reads": [copied], "read1": copied}}
 
 
 @pytest.mark.asyncio

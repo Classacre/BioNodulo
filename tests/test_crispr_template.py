@@ -6,6 +6,9 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.workflow.validation import validate_workflow
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,8 +59,8 @@ def test_crispr_template_covers_editing_design_and_screen_analysis() -> None:
     }.issubset(set(workflow["tools"]))
 
     assert node_types["genome_001"] == "input_fasta"
-    assert node_types["amplicon_r1_001"] == "input_file"
-    assert node_types["amplicon_r2_001"] == "input_file"
+    assert node_types["amplicon_r1_001"] == "input_fastq"
+    assert node_types["amplicon_r2_001"] == "input_fastq"
     assert node_types["screen_reads_001"] == "input_fastq"
     assert node_types["library_001"] == "input_file"
     assert node_types["guide_design_001"] == "guide_rna_design"
@@ -75,8 +78,8 @@ def test_crispr_template_covers_editing_design_and_screen_analysis() -> None:
 
     assert _has_edge(workflow, "genome_001", "reference", "guide_design_001", "genome")
     assert _has_edge(workflow, "genome_001", "reference", "cas_offinder_001", "genome_fasta")
-    assert _has_edge(workflow, "amplicon_r1_001", "file", "crispresso2_001", "r1")
-    assert _has_edge(workflow, "amplicon_r2_001", "file", "crispresso2_001", "r2")
+    assert _has_edge(workflow, "amplicon_r1_001", "read1", "crispresso2_001", "r1")
+    assert _has_edge(workflow, "amplicon_r2_001", "read1", "crispresso2_001", "r2")
     assert _has_edge(workflow, "crispresso2_001", "report", "gate_crispresso_report_001", "value")
     assert _has_edge(workflow, "screen_reads_001", "reads", "mageck_count_001", "fastq_files")
     assert _has_edge(workflow, "library_001", "file", "mageck_count_001", "library_file")
@@ -99,8 +102,14 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
 
     assert _output_validation(workflow, "genome_001", "reference")["expected_format"] == "fasta"
     assert _output_validation(workflow, "genome_001", "reference")["min_records"] >= 1
-    assert _output_validation(workflow, "amplicon_r1_001", "file")["expected_format"] == "fastq"
-    assert _output_validation(workflow, "amplicon_r2_001", "file")["expected_format"] == "fastq"
+    assert _output_validation(workflow, "amplicon_r1_001", "read1")["expected_format"] == "fastq"
+    assert _output_validation(workflow, "amplicon_r2_001", "read1")["expected_format"] == "fastq"
+    assert _node_by_id(workflow, "amplicon_r1_001")["params"]["reads"] == [
+        "examples/data/crispr/amplicon_R1.fastq.gz"
+    ]
+    assert _node_by_id(workflow, "amplicon_r2_001")["params"]["reads"] == [
+        "examples/data/crispr/amplicon_R2.fastq.gz"
+    ]
     assert _output_validation(workflow, "screen_reads_001", "reads")["expected_format"] == "fastq"
     assert _output_validation(workflow, "library_001", "file")["expected_format"] == "tsv"
     # No required_fields: the real MAGeCK demo library ships headerless (sgRNA/sequence/gene columns).
@@ -130,6 +139,27 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert workflow["outputs"]["crispresso_report_gate"] == "gate_crispresso_report_001"
     assert workflow["outputs"]["mageck_counts"] == "mageck_count_001"
     assert workflow["outputs"]["mageck_gene_summary"] == "mageck_test_001"
+
+
+def test_crispr_fastq_edges_match_backend_and_editor_port_types() -> None:
+    workflow = _load_template("crispr_editing_pipeline.json")
+    registry = NodeRegistry.create_isolated()
+    result = validate_workflow(workflow, registry)
+    assert result.valid, result.errors
+
+    provider = registry.get("input_fastq")
+    crispresso = registry.get("crispresso2")
+    assert provider is not None
+    assert crispresso is not None
+    source_type = provider.RETURN_TYPES[provider.RETURN_NAMES.index("read1")]
+    assert source_type == crispresso.INPUT_TYPES()["required"]["r1"][0] == "FASTQ"
+    assert source_type == crispresso.INPUT_TYPES()["optional"]["r2"][0] == "FASTQ"
+
+    editor_info = NodeRegistry.create_isolated().object_info()
+    provider_info = editor_info["input_fastq"]
+    editor_source_type = provider_info["output"][provider_info["output_name"].index("read1")]
+    assert editor_source_type == editor_info["crispresso2"]["input"]["required"]["r1"][0] == "FASTQ"
+    assert editor_source_type == editor_info["crispresso2"]["input"]["optional"]["r2"][0] == "FASTQ"
 
 
 def test_crispr_template_is_discoverable_from_workflow_templates_api() -> None:

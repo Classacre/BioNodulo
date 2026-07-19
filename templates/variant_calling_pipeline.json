@@ -3,6 +3,20 @@
   "app": "bionodulo",
   "name": "Variant Calling Pipeline",
   "description": "GATK-based germline variant calling from FASTQ to filtered VCF",
+  "parameters": [
+    {
+      "name": "snpeff_data_dir",
+      "type": "DIRECTORY",
+      "required": true,
+      "description": "SnpEff data root containing Staphylococcus_aureus/snpEffectPredictor.bin"
+    },
+    {
+      "name": "snpeff_database",
+      "type": "FILE",
+      "required": true,
+      "description": "Exact <snpeff_data_dir>/Staphylococcus_aureus/snpEffectPredictor.bin artifact"
+    }
+  ],
   "nodes": [
     {
       "id": "note_variant_calling_pipeline",
@@ -255,6 +269,35 @@
       },
       "ui": {
         "title": "bcftools filter"
+      }
+    },
+    {
+      "id": "snpeff_data_dir_001",
+      "type": "input_directory",
+      "position": [
+        3680,
+        500
+      ],
+      "params": {
+        "directory": "{{snpeff_data_dir}}"
+      },
+      "ui": {
+        "title": "SnpEff Data Directory"
+      }
+    },
+    {
+      "id": "snpeff_database_001",
+      "type": "input_file",
+      "position": [
+        3680,
+        700
+      ],
+      "params": {
+        "file": "{{snpeff_database}}",
+        "source": "local"
+      },
+      "ui": {
+        "title": "SnpEff Database Artifact"
       }
     },
     {
@@ -673,6 +716,28 @@
       "to": {
         "node": "snpeff_001",
         "input": "vcf"
+      }
+    },
+    {
+      "id": "e14_snpeff_data_dir",
+      "from": {
+        "node": "snpeff_data_dir_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "snpeff_001",
+        "input": "data_dir"
+      }
+    },
+    {
+      "id": "e14_snpeff_database",
+      "from": {
+        "node": "snpeff_database_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "snpeff_001",
+        "input": "database"
       }
     },
     {

@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from bionodulo.nodes.registry import NodeRegistry
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -349,6 +351,81 @@ def test_wgs_variant_template_prioritizes_annotated_variants() -> None:
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf_quality_gate"] == "gate_prioritized_vcf_001"
+
+
+def test_variant_templates_supply_exact_snpeff_database_dependencies() -> None:
+    expected_genomes = {
+        "variant_calling_pipeline.json": "Staphylococcus_aureus",
+        "wgs_variant_pipeline.json": "Escherichia_coli_K12",
+    }
+    registry = NodeRegistry.create_isolated()
+    directory_node = registry.get("input_directory")
+    file_node = registry.get("input_file")
+    snpeff_node = registry.get("snpeff")
+    assert directory_node is not None
+    assert file_node is not None
+    assert snpeff_node is not None
+
+    snpeff_inputs = snpeff_node.INPUT_TYPES()["required"]
+    assert directory_node.RETURN_TYPES[directory_node.RETURN_NAMES.index("directory")] == "DIRECTORY"
+    assert file_node.RETURN_TYPES[file_node.RETURN_NAMES.index("file")] == "FILE"
+    assert snpeff_inputs["data_dir"][0] == "DIRECTORY"
+    assert snpeff_inputs["database"][0] == "FILE"
+
+    for template_name, genome in expected_genomes.items():
+        workflow = _load_template(template_name)
+        node_types = _node_types(workflow)
+        parameters = {parameter["name"]: parameter for parameter in workflow["parameters"]}
+        data_dir = _node_by_id(workflow, "snpeff_data_dir_001")
+        database = _node_by_id(workflow, "snpeff_database_001")
+        snpeff = _node_by_id(workflow, "snpeff_001")
+
+        assert node_types["snpeff_data_dir_001"] == "input_directory"
+        assert node_types["snpeff_database_001"] == "input_file"
+        assert parameters["snpeff_data_dir"]["type"] == "DIRECTORY"
+        assert parameters["snpeff_data_dir"]["required"] is True
+        assert parameters["snpeff_database"]["type"] == "FILE"
+        assert parameters["snpeff_database"]["required"] is True
+        assert data_dir["params"] == {"directory": "{{snpeff_data_dir}}"}
+        assert database["params"] == {"file": "{{snpeff_database}}", "source": "local"}
+        assert snpeff["params"]["genome"] == genome
+        _assert_edge(
+            workflow,
+            "e14_snpeff_data_dir",
+            "snpeff_data_dir_001",
+            "directory",
+            "snpeff_001",
+            "data_dir",
+        )
+        _assert_edge(
+            workflow,
+            "e14_snpeff_database",
+            "snpeff_database_001",
+            "file",
+            "snpeff_001",
+            "database",
+        )
+
+
+def test_variant_template_snpeff_parameters_preserve_exact_path_validation(tmp_path: Path) -> None:
+    registry = NodeRegistry.create_isolated()
+    snpeff_node = registry.get("snpeff")
+    assert snpeff_node is not None
+
+    for template_name in ("variant_calling_pipeline.json", "wgs_variant_pipeline.json"):
+        snpeff = _node_by_id(_load_template(template_name), "snpeff_001")
+        genome = snpeff["params"]["genome"]
+        data_dir = tmp_path / template_name.removesuffix(".json")
+        database = data_dir / genome / "snpEffectPredictor.bin"
+        inputs = {
+            "vcf": str(tmp_path / "variants.vcf.gz"),
+            "genome": genome,
+            "data_dir": str(data_dir),
+            "database": str(database),
+            "memory": snpeff["params"]["memory"],
+        }
+        assert snpeff_node.VALIDATE_INPUTS(inputs) is True
+        assert snpeff_node.VALIDATE_INPUTS({**inputs, "database": str(tmp_path / "other.bin")}) is not True
 
 
 def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -> None:
@@ -944,7 +1021,9 @@ def test_assembly_template_validates_spades_assembly_before_quast_and_prokka() -
     assert validator["params"]["min_records"] >= 1
     assert validator["params"]["min_size_bytes"] > 0
     assert validator["params"]["fail_on_error"] is True
-    assert _has_edge(workflow, "spades_001", "assembly", "validate_assembly_001", "input")
+    assert _has_edge(workflow, "select_assembly_001", "merged", "validate_assembly_001", "input")
+    assert not _has_edge(workflow, "spades_001", "assembly", "validate_assembly_001", "input")
+    assert not _has_edge(workflow, "megahit_001", "contigs", "validate_assembly_001", "input")
     assert _has_edge(workflow, "validate_assembly_001", "passthrough", "gate_assembly_001", "value")
     assert not _has_edge(workflow, "spades_001", "assembly", "quast_001", "assembly")
     assert not _has_edge(workflow, "spades_001", "assembly", "prokka_001", "assembly")
@@ -957,23 +1036,36 @@ def test_assembly_template_adds_megahit_switch_alternative() -> None:
 
     assert node_types["switch_assembler_001"] == "switch"
     assert node_types["megahit_001"] == "megahit"
+    assert node_types["select_assembly_001"] == "merge"
     switch = next(node for node in workflow["nodes"] if node["id"] == "switch_assembler_001")
     megahit = next(node for node in workflow["nodes"] if node["id"] == "megahit_001")
+    selector = next(node for node in workflow["nodes"] if node["id"] == "select_assembly_001")
     assert switch["params"]["value"] == "spades"
     assert switch["params"]["cases"] == "spades,megahit"
     assert switch["params"]["num_branches"] == 2
     assert megahit["params"]["threads"] == 8
     assert megahit["params"]["min_contig_len"] == 200
+    assert selector["params"] == {
+        "num_inputs": 2,
+        "strategy": "first_valid",
+        "wait_mode": "any",
+        "ignore_none": True,
+    }
 
     assert _has_edge(workflow, "fastp_001", "trimmed_reads", "switch_assembler_001", "passthrough_data")
     assert _has_edge(workflow, "switch_assembler_001", "output_1", "spades_retry_001", "input")
     assert _has_edge(workflow, "spades_retry_001", "passthrough", "spades_001", "reads")
     assert _has_edge(workflow, "switch_assembler_001", "output_2", "megahit_001", "reads")
-    assert _has_edge(workflow, "spades_001", "assembly", "validate_assembly_001", "input")
-    assert _has_edge(workflow, "megahit_001", "contigs", "validate_assembly_001", "input")
+    assert _has_edge(workflow, "spades_001", "assembly", "select_assembly_001", "input_0")
+    assert _has_edge(workflow, "megahit_001", "contigs", "select_assembly_001", "input_1")
+    assert _has_edge(workflow, "select_assembly_001", "merged", "validate_assembly_001", "input")
+    assert not _has_edge(workflow, "spades_001", "assembly", "validate_assembly_001", "input")
+    assert not _has_edge(workflow, "megahit_001", "contigs", "validate_assembly_001", "input")
     assert not _has_edge(workflow, "fastp_001", "trimmed_reads", "spades_001", "reads")
     assert workflow["outputs"]["assembler_switch"] == "switch_assembler_001"
     assert workflow["outputs"]["megahit_assembly"] == "megahit_001"
+    assert workflow["outputs"]["assembly"] == "select_assembly_001"
+    assert workflow["outputs"]["selected_assembly"] == "select_assembly_001"
 
 
 def test_assembly_template_gates_validated_assembly_before_quast_and_prokka() -> None:

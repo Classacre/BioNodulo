@@ -381,8 +381,8 @@ class _InputFASTQContract(CopyInputNode):
     CATEGORY = "input"
     DESCRIPTION = "Import single-end or paired-end FASTQ read files"
     SEARCH_ALIASES = ["reads", "fastq", "input", "import reads"]
-    RETURN_TYPES = ("FASTQ_LIST",)
-    RETURN_NAMES = ("reads",)
+    RETURN_TYPES = ("FASTQ_LIST", "FASTQ", "FASTQ")
+    RETURN_NAMES = ("reads", "read1", "read2")
     REQUIRES_EXTERNAL_TOOLS = False
     DOCUMENTATION_URL = "https://en.wikipedia.org/wiki/FASTQ_format"
     COMMAND = ["cp", "-r", "{inputs.reads}", "{output}"]
@@ -409,7 +409,7 @@ class _InputFASTQContract(CopyInputNode):
         }
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
-        """Copy reads to the node directory and return the copied paths as a list."""
+        """Copy reads and expose both collection and scalar mate ports."""
         reads = kwargs.get("reads", [])
         if isinstance(reads, str):
             reads = [reads]
@@ -427,7 +427,12 @@ class _InputFASTQContract(CopyInputNode):
                     names,
                 )
 
-        return await super().run(**kwargs)
+        result = await super().run(**kwargs)
+        copied = result["outputs"]["reads"]
+        result["outputs"]["read1"] = copied[0]
+        if len(copied) == 2:
+            result["outputs"]["read2"] = copied[1]
+        return result
 
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
