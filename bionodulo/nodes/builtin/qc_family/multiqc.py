@@ -54,10 +54,18 @@ class MultiQCNode(CommandNode):
     UPSTREAM_OUTPUT_SOURCE = "multiqc/core/write_results.py"
     UPSTREAM_ERROR_SOURCE = "multiqc/core/exceptions.py"
     UPSTREAM_DOCS_SOURCE = "docs/markdown/getting_started/running_multiqc.md"
+    SOURCE_PATHS = (UPSTREAM_CLI_SOURCE, UPSTREAM_OUTPUT_SOURCE, UPSTREAM_ERROR_SOURCE, UPSTREAM_DOCS_SOURCE)
     CITATION_DOIS = ["10.1093/bioinformatics/btw354"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btw354"]
     CITATION_TEXT = "MultiQC: summarize analysis results for multiple tools and samples in a single report."
     DEFAULT_FILENAME = "multiqc_report"
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "MultiQC exits non-zero when no analysis is recognized or an input/output option fails; "
+        "a zero exit is accepted only when the planned HTML report and parsed-data directory "
+        "both exist. Existing names receive the same numeric suffix for both artifacts unless "
+        "--force is selected."
+    )
     SHELL = False
 
     @classmethod

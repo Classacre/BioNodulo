@@ -90,6 +90,9 @@ def test_nodes_pin_exact_official_release_authorities() -> None:
         assert node.REQUIRED_CONDA_PACKAGES == [executable]
         assert node.SHELL is False
 
+    assert FastQCNode.AUDIT_STATUS == "contract-checked-no-external-execution"
+    assert MultiQCNode.AUDIT_STATUS == "contract-checked-no-external-execution"
+
 
 def test_fastqc_contract_pins_supported_inputs_and_directory_output() -> None:
     inputs = FastQCNode.INPUT_TYPES()
@@ -98,7 +101,12 @@ def test_fastqc_contract_pins_supported_inputs_and_directory_output() -> None:
         "reads": ("FASTQ_LIST", {"description": "One or more readable FASTQ files"}),
         "threads": (
             "INT",
-            {"default": 1, "min": 1, "max": 64, "display": "slider"},
+            {
+                "default": 1,
+                "min": 1,
+                "description": "Number of input files processed concurrently; upstream requires a positive integer",
+                "display": "slider",
+            },
         ),
     }
     assert inputs["optional"]["extract"][1]["default"] is False
@@ -193,7 +201,7 @@ def test_fastqc_validation_rejects_documented_error_cases(tmp_path: Path) -> Non
         ({"reads": []}, "at least one"),
         ({"reads": ["missing.fastq"]}, "does not exist"),
         ({"threads": True}, "threads must be an integer"),
-        ({"threads": 0}, "threads must be between"),
+        ({"threads": 0}, "threads must be at least"),
         ({"kmers": 1}, "kmers must be between"),
         ({"kmers": True}, "kmers must be an integer"),
         ({"format": "bismark"}, "format must be"),
@@ -215,6 +223,8 @@ def test_fastqc_validation_rejects_documented_error_cases(tmp_path: Path) -> Non
         FastQCNode.VALIDATE_INPUTS({"reads": [first, second], "threads": 1})
         == "reads must have unique FastQC output basenames"
     )
+
+    assert FastQCNode.VALIDATE_INPUTS({"reads": [read], "threads": 65}) is True
 
 
 @pytest.mark.asyncio
@@ -369,6 +379,16 @@ async def test_multiqc_fake_execution_returns_html_and_data_outputs(tmp_path: Pa
         str(tmp_path / "run" / "multiqc" / "multiqc_report.html"),
         str(tmp_path / "run" / "multiqc" / "multiqc_report_data"),
     )
+
+
+@pytest.mark.asyncio
+async def test_multiqc_rejects_success_without_both_planned_artifacts(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    context = FakeExecutionContext(tmp_path / "run")
+
+    with pytest.raises(RuntimeError, match="expected output"):
+        await MultiQCNode().run(reports=[reports], context=context)
 
 
 @pytest.mark.asyncio

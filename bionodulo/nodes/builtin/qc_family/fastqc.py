@@ -76,6 +76,13 @@ class FastQCNode(CommandNode):
     UPSTREAM_CLI_SOURCE = "fastqc"
     UPSTREAM_RUNNER_SOURCE = "uk/ac/babraham/FastQC/Analysis/OfflineRunner.java"
     UPSTREAM_ARCHIVE_SOURCE = "uk/ac/babraham/FastQC/Report/HTMLReportArchive.java"
+    SOURCE_PATHS = (UPSTREAM_CLI_SOURCE, UPSTREAM_RUNNER_SOURCE, UPSTREAM_ARCHIVE_SOURCE)
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "FastQC exits non-zero for invalid options or unreadable inputs; a zero exit is accepted "
+        "only when every input has its HTML and ZIP report, plus the extracted directory when "
+        "--extract is requested."
+    )
     CITATION_URLS = [DOCUMENTATION_URL]
     CITATION_TEXT = "Andrews S. FastQC: A Quality Control Tool for High Throughput Sequence Data (2010)."
     OUTPUT_DIRECTORY = "report_dir.out"
@@ -91,7 +98,12 @@ class FastQCNode(CommandNode):
                 ),
                 "threads": (
                     "INT",
-                    {"default": 1, "min": 1, "max": 64, "display": "slider"},
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "description": "Number of input files processed concurrently; upstream requires a positive integer",
+                        "display": "slider",
+                    },
                 ),
             },
             "optional": {
@@ -179,8 +191,8 @@ class FastQCNode(CommandNode):
         threads = inputs.get("threads")
         if isinstance(threads, bool) or not isinstance(threads, int):
             return "threads must be an integer"
-        if not 1 <= threads <= 64:
-            return "threads must be between 1 and 64"
+        if threads < 1:
+            return "threads must be at least 1"
 
         kmers = inputs.get("kmers")
         if kmers is not None:
