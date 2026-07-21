@@ -328,6 +328,24 @@ def test_metaphlan_argv_pins_database_release_outputs_and_offline_mode() -> None
     ]
 
 
+def test_metaphlan_checks_the_materialized_index_bundle(tmp_path: Path) -> None:
+    database = tmp_path / "metaphlan-db"
+    database.mkdir()
+    index = "mpa_vJun23_CHOCOPhlAnSGB_202403"
+    inputs = {
+        "reads": ["reads.fastq"],
+        "database": str(database),
+        "index": index,
+    }
+    with pytest.raises(ValueError, match=rf"{index}\.1\.bt2l"):
+        MetaPhlAnNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    for suffix in MetaPhlAnNode.DATABASE_INDEX_SUFFIXES:
+        (database / f"{index}{suffix}").write_bytes(b"synthetic")
+    (database / f"{index}.pkl").write_bytes(b"synthetic")
+    MetaPhlAnNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+
 def test_humann_argv_requires_upstream_taxonomy_and_both_reference_databases() -> None:
     assert HUMAnNNode.render_command(
         {

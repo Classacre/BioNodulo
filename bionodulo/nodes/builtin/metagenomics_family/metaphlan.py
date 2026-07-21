@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from .adapter import (
@@ -34,6 +35,16 @@ class MetaPhlAnNode(MetagenomicsCommandNode):
     GIT_COMMIT = "b2293b0d319237c2312e628e5ab2a13095df7e3b"
     UPSTREAM_TAG = "4.2.4"
     UPSTREAM_SOURCE = "metaphlan/metaphlan.py; metaphlan/utils/database_controller.py"
+    SOURCE_PATHS = ("metaphlan/metaphlan.py", "metaphlan/utils/database_controller.py")
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"{GIT_URL}/blob/{GIT_COMMIT}"
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    DATABASE_INDEX_SUFFIXES = (".1.bt2l", ".2.bt2l", ".3.bt2l", ".4.bt2l", ".rev.1.bt2l", ".rev.2.bt2l")
+    SIDECAR_POLICY = (
+        "The materialized database must contain the selected index's six Bowtie2 "
+        "bt2l members and <index>.pkl; MetaPhlAn otherwise attempts an unavailable "
+        "download even when --offline is set."
+    )
     DOCUMENTATION_URL = (
         "https://github.com/biobakery/MetaPhlAn/blob/b2293b0d319237c2312e628e5ab2a13095df7e3b/metaphlan/metaphlan.py"
     )
@@ -123,6 +134,22 @@ class MetaPhlAnNode(MetagenomicsCommandNode):
             if validation is not True:
                 return validation
         return True
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Validate the selected MetaPhlAn database bundle once materialized."""
+
+        database = Path(path_value(inputs.get("database")))
+        if not database.exists():
+            return
+        if not database.is_dir():
+            raise ValueError(f"MetaPhlAn database must be a directory: {database}")
+        index = str(inputs.get("index", "")).strip()
+        required = [database / f"{index}{suffix}" for suffix in cls.DATABASE_INDEX_SUFFIXES]
+        required.append(database / f"{index}.pkl")
+        missing = [path.name for path in required if not path.is_file()]
+        if missing:
+            raise ValueError("MetaPhlAn database is missing required index sidecar(s): " + ", ".join(missing))
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
