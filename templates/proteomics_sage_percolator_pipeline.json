@@ -27,7 +27,7 @@
         80
       ],
       "params": {
-        "text": "Proteomics DDA search workflow: validate spectra and a target-decoy FASTA, run Sage with PIN output enabled, validate the PIN file, then run Percolator for PSM and protein-level FDR estimates.\n\nInputs are placeholders. Provide mzML/mzXML/MGF spectra and a target-decoy protein FASTA before execution."
+        "text": "Proteomics DDA search workflow: validate spectra and a target-decoy FASTA, run Sage with PIN output enabled, validate the PIN file, then run Percolator for PSM and protein-level FDR estimates.\n\nInputs are placeholders. Provide mzML, gzipped mzML, or MGF spectra and a target-decoy protein FASTA before execution."
       },
       "ui": {
         "title": "Notes",

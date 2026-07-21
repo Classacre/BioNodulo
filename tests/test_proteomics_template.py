@@ -62,12 +62,14 @@ def test_proteomics_sage_percolator_template_wires_search_to_fdr_validation() ->
     assert node_types["render_sage_search_tab_2"] == "table_preview"
 
     sage = _node_by_id(workflow, "sage_search_001")
+    note = _node_by_id(workflow, "note_proteomics_pipeline")
     percolator = _node_by_id(workflow, "percolator_001")
     pin_validator = _output_validation(workflow, "sage_search_001", "pin_file")
 
     assert sage["params"]["batch_size"] == 1
     assert sage["params"]["decoy_tag"] == "DECOY_"
     assert sage["params"]["generate_decoys"] is False
+    assert "mzXML" not in note["params"]["text"]
     assert percolator["params"]["search_input"] == "concatenated"
     assert percolator["params"]["test_fdr"] == 0.01
     assert percolator["params"]["train_fdr"] == 0.01
