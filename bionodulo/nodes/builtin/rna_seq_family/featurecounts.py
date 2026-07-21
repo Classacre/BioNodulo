@@ -57,10 +57,7 @@ class FeatureCountsNode(CommandNode):
     CITATION_URLS = [f"{DOI_URL}{FEATURECOUNTS_CITATION_DOI}"]
     CITATION_TEXT = FEATURECOUNTS_CITATION_TEXT
     VERSION = "2.1.1"
-    SOURCE_URL = (
-        "https://sourceforge.net/projects/subread/files/subread-2.1.1/"
-        "subread-2.1.1-source.tar.gz/download"
-    )
+    SOURCE_URL = "https://sourceforge.net/projects/subread/files/subread-2.1.1/subread-2.1.1-source.tar.gz/download"
     SOURCE_SHA256 = "6392d7c66831cdd767e58251892a79a51b6fab8ed0ba9671ad5e85ff1ab01eaa"
     UPSTREAM_CLI_SOURCE = "src/readSummary.c"
     UPSTREAM_MANUAL_SOURCE = "doc/SubreadUsersGuide.tex"
@@ -132,16 +129,18 @@ class FeatureCountsNode(CommandNode):
             cmd.extend(["-a", cls._cached_annotation_file(inputs), "-F", "GTF"])
         else:
             cmd.extend(["-a", cls._annotation_file(inputs), "-F", "GTF"])
-        cmd.extend([
-            "-o",
-            "output",
-            "-T",
-            str(inputs.get("threads", 2)),
-            "-s",
-            str(inputs.get("strand_specificity", inputs.get("strandness", "0"))),
-            "-Q",
-            str(inputs.get("mapping_quality", 0)),
-        ])
+        cmd.extend(
+            [
+                "-o",
+                "output",
+                "-T",
+                str(inputs.get("threads", 1)),
+                "-s",
+                str(inputs.get("strand_specificity", inputs.get("strandness", "0"))),
+                "-Q",
+                str(inputs.get("mapping_quality", 0)),
+            ]
+        )
         for flag in (
             str(inputs.get("splitonly", "")),
             cls._flag_value(inputs, "primary", "--primary"),
@@ -171,19 +170,21 @@ class FeatureCountsNode(CommandNode):
         ):
             if flag:
                 cmd.append(flag)
-        cmd.extend([
-            "--minOverlap",
-            str(inputs.get("min_overlap", 1)),
-            "--fracOverlap",
-            str(inputs.get("frac_overlap", 0)),
-            "--fracOverlapFeature",
-            str(inputs.get("frac_overlap_feature", 0)),
-        ])
+        cmd.extend(
+            [
+                "--minOverlap",
+                str(inputs.get("min_overlap", 1)),
+                "--fracOverlap",
+                str(inputs.get("frac_overlap", 0)),
+                "--fracOverlapFeature",
+                str(inputs.get("frac_overlap_feature", 0)),
+            ]
+        )
         read_reduction = str(inputs.get("read_reduction", ""))
         if read_reduction:
             cmd.extend(read_reduction.split())
         if inputs.get("R"):
-            cmd.extend(["-R", "BAM"])
+            cmd.extend(["-R", "BAM", "--Rpath", _out(inputs)])
         if str(inputs.get("read_extension_5p", 0)) != "0":
             cmd.extend(["--readExtension5", str(inputs["read_extension_5p"])])
         if str(inputs.get("read_extension_3p", 0)) != "0":
@@ -197,13 +198,15 @@ class FeatureCountsNode(CommandNode):
                 if paired_end_status == "PE_fragments" or inputs.get("count_read_pairs") is True:
                     cmd.append("--countReadPairs")
                 if paired_end_status == "PE_fragments" and inputs.get("check_distance"):
-                    cmd.extend([
-                        "-P",
-                        "-d",
-                        str(inputs.get("minimum_fragment_length", 50)),
-                        "-D",
-                        str(inputs.get("maximum_fragment_length", 600)),
-                    ])
+                    cmd.extend(
+                        [
+                            "-P",
+                            "-d",
+                            str(inputs.get("minimum_fragment_length", 50)),
+                            "-D",
+                            str(inputs.get("maximum_fragment_length", 600)),
+                        ]
+                    )
                 if inputs.get("only_both_ends"):
                     cmd.append("-B")
                 if inputs.get("exclude_chimerics"):
@@ -219,9 +222,7 @@ class FeatureCountsNode(CommandNode):
         sed_sample = _shell_join(["sed", "-e", f"s|{alignment}|{label}|g"])
         commands = [
             "export FC_PATH=$(command -v featureCounts | sed 's@/bin/featureCounts$@@')",
-            _shell_join(cls._counts_command(inputs))
-            .replace("'${FC_PATH}/", "${FC_PATH}/")
-            .replace(".txt'", ".txt"),
+            _shell_join(cls._counts_command(inputs)).replace("'${FC_PATH}/", "${FC_PATH}/").replace(".txt'", ".txt"),
             f"grep -v '^#' output | {sed_sample} > body.txt",
         ]
         format_value = str(inputs.get("format", "tabdel_short"))
@@ -229,7 +230,7 @@ class FeatureCountsNode(CommandNode):
         if format_value == "tabdel_medium":
             commands.extend(
                 [
-                    "cut -f 1,7 body.txt > expression_matrix.txt",
+                    "cut -f 1,7- body.txt > expression_matrix.txt",
                     "cut -f 6 body.txt > gene_lengths.txt",
                     "paste expression_matrix.txt gene_lengths.txt > expression_matrix.txt.bak",
                     _shell_join(["mv", "-f", "expression_matrix.txt.bak", counts_path]),
@@ -238,16 +239,17 @@ class FeatureCountsNode(CommandNode):
         elif format_value == "tabdel_full":
             commands.append(_shell_join(["cp", "body.txt", counts_path]))
         else:
-            commands.append(f"cut -f 1,7 body.txt > {shlex.quote(counts_path)}")
+            commands.append(f"cut -f 1,7- body.txt > {shlex.quote(counts_path)}")
         if inputs.get("include_feature_length_file"):
             commands.append(f"cut -f 1,6 body.txt > {shlex.quote(f'{out}/feature_lengths.tsv')}")
         if str(inputs.get("count_exon_exon_junction_reads", "")) == "-J":
             commands.append(f"{sed_sample} output.jcounts > {shlex.quote(f'{out}/junction_counts.tsv')}")
         if inputs.get("R"):
-            threads = str(inputs.get("threads", 2))
+            threads = str(inputs.get("threads", 1))
+            assignment_bam = str(Path(out) / f"{label}.featureCounts.bam")
             commands.append(
                 f"samtools sort --no-PG -o {shlex.quote(f'{out}/annotated.bam')} "
-                f'-@ {threads} -T "${{TMPDIR:-.}}" *.featureCounts.bam'
+                f'-@ {threads} -T "${{TMPDIR:-.}}" {shlex.quote(assignment_bam)}'
             )
         commands.append(f"{sed_sample} output.summary > {shlex.quote(f'{out}/summary.tsv')}")
         return " && ".join(commands)
@@ -345,7 +347,7 @@ class FeatureCountsNode(CommandNode):
         max_fragment = int(inputs.get("maximum_fragment_length", 600))
         if max_fragment < min_fragment:
             return "maximum_fragment_length must be >= minimum_fragment_length"
-        threads = inputs.get("threads", 2)
+        threads = inputs.get("threads", 1)
         if isinstance(threads, bool) or not isinstance(threads, int):
             return "threads must be an integer"
         if not 1 <= threads <= 32:
@@ -424,14 +426,17 @@ class FeatureCountsNode(CommandNode):
                 "strand_specificity": ("STRING", {"default": "0", "options": cls.STRAND_OPTIONS}),
                 "include_feature_length_file": ("BOOLEAN", {"default": False}),
                 "gff_feature_type": ("STRING", {"default": "exon", "description": "GFF feature type filter"}),
-                "gff_feature_attribute": ("STRING", {"default": "gene_id", "description": "GFF attribute for grouping"}),
+                "gff_feature_attribute": (
+                    "STRING",
+                    {"default": "gene_id", "description": "GFF attribute for grouping"},
+                ),
                 "summarization_level": ("BOOLEAN", {"default": False, "description": "Count at feature level"}),
                 "paired_end_status": (
                     "STRING",
                     {"default": "single_end", "options": cls.PAIRED_END_OPTIONS, "advanced": True},
                 ),
                 "only_both_ends": ("BOOLEAN", {"default": False, "advanced": True}),
-                "exclude_chimerics": ("BOOLEAN", {"default": True, "advanced": True}),
+                "exclude_chimerics": ("BOOLEAN", {"default": False, "advanced": True}),
                 "check_distance": ("BOOLEAN", {"default": False, "advanced": True}),
                 "minimum_fragment_length": ("INT", {"default": 50, "min": 0, "advanced": True}),
                 "maximum_fragment_length": ("INT", {"default": 600, "min": 1, "advanced": True}),
@@ -460,7 +465,7 @@ class FeatureCountsNode(CommandNode):
                 "bam": ("BAM", {"default": "", "description": "Compatibility alias for alignment"}),
                 "threads": (
                     "INT",
-                    {"default": 2, "min": 1, "max": 32, "display": "slider"},
+                    {"default": 1, "min": 1, "max": 32, "display": "slider"},
                 ),
                 "count_read_pairs": ("BOOLEAN", {"default": False, "advanced": True}),
                 "feature_type": ("STRING", {"default": "", "advanced": True}),

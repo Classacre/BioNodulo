@@ -123,6 +123,9 @@ def test_pinned_sources_and_output_contracts_are_exact() -> None:
     assert FeatureCountsNode.SOURCE_AUTHORITIES["cli_contract"] == "src/readSummary.c"
     assert FeatureCountsNode.AUDIT_STATUS == "contract-checked-no-binary-execution"
     assert "non-zero" in FeatureCountsNode.EXIT_SEMANTICS
+    featurecounts_options = FeatureCountsNode.INPUT_TYPES()["optional"]
+    assert featurecounts_options["threads"][1]["default"] == 1
+    assert featurecounts_options["exclude_chimerics"][1]["default"] is False
 
     assert SalmonIndexNode.RETURN_TYPES == ("INDEX_DIR",)
     assert SalmonQuantNode.RETURN_TYPES == ("COUNTS", "DIRECTORY")
@@ -600,6 +603,8 @@ def test_featurecounts_uses_threads_and_enforces_documented_constraints(tmp_path
         "gff_feature_attribute": "gene_id",
         "multifeat": "-O",
         "fraction": True,
+        "by_read_group": True,
+        "R": True,
     }
     assert FeatureCountsNode.VALIDATE_INPUTS(inputs) is True
     command = FeatureCountsNode.render_command({**inputs, "output": str(tmp_path / "featurecounts")})
@@ -608,9 +613,29 @@ def test_featurecounts_uses_threads_and_enforces_documented_constraints(tmp_path
     assert "-p --countReadPairs" in command
     assert "-P -d 50 -D 600 -B" in command
     assert "-O --fraction" in command
+    assert "--byReadGroup" in command
+    assert "cut -f 1,7- body.txt" in command
+    assert f"-R BAM --Rpath {tmp_path / 'featurecounts'}" in command
+    assert f"{tmp_path / 'featurecounts' / 'reads.bam.featureCounts.bam'}" in command
+    assert "*.featureCounts.bam" not in command
     assert "fraction requires" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "multifeat": ""}))
     assert "requires only_both_ends" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "only_both_ends": False}))
     assert "between 1 and 32" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "threads": 33}))
+
+
+def test_featurecounts_medium_format_preserves_every_count_column(tmp_path: Path) -> None:
+    command = FeatureCountsNode.render_command(
+        {
+            "alignment": "/planned/reads.bam",
+            "anno_select": "builtin",
+            "format": "tabdel_medium",
+            "by_read_group": True,
+            "output": str(tmp_path / "featurecounts"),
+        }
+    )
+
+    assert "--byReadGroup" in command
+    assert "cut -f 1,7- body.txt > expression_matrix.txt" in command
 
 
 def test_featurecounts_long_read_mode_enforces_source_thread_and_read_constraints(tmp_path: Path) -> None:
