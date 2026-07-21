@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 from .adapter import MetagenomicsCommandNode, path_value, validate_int
@@ -31,6 +32,15 @@ class BrackenNode(MetagenomicsCommandNode):
     UPSTREAM_TAG = "v3.1"
     UPSTREAM_SOURCE = "bracken; src/est_abundance.py; README.md"
     UPSTREAM_REPORTED_VERSION = "3.0.1"
+    SOURCE_PATHS = ("bracken", "src/est_abundance.py", "README.md")
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"{GIT_URL}/blob/{GIT_COMMIT}"
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    SIDECAR_POLICY = (
+        "The materialized database directory must contain the exact native Bracken "
+        "distribution sibling database{read_length}mers.kmer_distrib; the wrapper "
+        "passes only the database directory and discovers this file by name."
+    )
     DOCUMENTATION_URL = (
         "https://github.com/jenniferlu717/Bracken/blob/cfeac04b6445c44c3825866683a6fdd18746cb58/README.md"
     )
@@ -81,6 +91,28 @@ class BrackenNode(MetagenomicsCommandNode):
         if not _LEVEL_RE.fullmatch(level):
             return "Input 'level' must be D, P, C, O, F, G, S, or a numbered sub-rank such as S1"
         return True
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Fail closed when a materialized database lacks Bracken's native sidecar.
+
+        Symbolic paths are allowed for argv/dry-run tests and for the cloud handoff
+        before staging. Once the database exists on the worker, the upstream shell
+        wrapper's exact sibling lookup is checked before invoking it.
+        """
+
+        database = Path(path_value(inputs.get("db")))
+        if not database.exists():
+            return
+        if not database.is_dir():
+            raise ValueError(f"Bracken database must be a directory: {database}")
+        read_length = int(inputs.get("read_length", 100))
+        sidecar = database / f"database{read_length}mers.kmer_distrib"
+        if not sidecar.is_file() or sidecar.stat().st_size == 0:
+            raise ValueError(
+                "Bracken database is missing the required non-empty sidecar "
+                f"{sidecar.name}: {sidecar}"
+            )
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:

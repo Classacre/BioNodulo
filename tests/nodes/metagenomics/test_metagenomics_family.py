@@ -223,6 +223,28 @@ def test_bracken_argv_uses_the_database_and_writes_both_native_reports() -> None
     assert BrackenNode.UPSTREAM_REPORTED_VERSION == "3.0.1"
 
 
+def test_bracken_checks_the_materialized_read_length_distribution_sidecar(tmp_path: Path) -> None:
+    database = tmp_path / "bracken-db"
+    database.mkdir()
+    inputs = {
+        "report": "sample.kreport",
+        "db": str(database),
+        "read_length": 150,
+    }
+
+    with pytest.raises(ValueError, match="database150mers.kmer_distrib"):
+        BrackenNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    sidecar = database / "database150mers.kmer_distrib"
+    sidecar.write_text("synthetic\n", encoding="ascii")
+    BrackenNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    sidecar.unlink()
+    (database / "database100mers.kmer_distrib").write_text("wrong length\n", encoding="ascii")
+    with pytest.raises(ValueError, match="database150mers.kmer_distrib"):
+        BrackenNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+
 def test_metaphlan_argv_pins_database_release_outputs_and_offline_mode() -> None:
     assert MetaPhlAnNode.render_command(
         {
