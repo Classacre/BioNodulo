@@ -82,6 +82,8 @@ def test_long_read_ont_template_wires_explicit_models_and_sidecars() -> None:
     assert not _has_edge(workflow, "dorado_demux_001", "demux_dir", "chopper_001", "reads")
     assert _has_edge(workflow, "chopper_001", "filtered_reads", "gate_filtered_reads_001", "value")
     assert _has_edge(workflow, "gate_filtered_reads_001", "output", "nanoplot_001", "fastq")
+    assert _has_edge(workflow, "nanoplot_001", "qc_stats", "render_nanoplot_tab_0", "file")
+    assert not _has_edge(workflow, "nanoplot_001", "qc_report", "render_nanoplot_tab_0", "file")
     assert _has_edge(workflow, "dorado_basecaller_001", "basecalled_bam", "modkit_001", "bam")
     assert _has_edge(
         workflow,
@@ -100,6 +102,7 @@ def test_long_read_ont_template_uses_source_native_options_and_explicit_selectio
     basecaller = _node_by_id(workflow, "dorado_basecaller_001")
     demux = _node_by_id(workflow, "dorado_demux_001")
     chopper = _node_by_id(workflow, "chopper_001")
+    nanoplot = _node_by_id(workflow, "nanoplot_001")
     modkit = _node_by_id(workflow, "modkit_001")
     basecall_gate = _node_by_id(workflow, "gate_basecalled_bam_001")
     reads_gate = _node_by_id(workflow, "gate_filtered_reads_001")
@@ -110,6 +113,7 @@ def test_long_read_ont_template_uses_source_native_options_and_explicit_selectio
     assert demux["params"] == {"no_classify": True, "emit_fastq": True, "threads": 8}
     assert {"mode", "emit_summary", "output_name", "kit_name"}.isdisjoint(demux["params"])
     assert "max_length" not in chopper["params"]
+    assert nanoplot["params"]["tsv_stats"] is True
     assert modkit["params"]["cpg"] is True
     assert modkit["params"]["combine_strands"] is True
     assert "bedgraph" not in modkit["params"]

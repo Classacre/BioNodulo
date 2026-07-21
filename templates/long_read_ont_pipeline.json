@@ -268,7 +268,8 @@
         "threads": 8,
         "plot_format": "png",
         "loglength": false,
-        "show_n50": true
+        "show_n50": true,
+        "tsv_stats": true
       },
       "ui": {
         "title": "NanoPlot QC",
@@ -496,7 +497,7 @@
       "id": "e15",
       "from": {
         "node": "nanoplot_001",
-        "output": "qc_report"
+        "output": "qc_stats"
       },
       "to": {
         "node": "render_nanoplot_tab_0",
