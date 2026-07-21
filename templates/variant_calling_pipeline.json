@@ -5,16 +5,16 @@
   "description": "GATK-based germline variant calling from FASTQ to filtered VCF",
   "parameters": [
     {
-      "name": "snpeff_data_dir",
-      "type": "DIRECTORY",
+      "name": "snpeff_genome",
+      "type": "STRING",
       "required": true,
-      "description": "SnpEff data root containing Staphylococcus_aureus/snpEffectPredictor.bin"
+      "description": "SnpEff genome identifier for a custom predictor built against this workflow's exact Staphylococcus aureus wildtype.fna tutorial reference; it must match snpeff_database"
     },
     {
       "name": "snpeff_database",
       "type": "FILE",
       "required": true,
-      "description": "Exact <snpeff_data_dir>/Staphylococcus_aureus/snpEffectPredictor.bin artifact"
+      "description": "snpEffectPredictor.bin from a custom SnpEff database built against this workflow's exact Staphylococcus aureus wildtype.fna tutorial reference; snpeff_genome must identify that same database"
     }
   ],
   "nodes": [
@@ -285,20 +285,6 @@
       }
     },
     {
-      "id": "snpeff_data_dir_001",
-      "type": "input_directory",
-      "position": [
-        3680,
-        500
-      ],
-      "params": {
-        "directory": "{{snpeff_data_dir}}"
-      },
-      "ui": {
-        "title": "SnpEff Data Directory"
-      }
-    },
-    {
       "id": "snpeff_database_001",
       "type": "input_file",
       "position": [
@@ -321,28 +307,11 @@
         80
       ],
       "params": {
-        "genome": "Staphylococcus_aureus",
+        "genome": "{{snpeff_genome}}",
         "memory": 4
       },
       "ui": {
         "title": "SnpEff annotation"
-      }
-    },
-    {
-      "id": "vep_001",
-      "type": "vep",
-      "position": [
-        4400,
-        500
-      ],
-      "params": {
-        "assembly": "GRCh38",
-        "cache_dir": "~/.vep",
-        "threads": 4,
-        "output_format": "vcf"
-      },
-      "ui": {
-        "title": "VEP annotation"
       }
     },
     {
@@ -484,18 +453,6 @@
       "params": {},
       "ui": {
         "title": "View Table: gate_prioritized_vcf"
-      }
-    },
-    {
-      "id": "render_vep_tab_1",
-      "type": "table_preview",
-      "position": [
-        5840,
-        300
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Table: vep"
       }
     }
   ],
@@ -787,17 +744,6 @@
       }
     },
     {
-      "id": "e14_snpeff_data_dir",
-      "from": {
-        "node": "snpeff_data_dir_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "snpeff_001",
-        "input": "data_dir"
-      }
-    },
-    {
       "id": "e14_snpeff_database",
       "from": {
         "node": "snpeff_database_001",
@@ -806,17 +752,6 @@
       "to": {
         "node": "snpeff_001",
         "input": "database"
-      }
-    },
-    {
-      "id": "e14_vep",
-      "from": {
-        "node": "filter_001",
-        "output": "filtered_vcf"
-      },
-      "to": {
-        "node": "vep_001",
-        "input": "vcf"
       }
     },
     {
@@ -971,16 +906,6 @@
         "node": "render_gate_prioritized_vcf_tab_0",
         "input": "file"
       }
-    },
-    {
-      "from": {
-        "node": "vep_001",
-        "output": "annotated_vcf"
-      },
-      "to": {
-        "node": "render_vep_tab_1",
-        "input": "file"
-      }
     }
   ],
   "groups": [],
@@ -988,7 +913,6 @@
     "vcf": "prioritize_vcf_001",
     "prioritized_vcf": "prioritize_vcf_001",
     "prioritized_vcf_quality_gate": "gate_prioritized_vcf_001",
-    "vep_annotation": "vep_001",
     "flagstat": "flagstat_001",
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",

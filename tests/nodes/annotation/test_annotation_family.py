@@ -6,12 +6,14 @@ from pathlib import Path
 
 import pytest
 
+from bionodulo.execution.executor import WorkflowExecutor
 from bionodulo.nodes.builtin.annotation_family import (
     IntersectGenesNode,
     ProkkaNode,
     SnpEffNode,
     VEPNode,
 )
+from bionodulo.nodes.registry import NodeRegistry
 
 
 @pytest.mark.parametrize(
@@ -150,88 +152,198 @@ def test_prokka_requires_a_materialized_nonempty_assembly(tmp_path: Path) -> Non
     empty.touch()
 
     for assembly in (missing, directory):
-        assert ProkkaNode.VALIDATE_INPUTS({**base, "assembly": assembly}) == (
-            "Input 'assembly' must be a materialized regular file"
-        )
-    assert ProkkaNode.VALIDATE_INPUTS({**base, "assembly": empty}) == ("Input 'assembly' must be non-empty")
+        inputs = {**base, "assembly": assembly}
+        assert ProkkaNode.VALIDATE_INPUTS(inputs) is True
+        with pytest.raises(ValueError, match="materialized regular file"):
+            ProkkaNode.PREPARE_EXECUTION(inputs, [])
+    with pytest.raises(ValueError, match="must be non-empty"):
+        ProkkaNode.PREPARE_EXECUTION({**base, "assembly": empty}, [])
 
 
-def _snpeff_inputs(**overrides: object) -> dict[str, object]:
+def _snpeff_inputs(tmp_path: Path, **overrides: object) -> dict[str, object]:
+    vcf = tmp_path / "inputs" / "variants.vcf.gz"
+    vcf.parent.mkdir(parents=True, exist_ok=True)
+    vcf.write_bytes(b"synthetic-vcf")
+    database = tmp_path / "uploads" / "snpEffectPredictor.bin"
+    database.parent.mkdir(parents=True, exist_ok=True)
+    database.write_bytes(b"synthetic-predictor")
     values: dict[str, object] = {
-        "vcf": "/inputs/variants.vcf.gz",
+        "vcf": str(vcf),
         "genome": "GRCh38.105",
-        "data_dir": "/refs/snpeff",
-        "database": "/refs/snpeff/GRCh38.105/snpEffectPredictor.bin",
+        "database": str(database),
         "memory": 12,
-        "output": "/runs/snpeff",
+        "output": str(tmp_path / "runs" / "snpeff"),
     }
     values.update(overrides)
     return values
 
 
 def test_snpeff_captures_stdout_without_shell_redirection(tmp_path: Path) -> None:
+    data_dir = tmp_path / "source-data"
+    genome_dir = data_dir / "GRCh38.105"
+    genome_dir.mkdir(parents=True)
+    (genome_dir / "snpEff.config").write_text("GRCh38.105.genome : synthetic\n", encoding="ascii")
     inputs = _snpeff_inputs(
+        tmp_path,
+        data_dir=str(data_dir),
         canonical=True,
         no_upstream=True,
         no_downstream=True,
         no_intergenic=True,
     )
+    outputs = SnpEffNode.PLAN_OUTPUTS(inputs, tmp_path / "runs")
+    SnpEffNode.PREPARE_EXECUTION(inputs, outputs)
+    prepared_root = outputs[0].parent / "snpeff_data"
 
     assert SnpEffNode.STDOUT_OUTPUT_INDEX == 0
     assert SnpEffNode.render_command(inputs) == [
         "snpEff",
         "-Xmx12g",
         "-noLog",
+        "-noDownload",
         "-v",
         "-dataDir",
-        "/refs/snpeff",
+        str(prepared_root),
         "-stats",
-        "/runs/snpeff/summary_report.html",
+        str(tmp_path / "runs" / "snpeff" / "summary_report.html"),
         "-canon",
         "-no-upstream",
         "-no-downstream",
         "-no-intergenic",
         "GRCh38.105",
-        "/inputs/variants.vcf.gz",
+        str(tmp_path / "runs" / "snpeff" / "inputs" / "variants.vcf.gz"),
     ]
-    assert [path.name for path in SnpEffNode.PLAN_OUTPUTS(inputs, tmp_path)] == [
+    assert [path.name for path in outputs] == [
         "annotated_vcf.vcf",
         "summary_report.html",
         "summary_report.genes.txt",
     ]
+    assert Path(str(inputs["database"])) == prepared_root / "GRCh38.105" / "snpEffectPredictor.bin"
+    assert Path(str(inputs["vcf"])) == outputs[0].parent / "inputs" / "variants.vcf.gz"
+    assert (prepared_root / "GRCh38.105" / "snpEff.config").is_file()
     assert all(token not in {">", "|", "&&"} for token in SnpEffNode.render_command(inputs))
 
 
-def test_snpeff_requires_the_exact_predictor_database() -> None:
-    assert SnpEffNode.VALIDATE_INPUTS(_snpeff_inputs()) is True
-    validation = SnpEffNode.VALIDATE_INPUTS(_snpeff_inputs(database="/refs/snpeff/other/snpEffectPredictor.bin"))
-    assert "exact path '/refs/snpeff/GRCh38.105/snpEffectPredictor.bin'" in str(validation)
-    assert "at least 1" in str(SnpEffNode.VALIDATE_INPUTS(_snpeff_inputs(memory=0)))
-    assert "genome identifier" in str(SnpEffNode.VALIDATE_INPUTS(_snpeff_inputs(genome="../bad")))
+def test_snpeff_requires_materialized_inputs_and_stages_a_separate_predictor(tmp_path: Path) -> None:
+    inputs = _snpeff_inputs(tmp_path)
+    assert SnpEffNode.VALIDATE_INPUTS(inputs) is True
+    missing_database = {**inputs, "database": tmp_path / "missing.bin"}
+    assert SnpEffNode.VALIDATE_INPUTS(missing_database) is True
+    with pytest.raises(ValueError, match="materialized regular file"):
+        SnpEffNode.PREPARE_EXECUTION(
+            missing_database,
+            SnpEffNode.PLAN_OUTPUTS(missing_database, tmp_path / "missing-run"),
+        )
+    assert "at least 1" in str(SnpEffNode.VALIDATE_INPUTS({**inputs, "memory": 0}))
+    for genome in ("../bad", " padded", "padded ", "-option", "bad genome"):
+        assert "unpadded SnpEff identifier" in str(SnpEffNode.VALIDATE_INPUTS({**inputs, "genome": genome}))
+
+    outputs = SnpEffNode.PLAN_OUTPUTS(inputs, tmp_path / "run")
+    SnpEffNode.PREPARE_EXECUTION(inputs, outputs)
+    expected = outputs[0].parent / "snpeff_data" / "GRCh38.105" / "snpEffectPredictor.bin"
+    assert Path(str(inputs["database"])) == expected
+    assert Path(str(inputs["data_dir"])) == expected.parents[1]
+    assert expected.read_bytes() == b"synthetic-predictor"
+    assert SnpEffNode.VALIDATE_INPUTS(inputs) is True
 
 
-def _vep_inputs(**overrides: object) -> dict[str, object]:
+def test_snpeff_rejects_wrong_data_root_and_symlink_entries(tmp_path: Path) -> None:
+    inputs = _snpeff_inputs(tmp_path)
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    wrong_root_inputs = {**inputs, "data_dir": data_root}
+    outputs = SnpEffNode.PLAN_OUTPUTS(wrong_root_inputs, tmp_path / "wrong-root-run")
+    with pytest.raises(ValueError, match="data_dir/GRCh38[.]105.*materialized directory"):
+        SnpEffNode.PREPARE_EXECUTION(wrong_root_inputs, outputs)
+
+    genome_dir = data_root / "GRCh38.105"
+    genome_dir.mkdir()
+    target = tmp_path / "external.config"
+    target.write_text("GRCh38.105.genome : external\n", encoding="ascii")
+    (genome_dir / "snpEff.config").symlink_to(target)
+    symlink_inputs = {**inputs, "data_dir": data_root}
+    outputs = SnpEffNode.PLAN_OUTPUTS(symlink_inputs, tmp_path / "symlink-run")
+    with pytest.raises(ValueError, match="must not contain symbolic links"):
+        SnpEffNode.PREPARE_EXECUTION(symlink_inputs, outputs)
+
+
+def test_snpeff_staging_never_deletes_an_overlapping_predictor(tmp_path: Path) -> None:
+    inputs = _snpeff_inputs(tmp_path)
+    outputs = SnpEffNode.PLAN_OUTPUTS(inputs, tmp_path / "run")
+    prepared_database = outputs[0].parent / "snpeff_data" / "GRCh38.105" / "snpEffectPredictor.bin"
+    prepared_database.parent.mkdir(parents=True)
+    prepared_database.write_bytes(b"already-prepared")
+    inputs["database"] = prepared_database
+
+    SnpEffNode.PREPARE_EXECUTION(inputs, outputs)
+    assert prepared_database.read_bytes() == b"already-prepared"
+
+    nested_database = outputs[0].parent / "snpeff_data" / "GRCh38.105" / "other.bin"
+    nested_database.write_bytes(b"must-survive")
+    conflicting = {**_snpeff_inputs(tmp_path / "conflict"), "database": nested_database}
+    with pytest.raises(ValueError, match="must not be inside"):
+        SnpEffNode.PREPARE_EXECUTION(conflicting, outputs)
+    assert nested_database.read_bytes() == b"must-survive"
+
+
+def _make_vep_cache(
+    root: Path,
+    *,
+    assembly: str = "GRCh38",
+    info_assembly: str | None = None,
+    info_species: str | None = "homo_sapiens",
+    serialiser_type: str = "storable",
+    include_capabilities: bool = True,
+    include_info: bool = True,
+    include_shard: bool = True,
+    empty_shard: bool = False,
+) -> Path:
+    cache = root / f"113_{assembly}"
+    cache.mkdir(parents=True, exist_ok=True)
+    if include_info:
+        info_lines = [f"assembly\t{info_assembly or assembly}"]
+        if info_species is not None:
+            info_lines.append(f"species\t{info_species}")
+        if serialiser_type != "storable":
+            info_lines.append(f"serialiser_type\t{serialiser_type}")
+        if include_capabilities:
+            info_lines.extend(("variation_cols\tvariation_name,AF", "sift\tb", "polyphen\tb"))
+        (cache / "info.txt").write_text("\n".join(info_lines) + "\n", encoding="ascii")
+    if include_shard:
+        region = cache / "1"
+        region.mkdir(exist_ok=True)
+        suffix = "sereal" if serialiser_type == "sereal" else "gz"
+        (region / f"1-1000000.{suffix}").write_bytes(b"" if empty_shard else b"synthetic-cache-shard")
+    return cache
+
+
+def _vep_inputs(tmp_path: Path, **overrides: object) -> dict[str, object]:
+    vcf = tmp_path / "inputs" / "variants.vcf.gz"
+    vcf.parent.mkdir(parents=True, exist_ok=True)
+    vcf.write_bytes(b"synthetic-vcf")
+    cache = _make_vep_cache(tmp_path / "cache")
     values: dict[str, object] = {
-        "vcf": "/inputs/variants.vcf.gz",
-        "cache_dir": "/refs/vep/homo_sapiens/113_GRCh38",
+        "vcf": str(vcf),
+        "cache_dir": str(cache),
         "assembly": "GRCh38",
         "species": "homo_sapiens",
         "threads": 8,
         "output_format": "vcf",
-        "output": "/runs/vep",
+        "output": str(tmp_path / "runs" / "vep"),
     }
     values.update(overrides)
     return values
 
 
-def test_vep_everything_uses_one_explicit_offline_cache() -> None:
-    command = VEPNode.render_command(_vep_inputs(everything=True))
+def test_vep_everything_uses_one_explicit_offline_cache(tmp_path: Path) -> None:
+    inputs = _vep_inputs(tmp_path, everything=True)
+    command = VEPNode.render_command(inputs)
     assert command == [
         "vep",
         "--input_file",
-        "/inputs/variants.vcf.gz",
+        str(tmp_path / "inputs" / "variants.vcf.gz"),
         "--output_file",
-        "/runs/vep/annotated_vcf.vcf",
+        str(tmp_path / "runs" / "vep" / "annotated_vcf.vcf"),
         "--format",
         "vcf",
         "--vcf",
@@ -243,33 +355,43 @@ def test_vep_everything_uses_one_explicit_offline_cache() -> None:
         "GRCh38",
         "--offline",
         "--full_cache_dir",
-        "/refs/vep/homo_sapiens/113_GRCh38",
+        str(tmp_path / "cache" / "113_GRCh38"),
         "--force_overwrite",
         "--everything",
         "--stats_file",
-        "/runs/vep/vep_report.html",
+        str(tmp_path / "runs" / "vep" / "vep_report.html"),
     ]
     assert "--dir_cache" not in command
 
 
 def test_vep_selective_annotations_and_indexed_clinvar(tmp_path: Path) -> None:
+    clinvar = tmp_path / "clinvar" / "clinvar.vcf.gz"
+    clinvar.parent.mkdir()
+    clinvar.write_bytes(b"synthetic-clinvar")
+    clinvar_index = tmp_path / "indexes" / "clinvar.vcf.gz.tbi"
+    clinvar_index.parent.mkdir()
+    clinvar_index.write_bytes(b"synthetic-tabix")
     inputs = _vep_inputs(
+        tmp_path,
         everything=False,
         symbol=True,
         af=False,
         max_af=True,
         sift="s",
         polyphen="p",
-        clinvar="/refs/clinvar.vcf.gz",
-        clinvar_index="/refs/clinvar.vcf.gz.tbi",
+        clinvar=str(clinvar),
+        clinvar_index=str(clinvar_index),
         output_format="tab",
     )
+    outputs = VEPNode.PLAN_OUTPUTS(inputs, tmp_path / "runs")
+    VEPNode.PREPARE_EXECUTION(inputs, outputs)
     command = VEPNode.render_command(inputs)
+    staged_clinvar = outputs[0].parent / "custom_annotations" / "clinvar.vcf.gz"
     assert command[-4:] == [
         "--custom",
-        "file=/refs/clinvar.vcf.gz,short_name=ClinVar,format=vcf,type=exact,fields=CLNSIG",
+        f"file={staged_clinvar},short_name=ClinVar,format=vcf,type=exact,fields=CLNSIG",
         "--stats_file",
-        "/runs/vep/vep_report.html",
+        str(tmp_path / "runs" / "vep" / "vep_report.html"),
     ]
     assert "--everything" not in command
     assert "--symbol" in command
@@ -279,20 +401,156 @@ def test_vep_selective_annotations_and_indexed_clinvar(tmp_path: Path) -> None:
         "--polyphen",
         "p",
     ]
-    assert [path.name for path in VEPNode.PLAN_OUTPUTS(inputs, tmp_path)] == [
+    assert [path.name for path in outputs] == [
         "annotated_vcf.tab",
         "vep_report.html",
     ]
+    assert Path(str(inputs["clinvar_index"])) == Path(f"{staged_clinvar}.tbi")
+    assert VEPNode.VALIDATE_INPUTS(inputs) is True
 
 
-def test_vep_rejects_missing_or_mismatched_custom_vcf_index() -> None:
-    assert "exact path '/refs/clinvar.vcf.gz.tbi'" in str(
-        VEPNode.VALIDATE_INPUTS(_vep_inputs(clinvar="/refs/clinvar.vcf.gz", clinvar_index="/refs/clinvar.tbi"))
+def test_vep_rejects_missing_or_mismatched_custom_vcf_index(tmp_path: Path) -> None:
+    inputs = _vep_inputs(tmp_path)
+    clinvar = tmp_path / "clinvar.vcf.gz"
+    clinvar.write_bytes(b"synthetic-clinvar")
+    wrong_index = tmp_path / "clinvar.tbi"
+    wrong_index.write_bytes(b"synthetic-tabix")
+    assert "named exactly '<clinvar>.tbi'" in str(
+        VEPNode.VALIDATE_INPUTS({**inputs, "clinvar": clinvar, "clinvar_index": wrong_index})
     )
-    assert VEPNode.VALIDATE_INPUTS(_vep_inputs(clinvar_index="/refs/orphan.tbi")) == (
+    assert VEPNode.VALIDATE_INPUTS({**inputs, "clinvar_index": wrong_index}) == (
         "Input 'clinvar_index' requires 'clinvar'"
     )
-    assert "must be one of" in str(VEPNode.VALIDATE_INPUTS(_vep_inputs(output_format="json")))
+    assert "must be one of" in str(VEPNode.VALIDATE_INPUTS({**inputs, "output_format": "json"}))
+
+    missing_index = tmp_path / "missing" / "clinvar.vcf.gz.tbi"
+    materialized_inputs = {**inputs, "clinvar": clinvar, "clinvar_index": missing_index}
+    assert VEPNode.VALIDATE_INPUTS(materialized_inputs) is True
+    with pytest.raises(ValueError, match="clinvar_index.*materialized regular file"):
+        VEPNode.PREPARE_EXECUTION(
+            materialized_inputs,
+            VEPNode.PLAN_OUTPUTS(materialized_inputs, tmp_path / "missing-index-run"),
+        )
+
+
+def test_vep_rejects_cache_roots_wrong_releases_and_incomplete_leaves(tmp_path: Path) -> None:
+    inputs = _vep_inputs(tmp_path)
+    assert VEPNode.VALIDATE_INPUTS(inputs) is True
+    VEPNode.PREPARE_EXECUTION(inputs, VEPNode.PLAN_OUTPUTS(inputs, tmp_path / "valid-run"))
+    assert "exact VEP cache leaf" in str(
+        VEPNode.VALIDATE_INPUTS({**inputs, "cache_dir": Path(str(inputs["cache_dir"])).parent})
+    )
+
+    wrong_release = tmp_path / "wrong-release" / "112_GRCh38"
+    wrong_release.mkdir(parents=True)
+    (wrong_release / "info.txt").write_text("assembly\tGRCh38\n", encoding="ascii")
+    region = wrong_release / "1"
+    region.mkdir()
+    (region / "1-1000000.gz").write_bytes(b"shard")
+    assert "named '113_GRCh38'" in str(VEPNode.VALIDATE_INPUTS({**inputs, "cache_dir": wrong_release}))
+
+    missing_info_inputs = {
+        **inputs,
+        "cache_dir": _make_vep_cache(tmp_path / "missing-info", include_info=False),
+    }
+    with pytest.raises(ValueError, match="cache_dir/info[.]txt"):
+        VEPNode.PREPARE_EXECUTION(missing_info_inputs, [])
+    mismatch = _make_vep_cache(tmp_path / "mismatch", info_assembly="GRCh37")
+    with pytest.raises(ValueError, match="does not match requested assembly"):
+        VEPNode.PREPARE_EXECUTION({**inputs, "cache_dir": mismatch}, [])
+    no_shard = _make_vep_cache(tmp_path / "no-shard", include_shard=False)
+    with pytest.raises(ValueError, match="transcript shard"):
+        VEPNode.PREPARE_EXECUTION({**inputs, "cache_dir": no_shard}, [])
+    empty_shard = _make_vep_cache(tmp_path / "empty-shard", empty_shard=True)
+    with pytest.raises(ValueError, match="readable, non-empty.*transcript shard"):
+        VEPNode.PREPARE_EXECUTION({**inputs, "cache_dir": empty_shard}, [])
+
+
+def test_vep_accepts_sereal_cache_and_enforces_requested_capabilities(tmp_path: Path) -> None:
+    inputs = _vep_inputs(tmp_path)
+    sereal_cache = _make_vep_cache(tmp_path / "sereal", serialiser_type="sereal")
+    VEPNode.PREPARE_EXECUTION({**inputs, "cache_dir": sereal_cache}, [])
+
+    limited_cache = _make_vep_cache(tmp_path / "limited", include_capabilities=False)
+    with pytest.raises(ValueError, match="variation columns required for AF"):
+        VEPNode.PREPARE_EXECUTION({**inputs, "cache_dir": limited_cache, "af": True}, [])
+    with pytest.raises(ValueError, match="requested SIFT capability"):
+        VEPNode.PREPARE_EXECUTION({**inputs, "cache_dir": limited_cache, "sift": "b"}, [])
+
+
+def test_vep_stages_tilde_expanded_clinvar_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    clinvar = home / "clinvar.vcf.gz"
+    clinvar.write_bytes(b"synthetic-clinvar")
+    clinvar_index = home / "clinvar.vcf.gz.tbi"
+    clinvar_index.write_bytes(b"synthetic-tabix")
+    monkeypatch.setenv("HOME", str(home))
+    inputs = _vep_inputs(
+        tmp_path,
+        clinvar="~/clinvar.vcf.gz",
+        clinvar_index="~/clinvar.vcf.gz.tbi",
+    )
+    outputs = VEPNode.PLAN_OUTPUTS(inputs, tmp_path / "run")
+
+    VEPNode.PREPARE_EXECUTION(inputs, outputs)
+
+    staged = outputs[0].parent / "custom_annotations" / "clinvar.vcf.gz"
+    assert Path(str(inputs["clinvar"])) == staged
+    assert staged.read_bytes() == b"synthetic-clinvar"
+    assert Path(str(inputs["clinvar_index"])).read_bytes() == b"synthetic-tabix"
+
+
+@pytest.mark.asyncio
+async def test_annotation_dry_run_accepts_unmaterialized_runtime_inputs(tmp_path: Path) -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    workflow = {
+        "name": "Annotation dry-run contract",
+        "nodes": [
+            {
+                "id": "prokka-preview",
+                "type": "prokka",
+                "params": {"assembly": "/planned/contigs.fa"},
+            },
+            {
+                "id": "snpeff-preview",
+                "type": "snpeff",
+                "params": {
+                    "vcf": "/planned/variants.vcf.gz",
+                    "genome": "GRCh38.105",
+                    "database": "/planned/snpEffectPredictor.bin",
+                },
+            },
+            {
+                "id": "vep-preview",
+                "type": "vep",
+                "params": {
+                    "vcf": "/planned/variants.vcf.gz",
+                    "cache_dir": "/planned/homo_sapiens/113_GRCh38",
+                },
+            },
+        ],
+        "edges": [],
+    }
+    executor = WorkflowExecutor(
+        workspace_dir=tmp_path,
+        cache_dir=tmp_path / "cache",
+        registry=registry,
+    )
+
+    preview = await executor.dry_run("annotation-preview", workflow)
+
+    plans = {node["node_id"]: node for node in preview["nodes"]}
+    assert plans["prokka-preview"]["command"][-1] == "/planned/contigs.fa"
+    snpeff_command = plans["snpeff-preview"]["command"]
+    assert snpeff_command[-2:] == ["GRCh38.105", "/planned/variants.vcf.gz"]
+    assert snpeff_command[snpeff_command.index("-dataDir") + 1].endswith("/snpeff-preview/snpeff/snpeff_data")
+    vep_command = plans["vep-preview"]["command"]
+    assert vep_command[vep_command.index("--full_cache_dir") + 1] == ("/planned/homo_sapiens/113_GRCh38")
 
 
 @pytest.mark.asyncio

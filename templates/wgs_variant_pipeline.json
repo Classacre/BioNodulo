@@ -5,16 +5,17 @@
   "description": "Whole genome sequencing variant calling with BWA and FreeBayes",
   "parameters": [
     {
-      "name": "snpeff_data_dir",
-      "type": "DIRECTORY",
+      "name": "snpeff_genome",
+      "type": "STRING",
       "required": true,
-      "description": "SnpEff data root containing Escherichia_coli_K12/snpEffectPredictor.bin"
+      "default": "Escherichia_coli_str_k_12_substr_mg1655_gca_000005845",
+      "description": "Pinned SnpEff 5.2 genome identifier for the E. coli K-12 MG1655 GCA_000005845 reference; it must match snpeff_database"
     },
     {
       "name": "snpeff_database",
       "type": "FILE",
       "required": true,
-      "description": "Exact <snpeff_data_dir>/Escherichia_coli_K12/snpEffectPredictor.bin artifact"
+      "description": "snpEffectPredictor.bin for the pinned Escherichia_coli_str_k_12_substr_mg1655_gca_000005845 SnpEff 5.2 database"
     }
   ],
   "nodes": [
@@ -254,20 +255,6 @@
       }
     },
     {
-      "id": "snpeff_data_dir_001",
-      "type": "input_directory",
-      "position": [
-        3320,
-        500
-      ],
-      "params": {
-        "directory": "{{snpeff_data_dir}}"
-      },
-      "ui": {
-        "title": "SnpEff Data Directory"
-      }
-    },
-    {
       "id": "snpeff_database_001",
       "type": "input_file",
       "position": [
@@ -290,28 +277,11 @@
         80
       ],
       "params": {
-        "genome": "Escherichia_coli_K12",
+        "genome": "{{snpeff_genome}}",
         "memory": 4
       },
       "ui": {
         "title": "SnpEff annotation"
-      }
-    },
-    {
-      "id": "vep_001",
-      "type": "vep",
-      "position": [
-        3680,
-        500
-      ],
-      "params": {
-        "assembly": "GRCh38",
-        "cache_dir": "~/.vep",
-        "threads": 4,
-        "output_format": "vcf"
-      },
-      "ui": {
-        "title": "VEP annotation"
       }
     },
     {
@@ -456,18 +426,6 @@
       "params": {},
       "ui": {
         "title": "View Table: gate_prioritized_vcf"
-      }
-    },
-    {
-      "id": "render_vep_tab_1",
-      "type": "table_preview",
-      "position": [
-        5120,
-        300
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Table: vep"
       }
     },
     {
@@ -706,17 +664,6 @@
       }
     },
     {
-      "id": "e14_snpeff_data_dir",
-      "from": {
-        "node": "snpeff_data_dir_001",
-        "output": "directory"
-      },
-      "to": {
-        "node": "snpeff_001",
-        "input": "data_dir"
-      }
-    },
-    {
       "id": "e14_snpeff_database",
       "from": {
         "node": "snpeff_database_001",
@@ -725,17 +672,6 @@
       "to": {
         "node": "snpeff_001",
         "input": "database"
-      }
-    },
-    {
-      "id": "e14_vep",
-      "from": {
-        "node": "filter_001",
-        "output": "filtered_vcf"
-      },
-      "to": {
-        "node": "vep_001",
-        "input": "vcf"
       }
     },
     {
@@ -893,16 +829,6 @@
     },
     {
       "from": {
-        "node": "vep_001",
-        "output": "annotated_vcf"
-      },
-      "to": {
-        "node": "render_vep_tab_1",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
         "node": "manta_sv_001",
         "output": "sv_vcf"
       },
@@ -927,7 +853,6 @@
     "vcf": "prioritize_vcf_001",
     "prioritized_vcf": "prioritize_vcf_001",
     "prioritized_vcf_quality_gate": "gate_prioritized_vcf_001",
-    "vep_annotation": "vep_001",
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
     "manta_sv": "manta_sv_001",

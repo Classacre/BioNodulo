@@ -11,6 +11,7 @@ from .adapter import (
     validate_choice,
     validate_filename,
     validate_int,
+    validate_materialized_file,
 )
 
 
@@ -121,17 +122,13 @@ class ProkkaNode(AnnotationCommandNode):
         if validation is not True:
             return validation
 
-        assembly = Path(path_value(inputs.get("assembly")))
-        try:
-            if not assembly.is_file():
-                return "Input 'assembly' must be a materialized regular file"
-            if assembly.stat().st_size == 0:
-                return "Input 'assembly' must be non-empty"
-            with assembly.open("rb"):
-                pass
-        except OSError as exc:
-            return f"Input 'assembly' must be readable: {exc}"
         return True
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        validation = validate_materialized_file(inputs.get("assembly"), "assembly")
+        if validation is not True:
+            raise ValueError(str(validation))
 
     @classmethod
     def _output_filenames(cls, prefix: str) -> tuple[str, ...]:

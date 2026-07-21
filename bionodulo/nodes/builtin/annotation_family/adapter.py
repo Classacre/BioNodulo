@@ -31,6 +31,34 @@ def normalized_path(value: Any) -> Path | None:
     return Path(os.path.abspath(os.path.normpath(path)))
 
 
+def validate_materialized_file(value: Any, key: str, *, nonempty: bool = True) -> bool | str:
+    """Require a readable regular file before invoking an external tool."""
+    path = Path(path_value(value))
+    try:
+        if not path.is_file():
+            return f"Input '{key}' must be a materialized regular file"
+        if nonempty and path.stat().st_size == 0:
+            return f"Input '{key}' must be non-empty"
+        with path.open("rb"):
+            pass
+    except OSError as exc:
+        return f"Input '{key}' must be readable: {exc}"
+    return True
+
+
+def validate_materialized_directory(value: Any, key: str) -> bool | str:
+    """Require a readable directory before invoking an external tool."""
+    path = Path(path_value(value))
+    try:
+        if not path.is_dir():
+            return f"Input '{key}' must be a materialized directory"
+        with os.scandir(path):
+            pass
+    except OSError as exc:
+        return f"Input '{key}' must be readable: {exc}"
+    return True
+
+
 def validate_int(
     value: Any,
     key: str,

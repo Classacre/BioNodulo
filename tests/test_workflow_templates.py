@@ -25,12 +25,7 @@ def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
 
 def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
     node = _node_by_id(workflow, node_id)
-    return (
-        node.get("ui", {})
-        .get("validation", {})
-        .get("outputs", {})
-        .get(output, {})
-    )
+    return node.get("ui", {}).get("validation", {}).get("outputs", {}).get(output, {})
 
 
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
@@ -83,21 +78,14 @@ def test_official_samtools_view_and_sort_edges_use_canonical_alignment_ports() -
         workflow = _load_template(template_name)
         node_types = _node_types(workflow)
         affected_nodes = {
-            node_id
-            for node_id, node_type in node_types.items()
-            if node_type in {"samtools_view", "samtools_sort"}
+            node_id for node_id, node_type in node_types.items() if node_type in {"samtools_view", "samtools_sort"}
         }
-        affected_edges = [
-            edge for edge in workflow["edges"] if edge.get("to", {}).get("node") in affected_nodes
-        ]
+        affected_edges = [edge for edge in workflow["edges"] if edge.get("to", {}).get("node") in affected_nodes]
 
         assert len(affected_edges) == len(expected)
         for source, source_output, target in expected:
             assert _has_edge(workflow, source, source_output, target, "alignment")
-        assert not any(
-            edge.get("to", {}).get("input") in {"sam", "bam"}
-            for edge in affected_edges
-        )
+        assert not any(edge.get("to", {}).get("input") in {"sam", "bam"} for edge in affected_edges)
 
 
 def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotation_report() -> None:
@@ -107,7 +95,8 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert node_types["markdup_001"] == "samtools_markdup"
     assert node_types["index_001"] == "samtools_index"
     assert node_types["snpeff_001"] == "snpeff"
-    assert node_types["vep_001"] == "vep"
+    assert "vep_001" not in node_types
+    assert "render_vep_tab_1" not in node_types
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
     assert "render_vcf_stats_ima_2" not in node_types
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
@@ -122,14 +111,12 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_001", "bam")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
-    assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
     assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
-    assert _has_edge(workflow, "vep_001", "annotated_vcf", "render_vep_tab_1", "file")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "html"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
-    assert workflow["outputs"]["vep_annotation"] == "vep_001"
+    assert "vep_annotation" not in workflow["outputs"]
 
 
 def test_variant_calling_template_genotypes_gvcf_before_filtering() -> None:
@@ -138,12 +125,8 @@ def test_variant_calling_template_genotypes_gvcf_before_filtering() -> None:
 
     assert node_types["gatk_001"] == "gatk_haplotype_caller"
     assert node_types["gatk_genotype_001"] == "gatk_genotype_gvcfs"
-    assert _node_by_id(workflow, "gatk_001")["params"] == {
-        "emit_ref_confidence": "GVCF"
-    }
-    assert _node_by_id(workflow, "gatk_genotype_001")["params"] == {
-        "standard_min_confidence": 30
-    }
+    assert _node_by_id(workflow, "gatk_001")["params"] == {"emit_ref_confidence": "GVCF"}
+    assert _node_by_id(workflow, "gatk_genotype_001")["params"] == {"standard_min_confidence": 30}
     _assert_edge(
         workflow,
         "e9_gvcf",
@@ -304,7 +287,8 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert node_types["markdup_001"] == "samtools_markdup"
     assert node_types["idx_001"] == "samtools_index"
     assert node_types["snpeff_001"] == "snpeff"
-    assert node_types["vep_001"] == "vep"
+    assert "vep_001" not in node_types
+    assert "render_vep_tab_1" not in node_types
     assert node_types["vcf_stats_001"] == "vcf_stats_chart"
     assert "render_vcf_stats_ima_2" not in node_types
     assert _has_edge(workflow, "view_001", "bam", "collate_001", "bam")
@@ -316,14 +300,12 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     _assert_edge(workflow, "e8_bai", "idx_001", "bai", "fb_001", "bam_index")
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "fb_001", "bam")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
-    assert _has_edge(workflow, "filter_001", "filtered_vcf", "vep_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
     assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
-    assert _has_edge(workflow, "vep_001", "annotated_vcf", "render_vep_tab_1", "file")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "html"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
-    assert workflow["outputs"]["vep_annotation"] == "vep_001"
+    assert "vep_annotation" not in workflow["outputs"]
 
 
 def test_wgs_variant_template_validates_reference_before_alignment_and_calling() -> None:
@@ -420,49 +402,40 @@ def test_wgs_variant_template_prioritizes_annotated_variants() -> None:
 
 
 def test_variant_templates_supply_exact_snpeff_database_dependencies() -> None:
-    expected_genomes = {
-        "variant_calling_pipeline.json": "Staphylococcus_aureus",
-        "wgs_variant_pipeline.json": "Escherichia_coli_K12",
+    expected_defaults = {
+        "variant_calling_pipeline.json": None,
+        "wgs_variant_pipeline.json": ("Escherichia_coli_str_k_12_substr_mg1655_gca_000005845"),
     }
     registry = NodeRegistry.create_isolated()
-    directory_node = registry.get("input_directory")
     file_node = registry.get("input_file")
     snpeff_node = registry.get("snpeff")
-    assert directory_node is not None
     assert file_node is not None
     assert snpeff_node is not None
 
-    snpeff_inputs = snpeff_node.INPUT_TYPES()["required"]
-    assert directory_node.RETURN_TYPES[directory_node.RETURN_NAMES.index("directory")] == "DIRECTORY"
+    snpeff_input_types = snpeff_node.INPUT_TYPES()
     assert file_node.RETURN_TYPES[file_node.RETURN_NAMES.index("file")] == "FILE"
-    assert snpeff_inputs["data_dir"][0] == "DIRECTORY"
-    assert snpeff_inputs["database"][0] == "FILE"
+    assert snpeff_input_types["required"]["genome"][0] == "STRING"
+    assert snpeff_input_types["required"]["database"][0] == "FILE"
+    assert snpeff_input_types["optional"]["data_dir"][0] == "DIRECTORY"
 
-    for template_name, genome in expected_genomes.items():
+    for template_name, expected_default in expected_defaults.items():
         workflow = _load_template(template_name)
         node_types = _node_types(workflow)
         parameters = {parameter["name"]: parameter for parameter in workflow["parameters"]}
-        data_dir = _node_by_id(workflow, "snpeff_data_dir_001")
         database = _node_by_id(workflow, "snpeff_database_001")
         snpeff = _node_by_id(workflow, "snpeff_001")
 
-        assert node_types["snpeff_data_dir_001"] == "input_directory"
+        assert "snpeff_data_dir_001" not in node_types
         assert node_types["snpeff_database_001"] == "input_file"
-        assert parameters["snpeff_data_dir"]["type"] == "DIRECTORY"
-        assert parameters["snpeff_data_dir"]["required"] is True
+        assert "snpeff_data_dir" not in parameters
+        assert parameters["snpeff_genome"]["type"] == "STRING"
+        assert parameters["snpeff_genome"]["required"] is True
+        assert parameters["snpeff_genome"].get("default") == expected_default
         assert parameters["snpeff_database"]["type"] == "FILE"
         assert parameters["snpeff_database"]["required"] is True
-        assert data_dir["params"] == {"directory": "{{snpeff_data_dir}}"}
         assert database["params"] == {"file": "{{snpeff_database}}", "source": "local"}
-        assert snpeff["params"]["genome"] == genome
-        _assert_edge(
-            workflow,
-            "e14_snpeff_data_dir",
-            "snpeff_data_dir_001",
-            "directory",
-            "snpeff_001",
-            "data_dir",
-        )
+        assert snpeff["params"]["genome"] == "{{snpeff_genome}}"
+        assert not any(edge.get("to") == {"node": "snpeff_001", "input": "data_dir"} for edge in workflow["edges"])
         _assert_edge(
             workflow,
             "e14_snpeff_database",
@@ -472,26 +445,14 @@ def test_variant_templates_supply_exact_snpeff_database_dependencies() -> None:
             "database",
         )
 
-
-def test_variant_template_snpeff_parameters_preserve_exact_path_validation(tmp_path: Path) -> None:
-    registry = NodeRegistry.create_isolated()
-    snpeff_node = registry.get("snpeff")
-    assert snpeff_node is not None
-
-    for template_name in ("variant_calling_pipeline.json", "wgs_variant_pipeline.json"):
-        snpeff = _node_by_id(_load_template(template_name), "snpeff_001")
-        genome = snpeff["params"]["genome"]
-        data_dir = tmp_path / template_name.removesuffix(".json")
-        database = data_dir / genome / "snpEffectPredictor.bin"
-        inputs = {
-            "vcf": str(tmp_path / "variants.vcf.gz"),
-            "genome": genome,
-            "data_dir": str(data_dir),
-            "database": str(database),
-            "memory": snpeff["params"]["memory"],
-        }
-        assert snpeff_node.VALIDATE_INPUTS(inputs) is True
-        assert snpeff_node.VALIDATE_INPUTS({**inputs, "database": str(tmp_path / "other.bin")}) is not True
+    variant_parameters = {
+        parameter["name"]: parameter for parameter in _load_template("variant_calling_pipeline.json")["parameters"]
+    }
+    assert "default" not in variant_parameters["snpeff_genome"]
+    for parameter_name in ("snpeff_genome", "snpeff_database"):
+        description = variant_parameters[parameter_name]["description"]
+        assert "custom" in description
+        assert "exact Staphylococcus aureus wildtype.fna tutorial reference" in description
 
 
 def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -> None:
@@ -811,7 +772,13 @@ def test_deseq2_template_transposes_normalized_counts_for_sample_reporting() -> 
     assert transpose_node["params"]["new_header"] == "sample"
     assert transpose_node["params"]["output_type"] == "CSV"
     assert _has_edge(workflow, "deseq2_001", "normalized_counts_csv", "normalized_counts_transpose_001", "table")
-    assert _has_edge(workflow, "normalized_counts_transpose_001", "transposed_table", "render_normalized_counts_transpose_tab_2", "file")
+    assert _has_edge(
+        workflow,
+        "normalized_counts_transpose_001",
+        "transposed_table",
+        "render_normalized_counts_transpose_tab_2",
+        "file",
+    )
     assert workflow["outputs"]["normalized_counts_transposed"] == "normalized_counts_transpose_001"
 
 
@@ -945,7 +912,9 @@ def test_biopython_template_runs_ai_sequence_classification_on_coding_sequences(
     assert classifier["params"]["confidence_threshold"] == 0.0
     assert classifier["params"]["top_k"] == 3
     assert _has_edge(workflow, "coding_001", "reference", "sequence_classification_001", "input_fasta")
-    assert _has_edge(workflow, "sequence_classification_001", "classifications_csv", "render_sequence_classification_tab_1", "file")
+    assert _has_edge(
+        workflow, "sequence_classification_001", "classifications_csv", "render_sequence_classification_tab_1", "file"
+    )
     assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
     assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
 
