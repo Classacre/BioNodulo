@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +9,7 @@ from .adapter import (
     CAS_OFFINDER_COMMIT,
     CrisprCommandNode,
     path_value,
+    require_materialized_sequence_source,
     validate_int,
     validate_iupac_sequence,
 )
@@ -36,9 +36,12 @@ class CasOffinderNode(CrisprCommandNode):
     CITATION_TEXT = "Cas-OFFinder: a fast and versatile algorithm that searches for potential off-target sites."
     OUTPUT_FILENAMES = ("offtarget_sites.txt",)
     REQUIRED_PATH_INPUTS = ("genome_fasta",)
-    UPSTREAM_SOURCE = "README.md: usage, native input format, output columns; main.cpp: exit behavior"
+    UPSTREAM_SOURCE = (
+        "README.md: usage, native input format, output columns; "
+        "cas-offinder.cpp: device ranges and cl_ushort mismatch thresholds; main.cpp: exit behavior"
+    )
     INPUT_FILENAME = "cas_offinder_input.txt"
-    DEVICE_RE = re.compile(r"^[CGA](?:\d+(?:(?:,|:)\d+)*)?$")
+    MAX_MISMATCHES = 65_535
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -49,7 +52,7 @@ class CasOffinderNode(CrisprCommandNode):
                     "FASTA",
                     {"description": "FASTA/2bit file or directory passed as Cas-OFFinder input line 1"},
                 ),
-                "mismatches": ("INT", {"default": 3, "min": 0}),
+                "mismatches": ("INT", {"default": 3, "min": 0, "max": cls.MAX_MISMATCHES}),
             },
             "optional": {
                 "pam_sequence": ("STRING", {"default": "NNG", "description": "IUPAC PAM pattern"}),
@@ -72,12 +75,36 @@ class CasOffinderNode(CrisprCommandNode):
         validation = validate_iupac_sequence(inputs.get("pam_sequence", "NNG"), "pam_sequence")
         if validation is not True:
             return validation
-        validation = validate_int(inputs.get("mismatches", 3), "mismatches", minimum=0)
+        validation = validate_int(
+            inputs.get("mismatches", 3),
+            "mismatches",
+            minimum=0,
+            maximum=cls.MAX_MISMATCHES,
+        )
         if validation is not True:
             return validation
-        device = str(inputs.get("device", "C"))
-        if not cls.DEVICE_RE.fullmatch(device):
-            return "Input 'device' must be C, G, or A with optional device IDs/ranges"
+        return cls._validate_device(str(inputs.get("device", "C")))
+
+    @staticmethod
+    def _validate_device(device: str) -> bool | str:
+        message = (
+            "Input 'device' must be C, G, or A with optional comma-separated "
+            "device IDs or increasing start:end[:step] ranges"
+        )
+        if not device or device[0] not in "CGA":
+            return message
+        selections = device[1:]
+        if not selections:
+            return True
+        for selection in selections.split(","):
+            parts = selection.split(":")
+            if len(parts) not in (1, 2, 3) or any(not part.isdigit() for part in parts):
+                return message
+            values = [int(part) for part in parts]
+            if len(values) >= 2 and values[1] <= values[0]:
+                return "Input 'device' ranges must have an end greater than their start"
+            if len(values) == 3 and values[2] <= 0:
+                return "Input 'device' range steps must be greater than zero"
         return True
 
     @classmethod
@@ -96,6 +123,7 @@ class CasOffinderNode(CrisprCommandNode):
         validation = cls.VALIDATE_INPUTS(inputs)
         if validation is not True:
             raise ValueError(str(validation))
+        require_materialized_sequence_source(inputs.get("genome_fasta"), "genome_fasta")
         if len(outputs) != 1:
             raise ValueError("cas_offinder requires exactly one planned output")
         input_file = outputs[0].parent / cls.INPUT_FILENAME

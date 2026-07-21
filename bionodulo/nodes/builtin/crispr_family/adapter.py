@@ -19,6 +19,7 @@ GUIDE_DESIGN_BASELINE_COMMIT = "350d0f9c7de49f53741be365650f330cf5eeff24"
 GUIDE_DESIGN_SOURCE_BLOB = "820459a802dd92a9c3e16970b43c66c7566eb8c2"
 
 IUPAC_DNA = frozenset("ACGTRYSWKMBDHVN")
+CRISPRESSO_DNA = frozenset("ACGTN")
 
 
 def path_value(value: Any) -> str:
@@ -44,6 +45,49 @@ def path_list(value: Any) -> list[str]:
         return []
     result = [path_value(item) for item in values]
     return result if result and all(result) else []
+
+
+def mageck_read_paths(value: Any) -> list[str]:
+    """Expand MAGeCK sample arguments into their materialized file members."""
+
+    members: list[str] = []
+    for sample in path_list(value):
+        replicates = sample.split(",")
+        if any(not replicate.strip() for replicate in replicates):
+            return []
+        members.extend(replicates)
+    return members
+
+
+def require_materialized_file(value: Any, key: str, *, allow_empty: bool = False) -> Path:
+    """Require one worker-local regular file immediately before execution."""
+
+    path = Path(path_value(value))
+    try:
+        if not path.is_file():
+            raise ValueError(f"Input '{key}' is not a materialized file: {path}")
+        if not allow_empty and path.stat().st_size == 0:
+            raise ValueError(f"Input '{key}' is empty: {path}")
+    except OSError as exc:
+        raise ValueError(f"Input '{key}' cannot be inspected: {path}: {exc}") from exc
+    return path
+
+
+def require_materialized_sequence_source(value: Any, key: str) -> Path:
+    """Require Cas-OFFinder's worker-local sequence file or direct-file directory."""
+
+    path = Path(path_value(value))
+    try:
+        if path.is_file() and path.stat().st_size > 0:
+            return path
+        if path.is_dir() and any(child.is_file() and child.stat().st_size > 0 for child in path.iterdir()):
+            return path
+    except OSError as exc:
+        raise ValueError(f"Input '{key}' cannot be inspected: {path}: {exc}") from exc
+    raise ValueError(
+        f"Input '{key}' must be a materialized non-empty sequence file or a directory "
+        f"containing a non-empty direct file: {path}"
+    )
 
 
 def validate_int(

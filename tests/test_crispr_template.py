@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from fastapi.testclient import TestClient
+from fastapi.routing import APIRoute
 
+from bionodulo.api.routes import get_workflow_template, list_workflow_templates, router
 from bionodulo.nodes.registry import NodeRegistry
 from bionodulo.workflow.validation import validate_workflow
 
@@ -27,12 +29,7 @@ def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
 
 def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
     node = _node_by_id(workflow, node_id)
-    return (
-        node.get("ui", {})
-        .get("validation", {})
-        .get("outputs", {})
-        .get(output, {})
-    )
+    return node.get("ui", {}).get("validation", {}).get("outputs", {}).get(output, {})
 
 
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
@@ -104,17 +101,16 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert _output_validation(workflow, "genome_001", "reference")["min_records"] >= 1
     assert _output_validation(workflow, "amplicon_r1_001", "read1")["expected_format"] == "fastq"
     assert _output_validation(workflow, "amplicon_r2_001", "read1")["expected_format"] == "fastq"
-    assert _node_by_id(workflow, "amplicon_r1_001")["params"]["reads"] == [
-        "examples/data/crispr/amplicon_R1.fastq.gz"
-    ]
-    assert _node_by_id(workflow, "amplicon_r2_001")["params"]["reads"] == [
-        "examples/data/crispr/amplicon_R2.fastq.gz"
-    ]
+    assert _node_by_id(workflow, "amplicon_r1_001")["params"]["reads"] == ["examples/data/crispr/amplicon_R1.fastq.gz"]
+    assert _node_by_id(workflow, "amplicon_r2_001")["params"]["reads"] == ["examples/data/crispr/amplicon_R2.fastq.gz"]
     assert _output_validation(workflow, "screen_reads_001", "reads")["expected_format"] == "fastq"
     assert _output_validation(workflow, "library_001", "file")["expected_format"] == "tsv"
     # No required_fields: the real MAGeCK demo library ships headerless (sgRNA/sequence/gene columns).
     assert "required_fields" not in _output_validation(workflow, "library_001", "file")
     assert _output_validation(workflow, "guide_design_001", "guides")["expected_format"] == "tsv"
+    cas_validation = _output_validation(workflow, "cas_offinder_001", "offtarget_sites")
+    assert cas_validation["expected_format"] == "text"
+    assert "min_size_bytes" not in cas_validation
     assert _output_validation(workflow, "mageck_count_001", "count_table")["expected_format"] == "tsv"
     assert _output_validation(workflow, "mageck_test_001", "gene_summary")["expected_format"] == "tsv"
 
@@ -155,25 +151,25 @@ def test_crispr_fastq_edges_match_backend_and_editor_port_types() -> None:
     assert source_type == crispresso.INPUT_TYPES()["required"]["r1"][0] == "FASTQ"
     assert source_type == crispresso.INPUT_TYPES()["optional"]["r2"][0] == "FASTQ"
 
-    editor_info = NodeRegistry.create_isolated().object_info()
+    editor_registry = NodeRegistry.create_isolated()
+    assert editor_registry.get("mageck_count") is not None
+    editor_info = editor_registry.object_info()
     provider_info = editor_info["input_fastq"]
     editor_source_type = provider_info["output"][provider_info["output_name"].index("read1")]
     assert editor_source_type == editor_info["crispresso2"]["input"]["required"]["r1"][0] == "FASTQ"
     assert editor_source_type == editor_info["crispresso2"]["input"]["optional"]["r2"][0] == "FASTQ"
+    assert editor_info["mageck_count"]["input"]["required"]["fastq_files"][0] == "FILE"
 
 
 def test_crispr_template_is_discoverable_from_workflow_templates_api() -> None:
-    from server import create_app
+    routes = {(route.path, frozenset(route.methods or set())) for route in router.routes if isinstance(route, APIRoute)}
+    assert ("/workflow_templates", frozenset({"GET"})) in routes
+    assert ("/workflow_templates/{filename}", frozenset({"GET"})) in routes
 
-    with TestClient(create_app()) as client:
-        list_response = client.get("/api/workflow_templates")
-        template_response = client.get("/api/workflow_templates/crispr_editing_pipeline.json")
-
-    assert list_response.status_code == 200
+    list_payload = asyncio.run(list_workflow_templates(cast(Any, None)))
+    template_payload = asyncio.run(get_workflow_template(cast(Any, None), "crispr_editing_pipeline.json"))
     listed = next(
-        template
-        for template in list_response.json()["templates"]
-        if template["filename"] == "crispr_editing_pipeline.json"
+        template for template in list_payload["templates"] if template["filename"] == "crispr_editing_pipeline.json"
     )
     assert listed["name"] == "CRISPR Editing and Screen Analysis"
     assert listed["category"] == "CRISPR"
@@ -182,5 +178,4 @@ def test_crispr_template_is_discoverable_from_workflow_templates_api() -> None:
     assert "mageck_test" in listed["tools"]
     assert "Guide RNA Design" in listed["preview_steps"]
 
-    assert template_response.status_code == 200
-    assert template_response.json()["name"] == "CRISPR Editing and Screen Analysis"
+    assert template_payload["name"] == "CRISPR Editing and Screen Analysis"

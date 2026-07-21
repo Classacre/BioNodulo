@@ -6,10 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from .adapter import (
+    CRISPRESSO_DNA,
     CRISPRESSO2_COMMIT,
     CrisprCommandNode,
     crispresso_run_name,
     path_value,
+    require_materialized_file,
     validate_integer_csv,
     validate_iupac_sequence,
 )
@@ -22,9 +24,9 @@ class CRISPRESSO2Node(CrisprCommandNode):
     DISPLAY_NAME = "CRISPRESSO2"
     DESCRIPTION = "Analyze CRISPR editing outcomes from amplicon sequencing with CRISPResso2."
     SEARCH_ALIASES = ["BioNodulo builtin", "CRISPResso", "CRISPResso2", "amplicon", "indel", "editing analysis"]
-    RETURN_TYPES = ("HTML_REPORT", "DIRECTORY")
-    RETURN_NAMES = ("report", "results_dir")
-    REQUIRED_EXECUTABLES = ["CRISPResso"]
+    RETURN_TYPES = ("HTML_REPORT", "DIRECTORY", "JSON")
+    RETURN_NAMES = ("report", "results_dir", "run_info")
+    REQUIRED_EXECUTABLES = ["CRISPResso", "fastp"]
     REQUIRED_CONDA_PACKAGES = ["crispresso2"]
     CONDA_PACKAGE_CONSTRAINTS = {"crispresso2": "2.3.4"}
     VERSION = "2.3.4"
@@ -59,10 +61,16 @@ class CRISPRESSO2Node(CrisprCommandNode):
             "required": {
                 "r1": ("FASTQ", {"description": "Forward FASTQ"}),
                 "amplicon_seq": ("STRING", {"description": "Reference amplicon sequence(s)"}),
-                "name": ("STRING", {"default": "crispresso_run", "description": "CRISPResso analysis name"}),
             },
             "optional": {
                 "r2": ("FASTQ", {"description": "Reverse FASTQ"}),
+                "name": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Optional analysis name; defaults to the input FASTQ basename(s)",
+                    },
+                ),
                 "guide_seq": ("STRING", {"default": "", "description": "Comma-separated guide sequence(s)"}),
                 "quant_window_center": (
                     "STRING",
@@ -81,28 +89,58 @@ class CRISPRESSO2Node(CrisprCommandNode):
         node_dir = Path(output_dir) / cls.NODE_ID
         node_dir.mkdir(parents=True, exist_ok=True)
         run_dir = node_dir / f"CRISPResso_on_{crispresso_run_name(inputs)}"
-        return [Path(f"{run_dir}.html"), run_dir]
+        return [Path(f"{run_dir}.html"), run_dir, run_dir / "CRISPResso2_info.json"]
 
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = validate_iupac_sequence(inputs.get("amplicon_seq", ""), "amplicon_seq", comma_separated=True)
+        validation = validate_iupac_sequence(
+            inputs.get("amplicon_seq", ""),
+            "amplicon_seq",
+            alphabet=CRISPRESSO_DNA,
+            comma_separated=True,
+        )
         if validation is not True:
             return validation
         guide = inputs.get("guide_seq", "")
         if guide not in (None, ""):
-            validation = validate_iupac_sequence(guide, "guide_seq", comma_separated=True)
+            validation = validate_iupac_sequence(
+                guide,
+                "guide_seq",
+                alphabet=CRISPRESSO_DNA,
+                comma_separated=True,
+            )
             if validation is not True:
                 return validation
-        name = str(inputs.get("name", "") or "")
-        if not name:
-            return "Input 'name' must be non-empty"
         validation = validate_integer_csv(inputs.get("quant_window_center", "-3"), "quant_window_center")
         if validation is not True:
             return validation
-        return validate_integer_csv(inputs.get("quant_window_size", "1"), "quant_window_size", minimum=0)
+        validation = validate_integer_csv(
+            inputs.get("quant_window_size", "1"),
+            "quant_window_size",
+            minimum=0,
+        )
+        if validation is not True:
+            return validation
+        guide_count = len(str(guide).split(",")) if guide not in (None, "") else 0
+        for key, default in (("quant_window_center", "-3"), ("quant_window_size", "1")):
+            value_count = len(str(inputs.get(key, default)).split(","))
+            if value_count > 1 and value_count > guide_count:
+                return f"Input '{key}' provides more values than guide_seq provides guides"
+        return True
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+        require_materialized_file(inputs.get("r1"), "r1")
+        if path_value(inputs.get("r2")):
+            require_materialized_file(inputs.get("r2"), "r2")
+        if len(outputs) != len(cls.RETURN_TYPES):
+            raise ValueError("crispresso2 requires report, results directory, and run-info outputs")
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -115,9 +153,9 @@ class CRISPRESSO2Node(CrisprCommandNode):
             str(inputs.get("amplicon_seq", "")),
             "-o",
             str(inputs.get("output", inputs.get("output_dir", "."))),
-            "--name",
-            str(inputs.get("name", "crispresso_run")),
         )
+        if inputs.get("name") not in (None, ""):
+            command.extend(["--name", str(inputs["name"])])
         if path_value(inputs.get("r2")):
             command.extend(["-r2", path_value(inputs["r2"])])
         if inputs.get("guide_seq") not in (None, ""):

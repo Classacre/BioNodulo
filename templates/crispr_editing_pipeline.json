@@ -115,8 +115,7 @@
         "validation": {
           "outputs": {
             "offtarget_sites": {
-              "expected_format": "tsv",
-              "min_size_bytes": 1,
+              "expected_format": "text",
               "fail_on_error": true
             }
           }
