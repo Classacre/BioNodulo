@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .fm_index_bundle import find_index_bundle, path_value
-from .hisat2_adapter import HISAT2_SUFFIX_FAMILIES, HISAT2CommandNode
+from .hisat2_adapter import HISAT2_SUFFIX_FAMILIES, HISAT2CommandNode, hisat2_source_urls
 
 
 class HISAT2BuildNode(HISAT2CommandNode):
@@ -21,13 +21,15 @@ class HISAT2BuildNode(HISAT2CommandNode):
     REQUIRED_EXECUTABLES = ["hisat2-build"]
     UPSTREAM_WRAPPER = "hisat2-build"
     UPSTREAM_SOURCE = "hisat2_build.cpp"
+    SOURCE_PATHS = ("docs/_pages/manual.md", "hisat2-build", "hisat2_build.cpp")
+    SOURCE_URLS = hisat2_source_urls(*SOURCE_PATHS)
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "reference": ("FASTA", {"description": "Reference FASTA to index"}),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 1, "min": 1}),
             },
             "optional": {},
             "hidden": {"output": ("STRING", {})},
@@ -54,8 +56,8 @@ class HISAT2BuildNode(HISAT2CommandNode):
         threads = inputs.get("threads", 1)
         if isinstance(threads, bool) or not isinstance(threads, int):
             return "threads must be an integer"
-        if not 1 <= threads <= 64:
-            return "threads must be between 1 and 64"
+        if threads < 1:
+            return "threads must be a positive integer"
         return True
 
     @classmethod

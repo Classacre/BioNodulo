@@ -14,7 +14,7 @@ from .fm_index_bundle import (
     stage_bundle,
     stage_file,
 )
-from .hisat2_adapter import HISAT2_SUFFIX_FAMILIES, HISAT2CommandNode
+from .hisat2_adapter import HISAT2_SUFFIX_FAMILIES, HISAT2CommandNode, hisat2_source_urls
 
 
 class HISAT2AlignNode(HISAT2CommandNode):
@@ -30,6 +30,8 @@ class HISAT2AlignNode(HISAT2CommandNode):
     UPSTREAM_WRAPPER = "hisat2"
     UPSTREAM_SOURCE = "hisat2.cpp"
     OUTPUT_FILENAME = "alignment.sam"
+    SOURCE_PATHS = ("docs/_pages/manual.md", "hisat2", "hisat2.cpp")
+    SOURCE_URLS = hisat2_source_urls(*SOURCE_PATHS)
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -43,7 +45,7 @@ class HISAT2AlignNode(HISAT2CommandNode):
                     "INDEX_DIR",
                     {"description": "Directory containing one complete HISAT2 index prefix"},
                 ),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 1, "min": 1}),
             },
             "optional": {
                 "rg_id": (
@@ -94,8 +96,8 @@ class HISAT2AlignNode(HISAT2CommandNode):
         threads = inputs.get("threads", 1)
         if isinstance(threads, bool) or not isinstance(threads, int):
             return "threads must be an integer"
-        if not 1 <= threads <= 64:
-            return "threads must be between 1 and 64"
+        if threads < 1:
+            return "threads must be a positive integer"
 
         rg_id = inputs.get("rg_id", "")
         rg_sample = inputs.get("rg_sample", "")

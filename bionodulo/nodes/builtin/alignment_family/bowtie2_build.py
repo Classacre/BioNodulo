@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from .bowtie2_adapter import BOWTIE2_SUFFIX_FAMILIES, Bowtie2CommandNode
+from .bowtie2_adapter import BOWTIE2_SUFFIX_FAMILIES, Bowtie2CommandNode, bowtie2_source_urls
 from .fm_index_bundle import find_index_bundle, path_value
 
 
@@ -21,13 +21,15 @@ class Bowtie2BuildNode(Bowtie2CommandNode):
     REQUIRED_EXECUTABLES = ["bowtie2-build"]
     UPSTREAM_WRAPPER = "bowtie2-build"
     UPSTREAM_SOURCE = "bt2_build.cpp"
+    SOURCE_PATHS = ("MANUAL.markdown", "bowtie2-build", "bt2_build.cpp")
+    SOURCE_URLS = bowtie2_source_urls(*SOURCE_PATHS)
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "reference": ("FASTA", {"description": "Reference FASTA to index"}),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 1, "min": 1}),
             },
             "optional": {},
             "hidden": {"output": ("STRING", {})},
@@ -54,8 +56,8 @@ class Bowtie2BuildNode(Bowtie2CommandNode):
         threads = inputs.get("threads", 1)
         if isinstance(threads, bool) or not isinstance(threads, int):
             return "threads must be an integer"
-        if not 1 <= threads <= 64:
-            return "threads must be between 1 and 64"
+        if threads < 1:
+            return "threads must be a positive integer"
         return True
 
     @classmethod

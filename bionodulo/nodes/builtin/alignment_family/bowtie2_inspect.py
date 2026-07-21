@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .bowtie2_adapter import BOWTIE2_SUFFIX_FAMILIES, Bowtie2CommandNode
+from .bowtie2_adapter import BOWTIE2_SUFFIX_FAMILIES, Bowtie2CommandNode, bowtie2_source_urls
 from .fm_index_bundle import find_index_bundle, path_value, planned_or_complete_prefix
 
 
@@ -22,6 +22,8 @@ class Bowtie2IndexNode(Bowtie2CommandNode):
     STDOUT_OUTPUT_INDEX = 0
     UPSTREAM_WRAPPER = "bowtie2-inspect"
     UPSTREAM_SOURCE = "bt2_inspect.cpp"
+    SOURCE_PATHS = ("MANUAL.markdown", "bowtie2-inspect", "bt2_inspect.cpp")
+    SOURCE_URLS = bowtie2_source_urls(*SOURCE_PATHS)
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

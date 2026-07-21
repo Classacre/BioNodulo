@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .adapter import stage_file
-from .bowtie2_adapter import BOWTIE2_SUFFIX_FAMILIES, Bowtie2CommandNode
+from .bowtie2_adapter import BOWTIE2_SUFFIX_FAMILIES, Bowtie2CommandNode, bowtie2_source_urls
 from .fm_index_bundle import find_index_bundle, planned_or_complete_prefix
 from .legacy_adapter import mapped_result, path_list, path_value, validate_int
 
@@ -26,13 +26,16 @@ class Bowtie2Node(Bowtie2CommandNode):
     PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     UPSTREAM_WRAPPER = "bowtie2"
     UPSTREAM_SOURCE = "bt2_search.cpp"
+    SOURCE_PATHS = ("MANUAL.markdown", "bowtie2", "bt2_search.cpp", "bowtie2-build", "bt2_build.cpp")
+    SOURCE_URLS = bowtie2_source_urls(*SOURCE_PATHS)
+    SECONDARY_TOOL_SOURCE = "samtools 1.23.1 samtools_family contract"
     SHELL = True
     REFERENCE_SOURCES = ("indexed", "history")
     LIBRARY_TYPES = ("single", "paired_collection")
     OUTPUT_FORMATS = ("bam", "sam", "input_order_bam")
     LEGACY_OUTPUT_FORMATS = {"qname_input_sorted_bam": "input_order_bam"}
     READ_FORMATS = ("fastq", "fasta")
-    COMPRESSIONS = ("", "gz", "bz2")
+    COMPRESSIONS = ("", "gz", "bz2", "lz4")
     PRESETS = (
         "no_presets",
         "--very-fast",
@@ -49,15 +52,25 @@ class Bowtie2Node(Bowtie2CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "ref_file": ("FASTA,INDEX_DIR", {"description": "History FASTA or complete Bowtie2 index directory"}),
+                "ref_file": (
+                    ("FASTA", "INDEX_DIR"),
+                    {"description": "History FASTA or complete Bowtie2 index directory"},
+                ),
                 "input_1": ("FILE_LIST", {"description": "Single read or ordered paired collection"}),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 1, "min": 1}),
             },
             "optional": {
                 "library_type": ("STRING", {"default": "single", "options": list(cls.LIBRARY_TYPES)}),
                 "reference_source_selector": ("STRING", {"default": "indexed", "options": list(cls.REFERENCE_SOURCES)}),
                 "reads_format": ("STRING", {"default": "fastq", "options": list(cls.READ_FORMATS)}),
-                "reads_compression": ("STRING", {"default": "", "options": list(cls.COMPRESSIONS)}),
+                "reads_compression": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": list(cls.COMPRESSIONS),
+                        "description": "Compression for optional aligned/unaligned read artifacts",
+                    },
+                ),
                 "preset": ("STRING", {"default": "no_presets", "options": list(cls.PRESETS)}),
                 "sam_output_format": ("STRING", {"default": "bam", "options": list(cls.OUTPUT_FORMATS)}),
                 "unaligned_file": ("BOOLEAN", {"default": False}),
@@ -99,7 +112,10 @@ class Bowtie2Node(Bowtie2CommandNode):
             outputs.append(node_out / "mapping_stats.txt")
         extension = cls._artifact_extension(inputs)
         paired = str(inputs.get("library_type", "single") or "single") == "paired_collection"
-        for enabled, stem in ((inputs.get("unaligned_file", False), "unaligned_reads"), (inputs.get("aligned_file", False), "aligned_reads")):
+        for enabled, stem in (
+            (inputs.get("unaligned_file", False), "unaligned_reads"),
+            (inputs.get("aligned_file", False), "aligned_reads"),
+        ):
             if not enabled:
                 continue
             if paired:
@@ -153,7 +169,7 @@ class Bowtie2Node(Bowtie2CommandNode):
             return f"sam_output_format must be one of: {', '.join(cls.OUTPUT_FORMATS)}"
         if str(inputs.get("rg_sample", "") or "").strip() and not str(inputs.get("rg_id", "") or "").strip():
             return "rg_id is required when rg_sample is set"
-        return validate_int(inputs.get("threads", 1), "threads", minimum=1, maximum=64)
+        return validate_int(inputs.get("threads", 1), "threads", minimum=1)
 
     @classmethod
     def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
@@ -171,10 +187,21 @@ class Bowtie2Node(Bowtie2CommandNode):
         source = str(inputs.get("reference_source_selector", "indexed") or "indexed")
         command = ["set", "-o", "pipefail", "&&"]
         if source == "indexed":
-            prefix = planned_or_complete_prefix(str(inputs.get("ref_file", "")), label="Bowtie2", suffix_families=BOWTIE2_SUFFIX_FAMILIES)
+            prefix = planned_or_complete_prefix(
+                str(inputs.get("ref_file", "")), label="Bowtie2", suffix_families=BOWTIE2_SUFFIX_FAMILIES
+            )
         else:
             prefix = Path(str(inputs.get("prepared_index_prefix", node_out / "reference" / "index")))
-            command.extend(["bowtie2-build", "--threads", str(inputs.get("threads", 1)), str(inputs.get("ref_file", "")), str(prefix), "&&"])
+            command.extend(
+                [
+                    "bowtie2-build",
+                    "--threads",
+                    str(inputs.get("threads", 1)),
+                    str(inputs.get("ref_file", "")),
+                    str(prefix),
+                    "&&",
+                ]
+            )
 
         bowtie = ["bowtie2", "-p", str(inputs.get("threads", 1)), "-x", str(prefix)]
         if inputs.get("reads_format", "fastq") == "fasta":
@@ -193,8 +220,18 @@ class Bowtie2Node(Bowtie2CommandNode):
         extension = cls._artifact_extension(inputs)
         compression = str(inputs.get("reads_compression", "") or "")
         for enabled, stem, single_flags, paired_flags in (
-            (inputs.get("unaligned_file", False), "unaligned_reads", {"": "--un", "gz": "--un-gz", "bz2": "--un-bz2"}, {"": "--un-conc", "gz": "--un-conc-gz", "bz2": "--un-conc-bz2"}),
-            (inputs.get("aligned_file", False), "aligned_reads", {"": "--al", "gz": "--al-gz", "bz2": "--al-bz2"}, {"": "--al-conc", "gz": "--al-conc-gz", "bz2": "--al-conc-bz2"}),
+            (
+                inputs.get("unaligned_file", False),
+                "unaligned_reads",
+                {"": "--un", "gz": "--un-gz", "bz2": "--un-bz2", "lz4": "--un-lz4"},
+                {"": "--un-conc", "gz": "--un-conc-gz", "bz2": "--un-conc-bz2", "lz4": "--un-conc-lz4"},
+            ),
+            (
+                inputs.get("aligned_file", False),
+                "aligned_reads",
+                {"": "--al", "gz": "--al-gz", "bz2": "--al-bz2", "lz4": "--al-lz4"},
+                {"": "--al-conc", "gz": "--al-conc-gz", "bz2": "--al-conc-bz2", "lz4": "--al-conc-lz4"},
+            ),
         ):
             if not enabled:
                 continue
@@ -214,7 +251,26 @@ class Bowtie2Node(Bowtie2CommandNode):
             bowtie.extend(["|", "samtools", "view", "-b", "-o", str(node_out / "alignments.bam"), "-"])
         else:
             output_bam = node_out / "alignments.bam"
-            bowtie.extend(["|", "samtools", "sort", "-@", str(inputs.get("threads", 1)), "-O", "bam", "-o", str(output_bam), "-", "&&", "samtools", "index", "-o", str(node_out / "alignments.bam.bai"), str(output_bam)])
+            bowtie.extend(
+                [
+                    "|",
+                    "samtools",
+                    "sort",
+                    "-@",
+                    str(inputs.get("threads", 1)),
+                    "-O",
+                    "bam",
+                    "-o",
+                    str(output_bam),
+                    "-",
+                    "&&",
+                    "samtools",
+                    "index",
+                    "-o",
+                    str(node_out / "alignments.bam.bai"),
+                    str(output_bam),
+                ]
+            )
         command.extend(bowtie)
         return command
 

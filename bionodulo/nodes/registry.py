@@ -2,6 +2,7 @@
 
 Supports built-in nodes and custom nodes from external directories.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -123,9 +124,7 @@ class NodeRegistry:
         """
         node_id = node_class.NODE_ID
         if not node_id:
-            raise ValueError(
-                f"Node class {node_class.__name__} missing NODE_ID"
-            )
+            raise ValueError(f"Node class {node_class.__name__} missing NODE_ID")
         validate_metadata_contract = getattr(node_class, "validate_metadata_contract", None)
         if callable(validate_metadata_contract):
             validate_metadata_contract()
@@ -133,11 +132,7 @@ class NodeRegistry:
             logger.warning("Overwriting registered node: %s", node_id)
         previous_node = self._nodes.get(node_id)
         previous_source = self._custom_node_sources.get(node_id)
-        if (
-            custom_node_source is not None
-            and previous_node is not None
-            and previous_source != custom_node_source
-        ):
+        if custom_node_source is not None and previous_node is not None and previous_source != custom_node_source:
             previous_package = self._custom_node_packages.get(node_id)
             self._custom_node_shadows.setdefault(node_id, []).append(
                 (
@@ -274,6 +269,7 @@ class NodeRegistry:
             Number of node classes registered.
         """
         import bionodulo.nodes.builtin as builtin_pkg
+
         pkg_path = Path(builtin_pkg.__file__).parent
         count = 0
 
@@ -323,17 +319,13 @@ class NodeRegistry:
 
             try:
                 if entry.is_file() and entry.suffix == ".py":
-                    module = self._load_module_from_path(
-                        entry.stem, entry
-                    )
+                    module = self._load_module_from_path(entry.stem, entry)
                     if module:
                         count += self.register_from_module(module, custom_node_source=custom_root)
                 elif entry.is_dir() and (entry / "bionodulo.toml").exists():
                     count += self._load_manifest_package(entry, custom_node_source=custom_root)
                 elif entry.is_dir() and (entry / "__init__.py").exists():
-                    module = self._load_module_from_path(
-                        entry.name, entry / "__init__.py"
-                    )
+                    module = self._load_module_from_path(entry.name, entry / "__init__.py")
                     if module:
                         count += self.register_from_module(module, custom_node_source=custom_root)
             except Exception as exc:
@@ -347,7 +339,8 @@ class NodeRegistry:
                 logger.warning(
                     "Custom node '%s' (%s) is missing GIT_URL. "
                     "All custom nodes should declare a git repository for dependency resolution.",
-                    node_id, node_class.__name__
+                    node_id,
+                    node_class.__name__,
                 )
 
         logger.info("Loaded %d nodes from custom_nodes", count)
@@ -533,19 +526,37 @@ class NodeRegistry:
 # their preview inline (a collapsible body on the node) instead of requiring a
 # separate image_preview/html_preview sink. Custom nodes can opt in with a
 # class attribute ``INLINE_PREVIEW = True``.
-INLINE_PREVIEW_NODE_IDS: frozenset[str] = frozenset({
-    # Generic charts (visualization.py)
-    "bar_chart", "line_chart", "scatter_plot", "volcano_plot", "ma_plot",
-    "heatmap", "manhattan_plot", "coverage_plot", "vcf_stats_chart",
-    "forest_plot", "circos_plot", "phylo_tree_viewer",
-    # R / ggplot2
-    "r_plot", "r_pheatmap",
-    # Domain-standard tools that emit a single figure or HTML report.
-    # (Multi-figure producers like ``scanpy_umap`` keep explicit preview nodes,
-    # one per output, since an inline body can only surface one figure.)
-    "quast", "krona", "nanoplot", "multiqc", "fastqc",
-    "deeptools_plot_heatmap", "deeptools_plot_profile", "cnvkit_plot",
-})
+INLINE_PREVIEW_NODE_IDS: frozenset[str] = frozenset(
+    {
+        # Generic charts (visualization.py)
+        "bar_chart",
+        "line_chart",
+        "scatter_plot",
+        "volcano_plot",
+        "ma_plot",
+        "heatmap",
+        "manhattan_plot",
+        "coverage_plot",
+        "vcf_stats_chart",
+        "forest_plot",
+        "circos_plot",
+        "phylo_tree_viewer",
+        # R / ggplot2
+        "r_plot",
+        "r_pheatmap",
+        # Domain-standard tools that emit a single figure or HTML report.
+        # (Multi-figure producers like ``scanpy_umap`` keep explicit preview nodes,
+        # one per output, since an inline body can only surface one figure.)
+        "quast",
+        "krona",
+        "nanoplot",
+        "multiqc",
+        "fastqc",
+        "deeptools_plot_heatmap",
+        "deeptools_plot_profile",
+        "cnvkit_plot",
+    }
+)
 
 
 def _is_inline_preview(node_class: Type[BaseNode]) -> bool:
@@ -649,6 +660,7 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "BOOLEAN",
         "FILE",
         "DIRECTORY",
+        "INDEX_DIR",
         "FASTQ",
         "FASTQ_LIST",
         "FASTA",

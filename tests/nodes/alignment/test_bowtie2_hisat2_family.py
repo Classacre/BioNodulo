@@ -12,6 +12,7 @@ from bionodulo.nodes.builtin.alignment_family.bowtie2_adapter import (
     BOWTIE2_SMALL_SUFFIXES,
     BOWTIE2_SUFFIX_FAMILIES,
 )
+from bionodulo.nodes.builtin.alignment_family.bowtie2 import Bowtie2Node
 from bionodulo.nodes.builtin.alignment_family.bowtie2_align import Bowtie2AlignNode
 from bionodulo.nodes.builtin.alignment_family.bowtie2_build import Bowtie2BuildNode
 from bionodulo.nodes.builtin.alignment_family.bowtie2_inspect import Bowtie2IndexNode
@@ -26,6 +27,7 @@ from bionodulo.nodes.builtin.alignment_family.hisat2_adapter import (
 )
 from bionodulo.nodes.builtin.alignment_family.hisat2_align import HISAT2AlignNode
 from bionodulo.nodes.builtin.alignment_family.hisat2_build import HISAT2BuildNode
+from bionodulo.nodes.registry import _to_frontend_input_spec
 from scripts.gen_node_index import build_index
 
 
@@ -124,6 +126,9 @@ def test_operations_are_source_pinned_in_focused_modules(
     assert node.UPSTREAM_WRAPPER == wrapper
     assert node.UPSTREAM_SOURCE == source
     assert node.SHELL is False
+    assert node.PACKAGE_CONSTRAINTS == (f"{node.REQUIRED_CONDA_PACKAGES[0]}=={version}",)
+    assert node.SOURCE_REF == f"tag v{version} at {commit}"
+    assert node.AUDIT_STATUS == "contract-checked-no-external-execution"
 
 
 def test_discovery_and_legacy_imports_resolve_to_focused_classes() -> None:
@@ -157,7 +162,7 @@ def test_build_contract_uses_upstream_thread_default_and_planned_prefix(
     reference = _read(tmp_path / "reference.fa")
     output = tmp_path / "run"
 
-    assert node.INPUT_TYPES()["required"]["threads"][1] == {"default": 1, "min": 1, "max": 64}
+    assert node.INPUT_TYPES()["required"]["threads"][1] == {"default": 1, "min": 1}
     assert node.PLAN_OUTPUTS({}, output) == [output / node.NODE_ID / "index"]
     assert node.render_command({"reference": reference, "threads": 1, "output": output / node.NODE_ID}) == [
         *expected_prefix,
@@ -292,7 +297,7 @@ def test_align_contract_uses_upstream_defaults_and_dry_run_prefix(
     assert "reads" in inputs["required"]
     assert "r1" not in inputs["optional"]
     assert "r2" not in inputs["optional"]
-    assert inputs["required"]["threads"][1] == {"default": 1, "min": 1, "max": 64}
+    assert inputs["required"]["threads"][1] == {"default": 1, "min": 1}
     assert inputs["optional"]["rg_id"][1]["default"] == ""
     assert inputs["optional"]["rg_sample"][1]["default"] == ""
     assert planned_or_complete_prefix(planned, label=label, suffix_families=families) == planned / "index"
@@ -469,7 +474,7 @@ def test_align_validation_rejects_invalid_layout_threads_and_read_groups(
     assert "one single-end FASTQ" in str(node.VALIDATE_INPUTS({**base, "reads": []}))
     assert "one single-end FASTQ" in str(node.VALIDATE_INPUTS({**base, "reads": [read, read, read]}))
     assert node.VALIDATE_INPUTS({**base, "threads": True}) == "threads must be an integer"
-    assert node.VALIDATE_INPUTS({**base, "threads": 0}) == "threads must be between 1 and 64"
+    assert node.VALIDATE_INPUTS({**base, "threads": 0}) == "threads must be a positive integer"
     assert "requires rg_id" in str(node.VALIDATE_INPUTS({**base, "rg_sample": "sample"}))
     assert "tabs or newlines" in str(node.VALIDATE_INPUTS({**base, "rg_id": "bad\tid"}))
 
@@ -541,3 +546,32 @@ async def test_hisat2_fake_execution_stages_space_safe_inputs(tmp_path: Path) ->
     assert context.command is not None
     assert context.staged_reads_match is True
     assert context.staged_index_matches is True
+
+
+def test_index_directory_socket_type_is_preserved_for_frontend_metadata() -> None:
+    spec = _to_frontend_input_spec(Bowtie2AlignNode.INPUT_TYPES()["required"]["index"])
+    assert spec[0] == "INDEX_DIR"
+
+
+def test_legacy_bowtie2_preserves_reference_union_and_lz4_artifact_flags(tmp_path: Path) -> None:
+    index_dir = _bundle(tmp_path / "index", BOWTIE2_SMALL_SUFFIXES).parent
+    read1 = _read(tmp_path / "r1.fastq")
+    read2 = _read(tmp_path / "r2.fastq")
+    inputs = {
+        "ref_file": index_dir,
+        "input_1": [read1, read2],
+        "library_type": "paired_collection",
+        "threads": 2,
+        "reads_compression": "lz4",
+        "unaligned_file": True,
+        "aligned_file": True,
+        "sam_output_format": "sam",
+        "output": tmp_path / "run",
+    }
+
+    assert Bowtie2Node.INPUT_TYPES()["required"]["ref_file"][0] == ("FASTA", "INDEX_DIR")
+    assert Bowtie2Node.VALIDATE_INPUTS(inputs) is True
+    command = Bowtie2Node.render_command(inputs)
+    assert "--un-conc-lz4" in command
+    assert "--al-conc-lz4" in command
+    assert any("unaligned_reads.%" in value and value.endswith(".fastq.lz4") for value in command)
