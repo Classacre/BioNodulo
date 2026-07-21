@@ -23,10 +23,7 @@ class GatkHaplotypeCallerNode(GATKCommandNode):
     RETURN_NAMES = ("vcf", "vcf_index")
     OUTPUT_FILENAMES = ("calls.vcf.gz", "calls.vcf.gz.tbi")
     DOCUMENTATION_URL = "https://gatk.broadinstitute.org/hc/en-us/articles/360037225632-HaplotypeCaller"
-    UPSTREAM_SOURCE = (
-        "src/main/java/org/broadinstitute/hellbender/tools/walkers/"
-        "haplotypecaller/HaplotypeCaller.java"
-    )
+    UPSTREAM_SOURCE = "src/main/java/org/broadinstitute/hellbender/tools/walkers/haplotypecaller/HaplotypeCaller.java"
     UPSTREAM_ARGUMENT_SOURCE = (
         "src/main/java/org/broadinstitute/hellbender/tools/walkers/"
         "haplotypecaller/AssemblyBasedCallerArgumentCollection.java"
@@ -53,7 +50,7 @@ class GatkHaplotypeCallerNode(GATKCommandNode):
                     "SEQUENCE_DICTIONARY",
                     {"description": "Exact extension-replaced <reference>.dict sidecar"},
                 ),
-                "threads": ("INT", {"default": 4, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 4, "min": 1}),
             },
             "optional": {
                 "emit_ref_confidence": (
@@ -110,7 +107,7 @@ class GatkHaplotypeCallerNode(GATKCommandNode):
         )
         if validation is not True:
             return validation
-        validation = cls.validate_int(inputs.get("threads", 4), key="threads", minimum=1, maximum=64)
+        validation = cls.validate_int(inputs.get("threads", 4), key="threads", minimum=1)
         if validation is not True:
             return validation
         validation = cls.validate_choice(

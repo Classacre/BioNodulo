@@ -105,6 +105,11 @@ def test_freebayes_optional_argv_is_exact(tmp_path: Path) -> None:
     ]
 
 
+def test_source_callers_do_not_apply_local_thread_or_ploidy_caps() -> None:
+    assert FreeBayesNode.VALIDATE_INPUTS(_indexed_inputs(ploidy=64)) is True
+    assert MantaNode.VALIDATE_INPUTS(_indexed_inputs(threads=128)) is True
+
+
 def test_delly_native_bcf_and_csi_contract_is_exact(tmp_path: Path) -> None:
     output = tmp_path / "delly"
     inputs = _indexed_inputs(mode="call", output=output)
@@ -334,6 +339,17 @@ def test_manta_normal_index_and_rna_mode_fail_closed() -> None:
         )
         == "rna mode requires exactly one normal sample and no tumor BAM"
     )
+
+
+def test_manta_accepts_the_short_bai_sibling_spelling_from_configure_util() -> None:
+    inputs = _indexed_inputs(
+        bam_index="/data/sample.bai",
+        normal_bam="/data/normal.bam",
+        normal_bam_index="/data/normal.bai",
+        threads=4,
+    )
+
+    assert MantaNode.VALIDATE_INPUTS(inputs) is True
 
 
 @pytest.mark.parametrize(

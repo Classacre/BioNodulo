@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,42 @@ from .adapter import (
     run_direct_argv,
     validate_integer,
 )
-from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
+
+
+def _validate_manta_bai(
+    inputs: dict[str, Any],
+    *,
+    bam_key: str,
+    index_key: str,
+) -> bool | str:
+    """Accept either BAI sibling spelling discovered by Manta 1.6.0."""
+    try:
+        bam = Path(os.path.abspath(os.path.normpath(os.fsdecode(os.fspath(inputs.get(bam_key))))))
+    except TypeError:
+        return f"Input '{bam_key}' must be a non-empty path-like value"
+
+    candidates = {Path(f"{bam}.bai")}
+    if bam.suffix.lower() == ".bam":
+        candidates.add(bam.with_suffix(".bai"))
+    rendered = " or ".join(
+        f"'{path}'" for path in sorted(candidates, key=lambda path: (path != Path(f"{bam}.bai"), str(path)))
+    )
+    index_value = inputs.get(index_key)
+    if index_value in (None, ""):
+        return (
+            f"Input '{index_key}' must be an exact colocated index (BAI) "
+            f"discovered by Manta for input '{bam_key}'; expected {rendered}"
+        )
+    try:
+        index = Path(os.path.abspath(os.path.normpath(os.fsdecode(os.fspath(index_value)))))
+    except TypeError:
+        return f"Input '{index_key}' must be a non-empty path-like value"
+    if index not in candidates:
+        return (
+            f"Input '{index_key}' must be an exact colocated index (BAI) "
+            f"discovered by Manta for input '{bam_key}'; expected {rendered}"
+        )
+    return True
 
 
 class MantaNode(IndexedBamReferenceNode):
@@ -50,7 +86,9 @@ class MantaNode(IndexedBamReferenceNode):
     AUDIT_STATUS = "contract-checked-no-external-execution"
     CITATION_DOIS = ["10.1093/bioinformatics/btv710"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btv710"]
-    CITATION_TEXT = "Manta: rapid detection of structural variants and indels for germline and cancer sequencing applications."
+    CITATION_TEXT = (
+        "Manta: rapid detection of structural variants and indels for germline and cancer sequencing applications."
+    )
     UPSTREAM_SOURCE = "src/python/bin/configManta.py"
     UPSTREAM_OPTIONS_SOURCE = "src/python/lib/mantaOptions.py"
     UPSTREAM_INDEX_SOURCE = "src/python/lib/configureUtil.py"
@@ -58,6 +96,10 @@ class MantaNode(IndexedBamReferenceNode):
     UPSTREAM_REFERENCE_SOURCE = UPSTREAM_OPTIONS_SOURCE
     UPSTREAM_BAM_INDEX_SOURCE = UPSTREAM_INDEX_SOURCE
     SHELL = True
+
+    @classmethod
+    def validate_primary_bam_index(cls, inputs: dict[str, Any]) -> bool | str:
+        return _validate_manta_bai(inputs, bam_key="bam", index_key="bam_index")
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -69,7 +111,7 @@ class MantaNode(IndexedBamReferenceNode):
                 ),
                 "bam_index": (
                     "BAI",
-                    {"description": "Exact <bam>.bai index for the primary BAM"},
+                    {"description": ("Explicit <bam>.bai or extension-replaced <stem>.bai index for the primary BAM")},
                 ),
                 "reference": (
                     "FASTA",
@@ -79,7 +121,7 @@ class MantaNode(IndexedBamReferenceNode):
                     "FASTA_INDEX",
                     {"description": "Exact <reference>.fai index"},
                 ),
-                "threads": ("INT", {"default": 4, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 4, "min": 1}),
             },
             "optional": {
                 "normal_bam": (
@@ -88,7 +130,10 @@ class MantaNode(IndexedBamReferenceNode):
                 ),
                 "normal_bam_index": (
                     "BAI",
-                    {"description": "Exact <normal_bam>.bai index", "advanced": True},
+                    {
+                        "description": ("Explicit <normal_bam>.bai or extension-replaced <stem>.bai index"),
+                        "advanced": True,
+                    },
                 ),
                 "exome": (
                     "BOOLEAN",
@@ -186,7 +231,7 @@ class MantaNode(IndexedBamReferenceNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = validate_integer(inputs, "threads", 4, minimum=1, maximum=64)
+        validation = validate_integer(inputs, "threads", 4, minimum=1)
         if validation is not True:
             return validation
 
@@ -195,7 +240,7 @@ class MantaNode(IndexedBamReferenceNode):
         if option_value(inputs, "rna", False) and normal_bam:
             return "rna mode requires exactly one normal sample and no tumor BAM"
         if normal_bam:
-            return validate_colocated_bam_index(
+            return _validate_manta_bai(
                 inputs,
                 bam_key="normal_bam",
                 index_key="normal_bam_index",
@@ -239,7 +284,5 @@ class MantaNode(IndexedBamReferenceNode):
         missing_outputs = [path for path in outputs if not path.exists()]
         if missing_outputs:
             missing = ", ".join(str(path) for path in missing_outputs)
-            raise RuntimeError(
-                f"Manta workflow completed but did not create expected output(s): {missing}"
-            )
+            raise RuntimeError(f"Manta workflow completed but did not create expected output(s): {missing}")
         return tuple(str(path) for path in outputs)

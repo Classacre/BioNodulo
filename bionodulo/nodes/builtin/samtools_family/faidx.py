@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from .adapter import SamtoolsCommandNode
+from .adapter import SamtoolsCommandNode, _additional_threads
 
 
 _LINK_FALLBACK_ERRNOS = {errno.EXDEV, errno.EPERM, errno.ENOSYS}
@@ -56,7 +56,14 @@ class SamtoolsFaidxNode(SamtoolsCommandNode):
                     "FASTA",
                     {"description": "Reference FASTA to stage and index"},
                 ),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "description": "Total threads (one main plus compression workers)",
+                    },
+                ),
             },
             "optional": {},
             "hidden": {"output": ("STRING", {})},
@@ -70,7 +77,7 @@ class SamtoolsFaidxNode(SamtoolsCommandNode):
             "samtools",
             "faidx",
             "-@",
-            str(inputs.get("threads", 1)),
+            str(_additional_threads(inputs)),
             "--fai-idx",
             str(output / cls.OUTPUT_FILENAMES[1]),
             reference,
@@ -109,9 +116,7 @@ class SamtoolsFaidxNode(SamtoolsCommandNode):
         staged_reference.parent.mkdir(parents=True, exist_ok=True)
 
         source_lexical = os.path.abspath(os.path.normpath(os.fspath(source)))
-        staged_lexical = os.path.abspath(
-            os.path.normpath(os.fspath(staged_reference))
-        )
+        staged_lexical = os.path.abspath(os.path.normpath(os.fspath(staged_reference)))
         if source_lexical == staged_lexical:
             inputs["reference"] = str(staged_reference)
             return

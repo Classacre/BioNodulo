@@ -56,7 +56,7 @@ class FreeBayesNode(IndexedBamReferenceNode):
                     "BOOLEAN",
                     {"default": False, "description": "Enable pooled-continuous calling"},
                 ),
-                "ploidy": ("INT", {"default": 2, "min": 1, "max": 8}),
+                "ploidy": ("INT", {"default": 2, "min": 1}),
                 "min_mapping_quality": (
                     "INT",
                     {"default": 1, "min": 0, "advanced": True},
@@ -107,7 +107,7 @@ class FreeBayesNode(IndexedBamReferenceNode):
         if validation is not True:
             return validation
         for key, default, minimum, maximum in (
-            ("ploidy", 2, 1, 8),
+            ("ploidy", 2, 1, None),
             ("min_mapping_quality", 1, 0, None),
             ("min_base_quality", 0, 0, None),
             ("haplotype_length", 3, 0, None),

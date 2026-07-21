@@ -57,7 +57,7 @@ def test_faidx_plans_and_renders_colocated_reference_sidecars(tmp_path: Path) ->
         "samtools",
         "faidx",
         "-@",
-        "1",
+        "0",
         "--fai-idx",
         str(outputs[1]),
         str(outputs[0]),
@@ -115,7 +115,7 @@ def test_faidx_preparation_copies_only_for_supported_link_errors(
     [
         {"reference": "", "threads": 1},
         {"reference": 42, "threads": 1},
-        {"reference": "reference.fa", "threads": 0},
+        {"reference": "reference.fa", "threads": -1},
         {"reference": "reference.fa", "threads": True},
         {"reference": "reference.fa.gz", "threads": 1},
         {"reference": "reference.BGZF", "threads": 1},
@@ -123,3 +123,7 @@ def test_faidx_preparation_copies_only_for_supported_link_errors(
 )
 def test_faidx_rejects_invalid_reference_and_threads(inputs: dict[str, Any]) -> None:
     assert SamtoolsFaidxNode.VALIDATE_INPUTS(inputs) is not True
+
+
+def test_faidx_accepts_source_supported_thread_counts() -> None:
+    assert SamtoolsFaidxNode.VALIDATE_INPUTS({"reference": "reference.fa", "threads": 128}) is True

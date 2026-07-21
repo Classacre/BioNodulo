@@ -107,11 +107,16 @@ class IndexedBamReferenceNode(VariantCommandNode):
     """Require the exact BAM BAI and FASTA FAI paths consumed implicitly."""
 
     @classmethod
+    def validate_primary_bam_index(cls, inputs: dict[str, Any]) -> bool | str:
+        """Validate the primary BAM index using the caller's discovery rules."""
+        return validate_colocated_bam_index(inputs)
+
+    @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = validate_colocated_bam_index(inputs)
+        validation = cls.validate_primary_bam_index(inputs)
         if validation is not True:
             return validation
         return validate_colocated_reference_index(inputs)

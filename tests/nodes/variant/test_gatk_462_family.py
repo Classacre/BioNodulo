@@ -245,6 +245,13 @@ def test_source_defaults_are_exposed_exactly() -> None:
     assert haplotype_inputs["optional"]["min_base_quality"][1]["default"] == 10
     assert haplotype_inputs["optional"]["sample_ploidy"][1]["default"] == 2
     assert genotype_inputs["optional"]["standard_min_confidence"][1]["default"] == 30.0
+    assert "max" not in haplotype_inputs["required"]["threads"][1]
+
+
+def test_haplotype_caller_accepts_source_supported_thread_counts(tmp_path: Path) -> None:
+    inputs = _valid_inputs("gatk_haplotype_caller", tmp_path)
+    inputs["threads"] = 128
+    assert GatkHaplotypeCallerNode.VALIDATE_INPUTS(inputs) is True
 
 
 @pytest.mark.parametrize("node_id", tuple(NODES))
