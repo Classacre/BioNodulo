@@ -7,7 +7,7 @@ from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
 
-from ._paths import normalize_paths
+from ._paths import normalize_paths, validate_materialized_files
 
 
 class QuastNode(CommandNode):
@@ -18,8 +18,26 @@ class QuastNode(CommandNode):
     CATEGORY = "assembly"
     DESCRIPTION = "Assess assembly quality and produce the QUAST HTML report"
     SEARCH_ALIASES = ["quast", "quality", "assembly qc", "assess", "report"]
-    RETURN_TYPES = ("HTML_REPORT",)
-    RETURN_NAMES = ("report",)
+    RETURN_TYPES = (
+        "HTML_REPORT",
+        "FILE",
+        "TSV",
+        "FILE",
+        "FILE",
+        "TSV",
+        "FILE",
+        "HTML_REPORT",
+    )
+    RETURN_NAMES = (
+        "report",
+        "report_txt",
+        "report_tsv",
+        "report_tex",
+        "transposed_report_txt",
+        "transposed_report_tsv",
+        "transposed_report_tex",
+        "icarus_report",
+    )
     REQUIRED_EXECUTABLES = ["quast"]
     REQUIRED_CONDA_PACKAGES = ["quast"]
     DOCUMENTATION_URL = "https://github.com/ablab/quast/tree/quast_5.3.0"
@@ -31,11 +49,33 @@ class QuastNode(CommandNode):
     CITATION_TEXT = "QUAST: quality assessment tool for genome assemblies."
     BIOCONDA_VERSION = "5.3.0"
     BIOCONDA_PACKAGE_URL = "https://anaconda.org/bioconda/quast/files?version=5.3.0"
+    CONDA_PACKAGE_CONSTRAINTS = {"quast": BIOCONDA_VERSION}
+    PACKAGE_CONSTRAINTS = (f"quast=={BIOCONDA_VERSION}",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
     UPSTREAM_README = "README.md"
     UPSTREAM_SOURCE = "quast.py"
     UPSTREAM_OPTIONS_SOURCE = "quast_libs/options_parser.py"
+    UPSTREAM_OUTPUT_SOURCE = "quast_libs/reporting.py"
+    EXIT_SEMANTICS = (
+        "QUAST uses non-zero exits for parser/runtime failures and returns 4 when no input "
+        "contains valid contigs; the adapter accepts only exit 0 and requires its always-on reports."
+    )
     OUTPUT_DIRECTORY = "report_dir.out"
-    OUTPUT_FILENAME = "report.html"
+    # reporting.save_total() always writes both report orientations.  This
+    # adapter does not expose --no-html, --no-icarus, or --fast, so the two HTML
+    # entry points retain their upstream defaults.  report.pdf is deliberately
+    # omitted because quast.py only creates it when plotting and matplotlib are
+    # both available.
+    OUTPUT_FILENAMES = (
+        "report.html",
+        "report.txt",
+        "report.tsv",
+        "report.tex",
+        "transposed_report.txt",
+        "transposed_report.tsv",
+        "transposed_report.tex",
+        "icarus.html",
+    )
 
     @classmethod
     def _optional_path(cls, inputs: dict[str, Any], name: str) -> str | None:
@@ -95,6 +135,15 @@ class QuastNode(CommandNode):
                 cls._optional_path(inputs, name)
             except (TypeError, ValueError) as exc:
                 return str(exc)
+        materialized_error = validate_materialized_files(assemblies, "assembly")
+        if materialized_error:
+            return materialized_error
+        for name in ("reference", "gff"):
+            value = cls._optional_path(inputs, name)
+            if value is not None:
+                materialized_error = validate_materialized_files([value], name)
+                if materialized_error:
+                    return materialized_error
         return True
 
     @classmethod
@@ -117,4 +166,5 @@ class QuastNode(CommandNode):
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
-        return [Path(output_dir) / cls.NODE_ID / cls.OUTPUT_DIRECTORY / cls.OUTPUT_FILENAME]
+        report_dir = Path(output_dir) / cls.NODE_ID / cls.OUTPUT_DIRECTORY
+        return [report_dir / filename for filename in cls.OUTPUT_FILENAMES]

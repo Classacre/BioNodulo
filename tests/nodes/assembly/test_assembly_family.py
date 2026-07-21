@@ -46,6 +46,49 @@ PINNED = {
 }
 
 
+PUBLIC_OUTPUTS = {
+    SPAdesNode: (
+        ("assembly", "ASSEMBLY", "scaffolds.fasta"),
+        ("contigs", "CONTIGS", "contigs.fasta"),
+        ("assembly_graph", "GFA", "assembly_graph_with_scaffolds.gfa"),
+        ("assembly_graph_fastg", "FILE", "assembly_graph.fastg"),
+        ("contig_paths", "FILE", "contigs.paths"),
+        ("scaffold_paths", "FILE", "scaffolds.paths"),
+    ),
+    MEGAHITNode: (("contigs", "CONTIGS", "final.contigs.fa"),),
+    QuastNode: (
+        ("report", "HTML_REPORT", "report.html"),
+        ("report_txt", "FILE", "report.txt"),
+        ("report_tsv", "TSV", "report.tsv"),
+        ("report_tex", "FILE", "report.tex"),
+        ("transposed_report_txt", "FILE", "transposed_report.txt"),
+        ("transposed_report_tsv", "TSV", "transposed_report.tsv"),
+        ("transposed_report_tex", "FILE", "transposed_report.tex"),
+        ("icarus_report", "HTML_REPORT", "icarus.html"),
+    ),
+}
+
+
+def _materialize_runtime_inputs(tmp_path: Path, inputs: dict[str, Any]) -> dict[str, Any]:
+    materialized = dict(inputs)
+
+    def create(value: Any) -> str:
+        path = tmp_path / str(value)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(">synthetic\nACGT\n", encoding="ascii")
+        return str(path)
+
+    for name in ("reads", "assembly", "reference", "gff"):
+        value = materialized.get(name)
+        if value is None:
+            continue
+        if isinstance(value, (list, tuple)):
+            materialized[name] = [create(item) for item in value]
+        else:
+            materialized[name] = create(value)
+    return materialized
+
+
 class _FakeContext:
     def __init__(self, node_dir: Path, returncode: int = 0, create_outputs: bool = True) -> None:
         self.node_dir = node_dir
@@ -59,7 +102,7 @@ class _FakeContext:
             if command[0] == "spades.py":
                 output = Path(command[command.index("-o") + 1])
                 output.mkdir(parents=True, exist_ok=True)
-                for filename in ("scaffolds.fasta", "contigs.fasta"):
+                for filename in SPAdesNode.OUTPUT_FILENAMES:
                     (output / filename).write_text(">synthetic\nACGT\n", encoding="ascii")
             elif command[0] == "megahit":
                 output = Path(command[command.index("-o") + 1])
@@ -68,7 +111,8 @@ class _FakeContext:
             elif command[0] == "quast":
                 output = Path(command[command.index("--output-dir") + 1])
                 output.mkdir(parents=True, exist_ok=True)
-                (output / "report.html").write_text("<html>synthetic</html>\n", encoding="ascii")
+                for filename in QuastNode.OUTPUT_FILENAMES:
+                    (output / filename).write_text("synthetic\n", encoding="ascii")
         return {
             "returncode": self.returncode,
             "stdout": "",
@@ -110,7 +154,18 @@ def test_assembly_contracts_are_pinned_to_audited_releases(node: type[CommandNod
     assert node.GIT_URL == expected["url"]
     assert node.GIT_COMMIT == expected["commit"]
     assert node.DOCUMENTATION_URL == expected["documentation"]
+    assert node.CONDA_PACKAGE_CONSTRAINTS == {expected["package"]: expected["version"]}
+    assert node.PACKAGE_CONSTRAINTS == (f"{expected['package']}=={expected['version']}",)
+    assert "non-zero" in node.EXIT_SEMANTICS
     assert node.SHELL is False
+
+
+@pytest.mark.parametrize("node", [SPAdesNode, MEGAHITNode, QuastNode])
+def test_assembly_public_outputs_match_pinned_source_filenames(node: type[CommandNode], tmp_path: Path) -> None:
+    outputs = PUBLIC_OUTPUTS[node]
+    assert node.RETURN_NAMES == tuple(name for name, _kind, _filename in outputs)
+    assert node.RETURN_TYPES == tuple(kind for _name, kind, _filename in outputs)
+    assert [path.name for path in node.PLAN_OUTPUTS({}, tmp_path)] == [filename for _name, _kind, filename in outputs]
 
 
 def test_assembly_input_ports_preserve_documented_defaults() -> None:
@@ -122,6 +177,8 @@ def test_assembly_input_ports_preserve_documented_defaults() -> None:
     megahit_inputs = MEGAHITNode.INPUT_TYPES()
     assert set(megahit_inputs["required"]) == {"reads"}
     assert megahit_inputs["optional"]["min_contig_len"][1]["default"] == 200
+    assert megahit_inputs["optional"]["min_contig_len"][1]["min"] == 0
+    assert megahit_inputs["optional"]["threads"][1]["min"] == 0
     assert megahit_inputs["optional"]["k_list"][1]["default"] == MEGAHITNode.DEFAULT_K_LIST
 
     quast_inputs = QuastNode.INPUT_TYPES()
@@ -131,10 +188,13 @@ def test_assembly_input_ports_preserve_documented_defaults() -> None:
 
 def test_spades_renders_single_end_argv_and_native_outputs(tmp_path: Path) -> None:
     output = tmp_path / "spades"
-    assert SPAdesNode.render_command({"reads": "reads.fq.gz", "threads": 16, "output": output}) == [
+    reads = tmp_path / "reads.fq.gz"
+    reads.write_text("@read\nACGT\n+\n!!!!\n", encoding="ascii")
+    assert SPAdesNode.render_command({"reads": reads, "threads": 16, "output": output}) == [
         "spades.py",
-        "-s",
-        "reads.fq.gz",
+        "--s",
+        "1",
+        str(reads),
         "-o",
         str(output),
         "-t",
@@ -143,14 +203,22 @@ def test_spades_renders_single_end_argv_and_native_outputs(tmp_path: Path) -> No
     assert SPAdesNode.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "spades" / "scaffolds.fasta",
         tmp_path / "spades" / "contigs.fasta",
+        tmp_path / "spades" / "assembly_graph_with_scaffolds.gfa",
+        tmp_path / "spades" / "assembly_graph.fastg",
+        tmp_path / "spades" / "contigs.paths",
+        tmp_path / "spades" / "scaffolds.paths",
     ]
 
 
 def test_spades_renders_paired_end_and_optional_flags_in_order(tmp_path: Path) -> None:
     output = tmp_path / "spades"
+    r1 = tmp_path / "R1.fq.gz"
+    r2 = tmp_path / "R2.fq.gz"
+    r1.write_text("@read/1\nACGT\n+\n!!!!\n", encoding="ascii")
+    r2.write_text("@read/2\nTGCA\n+\n!!!!\n", encoding="ascii")
     assert SPAdesNode.render_command(
         {
-            "reads": ["R1.fq.gz", "R2.fq.gz"],
+            "reads": [r1, r2],
             "threads": 8,
             "memory": 32,
             "careful": True,
@@ -159,9 +227,9 @@ def test_spades_renders_paired_end_and_optional_flags_in_order(tmp_path: Path) -
     ) == [
         "spades.py",
         "-1",
-        "R1.fq.gz",
+        str(r1),
         "-2",
-        "R2.fq.gz",
+        str(r2),
         "-o",
         str(output),
         "-t",
@@ -183,9 +251,13 @@ def test_megahit_renders_single_or_paired_reads_with_nested_native_output(
     tmp_path: Path, reads: Any, expected_inputs: list[str]
 ) -> None:
     output = tmp_path / "megahit"
-    assert MEGAHITNode.render_command({"reads": reads, "output": output}) == [
+    materialized = _materialize_runtime_inputs(tmp_path, {"reads": reads})["reads"]
+    expected_materialized_inputs = [
+        str(tmp_path / value) if value not in {"-r", "-1", "-2"} else value for value in expected_inputs
+    ]
+    assert MEGAHITNode.render_command({"reads": materialized, "output": output}) == [
         "megahit",
-        *expected_inputs,
+        *expected_materialized_inputs,
         "-o",
         str(output / "megahit_out"),
         "--min-contig-len",
@@ -197,9 +269,13 @@ def test_megahit_renders_single_or_paired_reads_with_nested_native_output(
 
 
 def test_megahit_renders_explicit_threads_and_documented_k_list(tmp_path: Path) -> None:
+    r1 = tmp_path / "R1.fq.gz"
+    r2 = tmp_path / "R2.fq.gz"
+    r1.write_text("@read/1\nACGT\n+\n!!!!\n", encoding="ascii")
+    r2.write_text("@read/2\nTGCA\n+\n!!!!\n", encoding="ascii")
     command = MEGAHITNode.render_command(
         {
-            "reads": ["R1.fq.gz", "R2.fq.gz"],
+            "reads": [r1, r2],
             "threads": 6,
             "min_contig_len": 500,
             "k_list": "21,49,77",
@@ -209,9 +285,9 @@ def test_megahit_renders_explicit_threads_and_documented_k_list(tmp_path: Path) 
     assert command == [
         "megahit",
         "-1",
-        "R1.fq.gz",
+        str(r1),
         "-2",
-        "R2.fq.gz",
+        str(r2),
         "-o",
         str(tmp_path / "megahit" / "megahit_out"),
         "--min-contig-len",
@@ -223,31 +299,49 @@ def test_megahit_renders_explicit_threads_and_documented_k_list(tmp_path: Path) 
     ]
 
 
+def test_megahit_preserves_source_supported_zero_auto_values(tmp_path: Path) -> None:
+    reads = tmp_path / "reads.fq"
+    reads.write_text("@read\nACGT\n+\n!!!!\n", encoding="ascii")
+    command = MEGAHITNode.render_command(
+        {"reads": reads, "threads": 0, "min_contig_len": 0, "output": tmp_path / "megahit"}
+    )
+    assert command[command.index("--min-contig-len") + 1] == "0"
+    assert command[command.index("--num-cpu-threads") + 1] == "0"
+
+
 def test_quast_renders_assemblies_reference_features_and_report_path(tmp_path: Path) -> None:
     output = tmp_path / "quast"
+    contigs = tmp_path / "contigs.fa"
+    scaffolds = tmp_path / "scaffolds.fa"
+    reference = tmp_path / "reference.fa"
+    genes = tmp_path / "genes.gff"
+    for path in (contigs, scaffolds, reference, genes):
+        path.write_text(">synthetic\nACGT\n", encoding="ascii")
     command = QuastNode.render_command(
         {
-            "assembly": ["contigs.fa", "scaffolds.fa"],
+            "assembly": [contigs, scaffolds],
             "threads": 4,
-            "reference": Path("reference.fa"),
-            "gff": Path("genes.gff"),
+            "reference": reference,
+            "gff": genes,
             "output": output,
         }
     )
     assert command == [
         "quast",
-        "contigs.fa",
-        "scaffolds.fa",
+        str(contigs),
+        str(scaffolds),
         "--output-dir",
         str(output / "report_dir.out"),
         "--threads",
         "4",
         "--reference",
-        "reference.fa",
+        str(reference),
         "--features",
-        "genes.gff",
+        str(genes),
     ]
-    assert QuastNode.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "quast" / "report_dir.out" / "report.html"]
+    assert QuastNode.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "quast" / "report_dir.out" / filename for filename in QuastNode.OUTPUT_FILENAMES
+    ]
 
 
 @pytest.mark.parametrize(
@@ -259,6 +353,8 @@ def test_quast_renders_assemblies_reference_features_and_report_path(tmp_path: P
         (SPAdesNode, {"reads": "R1", "threads": 0}, "at least 1"),
         (MEGAHITNode, {"reads": ["R1", "R2", "R3"]}, "exactly one or two"),
         (MEGAHITNode, {"reads": "R1", "threads": True}, "integer"),
+        (MEGAHITNode, {"reads": "R1", "threads": -1}, "at least 0"),
+        (MEGAHITNode, {"reads": "R1", "min_contig_len": -1}, "at least 0"),
         (MEGAHITNode, {"reads": "R1", "k_list": ""}, "non-empty"),
         (MEGAHITNode, {"reads": "R1", "k_list": "twenty-nine"}, "only integers"),
         (MEGAHITNode, {"reads": "R1", "k_list": "14,29"}, "between 15 and 255"),
@@ -269,6 +365,9 @@ def test_quast_renders_assemblies_reference_features_and_report_path(tmp_path: P
         (QuastNode, {"assembly": "contigs.fa", "threads": 0}, "at least 1"),
         (QuastNode, {"assembly": "contigs.fa", "reference": ["a.fa", "b.fa"]}, "exactly one"),
         (QuastNode, {"assembly": "contigs.fa", "gff": ["a.gff", "b.gff"]}, "exactly one"),
+        (SPAdesNode, {"reads": "missing.fastq", "threads": 4}, "not a materialized file"),
+        (MEGAHITNode, {"reads": "missing.fastq"}, "not a materialized file"),
+        (QuastNode, {"assembly": "missing.fasta"}, "not a materialized file"),
     ],
 )
 def test_invalid_assembly_values_fail_before_command_rendering(
@@ -281,6 +380,15 @@ def test_invalid_assembly_values_fail_before_command_rendering(
         node.render_command(inputs)
 
 
+@pytest.mark.parametrize("name", ["reference", "gff"])
+def test_quast_requires_each_supplied_optional_file_to_be_materialized(tmp_path: Path, name: str) -> None:
+    assembly = tmp_path / "assembly.fasta"
+    assembly.write_text(">synthetic\nACGT\n", encoding="ascii")
+    missing = tmp_path / f"missing.{name}"
+    validation = QuastNode.VALIDATE_INPUTS({"assembly": assembly, name: missing})
+    assert validation == f"{name} path is not a materialized file: {missing}"
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("node", "inputs", "relative_outputs"),
@@ -288,7 +396,14 @@ def test_invalid_assembly_values_fail_before_command_rendering(
         (
             SPAdesNode,
             {"reads": ["R1.fq.gz", "R2.fq.gz"], "threads": 4},
-            ["spades/scaffolds.fasta", "spades/contigs.fasta"],
+            [
+                "spades/scaffolds.fasta",
+                "spades/contigs.fasta",
+                "spades/assembly_graph_with_scaffolds.gfa",
+                "spades/assembly_graph.fastg",
+                "spades/contigs.paths",
+                "spades/scaffolds.paths",
+            ],
         ),
         (
             MEGAHITNode,
@@ -298,7 +413,7 @@ def test_invalid_assembly_values_fail_before_command_rendering(
         (
             QuastNode,
             {"assembly": "assembly.fa"},
-            ["quast/report_dir.out/report.html"],
+            [f"quast/report_dir.out/{filename}" for filename in QuastNode.OUTPUT_FILENAMES],
         ),
     ],
 )
@@ -309,7 +424,7 @@ async def test_fake_execution_returns_native_planned_outputs(
     relative_outputs: list[str],
 ) -> None:
     context = _FakeContext(tmp_path)
-    result = await node().run(context=context, **inputs)
+    result = await node().run(context=context, **_materialize_runtime_inputs(tmp_path, inputs))
     assert result == tuple(str(tmp_path / relative) for relative in relative_outputs)
     assert len(context.calls) == 1
 
@@ -328,7 +443,7 @@ async def test_nonzero_assembly_exit_is_reported_as_runtime_failure(
 ) -> None:
     context = _FakeContext(tmp_path, returncode=7)
     with pytest.raises(RuntimeError, match=r"Command failed \(exit 7\)"):
-        await node().run(context=context, **inputs)
+        await node().run(context=context, **_materialize_runtime_inputs(tmp_path, inputs))
 
 
 @pytest.mark.asyncio
@@ -345,4 +460,4 @@ async def test_zero_exit_without_native_artifacts_fails_closed(
 ) -> None:
     context = _FakeContext(tmp_path, create_outputs=False)
     with pytest.raises(RuntimeError, match="did not create expected output"):
-        await node().run(context=context, **inputs)
+        await node().run(context=context, **_materialize_runtime_inputs(tmp_path, inputs))

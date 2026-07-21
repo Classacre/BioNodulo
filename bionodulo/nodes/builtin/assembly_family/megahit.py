@@ -7,7 +7,7 @@ from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
 
-from ._paths import normalize_paths
+from ._paths import normalize_paths, validate_materialized_files
 
 
 _DEFAULT_K_LIST = "21,29,39,59,79,99,119,141"
@@ -34,8 +34,15 @@ class MEGAHITNode(CommandNode):
     CITATION_TEXT = "MEGAHIT: an ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph."
     BIOCONDA_VERSION = "1.2.9"
     BIOCONDA_PACKAGE_URL = "https://anaconda.org/bioconda/megahit/files?version=1.2.9"
+    CONDA_PACKAGE_CONSTRAINTS = {"megahit": BIOCONDA_VERSION}
+    PACKAGE_CONSTRAINTS = (f"megahit=={BIOCONDA_VERSION}",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
     UPSTREAM_README = "README.md"
     UPSTREAM_SOURCE = "src/megahit"
+    EXIT_SEMANTICS = (
+        "MEGAHIT exits 1 for usage/input failures and propagates non-zero subcommand exits; "
+        "the adapter accepts only exit 0 and requires final.contigs.fa."
+    )
     OUTPUT_DIRECTORY = "megahit_out"
     OUTPUT_FILENAME = "final.contigs.fa"
     DEFAULT_K_LIST = _DEFAULT_K_LIST
@@ -53,13 +60,13 @@ class MEGAHITNode(CommandNode):
                 "threads": (
                     "INT",
                     {
-                        "min": 1,
-                        "description": ("CPU threads; omitted uses the logical CPU count detected by MEGAHIT"),
+                        "min": 0,
+                        "description": ("CPU threads; zero or omission uses MEGAHIT's detected logical CPU count"),
                     },
                 ),
                 "min_contig_len": (
                     "INT",
-                    {"default": 200, "min": 1, "description": "Minimum contig length to emit"},
+                    {"default": 200, "min": 0, "description": "Minimum contig length to emit"},
                 ),
                 "k_list": (
                     "STRING",
@@ -106,15 +113,18 @@ class MEGAHITNode(CommandNode):
         if threads is not None:
             if isinstance(threads, bool) or not isinstance(threads, int):
                 return "threads must be an integer"
-            if threads < 1:
-                return "threads must be at least 1"
+            if threads < 0:
+                return "threads must be at least 0"
         min_len = inputs.get("min_contig_len", 200)
         if isinstance(min_len, bool) or not isinstance(min_len, int):
             return "min_contig_len must be an integer"
-        if min_len < 1:
-            return "min_contig_len must be at least 1"
+        if min_len < 0:
+            return "min_contig_len must be at least 0"
         k_error = cls._validate_k_list(inputs.get("k_list", cls.DEFAULT_K_LIST))
-        return k_error or True
+        if k_error:
+            return k_error
+        materialized_error = validate_materialized_files(reads, "reads")
+        return materialized_error or True
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:

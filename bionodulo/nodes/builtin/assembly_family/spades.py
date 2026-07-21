@@ -1,10 +1,10 @@
 """Pinned SPAdes 4.2.0 assembly contract.
 
-The wrapper maps one FASTQ to SPAdes' documented ``-s`` input and an ordered
-R1/R2 pair to ``-1``/``-2``.  It returns the native ``scaffolds.fasta`` and
-``contigs.fasta`` files directly; no post-run filename synthesis or copy is
-needed.  SPAdes' optional mode-specific inputs are intentionally not exposed
-by the ordinary isolate contract.
+The wrapper maps one FASTQ to SPAdes' single-read-library input and an ordered
+R1/R2 pair to ``-1``/``-2``.  It returns the six native assembly artifacts
+documented for the ordinary assembly mode; no post-run filename synthesis or
+copy is needed.  SPAdes' optional mode-specific inputs are intentionally not
+exposed by this narrow contract.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import Any
 
 from bionodulo.nodes.command_node import CommandNode
 
-from ._paths import normalize_paths
+from ._paths import normalize_paths, validate_materialized_files
 
 
 class SPAdesNode(CommandNode):
@@ -25,8 +25,15 @@ class SPAdesNode(CommandNode):
     CATEGORY = "assembly"
     DESCRIPTION = "De novo assembly of single-end or paired-end reads with SPAdes"
     SEARCH_ALIASES = ["spades", "assemble", "de novo", "genome", "scaffolds"]
-    RETURN_TYPES = ("ASSEMBLY", "CONTIGS")
-    RETURN_NAMES = ("assembly", "contigs")
+    RETURN_TYPES = ("ASSEMBLY", "CONTIGS", "GFA", "FILE", "FILE", "FILE")
+    RETURN_NAMES = (
+        "assembly",
+        "contigs",
+        "assembly_graph",
+        "assembly_graph_fastg",
+        "contig_paths",
+        "scaffold_paths",
+    )
     REQUIRED_EXECUTABLES = ["spades.py"]
     REQUIRED_CONDA_PACKAGES = ["spades"]
     DOCUMENTATION_URL = "https://github.com/ablab/spades/tree/v4.2.0"
@@ -38,11 +45,27 @@ class SPAdesNode(CommandNode):
     CITATION_TEXT = "SPAdes: A New Genome Assembly Algorithm and Its Applications to Single-Cell Sequencing."
     BIOCONDA_VERSION = "4.2.0"
     BIOCONDA_PACKAGE_URL = "https://anaconda.org/bioconda/spades/files?version=4.2.0"
+    CONDA_PACKAGE_CONSTRAINTS = {"spades": BIOCONDA_VERSION}
+    PACKAGE_CONSTRAINTS = (f"spades=={BIOCONDA_VERSION}",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
     UPSTREAM_README = "README.md"
     UPSTREAM_INPUT_DOC = "docs/input.md"
     UPSTREAM_OUTPUT_DOC = "docs/output.md"
     UPSTREAM_OPTIONS_DOC = "docs/running.md"
-    OUTPUT_FILENAMES = ("scaffolds.fasta", "contigs.fasta")
+    UPSTREAM_OPTIONS_SOURCE = "src/projects/spades/pipeline/spades_pipeline/options_parser.py"
+    UPSTREAM_OUTPUT_SOURCE = "src/projects/spades/pipeline/spades_pipeline/options_storage.py"
+    EXIT_SEMANTICS = (
+        "SPAdes reports validation and pipeline failures with a non-zero exit; "
+        "the adapter accepts only exit 0 and requires every documented ordinary-mode artifact."
+    )
+    OUTPUT_FILENAMES = (
+        "scaffolds.fasta",
+        "contigs.fasta",
+        "assembly_graph_with_scaffolds.gfa",
+        "assembly_graph.fastg",
+        "contigs.paths",
+        "scaffolds.paths",
+    )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -109,7 +132,8 @@ class SPAdesNode(CommandNode):
                 return "memory must be an integer number of GB"
             if memory < 1:
                 return "memory must be at least 1 GB"
-        return True
+        materialized_error = validate_materialized_files(reads, "reads")
+        return materialized_error or True
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -120,7 +144,7 @@ class SPAdesNode(CommandNode):
         output = str(inputs.get("output", inputs.get("output_dir", ".")))
         command = ["spades.py"]
         if len(reads) == 1:
-            command.extend(["-s", reads[0]])
+            command.extend(["--s", "1", reads[0]])
         else:
             command.extend(["-1", reads[0], "-2", reads[1]])
         command.extend(["-o", output, "-t", str(inputs.get("threads", 16))])

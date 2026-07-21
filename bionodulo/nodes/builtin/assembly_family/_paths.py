@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 
@@ -26,3 +27,12 @@ def normalize_paths(value: Any, label: str) -> list[str]:
             raise ValueError(f"{label} entries must be non-empty paths")
         paths.append(path)
     return paths
+
+
+def validate_materialized_files(paths: list[str], label: str) -> str | None:
+    """Return an error when an external tool input is not a local file."""
+
+    for value in paths:
+        if not Path(value).is_file():
+            return f"{label} path is not a materialized file: {value}"
+    return None
