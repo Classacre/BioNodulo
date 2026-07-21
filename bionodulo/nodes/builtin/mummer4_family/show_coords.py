@@ -28,6 +28,12 @@ class Mummer4ShowCoordsNode(Mummer4CommandNode):
     REQUIRED_EXECUTABLES = ["show-coords"]
     REQUIRED_PATH_INPUTS = ("delta",)
     UPSTREAM_SOURCE = "src/tigr/show-coords.cc"
+    SOURCE_PATHS = (UPSTREAM_SOURCE, "README.md")
+    EXIT_SEMANTICS = (
+        "show-coords exits non-zero for invalid arguments, identity outside [0, 100], "
+        "negative alignment length, or unreadable/malformed delta input. BioNodulo always "
+        "requests the source-native tab-delimited stdout mode."
+    )
     SORTS = ("none", "query", "reference")
     ANNOTATIONS = ("none", "overlaps", "warnings")
 
@@ -39,7 +45,7 @@ class Mummer4ShowCoordsNode(Mummer4CommandNode):
                 "brief": ("BOOLEAN", {"default": False}),
                 "coverage": ("BOOLEAN", {"default": False}),
                 "direction": ("BOOLEAN", {"default": False}),
-                "include_header": ("BOOLEAN", {"default": False}),
+                "include_header": ("BOOLEAN", {"default": True}),
                 "min_identity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 100.0}),
                 "knockout": ("BOOLEAN", {"default": False, "description": "Promer frame-overlap knockout"}),
                 "sequence_lengths": ("BOOLEAN", {"default": False}),
@@ -73,7 +79,7 @@ class Mummer4ShowCoordsNode(Mummer4CommandNode):
         add_flag(command, "-b", inputs.get("brief"))
         add_flag(command, "-c", inputs.get("coverage"))
         add_flag(command, "-d", inputs.get("direction"))
-        if not inputs.get("include_header", False):
+        if not inputs.get("include_header", True):
             command.append("-H")
         command.extend(["-I", str(inputs.get("min_identity", 0.0))])
         add_flag(command, "-k", inputs.get("knockout"))

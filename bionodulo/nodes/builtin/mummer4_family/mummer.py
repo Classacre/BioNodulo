@@ -28,14 +28,20 @@ class Mummer4MummerNode(Mummer4CommandNode):
         "MUM",
         "MEM",
     ]
-    RETURN_TYPES = ("TSV",)
+    RETURN_TYPES = ("FILE",)
     RETURN_NAMES = ("alignment",)
-    OUTPUT_FILENAMES = ("matches.tsv",)
+    OUTPUT_FILENAMES = ("matches.txt",)
     STDOUT_OUTPUT_INDEX = 0
     REQUIRED_EXECUTABLES = ["mummer"]
     REQUIRED_PATH_INPUTS = ("reference_sequence",)
     REQUIRED_PATH_LIST_INPUTS = ("query_sequence",)
     UPSTREAM_SOURCE = "src/essaMEM/mummer.cpp"
+    SOURCE_PATHS = (UPSTREAM_SOURCE, "src/essaMEM/sparseSA.cpp", "README.md")
+    EXIT_SEMANTICS = (
+        "mummer exits 1 for missing inputs, unknown options, non-positive index threads, "
+        "-k outside maxmatch mode, or mutually exclusive -b/-r strand flags. Its native "
+        "stdout is a headered, whitespace-aligned match list rather than TSV."
+    )
 
     MATCH_MODES = ("mumreference", "mum", "maxmatch")
     STRANDS = ("forward", "both", "reverse")
@@ -60,8 +66,8 @@ class Mummer4MummerNode(Mummer4CommandNode):
                 "print_substring": ("BOOLEAN", {"default": False}),
                 "reverse_positions": ("BOOLEAN", {"default": False}),
                 "sparse_index": ("INT", {"default": 1, "min": 1, "advanced": True}),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 128}),
-                "query_threads": ("INT", {"default": 0, "min": 0, "max": 128, "advanced": True}),
+                "threads": ("INT", {"default": 1, "min": 1}),
+                "query_threads": ("INT", {"default": 0, "min": 0, "advanced": True}),
                 "max_chunk": ("INT", {"default": 50000, "min": 1, "advanced": True}),
             },
             "hidden": {"output": ("STRING", {})},

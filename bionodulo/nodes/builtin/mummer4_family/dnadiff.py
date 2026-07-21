@@ -51,6 +51,25 @@ class Mummer4DnadiffNode(Mummer4CommandNode):
     REQUIRED_EXECUTABLES = ["dnadiff", "nucmer", "delta-filter", "show-coords", "show-snps", "show-diff"]
     REQUIRED_PATH_INPUTS = ("reference_sequence", "query_sequence")
     UPSTREAM_SOURCE = "scripts/dnadiff.pl"
+    SOURCE_PATHS = (
+        UPSTREAM_SOURCE,
+        "scripts/Foundation.pm",
+        "src/umd/nucmer_cmdline.yaggo",
+        "src/umd/nucmer_main.cc",
+        "src/tigr/delta-filter.cc",
+        "src/tigr/show-coords.cc",
+        "src/tigr/show-snps.cc",
+        "src/tigr/show-diff.cc",
+        "docs/dnadiff.README",
+        "README.md",
+    )
+    EXECUTABLE_VERSION = "1.3"
+    OPTIONAL_OUTPUT_FILENAMES = ("out.unref", "out.unqry")
+    EXIT_SEMANTICS = (
+        "dnadiff exits non-zero on option, dependency, path, FASTA, or child-command failure. "
+        "The nine declared artifacts are unconditional; out.unref and out.unqry are emitted "
+        "only when the corresponding input contains unaligned sequences."
+    )
     RUN_IN_NODE_OUTPUT_DIR = True
 
     @classmethod

@@ -27,6 +27,12 @@ class Mummer4DeltaFilterNode(Mummer4CommandNode):
     REQUIRED_EXECUTABLES = ["delta-filter"]
     REQUIRED_PATH_INPUTS = ("delta",)
     UPSTREAM_SOURCE = "src/tigr/delta-filter.cc"
+    SOURCE_PATHS = (UPSTREAM_SOURCE, "README.md")
+    EXIT_SEMANTICS = (
+        "delta-filter exits non-zero for invalid argument counts, out-of-range identity, "
+        "length, uniqueness, or overlap values, unreadable delta input, and malformed "
+        "streamed delta data; stdout is the filtered delta stream on success."
+    )
     MODES = ("none", "query", "reference", "global", "many_to_many", "one_to_one")
     MODE_FLAGS = {
         "query": "-q",
@@ -46,7 +52,14 @@ class Mummer4DeltaFilterNode(Mummer4CommandNode):
                 "min_length": ("INT", {"default": 0, "min": 0}),
                 "min_uniqueness": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 100.0}),
                 "max_overlap": ("FLOAT", {"default": 100.0, "min": 0.0, "max": 100.0}),
-                "epsilon": ("FLOAT", {"default": None, "description": "Negligible LIS score threshold"}),
+                "epsilon": (
+                    "FLOAT",
+                    {
+                        "default": -1.0,
+                        "advanced": True,
+                        "description": "Hidden upstream negligible-LIS score threshold (-e)",
+                    },
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -70,15 +83,17 @@ class Mummer4DeltaFilterNode(Mummer4CommandNode):
             validation = validate_number(inputs.get(key, default), key, minimum=0, maximum=100)
             if validation is not True:
                 return validation
-        if inputs.get("epsilon") is not None:
-            return validate_number(inputs["epsilon"], "epsilon")
-        return True
+        epsilon = inputs.get("epsilon", -1.0)
+        return validate_number(-1.0 if epsilon is None else epsilon, "epsilon")
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         command = cls.checked_command(inputs, "delta-filter")
-        if inputs.get("epsilon") is not None:
-            command.extend(["-e", str(inputs["epsilon"])])
+        epsilon = inputs.get("epsilon", -1.0)
+        if epsilon is None:
+            epsilon = -1.0
+        if epsilon != -1.0:
+            command.extend(["-e", str(epsilon)])
         command.extend(
             [
                 "-i",

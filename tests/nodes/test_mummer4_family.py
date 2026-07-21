@@ -6,6 +6,12 @@ from typing import Any
 import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.nodes.builtin.mummer4_family.adapter import (
+    MUMMER4_COMMIT,
+    MUMMER4_PACKAGE_CONSTRAINT,
+    MUMMER4_TAG,
+    MUMMER4_TAG_OBJECT,
+)
 from bionodulo.nodes.builtin.mummer4_family.delta_filter import Mummer4DeltaFilterNode
 from bionodulo.nodes.builtin.mummer4_family.dnadiff import Mummer4DnadiffNode
 from bionodulo.nodes.builtin.mummer4_family.mummer import Mummer4MummerNode
@@ -32,9 +38,19 @@ def test_mummer4_family_is_source_pinned_and_discoverable() -> None:
     for node_class in MUMMER4_CLASSES:
         assert registry.get(node_class.NODE_ID) is node_class
         assert node_class.VERSION == "4.0.1"
-        assert node_class.GIT_COMMIT == "eb734606f2d516f42a0e0dce7a116bfb88ec1ebf"
+        assert node_class.GIT_COMMIT == MUMMER4_COMMIT
+        assert node_class.GIT_TAG == MUMMER4_TAG
+        assert node_class.GIT_TAG_OBJECT == MUMMER4_TAG_OBJECT
         assert node_class.GIT_URL == "https://github.com/mummer4/mummer.git"
         assert node_class.UPSTREAM_SOURCE
+        assert node_class.SOURCE_PATHS
+        assert node_class.SOURCE_REVISION == MUMMER4_COMMIT
+        assert MUMMER4_COMMIT in node_class.SOURCE_URL
+        assert MUMMER4_COMMIT in node_class.DOCUMENTATION_URL
+        assert node_class.CONDA_PACKAGE_CONSTRAINTS["mummer4"] == "4.0.1"
+        assert MUMMER4_PACKAGE_CONSTRAINT in node_class.PACKAGE_CONSTRAINTS
+        assert node_class.AUDIT_STATUS == "contract-checked-no-external-execution"
+        assert node_class.EXIT_SEMANTICS
         assert node_class.CITATION_DOIS == ["10.1371/journal.pcbi.1005944"]
         assert "BioNodulo builtin" in node_class.SEARCH_ALIASES
 
@@ -73,7 +89,7 @@ def test_nucmer_renders_native_output_modes_and_query_list(tmp_path: Path) -> No
         "threads": 4,
         "banded": True,
         "large": True,
-        "genome": True,
+        "genome": False,
         "max_chunk": 60000,
         "output": "/work/nucmer",
     }
@@ -104,7 +120,6 @@ def test_nucmer_renders_native_output_modes_and_query_list(tmp_path: Path) -> No
         "4",
         "--banded",
         "--large",
-        "--genome",
         "--max-chunk",
         "60000",
         "ref.fa",
@@ -112,6 +127,50 @@ def test_nucmer_renders_native_output_modes_and_query_list(tmp_path: Path) -> No
         "query-b.fa",
     ]
     assert Mummer4NucmerNode.PLAN_OUTPUTS(inputs, tmp_path) == [tmp_path / "mummer4_nucmer" / "alignment.sam"]
+
+
+def test_nucmer_source_defaults_and_delta_query_cardinality() -> None:
+    optional = Mummer4NucmerNode.INPUT_TYPES()["optional"]
+    assert optional["max_chunk"][1]["default"] == 50000
+    assert Mummer4NucmerNode.render_command({"reference_sequence": "ref.fa", "query_sequence": ["query.fa"]}) == [
+        "nucmer",
+        "--delta",
+        "alignment.delta",
+        "--breaklen",
+        "200",
+        "--mincluster",
+        "65",
+        "--diagdiff",
+        "5",
+        "--diagfactor",
+        "0.12",
+        "--maxgap",
+        "90",
+        "--minmatch",
+        "20",
+        "--minalign",
+        "0",
+        "--threads",
+        "2",
+        "ref.fa",
+        "query.fa",
+    ]
+    assert (
+        Mummer4NucmerNode.VALIDATE_INPUTS(
+            {"reference_sequence": "ref.fa", "query_sequence": ["query-a.fa", "query-b.fa"]}
+        )
+        == "Input 'query_sequence' must contain exactly one file for source-native delta output"
+    )
+    assert "only with source-native delta" in str(
+        Mummer4NucmerNode.VALIDATE_INPUTS(
+            {
+                "reference_sequence": "ref.fa",
+                "query_sequence": ["query.fa"],
+                "output_format": "sam_short",
+                "genome": True,
+            }
+        )
+    )
 
 
 @pytest.mark.parametrize(
@@ -154,6 +213,7 @@ def test_dnadiff_stages_stable_fasta_names_and_plans_native_outputs(tmp_path: Pa
         "reference.fa",
         "query.fa",
     ]
+    assert Mummer4DnadiffNode.OPTIONAL_OUTPUT_FILENAMES == ("out.unref", "out.unqry")
 
 
 def test_delta_filter_renders_source_order_and_validates_ranges(tmp_path: Path) -> None:
@@ -221,6 +281,13 @@ def test_show_coords_emits_parseable_tabular_output() -> None:
     ]
 
 
+def test_show_coords_keeps_the_source_header_by_default() -> None:
+    assert Mummer4ShowCoordsNode.INPUT_TYPES()["optional"]["include_header"][1]["default"] is True
+    command = Mummer4ShowCoordsNode.render_command({"delta": "alignments.delta"})
+    assert "-H" not in command
+    assert command == ["show-coords", "-I", "0.0", "-L", "0", "-T", "alignments.delta"]
+
+
 def test_mummer_renders_source_flags_without_plot_side_effects(tmp_path: Path) -> None:
     inputs = {
         "reference_sequence": "ref.fa",
@@ -261,7 +328,8 @@ def test_mummer_renders_source_flags_without_plot_side_effects(tmp_path: Path) -
         "q1.fa",
         "q2.fa",
     ]
-    assert Mummer4MummerNode.PLAN_OUTPUTS(inputs, tmp_path) == [tmp_path / "mummer4_mummer" / "matches.tsv"]
+    assert Mummer4MummerNode.RETURN_TYPES == ("FILE",)
+    assert Mummer4MummerNode.PLAN_OUTPUTS(inputs, tmp_path) == [tmp_path / "mummer4_mummer" / "matches.txt"]
 
 
 def test_mummer_enforces_the_source_sparse_index_mode_rule() -> None:
@@ -285,8 +353,6 @@ def test_mummerplot_renders_and_groups_only_source_generated_files(tmp_path: Pat
         "filter": True,
         "layout": True,
         "fat": True,
-        "ref_id": "chr1",
-        "query_id": "contig1",
         "reference_sequence": "ref.fa",
         "query_sequence": "query.fa",
         "size": "medium",
@@ -309,10 +375,6 @@ def test_mummerplot_renders_and_groups_only_source_generated_files(tmp_path: Pat
         "--filter",
         "--layout",
         "--fat",
-        "-r",
-        "chr1",
-        "-q",
-        "contig1",
         "-R",
         "ref.fa",
         "-Q",
@@ -341,6 +403,77 @@ def test_mummerplot_renders_and_groups_only_source_generated_files(tmp_path: Pat
         "plot": planned[0],
         "plot_artifacts": planned[1:],
     }
+
+
+def test_mummerplot_requires_explicit_delta_axis_dependencies(tmp_path: Path) -> None:
+    delta = tmp_path / "alignments.delta"
+    delta.write_text("ref.fa query.fa\nNUCMER\n", encoding="ascii")
+    assert Mummer4MummerplotNode.VALIDATE_INPUTS({"delta": delta}) == (
+        "Delta/cluster input requires 'ref_id' or explicit 'reference_sequence' to avoid header-path discovery"
+    )
+    assert (
+        Mummer4MummerplotNode.VALIDATE_INPUTS({"delta": delta, "ref_id": "chr1"})
+        == "Delta/cluster input requires 'query_id' or explicit 'query_sequence' to avoid header-path discovery"
+    )
+    assert Mummer4MummerplotNode.VALIDATE_INPUTS({"delta": delta, "ref_id": "chr1", "query_id": "contig1"}) is True
+    assert (
+        Mummer4MummerplotNode.VALIDATE_INPUTS(
+            {
+                "delta": delta,
+                "layout": True,
+            }
+        )
+        == "Inputs 'layout' and 'fat' require explicit reference and query sequence/list files"
+    )
+    mummer = tmp_path / "matches.txt"
+    mummer.write_text("> query\n1 1 20\n", encoding="ascii")
+    assert "only for delta" in str(Mummer4MummerplotNode.VALIDATE_INPUTS({"delta": mummer, "filter": True}))
+
+
+def test_mummerplot_preserves_source_coverage_defaults_and_explicit_disable() -> None:
+    optional = Mummer4MummerplotNode.INPUT_TYPES()["optional"]
+    assert "match_format" not in optional
+    assert optional["coverage"][1]["default"] is None
+    assert "--coverage" not in Mummer4MummerplotNode.render_command({"delta": "matches.txt"})
+    assert "--nocoverage" in Mummer4MummerplotNode.render_command({"delta": "matches.txt", "coverage": False})
+    assert "mutually exclusive" in str(
+        Mummer4MummerplotNode.VALIDATE_INPUTS(
+            {
+                "delta": "matches.txt",
+                "ref_id": "chr1",
+                "reference_sequence": "reference.fa",
+            }
+        )
+    )
+
+
+def test_mummerplot_stages_shell_consumed_inputs_under_stable_names(tmp_path: Path) -> None:
+    match_file = tmp_path / "match input.delta"
+    reference = tmp_path / "reference input.fa"
+    query = tmp_path / "query input.fa"
+    match_file.write_text("ref.fa query.fa\nNUCMER\n", encoding="ascii")
+    reference.write_text(">ref\nACGT\n", encoding="ascii")
+    query.write_text(">query\nACGA\n", encoding="ascii")
+    inputs = {
+        "delta": match_file,
+        "reference_sequence": reference,
+        "query_sequence": query,
+    }
+    outputs = Mummer4MummerplotNode.PLAN_OUTPUTS(inputs, tmp_path / "results")
+
+    Mummer4MummerplotNode.PREPARE_EXECUTION(inputs, outputs)
+
+    assert inputs == {
+        "delta": "matches.input",
+        "reference_sequence": "reference.ids",
+        "query_sequence": "query.ids",
+    }
+    for source, staged_name in (
+        (match_file, "matches.input"),
+        (reference, "reference.ids"),
+        (query, "query.ids"),
+    ):
+        assert (outputs[0].parent / staged_name).read_bytes() == source.read_bytes()
 
 
 @pytest.mark.parametrize("key", ["xrange", "yrange"])
@@ -374,14 +507,18 @@ async def test_stdout_and_dynamic_plot_outputs_use_runtime_capture(tmp_path: Pat
         reference_sequence="ref.fa",
         query_sequence=["query.fa"],
     )
-    assert match_result == (str(tmp_path / "mummer4_mummer" / "matches.tsv"),)
-    assert match_context.calls[0][1]["stdout_path"] == tmp_path / "mummer4_mummer" / "matches.tsv"
+    assert match_result == (str(tmp_path / "mummer4_mummer" / "matches.txt"),)
+    assert match_context.calls[0][1]["stdout_path"] == tmp_path / "mummer4_mummer" / "matches.txt"
 
+    plot_input = tmp_path / "alignments.delta"
+    plot_input.write_text("ref.fa query.fa\nNUCMER\n", encoding="ascii")
     plot_context = _FakeContext(mummerplot=True)
     plot_result = await Mummer4MummerplotNode().run(
         context=plot_context,
         output_dir=tmp_path,
-        delta="alignments.delta",
+        delta=plot_input,
+        ref_id="chr1",
+        query_id="contig1",
     )
     assert plot_result == {
         "outputs": {

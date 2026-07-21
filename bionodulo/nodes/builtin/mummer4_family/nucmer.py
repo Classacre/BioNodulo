@@ -29,6 +29,19 @@ class Mummer4NucmerNode(Mummer4CommandNode):
     REQUIRED_PATH_INPUTS = ("reference_sequence",)
     REQUIRED_PATH_LIST_INPUTS = ("query_sequence",)
     UPSTREAM_SOURCE = "src/umd/nucmer_cmdline.yaggo; src/umd/nucmer_main.cc"
+    SOURCE_PATHS = (
+        "src/umd/nucmer_cmdline.yaggo",
+        "src/umd/nucmer_main.cc",
+        "src/umd/nucmer.cc",
+        "README.md",
+    )
+    EXIT_SEMANTICS = (
+        "The generated nucmer parser and main routine reject conflicting flags, unreadable "
+        "reference/output paths, and more than one query for delta output. The source genome "
+        "path always emits delta records, so BioNodulo rejects genome mode with SAM output, "
+        "zero worker threads before execution, and successful runs that omit the selected "
+        "delta or SAM artifact."
+    )
     MATCH_MODES = ("mumreference", "mum", "maxmatch")
     OUTPUT_FORMATS = ("delta", "sam_short", "sam_long")
     STRANDS = ("both", "forward", "reverse")
@@ -57,11 +70,11 @@ class Mummer4NucmerNode(Mummer4CommandNode):
                 "minalign": ("INT", {"default": 0, "min": 0}),
                 "nooptimize": ("BOOLEAN", {"default": False}),
                 "nosimplify": ("BOOLEAN", {"default": False}),
-                "threads": ("INT", {"default": 2, "min": 1, "max": 128}),
+                "threads": ("INT", {"default": 2, "min": 1}),
                 "banded": ("BOOLEAN", {"default": False, "advanced": True}),
                 "large": ("BOOLEAN", {"default": False, "advanced": True}),
                 "genome": ("BOOLEAN", {"default": False, "advanced": True}),
-                "max_chunk": ("INT", {"default": None, "min": 1, "advanced": True}),
+                "max_chunk": ("INT", {"default": 50000, "min": 1, "advanced": True}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -104,8 +117,14 @@ class Mummer4NucmerNode(Mummer4CommandNode):
         validation = validate_number(inputs.get("diagfactor", 0.12), "diagfactor", minimum=0)
         if validation is not True:
             return validation
-        if inputs.get("max_chunk") is not None:
-            return validate_int(inputs["max_chunk"], "max_chunk", minimum=1)
+        if inputs.get("genome", False) and inputs.get("output_format", "delta") != "delta":
+            return "Input 'genome' is supported only with source-native delta output"
+        max_chunk = inputs.get("max_chunk", 50000)
+        validation = validate_int(50000 if max_chunk is None else max_chunk, "max_chunk", minimum=1)
+        if validation is not True:
+            return validation
+        if inputs.get("output_format", "delta") == "delta" and len(path_list(inputs.get("query_sequence"))) != 1:
+            return "Input 'query_sequence' must contain exactly one file for source-native delta output"
         return True
 
     @classmethod
@@ -149,8 +168,10 @@ class Mummer4NucmerNode(Mummer4CommandNode):
         add_flag(command, "--banded", inputs.get("banded"))
         add_flag(command, "--large", inputs.get("large"))
         add_flag(command, "--genome", inputs.get("genome"))
-        if inputs.get("max_chunk") is not None:
-            command.extend(["--max-chunk", str(inputs["max_chunk"])])
+        max_chunk_value = inputs.get("max_chunk", 50000)
+        max_chunk = 50000 if max_chunk_value is None else int(max_chunk_value)
+        if max_chunk != 50000:
+            command.extend(["--max-chunk", str(max_chunk)])
         command.append(path_value(inputs.get("reference_sequence")))
         command.extend(path_list(inputs.get("query_sequence")))
         return command

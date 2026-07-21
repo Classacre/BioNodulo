@@ -11,7 +11,14 @@ from typing import Any, ClassVar
 from bionodulo.nodes.command_node import CommandNode
 
 
+MUMMER4_VERSION = "4.0.1"
+MUMMER4_TAG = "v4.0.1"
+MUMMER4_TAG_OBJECT = "12507767455af0b7525d6d1bd70e4483c434f953"
 MUMMER4_COMMIT = "eb734606f2d516f42a0e0dce7a116bfb88ec1ebf"
+MUMMER4_GIT_URL = "https://github.com/mummer4/mummer.git"
+MUMMER4_SOURCE_URL = f"https://github.com/mummer4/mummer/tree/{MUMMER4_COMMIT}"
+MUMMER4_DOCUMENTATION_URL = f"https://github.com/mummer4/mummer/blob/{MUMMER4_COMMIT}/README.md"
+MUMMER4_PACKAGE_CONSTRAINT = f"mummer4=={MUMMER4_VERSION}"
 
 
 def path_value(value: Any) -> str:
@@ -103,10 +110,30 @@ class Mummer4CommandNode(CommandNode):
 
     CATEGORY = "genomics"
     REQUIRED_CONDA_PACKAGES = ["mummer4"]
-    VERSION = "4.0.1"
-    GIT_URL = "https://github.com/mummer4/mummer.git"
+    CONDA_PACKAGE_CONSTRAINTS = {"mummer4": MUMMER4_VERSION}
+    PACKAGE_CONSTRAINTS = (MUMMER4_PACKAGE_CONSTRAINT,)
+    PACKAGE_CONSTRAINT = MUMMER4_PACKAGE_CONSTRAINT
+    VERSION = MUMMER4_VERSION
+    PACKAGE_VERSION = MUMMER4_VERSION
+    GIT_URL = MUMMER4_GIT_URL
+    GIT_TAG = MUMMER4_TAG
+    GIT_TAG_OBJECT = MUMMER4_TAG_OBJECT
     GIT_COMMIT = MUMMER4_COMMIT
-    DOCUMENTATION_URL = "https://mummer4.github.io/manual/manual.html"
+    SOURCE_URL = MUMMER4_SOURCE_URL
+    SOURCE_REVISION = MUMMER4_COMMIT
+    DOCUMENTATION_URL = MUMMER4_DOCUMENTATION_URL
+    SOURCE_AUTHORITIES = {
+        "official_release": (GIT_URL, GIT_TAG, GIT_TAG_OBJECT, GIT_COMMIT),
+        "official_source": (SOURCE_URL, SOURCE_REVISION),
+        "pinned_readme": (DOCUMENTATION_URL, SOURCE_REVISION),
+    }
+    EVIDENCE_PRECEDENCE = "Pinned executable parser/source, then pinned README and bundled docs."
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "BioNodulo rejects invalid wrapper inputs, non-zero process results, and successful "
+        "processes that omit any planned artifact. MUMmer4 parser and file errors are normally "
+        "non-zero; operation-specific exceptions are recorded on the focused node."
+    )
     CITATION_DOIS = ["10.1371/journal.pcbi.1005944"]
     CITATION_URLS = ["https://doi.org/10.1371/journal.pcbi.1005944"]
     CITATION_TEXT = "MUMmer4: A fast and versatile genome alignment system."
@@ -117,6 +144,7 @@ class Mummer4CommandNode(CommandNode):
     REQUIRED_PATH_INPUTS: ClassVar[tuple[str, ...]] = ()
     REQUIRED_PATH_LIST_INPUTS: ClassVar[tuple[str, ...]] = ()
     UPSTREAM_SOURCE = ""
+    SOURCE_PATHS: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
