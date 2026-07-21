@@ -54,6 +54,17 @@ def test_nodes_pin_the_supported_bismark_rust_release() -> None:
         assert node.UPSTREAM_SOURCE == source
         assert node.REQUIRED_EXECUTABLES[0] == executable
         assert node.SHELL is False
+        assert node.AUDIT_STATUS == "contract-checked-no-external-execution"
+        assert node.EXIT_SEMANTICS
+
+
+def test_align_environment_declares_bowtie2_runtime_dependency() -> None:
+    """Bismark's default aligner is Bowtie2, so cloud envs must include it."""
+    assert BismarkAlignNode.REQUIRED_EXECUTABLES == ["bismark", "bowtie2"]
+    assert BismarkAlignNode.REQUIRED_CONDA_PACKAGES == ["bismark", "bowtie2"]
+    assert BismarkAlignNode.CONDA_PACKAGE_CONSTRAINTS == {"bismark": "3.1.0", "bowtie2": "2.5.5"}
+    assert BismarkAlignNode.PACKAGE_CONSTRAINTS == ("bismark==3.1.0", "bowtie2==2.5.5")
+    assert all(PINNED_COMMIT in url for url in BismarkAlignNode.SOURCE_URLS)
 
 
 def test_focused_modules_own_stable_ids_and_legacy_imports_remain_valid() -> None:

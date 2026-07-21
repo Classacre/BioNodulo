@@ -15,6 +15,24 @@ FASTA_SUFFIX_TIERS = (".fa", ".fa.gz", ".fasta", ".fasta.gz")
 BOWTIE2_INDEX_PARTS = ("1", "2", "3", "4", "rev.1", "rev.2")
 PREPARED_GENOME_DIRECTORY = "genome"
 
+# The Bismark Rust port is pinned independently from the Bowtie2 executable it
+# launches.  Keeping the secondary tool constraint here prevents an align node
+# from silently inheriting an environment that contains Bismark but no Bowtie2
+# binary (the cloud failure mode this family audit is meant to catch).
+BISMARK_VERSION = "3.1.0"
+BISMARK_GIT_URL = "https://github.com/FelixKrueger/Bismark.git"
+BISMARK_GIT_COMMIT = "e552b8f307a7041bcebed8f8e5a764ebcf7b046c"
+BISMARK_SOURCE_ROOT = f"https://github.com/FelixKrueger/Bismark/blob/{BISMARK_GIT_COMMIT}"
+BISMARK_PACKAGE_CONSTRAINT = f"bismark=={BISMARK_VERSION}"
+BOWTIE2_VERSION = "2.5.5"
+BOWTIE2_PACKAGE_CONSTRAINT = f"bowtie2=={BOWTIE2_VERSION}"
+
+
+def bismark_source_urls(*paths: str) -> tuple[str, ...]:
+    """Return immutable source URLs at the audited Bismark revision."""
+    return tuple(f"{BISMARK_SOURCE_ROOT}/{path}" for path in paths)
+
+
 _LINK_FALLBACK_ERRNOS = {errno.EXDEV, errno.EPERM, errno.ENOSYS}
 for _errno_name in ("ENOTSUP", "EOPNOTSUPP"):
     _errno_value = getattr(errno, _errno_name, None)
@@ -139,12 +157,25 @@ class BismarkCommandNode(CommandNode):
 
     CATEGORY = "epigenomics"
     REQUIRED_CONDA_PACKAGES = ["bismark"]
-    VERSION = "3.1.0"
-    GIT_URL = "https://github.com/FelixKrueger/Bismark.git"
-    GIT_COMMIT = "e552b8f307a7041bcebed8f8e5a764ebcf7b046c"
+    VERSION = BISMARK_VERSION
+    GIT_URL = BISMARK_GIT_URL
+    GIT_COMMIT = BISMARK_GIT_COMMIT
+    DOCUMENTATION_URL = f"{BISMARK_SOURCE_ROOT}/README.md"
     CITATION_DOIS = ["10.1093/bioinformatics/btr167"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btr167"]
     CITATION_TEXT = "Bismark: a flexible aligner and methylation caller for Bisulfite-Seq applications."
+    CONDA_PACKAGE_CONSTRAINTS = {"bismark": BISMARK_VERSION}
+    PACKAGE_CONSTRAINTS = (BISMARK_PACKAGE_CONSTRAINT,)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
+    GIT_TAG = "bismark-rust-v3.1.0"
+    SOURCE_REF = f"tag bismark-rust-v3.1.0 at {BISMARK_GIT_COMMIT}"
+    SOURCE_REVISION = BISMARK_GIT_COMMIT
+    SOURCE_URL = f"https://github.com/FelixKrueger/Bismark/tree/{BISMARK_GIT_COMMIT}"
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "Bismark returns non-zero for malformed arguments, missing inputs, incomplete genome/index bundles, "
+        "or alignment/extraction failures; BioNodulo additionally validates every planned artifact after exit 0."
+    )
     SHELL = False
 
     UPSTREAM_TAG: ClassVar[str] = "bismark-rust-v3.1.0"

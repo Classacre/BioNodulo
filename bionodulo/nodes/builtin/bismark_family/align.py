@@ -5,7 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .adapter import BismarkCommandNode, path_value, validate_prepared_genome
+from .adapter import (
+    BISMARK_VERSION,
+    BOWTIE2_PACKAGE_CONSTRAINT,
+    BOWTIE2_VERSION,
+    BismarkCommandNode,
+    bismark_source_urls,
+    path_value,
+    validate_prepared_genome,
+)
 
 
 class BismarkAlignNode(BismarkCommandNode):
@@ -18,8 +26,20 @@ class BismarkAlignNode(BismarkCommandNode):
     RETURN_TYPES = ("BAM", "TXT")
     RETURN_NAMES = ("aligned_bam", "alignment_report")
     REQUIRED_EXECUTABLES = ["bismark", "bowtie2"]
+    REQUIRED_CONDA_PACKAGES = ["bismark", "bowtie2"]
+    CONDA_PACKAGE_CONSTRAINTS = {"bismark": BISMARK_VERSION, "bowtie2": BOWTIE2_VERSION}
+    PACKAGE_CONSTRAINTS = (f"bismark=={BISMARK_VERSION}", BOWTIE2_PACKAGE_CONSTRAINT)
+    PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     DOCUMENTATION_URL = "https://felixkrueger.github.io/Bismark/options/alignment/"
     UPSTREAM_SOURCE = "rust/bismark/src/aligner"
+    SOURCE_PATHS = (
+        "rust/bismark/src/aligner/cli.rs",
+        "rust/bismark/src/aligner/config.rs",
+        "rust/bismark/src/aligner/discovery.rs",
+        "rust/bismark/src/aligner/align.rs",
+    )
+    SOURCE_URLS = bismark_source_urls(*SOURCE_PATHS)
+    SECONDARY_TOOL_SOURCE = "Bowtie2 2.5.5 (runtime aligner and index format)"
     OUTPUT_BASENAME = "aligned_bam"
 
     @classmethod

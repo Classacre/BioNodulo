@@ -8,7 +8,10 @@ from typing import Any
 from .adapter import (
     PREPARED_GENOME_DIRECTORY,
     BismarkCommandNode,
+    BOWTIE2_VERSION,
+    BISMARK_VERSION,
     discover_fasta_files,
+    bismark_source_urls,
     path_value,
     stage_fasta_tier,
     validate_prepared_genome,
@@ -26,8 +29,18 @@ class BismarkGenomePreparationNode(BismarkCommandNode):
     RETURN_NAMES = ("genome_folder",)
     REQUIRED_EXECUTABLES = ["bismark_genome_preparation", "bowtie2-build"]
     REQUIRED_CONDA_PACKAGES = ["bismark", "bowtie2"]
+    CONDA_PACKAGE_CONSTRAINTS = {"bismark": BISMARK_VERSION, "bowtie2": BOWTIE2_VERSION}
+    PACKAGE_CONSTRAINTS = (f"bismark=={BISMARK_VERSION}", f"bowtie2=={BOWTIE2_VERSION}")
+    PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     DOCUMENTATION_URL = "https://felixkrueger.github.io/Bismark/options/genome-preparation/"
     UPSTREAM_SOURCE = "rust/bismark/src/genome_prep"
+    SOURCE_PATHS = (
+        "rust/bismark/src/genome_prep/cli.rs",
+        "rust/bismark/src/genome_prep/discovery.rs",
+        "rust/bismark/src/genome_prep/indexer.rs",
+        "rust/bismark/src/genome_prep/pipeline.rs",
+    )
+    SOURCE_URLS = bismark_source_urls(*SOURCE_PATHS)
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from .adapter import (
+    BISMARK_VERSION,
     BismarkCommandNode,
+    bismark_source_urls,
     discover_fasta_files,
     extractor_report_names,
     path_value,
@@ -23,8 +25,19 @@ class BismarkMethylationExtractorNode(BismarkCommandNode):
     RETURN_TYPES = ("DIRECTORY", "TXT", "TXT")
     RETURN_NAMES = ("methylation_output", "mbias_report", "splitting_report")
     REQUIRED_EXECUTABLES = ["bismark_methylation_extractor"]
+    REQUIRED_CONDA_PACKAGES = ["bismark"]
+    CONDA_PACKAGE_CONSTRAINTS = {"bismark": BISMARK_VERSION}
+    PACKAGE_CONSTRAINTS = (f"bismark=={BISMARK_VERSION}",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
     DOCUMENTATION_URL = "https://felixkrueger.github.io/Bismark/options/methylation-extraction/"
     UPSTREAM_SOURCE = "rust/bismark/src/extractor"
+    SOURCE_PATHS = (
+        "rust/bismark/src/extractor/cli.rs",
+        "rust/bismark/src/extractor/pipeline.rs",
+        "rust/bismark/src/extractor/mbias_writer.rs",
+        "rust/bismark/src/extractor/downstream_filenames.rs",
+    )
+    SOURCE_URLS = bismark_source_urls(*SOURCE_PATHS)
     OUTPUT_DIRECTORY = "methylation_output"
 
     @classmethod
