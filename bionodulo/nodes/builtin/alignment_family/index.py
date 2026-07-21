@@ -9,6 +9,7 @@ from .adapter import (
     BWA_INDEX_DIRECTORY,
     BWA_INDEX_FASTA,
     BwaCommandNode,
+    bwa_source_urls,
     find_index_prefix,
     path_value,
     stage_file,
@@ -24,8 +25,9 @@ class BWAIndexNode(BwaCommandNode):
     SEARCH_ALIASES = ["bwa", "index", "reference index", "fm-index"]
     RETURN_TYPES = ("INDEX_DIR",)
     RETURN_NAMES = ("indexed_reference",)
-    DOCUMENTATION_URL = "https://github.com/lh3/bwa/blob/v0.7.19/bwa.1"
     UPSTREAM_SOURCE = "bwtindex.c"
+    SOURCE_PATHS = ("bwa.1", "bwtindex.c", "bwa.c", "bntseq.c")
+    SOURCE_URLS = bwa_source_urls(*SOURCE_PATHS)
     ALGORITHMS = ("auto", "is", "bwtsw", "rb2")
 
     @classmethod

@@ -6,7 +6,14 @@ from pathlib import Path
 from typing import Any
 
 from .adapter import stage_file
-from .bwa_mem2_adapter import BWA_MEM2_PREFIX, BwaMem2CommandNode, find_index_prefix, planned_or_index_prefix
+from .bwa_mem2_adapter import (
+    BWA_MEM2_PREFIX,
+    BwaMem2CommandNode,
+    bwa_mem2_source_urls,
+    find_index_prefix,
+    planned_or_index_prefix,
+    validate_read_group,
+)
 from .legacy_adapter import mapped_result, path_list, path_value, validate_int
 
 
@@ -23,21 +30,31 @@ class BWAMem2Node(BwaMem2CommandNode):
     REQUIRED_CONDA_PACKAGES = ["bwa-mem2", "samtools"]
     PACKAGE_CONSTRAINTS = ("bwa-mem2==2.3", "samtools==1.23.1")
     PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
+    CONDA_PACKAGE_CONSTRAINTS = {"bwa-mem2": "2.3", "samtools": "1.23.1"}
     UPSTREAM_SOURCE = "src/fastmap.cpp"
+    SOURCE_PATHS = ("README.md", "src/fastmap.cpp", "src/FMI_search.cpp", "src/bntseq.cpp")
+    SOURCE_URLS = bwa_mem2_source_urls(*SOURCE_PATHS)
+    SECONDARY_TOOL_SOURCE = "samtools 1.23.1 samtools_family contract"
     SHELL = True
     INPUT_MODES = ("single", "paired", "paired_collection", "paired_iv")
     REFERENCE_SOURCES = ("history", "cached")
-    ANALYSIS_TYPES = ("illumina", "pacbio", "ont2d", "intractg", "full")
+    ANALYSIS_TYPES = ("illumina", "pacbio", "pbref", "ont2d", "intractg", "full")
     OUTPUT_SORTS = ("coordinate", "name", "unsorted")
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "ref_file": ("FASTA,INDEX_DIR", {"description": "History FASTA or BWA-MEM2 index directory"}),
+                "ref_file": (
+                    ("FASTA", "BWA_MEM2_INDEX", "INDEX_DIR"),
+                    {"description": "BWA-MEM2 index directory or FASTA reference"},
+                ),
                 "fastq_input_selector": ("STRING", {"default": "paired", "options": list(cls.INPUT_MODES)}),
-                "fastq_input1": ("FASTQ_LIST", {"description": "Single, forward, paired collection, or interleaved reads"}),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "fastq_input1": (
+                    "FASTQ_LIST",
+                    {"description": "Single, forward, paired collection, or interleaved reads"},
+                ),
+                "threads": ("INT", {"default": 1, "min": 1}),
             },
             "optional": {
                 "fastq_input2": ("FASTQ", {"default": "", "description": "Reverse reads for paired mode"}),
@@ -50,7 +67,7 @@ class BWAMem2Node(BwaMem2CommandNode):
                     {
                         "default": "fasta",
                         "options": ["fasta", "fasta.gz", "bwa_mem2_index"],
-                        "description": "History inputs default to FASTA; cached inputs must be an index directory",
+                        "description": "Declare whether ref_file is a native index directory or a FASTA to index",
                     },
                 ),
                 "analysis_type_selector": (
@@ -61,7 +78,7 @@ class BWAMem2Node(BwaMem2CommandNode):
                 "iset_stats": ("STRING", {"default": "", "description": "Insert-size distribution passed to -I"}),
                 "read_group": ("STRING", {"default": "", "description": "Complete escaped @RG line passed to -R"}),
                 "mark_shorter_splits": ("BOOLEAN", {"default": False, "description": "Use -M"}),
-                "min_score": ("INT", {"default": 30, "min": 0, "description": "Minimum score passed to -T"}),
+                "min_score": ("INT", {"default": 30, "description": "Minimum score passed to -T"}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -108,11 +125,7 @@ class BWAMem2Node(BwaMem2CommandNode):
         ref_type = str(inputs.get("ref_file_type", "fasta") or "fasta")
         if ref_type not in {"fasta", "fasta.gz", "bwa_mem2_index"}:
             return "ref_file_type must be one of: fasta, fasta.gz, bwa_mem2_index"
-        if source == "history" and ref_type == "bwa_mem2_index":
-            return "history references require ref_file_type=fasta or ref_file_type=fasta.gz"
-        if source == "cached" and ref_type != "bwa_mem2_index":
-            return "cached references require ref_file_type=bwa_mem2_index"
-        if source == "cached":
+        if ref_type == "bwa_mem2_index":
             try:
                 find_index_prefix(str(inputs["ref_file"]))
             except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
@@ -123,14 +136,21 @@ class BWAMem2Node(BwaMem2CommandNode):
         output_sort = str(inputs.get("output_sort", "coordinate") or "coordinate")
         if output_sort not in cls.OUTPUT_SORTS:
             return f"output_sort must be one of: {', '.join(cls.OUTPUT_SORTS)}"
-        validation = validate_int(inputs.get("threads", 1), "threads", minimum=1, maximum=64)
+        validation = validate_int(inputs.get("threads", 1), "threads", minimum=1)
         if validation is not True:
             return validation
-        return validate_int(inputs.get("min_score", 30), "min_score", minimum=0)
+        if inputs.get("iset_stats") not in (None, "") and not isinstance(inputs.get("iset_stats"), str):
+            return "iset_stats must be a string"
+        read_group_validation = validate_read_group(inputs.get("read_group", ""))
+        if read_group_validation is not True:
+            return read_group_validation
+        if not isinstance(inputs.get("mark_shorter_splits", False), bool):
+            return "mark_shorter_splits must be a boolean"
+        return validate_int(inputs.get("min_score", 30), "min_score")
 
     @classmethod
     def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
-        if str(inputs.get("reference_source_selector", "history") or "history") == "cached":
+        if str(inputs.get("ref_file_type", "fasta") or "fasta") == "bwa_mem2_index":
             return
         index_dir = outputs[0].parent / "reference_index"
         index_dir.mkdir(parents=True, exist_ok=True)
@@ -142,9 +162,9 @@ class BWAMem2Node(BwaMem2CommandNode):
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         node_out = Path(str(inputs.get("output", inputs.get("output_dir", "."))))
-        source = str(inputs.get("reference_source_selector", "history") or "history")
         command = ["set", "-o", "pipefail", "&&"]
-        if source == "cached":
+        ref_type = str(inputs.get("ref_file_type", "fasta") or "fasta")
+        if ref_type == "bwa_mem2_index":
             prefix = planned_or_index_prefix(str(inputs.get("ref_file", "")))
         else:
             prefix = Path(str(inputs.get("prepared_index_prefix", node_out / "reference_index" / BWA_MEM2_PREFIX)))
@@ -155,7 +175,7 @@ class BWAMem2Node(BwaMem2CommandNode):
         mode = str(inputs.get("fastq_input_selector", "paired") or "paired")
         if mode == "paired_iv":
             bwa.append("-p")
-        if inputs.get("iset_stats") and mode in {"paired", "paired_collection", "paired_iv"}:
+        if inputs.get("iset_stats"):
             bwa.extend(["-I", str(inputs["iset_stats"])])
         analysis_type = str(inputs.get("analysis_type_selector", "illumina") or "illumina")
         if analysis_type not in {"illumina", "full"}:
@@ -167,9 +187,42 @@ class BWAMem2Node(BwaMem2CommandNode):
         bwa.extend(["-T", str(inputs.get("min_score", 30)), str(prefix), *cls._reads(inputs)])
         output_bam = node_out / "aligned.bam"
         if output_sort == "coordinate":
-            bwa.extend(["|", "samtools", "sort", "-@", str(inputs.get("threads", 1)), "-O", "bam", "-o", str(output_bam), "-", "&&", "samtools", "index", "-o", str(node_out / "aligned.bam.bai"), str(output_bam)])
+            bwa.extend(
+                [
+                    "|",
+                    "samtools",
+                    "sort",
+                    "-@",
+                    str(inputs.get("threads", 1)),
+                    "-O",
+                    "bam",
+                    "-o",
+                    str(output_bam),
+                    "-",
+                    "&&",
+                    "samtools",
+                    "index",
+                    "-o",
+                    str(node_out / "aligned.bam.bai"),
+                    str(output_bam),
+                ]
+            )
         elif output_sort == "name":
-            bwa.extend(["|", "samtools", "sort", "-n", "-@", str(inputs.get("threads", 1)), "-O", "bam", "-o", str(output_bam), "-"])
+            bwa.extend(
+                [
+                    "|",
+                    "samtools",
+                    "sort",
+                    "-n",
+                    "-@",
+                    str(inputs.get("threads", 1)),
+                    "-O",
+                    "bam",
+                    "-o",
+                    str(output_bam),
+                    "-",
+                ]
+            )
         else:
             bwa.extend(["|", "samtools", "view", "-b", "-o", str(output_bam), "-"])
         command.extend(bwa)

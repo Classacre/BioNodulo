@@ -6,7 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from .adapter import stage_file
-from .bwa_mem2_adapter import BWA_MEM2_PREFIX, BwaMem2CommandNode, find_index_prefix
+from .bwa_mem2_adapter import (
+    BWA_MEM2_PREFIX,
+    BwaMem2CommandNode,
+    bwa_mem2_source_urls,
+    find_index_prefix,
+)
 from .legacy_adapter import path_value
 
 
@@ -20,6 +25,8 @@ class BWAMem2IndexNode(BwaMem2CommandNode):
     RETURN_TYPES = ("BWA_MEM2_INDEX",)
     RETURN_NAMES = ("index",)
     UPSTREAM_SOURCE = "src/bwtindex.cpp"
+    SOURCE_PATHS = ("README.md", "src/bwtindex.cpp", "src/FMI_search.cpp", "src/bntseq.cpp")
+    SOURCE_URLS = bwa_mem2_source_urls(*SOURCE_PATHS)
     OUTPUT_DIRECTORY = "index"
 
     @classmethod
@@ -58,7 +65,11 @@ class BWAMem2IndexNode(BwaMem2CommandNode):
             "bwa-mem2",
             "index",
             "-p",
-            str(inputs.get("index_prefix", Path(str(inputs.get("output", "."))) / cls.OUTPUT_DIRECTORY / BWA_MEM2_PREFIX)),
+            str(
+                inputs.get(
+                    "index_prefix", Path(str(inputs.get("output", "."))) / cls.OUTPUT_DIRECTORY / BWA_MEM2_PREFIX
+                )
+            ),
             str(inputs.get("reference", "")),
         ]
 

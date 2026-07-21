@@ -34,6 +34,14 @@ def _bundle(directory: Path, name: str = "reference.fa", *, alt: bool = False) -
     return prefix
 
 
+def _native_bundle(directory: Path, name: str = "native-prefix") -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    prefix = directory / name
+    for suffix in BWA_INDEX_SUFFIXES:
+        Path(f"{prefix}{suffix}").write_bytes(suffix.encode("ascii"))
+    return prefix
+
+
 @pytest.mark.parametrize(
     ("module_name", "class_name", "node_id", "source"),
     [
@@ -60,6 +68,9 @@ def test_documented_bwa_operations_are_source_pinned(
     assert node.SHELL is False
     assert node.UPSTREAM_MANPAGE == "bwa.1"
     assert node.UPSTREAM_SOURCE == source
+    assert node.GIT_TAG == "v0.7.19"
+    assert node.PACKAGE_CONSTRAINTS == ("bwa==0.7.19",)
+    assert all(PINNED_COMMIT in url for url in node.SOURCE_URLS)
 
 
 def test_live_discovery_assigns_each_stable_id_to_its_focused_module() -> None:
@@ -209,6 +220,14 @@ def test_bundle_validation_rejects_ambiguous_prefixes(tmp_path: Path) -> None:
         find_index_prefix(directory)
 
 
+def test_bundle_validation_rejects_zero_byte_native_members(tmp_path: Path) -> None:
+    prefix = _bundle(tmp_path / "index")
+    Path(f"{prefix}.sa").write_bytes(b"")
+
+    with pytest.raises(FileNotFoundError, match="no complete colocated prefix"):
+        find_index_prefix(prefix.parent)
+
+
 def test_bundle_validation_models_bwa_64_prefix_inference(tmp_path: Path) -> None:
     directory = tmp_path / "index"
     directory.mkdir()
@@ -328,7 +347,7 @@ async def test_mem_dry_run_uses_the_upstream_planned_index_prefix(
         ({"reads": []}, "reads must contain one single-end FASTQ"),
         ({"reads": ["1.fq", "2.fq", "3.fq"]}, "reads must contain one single-end FASTQ"),
         ({"threads": True}, "threads must be an integer"),
-        ({"threads": 0}, "threads must be between 1 and 64"),
+        ({"threads": 0}, "threads must be at least 1"),
         ({"read_group": "ID:x"}, "read_group must start with @RG"),
         (
             {"read_group": "@RG\tID:x"},
@@ -339,7 +358,6 @@ async def test_mem_dry_run_uses_the_upstream_planned_index_prefix(
             "read_group must contain an ID field",
         ),
         ({"mark_shorter_splits": "yes"}, "must be a boolean"),
-        ({"min_score": -1}, "min_score must be at least 0"),
     ],
 )
 def test_mem_rejects_invalid_layout_and_exposed_options(
@@ -355,6 +373,24 @@ def test_mem_rejects_invalid_layout_and_exposed_options(
     inputs.update(updates)
 
     assert message in str(BWAMemNode.VALIDATE_INPUTS(inputs))
+
+
+def test_mem_accepts_native_bundle_without_fasta_and_unbounded_upstream_ints(tmp_path: Path) -> None:
+    prefix = _native_bundle(tmp_path / "native")
+    inputs = {
+        "reads": ["reads.fq.gz"],
+        "reference": prefix.parent,
+        "threads": 128,
+        "min_score": -1,
+        "output": tmp_path / "out",
+    }
+
+    assert BWAMemNode.INPUT_TYPES()["required"]["threads"][1] == {"default": 1, "min": 1}
+    assert BWAMemNode.VALIDATE_INPUTS(inputs) is True
+    command = BWAMemNode.render_command(inputs)
+    assert command[0:4] == ["bwa", "mem", "-t", "128"]
+    assert command[command.index("-T") : command.index("-T") + 2] == ["-T", "-1"]
+    assert str(prefix) in command
 
 
 @pytest.mark.asyncio
@@ -424,10 +460,26 @@ async def test_index_dir_adapter_canonicalizes_complete_bundle_and_optional_alt(
 
 
 @pytest.mark.asyncio
+async def test_index_dir_adapter_accepts_native_sidecars_without_source_fasta(tmp_path: Path) -> None:
+    source_prefix = _native_bundle(tmp_path / "source")
+
+    result = await BWAIndexDirNode().run(
+        index_dir=source_prefix.parent,
+        output_dir=tmp_path / "run",
+    )
+
+    target_dir = tmp_path / "run" / "bwa_index_dir" / "index"
+    target_prefix = target_dir / "reference.fa"
+    assert result == (str(target_dir),)
+    assert not target_prefix.exists()
+    assert find_index_prefix(target_dir, require_reference=False) == target_prefix
+
+
+@pytest.mark.asyncio
 async def test_index_dir_adapter_rejects_partial_directory(tmp_path: Path) -> None:
     partial = tmp_path / "partial"
     partial.mkdir()
     (partial / "reference.fa.bwt").write_bytes(b"bwt")
 
-    with pytest.raises(ValueError, match="no complete colocated prefix"):
+    with pytest.raises(ValueError, match="no complete sibling prefix"):
         await BWAIndexDirNode().run(index_dir=partial, output_dir=tmp_path / "run")

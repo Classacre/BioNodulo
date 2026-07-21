@@ -14,6 +14,11 @@ from bionodulo.nodes.command_node import CommandNode
 BWA_INDEX_SUFFIXES = (".amb", ".ann", ".bwt", ".pac", ".sa")
 BWA_INDEX_FASTA = "reference.fa"
 BWA_INDEX_DIRECTORY = "index"
+BWA_VERSION = "0.7.19"
+BWA_GIT_URL = "https://github.com/lh3/bwa.git"
+BWA_GIT_COMMIT = "b92993c1161e73167181558856567ef2f367e3f0"
+BWA_SOURCE_ROOT = f"https://github.com/lh3/bwa/blob/{BWA_GIT_COMMIT}"
+BWA_PACKAGE_CONSTRAINT = f"bwa=={BWA_VERSION}"
 
 _LINK_FALLBACK_ERRNOS = {errno.EXDEV, errno.EPERM, errno.ENOSYS}
 for _errno_name in ("ENOTSUP", "EOPNOTSUPP"):
@@ -29,6 +34,11 @@ def path_value(value: Any) -> str | None:
     except TypeError:
         return None
     return path if path.strip() else None
+
+
+def bwa_source_urls(*paths: str) -> tuple[str, ...]:
+    """Return immutable source URLs at the audited BWA revision."""
+    return tuple(f"{BWA_SOURCE_ROOT}/{path}" for path in paths)
 
 
 def index_sidecars(prefix: Path) -> tuple[Path, ...]:
@@ -59,7 +69,9 @@ def find_index_prefix(index_dir: str | os.PathLike[str], *, require_reference: b
     for bwt_path in sorted(directory.glob("*.bwt")):
         prefix = Path(str(bwt_path)[: -len(".bwt")])
         has_reference = staged_reference(prefix) is not None
-        if (has_reference or not require_reference) and all(sidecar.is_file() for sidecar in index_sidecars(prefix)):
+        if (has_reference or not require_reference) and all(
+            sidecar.is_file() and sidecar.stat().st_size > 0 for sidecar in index_sidecars(prefix)
+        ):
             candidates.append(prefix)
 
     if not candidates:
@@ -71,6 +83,44 @@ def find_index_prefix(index_dir: str | os.PathLike[str], *, require_reference: b
         names = ", ".join(prefix.name for prefix in candidates)
         raise ValueError(f"BWA index directory {directory} contains multiple complete prefixes: {names}")
     return candidates[0]
+
+
+def planned_or_index_prefix(
+    index_dir: str | os.PathLike[str],
+    *,
+    require_reference: bool = False,
+) -> Path:
+    """Resolve a complete BWA bundle or its deterministic dry-run prefix."""
+    directory = Path(index_dir)
+    try:
+        return find_index_prefix(directory, require_reference=require_reference)
+    except FileNotFoundError:
+        if not directory.exists():
+            return directory / BWA_INDEX_FASTA
+        if directory.is_dir() and not any(
+            item.is_file() and item.name.endswith(BWA_INDEX_SUFFIXES) for item in directory.iterdir()
+        ):
+            return directory / BWA_INDEX_FASTA
+        raise
+
+
+def validate_read_group(value: Any) -> bool | str:
+    """Mirror ``bwa_set_rg`` validation for samse, sampe, and mem."""
+    if value in (None, ""):
+        return True
+    if not isinstance(value, str):
+        return "read_group must be a string"
+    if not value.startswith("@RG"):
+        return "read_group must start with @RG"
+    if "\t" in value:
+        return "read_group must use escaped \\t separators, not literal tabs"
+    marker = "\\tID:"
+    if marker not in value:
+        return "read_group must contain an ID field separated by escaped \\t"
+    identifier = value.split(marker, 1)[1].split("\\t", 1)[0]
+    if len(identifier) > 255:
+        return "read_group ID must be at most 255 characters"
+    return True
 
 
 def stage_file(source: Path, target: Path) -> None:
@@ -98,9 +148,10 @@ class BwaCommandNode(CommandNode):
     CATEGORY = "alignment"
     REQUIRED_EXECUTABLES = ["bwa"]
     REQUIRED_CONDA_PACKAGES = ["bwa"]
-    VERSION = "0.7.19"
-    GIT_URL = "https://github.com/lh3/bwa.git"
-    GIT_COMMIT = "b92993c1161e73167181558856567ef2f367e3f0"
+    VERSION = BWA_VERSION
+    GIT_URL = BWA_GIT_URL
+    GIT_COMMIT = BWA_GIT_COMMIT
+    DOCUMENTATION_URL = f"{BWA_SOURCE_ROOT}/bwa.1"
     CITATION_DOIS = ["10.1093/bioinformatics/btp324"]
     CITATION_URLS = [
         "https://doi.org/10.1093/bioinformatics/btp324",
@@ -110,7 +161,21 @@ class BwaCommandNode(CommandNode):
         "Fast and accurate short read alignment with Burrows-Wheeler transform; "
         "Aligning sequence reads, clone sequences and assembly contigs with BWA-MEM."
     )
+    CONDA_PACKAGE_CONSTRAINTS = {"bwa": BWA_VERSION}
+    PACKAGE_CONSTRAINTS = (BWA_PACKAGE_CONSTRAINT,)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
+    GIT_TAG = "v0.7.19"
+    SOURCE_REF = f"tag v0.7.19 at {BWA_GIT_COMMIT}"
+    SOURCE_REVISION = BWA_GIT_COMMIT
+    SOURCE_URL = f"https://github.com/lh3/bwa/tree/{BWA_GIT_COMMIT}"
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "BWA subcommands return non-zero for malformed arguments, unreadable inputs, "
+        "or missing index members; BioNodulo additionally validates planned artifacts "
+        "after a zero exit."
+    )
     SHELL = False
 
+    UPSTREAM_TAG: ClassVar[str] = "v0.7.19"
     UPSTREAM_MANPAGE: ClassVar[str] = "bwa.1"
     UPSTREAM_SOURCE: ClassVar[str] = ""

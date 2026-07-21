@@ -65,9 +65,7 @@ def test_focused_owners_and_compatibility_facades_are_unambiguous() -> None:
         owned = {
             obj.NODE_ID
             for _name, obj in inspect.getmembers(facade, inspect.isclass)
-            if issubclass(obj, BaseNode)
-            and obj not in {BaseNode, CommandNode}
-            and obj.__module__ == facade.__name__
+            if issubclass(obj, BaseNode) and obj not in {BaseNode, CommandNode} and obj.__module__ == facade.__name__
         }
         assert not owned.intersection(expected)
 
@@ -82,13 +80,25 @@ def test_focused_owners_and_compatibility_facades_are_unambiguous() -> None:
         (BWAMem2IndexNode, "2.3", "7aa5ff6c3330490e5629ab9b7327683d2dce02d6", "src/bwtindex.cpp"),
     ],
 )
-def test_alignment_contracts_are_source_pinned(
-    node: type[CommandNode], version: str, commit: str, source: str
-) -> None:
+def test_alignment_contracts_are_source_pinned(node: type[CommandNode], version: str, commit: str, source: str) -> None:
     assert node.VERSION == version
     assert node.GIT_COMMIT == commit
     assert node.UPSTREAM_SOURCE == source
     assert node.PACKAGE_CONSTRAINTS
+    if node in {BWANode, BWAMem2Node, BWAMem2IndexNode}:
+        assert node.GIT_TAG == f"v{version}"
+        assert all(commit in url for url in node.SOURCE_URLS)
+        assert node.AUDIT_STATUS == "contract-checked-no-external-execution"
+
+
+def test_bwa_reference_sockets_are_explicit_unions() -> None:
+    assert BWANode.INPUT_TYPES()["required"]["ref_file"][0] == ("FASTA", "INDEX_DIR")
+    assert BWAMem2Node.INPUT_TYPES()["required"]["ref_file"][0] == (
+        "FASTA",
+        "BWA_MEM2_INDEX",
+        "INDEX_DIR",
+    )
+    assert BWAMem2IndexNode.RETURN_TYPES == ("BWA_MEM2_INDEX",)
 
 
 def test_bwa_validates_cached_bundle_and_emits_coordinate_bam_bai(tmp_path: Path) -> None:
@@ -111,9 +121,7 @@ def test_bwa_validates_cached_bundle_and_emits_coordinate_bam_bai(tmp_path: Path
     assert command[:5] == ["set", "-o", "pipefail", "&&", "bwa"]
     assert ["bwa", "index"] not in [command[index : index + 2] for index in range(len(command) - 1)]
     aln_commands = [
-        command[index : index + 6]
-        for index in range(len(command) - 5)
-        if command[index : index + 2] == ["bwa", "aln"]
+        command[index : index + 6] for index in range(len(command) - 5) if command[index : index + 2] == ["bwa", "aln"]
     ]
     assert [aln_command[-2:] for aln_command in aln_commands] == [
         [str(prefix), "R1.fastq.gz"],
@@ -148,6 +156,23 @@ def test_bwa_accepts_a_native_prefix_without_a_copied_reference_fasta(tmp_path: 
     assert [str(prefix), "reads.fastq.gz", ">"] == command[aln_start + 4 : aln_start + 7]
 
 
+def test_bwa_accepts_upstream_thread_counts_above_wrapper_ui_conventions(tmp_path: Path) -> None:
+    prefix = _bwa_bundle(tmp_path / "index")
+    inputs = {
+        "ref_file": prefix.parent,
+        "reference_source_selector": "cached",
+        "input_type_selector": "single",
+        "fastq_input1": "reads.fastq.gz",
+        "threads": 128,
+        "output": tmp_path / "out",
+    }
+
+    assert BWANode.INPUT_TYPES()["required"]["threads"][1] == {"default": 1, "min": 1}
+    assert BWANode.VALIDATE_INPUTS(inputs) is True
+    command = BWANode.render_command(inputs)
+    assert command[command.index("-t") : command.index("-t") + 2] == ["-t", "128"]
+
+
 def test_bwa_mem2_history_is_a_fasta_not_an_index_directory(tmp_path: Path) -> None:
     reference = tmp_path / "source.fa"
     reference.write_text(">chr1\nACGT\n", encoding="ascii")
@@ -179,8 +204,53 @@ def test_bwa_mem2_history_is_a_fasta_not_an_index_directory(tmp_path: Path) -> N
         tmp_path / "name" / "bwa_mem2" / "aligned.bam"
     ]
 
-    invalid = {**inputs, "ref_file": tmp_path, "ref_file_type": "bwa_mem2_index"}
-    assert "history references require" in str(BWAMem2Node.VALIDATE_INPUTS(invalid))
+    index_prefix = _bwa_mem2_bundle(tmp_path / "native-index")
+    indexed = {
+        **inputs,
+        "ref_file": index_prefix.parent,
+        "ref_file_type": "bwa_mem2_index",
+    }
+    assert BWAMem2Node.VALIDATE_INPUTS(indexed) is True
+    indexed_command = BWAMem2Node.render_command({**indexed, "output": outputs[0].parent})
+    assert indexed_command[4:8] == ["bwa-mem2", "mem", "-t", "2"]
+    assert ["bwa-mem2", "index"] not in [
+        indexed_command[offset : offset + 2] for offset in range(len(indexed_command) - 1)
+    ]
+    assert str(index_prefix) in indexed_command
+
+
+def test_bwa_mem2_source_options_and_validation_match_v23(tmp_path: Path) -> None:
+    prefix = _bwa_mem2_bundle(tmp_path / "index")
+    inputs = {
+        "ref_file": prefix.parent,
+        "reference_source_selector": "history",
+        "ref_file_type": "bwa_mem2_index",
+        "fastq_input_selector": "single",
+        "fastq_input1": "reads.fastq.gz",
+        "threads": 128,
+        "analysis_type_selector": "pbref",
+        "iset_stats": "300,30,420,180",
+        "read_group": "@RG\\tID:sample\\tSM:sample",
+        "mark_shorter_splits": True,
+        "min_score": -1,
+        "output_sort": "unsorted",
+        "output": tmp_path / "out",
+    }
+
+    assert BWAMem2Node.CITATION_DOIS == ["10.1109/IPDPS.2019.00041"]
+    assert BWAMem2Node.INPUT_TYPES()["required"]["threads"][1] == {"default": 1, "min": 1}
+    assert BWAMem2Node.VALIDATE_INPUTS(inputs) is True
+    command = BWAMem2Node.render_command(inputs)
+    for expected in (
+        ["-t", "128"],
+        ["-x", "pbref"],
+        ["-I", "300,30,420,180"],
+        ["-T", "-1"],
+    ):
+        start = command.index(expected[0])
+        assert command[start : start + 2] == expected
+    assert "-M" in command
+    assert BWAMem2Node.VALIDATE_INPUTS({**inputs, "read_group": "SM:sample"}) == ("read_group must start with @RG")
 
 
 @pytest.mark.asyncio

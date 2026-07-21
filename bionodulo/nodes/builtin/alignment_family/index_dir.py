@@ -10,9 +10,14 @@ from typing import Any
 from bionodulo.nodes.base import BaseNode
 
 from .adapter import (
+    BWA_GIT_COMMIT,
+    BWA_GIT_URL,
     BWA_INDEX_DIRECTORY,
     BWA_INDEX_FASTA,
     BWA_INDEX_SUFFIXES,
+    BWA_SOURCE_ROOT,
+    BWA_VERSION,
+    bwa_source_urls,
     find_index_prefix,
     path_value,
     staged_reference,
@@ -30,17 +35,25 @@ class BWAIndexDirNode(BaseNode):
     NODE_ID = "bwa_index_dir"
     DISPLAY_NAME = "BWA Index Directory"
     CATEGORY = "alignment"
-    DESCRIPTION = "Validate and stage an existing complete BWA index bundle"
+    DESCRIPTION = "Validate and stage an existing complete native BWA index bundle"
     SEARCH_ALIASES = ["bwa index dir", "index directory", "import bwa index"]
     RETURN_TYPES = ("INDEX_DIR",)
     RETURN_NAMES = ("index_dir",)
     REQUIRES_EXTERNAL_TOOLS = False
     REQUIRED_EXECUTABLES: list[str] = []
     REQUIRED_CONDA_PACKAGES: list[str] = []
-    DOCUMENTATION_URL = "https://github.com/lh3/bwa/blob/v0.7.19/bwa.1"
-    VERSION = "0.7.19"
-    GIT_URL = "https://github.com/lh3/bwa.git"
-    GIT_COMMIT = "b92993c1161e73167181558856567ef2f367e3f0"
+    DOCUMENTATION_URL = f"{BWA_SOURCE_ROOT}/bwa.1"
+    VERSION = BWA_VERSION
+    GIT_URL = BWA_GIT_URL
+    GIT_COMMIT = BWA_GIT_COMMIT
+    GIT_TAG = "v0.7.19"
+    SOURCE_REF = f"tag v0.7.19 at {BWA_GIT_COMMIT}"
+    SOURCE_REVISION = BWA_GIT_COMMIT
+    SOURCE_URL = f"https://github.com/lh3/bwa/tree/{BWA_GIT_COMMIT}"
+    SOURCE_PATHS = ("bwa.1", "bwa.c", "bntseq.c")
+    SOURCE_URLS = bwa_source_urls(*SOURCE_PATHS)
+    UPSTREAM_SOURCE = "bwa.c; bntseq.c"
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     CITATION_DOIS = ["10.1093/bioinformatics/btp324"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btp324"]
     CITATION_TEXT = "Fast and accurate short read alignment with Burrows-Wheeler transform."
@@ -51,7 +64,7 @@ class BWAIndexDirNode(BaseNode):
             "required": {
                 "index_dir": (
                     "INDEX_DIR",
-                    {"description": "Directory containing one staged FASTA and all five BWA index siblings"},
+                    {"description": "Directory containing exactly one complete five-file BWA index prefix"},
                 ),
             },
             "optional": {},
@@ -71,7 +84,7 @@ class BWAIndexDirNode(BaseNode):
         if index_dir is None:
             return "Input 'index_dir' must be a non-empty path-like value"
         try:
-            find_index_prefix(index_dir)
+            find_index_prefix(index_dir, require_reference=False)
         except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
             return str(exc)
         return True
@@ -87,9 +100,8 @@ class BWAIndexDirNode(BaseNode):
         if validation is not True:
             raise ValueError(f"Input validation failed: {validation}")
 
-        source_prefix = find_index_prefix(str(kwargs["index_dir"]))
+        source_prefix = find_index_prefix(str(kwargs["index_dir"]), require_reference=False)
         source_reference = staged_reference(source_prefix)
-        assert source_reference is not None
         source_dir = source_prefix.parent
         target_dir = self.PLAN_OUTPUTS(kwargs, output_dir)[0]
         if os.path.abspath(source_dir) == os.path.abspath(target_dir):
@@ -101,12 +113,13 @@ class BWAIndexDirNode(BaseNode):
             else:
                 target_dir.unlink()
         target_prefix = target_dir / BWA_INDEX_FASTA
-        stage_file(source_reference, target_prefix)
+        if source_reference is not None:
+            stage_file(source_reference, target_prefix)
         for suffix in BWA_INDEX_SUFFIXES:
             stage_file(Path(f"{source_prefix}{suffix}"), Path(f"{target_prefix}{suffix}"))
         source_alt = Path(f"{source_prefix}.alt")
         if source_alt.is_file():
             stage_file(source_alt, Path(f"{target_prefix}.alt"))
 
-        find_index_prefix(target_dir)
+        find_index_prefix(target_dir, require_reference=False)
         return (str(target_dir),)

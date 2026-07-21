@@ -6,7 +6,14 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .adapter import BWA_INDEX_FASTA, BwaCommandNode, find_index_prefix, path_value
+from .adapter import (
+    BwaCommandNode,
+    bwa_source_urls,
+    find_index_prefix,
+    path_value,
+    planned_or_index_prefix,
+    validate_read_group,
+)
 
 
 def _reads(inputs: dict[str, Any]) -> list[str]:
@@ -54,8 +61,10 @@ class BWAMemNode(BwaCommandNode):
     RETURN_TYPES = ("SAM",)
     RETURN_NAMES = ("alignment",)
     OUTPUT_FILENAME = "alignment.sam"
-    DOCUMENTATION_URL = "https://github.com/lh3/bwa/blob/v0.7.19/bwa.1"
+    DOCUMENTATION_URL = "https://github.com/lh3/bwa/blob/b92993c1161e73167181558856567ef2f367e3f0/bwa.1"
     UPSTREAM_SOURCE = "fastmap.c"
+    SOURCE_PATHS = ("bwa.1", "fastmap.c", "bwa.c", "bntseq.c")
+    SOURCE_URLS = bwa_source_urls(*SOURCE_PATHS)
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -67,9 +76,9 @@ class BWAMemNode(BwaCommandNode):
                 ),
                 "reference": (
                     "INDEX_DIR",
-                    {"description": "Directory containing one staged FASTA and its complete BWA index siblings"},
+                    {"description": "Directory containing one complete native BWA index prefix"},
                 ),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 1, "min": 1}),
             },
             "optional": {
                 "read_group": (
@@ -90,7 +99,6 @@ class BWAMemNode(BwaCommandNode):
                     "INT",
                     {
                         "default": 30,
-                        "min": 0,
                         "description": "Minimum alignment score to output (-T)",
                     },
                 ),
@@ -118,24 +126,19 @@ class BWAMemNode(BwaCommandNode):
         if reference is None:
             return "Input 'reference' must be a non-empty path-like value"
         try:
-            find_index_prefix(reference)
+            find_index_prefix(reference, require_reference=False)
         except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
             return str(exc)
 
         threads = inputs.get("threads", 1)
         if isinstance(threads, bool) or not isinstance(threads, int):
             return "threads must be an integer"
-        if not 1 <= threads <= 64:
-            return "threads must be between 1 and 64"
+        if threads < 1:
+            return "threads must be at least 1"
 
-        read_group = _read_group(inputs)
-        if read_group:
-            if not read_group.startswith("@RG"):
-                return "read_group must start with @RG"
-            if "\t" in read_group:
-                return "read_group must use escaped \\t separators, not literal tabs"
-            if "\\tID:" not in read_group:
-                return "read_group must contain an ID field separated by escaped \\t"
+        read_group_validation = validate_read_group(_read_group(inputs))
+        if read_group_validation is not True:
+            return read_group_validation
 
         mark_splits = inputs.get("mark_shorter_splits", False)
         if not isinstance(mark_splits, bool):
@@ -143,8 +146,6 @@ class BWAMemNode(BwaCommandNode):
         min_score = inputs.get("min_score", 30)
         if isinstance(min_score, bool) or not isinstance(min_score, int):
             return "min_score must be an integer"
-        if min_score < 0:
-            return "min_score must be at least 0"
         return True
 
     @classmethod
@@ -152,8 +153,7 @@ class BWAMemNode(BwaCommandNode):
         reference = path_value(inputs.get("reference"))
         if reference is None:
             raise ValueError("Input 'reference' must be a non-empty path-like value")
-        index_dir = Path(reference)
-        prefix = find_index_prefix(index_dir) if index_dir.exists() else index_dir / BWA_INDEX_FASTA
+        prefix = planned_or_index_prefix(reference, require_reference=False)
         output = Path(str(inputs.get("output", inputs.get("output_dir", "."))))
         command = ["bwa", "mem", "-t", str(inputs.get("threads", 1))]
         read_group = _read_group(inputs)

@@ -5,7 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .adapter import BWA_INDEX_FASTA, BwaCommandNode, find_index_prefix, stage_file
+from .adapter import (
+    BWA_INDEX_FASTA,
+    BwaCommandNode,
+    bwa_source_urls,
+    find_index_prefix,
+    planned_or_index_prefix,
+    stage_file,
+    validate_read_group,
+)
 from .legacy_adapter import path_list, path_value, validate_int
 
 
@@ -22,8 +30,11 @@ class BWANode(BwaCommandNode):
     REQUIRED_CONDA_PACKAGES = ["bwa", "samtools"]
     PACKAGE_CONSTRAINTS = ("bwa==0.7.19", "samtools==1.23.1")
     PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
-    DOCUMENTATION_URL = "https://github.com/lh3/bwa/blob/v0.7.19/bwa.1"
+    CONDA_PACKAGE_CONSTRAINTS = {"bwa": "0.7.19", "samtools": "1.23.1"}
     UPSTREAM_SOURCE = "bwtaln.c; bwase.c; bwape.c"
+    SOURCE_PATHS = ("bwa.1", "bwtindex.c", "bwtaln.c", "bwase.c", "bwape.c", "bwa.c")
+    SOURCE_URLS = bwa_source_urls(*SOURCE_PATHS)
+    SECONDARY_TOOL_SOURCE = "samtools 1.23.1 samtools_family contract"
     SHELL = True
     INPUT_MODES = ("single", "paired", "paired_collection", "single_bam", "paired_bam")
     REFERENCE_SOURCES = ("history", "cached")
@@ -33,17 +44,26 @@ class BWANode(BwaCommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "ref_file": ("FASTA,INDEX_DIR", {"description": "History FASTA or complete BWA index directory"}),
+                "ref_file": (
+                    ("FASTA", "INDEX_DIR"),
+                    {"description": "History FASTA or complete native BWA index directory"},
+                ),
                 "input_type_selector": ("STRING", {"default": "paired", "options": list(cls.INPUT_MODES)}),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 1, "min": 1}),
             },
             "optional": {
-                "fastq_input1": ("FASTQ_LIST", {"default": "", "description": "Single, forward, or paired collection reads"}),
+                "fastq_input1": (
+                    "FASTQ_LIST",
+                    {"default": "", "description": "Single, forward, or paired collection reads"},
+                ),
                 "fastq_input2": ("FASTQ", {"default": "", "description": "Reverse reads"}),
                 "bam_input": ("BAM", {"default": "", "description": "Unaligned BAM for BAM modes"}),
                 "reference_source_selector": ("STRING", {"default": "history", "options": list(cls.REFERENCE_SOURCES)}),
                 "index_a": ("STRING", {"default": "auto", "options": list(cls.INDEX_ALGORITHMS)}),
-                "read_group": ("STRING", {"default": "", "description": "Complete escaped @RG line passed to samse/sampe -r"}),
+                "read_group": (
+                    "STRING",
+                    {"default": "", "description": "Complete escaped @RG line passed to samse/sampe -r"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -87,7 +107,10 @@ class BWANode(BwaCommandNode):
         algorithm = str(inputs.get("index_a", "auto") or "auto")
         if algorithm not in cls.INDEX_ALGORITHMS:
             return f"index_a must be one of: {', '.join(cls.INDEX_ALGORITHMS)}"
-        return validate_int(inputs.get("threads", 1), "threads", minimum=1, maximum=64)
+        read_group_validation = validate_read_group(inputs.get("read_group", ""))
+        if read_group_validation is not True:
+            return read_group_validation
+        return validate_int(inputs.get("threads", 1), "threads", minimum=1)
 
     @classmethod
     def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
@@ -105,7 +128,7 @@ class BWANode(BwaCommandNode):
         source = str(inputs.get("reference_source_selector", "history") or "history")
         command = ["set", "-o", "pipefail", "&&"]
         if source == "cached":
-            prefix = find_index_prefix(str(inputs.get("ref_file", "")), require_reference=False)
+            prefix = planned_or_index_prefix(str(inputs.get("ref_file", "")), require_reference=False)
         else:
             prefix = Path(str(inputs.get("prepared_index_prefix", inputs.get("ref_file", ""))))
             command.extend(["bwa", "index"])
@@ -143,6 +166,25 @@ class BWANode(BwaCommandNode):
                 sam.extend(["-r", str(inputs["read_group"])])
             sam.extend([str(prefix), str(sai1), reads[0]])
         output_bam = node_out / "aligned.bam"
-        sam.extend(["|", "samtools", "sort", "-@", str(inputs.get("threads", 1)), "-O", "bam", "-o", str(output_bam), "-", "&&", "samtools", "index", "-o", str(node_out / "aligned.bam.bai"), str(output_bam)])
+        sam.extend(
+            [
+                "|",
+                "samtools",
+                "sort",
+                "-@",
+                str(inputs.get("threads", 1)),
+                "-O",
+                "bam",
+                "-o",
+                str(output_bam),
+                "-",
+                "&&",
+                "samtools",
+                "index",
+                "-o",
+                str(node_out / "aligned.bam.bai"),
+                str(output_bam),
+            ]
+        )
         command.extend(sam)
         return command
