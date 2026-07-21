@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
+
 from .adapter import (
     IndexedBamReferenceNode,
     option_value,
@@ -45,7 +47,17 @@ class DellyNode(IndexedBamReferenceNode):
     CITATION_TEXT = "DELLY: structural variant discovery by integrated paired-end and split-read analysis."
     UPSTREAM_SOURCE = "src/delly.h"
     UPSTREAM_LONG_READ_SOURCE = "src/tegua.h"
-    UPSTREAM_OUTPUT_SOURCE = "src/modvcf.h"
+    UPSTREAM_OUTPUT_SOURCE = "src/modvcf.h:vcfOutput"
+    UPSTREAM_OPTIONS_SOURCE = "src/delly.h:delly; src/tegua.h:tegua"
+    UPSTREAM_BAM_INDEX_SOURCE = "src/delly.h:sam_index_load; src/tegua.h:sam_index_load"
+    UPSTREAM_REFERENCE_SOURCE = "src/delly.h:fai_load; src/tegua.h:fai_load"
+    UPSTREAM_SOMATIC_SOURCE = "README.md:Somatic SV calling"
+    UPSTREAM_THREADING_SOURCE = "README.md:Delly multi-threading mode"
+    THREADING_SEMANTICS = (
+        "DELLY has no thread command-line flag; builds compiled with PARALLEL=1 "
+        "use OMP_NUM_THREADS, which upstream recommends keeping no greater than "
+        "the number of input samples."
+    )
     MODES = ("call", "lr")
     TECHNOLOGIES = ("ont", "pb")
 
@@ -53,7 +65,15 @@ class DellyNode(IndexedBamReferenceNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "bam": ("BAM", {"description": "Coordinate-sorted input BAM"}),
+                "bam": (
+                    "BAM",
+                    {
+                        "description": (
+                            "Coordinate-sorted, indexed, duplicate-marked primary BAM "
+                            "(tumor BAM when normal_bam is supplied)"
+                        )
+                    },
+                ),
                 "bam_index": (
                     "BAI",
                     {"description": "Exact <bam>.bai index for the input BAM"},
@@ -66,19 +86,42 @@ class DellyNode(IndexedBamReferenceNode):
                     "FASTA_INDEX",
                     {"description": "Exact <reference>.fai index"},
                 ),
+            },
+            "optional": {
                 "mode": (
                     "STRING",
                     {"default": "call", "options": list(cls.MODES)},
                 ),
-            },
-            "optional": {
+                "normal_bam": (
+                    "BAM",
+                    {
+                        "description": (
+                            "Matched control BAM appended after the primary/tumor BAM "
+                            "for the DELLY somatic calling invocation"
+                        ),
+                        "advanced": True,
+                    },
+                ),
+                "normal_bam_index": (
+                    "BAI",
+                    {
+                        "description": "Exact <normal_bam>.bai index for the matched control BAM",
+                        "advanced": True,
+                    },
+                ),
                 "exclude_regions": (
                     "BED",
                     {"description": "Regions excluded from discovery", "advanced": True},
                 ),
                 "map_qual": (
                     "INT",
-                    {"default": 1, "min": 0, "label": "Min MapQ", "advanced": True},
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 65535,
+                        "label": "Min MapQ",
+                        "advanced": True,
+                    },
                 ),
                 "technology": (
                     "STRING",
@@ -114,6 +157,8 @@ class DellyNode(IndexedBamReferenceNode):
         if mode == "lr":
             command.extend(["-y", str(option_value(inputs, "technology", "ont"))])
         command.append(str(inputs["bam"]))
+        if inputs.get("normal_bam"):
+            command.append(str(inputs["normal_bam"]))
         return command
 
     @classmethod
@@ -127,10 +172,26 @@ class DellyNode(IndexedBamReferenceNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
+        mode = str(option_value(inputs, "mode", "call"))
         validation = validate_choice(inputs, "mode", "call", cls.MODES)
         if validation is not True:
             return validation
-        validation = validate_integer(inputs, "map_qual", 1, minimum=0)
+        validation = validate_integer(inputs, "map_qual", 1, minimum=0, maximum=65535)
         if validation is not True:
             return validation
-        return validate_choice(inputs, "technology", "ont", cls.TECHNOLOGIES)
+        if mode == "lr":
+            validation = validate_choice(inputs, "technology", "ont", cls.TECHNOLOGIES)
+            if validation is not True:
+                return validation
+
+        normal_bam = inputs.get("normal_bam")
+        normal_bam_index = inputs.get("normal_bam_index")
+        if normal_bam:
+            return validate_colocated_bam_index(
+                inputs,
+                bam_key="normal_bam",
+                index_key="normal_bam_index",
+            )
+        if normal_bam_index:
+            return "Input 'normal_bam_index' requires input 'normal_bam'"
+        return True

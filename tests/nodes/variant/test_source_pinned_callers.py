@@ -134,6 +134,75 @@ def test_delly_native_bcf_and_csi_contract_is_exact(tmp_path: Path) -> None:
     ]
 
 
+def test_delly_uses_its_documented_call_default_when_mode_is_omitted(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "delly"
+    inputs = _indexed_inputs(output=output)
+
+    assert "mode" in DellyNode.INPUT_TYPES()["optional"]
+    assert DellyNode.VALIDATE_INPUTS(inputs) is True
+    assert DellyNode.render_command(inputs) == [
+        "delly",
+        "call",
+        "-g",
+        "/data/reference.fa",
+        "-o",
+        str(output / "sv_calls.bcf"),
+        "-q",
+        "1",
+        "/data/sample.bam",
+    ]
+
+
+def test_delly_somatic_call_appends_matched_control_bam_after_tumor(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "delly"
+    inputs = _indexed_inputs(
+        output=output,
+        normal_bam="/data/normal.bam",
+        normal_bam_index="/data/normal.bam.bai",
+    )
+
+    assert DellyNode.VALIDATE_INPUTS(inputs) is True
+    assert DellyNode.render_command(inputs) == [
+        "delly",
+        "call",
+        "-g",
+        "/data/reference.fa",
+        "-o",
+        str(output / "sv_calls.bcf"),
+        "-q",
+        "1",
+        "/data/sample.bam",
+        "/data/normal.bam",
+    ]
+
+
+def test_delly_normal_bam_index_is_an_explicit_colocated_sidecar() -> None:
+    inputs = _indexed_inputs()
+
+    assert "expected '/data/normal.bam.bai'" in str(
+        DellyNode.VALIDATE_INPUTS({**inputs, "normal_bam": "/data/normal.bam"})
+    )
+    assert (
+        DellyNode.VALIDATE_INPUTS(
+            {**inputs, "normal_bam_index": "/data/normal.bam.bai"}
+        )
+        == "Input 'normal_bam_index' requires input 'normal_bam'"
+    )
+    assert "exact colocated index" in str(
+        DellyNode.VALIDATE_INPUTS(
+            {
+                **inputs,
+                "normal_bam": "/data/normal.bam",
+                "normal_bam_index": "/data/not-normal.bai",
+            }
+        )
+    )
+
+
 def test_delly_long_read_argv_uses_source_native_technology_flag(tmp_path: Path) -> None:
     output = tmp_path / "delly"
     inputs = _indexed_inputs(
@@ -159,6 +228,25 @@ def test_delly_long_read_argv_uses_source_native_technology_flag(tmp_path: Path)
         "pb",
         "/data/sample.bam",
     ]
+
+
+def test_delly_only_validates_long_read_technology_for_long_read_mode() -> None:
+    inputs = _indexed_inputs(mode="call", technology="not-a-long-read-platform")
+
+    assert DellyNode.VALIDATE_INPUTS(inputs) is True
+    assert DellyNode.VALIDATE_INPUTS(
+        {**inputs, "mode": "lr"}
+    ) == "technology must be one of: ont, pb"
+
+
+def test_delly_map_qual_matches_the_source_uint16_range() -> None:
+    inputs = _indexed_inputs()
+
+    assert DellyNode.VALIDATE_INPUTS({**inputs, "map_qual": 65535}) is True
+    assert (
+        DellyNode.VALIDATE_INPUTS({**inputs, "map_qual": 65536})
+        == "map_qual must be at most 65535"
+    )
 
 
 def test_delly_call_is_the_only_explicit_conversion_pipeline(tmp_path: Path) -> None:
@@ -196,6 +284,45 @@ def test_delly_call_is_the_only_explicit_conversion_pipeline(tmp_path: Path) -> 
         "-p",
         "vcf",
         str(converted),
+    ]
+
+
+def test_delly_call_keeps_the_matched_control_before_conversion(tmp_path: Path) -> None:
+    output = tmp_path / "delly_call"
+    inputs = _indexed_inputs(
+        output=output,
+        normal_bam="/data/normal.bam",
+        normal_bam_index="/data/normal.bam.bai",
+    )
+
+    command = DellyCallNode.render_command(inputs)
+
+    assert command[:11] == [
+        "delly",
+        "call",
+        "-g",
+        "/data/reference.fa",
+        "-o",
+        str(output / "sv_calls.bcf"),
+        "-q",
+        "1",
+        "/data/sample.bam",
+        "/data/normal.bam",
+        "&&",
+    ]
+    assert command[11:] == [
+        "bcftools",
+        "view",
+        "-Oz",
+        "-o",
+        str(output / "sv_vcf.vcf.gz"),
+        str(output / "sv_calls.bcf"),
+        "&&",
+        "tabix",
+        "-f",
+        "-p",
+        "vcf",
+        str(output / "sv_vcf.vcf.gz"),
     ]
 
 
