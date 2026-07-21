@@ -33,7 +33,11 @@ class HUMAnNNode(MetagenomicsCommandNode):
     GIT_URL = "https://github.com/biobakery/humann.git"
     GIT_COMMIT = "9c6dfef873837c0ed281e1093718769d1aea98c9"
     UPSTREAM_TAG = "v3.9"
-    UPSTREAM_SOURCE = "humann/humann.py; humann/config.py; readme.md"
+    UPSTREAM_SOURCE = "setup.py; humann/humann.py; humann/config.py; readme.md"
+    SOURCE_PATHS = ("setup.py", "humann/humann.py", "humann/config.py", "readme.md")
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"{GIT_URL}/blob/{GIT_COMMIT}"
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
     DOCUMENTATION_URL = "https://github.com/biobakery/humann/blob/9c6dfef873837c0ed281e1093718769d1aea98c9/readme.md"
     CITATION_DOIS = ["10.7554/eLife.65088", "10.1371/journal.pcbi.1002358"]
     CITATION_URLS = [
@@ -46,6 +50,31 @@ class HUMAnNNode(MetagenomicsCommandNode):
     MEMORY_MODES = ("minimum", "maximum")
     SEARCH_MODES = ("uniref50", "uniref90")
     TRANSLATED_ALIGNERS = ("diamond", "rapsearch", "usearch")
+    CHOCOPHLAN_RELEASE_TOKEN = "v201901_v31"
+    CHOCOPHLAN_SEQUENCE_SUFFIXES = (".ffn", ".ffn.gz")
+    CHOCOPHLAN_FILENAME_PREFIXES = ("g__",)
+    UNIREF_RELEASE_TOKEN = "201901b"
+    TRANSLATED_DATABASE_EXTENSIONS = {
+        "diamond": ".dmnd",
+        "rapsearch": ".info",
+        "usearch": ".udb",
+    }
+    GENERATED_BOWTIE2_INDEX_SUFFIXES = (
+        ".1.bt2",
+        ".2.bt2",
+        ".3.bt2",
+        ".4.bt2",
+        ".rev.1.bt2",
+        ".rev.2.bt2",
+    )
+    SIDECAR_POLICY = (
+        "For the raw-read contract, the nucleotide directory contains ChocoPhlAn "
+        "v201901_v31 pangenome sequence members. HUMAnN merges the selected members and "
+        "builds Bowtie2 indexes in its temporary output directory, so Bowtie2 index files "
+        "are not input sidecars. The protein directory must contain a UniRef 201901b database "
+        "formatted for the selected translated aligner (.dmnd for DIAMOND, .udb for USEARCH, "
+        "or a RAPSearch basename plus .info sidecar)."
+    )
     EXIT_SEMANTICS = (
         "HUMAnN exits nonzero for unreadable inputs, unavailable dependencies, incompatible databases, "
         "or output failures; BioNodulo additionally verifies the native output directory, tables, and log."
@@ -130,6 +159,90 @@ class HUMAnNNode(MetagenomicsCommandNode):
             minimum=0.0,
             maximum=100.0,
         )
+
+    @classmethod
+    def _materialized_database_entries(cls, inputs: dict[str, Any], key: str, label: str) -> list[Path] | None:
+        """Return a materialized database directory's direct members, if available."""
+
+        database = Path(path_value(inputs.get(key)))
+        if not database.exists():
+            # Staging can materialize a declared directory after node validation.
+            return None
+        if not database.is_dir():
+            raise ValueError(f"HUMAnN {label} database must be a directory: {database}")
+        entries = sorted(database.iterdir(), key=lambda path: path.name)
+        if not entries:
+            raise ValueError(f"HUMAnN {label} database is empty: {database}")
+        return entries
+
+    @classmethod
+    def _validate_release_members(
+        cls,
+        entries: list[Path],
+        release_token: str,
+        label: str,
+    ) -> None:
+        """Mirror HUMAnN's requirement that one database directory contains one release."""
+
+        wrong_release = [entry.name for entry in entries if release_token not in entry.name]
+        if wrong_release:
+            raise ValueError(
+                f"HUMAnN {label} database has member(s) outside required release {release_token}: "
+                + ", ".join(wrong_release)
+            )
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Fail early when a staged HUMAnN database cannot satisfy the selected native mode."""
+
+        nucleotide_entries = cls._materialized_database_entries(
+            inputs,
+            "nucleotide_database",
+            "ChocoPhlAn nucleotide",
+        )
+        if nucleotide_entries is not None:
+            cls._validate_release_members(
+                nucleotide_entries,
+                cls.CHOCOPHLAN_RELEASE_TOKEN,
+                "ChocoPhlAn nucleotide",
+            )
+            invalid_members = [
+                entry
+                for entry in nucleotide_entries
+                if not (
+                    entry.is_file()
+                    and entry.name.startswith(cls.CHOCOPHLAN_FILENAME_PREFIXES)
+                    and entry.name.endswith(cls.CHOCOPHLAN_SEQUENCE_SUFFIXES)
+                )
+            ]
+            if invalid_members:
+                raise ValueError(
+                    "HUMAnN ChocoPhlAn database contains non-pangenome sequence member(s); "
+                    "expected release-matched g__*.ffn or g__*.ffn.gz files: "
+                    + ", ".join(entry.name for entry in invalid_members)
+                )
+
+        protein_entries = cls._materialized_database_entries(
+            inputs,
+            "protein_database",
+            "UniRef protein",
+        )
+        if protein_entries is None:
+            return
+        cls._validate_release_members(protein_entries, cls.UNIREF_RELEASE_TOKEN, "UniRef protein")
+        aligner = str(inputs.get("translated_alignment", "diamond"))
+        extension = cls.TRANSLATED_DATABASE_EXTENSIONS[aligner]
+        formatted_members = [entry for entry in protein_entries if entry.is_file() and entry.name.endswith(extension)]
+        if not formatted_members:
+            raise ValueError(
+                f"HUMAnN UniRef database is missing a release-matched {aligner} database member (*{extension})"
+            )
+        if aligner == "rapsearch":
+            complete_members = [
+                entry for entry in formatted_members if (entry.parent / entry.name[: -len(extension)]).is_file()
+            ]
+            if not complete_members:
+                raise ValueError("HUMAnN RAPSearch database requires both each database basename and its .info sidecar")
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:

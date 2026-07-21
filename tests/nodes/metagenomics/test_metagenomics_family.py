@@ -396,6 +396,90 @@ def test_humann_argv_requires_upstream_taxonomy_and_both_reference_databases() -
     ]
 
 
+def test_humann_checks_materialized_chocophlan_and_diamond_database_members(tmp_path: Path) -> None:
+    nucleotide_database = tmp_path / "chocophlan"
+    protein_database = tmp_path / "uniref"
+    nucleotide_database.mkdir()
+    protein_database.mkdir()
+    inputs = {
+        "input": "reads.fastq.gz",
+        "taxonomic_profile": "profile.tsv",
+        "nucleotide_database": str(nucleotide_database),
+        "protein_database": str(protein_database),
+    }
+
+    with pytest.raises(ValueError, match="ChocoPhlAn nucleotide database is empty"):
+        HUMAnNNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    (nucleotide_database / "g__Example.s__Species.centroids.v201901_v31.ffn.gz").write_bytes(b"synthetic")
+    with pytest.raises(ValueError, match="UniRef protein database is empty"):
+        HUMAnNNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    (protein_database / "uniref90_201901b.udb").write_bytes(b"synthetic")
+    with pytest.raises(ValueError, match=r"\*\.dmnd"):
+        HUMAnNNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    (protein_database / "uniref90_201901b.dmnd").write_bytes(b"synthetic")
+    HUMAnNNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+
+def test_humann_rejects_wrong_release_and_nonsequence_chocophlan_members(tmp_path: Path) -> None:
+    nucleotide_database = tmp_path / "chocophlan"
+    protein_database = tmp_path / "uniref"
+    nucleotide_database.mkdir()
+    protein_database.mkdir()
+    inputs = {
+        "input": "reads.fastq.gz",
+        "taxonomic_profile": "profile.tsv",
+        "nucleotide_database": str(nucleotide_database),
+        "protein_database": str(protein_database),
+    }
+    (nucleotide_database / "g__Example.s__Species.centroids.v201901_v31.1.bt2").write_bytes(b"index")
+    (protein_database / "uniref90_201901b.dmnd").write_bytes(b"synthetic")
+
+    with pytest.raises(ValueError, match="non-pangenome sequence member"):
+        HUMAnNNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    (nucleotide_database / "g__Example.s__Species.centroids.v201901_v31.1.bt2").unlink()
+    (nucleotide_database / "g__Example.s__Species.centroids.v202101_v31.ffn.gz").write_bytes(b"wrong")
+    with pytest.raises(ValueError, match="v201901_v31"):
+        HUMAnNNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+
+@pytest.mark.parametrize(
+    ("aligner", "database_member"),
+    [
+        ("usearch", "uniref90_201901b.udb"),
+        ("rapsearch", "uniref90_201901b.info"),
+    ],
+)
+def test_humann_selects_the_native_translated_database_format(
+    tmp_path: Path,
+    aligner: str,
+    database_member: str,
+) -> None:
+    nucleotide_database = tmp_path / "chocophlan"
+    protein_database = tmp_path / "uniref"
+    nucleotide_database.mkdir()
+    protein_database.mkdir()
+    (nucleotide_database / "g__Example.s__Species.centroids.v201901_v31.ffn.gz").write_bytes(b"synthetic")
+    (protein_database / database_member).write_bytes(b"synthetic")
+    inputs = {
+        "input": "reads.fastq.gz",
+        "taxonomic_profile": "profile.tsv",
+        "nucleotide_database": str(nucleotide_database),
+        "protein_database": str(protein_database),
+        "translated_alignment": aligner,
+    }
+
+    if aligner == "rapsearch":
+        with pytest.raises(ValueError, match="basename and its .info sidecar"):
+            HUMAnNNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+        (protein_database / "uniref90_201901b").write_bytes(b"synthetic")
+
+    HUMAnNNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+
 def test_krona_argv_supplies_the_required_taxonomy_database() -> None:
     assert KronaTaxonomyNode.render_command(
         {
