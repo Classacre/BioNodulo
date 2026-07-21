@@ -60,7 +60,13 @@ VALID_INPUTS: dict[str, dict[str, Any]] = {
 }
 
 OUTPUT_NAMES = {
-    "macs2_callpeak": ("sample_peaks_peaks.narrowPeak", "sample_peaks_treat_pileup.bdg"),
+    "macs2_callpeak": (
+        "sample_peaks_peaks.narrowPeak",
+        "sample_peaks_treat_pileup.bdg",
+        "sample_peaks_peaks.xls",
+        "sample_peaks_summits.bed",
+        "sample_peaks_control_lambda.bdg",
+    ),
     "macs2_bdgpeak": ("score_peaks.narrowPeak",),
     "deeptools_bamcoverage": ("coverage_bw.bw",),
     "deeptools_compute_matrix": ("matrix.gz",),
@@ -68,6 +74,13 @@ OUTPUT_NAMES = {
     "deeptools_plot_profile": ("profile.png",),
     "bedtools_closest": ("closest.bed",),
 }
+
+
+@pytest.fixture(autouse=True)
+def _materialize_macs2_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    for filename in ("chip.bam", "input.bam", "score.bdg"):
+        Path(filename).write_bytes(b"synthetic input\n")
 
 
 @pytest.mark.parametrize(
@@ -405,6 +418,16 @@ async def test_success_without_required_artifact_fails_closed(node: type, tmp_pa
 
     with pytest.raises(RuntimeError, match="did not create expected output"):
         await node().run(**inputs, context=context, output_dir=tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_callpeak_requires_all_five_source_guaranteed_artifacts(tmp_path: Path) -> None:
+    inputs = dict(VALID_INPUTS["macs2_callpeak"])
+    outputs = MACS2CallpeakNode.PLAN_OUTPUTS(inputs, tmp_path)
+    context = FakeContext(outputs[:-1])
+
+    with pytest.raises(RuntimeError, match="sample_peaks_control_lambda.bdg"):
+        await MACS2CallpeakNode().run(**inputs, context=context, output_dir=tmp_path)
 
 
 def test_live_discovery_preserves_all_node_ids_and_uses_focused_owners() -> None:

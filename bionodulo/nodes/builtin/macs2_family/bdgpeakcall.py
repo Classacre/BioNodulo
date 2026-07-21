@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .adapter import MACS2CommandNode
+from .adapter import MACS2_SOURCE_ROOT, MACS2CommandNode, macs2_source_urls
 
 
 class MACS2BdgPeakNode(MACS2CommandNode):
@@ -17,8 +17,16 @@ class MACS2BdgPeakNode(MACS2CommandNode):
     SEARCH_ALIASES = ["macs2", "bdgpeakcall", "bedgraph peaks", "chip-seq", "atac-seq"]
     RETURN_TYPES = ("NARROW_PEAK",)
     RETURN_NAMES = ("peaks",)
-    DOCUMENTATION_URL = "https://github.com/macs3-project/MACS/blob/v2.2.9.1/README.md"
+    DOCUMENTATION_URL = f"{MACS2_SOURCE_ROOT}/README.md"
     UPSTREAM_SOURCE = "MACS2/bdgpeakcall_cmd.py"
+    SOURCE_PATHS = (
+        "README.md",
+        "bin/macs2",
+        "MACS2/bdgpeakcall_cmd.py",
+        "MACS2/IO/BedGraph.pyx",
+    )
+    SOURCE_URLS = macs2_source_urls(*SOURCE_PATHS)
+    EVIDENCE_PRECEDENCE = "Pinned executable parser and command source, then the pinned README."
     PREVIOUS_VERSIONS = ["2.2.9.2"]
     MIGRATIONS = [
         {
@@ -41,9 +49,9 @@ class MACS2BdgPeakNode(MACS2CommandNode):
                 ),
             },
             "optional": {
-                "cutoff": ("FLOAT", {"default": 5.0, "min": 0.0}),
-                "min_length": ("INT", {"default": 200, "min": 1}),
-                "max_gap": ("INT", {"default": 30, "min": 0}),
+                "cutoff": ("FLOAT", {"default": 5.0}),
+                "min_length": ("INT", {"default": 200}),
+                "max_gap": ("INT", {"default": 30}),
                 "name": ("STRING", {"default": "macs2_bdgpeak"}),
             },
             "hidden": {"output": ("STRING", {})},
@@ -54,7 +62,7 @@ class MACS2BdgPeakNode(MACS2CommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = cls.require_path(inputs, "treatment_bdg")
+        validation = cls.require_nonempty_file(inputs, "treatment_bdg")
         if validation is not True:
             return validation
         legacy_method = str(inputs.get("method", "bdgpeakcall") or "bdgpeakcall").lower()
@@ -71,14 +79,14 @@ class MACS2BdgPeakNode(MACS2CommandNode):
         if not str(inputs.get("name", "macs2_bdgpeak") or "").strip():
             return "name must be non-empty"
         cutoff = inputs.get("cutoff", 5.0)
-        if isinstance(cutoff, bool) or not isinstance(cutoff, (int, float)) or cutoff < 0:
-            return "cutoff must be a non-negative number"
+        if isinstance(cutoff, bool) or not isinstance(cutoff, (int, float)):
+            return "cutoff must be a number"
         min_length = inputs.get("min_length", 200)
-        if isinstance(min_length, bool) or not isinstance(min_length, int) or min_length < 1:
-            return "min_length must be a positive integer"
+        if isinstance(min_length, bool) or not isinstance(min_length, int):
+            return "min_length must be an integer"
         max_gap = inputs.get("max_gap", 30)
-        if isinstance(max_gap, bool) or not isinstance(max_gap, int) or max_gap < 0:
-            return "max_gap must be a non-negative integer"
+        if isinstance(max_gap, bool) or not isinstance(max_gap, int):
+            return "max_gap must be an integer"
         return True
 
     @classmethod
