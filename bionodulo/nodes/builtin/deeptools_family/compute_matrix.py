@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .adapter import DeepToolsCommandNode
+from .adapter import DeepToolsCommandNode, deeptools_source_urls
 
 
 class DeepToolsComputeMatrixNode(DeepToolsCommandNode):
@@ -19,7 +19,16 @@ class DeepToolsComputeMatrixNode(DeepToolsCommandNode):
     REQUIRED_EXECUTABLES = ["computeMatrix"]
     OUTPUT_FILENAMES = ("matrix.gz",)
     DOCUMENTATION_URL = "https://deeptools.readthedocs.io/en/3.5.6/content/tools/computeMatrix.html"
-    UPSTREAM_SOURCE = "deeptools/computeMatrix.py"
+    SOURCE_PATHS = (
+        "deeptools/computeMatrix.py",
+        "deeptools/parserCommon.py",
+        "deeptools/heatmapper.py",
+        "docs/content/tools/computeMatrix.rst",
+        "pyproject.toml",
+    )
+    SOURCE_URLS = deeptools_source_urls(*SOURCE_PATHS)
+    SOURCE_URL = SOURCE_URLS[0]
+    UPSTREAM_SOURCE = "; ".join(SOURCE_PATHS[:3])
 
     MODES = ("reference-point", "scale-regions")
     REFERENCE_POINTS = ("TSS", "TES", "center")
@@ -28,18 +37,38 @@ class DeepToolsComputeMatrixNode(DeepToolsCommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "bigwig": ("BIGWIG", {"description": "Input bigWig signal track"}),
-                "regions": ("BED", {"description": "BED or GTF regions"}),
+                "bigwig": (
+                    "BIGWIG",
+                    {"multiple": True, "description": "One or more input bigWig signal tracks"},
+                ),
+                "regions": (
+                    "FILE",
+                    {"multiple": True, "description": "One or more BED or GTF region files"},
+                ),
                 "mode": ("STRING", {"default": "reference-point", "options": list(cls.MODES)}),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 1, "min": 1}),
             },
             "optional": {
                 "reference_point": (
                     "STRING",
                     {"default": "TSS", "options": list(cls.REFERENCE_POINTS)},
                 ),
-                "before_region": ("INT", {"default": 500, "min": 0}),
-                "after_region": ("INT", {"default": 1500, "min": 0}),
+                "before_region": (
+                    "INT",
+                    {
+                        "default": None,
+                        "min": 0,
+                        "description": "Defaults to 500 in reference-point mode and 0 in scale-regions mode",
+                    },
+                ),
+                "after_region": (
+                    "INT",
+                    {
+                        "default": None,
+                        "min": 0,
+                        "description": "Defaults to 1500 in reference-point mode and 0 in scale-regions mode",
+                    },
+                ),
                 "region_body_length": ("INT", {"default": 1000, "min": 1}),
                 "bin_size": ("INT", {"default": 10, "min": 1}),
                 "skip_zeros": ("BOOLEAN", {"default": False}),
@@ -47,33 +76,49 @@ class DeepToolsComputeMatrixNode(DeepToolsCommandNode):
             "hidden": {"output": ("STRING", {})},
         }
 
+    @staticmethod
+    def _mode_distance(inputs: dict[str, Any], key: str, mode: str) -> Any:
+        value = inputs.get(key)
+        if value is not None:
+            return value
+        if mode == "scale-regions":
+            return 0
+        return 500 if key == "before_region" else 1500
+
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
         for key in ("bigwig", "regions"):
-            validation = cls.require_path(inputs, key)
+            validation = cls.require_paths(inputs, key)
             if validation is not True:
                 return validation
         mode = str(inputs.get("mode", "reference-point"))
         if mode not in cls.MODES:
             return f"Unsupported computeMatrix mode: {mode}"
-        reference_point = str(inputs.get("reference_point", "TSS"))
-        if reference_point not in cls.REFERENCE_POINTS:
-            return f"Unsupported computeMatrix reference point: {reference_point}"
-        for key, default, minimum in (
-            ("threads", 1, 1),
-            ("before_region", 500, 0),
-            ("after_region", 1500, 0),
-            ("region_body_length", 1000, 1),
-            ("bin_size", 10, 1),
-        ):
+        if mode == "reference-point":
+            reference_point = str(inputs.get("reference_point", "TSS"))
+            if reference_point not in cls.REFERENCE_POINTS:
+                return f"Unsupported computeMatrix reference point: {reference_point}"
+        for key, default, minimum in (("threads", 1, 1), ("bin_size", 10, 1)):
             value = inputs.get(key, default)
             if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
                 qualifier = "positive" if minimum == 1 else "non-negative"
                 return f"{key} must be a {qualifier} integer"
-        if mode == "reference-point" and inputs.get("before_region", 500) == 0 and inputs.get("after_region", 1500) == 0:
+        for key in ("before_region", "after_region"):
+            value = cls._mode_distance(inputs, key, mode)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                return f"{key} must be a non-negative integer"
+        if mode == "scale-regions":
+            body_length = inputs.get("region_body_length", 1000)
+            if isinstance(body_length, bool) or not isinstance(body_length, int) or body_length < 1:
+                return "region_body_length must be a positive integer"
+        if (
+            mode == "reference-point"
+            and cls._mode_distance(inputs, "before_region", mode) == 0
+            and cls._mode_distance(inputs, "after_region", mode) == 0
+        ):
             return "reference-point mode requires before_region or after_region to be positive"
         return True
 
@@ -84,13 +129,15 @@ class DeepToolsComputeMatrixNode(DeepToolsCommandNode):
             raise ValueError(str(validation))
 
         mode = str(inputs.get("mode", "reference-point"))
+        bigwigs = cls.path_values(inputs.get("bigwig"))
+        regions = cls.path_values(inputs.get("regions"))
         command = [
             "computeMatrix",
             mode,
             "-S",
-            str(inputs.get("bigwig", "")),
+            *bigwigs,
             "-R",
-            str(inputs.get("regions", "")),
+            *regions,
             "-o",
             str(cls.output_dir(inputs) / cls.OUTPUT_FILENAMES[0]),
             "-p",
@@ -99,23 +146,27 @@ class DeepToolsComputeMatrixNode(DeepToolsCommandNode):
             str(inputs.get("bin_size", 10)),
         ]
         if mode == "reference-point":
-            command.extend([
-                "--referencePoint",
-                str(inputs.get("reference_point", "TSS")),
-                "-b",
-                str(inputs.get("before_region", 500)),
-                "-a",
-                str(inputs.get("after_region", 1500)),
-            ])
+            command.extend(
+                [
+                    "--referencePoint",
+                    str(inputs.get("reference_point", "TSS")),
+                    "-b",
+                    str(cls._mode_distance(inputs, "before_region", mode)),
+                    "-a",
+                    str(cls._mode_distance(inputs, "after_region", mode)),
+                ]
+            )
         else:
-            command.extend([
-                "-b",
-                str(inputs.get("before_region", 0)),
-                "-a",
-                str(inputs.get("after_region", 0)),
-                "--regionBodyLength",
-                str(inputs.get("region_body_length", 1000)),
-            ])
+            command.extend(
+                [
+                    "-b",
+                    str(cls._mode_distance(inputs, "before_region", mode)),
+                    "-a",
+                    str(cls._mode_distance(inputs, "after_region", mode)),
+                    "--regionBodyLength",
+                    str(inputs.get("region_body_length", 1000)),
+                ]
+            )
         if inputs.get("skip_zeros"):
             command.append("--skipZeros")
         return command

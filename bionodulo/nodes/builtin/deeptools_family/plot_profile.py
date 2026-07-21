@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .adapter import DeepToolsCommandNode
+from .adapter import DeepToolsCommandNode, deeptools_source_urls
 
 
 class DeepToolsPlotProfileNode(DeepToolsCommandNode):
@@ -19,7 +19,16 @@ class DeepToolsPlotProfileNode(DeepToolsCommandNode):
     REQUIRED_EXECUTABLES = ["plotProfile"]
     OUTPUT_FILENAMES = ("profile.png",)
     DOCUMENTATION_URL = "https://deeptools.readthedocs.io/en/3.5.6/content/tools/plotProfile.html"
-    UPSTREAM_SOURCE = "deeptools/plotProfile.py"
+    SOURCE_PATHS = (
+        "deeptools/plotProfile.py",
+        "deeptools/parserCommon.py",
+        "deeptools/heatmapper.py",
+        "docs/content/tools/plotProfile.rst",
+        "pyproject.toml",
+    )
+    SOURCE_URLS = deeptools_source_urls(*SOURCE_PATHS)
+    SOURCE_URL = SOURCE_URLS[0]
+    UPSTREAM_SOURCE = "; ".join(SOURCE_PATHS[:3])
 
     PLOT_TYPES = ("lines", "fill", "se", "std", "overlapped_lines", "heatmap")
     LEGEND_LOCATIONS = (
@@ -33,7 +42,6 @@ class DeepToolsPlotProfileNode(DeepToolsCommandNode):
         "center",
         "center-left",
         "center-right",
-        "none",
     )
 
     @classmethod
@@ -46,11 +54,20 @@ class DeepToolsPlotProfileNode(DeepToolsCommandNode):
                 "plot_title": ("STRING", {"default": ""}),
                 "plot_type": ("STRING", {"default": "lines", "options": list(cls.PLOT_TYPES)}),
                 "plot_height": ("FLOAT", {"default": 7.0, "min": 0.5, "max": 100.0}),
-                "plot_width": ("FLOAT", {"default": 11.0, "min": 1.0, "max": 100.0}),
+                "plot_width": ("FLOAT", {"default": 11.0, "min": 1.0}),
                 "per_group": ("BOOLEAN", {"default": False}),
-                "colors": ("STRING", {"default": "", "description": "Space-separated matplotlib colors"}),
-                "samples_label": ("STRING", {"default": "", "description": "Space-separated sample labels"}),
-                "regions_label": ("STRING", {"default": "", "description": "Space-separated region labels"}),
+                "colors": (
+                    "STRING",
+                    {"default": [], "multiple": True, "description": "Matplotlib colors"},
+                ),
+                "samples_label": (
+                    "STRING",
+                    {"default": [], "multiple": True, "description": "Sample labels"},
+                ),
+                "regions_label": (
+                    "STRING",
+                    {"default": [], "multiple": True, "description": "Region labels"},
+                ),
                 "y_axis_label": ("STRING", {"default": ""}),
                 "start_label": ("STRING", {"default": ""}),
                 "end_label": ("STRING", {"default": ""}),
@@ -80,8 +97,8 @@ class DeepToolsPlotProfileNode(DeepToolsCommandNode):
         width = inputs.get("plot_width", 11.0)
         if isinstance(height, bool) or not isinstance(height, (int, float)) or not 0.5 <= float(height) <= 100:
             return "plot_height must be between 0.5 and 100"
-        if isinstance(width, bool) or not isinstance(width, (int, float)) or not 1 <= float(width) <= 100:
-            return "plot_width must be between 1 and 100"
+        if isinstance(width, bool) or not isinstance(width, (int, float)) or float(width) < 1:
+            return "plot_width must be at least 1"
         for key in ("colors", "samples_label", "regions_label"):
             try:
                 cls.split_cli_values(inputs.get(key))

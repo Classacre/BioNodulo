@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .adapter import DeepToolsCommandNode
+from .adapter import DeepToolsCommandNode, deeptools_source_urls
 
 
 class DeepToolsPlotHeatmapNode(DeepToolsCommandNode):
@@ -19,7 +19,16 @@ class DeepToolsPlotHeatmapNode(DeepToolsCommandNode):
     REQUIRED_EXECUTABLES = ["plotHeatmap"]
     OUTPUT_FILENAMES = ("heatmap.png",)
     DOCUMENTATION_URL = "https://deeptools.readthedocs.io/en/3.5.6/content/tools/plotHeatmap.html"
-    UPSTREAM_SOURCE = "deeptools/plotHeatmap.py"
+    SOURCE_PATHS = (
+        "deeptools/plotHeatmap.py",
+        "deeptools/parserCommon.py",
+        "deeptools/heatmapper.py",
+        "docs/content/tools/plotHeatmap.rst",
+        "pyproject.toml",
+    )
+    SOURCE_URLS = deeptools_source_urls(*SOURCE_PATHS)
+    SOURCE_URL = SOURCE_URLS[0]
+    UPSTREAM_SOURCE = "; ".join(SOURCE_PATHS[:3])
 
     SORT_MODES = ("descend", "ascend", "no", "keep")
 
@@ -30,14 +39,24 @@ class DeepToolsPlotHeatmapNode(DeepToolsCommandNode):
                 "matrix": ("FILE", {"description": "Matrix from computeMatrix"}),
             },
             "optional": {
-                "heatmap_height": ("FLOAT", {"default": 28.0, "min": 3.0, "max": 100.0}),
+                "heatmap_height": (
+                    "FLOAT",
+                    {"default": 28.0, "exclusive_min": 3.0, "max": 100.0},
+                ),
                 "heatmap_width": ("FLOAT", {"default": 4.0, "min": 1.0, "max": 100.0}),
-                "colormap": ("STRING", {"default": "RdYlBu", "description": "Space-separated matplotlib color maps"}),
+                "colormap": (
+                    "STRING",
+                    {
+                        "default": ["RdYlBu"],
+                        "multiple": True,
+                        "description": "One or more matplotlib color maps",
+                    },
+                ),
                 "sort_regions": (
                     "STRING",
                     {"default": "descend", "options": list(cls.SORT_MODES)},
                 ),
-                "kmeans": ("INT", {"default": 0, "min": 0}),
+                "kmeans": ("INT", {"default": None, "min": 1}),
                 "plot_title": ("STRING", {"default": ""}),
             },
             "hidden": {"output": ("STRING", {})},
@@ -60,11 +79,11 @@ class DeepToolsPlotHeatmapNode(DeepToolsCommandNode):
         sort_regions = str(inputs.get("sort_regions", "descend"))
         if sort_regions not in cls.SORT_MODES:
             return f"Unsupported plotHeatmap sort mode: {sort_regions}"
-        kmeans = inputs.get("kmeans", 0)
-        if isinstance(kmeans, bool) or not isinstance(kmeans, int) or kmeans < 0:
-            return "kmeans must be a non-negative integer"
+        kmeans = inputs.get("kmeans")
+        if kmeans is not None and (isinstance(kmeans, bool) or not isinstance(kmeans, int) or kmeans < 1):
+            return "kmeans must be a positive integer when supplied"
         try:
-            if not cls.split_cli_values(inputs.get("colormap", "RdYlBu")):
+            if not cls.split_cli_values(inputs.get("colormap", ["RdYlBu"])):
                 return "colormap must contain at least one value"
         except ValueError as exc:
             return f"colormap is not a valid argument list: {exc}"
@@ -87,11 +106,11 @@ class DeepToolsPlotHeatmapNode(DeepToolsCommandNode):
             "--heatmapWidth",
             str(inputs.get("heatmap_width", 4.0)),
             "--colorMap",
-            *cls.split_cli_values(inputs.get("colormap", "RdYlBu")),
+            *cls.split_cli_values(inputs.get("colormap", ["RdYlBu"])),
             "--sortRegions",
             str(inputs.get("sort_regions", "descend")),
         ]
-        if inputs.get("kmeans", 0) > 0:
+        if inputs.get("kmeans") is not None:
             command.extend(["--kmeans", str(inputs["kmeans"])])
         if inputs.get("plot_title"):
             command.extend(["--plotTitle", str(inputs["plot_title"])])
