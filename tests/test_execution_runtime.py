@@ -163,6 +163,35 @@ def test_cache_store_redacts_secret_like_marker_inputs_and_params(tmp_path: Path
     assert "secret-token" not in json.dumps(marker)
 
 
+def test_executor_fans_in_multiple_edges_for_exact_typed_multiple_port(tmp_path: Path) -> None:
+    class MultiFileNode:
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+            return {"required": {"files": ("FILE", {"multiple": True})}}
+
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache")
+    node = {"id": "target", "type": "multi_file", "_node_class": MultiFileNode}
+    edges = [
+        {
+            "from": {"node": "sample_a", "output": "file"},
+            "to": {"node": "target", "input": "files"},
+        },
+        {
+            "from": {"node": "sample_b", "output": "file"},
+            "to": {"node": "target", "input": "files"},
+        },
+    ]
+
+    resolved = executor._resolve_inputs(
+        "target",
+        node,
+        {"target": edges},
+        {"sample_a": {"file": "a.mzML"}, "sample_b": {"file": "b.mzML"}},
+    )
+
+    assert resolved == {"files": ["a.mzML", "b.mzML"]}
+
+
 def test_cache_store_ttl_markers_expire_from_hits_and_reads(tmp_path: Path) -> None:
     store = CacheStore(tmp_path)
 

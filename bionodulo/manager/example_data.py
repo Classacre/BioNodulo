@@ -228,6 +228,7 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
 
     # metabolomics — ProteoWizard mzML
     DataFile("metabolomics", "sample.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="ProteoWizard tiny mzML"),
+    DataFile("metabolomics", "sample_2.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="Second local copy of the ProteoWizard tiny mzML for multi-file workflow wiring"),
 
     # long_read — nf-core nanoseq reference + a real tiny ONT pod5
     DataFile("long_read", "reference.fasta", f"{_NFCORE}/nanoseq/reference/chr22_23800000-23980000.fa", description="Nanopore reference (nf-core nanoseq)"),

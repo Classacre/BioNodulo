@@ -17,7 +17,7 @@ from .adapter import (
 
 
 class XCMSPeakDetectionNode(MetabolomicsCommandNode):
-    """Detect and group LC-MS chromatographic peaks with centWave."""
+    """Detect LC-MS chromatographic peaks with centWave."""
 
     NODE_ID = "xcms_peak_detection"
     DISPLAY_NAME = "XCMS Peak Detection"
@@ -33,8 +33,8 @@ class XCMSPeakDetectionNode(MetabolomicsCommandNode):
         "chromatographic peaks",
     ]
     RETURN_TYPES = ("TSV", "FILE", "JSON")
-    RETURN_NAMES = ("feature_table", "xcms_object", "summary")
-    OUTPUT_SUFFIXES = (".feature_table.tsv", ".xcms.rds", ".summary.json")
+    RETURN_NAMES = ("chrom_peaks", "xcms_object", "summary")
+    OUTPUT_SUFFIXES = (".chrom_peaks.tsv", ".xcms.rds", ".summary.json")
     REQUIRED_EXECUTABLES = ["Rscript"]
     REQUIRED_CONDA_PACKAGES = [
         "r-base",
@@ -58,12 +58,15 @@ class XCMSPeakDetectionNode(MetabolomicsCommandNode):
     GIT_COMMIT = "8c7e9cfe3e512a93a5850d2bdf1df28677c87ad4"
     DOCUMENTATION_URL = "https://bioconductor.org/packages/release/bioc/html/xcms.html"
     SOURCE_URL = "https://git.bioconductor.org/packages/xcms"
-    UPSTREAM_SOURCE = "DESCRIPTION; R/DataClasses.R; R/XcmsExperiment.R; vignettes/xcms.Rmd"
+    UPSTREAM_SOURCE = (
+        "DESCRIPTION; R/DataClasses.R; R/XcmsExperiment.R; "
+        "R/MsExperiment-functions.R; vignettes/xcms.Rmd"
+    )
     CITATION_DOIS = ["10.1186/1471-2105-9-504", "10.1021/acs.analchem.7b00671"]
     CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
     EXIT_SEMANTICS = (
-        "XCMS stops on unreadable spectra, invalid centWave parameters, or failed peak grouping; "
-        "BioNodulo propagates that Rscript exit and requires all three artifacts."
+        "XCMS stops on unreadable spectra or invalid centWave parameters; BioNodulo also fails "
+        "closed when centWave detects no chromatographic peaks and requires all three artifacts."
     )
 
     @classmethod
@@ -72,7 +75,13 @@ class XCMSPeakDetectionNode(MetabolomicsCommandNode):
             "required": {
                 "mzml_files": (
                     "FILE",
-                    {"description": "One or more centroided mzML/mzXML files"},
+                    {
+                        "multiple": True,
+                        "description": (
+                            "One or more ordered centroided LC-MS files supported by "
+                            "MsExperiment; preserve this order for downstream raw_files inputs"
+                        ),
+                    },
                 ),
             },
             "optional": {
@@ -130,7 +139,7 @@ class XCMSPeakDetectionNode(MetabolomicsCommandNode):
         out_dir.mkdir(parents=True, exist_ok=True)
         script_file = out_dir / "xcms_peak_detection.R"
         stem = cls.output_stem(inputs, "xcms")
-        feature_table = out_dir / f"{stem}.feature_table.tsv"
+        chrom_peaks_table = out_dir / f"{stem}.chrom_peaks.tsv"
         xcms_object = out_dir / f"{stem}.xcms.rds"
         summary_json = out_dir / f"{stem}.summary.json"
         files = split_paths(inputs["mzml_files"])
@@ -149,9 +158,10 @@ class XCMSPeakDetectionNode(MetabolomicsCommandNode):
             missing <- files[!file.exists(files)]
             if (length(missing) > 0) stop(paste("Input file(s) not found:", paste(missing, collapse = ", ")))
             raw_data <- readMsExperiment(spectraFiles = files)
-            sp <- spectra(raw_data)
-            ord <- order(dataOrigin(sp), rtime(sp))
-            spectra(raw_data) <- sp[ord]
+            if (nrow(sampleData(raw_data)) != length(files)) {{
+                stop("MsExperiment sample count does not match the ordered input files.")
+            }}
+            sampleData(raw_data)$bionodulo_input_index <- seq_along(files)
             param <- CentWaveParam(
                 ppm = {inputs.get('ppm', 25.0)},
                 peakwidth = c({inputs.get('peakwidth_min', 20.0)}, {inputs.get('peakwidth_max', 50.0)}),
@@ -161,21 +171,19 @@ class XCMSPeakDetectionNode(MetabolomicsCommandNode):
             )
             workers <- MulticoreParam(workers = {inputs.get('threads', 1)})
             xdata <- findChromPeaks(raw_data, param = param, BPPARAM = workers)
-            sample_groups <- rep(1L, nrow(sampleData(xdata)))
-            xdata <- groupChromPeaks(xdata, param = PeakDensityParam(sampleGroups = sample_groups))
-            feature_values <- featureValues(xdata, value = "into")
-            feature_table <- data.frame(feature_id = rownames(feature_values), feature_values, check.names = FALSE)
-            write_tsv(feature_table, {r_string(feature_table.as_posix())})
+            peak_table <- as.data.frame(chromPeaks(xdata))
+            if (nrow(peak_table) == 0) stop("XCMS centWave detected no chromatographic peaks.")
+            peak_table <- data.frame(chrom_peak_id = rownames(peak_table), peak_table, check.names = FALSE)
+            write_tsv(peak_table, {r_string(chrom_peaks_table.as_posix())})
             saveRDS(xdata, {r_string(xcms_object.as_posix())})
             summary <- list(
                 input_files = files,
                 file_count = length(files),
-                peak_count = nrow(chromPeaks(xdata)),
-                feature_count = nrow(feature_values),
+                peak_count = nrow(peak_table),
                 ppm = {inputs.get('ppm', 25.0)},
                 peakwidth = c({inputs.get('peakwidth_min', 20.0)}, {inputs.get('peakwidth_max', 50.0)}),
                 snthresh = {inputs.get('snthresh', 10.0)},
-                feature_table = {r_string(feature_table.as_posix())},
+                chrom_peaks = {r_string(chrom_peaks_table.as_posix())},
                 xcms_object = {r_string(xcms_object.as_posix())}
             )
             write_json(summary, {r_string(summary_json.as_posix())}, pretty = TRUE, auto_unbox = TRUE)

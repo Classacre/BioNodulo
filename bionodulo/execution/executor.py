@@ -3263,8 +3263,11 @@ class WorkflowExecutor:
 
         Read from the node class's INPUT_TYPES via the registry; a port counts
         as a list when its type token contains 'LIST' (e.g. FILE_LIST,
-        FASTQ_LIST). Returns an empty set when the class/registry is unavailable
-        so behaviour is unchanged for unknown nodes.
+        FASTQ_LIST) or its input metadata declares ``multiple=True``. The latter
+        keeps the artifact type exact (for example FILE -> FILE) while still
+        preserving all fan-in values. Returns an empty set when the
+        class/registry is unavailable so behaviour is unchanged for unknown
+        nodes.
         """
         node_class = node.get("_node_class")
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
@@ -3279,7 +3282,17 @@ class WorkflowExecutor:
         for section in ("required", "optional"):
             for name, decl in (spec.get(section, {}) or {}).items():
                 type_token = decl[0] if isinstance(decl, (list, tuple)) and decl else decl
-                if isinstance(type_token, str) and "LIST" in type_token.upper():
+                config = (
+                    decl[1]
+                    if isinstance(decl, (list, tuple))
+                    and len(decl) > 1
+                    and isinstance(decl[1], dict)
+                    else {}
+                )
+                if (
+                    isinstance(type_token, str)
+                    and "LIST" in type_token.upper()
+                ) or config.get("multiple") is True:
                     ports.add(name)
         return ports
 

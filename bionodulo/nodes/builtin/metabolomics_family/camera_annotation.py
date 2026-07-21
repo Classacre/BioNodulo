@@ -10,7 +10,9 @@ from .adapter import (
     MetabolomicsCommandNode,
     path_value,
     r_string,
+    r_string_vector,
     safe_output_stem,
+    split_paths,
     validate_choice,
     validate_number,
 )
@@ -49,13 +51,15 @@ class CAMERAAnnotationNode(MetabolomicsCommandNode):
     SOURCE_URL = "https://git.bioconductor.org/packages/CAMERA"
     UPSTREAM_SOURCE = (
         "DESCRIPTION; man/groupFWHM-methods.Rd; man/findIsotopes-methods.Rd; "
-        "man/groupCorr-methods.Rd; man/findAdducts-methods.Rd; man/getPeaklist-methods.Rd"
+        "man/groupCorr-methods.Rd; man/findAdducts-methods.Rd; "
+        "man/getPeaklist-methods.Rd; R/xsAnnotate.R; R/fct_groupCorr.R"
     )
     CITATION_DOIS = ["10.1021/ac202450g"]
     CITATION_URLS = ["https://doi.org/10.1021/ac202450g"]
     EXIT_SEMANTICS = (
-        "CAMERA stops when the RDS cannot be converted to an MS1 xcmsSet or an annotation step fails; "
-        "BioNodulo propagates that exit and requires all three artifacts."
+        "CAMERA stops when the RDS cannot be converted to an MS1 xcmsSet, correlation raw files "
+        "cannot be rebound, or an annotation step fails; BioNodulo propagates that exit and "
+        "requires all three artifacts."
     )
 
     @classmethod
@@ -63,23 +67,48 @@ class CAMERAAnnotationNode(MetabolomicsCommandNode):
         return {
             "required": {"xcms_object": ("FILE", {"description": "Aligned XcmsExperiment RDS"})},
             "optional": {
+                "raw_files": (
+                    "FILE",
+                    {
+                        "default": [],
+                        "multiple": True,
+                        "description": (
+                            "Original staged LC-MS files in XCMS sample order; required when "
+                            "run_group_corr is enabled because CAMERA reopens the raw signal"
+                        ),
+                    },
+                ),
                 "polarity": ("STRING", {"default": "positive", "options": ["positive", "negative"]}),
                 "perfwhm": ("FLOAT", {"default": 0.6, "min": 0.0}),
                 "sigma": ("FLOAT", {"default": 6.0, "min": 0.0}),
                 "maxcharge": ("INT", {"default": 3, "min": 1}),
-                "maxiso": ("INT", {"default": 4, "min": 1}),
+                "maxiso": ("INT", {"default": 4, "min": 1, "max": 8}),
                 "isotope_ppm": ("FLOAT", {"default": 5.0, "min": 0.0}),
                 "isotope_mzabs": ("FLOAT", {"default": 0.01, "min": 0.0}),
                 "cor_eic_th": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0}),
                 "pval": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0}),
                 "run_group_corr": ("BOOLEAN", {"default": True}),
+                "correlation_include_isotopes": ("BOOLEAN", {"default": False}),
                 "run_adducts": ("BOOLEAN", {"default": True}),
                 "adduct_ppm": ("FLOAT", {"default": 5.0, "min": 0.0}),
                 "adduct_mzabs": ("FLOAT", {"default": 0.015, "min": 0.0}),
-                "intval": ("STRING", {"default": "maxo", "options": ["maxo", "into", "intb"]}),
+                "group_intval": ("STRING", {"default": "maxo", "options": ["maxo", "into", "intb"]}),
+                "isotope_intval": ("STRING", {"default": "maxo", "options": ["maxo", "into", "intb"]}),
+                "correlation_intval": ("STRING", {"default": "into", "options": ["maxo", "into", "intb"]}),
+                "adduct_intval": ("STRING", {"default": "maxo", "options": ["maxo", "into", "intb"]}),
+                "peaklist_intval": ("STRING", {"default": "into", "options": ["maxo", "into", "intb"]}),
                 "output_name": ("STRING", {"default": ""}),
             },
-            "hidden": {"output": ("STRING", {})},
+            "hidden": {
+                "output": ("STRING", {}),
+                "intval": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Legacy global override for every CAMERA intensity selector",
+                    },
+                ),
+            },
         }
 
     @classmethod
@@ -89,18 +118,33 @@ class CAMERAAnnotationNode(MetabolomicsCommandNode):
             return validation
         if not path_value(inputs.get("xcms_object")):
             return "Input 'xcms_object' must be a non-empty path-like value"
-        for key, default, choices in (
-            ("polarity", "positive", ("positive", "negative")),
-            ("intval", "maxo", ("maxo", "into", "intb")),
-        ):
+        if inputs.get("run_group_corr", True) and not split_paths(inputs.get("raw_files")):
+            return "Input 'raw_files' is required when 'run_group_corr' is enabled"
+        for key, default, choices in (("polarity", "positive", ("positive", "negative")),):
             validation = validate_choice(inputs.get(key, default), key, choices)
+            if validation is not True:
+                return validation
+        intensity_choices = ("maxo", "into", "intb")
+        legacy_intval = str(inputs.get("intval", "") or "").strip()
+        if legacy_intval:
+            validation = validate_choice(legacy_intval, "intval", intensity_choices)
+            if validation is not True:
+                return validation
+        for key, default in (
+            ("group_intval", "maxo"),
+            ("isotope_intval", "maxo"),
+            ("correlation_intval", "into"),
+            ("adduct_intval", "maxo"),
+            ("peaklist_intval", "into"),
+        ):
+            validation = validate_choice(inputs.get(key, default), key, intensity_choices)
             if validation is not True:
                 return validation
         for key, default, minimum, maximum, integer in (
             ("perfwhm", 0.6, 0.0, None, False),
             ("sigma", 6.0, 0.0, None, False),
             ("maxcharge", 3, 1, None, True),
-            ("maxiso", 4, 1, None, True),
+            ("maxiso", 4, 1, 8, True),
             ("isotope_ppm", 5.0, 0.0, None, False),
             ("isotope_mzabs", 0.01, 0.0, None, False),
             ("cor_eic_th", 0.75, 0.0, 1.0, False),
@@ -136,13 +180,44 @@ class CAMERAAnnotationNode(MetabolomicsCommandNode):
         summary_json = out_dir / f"{stem}.camera.summary.json"
         xcms_object = path_value(inputs["xcms_object"])
         polarity = str(inputs.get("polarity", "positive"))
-        intval = str(inputs.get("intval", "maxo"))
+        legacy_intval = str(inputs.get("intval", "") or "").strip()
+        group_intval = legacy_intval or str(inputs.get("group_intval", "maxo"))
+        isotope_intval = legacy_intval or str(inputs.get("isotope_intval", "maxo"))
+        correlation_intval = legacy_intval or str(inputs.get("correlation_intval", "into"))
+        adduct_intval = legacy_intval or str(inputs.get("adduct_intval", "maxo"))
+        peaklist_intval = legacy_intval or str(inputs.get("peaklist_intval", "into"))
+        raw_files = split_paths(inputs.get("raw_files"))
+        raw_rebind_block = ""
+        if inputs.get("run_group_corr", True):
+            raw_rebind_block = textwrap.dedent(
+                f"""\
+                raw_files <- {r_string_vector(raw_files)}
+                missing <- raw_files[!file.exists(raw_files)]
+                if (length(missing) > 0) stop(paste("Raw LC-MS file(s) not found:", paste(missing, collapse = ", ")))
+                if (length(filepaths(xset)) != length(raw_files)) {{
+                    stop("raw_files length must match the samples in the CAMERA xcmsSet.")
+                }}
+                if (!("bionodulo_input_index" %in% colnames(phenoData(xset)))) {{
+                    stop("xcmsSet lacks the explicit BioNodulo sample identity required for raw-file rebinding.")
+                }}
+                sample_identity <- suppressWarnings(as.integer(as.character(phenoData(xset)$bionodulo_input_index)))
+                expected_identity <- seq_along(raw_files)
+                if (length(sample_identity) != length(expected_identity) ||
+                    anyNA(sample_identity) || anyDuplicated(sample_identity) ||
+                    !setequal(sample_identity, expected_identity)) {{
+                    stop("xcmsSet has an invalid BioNodulo sample identity mapping.")
+                }}
+                filepaths(xset) <- raw_files[sample_identity]
+                """
+            ).strip()
         group_corr_step = ""
         if inputs.get("run_group_corr", True):
             group_corr_step = (
                 "xsa <- groupCorr("
                 f"xsa, cor_eic_th = {inputs.get('cor_eic_th', 0.75)}, "
-                f"pval = {inputs.get('pval', 0.05)}, calcIso = TRUE, intval = {r_string(intval)})"
+                f"pval = {inputs.get('pval', 0.05)}, "
+                f"calcIso = {str(bool(inputs.get('correlation_include_isotopes', False))).upper()}, "
+                f"intval = {r_string(correlation_intval)})"
             )
         adduct_step = ""
         if inputs.get("run_adducts", True):
@@ -150,7 +225,7 @@ class CAMERAAnnotationNode(MetabolomicsCommandNode):
                 "xsa <- findAdducts("
                 f"xsa, ppm = {inputs.get('adduct_ppm', 5.0)}, "
                 f"mzabs = {inputs.get('adduct_mzabs', 0.015)}, "
-                f"polarity = {r_string(polarity)}, intval = {r_string(intval)})"
+                f"polarity = {r_string(polarity)}, intval = {r_string(adduct_intval)})"
             )
 
         script = textwrap.dedent(
@@ -170,12 +245,13 @@ class CAMERAAnnotationNode(MetabolomicsCommandNode):
             }} else {{
                 stop("CAMERA Annotation requires an xcmsSet, XcmsExperiment, or XCMSnExp RDS object.")
             }}
+            {raw_rebind_block}
             xsa <- xsAnnotate(xset, polarity = {r_string(polarity)})
             xsa <- groupFWHM(
                 xsa,
                 sigma = {inputs.get('sigma', 6.0)},
                 perfwhm = {inputs.get('perfwhm', 0.6)},
-                intval = {r_string(intval)}
+                intval = {r_string(group_intval)}
             )
             xsa <- findIsotopes(
                 xsa,
@@ -183,11 +259,11 @@ class CAMERAAnnotationNode(MetabolomicsCommandNode):
                 maxiso = {inputs.get('maxiso', 4)},
                 ppm = {inputs.get('isotope_ppm', 5.0)},
                 mzabs = {inputs.get('isotope_mzabs', 0.01)},
-                intval = {r_string(intval)}
+                intval = {r_string(isotope_intval)}
             )
             {group_corr_step}
             {adduct_step}
-            peaklist <- as.data.frame(getPeaklist(xsa, intval = {r_string(intval)}))
+            peaklist <- as.data.frame(getPeaklist(xsa, intval = {r_string(peaklist_intval)}))
             write_tsv(peaklist, {r_string(annotated_peaklist.as_posix())})
             saveRDS(xsa, {r_string(camera_object.as_posix())})
             summary <- list(
@@ -196,7 +272,12 @@ class CAMERAAnnotationNode(MetabolomicsCommandNode):
                 camera_object = {r_string(camera_object.as_posix())},
                 peak_count = nrow(peaklist),
                 polarity = {r_string(polarity)},
-                intval = {r_string(intval)},
+                raw_files = {r_string_vector(raw_files)},
+                group_intval = {r_string(group_intval)},
+                isotope_intval = {r_string(isotope_intval)},
+                correlation_intval = {r_string(correlation_intval)},
+                adduct_intval = {r_string(adduct_intval)},
+                peaklist_intval = {r_string(peaklist_intval)},
                 run_group_corr = {str(bool(inputs.get('run_group_corr', True))).upper()},
                 run_adducts = {str(bool(inputs.get('run_adducts', True))).upper()}
             )

@@ -29,6 +29,15 @@ def split_paths(value: Any) -> list[str]:
     return [part.strip() for part in re.split(r"[\n,]+", str(value)) if part.strip()]
 
 
+def split_values(value: Any) -> list[str]:
+    """Normalize an ordered repeat-style string input without path expansion."""
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [text for item in value if (text := str(item).strip())]
+    return [part.strip() for part in re.split(r"[\n,]+", str(value)) if part.strip()]
+
+
 def safe_output_stem(value: Any, fallback: str) -> str:
     text = str(value or "").strip() or fallback
     stem = Path(text).stem
@@ -44,6 +53,15 @@ def r_string(value: Any) -> str:
 
 def r_string_vector(values: Iterable[str]) -> str:
     return "c(" + ", ".join(r_string(value) for value in values) + ")"
+
+
+def r_group_vector(values: Iterable[str]) -> str:
+    """Render sample groups, reserving the documented token NA as missing."""
+    rendered = [
+        "NA_character_" if value.upper() == "NA" else r_string(value)
+        for value in values
+    ]
+    return "c(" + ", ".join(rendered) + ")"
 
 
 def validate_number(
