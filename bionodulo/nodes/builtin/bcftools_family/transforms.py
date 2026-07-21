@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 from .adapter import (
+    BCFTOOLS_GIT_COMMIT,
     COMMON_FILTER_INPUTS,
     BCFtoolsCommandNode,
     FixedVcfOutputNode,
@@ -22,6 +24,7 @@ from .adapter import (
     validate_data_index,
     validate_data_indexes,
     validate_exclusive,
+    validate_number,
     validate_reference_index,
 )
 
@@ -35,8 +38,18 @@ class BCFtoolsFilterNode(FixedVcfOutputNode):
     SEARCH_ALIASES = ["BioNodulo builtin", "bcftools", "filter", "VCF filter", "soft filter"]
     RETURN_NAMES = ("filtered_vcf",)
     OUTPUT_FILENAME = "filtered.vcf.gz"
-    DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#filter"
+    DOCUMENTATION_URL = "https://www.htslib.org/doc/1.24/bcftools.html#filter"
     UPSTREAM_SOURCE = "vcffilter.c"
+    SOURCE_REVISION = BCFTOOLS_GIT_COMMIT
+    SOURCE_URL = f"https://github.com/samtools/bcftools/blob/{BCFTOOLS_GIT_COMMIT}/vcffilter.c"
+    SOURCE_PATHS = ("vcffilter.c", "doc/bcftools.1")
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "bcftools filter exits non-zero for malformed expressions, invalid gap/mask options, "
+        "missing mask soft-filter labels, unavailable indexed random-access input, or output "
+        "write failures. A zero exit is accepted only when the planned compressed VCF exists."
+    )
+    SNP_GAP_TYPES = ("indel", "mnp", "bnd", "other", "overlap")
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -51,7 +64,7 @@ class BCFtoolsFilterNode(FixedVcfOutputNode):
             "mask_file": ("FILE", {"default": ""}),
             "mask_negate": ("BOOLEAN", {"default": False}),
             "mask_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"]}),
-            "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
+            "threads": ("INT", {"default": 4, "min": 0}),
             "expr": ("STRING", {"default": "", "advanced": True, "description": "Compatibility alias for include"}),
             "vcf": ("VCF", {"default": "", "advanced": True, "description": "Compatibility alias for input_file"}),
         })
@@ -70,6 +83,21 @@ class BCFtoolsFilterNode(FixedVcfOutputNode):
         return inputs.get("include") or inputs.get("expr")
 
     @classmethod
+    def _validate_snp_gap(cls, value: Any) -> bool | str:
+        if value in (None, ""):
+            return True
+        if not isinstance(value, str):
+            return "snp_gap must be a string in INT[:TYPE,...] form"
+        amount, separator, variant_types = value.partition(":")
+        if not re.fullmatch(r"[0-9]+", amount):
+            return "snp_gap must start with a non-negative integer"
+        if separator:
+            selected = variant_types.split(",")
+            if not variant_types or any(item not in cls.SNP_GAP_TYPES for item in selected):
+                return f"snp_gap types must be one of: {', '.join(cls.SNP_GAP_TYPES)}"
+        return True
+
+    @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
         normalized = dict(inputs)
         normalized.setdefault("input_file", cls._input(inputs))
@@ -85,8 +113,33 @@ class BCFtoolsFilterNode(FixedVcfOutputNode):
             return validation
         if inputs.get("mask") and inputs.get("mask_file"):
             return "mask and mask_file are mutually exclusive"
+        if (inputs.get("mask") or inputs.get("mask_file")) and not inputs.get("soft_filter"):
+            return "soft_filter is required with mask or mask_file"
         if inputs.get("mask_negate") and not (inputs.get("mask") or inputs.get("mask_file")):
             return "mask_negate requires mask or mask_file"
+        validation = validate_choice(inputs.get("mode", ""), "mode", ("", "+", "x"))
+        if validation is not True:
+            return validation
+        validation = validate_choice(inputs.get("set_gts", ""), "set_gts", ("", ".", "0"))
+        if validation is not True:
+            return validation
+        validation = validate_choice(
+            inputs.get("mask_overlap", ""), "mask_overlap", ("", "0", "1", "2")
+        )
+        if validation is not True:
+            return validation
+        validation = cls._validate_snp_gap(inputs.get("snp_gap", ""))
+        if validation is not True:
+            return validation
+        if inputs.get("indel_gap") not in (None, ""):
+            validation = validate_number(
+                inputs["indel_gap"], "indel_gap", minimum=0, integer=True
+            )
+            if validation is not True:
+                return validation
+        validation = validate_number(inputs.get("threads", 4), "threads", minimum=0, integer=True)
+        if validation is not True:
+            return validation
         if uses_regions(inputs):
             normalized["input_file"] = cls._input(inputs)
             validation = validate_data_index(normalized)

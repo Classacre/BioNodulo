@@ -263,6 +263,52 @@ def test_bcftools_filter_preserves_official_template_expr_alias(registry: NodeRe
     ]
 
 
+def test_bcftools_filter_requires_soft_filter_for_mask_modes(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_filter")
+    assert "soft_filter" in str(
+        node_class.VALIDATE_INPUTS({"input_file": "in.vcf", "mask": "chr1:1-10"})
+    )
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_file": "in.vcf",
+            "mask": "chr1:1-10",
+            "soft_filter": "Masked",
+        }
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["-1", "3:bad", "3:indel,bad", "3:"],
+)
+def test_bcftools_filter_rejects_source_invalid_snp_gap_syntax(
+    registry: NodeRegistry,
+    value: str,
+) -> None:
+    node_class = registry.get("bcftools_filter")
+    assert node_class.VALIDATE_INPUTS({"input_file": "in.vcf", "snp_gap": value}) is not True
+
+
+def test_bcftools_filter_accepts_documented_unbounded_threads_and_gap_types(
+    registry: NodeRegistry,
+) -> None:
+    node_class = registry.get("bcftools_filter")
+    inputs = {
+        "input_file": "in.vcf",
+        "threads": 256,
+        "snp_gap": "3:indel,mnp,bnd,other,overlap",
+        "soft_filter": "Gap",
+        "mask_file": "regions.bed",
+    }
+    assert node_class.VALIDATE_INPUTS(inputs) is True
+    assert node_class.render_command({**inputs, "output": OUTPUT})[:4] == [
+        "bcftools",
+        "filter",
+        "--soft-filter",
+        "Gap",
+    ]
+
+
 @pytest.mark.parametrize("target", ["r:0", "r:1", ".,r:0.5"])
 def test_bcftools_setgt_rejects_source_invalid_target_syntax(
     registry: NodeRegistry,
