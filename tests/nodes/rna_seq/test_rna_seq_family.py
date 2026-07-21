@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import struct
 from pathlib import Path
 from typing import Any, Callable
 
@@ -44,6 +45,18 @@ def _materialize_file(path: Path, content: str = "synthetic\n") -> str:
     return str(path)
 
 
+def _materialize_kallisto_index(
+    path: Path,
+    *,
+    version: int = KallistoIndexNode.INDEX_VERSION,
+    graph: bytes = b"synthetic graph",
+) -> str:
+    """Materialize the binary prefix Kallisto 0.52.0 reads before quantification."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(struct.pack("@N", version) + struct.pack("@N", len(graph)) + graph)
+    return str(path)
+
+
 def _materialize_salmon_index(path: Path, index_version: int = 1) -> str:
     _materialize_file(
         path / "info.json",
@@ -69,10 +82,7 @@ def test_stable_ids_are_owned_by_focused_modules_and_legacy_aliases_remain() -> 
     legacy_ids = {
         obj.NODE_ID
         for _name, obj in inspect.getmembers(rna_seq, inspect.isclass)
-        if issubclass(obj, BaseNode)
-        and obj not in {BaseNode}
-        and obj.__module__ == rna_seq.__name__
-        and obj.NODE_ID
+        if issubclass(obj, BaseNode) and obj not in {BaseNode} and obj.__module__ == rna_seq.__name__ and obj.NODE_ID
     }
     assert {"salmon_index", "salmon_quant", "kallisto_index", "kallisto_quant"}.isdisjoint(legacy_ids)
     assert "feature_counts" not in legacy_ids
@@ -91,12 +101,21 @@ def test_stable_ids_are_owned_by_focused_modules_and_legacy_aliases_remain() -> 
 def test_pinned_sources_and_output_contracts_are_exact() -> None:
     assert SalmonIndexNode.VERSION == SalmonQuantNode.VERSION == "2.3.4"
     assert SalmonIndexNode.GIT_COMMIT == "d53fed6f0af6966a40825558f0edf71b6df7cf52"
+    for node_class in (SalmonIndexNode, SalmonQuantNode):
+        assert node_class.CONDA_PACKAGE_CONSTRAINTS == {"salmon": "2.3.4"}
+        assert node_class.PACKAGE_CONSTRAINTS == ("salmon==2.3.4",)
+        assert node_class.SOURCE_AUTHORITIES["cli_contract"].endswith("crates/salmon-cli/src/main.rs")
+        assert node_class.AUDIT_STATUS == "contract-checked-no-binary-execution"
+        assert "non-zero" in node_class.EXIT_SEMANTICS
     assert KallistoIndexNode.VERSION == KallistoQuantNode.VERSION == "0.52.0"
     assert KallistoIndexNode.GIT_COMMIT == "4e9f29cf3b021260415430c057a22469ca081391"
+    assert KallistoIndexNode.CONDA_PACKAGE_CONSTRAINTS == {"kallisto": "0.52.0"}
+    assert KallistoIndexNode.PACKAGE_CONSTRAINTS == ("kallisto==0.52.0",)
+    assert KallistoIndexNode.INDEX_VERSION == 13
+    assert KallistoIndexNode.SOURCE_AUTHORITIES["index_format"] == "src/KmerIndex.h; src/KmerIndex.cpp"
+    assert KallistoQuantNode.AUDIT_STATUS == "contract-checked-no-external-execution"
     assert FeatureCountsNode.VERSION == "2.1.1"
-    assert FeatureCountsNode.SOURCE_SHA256 == (
-        "6392d7c66831cdd767e58251892a79a51b6fab8ed0ba9671ad5e85ff1ab01eaa"
-    )
+    assert FeatureCountsNode.SOURCE_SHA256 == ("6392d7c66831cdd767e58251892a79a51b6fab8ed0ba9671ad5e85ff1ab01eaa")
     assert FeatureCountsNode.CONDA_PACKAGE_CONSTRAINTS == {
         "subread": "2.1.1",
         "samtools": "1.23.1",
@@ -135,6 +154,18 @@ def test_salmon_index_validates_odd_k_and_renders_multiple_transcripts(tmp_path:
     assert "1 and 63" in str(SalmonIndexNode.VALIDATE_INPUTS({**inputs, "kmer": 65}))
 
 
+def test_salmon_thread_contract_matches_upstream_zero_and_unbounded_semantics(
+    tmp_path: Path,
+) -> None:
+    transcripts = _materialize_file(tmp_path / "transcripts.fa", ">tx\nACGT\n")
+    assert SalmonIndexNode.INPUT_TYPES()["required"]["threads"][1]["default"] == 0
+    assert SalmonQuantNode.INPUT_TYPES()["required"]["threads"][1]["default"] == 0
+    assert SalmonIndexNode.VALIDATE_INPUTS({"transcripts": transcripts, "threads": 0}) is True
+    assert SalmonIndexNode.VALIDATE_INPUTS({"transcripts": transcripts, "threads": 65}) is True
+    assert "zero or a positive" in str(SalmonIndexNode.VALIDATE_INPUTS({"transcripts": transcripts, "threads": -1}))
+    assert "integer" in str(SalmonIndexNode.VALIDATE_INPUTS({"transcripts": transcripts, "threads": True}))
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("info_payload", "message"),
@@ -168,15 +199,17 @@ async def test_salmon_rejects_invalid_index_info_after_build_and_before_quant(
         )
 
     index = tmp_path / "salmon_index" / "index"
-    validation = SalmonQuantNode.VALIDATE_INPUTS(
-        {"index": str(index), "threads": 1}
-    )
+    validation = SalmonQuantNode.VALIDATE_INPUTS({"index": str(index), "threads": 1})
     assert message in str(validation)
 
 
 @pytest.mark.parametrize(
     ("relative_path", "empty"),
-    [("index.ssi.mphf", False), ("refseq.bin", True)],
+    [
+        ("index.ssi.mphf", False),
+        ("refseq.bin", True),
+        ("duplicate_clusters.tsv", False),
+    ],
 )
 def test_salmon_quant_rejects_incomplete_index_bundles(
     tmp_path: Path,
@@ -245,33 +278,42 @@ def test_salmon_quant_preserves_all_paired_lists_and_valid_library_types(tmp_pat
         reads[3],
         "--seqBias",
     ]
-    assert "even number" in str(
-        SalmonQuantNode.VALIDATE_INPUTS({**inputs, "reads": reads[:3]})
-    )
+    assert "even number" in str(SalmonQuantNode.VALIDATE_INPUTS({**inputs, "reads": reads[:3]}))
     assert "not valid" in str(SalmonQuantNode.VALIDATE_INPUTS({**inputs, "lib_type": "SF"}))
+
+    assert SalmonQuantNode.VALIDATE_INPUTS({**inputs, "lib_type": "isr"}) is True
+    command = SalmonQuantNode.render_command({**inputs, "lib_type": "isr"})
+    assert command[command.index("-l") + 1] == "ISR"
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [("single_end", "false"), ("gc_bias", 1), ("seq_bias", None)],
+)
+def test_salmon_quant_rejects_non_boolean_controls(
+    tmp_path: Path,
+    field: str,
+    invalid: object,
+) -> None:
+    index = _materialize_salmon_index(tmp_path / "salmon-index")
+    reads = [_materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n") for name in ("r1.fq.gz", "r2.fq.gz")]
+
+    validation = SalmonQuantNode.VALIDATE_INPUTS({"index": index, "reads": reads, "threads": 0, field: invalid})
+
+    assert field in str(validation)
+    assert "must be a boolean" in str(validation)
 
 
 def test_salmon_quant_fake_execution_keeps_quant_directory(tmp_path: Path) -> None:
     index = tmp_path / "salmon-index"
     _materialize_salmon_index(index)
-    reads = [
-        _materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n")
-        for name in ("r1.fq.gz", "r2.fq.gz")
-    ]
+    reads = [_materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n") for name in ("r1.fq.gz", "r2.fq.gz")]
 
     def materialize(command: list[str] | str, _kwargs: dict[str, Any]) -> None:
         assert isinstance(command, list)
         output = Path(command[command.index("-o") + 1])
-        output.mkdir(parents=True, exist_ok=True)
-        (output / "quant.sf").write_text("Name\tTPM\tNumReads\n", encoding="utf-8")
-        (output / "cmd_info.json").write_text("{}", encoding="utf-8")
-        (output / "lib_format_counts.json").write_text("{}", encoding="utf-8")
-        (output / "aux_info").mkdir()
-        (output / "aux_info" / "meta_info.json").write_text("{}", encoding="utf-8")
-        (output / "libParams").mkdir()
-        (output / "libParams" / "flenDist.txt").write_text("0.5", encoding="utf-8")
-        (output / "logs").mkdir()
-        (output / "logs" / "salmon_quant.log").write_text("done\n", encoding="utf-8")
+        for relative_path in SalmonQuantNode.REQUIRED_QUANT_FILES:
+            _materialize_file(output / relative_path)
 
     context = _fake_context(tmp_path, materialize)
     result = __import__("asyncio").run(
@@ -291,7 +333,11 @@ def test_salmon_quant_fake_execution_keeps_quant_directory(tmp_path: Path) -> No
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("invalid_relative_path", "leave_missing"),
-    [("lib_format_counts.json", True), ("logs/salmon_quant.log", False)],
+    [
+        ("lib_format_counts.json", True),
+        ("aux_info/fld.gz", True),
+        ("logs/salmon_quant.log", False),
+    ],
 )
 async def test_salmon_quant_rejects_missing_or_empty_companion_artifacts(
     tmp_path: Path,
@@ -300,10 +346,7 @@ async def test_salmon_quant_rejects_missing_or_empty_companion_artifacts(
 ) -> None:
     index = tmp_path / "salmon-index"
     _materialize_salmon_index(index)
-    reads = [
-        _materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n")
-        for name in ("r1.fq.gz", "r2.fq.gz")
-    ]
+    reads = [_materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n") for name in ("r1.fq.gz", "r2.fq.gz")]
 
     def materialize(command: list[str] | str, _kwargs: dict[str, Any]) -> None:
         assert isinstance(command, list)
@@ -344,6 +387,7 @@ def test_kallisto_index_is_a_file_and_validates_kmer_and_threads(tmp_path: Path)
     ]
     assert "odd" in str(KallistoIndexNode.VALIDATE_INPUTS({**inputs, "kmer": 4}))
     assert "between 3 and 31" in str(KallistoIndexNode.VALIDATE_INPUTS({**inputs, "kmer": 33}))
+    assert KallistoIndexNode.VALIDATE_INPUTS({**inputs, "threads": 65}) is True
 
 
 @pytest.mark.asyncio
@@ -356,7 +400,7 @@ async def test_kallisto_index_rejects_zero_byte_output_after_zero_exit(tmp_path:
         index.parent.mkdir(parents=True, exist_ok=True)
         index.touch()
 
-    with pytest.raises(RuntimeError, match="Kallisto index output is missing or empty"):
+    with pytest.raises(RuntimeError, match="Kallisto index output is invalid: index file is empty"):
         await KallistoIndexNode().run(
             transcripts=transcripts,
             threads=1,
@@ -366,7 +410,7 @@ async def test_kallisto_index_rejects_zero_byte_output_after_zero_exit(tmp_path:
 
 
 def test_kallisto_quant_requires_even_pairs_and_single_end_fragment_parameters(tmp_path: Path) -> None:
-    index = _materialize_file(tmp_path / "transcripts.idx", "index\n")
+    index = _materialize_kallisto_index(tmp_path / "transcripts.idx")
     paired_reads = [
         _materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n")
         for name in ("r1.fq.gz", "r2.fq.gz", "r1b.fq.gz", "r2b.fq.gz")
@@ -389,9 +433,7 @@ def test_kallisto_quant_requires_even_pairs_and_single_end_fragment_parameters(t
         "2",
         *paired_reads,
     ]
-    assert "even number" in str(
-        KallistoQuantNode.VALIDATE_INPUTS({**paired, "reads": paired_reads[:3]})
-    )
+    assert "even number" in str(KallistoQuantNode.VALIDATE_INPUTS({**paired, "reads": paired_reads[:3]}))
     single = {
         "index": index,
         "reads": [_materialize_file(tmp_path / "single.fq.gz", "@read\nACGT\n+\n!!!!\n")],
@@ -402,34 +444,87 @@ def test_kallisto_quant_requires_even_pairs_and_single_end_fragment_parameters(t
         "bootstrap": 25,
     }
     assert KallistoQuantNode.VALIDATE_INPUTS(single) is True
-    assert KallistoQuantNode.render_command(single)[-7:] == [
-        "-b",
-        "25",
-        "--single",
-        "-l",
-        "200.0",
-        "-s",
-        "20.0",
-        single["reads"][0],
-    ][-7:]
-    assert "requires fragment_length" in str(
+    assert (
+        KallistoQuantNode.render_command(single)[-7:]
+        == [
+            "-b",
+            "25",
+            "--single",
+            "-l",
+            "200.0",
+            "-s",
+            "20.0",
+            single["reads"][0],
+        ][-7:]
+    )
+    assert "requires positive fragment_length" in str(
         KallistoQuantNode.VALIDATE_INPUTS({k: v for k, v in single.items() if k not in {"fragment_length", "sd"}})
     )
 
 
-def test_kallisto_quant_fake_execution_captures_stderr_and_native_outputs(tmp_path: Path) -> None:
-    index = _materialize_file(tmp_path / "transcripts.idx", "index\n")
-    reads = [
-        _materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n")
-        for name in ("r1.fq.gz", "r2.fq.gz")
+def test_kallisto_quant_preserves_documented_paired_overrides_and_bias(tmp_path: Path) -> None:
+    index = _materialize_kallisto_index(tmp_path / "transcripts.idx")
+    reads = [_materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n") for name in ("r1.fq.gz", "r2.fq.gz")]
+    inputs = {
+        "index": index,
+        "reads": reads,
+        "threads": 65,
+        "bootstrap": 1001,
+        "bias": True,
+        "fragment_length": 200.0,
+        "sd": 20.0,
+    }
+
+    assert KallistoQuantNode.VALIDATE_INPUTS(inputs) is True
+    assert KallistoQuantNode.render_command(inputs) == [
+        "kallisto",
+        "quant",
+        "-i",
+        index,
+        "-o",
+        ".",
+        "-t",
+        "65",
+        "-b",
+        "1001",
+        "--bias",
+        "-l",
+        "200.0",
+        "-s",
+        "20.0",
+        *reads,
     ]
+    assert KallistoQuantNode.VALIDATE_INPUTS({**inputs, "fragment_length": 0.0, "sd": 0.0}) is True
+
+
+def test_kallisto_quant_rejects_wrong_or_truncated_binary_index(tmp_path: Path) -> None:
+    reads = [_materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n") for name in ("r1.fq.gz", "r2.fq.gz")]
+    wrong_version = _materialize_kallisto_index(tmp_path / "wrong.idx", version=12)
+    assert "index format v12" in str(
+        KallistoQuantNode.VALIDATE_INPUTS({"index": wrong_version, "reads": reads, "threads": 1})
+    )
+
+    truncated = tmp_path / "truncated.idx"
+    truncated.write_bytes(struct.pack("@N", 13) + struct.pack("@N", 10) + b"short")
+    assert "truncated" in str(KallistoQuantNode.VALIDATE_INPUTS({"index": truncated, "reads": reads, "threads": 1}))
+
+
+def test_kallisto_quant_fake_execution_captures_stderr_and_native_outputs(tmp_path: Path) -> None:
+    index = _materialize_kallisto_index(tmp_path / "transcripts.idx")
+    reads = [_materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n") for name in ("r1.fq.gz", "r2.fq.gz")]
 
     def materialize(command: list[str] | str, kwargs: dict[str, Any]) -> None:
         assert isinstance(command, list)
         output = Path(command[command.index("-o") + 1])
         output.mkdir(parents=True, exist_ok=True)
-        (output / "abundance.tsv").write_text("target_id\ttpm\test_counts\n", encoding="utf-8")
-        (output / "run_info.json").write_text("{}", encoding="utf-8")
+        (output / "abundance.tsv").write_text(
+            "target_id\tlength\teff_length\test_counts\ttpm\n",
+            encoding="utf-8",
+        )
+        (output / "run_info.json").write_text(
+            '{"kallisto_version": "0.52.0", "index_version": 13}',
+            encoding="utf-8",
+        )
         (output / "abundance.h5").write_bytes(b"hdf5")
         Path(kwargs["stderr_path"]).write_text(
             "[quant] will process file 1: sample.fq.gz\n"
@@ -456,27 +551,31 @@ def test_kallisto_quant_fake_execution_captures_stderr_and_native_outputs(tmp_pa
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("leave_missing", [True, False])
-async def test_kallisto_quant_rejects_missing_or_empty_run_info(
+@pytest.mark.parametrize(
+    ("run_info_payload", "message"),
+    [(None, "run_info.json"), ("", "run_info.json"), ("{}", "unexpected kallisto_version")],
+)
+async def test_kallisto_quant_rejects_invalid_run_info(
     tmp_path: Path,
-    leave_missing: bool,
+    run_info_payload: str | None,
+    message: str,
 ) -> None:
-    index = _materialize_file(tmp_path / "transcripts.idx", "index\n")
-    reads = [
-        _materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n")
-        for name in ("r1.fq.gz", "r2.fq.gz")
-    ]
+    index = _materialize_kallisto_index(tmp_path / "transcripts.idx")
+    reads = [_materialize_file(tmp_path / name, "@read\nACGT\n+\n!!!!\n") for name in ("r1.fq.gz", "r2.fq.gz")]
 
     def materialize(command: list[str] | str, kwargs: dict[str, Any]) -> None:
         assert isinstance(command, list)
         output = Path(command[command.index("-o") + 1])
         output.mkdir(parents=True, exist_ok=True)
-        (output / "abundance.tsv").write_text("target_id\ttpm\test_counts\n", encoding="utf-8")
-        if not leave_missing:
-            (output / "run_info.json").write_text("", encoding="utf-8")
+        (output / "abundance.tsv").write_text(
+            "target_id\tlength\teff_length\test_counts\ttpm\n",
+            encoding="utf-8",
+        )
+        if run_info_payload is not None:
+            (output / "run_info.json").write_text(run_info_payload, encoding="utf-8")
         Path(kwargs["stderr_path"]).write_text("[quant] complete\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="run_info.json"):
+    with pytest.raises(RuntimeError, match=message):
         await KallistoQuantNode().run(
             index=index,
             reads=reads,
@@ -509,15 +608,9 @@ def test_featurecounts_uses_threads_and_enforces_documented_constraints(tmp_path
     assert "-p --countReadPairs" in command
     assert "-P -d 50 -D 600 -B" in command
     assert "-O --fraction" in command
-    assert "fraction requires" in str(
-        FeatureCountsNode.VALIDATE_INPUTS({**inputs, "multifeat": ""})
-    )
-    assert "requires only_both_ends" in str(
-        FeatureCountsNode.VALIDATE_INPUTS({**inputs, "only_both_ends": False})
-    )
-    assert "between 1 and 32" in str(
-        FeatureCountsNode.VALIDATE_INPUTS({**inputs, "threads": 33})
-    )
+    assert "fraction requires" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "multifeat": ""}))
+    assert "requires only_both_ends" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "only_both_ends": False}))
+    assert "between 1 and 32" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "threads": 33}))
 
 
 def test_featurecounts_long_read_mode_enforces_source_thread_and_read_constraints(tmp_path: Path) -> None:
@@ -534,18 +627,12 @@ def test_featurecounts_long_read_mode_enforces_source_thread_and_read_constraint
     }
 
     assert FeatureCountsNode.VALIDATE_INPUTS(inputs) is True
-    command = FeatureCountsNode.render_command(
-        {**inputs, "output": str(tmp_path / "featurecounts")}
-    )
+    command = FeatureCountsNode.render_command({**inputs, "output": str(tmp_path / "featurecounts")})
     assert "-T 1" in command
     assert "-L" in command
-    assert "long_reads requires threads=1" == FeatureCountsNode.VALIDATE_INPUTS(
-        {**inputs, "threads": 2}
-    )
+    assert "long_reads requires threads=1" == FeatureCountsNode.VALIDATE_INPUTS({**inputs, "threads": 2})
     assert "supports reads only" in str(
-        FeatureCountsNode.VALIDATE_INPUTS(
-            {**inputs, "paired_end_status": "PE_fragments", "count_read_pairs": True}
-        )
+        FeatureCountsNode.VALIDATE_INPUTS({**inputs, "paired_end_status": "PE_fragments", "count_read_pairs": True})
     )
 
 
@@ -597,10 +684,7 @@ async def test_featurecounts_fake_execution_maps_every_optional_output_combinati
         context=context,
         output_dir=tmp_path,
     )
-    expected = {
-        name: str(path)
-        for name, path in FeatureCountsNode.MAP_PLANNED_OUTPUTS(planned).items()
-    }
+    expected = {name: str(path) for name, path in FeatureCountsNode.MAP_PLANNED_OUTPUTS(planned).items()}
     assert result == {"outputs": expected}
     assert expected["counts"].endswith("/counts.tsv")
     assert expected["summary"].endswith("/summary.tsv")
@@ -613,17 +697,11 @@ async def test_featurecounts_fake_execution_maps_every_optional_output_combinati
 def test_rna_families_reject_unmaterialized_primary_inputs(tmp_path: Path, family: str) -> None:
     missing = str(tmp_path / "missing-input")
     if family == "salmon":
-        validation = SalmonIndexNode.VALIDATE_INPUTS(
-            {"transcripts": missing, "threads": 1}
-        )
+        validation = SalmonIndexNode.VALIDATE_INPUTS({"transcripts": missing, "threads": 1})
     elif family == "kallisto":
-        validation = KallistoIndexNode.VALIDATE_INPUTS(
-            {"transcripts": missing, "threads": 1}
-        )
+        validation = KallistoIndexNode.VALIDATE_INPUTS({"transcripts": missing, "threads": 1})
     else:
-        validation = FeatureCountsNode.VALIDATE_INPUTS(
-            {"alignment": missing, "anno_select": "builtin"}
-        )
+        validation = FeatureCountsNode.VALIDATE_INPUTS({"alignment": missing, "anno_select": "builtin"})
 
     assert validation is not True
     assert "not a materialized file" in str(validation)

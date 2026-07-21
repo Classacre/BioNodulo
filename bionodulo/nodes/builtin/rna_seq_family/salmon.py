@@ -36,9 +36,24 @@ def _validate_threads(inputs: dict[str, Any], default: int) -> bool | str:
     threads = inputs.get("threads", default)
     if isinstance(threads, bool) or not isinstance(threads, int):
         return "threads must be an integer"
-    if not 1 <= threads <= 64:
-        return "threads must be between 1 and 64"
+    # Salmon's `usize` thread option accepts zero as its documented "all
+    # available cores" sentinel; the CLI deliberately has no upper bound.
+    if threads < 0:
+        return "threads must be zero or a positive integer"
     return True
+
+
+def _validate_boolean(inputs: dict[str, Any], name: str, default: bool) -> bool | str:
+    value = inputs.get(name, default)
+    if not isinstance(value, bool):
+        return f"{name} must be a boolean"
+    return True
+
+
+def _library_type(value: Any) -> str:
+    if not isinstance(value, str):
+        raise ValueError("lib_type must be a string")
+    return value.upper()
 
 
 def _validate_files(paths: list[str], name: str) -> bool | str:
@@ -130,11 +145,29 @@ class _SalmonCommandNode(CommandNode):
     REQUIRED_EXECUTABLES = ["salmon"]
     REQUIRED_CONDA_PACKAGES = ["salmon"]
     VERSION = "2.3.4"
+    CONDA_PACKAGE_CONSTRAINTS = {"salmon": VERSION}
+    PACKAGE_CONSTRAINTS = (f"salmon=={VERSION}",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
     GIT_URL = "https://github.com/COMBINE-lab/salmon.git"
     GIT_COMMIT = "d53fed6f0af6966a40825558f0edf71b6df7cf52"
     UPSTREAM_TAG = "v2.3.4"
     UPSTREAM_CLI_SOURCE = "crates/salmon-cli/src/main.rs"
-    DOCUMENTATION_URL = "https://github.com/COMBINE-lab/salmon/tree/v2.3.4"
+    UPSTREAM_INDEX_SOURCE = "crates/salmon-index/src/lib.rs"
+    UPSTREAM_QUANT_OUTPUT_SOURCE = "crates/salmon-quant/src/output.rs"
+    DOCUMENTATION_URL = "https://github.com/COMBINE-lab/salmon/tree/v2.3.4/website/src/content/docs"
+    SOURCE_AUTHORITIES = {
+        "cli_contract": f"{GIT_URL}/blob/{GIT_COMMIT}/{UPSTREAM_CLI_SOURCE}",
+        "index_contract": f"{GIT_URL}/blob/{GIT_COMMIT}/{UPSTREAM_INDEX_SOURCE}",
+        "quant_output_contract": (
+            f"{GIT_URL}/blob/{GIT_COMMIT}/{UPSTREAM_QUANT_OUTPUT_SOURCE}"
+        ),
+        "documentation": DOCUMENTATION_URL,
+    }
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    EXIT_SEMANTICS = (
+        "Input validation or a non-zero Salmon exit fails the node; success requires every "
+        "unconditional Salmon index or quant artifact declared by the selected operation."
+    )
     SHELL = False
 
 
@@ -158,6 +191,7 @@ class SalmonIndexNode(_SalmonCommandNode):
         "index.refinfo",
         "refseq.bin",
         "refseq_offsets.json",
+        "duplicate_clusters.tsv",
     )
 
     @classmethod
@@ -173,7 +207,11 @@ class SalmonIndexNode(_SalmonCommandNode):
                 ),
                 "threads": (
                     "INT",
-                    {"default": 4, "min": 1, "max": 64, "display": "slider"},
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "description": "Worker threads; 0 uses all available cores",
+                    },
                 ),
             },
             "optional": {
@@ -208,7 +246,7 @@ class SalmonIndexNode(_SalmonCommandNode):
         validation = _validate_files(transcripts, "transcripts")
         if validation is not True:
             return validation
-        validation = _validate_threads(inputs, 4)
+        validation = _validate_threads(inputs, 0)
         if validation is not True:
             return validation
         kmer = inputs.get("kmer", 31)
@@ -229,7 +267,7 @@ class SalmonIndexNode(_SalmonCommandNode):
             "-i",
             str(output / cls.INDEX_DIRECTORY),
             "-p",
-            str(inputs.get("threads", 4)),
+            str(inputs.get("threads", 0)),
             "-k",
             str(inputs.get("kmer", 31)),
         ]
@@ -272,6 +310,11 @@ class SalmonQuantNode(_SalmonCommandNode):
         "cmd_info.json",
         "lib_format_counts.json",
         "aux_info/meta_info.json",
+        "aux_info/ambig_info.tsv",
+        "aux_info/fld.gz",
+        "aux_info/observed_bias.gz",
+        "aux_info/observed_bias_3p.gz",
+        "aux_info/expected_bias.gz",
         "libParams/flenDist.txt",
         "logs/salmon_quant.log",
     )
@@ -300,7 +343,11 @@ class SalmonQuantNode(_SalmonCommandNode):
                 "index": ("INDEX_DIR", {"description": "Salmon 2.x index directory"}),
                 "threads": (
                     "INT",
-                    {"default": 8, "min": 1, "max": 64, "display": "slider"},
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "description": "Worker threads; 0 uses all available cores",
+                    },
                 ),
             },
             "optional": {
@@ -350,7 +397,9 @@ class SalmonQuantNode(_SalmonCommandNode):
         if has_reads and has_aliases:
             raise ValueError("use reads or r1/r2 aliases, not both")
 
-        single_end = bool(inputs.get("single_end", False))
+        single_end = inputs.get("single_end", False)
+        if not isinstance(single_end, bool):
+            raise ValueError("single_end must be a boolean")
         if has_reads:
             reads = _path_list(reads_value, "reads")
             if single_end or len(reads) == 1:
@@ -390,9 +439,13 @@ class SalmonQuantNode(_SalmonCommandNode):
         validation = _validate_salmon_index(index)
         if validation is not True:
             return validation
-        validation = _validate_threads(inputs, 8)
+        validation = _validate_threads(inputs, 0)
         if validation is not True:
             return validation
+        for name in ("single_end", "gc_bias", "seq_bias"):
+            validation = _validate_boolean(inputs, name, False)
+            if validation is not True:
+                return validation
         try:
             mode, first_reads, second_reads = cls._read_mode(inputs)
         except (TypeError, ValueError) as exc:
@@ -400,7 +453,10 @@ class SalmonQuantNode(_SalmonCommandNode):
         validation = _validate_files([*first_reads, *second_reads], "reads")
         if validation is not True:
             return validation
-        lib_type = inputs.get("lib_type", "A")
+        try:
+            lib_type = _library_type(inputs.get("lib_type", "A"))
+        except ValueError as exc:
+            return str(exc)
         if lib_type not in cls.LIBRARY_TYPES:
             return f"lib_type must be one of: {', '.join(cls.LIBRARY_TYPES)}"
         allowed = cls.SINGLE_LIBRARY_TYPES if mode == "single" else cls.PAIRED_LIBRARY_TYPES
@@ -412,25 +468,26 @@ class SalmonQuantNode(_SalmonCommandNode):
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         mode, first_reads, second_reads = cls._read_mode(inputs)
         output = str(inputs.get("output", inputs.get("output_dir", ".")))
+        lib_type = _library_type(inputs.get("lib_type", "A"))
         command = [
             "salmon",
             "quant",
             "-i",
             str(inputs.get("index", "")),
             "-l",
-            str(inputs.get("lib_type", "A")),
+            lib_type,
             "-o",
             output,
             "-p",
-            str(inputs.get("threads", 8)),
+            str(inputs.get("threads", 0)),
         ]
         if mode == "single":
             command.extend(["-r", *first_reads])
         else:
             command.extend(["-1", *first_reads, "-2", *second_reads])
-        if inputs.get("gc_bias", False):
+        if inputs.get("gc_bias", False) is True:
             command.append("--gcBias")
-        if inputs.get("seq_bias", False):
+        if inputs.get("seq_bias", False) is True:
             command.append("--seqBias")
         return command
 
