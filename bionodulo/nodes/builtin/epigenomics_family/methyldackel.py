@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
+from bionodulo.nodes.builtin._reference_sidecars import validate_colocated_reference_index
+
 from .adapter import EpigenomicsCommandNode, path_value, safe_output_stem, stage_file
 
 
@@ -21,8 +24,9 @@ class MethylDackelNode(EpigenomicsCommandNode):
     REQUIRED_CONDA_PACKAGES = ["methyldackel"]
     SHELL = True
     SIDECAR_POLICY = (
-        "The BAM/BAI and FASTA/FAI inputs are staged under canonical sibling names; "
-        "MethylDackel 0.6.1 discovers both indexes by filename."
+        "The BAM/BAI and FASTA/FAI inputs must be exact colocated siblings before "
+        "they are staged under canonical names; MethylDackel 0.6.1 discovers both "
+        "indexes by filename."
     )
 
     @classmethod
@@ -36,9 +40,23 @@ class MethylDackelNode(EpigenomicsCommandNode):
                 "output_prefix": ("STRING", {"default": "methyldackel"}),
             },
             "optional": {
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
-                "merge_context": ("BOOLEAN", {"default": True, "description": "Merge paired Cs into per-CpG metrics"}),
-                "min_depth": ("INT", {"default": 1, "min": 1, "label": "Min Coverage"}),
+                "threads": ("INT", {"default": 1, "min": 1}),
+                "merge_context": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Merge per-Cytosine metrics into per-CpG/CHG metrics",
+                    },
+                ),
+                "min_depth": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "label": "Min Coverage",
+                        "description": "Minimum coverage after filtering; applies to merged sites too",
+                    },
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -51,10 +69,29 @@ class MethylDackelNode(EpigenomicsCommandNode):
         for field in ("bam", "bam_index", "reference", "reference_index"):
             if path_value(inputs.get(field)) is None:
                 return f"{field} is required"
-        threads = int(inputs.get("threads", 1))
+
+        sidecar_validation = validate_colocated_bam_index(inputs)
+        if sidecar_validation is not True:
+            return sidecar_validation
+        sidecar_validation = validate_colocated_reference_index(inputs)
+        if sidecar_validation is not True:
+            return sidecar_validation
+
+        threads_value = inputs.get("threads", 1)
+        if threads_value is None:
+            threads_value = 1
+        if isinstance(threads_value, bool) or not isinstance(threads_value, int):
+            return "threads must be an integer"
+        threads = threads_value
         if threads < 1:
             return "threads must be at least 1"
-        min_depth = int(inputs.get("min_depth", 1))
+
+        min_depth_value = inputs.get("min_depth", 1)
+        if min_depth_value is None:
+            min_depth_value = 1
+        if isinstance(min_depth_value, bool) or not isinstance(min_depth_value, int):
+            return "min_depth must be an integer"
+        min_depth = min_depth_value
         if min_depth < 1:
             return "min_depth must be at least 1"
         return True
@@ -112,7 +149,7 @@ class MethylDackelNode(EpigenomicsCommandNode):
             "-o",
             output_prefix,
         ]
-        if inputs.get("merge_context", True):
+        if inputs.get("merge_context", False):
             cmd.append("--mergeContext")
         cmd.extend(["--minDepth", str(inputs.get("min_depth", 1)), reference, bam])
         return cmd
