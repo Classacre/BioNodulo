@@ -59,6 +59,13 @@ def test_r_family_declares_one_solvable_exact_package_stack() -> None:
         "r-ggplot2": "4.0.3",
         "r-ashr": "2.2_63",
     }
+    assert DESeq2Node.PACKAGE_CONSTRAINTS == (
+        "r-base=4.5.3",
+        "bioconductor-deseq2=1.50.2",
+        "r-ggplot2=4.0.3",
+        "r-ashr=2.2_63",
+    )
+    assert DESeq2Node.AUDIT_STATUS == "contract-checked-no-external-execution"
     assert DESeq2Node.SOURCE_AUTHORITIES == {
         "DESeq2": ("1.50.2", "d90821a3153a27b2a6b727df7188ea7a5b8929fd"),
         "ggplot2": ("4.0.3", "cc1444c10edb87650fbe0cb31d56f0da1a255634"),
@@ -78,9 +85,16 @@ def test_r_family_declares_one_solvable_exact_package_stack() -> None:
 
 
 def test_deseq2_prepares_native_outputs_and_documented_operations(tmp_path) -> None:
+    count_matrix = tmp_path / "counts.csv"
+    sample_info = tmp_path / "samples.csv"
+    count_matrix.write_text("gene,s1,s2\ng1,10,20\ng2,5,7\n", encoding="utf-8")
+    sample_info.write_text(
+        "sample,condition\ns1,control\ns2,treated\n",
+        encoding="utf-8",
+    )
     inputs = {
-        "count_matrix": "/data/counts.csv",
-        "sample_info": "/data/samples.csv",
+        "count_matrix": str(count_matrix),
+        "sample_info": str(sample_info),
         "design_formula": "~ batch + condition",
         "contrast": "condition,treated,control",
         "min_counts": 10,
@@ -135,6 +149,28 @@ def test_deseq2_rejects_invalid_contract_values(updates, message) -> None:
         **updates,
     }
     assert message in str(DESeq2Node.VALIDATE_INPUTS(inputs))
+
+
+def test_deseq2_accepts_source_supported_unbounded_thresholds_and_requires_files(tmp_path) -> None:
+    count_matrix = tmp_path / "counts.csv"
+    sample_info = tmp_path / "samples.csv"
+    count_matrix.write_text("gene,s1,s2\ng1,10,20\n", encoding="utf-8")
+    sample_info.write_text("sample,condition\ns1,a\ns2,b\n", encoding="utf-8")
+    inputs = {
+        "count_matrix": count_matrix,
+        "sample_info": sample_info,
+        "design_formula": "~ condition",
+        "contrast": "condition,b,a",
+        "min_counts": 1_000_001,
+        "lfc_threshold": 101.0,
+        "padj_threshold": 0.05,
+    }
+    assert DESeq2Node.VALIDATE_INPUTS(inputs) is True
+
+    missing = tmp_path / "missing.csv"
+    assert DESeq2Node.VALIDATE_INPUTS({**inputs, "count_matrix": missing}) == (
+        f"Input 'count_matrix' is not a materialized file: {missing}"
+    )
 
 
 def test_pheatmap_uses_native_filename_output_and_explicit_annotation(tmp_path) -> None:

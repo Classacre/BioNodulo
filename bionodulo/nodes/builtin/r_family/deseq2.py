@@ -53,6 +53,9 @@ class DESeq2Node(PreparedRScriptNode):
         "r-ggplot2": GGPLOT2_VERSION,
         "r-ashr": ASHR_VERSION,
     }
+    PACKAGE_CONSTRAINTS = tuple(
+        f"{package}={version}" for package, version in CONDA_PACKAGE_CONSTRAINTS.items()
+    )
     VERSION = DESEQ2_VERSION
     GIT_URL = "https://git.bioconductor.org/packages/DESeq2"
     GIT_COMMIT = DESEQ2_COMMIT
@@ -63,6 +66,7 @@ class DESeq2Node(PreparedRScriptNode):
         "ggplot2": ("4.0.3", GGPLOT2_COMMIT),
         "ashr": ("2.2-63", ASHR_COMMIT),
     }
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     CITATION_DOIS = ["10.1186/s13059-014-0550-8", "10.18129/B9.bioc.DESeq2"]
     CITATION_URLS = [
         "https://doi.org/10.1186/s13059-014-0550-8",
@@ -102,8 +106,8 @@ class DESeq2Node(PreparedRScriptNode):
                 ),
             },
             "optional": {
-                "min_counts": ("INT", {"default": 10, "min": 0, "max": 1000000}),
-                "lfc_threshold": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 100.0}),
+                "min_counts": ("INT", {"default": 10, "min": 0}),
+                "lfc_threshold": ("FLOAT", {"default": 0.0, "min": 0.0}),
                 "padj_threshold": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0}),
             },
             "hidden": {"output": ("STRING", {})},
@@ -126,10 +130,10 @@ class DESeq2Node(PreparedRScriptNode):
             return "Input 'design_formula' must be a non-empty R formula beginning with '~'"
         if cls._contrast_parts(inputs.get("contrast", "condition,treated,control")) is None:
             return "Input 'contrast' must contain variable,numerator,denominator"
-        validation = validate_int(inputs.get("min_counts", 10), "min_counts", minimum=0, maximum=1000000)
+        validation = validate_int(inputs.get("min_counts", 10), "min_counts", minimum=0)
         if validation is not True:
             return validation
-        validation = validate_number(inputs.get("lfc_threshold", 0.0), "lfc_threshold", minimum=0.0, maximum=100.0)
+        validation = validate_number(inputs.get("lfc_threshold", 0.0), "lfc_threshold", minimum=0.0)
         if validation is not True:
             return validation
         validation = validate_number(
@@ -143,6 +147,15 @@ class DESeq2Node(PreparedRScriptNode):
         padj_threshold = float(inputs.get("padj_threshold", 0.05))
         if not 0.0 < padj_threshold < 1.0:
             return "Input 'padj_threshold' must be greater than 0 and less than 1"
+        for key in cls.REQUIRED_PATH_INPUTS:
+            path = Path(path_value(inputs.get(key)))
+            if not path.is_file():
+                return f"Input '{key}' is not a materialized file: {path}"
+            try:
+                if path.stat().st_size == 0:
+                    return f"Input '{key}' file is empty: {path}"
+            except OSError as exc:
+                return f"Cannot inspect input '{key}' file {path}: {exc}"
         return True
 
     @classmethod
