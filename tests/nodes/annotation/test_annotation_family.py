@@ -78,8 +78,10 @@ def test_source_defaults_are_recorded_in_input_metadata() -> None:
 
 
 def test_prokka_direct_argv_and_documented_outputs(tmp_path: Path) -> None:
+    assembly = tmp_path / "contigs.fa"
+    assembly.write_text(">contig\nACGT\n", encoding="ascii")
     inputs = {
-        "assembly": "/inputs/contigs.fa",
+        "assembly": str(assembly),
         "threads": 12,
         "prefix": "isolate_7",
         "kingdom": "Archaea",
@@ -109,7 +111,7 @@ def test_prokka_direct_argv_and_documented_outputs(tmp_path: Path) -> None:
         "DSM_3638",
         "--gcode",
         "11",
-        "/inputs/contigs.fa",
+        str(assembly),
     ]
     assert [path.name for path in ProkkaNode.PLAN_OUTPUTS(inputs, tmp_path)] == [
         "isolate_7.gff",
@@ -127,14 +129,31 @@ def test_prokka_direct_argv_and_documented_outputs(tmp_path: Path) -> None:
     ]
 
 
-def test_prokka_uses_native_auto_genetic_code_and_validates_filename() -> None:
-    inputs = {"assembly": "contigs.fa", "prefix": "genome", "kingdom": "Bacteria"}
+def test_prokka_uses_native_auto_genetic_code_and_validates_filename(tmp_path: Path) -> None:
+    assembly = tmp_path / "contigs.fa"
+    assembly.write_text(">contig\nACGT\n", encoding="ascii")
+    inputs = {"assembly": str(assembly), "prefix": "genome", "kingdom": "Bacteria"}
     assert "--gcode" not in ProkkaNode.render_command(inputs)
     assert ProkkaNode.VALIDATE_INPUTS({**inputs, "prefix": "../escape"}) == (
         "Input 'prefix' must be a filename without directory components"
     )
     assert "must be one of" in str(ProkkaNode.VALIDATE_INPUTS({**inputs, "kingdom": "Fungi"}))
     assert "at most 25" in str(ProkkaNode.VALIDATE_INPUTS({**inputs, "gcode": 26}))
+
+
+def test_prokka_requires_a_materialized_nonempty_assembly(tmp_path: Path) -> None:
+    base = {"prefix": "genome", "kingdom": "Bacteria"}
+    missing = tmp_path / "missing.fa"
+    directory = tmp_path / "assembly-dir"
+    directory.mkdir()
+    empty = tmp_path / "empty.fa"
+    empty.touch()
+
+    for assembly in (missing, directory):
+        assert ProkkaNode.VALIDATE_INPUTS({**base, "assembly": assembly}) == (
+            "Input 'assembly' must be a materialized regular file"
+        )
+    assert ProkkaNode.VALIDATE_INPUTS({**base, "assembly": empty}) == ("Input 'assembly' must be non-empty")
 
 
 def _snpeff_inputs(**overrides: object) -> dict[str, object]:

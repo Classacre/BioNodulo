@@ -72,8 +72,9 @@ class ProkkaNode(AnnotationCommandNode):
     REQUIRED_PATH_INPUTS = ("assembly",)
     KINGDOMS = ("Bacteria", "Archaea", "Viruses", "Mitochondria")
     EXIT_SEMANTICS = (
-        "Prokka exits 2 for invalid inputs, missing databases, or failed child commands; "
-        "BioNodulo additionally requires every documented output artifact."
+        "Prokka exits 1 for usage or option-parsing failures and 2 for invalid inputs, "
+        "missing databases, or failed child commands; BioNodulo additionally requires "
+        "every documented output artifact."
     )
 
     @classmethod
@@ -116,7 +117,21 @@ class ProkkaNode(AnnotationCommandNode):
         validation = validate_choice(inputs.get("kingdom", "Bacteria"), "kingdom", cls.KINGDOMS)
         if validation is not True:
             return validation
-        return validate_int(inputs.get("gcode", 0), "gcode", minimum=0, maximum=25)
+        validation = validate_int(inputs.get("gcode", 0), "gcode", minimum=0, maximum=25)
+        if validation is not True:
+            return validation
+
+        assembly = Path(path_value(inputs.get("assembly")))
+        try:
+            if not assembly.is_file():
+                return "Input 'assembly' must be a materialized regular file"
+            if assembly.stat().st_size == 0:
+                return "Input 'assembly' must be non-empty"
+            with assembly.open("rb"):
+                pass
+        except OSError as exc:
+            return f"Input 'assembly' must be readable: {exc}"
+        return True
 
     @classmethod
     def _output_filenames(cls, prefix: str) -> tuple[str, ...]:
