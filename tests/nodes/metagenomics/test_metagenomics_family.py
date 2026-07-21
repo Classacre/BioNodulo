@@ -184,6 +184,7 @@ def test_kraken2_default_and_paired_argv_are_native_and_redirect_free() -> None:
         "--use-names",
         "--memory-mapping",
         "--paired",
+        "--gzip-compressed",
         "--output",
         "/work/kraken2/classification.kraken",
         "--report",
@@ -191,6 +192,40 @@ def test_kraken2_default_and_paired_argv_are_native_and_redirect_free() -> None:
         "R1.fastq.gz",
         "R2.fastq.gz",
     ]
+
+
+def test_kraken2_emits_the_required_compression_switch_for_gzip_reads() -> None:
+    command = Kraken2Node.render_command(
+        {
+            "db": "/db/kraken",
+            "reads": ["R1.fastq.gz", "R2.fastq.gz"],
+            "paired": True,
+            "output": "/work/kraken2",
+        }
+    )
+    assert "--gzip-compressed" in command
+    assert command.index("--gzip-compressed") < command.index("--output")
+
+
+def test_kraken2_rejects_mixed_compression_without_an_explicit_mode() -> None:
+    inputs = {
+        "db": "/db/kraken",
+        "reads": ["R1.fastq.gz", "R2.fastq"],
+        "paired": True,
+    }
+    assert "mixes compressed and uncompressed" in str(Kraken2Node.VALIDATE_INPUTS(inputs))
+
+
+def test_kraken2_checks_the_materialized_database_bundle(tmp_path: Path) -> None:
+    database = tmp_path / "kraken-db"
+    database.mkdir()
+    inputs = {"db": str(database), "reads": ["reads.fastq"]}
+    with pytest.raises(ValueError, match="hash.k2d"):
+        Kraken2Node.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    for name in Kraken2Node.DATABASE_FILES:
+        (database / name).write_bytes(b"synthetic")
+    Kraken2Node.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
 
 
 def test_bracken_argv_uses_the_database_and_writes_both_native_reports() -> None:
