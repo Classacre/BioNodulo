@@ -105,6 +105,21 @@ def test_freebayes_optional_argv_is_exact(tmp_path: Path) -> None:
     ]
 
 
+def test_freebayes_accepts_documented_disabled_haplotype_clumping(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "freebayes"
+    inputs = _indexed_inputs(output=output, haplotype_length=-1)
+
+    assert FreeBayesNode.INPUT_TYPES()["optional"]["haplotype_length"][1]["min"] == -1
+    assert FreeBayesNode.VALIDATE_INPUTS(inputs) is True
+    assert FreeBayesNode.render_command(inputs)[-3:] == [
+        "--haplotype-length",
+        "-1",
+        "/data/sample.bam",
+    ]
+
+
 def test_source_callers_do_not_apply_local_thread_or_ploidy_caps() -> None:
     assert FreeBayesNode.VALIDATE_INPUTS(_indexed_inputs(ploidy=64)) is True
     assert MantaNode.VALIDATE_INPUTS(_indexed_inputs(threads=128)) is True

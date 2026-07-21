@@ -231,11 +231,24 @@
         80
       ],
       "params": {
-        "emit_ref_confidence": "GVCF",
-        "stand_call_conf": 30
+        "emit_ref_confidence": "GVCF"
       },
       "ui": {
         "title": "GATK HaplotypeCaller"
+      }
+    },
+    {
+      "id": "gatk_genotype_001",
+      "type": "gatk_genotype_gvcfs",
+      "position": [
+        3680,
+        80
+      ],
+      "params": {
+        "standard_min_confidence": 30
+      },
+      "ui": {
+        "title": "GATK GenotypeGVCFs"
       }
     },
     {
@@ -261,7 +274,7 @@
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
-        3680,
+        4040,
         80
       ],
       "params": {
@@ -304,7 +317,7 @@
       "id": "snpeff_001",
       "type": "snpeff",
       "position": [
-        4040,
+        4400,
         80
       ],
       "params": {
@@ -319,7 +332,7 @@
       "id": "vep_001",
       "type": "vep",
       "position": [
-        4040,
+        4400,
         500
       ],
       "params": {
@@ -336,7 +349,7 @@
       "id": "prioritize_vcf_001",
       "type": "filter_vcf",
       "position": [
-        4400,
+        4760,
         80
       ],
       "params": {
@@ -352,7 +365,7 @@
       "id": "vcf_stats_001",
       "type": "vcf_stats_chart",
       "position": [
-        4040,
+        4400,
         1102
       ],
       "params": {
@@ -412,7 +425,7 @@
       "id": "gate_prioritized_vcf_001",
       "type": "gate",
       "position": [
-        4760,
+        5120,
         80
       ],
       "params": {
@@ -465,7 +478,7 @@
       "id": "render_gate_prioritized_vcf_tab_0",
       "type": "table_preview",
       "position": [
-        5480,
+        5840,
         80
       ],
       "params": {},
@@ -477,7 +490,7 @@
       "id": "render_vep_tab_1",
       "type": "table_preview",
       "position": [
-        5480,
+        5840,
         300
       ],
       "params": {},
@@ -642,9 +655,64 @@
       }
     },
     {
-      "id": "e9",
+      "id": "e9_gvcf",
       "from": {
         "node": "gatk_001",
+        "output": "vcf"
+      },
+      "to": {
+        "node": "gatk_genotype_001",
+        "input": "gvcf"
+      }
+    },
+    {
+      "id": "e9_gvcf_index",
+      "from": {
+        "node": "gatk_001",
+        "output": "vcf_index"
+      },
+      "to": {
+        "node": "gatk_genotype_001",
+        "input": "gvcf_index"
+      }
+    },
+    {
+      "id": "e9_reference",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "gatk_genotype_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e9_fai",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "gatk_genotype_001",
+        "input": "reference_index"
+      }
+    },
+    {
+      "id": "e9_dict",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "sequence_dictionary"
+      },
+      "to": {
+        "node": "gatk_genotype_001",
+        "input": "sequence_dictionary"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "gatk_genotype_001",
         "output": "vcf"
       },
       "to": {

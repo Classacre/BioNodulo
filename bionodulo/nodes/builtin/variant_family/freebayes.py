@@ -67,7 +67,7 @@ class FreeBayesNode(IndexedBamReferenceNode):
                 ),
                 "haplotype_length": (
                     "INT",
-                    {"default": 3, "min": 0, "advanced": True},
+                    {"default": 3, "min": -1, "advanced": True},
                 ),
             },
             "hidden": {"output": ("STRING", {})},
@@ -110,7 +110,7 @@ class FreeBayesNode(IndexedBamReferenceNode):
             ("ploidy", 2, 1, None),
             ("min_mapping_quality", 1, 0, None),
             ("min_base_quality", 0, 0, None),
-            ("haplotype_length", 3, 0, None),
+            ("haplotype_length", 3, -1, None),
         ):
             validation = validate_integer(
                 inputs,

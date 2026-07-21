@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.workflow.validation import validate_workflow
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -129,6 +130,71 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
     assert workflow["outputs"]["vep_annotation"] == "vep_001"
+
+
+def test_variant_calling_template_genotypes_gvcf_before_filtering() -> None:
+    workflow = _load_template("variant_calling_pipeline.json")
+    node_types = _node_types(workflow)
+
+    assert node_types["gatk_001"] == "gatk_haplotype_caller"
+    assert node_types["gatk_genotype_001"] == "gatk_genotype_gvcfs"
+    assert _node_by_id(workflow, "gatk_001")["params"] == {
+        "emit_ref_confidence": "GVCF"
+    }
+    assert _node_by_id(workflow, "gatk_genotype_001")["params"] == {
+        "standard_min_confidence": 30
+    }
+    _assert_edge(
+        workflow,
+        "e9_gvcf",
+        "gatk_001",
+        "vcf",
+        "gatk_genotype_001",
+        "gvcf",
+    )
+    _assert_edge(
+        workflow,
+        "e9_gvcf_index",
+        "gatk_001",
+        "vcf_index",
+        "gatk_genotype_001",
+        "gvcf_index",
+    )
+    _assert_edge(
+        workflow,
+        "e9_reference",
+        "ref_sidecars_001",
+        "reference",
+        "gatk_genotype_001",
+        "reference",
+    )
+    _assert_edge(
+        workflow,
+        "e9_fai",
+        "ref_sidecars_001",
+        "fai_index",
+        "gatk_genotype_001",
+        "reference_index",
+    )
+    _assert_edge(
+        workflow,
+        "e9_dict",
+        "ref_sidecars_001",
+        "sequence_dictionary",
+        "gatk_genotype_001",
+        "sequence_dictionary",
+    )
+    _assert_edge(
+        workflow,
+        "e9",
+        "gatk_genotype_001",
+        "vcf",
+        "filter_001",
+        "input_file",
+    )
+    assert not _has_edge(workflow, "gatk_001", "vcf", "filter_001", "input_file")
+    result = validate_workflow(workflow, NodeRegistry.create_isolated())
+    assert result.valid, result.errors
 
 
 def test_variant_calling_template_validates_reference_before_alignment_and_calling() -> None:
