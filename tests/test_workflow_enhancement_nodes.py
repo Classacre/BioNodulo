@@ -55,7 +55,10 @@ def test_workflow_enhancement_nodes_are_registered_for_frontend_discovery() -> N
     expected = {
         "timer": ("Timer", ["passthrough", "elapsed_seconds", "start_time", "end_time"]),
         "resource_monitor": ("Resource Monitor", ["passthrough", "resources_ok", "resource_stats"]),
-        "data_validator": ("Data Validator", ["passthrough", "passed", "validation_report", "report_file"]),
+        "data_validator": (
+            "Data Validator",
+            ["passthrough", "passed", "validation_report", "report_file", "validated_fastq"],
+        ),
         "provenance": ("Provenance", ["passthrough", "provenance_record", "provenance_file"]),
         "compare_results": ("Compare Results", ["comparison_report", "match", "diff_file"]),
         "checkpoint": ("Checkpoint", ["passthrough", "checkpoint_file", "checkpoint_info"]),
@@ -179,7 +182,7 @@ async def test_data_validator_accepts_valid_csv_and_writes_report(tmp_path: Path
     expected_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     context = _context(tmp_path, "validator-node")
 
-    passthrough, passed, report, report_file = await _node_class("data_validator")().run(
+    passthrough, passed, report, report_file, validated_fastq = await _node_class("data_validator")().run(
         input=str(source),
         expected_format="csv",
         required_fields="sample,status",
@@ -196,6 +199,7 @@ async def test_data_validator_accepts_valid_csv_and_writes_report(tmp_path: Path
     assert parsed["checks"]["row_count"] == 2
     assert parsed["checks"]["required_fields_ok"] is True
     assert parsed["checks"]["checksum_ok"] is True
+    assert validated_fastq == ""
     assert report_path.exists()
     assert json.loads(report_path.read_text(encoding="utf-8"))["passed"] is True
 
@@ -205,7 +209,7 @@ async def test_data_validator_reports_failures_without_raising_when_configured(t
     source = tmp_path / "broken.fastq"
     source.write_text("@read1\nACGT\n+\n!!!!\n@read2\nACGT\n", encoding="utf-8")
 
-    passthrough, passed, report, report_file = await _node_class("data_validator")().run(
+    passthrough, passed, report, report_file, validated_fastq = await _node_class("data_validator")().run(
         input=str(source),
         expected_format="fastq",
         min_records=2,
@@ -216,6 +220,7 @@ async def test_data_validator_reports_failures_without_raising_when_configured(t
     parsed = json.loads(report)
     assert passthrough == str(source)
     assert passed is False
+    assert validated_fastq == ""
     assert "FASTQ" in "; ".join(parsed["errors"])
     assert Path(report_file).exists()
 
@@ -230,13 +235,13 @@ async def test_data_validator_accepts_gzipped_fastq_and_vcf(tmp_path: Path) -> N
     with gzip.open(variants, "wt", encoding="utf-8") as handle:
         handle.write("##fileformat=VCFv4.3\n#CHROM\tPOS\tID\tREF\tALT\nchr1\t42\t.\tA\tG\n")
 
-    _, fastq_passed, fastq_report, _ = await _node_class("data_validator")().run(
+    _, fastq_passed, fastq_report, _, validated_fastq = await _node_class("data_validator")().run(
         input=str(reads),
         expected_format="auto",
         min_records=2,
         context=_context(tmp_path, "validator-fastq-gz"),
     )
-    _, vcf_passed, vcf_report, _ = await _node_class("data_validator")().run(
+    _, vcf_passed, vcf_report, _, validated_vcf_as_fastq = await _node_class("data_validator")().run(
         input=str(variants),
         expected_format="auto",
         min_records=1,
@@ -248,9 +253,35 @@ async def test_data_validator_accepts_gzipped_fastq_and_vcf(tmp_path: Path) -> N
     assert fastq_passed is True
     assert parsed_fastq["checks"]["detected_format"] == "fastq"
     assert parsed_fastq["checks"]["record_count"] == 2
+    assert validated_fastq == str(reads)
     assert vcf_passed is True
     assert parsed_vcf["checks"]["detected_format"] == "vcf"
     assert parsed_vcf["checks"]["variant_count"] == 1
+    assert validated_vcf_as_fastq == ""
+
+
+@pytest.mark.asyncio
+async def test_data_validator_streams_fastq_without_materializing_all_lines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reads = tmp_path / "reads.fastq"
+    reads.write_text("@read1\nACGT\n+\n!!!!\n", encoding="utf-8")
+    node_class = _node_class("data_validator")
+
+    def reject_materialization(path: Path) -> list[str]:
+        raise AssertionError(f"whole-file line materialization attempted for {path}")
+
+    monkeypatch.setattr(node_class, "_read_text_lines", staticmethod(reject_materialization))
+    _, passed, report, _, validated_fastq = await node_class().run(
+        input=str(reads),
+        expected_format="fastq",
+        min_records=1,
+    )
+
+    assert passed is True
+    assert json.loads(report)["checks"]["record_count"] == 1
+    assert validated_fastq == str(reads)
 
 
 @pytest.mark.asyncio
@@ -258,7 +289,7 @@ async def test_data_validator_accepts_bgzf_bam_magic_without_warning(tmp_path: P
     source = tmp_path / "aligned.bam"
     source.write_bytes(b"\x1f\x8b\x08\x04BGZF")
 
-    _, passed, report, _ = await _node_class("data_validator")().run(
+    _, passed, report, _, _ = await _node_class("data_validator")().run(
         input=str(source),
         expected_format="bam",
         context=_context(tmp_path, "validator-bam"),
@@ -278,7 +309,7 @@ async def test_data_validator_validates_each_file_in_path_list(tmp_path: Path) -
     read1.write_text("@r1\nACGT\n+\n!!!!\n@r2\nTGCA\n+\n!!!!\n", encoding="utf-8")
     read2.write_text("@r1\nAAAA\n+\n!!!!\n@r2\nCCCC\n+\n!!!!\n", encoding="utf-8")
 
-    passthrough, passed, report, report_file = await _node_class("data_validator")().run(
+    passthrough, passed, report, report_file, validated_fastq = await _node_class("data_validator")().run(
         input=[str(read1), str(read2)],
         expected_format="fastq",
         min_records=4,
@@ -293,6 +324,7 @@ async def test_data_validator_validates_each_file_in_path_list(tmp_path: Path) -
     assert parsed["checks"]["record_count"] == 4
     assert parsed["checks"]["files"][0]["checks"]["record_count"] == 2
     assert parsed["checks"]["files"][1]["checks"]["record_count"] == 2
+    assert validated_fastq == ""
     assert Path(report_file).exists()
 
 
@@ -305,7 +337,7 @@ async def test_data_validator_accepts_existing_directory_and_reports_contents(tm
     (source / "nested").mkdir()
     (source / "nested" / "taxo.k2d").write_bytes(b"taxonomy")
 
-    passthrough, passed, report, report_file = await _node_class("data_validator")().run(
+    passthrough, passed, report, report_file, validated_fastq = await _node_class("data_validator")().run(
         input=str(source),
         expected_format="directory",
         min_size_bytes=1,
@@ -321,6 +353,7 @@ async def test_data_validator_accepts_existing_directory_and_reports_contents(tm
     assert parsed["checks"]["directory_count"] == 1
     assert parsed["checks"]["total_size_bytes"] == 16
     assert parsed["checks"]["size_ok"] is True
+    assert validated_fastq == ""
     assert Path(report_file).exists()
 
 

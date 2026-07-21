@@ -274,8 +274,8 @@ class DataValidatorNode(WorkflowEnhancementContract):
     CATEGORY = "workflow"
     DESCRIPTION = "Validate data quality, file format, required fields, record counts, and checksums"
     SEARCH_ALIASES = ["validate", "validator", "qc", "check", "verify", "sanity", "format"]
-    RETURN_TYPES = ("ANY", "BOOLEAN", "JSON", "FILE")
-    RETURN_NAMES = ("passthrough", "passed", "validation_report", "report_file")
+    RETURN_TYPES = ("ANY", "BOOLEAN", "JSON", "FILE", "FASTQ")
+    RETURN_NAMES = ("passthrough", "passed", "validation_report", "report_file", "validated_fastq")
     REQUIRES_EXTERNAL_TOOLS = False
 
     @classmethod
@@ -301,7 +301,7 @@ class DataValidatorNode(WorkflowEnhancementContract):
             },
         }
 
-    async def run(self, **kwargs: Any) -> tuple[Any, bool, str, str]:
+    async def run(self, **kwargs: Any) -> tuple[Any, bool, str, str, str]:
         context = kwargs.pop("context", None)
         data = kwargs.get("input")
         expected_format = str(kwargs.get("expected_format", "auto") or "auto").lower()
@@ -371,7 +371,15 @@ class DataValidatorNode(WorkflowEnhancementContract):
         if not passed and fail_on_error:
             raise RuntimeError(f"Data validation failed: {'; '.join(report['errors'])}")
 
-        return (data, passed, _json_text(report), report_file)
+        validated_fastq = ""
+        if (
+            passed
+            and isinstance(data, (str, Path))
+            and report["checks"].get("detected_format") == "fastq"
+        ):
+            validated_fastq = str(data)
+
+        return (data, passed, _json_text(report), report_file, validated_fastq)
 
     @staticmethod
     def _is_path_list(data: Any, expected_format: str) -> bool:
@@ -547,11 +555,15 @@ class DataValidatorNode(WorkflowEnhancementContract):
         return True
 
     @staticmethod
-    def _read_text_lines(path: Path) -> list[str]:
+    def _open_text(path: Path) -> Any:
         if path.suffix.lower() == ".gz":
-            with gzip.open(path, "rt", encoding="utf-8", errors="replace") as handle:
-                return handle.read().splitlines()
-        return path.read_text(encoding="utf-8", errors="replace").splitlines()
+            return gzip.open(path, "rt", encoding="utf-8", errors="replace")
+        return path.open("r", encoding="utf-8", errors="replace")
+
+    @classmethod
+    def _read_text_lines(cls, path: Path) -> list[str]:
+        with cls._open_text(path) as handle:
+            return handle.read().splitlines()
 
     def _validate_fasta(self, path: Path, report: dict[str, Any]) -> bool:
         records = 0
@@ -574,15 +586,42 @@ class DataValidatorNode(WorkflowEnhancementContract):
             return False
 
     def _validate_fastq(self, path: Path, report: dict[str, Any]) -> bool:
-        lines = self._read_text_lines(path)
-        if len(lines) == 0 or len(lines) % 4 != 0:
-            report["errors"].append(f"FASTQ: line count {len(lines)} is not divisible by 4")
+        records = 0
+        try:
+            with self._open_text(path) as handle:
+                while True:
+                    header = handle.readline()
+                    if header == "":
+                        break
+                    sequence = handle.readline()
+                    separator = handle.readline()
+                    quality = handle.readline()
+                    line_number = records * 4 + 1
+                    if "" in (sequence, separator, quality):
+                        report["errors"].append(
+                            f"FASTQ: incomplete record starting at line {line_number}"
+                        )
+                        return False
+                    if not header.startswith("@") or not separator.startswith("+"):
+                        report["errors"].append(
+                            f"FASTQ: invalid record starting at line {line_number}"
+                        )
+                        return False
+                    sequence_text = sequence.rstrip("\r\n")
+                    quality_text = quality.rstrip("\r\n")
+                    if not sequence_text or len(sequence_text) != len(quality_text):
+                        report["errors"].append(
+                            f"FASTQ: sequence/quality length mismatch at line {line_number}"
+                        )
+                        return False
+                    records += 1
+        except OSError as exc:
+            report["errors"].append(f"FASTQ validation error: {exc}")
             return False
-        for idx in range(0, len(lines), 4):
-            if not lines[idx].startswith("@") or not lines[idx + 2].startswith("+"):
-                report["errors"].append(f"FASTQ: invalid record starting at line {idx + 1}")
-                return False
-        report["checks"]["record_count"] = len(lines) // 4
+        if records == 0:
+            report["errors"].append("FASTQ: no records found")
+            return False
+        report["checks"]["record_count"] = records
         report["checks"]["format_valid"] = True
         return True
 

@@ -73,8 +73,8 @@ def validate_number(
 
 
 def valid_dorado_device(device: str) -> bool:
-    """Mirror Dorado 0.9.6 device syntax without probing local hardware."""
-    if device in {"auto", "cpu", "metal", "cuda:all", "cuda:auto"}:
+    """Mirror the official Dorado 0.9.6 Linux CUDA build device syntax."""
+    if device in {"auto", "cpu", "cuda:all", "cuda:auto"}:
         return True
     if not device.startswith("cuda:"):
         return False

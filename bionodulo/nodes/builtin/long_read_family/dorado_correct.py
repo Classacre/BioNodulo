@@ -61,7 +61,7 @@ class DoradoCorrectNode(DoradoCommandNode):
                 "infer_threads": ("INT", {"default": 1, "min": 1}),
                 "device": (
                     "STRING",
-                    {"default": "auto", "description": "auto, cpu, metal, cuda:all, or cuda:<ids>"},
+                    {"default": "auto", "description": "auto, cpu, cuda:all, cuda:auto, or cuda:<ids>"},
                 ),
                 "from_paf": ("FILE", {"default": "", "description": "Existing all-vs-all PAF alignments"}),
                 "resume_from": (
@@ -89,7 +89,7 @@ class DoradoCorrectNode(DoradoCommandNode):
                 return validation
         device = str(option_value(inputs, "device", "auto"))
         if not valid_dorado_device(device):
-            return "Input 'device' must be auto, cpu, metal, cuda:all, or cuda:<ids>"
+            return "Input 'device' must be auto, cpu, cuda:all, cuda:auto, or cuda:<ids>"
         index_size = str(option_value(inputs, "index_size", "8G")).strip()
         if not _INDEX_SIZE.fullmatch(index_size):
             return "Input 'index_size' must be an integer optionally followed by a size suffix"

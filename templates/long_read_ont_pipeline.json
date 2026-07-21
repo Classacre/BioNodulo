@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "ONT Long-Read Sequencing",
-  "description": "Oxford Nanopore basecalling with staged local models, explicit reference and BAM sidecars, barcode demultiplexing, selected-read filtering, QC, and modified-base methylation pileup.",
+  "description": "Oxford Nanopore basecalling with staged local models, explicit reference and BAM sidecars, barcode demultiplexing, source-native selected-barcode conversion, filtering, QC, and modified-base methylation pileup.",
   "category": "Long Read",
   "tags": [
     "long-read",
@@ -16,14 +16,16 @@
   "tools": [
     "input_directory",
     "input_fasta",
-    "input_file",
     "samtools_faidx",
+    "samtools_fastx",
     "dorado_basecaller",
     "gate",
     "dorado_demux",
+    "data_validator",
     "chopper_filter",
     "nanoplot",
-    "modkit_pileup"
+    "modkit_pileup",
+    "table_preview"
   ],
   "nodes": [
     {
@@ -34,7 +36,7 @@
         80
       ],
       "params": {
-        "text": "ONT long-read workflow: stages explicit local Dorado simplex and modified-base model directories, prepares colocated FASTA sidecars, basecalls to a sorted BAM/BAI pair, splits existing barcode classifications with Dorado demux, filters one explicitly selected demultiplexed FASTQ with Chopper, runs NanoPlot QC, and generates a CpG-aware Modkit bedMethyl pileup.\n\nInputs are placeholders. Point the POD5, model, reference, and Selected Demultiplexed FASTQ inputs at staged local artifacts before execution. Dorado demux emits a directory; selecting one FASTQ explicitly prevents a directory from being passed to Chopper's single-file input."
+        "text": "ONT long-read workflow: stages explicit local Dorado simplex and modified-base model directories, prepares colocated FASTA sidecars, basecalls to a sorted BAM/BAI pair, splits existing barcode classifications with Dorado demux in BAM mode, selects exactly one source-native barcode BAM, converts it to FASTQ with Samtools Fastx, validates that FASTQ, filters it with Chopper, runs NanoPlot QC, and generates a CpG-aware Modkit bedMethyl pileup.\n\nInputs are placeholders. Point the POD5, model, and reference inputs at staged local artifacts before execution. The selected_barcode value must equal the Dorado BC tag (or sample-sheet alias) to process; the default follows the configured SQK-NBD114-24 kit."
       },
       "ui": {
         "title": "Notes",
@@ -190,7 +192,7 @@
       ],
       "params": {
         "no_classify": true,
-        "emit_fastq": true,
+        "selected_barcode": "SQK-NBD114-24_barcode01",
         "threads": 8
       },
       "ui": {
@@ -198,36 +200,45 @@
       }
     },
     {
-      "id": "selected_demux_fastq_001",
-      "type": "input_fastq",
+      "id": "samtools_fastx_001",
+      "type": "samtools_fastx",
       "position": [
-        1160,
+        1880,
         382
       ],
       "params": {
-        "reads": [
-          "examples/data/long_read/demux/barcode01.fastq"
+        "threads": 8,
+        "output_format": "fastq",
+        "outputs": [
+          "other"
         ]
       },
       "ui": {
-        "title": "Selected Demultiplexed FASTQ",
-        "validation": {
-          "outputs": {
-            "read1": {
-              "expected_format": "fastq",
-              "min_records": 1,
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
+        "title": "Selected BAM to FASTQ"
+      }
+    },
+    {
+      "id": "validate_selected_fastq_001",
+      "type": "data_validator",
+      "position": [
+        2240,
+        382
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Selected FASTQ"
       }
     },
     {
       "id": "chopper_001",
       "type": "chopper_filter",
       "position": [
-        1520,
+        2600,
         382
       ],
       "params": {
@@ -238,14 +249,24 @@
         "threads": 8
       },
       "ui": {
-        "title": "Chopper Filter"
+        "title": "Chopper Filter",
+        "validation": {
+          "outputs": {
+            "filtered_reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "gate_filtered_reads_001",
       "type": "gate",
       "position": [
-        1880,
+        2960,
         382
       ],
       "params": {
@@ -261,7 +282,7 @@
       "id": "nanoplot_001",
       "type": "nanoplot",
       "position": [
-        2240,
+        3320,
         382
       ],
       "params": {
@@ -295,6 +316,7 @@
         "threads": 8,
         "cpg": true,
         "combine_strands": true,
+        "with_header": true,
         "region": ""
       },
       "ui": {
@@ -305,7 +327,7 @@
       "id": "render_nanoplot_tab_0",
       "type": "table_preview",
       "position": [
-        2960,
+        4040,
         160
       ],
       "params": {},
@@ -317,7 +339,7 @@
       "id": "render_modkit_tab_1",
       "type": "table_preview",
       "position": [
-        2960,
+        4040,
         380
       ],
       "params": {},
@@ -329,7 +351,7 @@
       "id": "render_dorado_demux_tab_2",
       "type": "table_preview",
       "position": [
-        2960,
+        4040,
         600
       ],
       "params": {},
@@ -419,8 +441,30 @@
     {
       "id": "e8",
       "from": {
-        "node": "selected_demux_fastq_001",
-        "output": "read1"
+        "node": "dorado_demux_001",
+        "output": "selected_bam"
+      },
+      "to": {
+        "node": "samtools_fastx_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "samtools_fastx_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "validate_selected_fastq_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "validate_selected_fastq_001",
+        "output": "validated_fastq"
       },
       "to": {
         "node": "chopper_001",
@@ -428,7 +472,7 @@
       }
     },
     {
-      "id": "e9",
+      "id": "e11",
       "from": {
         "node": "chopper_001",
         "output": "filtered_reads"
@@ -439,7 +483,7 @@
       }
     },
     {
-      "id": "e10",
+      "id": "e12",
       "from": {
         "node": "gate_filtered_reads_001",
         "output": "output"
@@ -450,7 +494,7 @@
       }
     },
     {
-      "id": "e11",
+      "id": "e13",
       "from": {
         "node": "dorado_basecaller_001",
         "output": "basecalled_bam"
@@ -461,7 +505,7 @@
       }
     },
     {
-      "id": "e12",
+      "id": "e14",
       "from": {
         "node": "dorado_basecaller_001",
         "output": "basecalled_bam_index"
@@ -472,7 +516,7 @@
       }
     },
     {
-      "id": "e13",
+      "id": "e15",
       "from": {
         "node": "ref_sidecars_001",
         "output": "reference"
@@ -483,7 +527,7 @@
       }
     },
     {
-      "id": "e14",
+      "id": "e16",
       "from": {
         "node": "ref_sidecars_001",
         "output": "fai_index"
@@ -494,7 +538,7 @@
       }
     },
     {
-      "id": "e15",
+      "id": "e17",
       "from": {
         "node": "nanoplot_001",
         "output": "qc_stats"
@@ -505,7 +549,7 @@
       }
     },
     {
-      "id": "e16",
+      "id": "e18",
       "from": {
         "node": "modkit_001",
         "output": "bedmethyl"
@@ -516,7 +560,7 @@
       }
     },
     {
-      "id": "e17",
+      "id": "e19",
       "from": {
         "node": "dorado_demux_001",
         "output": "barcode_summary"
@@ -542,7 +586,9 @@
     "basecalled_bam_index": "dorado_basecaller_001",
     "demux_dir": "dorado_demux_001",
     "barcode_summary": "dorado_demux_001",
-    "selected_demux_fastq": "selected_demux_fastq_001",
+    "selected_demux_bam": "dorado_demux_001",
+    "selected_demux_fastq": "samtools_fastx_001",
+    "validated_selected_demux_fastq": "validate_selected_fastq_001",
     "filtered_reads": "chopper_001",
     "qc_report": "nanoplot_001",
     "qc_stats": "nanoplot_001",

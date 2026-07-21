@@ -3154,7 +3154,7 @@ class WorkflowExecutor:
             validator_kwargs.pop("enabled", None)
             validator_kwargs["input"] = outputs[output_name]
             validator_kwargs.setdefault("fail_on_error", True)
-            _, passed, report, report_file = await validator.run(context=ctx, **validator_kwargs)
+            _, passed, report, report_file, _ = await validator.run(context=ctx, **validator_kwargs)
             validation_records.append(
                 {
                     "node_id": ctx.node_id,

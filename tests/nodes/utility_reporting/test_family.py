@@ -169,9 +169,7 @@ async def test_collect_files_recreates_output_and_rejects_collisions(tmp_path: P
     duplicate_dir.mkdir()
     duplicate = duplicate_dir / "first.txt"
     duplicate.write_text("duplicate", encoding="utf-8")
-    assert "basename collision" in str(
-        CollectFilesNode.VALIDATE_INPUTS({"files": [str(first), str(duplicate)]})
-    )
+    assert "basename collision" in str(CollectFilesNode.VALIDATE_INPUTS({"files": [str(first), str(duplicate)]}))
 
 
 @pytest.mark.asyncio
@@ -179,9 +177,7 @@ async def test_view_text_file_is_bounded_and_fails_closed(tmp_path: Path) -> Non
     source = tmp_path / "notes.txt"
     source.write_text("one\ntwo\nthree\n", encoding="utf-8")
 
-    assert await ViewTextFileNode().run(file=str(source), max_lines=2) == (
-        "one\ntwo\n... (2 lines shown)",
-    )
+    assert await ViewTextFileNode().run(file=str(source), max_lines=2) == ("one\ntwo\n... (2 lines shown)",)
     with pytest.raises(ValueError, match="not found"):
         await ViewTextFileNode().run(file=str(tmp_path / "missing.txt"), max_lines=2)
 
@@ -224,6 +220,20 @@ async def test_table_preview_parses_quoted_delimiters_and_escapes_html(tmp_path:
     assert "a,b &amp; &lt;tag&gt;" in rendered
     assert "not-shown" not in rendered
     assert "additional rows not shown" in rendered
+
+
+@pytest.mark.asyncio
+async def test_table_preview_accepts_headered_bed_as_tabular_text(tmp_path: Path) -> None:
+    source = tmp_path / "modkit.bed"
+    source.write_text("chrom\tstart\tend\nchr1\t0\t10\n", encoding="utf-8")
+    context = _context(tmp_path)
+
+    assert TablePreviewNode.VALIDATE_INPUTS({"file": str(source)}) is True
+    await TablePreviewNode().run(file=str(source), context=context)
+    rendered = Path(context.previews[0][0]).read_text(encoding="utf-8")
+
+    assert "<th>chrom</th><th>start</th><th>end</th>" in rendered
+    assert "<td>chr1</td><td>0</td><td>10</td>" in rendered
 
 
 @pytest.mark.asyncio

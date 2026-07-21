@@ -71,7 +71,7 @@ class DoradoBasecallerNode(DoradoCommandNode):
             },
             "optional": {
                 "modified_bases_models": (
-                    "FILE_LIST",
+                    "DIRECTORY",
                     {
                         "default": [],
                         "multiple": True,
@@ -88,7 +88,7 @@ class DoradoBasecallerNode(DoradoCommandNode):
                     "STRING",
                     {
                         "default": "auto",
-                        "description": "Dorado device: auto, cpu, metal, cuda:all, or cuda:<ids>",
+                        "description": "Dorado Linux device: auto, cpu, cuda:all, cuda:auto, or cuda:<ids>",
                     },
                 ),
                 "recursive": ("BOOLEAN", {"default": False}),
@@ -113,7 +113,7 @@ class DoradoBasecallerNode(DoradoCommandNode):
             return validation
         device = str(option_value(inputs, "device", "auto"))
         if not valid_dorado_device(device):
-            return "Input 'device' must be auto, cpu, metal, cuda:all, or cuda:<ids>"
+            return "Input 'device' must be auto, cpu, cuda:all, cuda:auto, or cuda:<ids>"
         raw_mod_models = inputs.get("modified_bases_models")
         if raw_mod_models not in (None, "", []):
             mod_models = path_list(raw_mod_models)

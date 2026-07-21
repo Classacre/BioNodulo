@@ -17,7 +17,7 @@ from .adapter import (
 )
 
 
-TABLE_EXTENSIONS = frozenset({".csv", ".tsv", ".txt", ".tab"})
+TABLE_EXTENSIONS = frozenset({".bed", ".csv", ".tsv", ".txt", ".tab"})
 DELIMITERS = ("auto", ",", "\t", ";", "|", " ")
 
 
@@ -27,23 +27,23 @@ def _delimiter(path: Path, handle: Any, choice: str) -> str:
     sample = handle.read(8192)
     handle.seek(0)
     if not sample:
-        return "\t" if path.suffix.lower() in {".tsv", ".tab"} else ","
+        return "\t" if path.suffix.lower() in {".bed", ".tsv", ".tab"} else ","
     try:
         return csv.Sniffer().sniff(sample, delimiters="\t,;| ").delimiter
     except csv.Error:
-        if path.suffix.lower() in {".tsv", ".tab"}:
+        if path.suffix.lower() in {".bed", ".tsv", ".tab"}:
             return "\t"
         counts = {candidate: sample.count(candidate) for candidate in (",", "\t", ";", "|", " ")}
         return max(counts, key=counts.get) if any(counts.values()) else ","
 
 
 class TablePreviewNode(PythonUtilityNode):
-    """Render a bounded CSV/TSV prefix without materialising the full table."""
+    """Render a bounded BED/CSV/TSV prefix without materialising the full table."""
 
     NODE_ID = "table_preview"
     DISPLAY_NAME = "Table Preview"
-    DESCRIPTION = "Preview the head of a CSV/TSV table inline on the canvas"
-    SEARCH_ALIASES = ["table", "csv", "tsv", "head", "preview", "data"]
+    DESCRIPTION = "Preview the head of a BED/CSV/TSV table inline on the canvas"
+    SEARCH_ALIASES = ["table", "bed", "csv", "tsv", "head", "preview", "data"]
     RETURN_TYPES = ()
     RETURN_NAMES = ()
     OUTPUT_NODE = True
@@ -55,7 +55,7 @@ class TablePreviewNode(PythonUtilityNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "file": ("FILE", {"label": "Table file", "description": "CSV / TSV / TXT"}),
+                "file": ("FILE", {"label": "Table file", "description": "BED / CSV / TSV / TXT"}),
             },
             "optional": {
                 "rows": ("INT", {"default": 25, "min": 1, "max": 500, "label": "Head rows"}),
@@ -73,9 +73,7 @@ class TablePreviewNode(PythonUtilityNode):
 
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
-        validation = validate_regular_file(
-            inputs.get("file"), extensions=TABLE_EXTENSIONS, label="Table file"
-        )
+        validation = validate_regular_file(inputs.get("file"), extensions=TABLE_EXTENSIONS, label="Table file")
         if validation is not True:
             return validation
         validation = validate_int(inputs.get("rows", 25), "rows", minimum=1, maximum=500)
@@ -113,10 +111,7 @@ class TablePreviewNode(PythonUtilityNode):
         body = selected[:rows_limit]
 
         thead = "".join(f"<th>{html.escape(cell)}</th>" for cell in header)
-        body_html = "".join(
-            "<tr>" + "".join(f"<td>{html.escape(cell)}</td>" for cell in row) + "</tr>"
-            for row in body
-        )
+        body_html = "".join("<tr>" + "".join(f"<td>{html.escape(cell)}</td>" for cell in row) + "</tr>" for row in body)
         status = f"showing {len(body):,} data row(s)"
         if has_more:
             status += "; additional rows not shown"

@@ -21,6 +21,7 @@ def test_pinned_authorities_outputs_and_legacy_reexports() -> None:
     assert DoradoCorrectNode.REQUIRED_CONDA_PACKAGES == []
     assert DoradoCorrectNode.RETURN_TYPES == ("FASTA",)
     assert DoradoDuplexNode.RETURN_NAMES == ("duplex_bam", "duplex_bam_index")
+    assert DoradoDuplexNode.INPUT_TYPES()["optional"]["modified_bases_models"][0] == "DIRECTORY"
 
     assert MedakaConsensusNode.GIT_COMMIT == "03b58482ca38088790edfa4b196f8bf619f83c05"
     assert MedakaConsensusNode.PACKAGE_CONSTRAINT == "medaka = 2.0.1"
@@ -83,7 +84,10 @@ def test_dorado_correct_validation_matches_normal_correction_mode() -> None:
     )
     assert (
         DoradoCorrectNode.VALIDATE_INPUTS({"reads": "reads.fastq", "model": "/models/herro", "device": "gpu"})
-        == "Input 'device' must be auto, cpu, metal, cuda:all, or cuda:<ids>"
+        == "Input 'device' must be auto, cpu, cuda:all, cuda:auto, or cuda:<ids>"
+    )
+    assert "device" in str(
+        DoradoCorrectNode.VALIDATE_INPUTS({"reads": "reads.fastq", "model": "/models/herro", "device": "metal"})
     )
     assert (
         DoradoCorrectNode.VALIDATE_INPUTS({"reads": "reads.fastq", "model": "/models/herro", "index_size": "lots"})

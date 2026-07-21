@@ -63,7 +63,7 @@ class DoradoDuplexNode(DoradoCommandNode):
             },
             "optional": {
                 "modified_bases_models": (
-                    "FILE_LIST",
+                    "DIRECTORY",
                     {"default": [], "multiple": True, "description": "Staged local modified-base model directories"},
                 ),
                 "pairs": ("CSV", {"default": "", "description": "Space-delimited CSV of read ID pairs"}),
@@ -75,7 +75,7 @@ class DoradoDuplexNode(DoradoCommandNode):
                 "bed_file": ("BED", {"default": "", "description": "Optional BED annotations; requires reference"}),
                 "device": (
                     "STRING",
-                    {"default": "auto", "description": "auto, cpu, metal, cuda:all, or cuda:<ids>"},
+                    {"default": "auto", "description": "auto, cpu, cuda:all, cuda:auto, or cuda:<ids>"},
                 ),
                 "recursive": ("BOOLEAN", {"default": False}),
                 "min_qscore": ("INT", {"default": 0, "min": 0}),
@@ -119,7 +119,7 @@ class DoradoDuplexNode(DoradoCommandNode):
             return "Input 'overlap' must be smaller than 'chunk_size'"
         device = str(option_value(inputs, "device", "auto"))
         if not valid_dorado_device(device):
-            return "Input 'device' must be auto, cpu, metal, cuda:all, or cuda:<ids>"
+            return "Input 'device' must be auto, cpu, cuda:all, cuda:auto, or cuda:<ids>"
         mod_models = path_list(inputs.get("modified_bases_models"))
         if inputs.get("modified_bases_models") not in (None, "", []) and not mod_models:
             return "Input 'modified_bases_models' must contain path-like model directories"
