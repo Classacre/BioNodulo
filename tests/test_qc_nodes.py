@@ -65,6 +65,8 @@ def test_qualimap_alias_renders_and_plans_with_alias_output_path() -> None:
         "sample.bam",
         "-outdir",
         f"{output}/report",
+        "-outformat",
+        "HTML",
         "-nt",
         "4",
     ]
