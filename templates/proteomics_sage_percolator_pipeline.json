@@ -27,7 +27,7 @@
         80
       ],
       "params": {
-        "text": "Proteomics DDA search workflow: validate spectra and a target-decoy FASTA, run Sage with PIN output enabled, validate the PIN file, then run Percolator for PSM and protein-level FDR estimates.\n\nInputs are placeholders. Provide mzML, gzipped mzML, or MGF spectra and a target-decoy protein FASTA before execution."
+        "text": "Proteomics DDA search workflow: validate spectra and a target-decoy FASTA, run Sage with PIN output enabled, then stage Sage 0.14.7's full-digest PIN dialect for Percolator PSM and picked-protein FDR estimates. The staging step adds the flanking syntax required by Percolator protein inference and expands Sage's semicolon-joined protein identifiers.\n\nInputs are placeholders. Provide mzML, gzipped mzML, or MGF spectra and a target-decoy protein FASTA with DECOY_-prefixed decoy accessions before execution."
       },
       "ui": {
         "title": "Notes",
@@ -119,6 +119,7 @@
         80
       ],
       "params": {
+        "pin_dialect": "sage_0_14_7_full_digest",
         "search_input": "concatenated",
         "decoy_prefix": "DECOY_",
         "test_fdr": 0.01,

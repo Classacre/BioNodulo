@@ -70,6 +70,8 @@ def test_proteomics_sage_percolator_template_wires_search_to_fdr_validation() ->
     assert sage["params"]["decoy_tag"] == "DECOY_"
     assert sage["params"]["generate_decoys"] is False
     assert "mzXML" not in note["params"]["text"]
+    assert "flanking syntax" in note["params"]["text"]
+    assert percolator["params"]["pin_dialect"] == "sage_0_14_7_full_digest"
     assert percolator["params"]["search_input"] == "concatenated"
     assert percolator["params"]["test_fdr"] == 0.01
     assert percolator["params"]["train_fdr"] == 0.01
