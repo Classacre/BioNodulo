@@ -63,36 +63,29 @@ def test_single_cell_template_retries_only_cellranger_count_after_fastq_validati
     assert workflow["outputs"]["cellranger_retry_policy"] == "cr_count_retry_001"
 
 
-def test_single_cell_template_validates_cellranger_metrics_and_includes_them_in_report() -> None:
+def test_single_cell_template_previews_native_wide_cellranger_metrics_without_invalid_chart() -> None:
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
 
     assert "validate_metrics_summary_001" not in node_types
-    assert node_types["metrics_summary_chart_001"] == "bar_chart"
     validator = _output_validation(workflow, "cr_count_001", "metrics_summary")
-    chart = _node(workflow, "metrics_summary_chart_001")
     node_types = _node_types(workflow)
 
     assert validator["expected_format"] == "csv"
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
-    assert chart["params"] == {
-        "title": "Cell Ranger Metrics Summary",
-        "x_column": "Metric Name",
-        "y_column": "Metric Value",
-        "orientation": "horizontal",
-        "format": "svg",
-    }
-    # The HTML report was replaced by direct render nodes: the metrics table and
-    # the chart are each previewed individually.
+    # Cell Ranger 9.0.1 count writes a two-line wide metrics CSV. Its native
+    # headers are metric names, not generic "Metric Name" / "Metric Value"
+    # columns, so the table is previewed directly without an invalid bar chart.
+    assert "metrics_summary_chart_001" not in node_types
     assert node_types["render_cr_count_tab_0"] == "table_preview"
     assert "render_metrics_summary_chart_ima_1" not in node_types
 
     assert not _has_edge(workflow, "cr_count_001", "metrics_summary", "validate_metrics_summary_001", "input")
-    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
+    assert not _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "render_cr_count_tab_0", "file")
     assert workflow["outputs"]["validated_metrics_summary"] == "cr_count_001"
-    assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
+    assert "metrics_summary_chart" not in workflow["outputs"]
 
 
 def test_single_cell_template_advertises_qc_dashboard_preview() -> None:

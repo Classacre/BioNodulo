@@ -42,6 +42,7 @@ def test_environment_contracts_distinguish_licensed_binary_from_conda_tools() ->
     assert CellRangerCountNode.EXPERIMENTAL is True
     assert "complete compatible Cell Ranger reference" in CellRangerCountNode.ACCESS_CONSTRAINTS[1]
     assert CellRangerCountNode.ENV_VARS == {"TENX_DISABLE_TELEMETRY": "1"}
+    assert "build_metrics_summary_csv" in CellRangerCountNode.SOURCE_AUTHORITIES["metrics_summary_layout"]
     assert ScanpyUmapNode.CONDA_PACKAGE_CONSTRAINTS == {
         "scanpy": "1.12.2",
         "python-igraph": "1.0.0",
@@ -202,6 +203,8 @@ def test_scanpy_umap_writes_pinned_pipeline_with_explicit_determinism(tmp_path: 
     assert "flavor=\"igraph\"" in script
     assert "n_iterations=2" in script
     assert "random_state=0" in script
+    assert "scanpy_n_neighbors = min(12, adata.n_obs)" in script
+    assert "n_neighbors=scanpy_n_neighbors" in script
 
 
 def test_squidpy_qc_loads_complete_visium_spatial_data_and_new_grid_api(tmp_path: Path) -> None:
@@ -229,6 +232,8 @@ def test_squidpy_qc_loads_complete_visium_spatial_data_and_new_grid_api(tmp_path
         in script
     )
     assert "sq.gr.nhood_enrichment(adata, cluster_key=\"leiden\", seed=0)" in script
+    assert "scanpy_n_neighbors = min(15, adata.n_obs)" in script
+    assert "n_neighbors=scanpy_n_neighbors" in script
     assert "adata.raw = adata.copy()" in script
     assert SquidpyQCNode.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "squidpy_qc" / "adata.h5ad",
@@ -256,6 +261,8 @@ def test_scanpy_spatial_consumes_explicit_h5ad_and_returns_only_declared_outputs
     assert "sc.read_h5ad('/data/squidpy_qc/adata.h5ad')" in script
     assert "adata.raw.to_adata()" in script
     assert "adata.obs[[\"sample\", \"leiden\"]].to_csv" in script
+    assert "scanpy_n_neighbors = min(15, adata.n_obs)" in script
+    assert "n_neighbors=scanpy_n_neighbors" in script
     assert ScanpySpatialNode.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "scanpy_spatial" / "clusters.csv",
         tmp_path / "scanpy_spatial" / "umap.png",

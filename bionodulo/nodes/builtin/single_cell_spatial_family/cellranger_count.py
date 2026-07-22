@@ -81,14 +81,19 @@ class CellRangerCountNode(CommandNode):
     )
     UPSTREAM_SOURCE = (
         "bin/sc_rna/count; bin/tenkit/common/_includes; lib/rust/cr_wrap/src/create_bam_arg.rs; "
-        "mro/rna/sc_rna_counter_cs.mro; lib/python/cellranger/preflight.py:check_refdata; "
-        "lib/python/cellranger/constants.py"
+        "mro/rna/sc_rna_counter_cs.mro; mro/rna/stages/counter/summarize_reports/__init__.py; "
+        "lib/python/cellranger/webshim/common.py:build_metrics_summary_csv; "
+        "lib/python/cellranger/preflight.py:check_refdata; lib/python/cellranger/constants.py"
     )
     SOURCE_AUTHORITIES = {
         "source": SOURCE_URL,
         "count_cli": "bin/sc_rna/count; bin/tenkit/common/_includes",
         "create_bam_cli": "lib/rust/cr_wrap/src/create_bam_arg.rs",
         "native_outputs": "mro/rna/sc_rna_counter_cs.mro",
+        "metrics_summary_layout": (
+            "mro/rna/stages/counter/summarize_reports/__init__.py; "
+            "lib/python/cellranger/webshim/common.py:build_metrics_summary_csv"
+        ),
         "reference_preflight": (
             "lib/python/cellranger/preflight.py:check_refdata; "
             "lib/python/cellranger/constants.py"

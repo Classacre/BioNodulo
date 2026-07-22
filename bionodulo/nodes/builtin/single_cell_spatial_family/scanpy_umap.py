@@ -126,7 +126,8 @@ class ScanpyUmapNode(PythonScriptNode):
             sc.pp.scale(adata, max_value=10)
             n_pcs = max(1, min({n_pcs}, adata.n_vars - 1, adata.n_obs - 1))
             sc.pp.pca(adata, n_comps=n_pcs, random_state=0)
-            sc.pp.neighbors(adata, n_neighbors=min({n_neighbors}, adata.n_obs - 1), n_pcs=n_pcs, random_state=0)
+            scanpy_n_neighbors = min({n_neighbors}, adata.n_obs)
+            sc.pp.neighbors(adata, n_neighbors=scanpy_n_neighbors, n_pcs=n_pcs, random_state=0)
             sc.tl.umap(adata, random_state=0)
             sc.tl.leiden(
                 adata,
