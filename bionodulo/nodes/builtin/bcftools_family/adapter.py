@@ -10,6 +10,8 @@ from bionodulo.nodes.command_node import CommandNode
 
 
 BCFTOOLS_GIT_COMMIT = "fb9f0f783e0f67d734f6fa7fe4df9d230522f196"
+BCFTOOLS_SOURCE_URL = "https://github.com/samtools/bcftools"
+OVERLAP_CHOICES = ("", "0", "1", "2", "pos", "record", "variant")
 
 
 def as_list(value: Any) -> list[str]:
@@ -104,8 +106,44 @@ def add_common_filters(
 
 
 def validate_exclusive(inputs: dict[str, Any], left: str, right: str) -> bool | str:
-    if inputs.get(left) not in (None, "") and inputs.get(right) not in (None, ""):
+    if _is_set(inputs.get(left)) and _is_set(inputs.get(right)):
         return f"{left} and {right} are mutually exclusive"
+    return True
+
+
+def _is_set(value: Any) -> bool:
+    return value not in (None, "", [], ())
+
+
+def validate_common_options(
+    inputs: dict[str, Any],
+    *,
+    allow_mixed_sample_selectors: bool = False,
+) -> bool | str:
+    """Validate parser-level invariants shared by BCFtools subcommands."""
+
+    exclusive_pairs = [
+        ("include", "exclude"),
+        ("regions", "regions_file"),
+        ("targets", "targets_file"),
+    ]
+    if not allow_mixed_sample_selectors:
+        exclusive_pairs.append(("samples", "samples_file"))
+    for left, right in exclusive_pairs:
+        validation = validate_exclusive(inputs, left, right)
+        if validation is not True:
+            return validation
+
+    for key in ("regions_overlap", "targets_overlap"):
+        if _is_set(inputs.get(key)):
+            validation = validate_choice(inputs[key], key, OVERLAP_CHOICES)
+            if validation is not True:
+                return validation
+
+    if _is_set(inputs.get("threads")):
+        validation = validate_number(inputs["threads"], "threads", minimum=0, integer=True)
+        if validation is not True:
+            return validation
     return True
 
 
@@ -137,7 +175,9 @@ def validate_reference_index(
     if isinstance(index, str):
         return f"{index}; expected '{expected}' for input '{reference_key}'"
     if index != expected:
-        return f"Input '{index_key}' must be the exact colocated index for input '{reference_key}'; expected '{expected}'"
+        return (
+            f"Input '{index_key}' must be the exact colocated index for input '{reference_key}'; expected '{expected}'"
+        )
     return True
 
 
@@ -221,6 +261,10 @@ class BCFtoolsCommandNode(CommandNode):
     VERSION = "1.24"
     GIT_URL = "https://github.com/samtools/bcftools.git"
     GIT_COMMIT = BCFTOOLS_GIT_COMMIT
+    SOURCE_REVISION = BCFTOOLS_GIT_COMMIT
+    SOURCE_REPOSITORY_URL = BCFTOOLS_SOURCE_URL
+    SOURCE_DOCUMENT_PATH = "doc/bcftools.txt"
+    EXECUTION_EVIDENCE = "not-run"
     DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html"
     CITATION_DOIS = ["10.1093/gigascience/giab008", "10.1093/bioinformatics/btp352"]
     CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
@@ -230,6 +274,7 @@ class BCFtoolsCommandNode(CommandNode):
 
     UPSTREAM_DOC = "doc/bcftools.txt"
     UPSTREAM_SOURCE = ""
+    ALLOW_MIXED_SAMPLE_SELECTORS = False
     OUTPUT_FILENAMES: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
@@ -247,7 +292,10 @@ class BCFtoolsCommandNode(CommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        return validate_exclusive(inputs, "include", "exclude")
+        return validate_common_options(
+            inputs,
+            allow_mixed_sample_selectors=cls.ALLOW_MIXED_SAMPLE_SELECTORS,
+        )
 
 
 class FixedVcfOutputNode(BCFtoolsCommandNode):
@@ -265,6 +313,33 @@ class FixedVcfOutputNode(BCFtoolsCommandNode):
     @classmethod
     def output_path(cls, inputs: dict[str, Any]) -> Path:
         return cls.output_dir(inputs) / cls.OUTPUT_FILENAME
+
+
+class _CoreBCFtoolsAudit:
+    """Evidence state shared only by the 19 audited core subcommands."""
+
+    AUDIT_STATUS = "contract-checked-no-external-execution"
+    EXIT_SEMANTICS = (
+        "Invalid arguments and non-zero BCFtools exits fail the node; an exit code of zero "
+        "is accepted only when every planned output artifact is present."
+    )
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if "SOURCE_PATHS" not in cls.__dict__:
+            cls.SOURCE_PATHS = tuple(path for path in (getattr(cls, "UPSTREAM_SOURCE", ""), cls.UPSTREAM_DOC) if path)
+        if "SOURCE_URLS" not in cls.__dict__:
+            cls.SOURCE_URLS = tuple(
+                f"{BCFTOOLS_SOURCE_URL}/blob/{BCFTOOLS_GIT_COMMIT}/{path}" for path in cls.SOURCE_PATHS
+            )
+
+
+class CoreBCFtoolsCommandNode(_CoreBCFtoolsAudit, BCFtoolsCommandNode):
+    """Audited core subcommand with arbitrary planned artifact types."""
+
+
+class CoreFixedVcfOutputNode(_CoreBCFtoolsAudit, FixedVcfOutputNode):
+    """Audited core subcommand with one fixed compressed-VCF artifact."""
 
 
 def add_fixed_vcf_output(command: list[str], node: type[FixedVcfOutputNode], inputs: dict[str, Any]) -> None:

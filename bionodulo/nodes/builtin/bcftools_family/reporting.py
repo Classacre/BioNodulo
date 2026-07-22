@@ -8,6 +8,7 @@ from typing import Any
 from .adapter import (
     COMMON_FILTER_INPUTS,
     BCFtoolsCommandNode,
+    CoreBCFtoolsCommandNode,
     add_common_filters,
     add_flag,
     add_value,
@@ -22,7 +23,46 @@ from .adapter import (
 )
 
 
-class BCFtoolsStatsNode(BCFtoolsCommandNode):
+def _mask_replacements(value: Any) -> list[str]:
+    if isinstance(value, str) and "," in value:
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return as_list(value)
+
+
+def _validate_character(value: Any, key: str, *, allow_case_modes: bool = False) -> bool | str:
+    if value in (None, ""):
+        return True
+    rendered = str(value)
+    if allow_case_modes and rendered.lower() in {"uc", "lc"}:
+        return True
+    if len(rendered.encode()) != 1:
+        suffix = ", uc, or lc" if allow_case_modes else ""
+        return f"{key} must be one single-byte character{suffix}"
+    if allow_case_modes and not 32 < ord(rendered) < 127:
+        return f"{key} must be uc, lc, or one printable ASCII character"
+    return True
+
+
+def _validate_gtcheck_selector(value: Any, key: str) -> bool | str:
+    if value in (None, ""):
+        return True
+    rendered = str(value)
+    lowered = rendered.lower()
+    if not (lowered.startswith("qry:") or lowered.startswith("gt:")):
+        return f"{key} must start with qry: or gt:"
+    if not rendered.split(":", 1)[1]:
+        return f"{key} must include a non-empty selector after its prefix"
+    return True
+
+
+def _gtcheck_selector_source(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    source, separator, _ = str(value).partition(":")
+    return source.lower() if separator and source.lower() in {"qry", "gt"} else ""
+
+
+class BCFtoolsStatsNode(CoreBCFtoolsCommandNode):
     """Emit the native textual bcftools stats report on stdout."""
 
     NODE_ID = "bcftools_stats"
@@ -65,6 +105,7 @@ class BCFtoolsStatsNode(BCFtoolsCommandNode):
                 "targets": COMMON_FILTER_INPUTS["targets"],
                 "targets_file": COMMON_FILTER_INPUTS["targets_file"],
                 "targets_overlap": COMMON_FILTER_INPUTS["targets_overlap"],
+                "threads": ("INT", {"default": 0, "min": 0}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -122,13 +163,16 @@ class BCFtoolsStatsNode(BCFtoolsCommandNode):
         add_value(command, "--collapse", inputs.get("collapse", "none"))
         add_value(command, "--apply-filters", inputs.get("apply_filters"))
         add_common_filters(command, inputs, samples=True)
+        threads = inputs.get("threads", 0)
+        if threads:
+            command.extend(["--threads", str(threads)])
         command.append(str(inputs["input_file"]))
         if inputs.get("comparison_file"):
             command.append(str(inputs["comparison_file"]))
         return command
 
 
-class BCFtoolsConsensusNode(BCFtoolsCommandNode):
+class BCFtoolsConsensusNode(CoreBCFtoolsCommandNode):
     """Apply an indexed variant set to a reference FASTA."""
 
     NODE_ID = "bcftools_consensus"
@@ -158,7 +202,10 @@ class BCFtoolsConsensusNode(BCFtoolsCommandNode):
                 "haplotype": ("STRING", {"default": ""}),
                 "iupac_codes": ("BOOLEAN", {"default": True}),
                 "masks": ("FILE", {"default": [], "multiple": True}),
-                "mask_with": ("STRING", {"default": ""}),
+                "mask_with": (
+                    "STRING_LIST",
+                    {"default": [], "description": "One replacement per mask, or one value reused for every mask"},
+                ),
                 "absent": ("STRING", {"default": ""}),
                 "missing": ("STRING", {"default": ""}),
                 "mark_del": ("STRING", {"default": ""}),
@@ -190,10 +237,26 @@ class BCFtoolsConsensusNode(BCFtoolsCommandNode):
         validation = validate_data_index(inputs)
         if validation is not True:
             return validation
-        if inputs.get("samples") and inputs.get("samples_file"):
-            return "samples and samples_file are mutually exclusive"
-        if inputs.get("haplotype") and not (inputs.get("samples") or inputs.get("samples_file")):
-            return "haplotype requires samples or samples_file"
+        masks = as_list(inputs.get("masks"))
+        replacements = _mask_replacements(inputs.get("mask_with"))
+        if replacements and not masks:
+            return "mask_with requires at least one mask"
+        if len(replacements) not in {0, 1, len(masks)}:
+            return "mask_with must contain one value or one value per mask"
+        for replacement in replacements:
+            validation = _validate_character(replacement, "mask_with", allow_case_modes=True)
+            if validation is not True:
+                return validation
+        for key, allow_case_modes in (
+            ("absent", False),
+            ("missing", False),
+            ("mark_del", False),
+            ("mark_ins", True),
+            ("mark_snv", True),
+        ):
+            validation = _validate_character(inputs.get(key), key, allow_case_modes=allow_case_modes)
+            if validation is not True:
+                return validation
         return True
 
     @classmethod
@@ -209,10 +272,14 @@ class BCFtoolsConsensusNode(BCFtoolsCommandNode):
         add_value(command, "--samples", inputs.get("samples"))
         add_value(command, "--samples-file", inputs.get("samples_file"))
         add_value(command, "--haplotype", inputs.get("haplotype"))
-        for mask in as_list(inputs.get("masks")):
+        masks = as_list(inputs.get("masks"))
+        replacements = _mask_replacements(inputs.get("mask_with"))
+        for index, mask in enumerate(masks):
             command.extend(["--mask", mask])
+            if replacements:
+                replacement = replacements[0] if len(replacements) == 1 else replacements[index]
+                command.extend(["--mask-with", replacement])
         for key, flag in (
-            ("mask_with", "--mask-with"),
             ("absent", "--absent"),
             ("missing", "--missing"),
             ("mark_del", "--mark-del"),
@@ -226,7 +293,7 @@ class BCFtoolsConsensusNode(BCFtoolsCommandNode):
         return command
 
 
-class BCFtoolsQueryNode(BCFtoolsCommandNode):
+class BCFtoolsQueryNode(CoreBCFtoolsCommandNode):
     """Format one or more VCF files as a tabular text artifact."""
 
     NODE_ID = "bcftools_query"
@@ -316,7 +383,7 @@ class BCFtoolsQueryNode(BCFtoolsCommandNode):
         return command
 
 
-class BCFtoolsQueryListSamplesNode(BCFtoolsCommandNode):
+class BCFtoolsQueryListSamplesNode(CoreBCFtoolsCommandNode):
     """List VCF sample names without requiring an index."""
 
     NODE_ID = "bcftools_query_list_samples"
@@ -352,7 +419,7 @@ class BCFtoolsQueryListSamplesNode(BCFtoolsCommandNode):
         return ["bcftools", "query", "-l", "-o", str(cls.output_dir(inputs) / "samples.tsv"), str(inputs["input_file"])]
 
 
-class BCFtoolsGTcheckNode(BCFtoolsCommandNode):
+class BCFtoolsGTcheckNode(CoreBCFtoolsCommandNode):
     """Compare query genotypes against an optional indexed genotype panel."""
 
     NODE_ID = "bcftools_gtcheck"
@@ -364,6 +431,7 @@ class BCFtoolsGTcheckNode(BCFtoolsCommandNode):
     OUTPUT_FILENAMES = ("gtcheck.tsv",)
     DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#gtcheck"
     UPSTREAM_SOURCE = "vcfgtcheck.c"
+    ALLOW_MIXED_SAMPLE_SELECTORS = True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -377,6 +445,14 @@ class BCFtoolsGTcheckNode(BCFtoolsCommandNode):
                 "pairs_file": ("FILE", {"default": ""}),
                 "samples": ("STRING", {"default": ""}),
                 "samples_file": ("FILE", {"default": ""}),
+                "samples_file_source": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "options": ["", "qry", "gt"],
+                        "description": "Apply the staged sample file to the query or genotype VCF",
+                    },
+                ),
                 "use": ("STRING", {"default": "", "description": "Ordered GT,PL tag preference"}),
                 "include": COMMON_FILTER_INPUTS["include"],
                 "exclude": COMMON_FILTER_INPUTS["exclude"],
@@ -402,8 +478,40 @@ class BCFtoolsGTcheckNode(BCFtoolsCommandNode):
             return validation
         if inputs.get("pairs") and inputs.get("pairs_file"):
             return "pairs and pairs_file are mutually exclusive"
+        validation = _validate_gtcheck_selector(inputs.get("samples"), "samples")
+        if validation is not True:
+            return validation
+        samples_file = inputs.get("samples_file")
+        samples_file_source = str(inputs.get("samples_file_source", "")).lower()
+        if samples_file:
+            if _gtcheck_selector_source(samples_file):
+                return "samples_file must be a bare staged path; select qry or gt with samples_file_source"
+            validation = validate_choice(samples_file_source, "samples_file_source", ("qry", "gt"))
+            if validation is not True:
+                return validation
+        elif samples_file_source:
+            return "samples_file_source requires samples_file"
         if inputs.get("samples") and inputs.get("samples_file"):
-            return "samples and samples_file are mutually exclusive"
+            if _gtcheck_selector_source(inputs["samples"]) == samples_file_source:
+                return "samples and samples_file cannot both select the same gtcheck input"
+        if (inputs.get("pairs") or inputs.get("pairs_file")) and (inputs.get("samples") or inputs.get("samples_file")):
+            return "pairs and sample selectors are mutually exclusive"
+        if inputs.get("pairs"):
+            pairs = str(inputs["pairs"]).split(",")
+            if len(pairs) % 2 or any(not sample.strip() for sample in pairs):
+                return "pairs must contain complete comma-separated sample pairs"
+        if inputs.get("use"):
+            tags = [tag.strip().upper() for tag in str(inputs["use"]).split(",")]
+            if not 1 <= len(tags) <= 2 or any(tag not in {"GT", "PL"} for tag in tags):
+                return "use must contain one or two comma-separated GT or PL tags"
+            if len(tags) == 2 and not inputs.get("genotypes"):
+                return "two use tags require genotypes"
+        if (_gtcheck_selector_source(inputs.get("samples")) == "gt" or samples_file_source == "gt") and not inputs.get(
+            "genotypes"
+        ):
+            return "gt sample selectors require genotypes"
+        if inputs.get("homs_only") and not inputs.get("genotypes"):
+            return "homs_only requires genotypes"
         if inputs.get("genotypes"):
             validation = validate_data_index(inputs)
             if validation is not True:
@@ -429,7 +537,8 @@ class BCFtoolsGTcheckNode(BCFtoolsCommandNode):
         add_value(command, "--pairs", inputs.get("pairs"))
         add_value(command, "--pairs-file", inputs.get("pairs_file"))
         add_value(command, "--samples", inputs.get("samples"))
-        add_value(command, "--samples-file", inputs.get("samples_file"))
+        if inputs.get("samples_file"):
+            command.extend(["--samples-file", f"{str(inputs['samples_file_source']).lower()}:{inputs['samples_file']}"])
         add_value(command, "--use", inputs.get("use"))
         add_flag(command, "--homs-only", inputs.get("homs_only"))
         add_value(command, "--error-probability", inputs.get("error_probability"))
@@ -438,7 +547,7 @@ class BCFtoolsGTcheckNode(BCFtoolsCommandNode):
         return command
 
 
-class BCFtoolsROHNode(BCFtoolsCommandNode):
+class BCFtoolsROHNode(CoreBCFtoolsCommandNode):
     """Run the documented bcftools roh HMM and emit region records."""
 
     NODE_ID = "bcftools_roh"
@@ -450,7 +559,7 @@ class BCFtoolsROHNode(BCFtoolsCommandNode):
     OUTPUT_FILENAMES = ("roh.tsv",)
     DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#roh"
     UPSTREAM_SOURCE = "vcfroh.c"
-    OUTPUT_TYPES = ("s", "r", "rz")
+    OUTPUT_TYPES = ("s", "r", "sr")
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -480,6 +589,7 @@ class BCFtoolsROHNode(BCFtoolsCommandNode):
                 "targets_file": COMMON_FILTER_INPUTS["targets_file"],
                 "targets_overlap": COMMON_FILTER_INPUTS["targets_overlap"],
                 "output_type": ("STRING", {"default": "r", "options": list(cls.OUTPUT_TYPES)}),
+                "threads": ("INT", {"default": 0, "min": 0}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -497,9 +607,14 @@ class BCFtoolsROHNode(BCFtoolsCommandNode):
             return validation
         if inputs.get("samples") and inputs.get("samples_file"):
             return "samples and samples_file are mutually exclusive"
-        af_sources = sum(value not in (None, "") for value in (inputs.get("af_default"), inputs.get("af_tag"), inputs.get("af_file"), inputs.get("estimate_af")))
+        af_sources = sum(
+            value not in (None, "")
+            for value in (inputs.get("af_tag"), inputs.get("af_file"), inputs.get("estimate_af"))
+        )
         if af_sources > 1:
-            return "af_default, af_tag, af_file, and estimate_af are mutually exclusive"
+            return "af_tag, af_file, and estimate_af are mutually exclusive"
+        if inputs.get("af_file") and (inputs.get("targets") or inputs.get("targets_file")):
+            return "af_file cannot be combined with targets or targets_file"
         if uses_regions(inputs):
             validation = validate_data_index(inputs)
             if validation is not True:
@@ -529,5 +644,15 @@ class BCFtoolsROHNode(BCFtoolsCommandNode):
             add_value(command, flag, inputs.get(key))
         add_flag(command, "--skip-indels", inputs.get("skip_indels"))
         add_common_filters(command, inputs)
-        command.extend([f"-O{inputs.get('output_type', 'r')}", "-o", str(cls.output_dir(inputs) / "roh.tsv"), str(inputs["input_file"])])
+        threads = inputs.get("threads", 0)
+        if threads:
+            command.extend(["--threads", str(threads)])
+        command.extend(
+            [
+                f"-O{inputs.get('output_type', 'r')}",
+                "-o",
+                str(cls.output_dir(inputs) / "roh.tsv"),
+                str(inputs["input_file"]),
+            ]
+        )
         return command

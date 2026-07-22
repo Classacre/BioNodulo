@@ -6,7 +6,7 @@ from typing import Any
 
 from .adapter import (
     COMMON_FILTER_INPUTS,
-    FixedVcfOutputNode,
+    CoreFixedVcfOutputNode,
     add_fixed_vcf_output,
     add_value,
     as_list,
@@ -16,11 +16,12 @@ from .adapter import (
     validate_choice,
     validate_data_index,
     validate_data_indexes,
+    validate_number,
     validate_reference_index,
 )
 
 
-class BCFtoolsMpileupNode(FixedVcfOutputNode):
+class BCFtoolsMpileupNode(CoreFixedVcfOutputNode):
     """Generate genotype likelihoods from coordinate-sorted alignments."""
 
     NODE_ID = "bcftools_mpileup"
@@ -39,8 +40,14 @@ class BCFtoolsMpileupNode(FixedVcfOutputNode):
             "reference": ("FASTA", {"default": "", "description": "Faidx-indexed reference FASTA"}),
             "reference_index": ("FASTA_INDEX", {"default": "", "description": "Exact <reference>.fai sidecar"}),
             "no_reference": ("BOOLEAN", {"default": False, "description": "Explicitly run without a reference"}),
-            "alignment_indexes": ("FILE_LIST", {"default": [], "description": "One colocated BAI, CSI, or CRAI per alignment for region jumps"}),
-            "max_depth": ("INT", {"default": None, "min": 1}),
+            "alignment_indexes": (
+                "FILE_LIST",
+                {"default": [], "description": "One colocated BAI, CSI, or CRAI per alignment for region jumps"},
+            ),
+            "max_depth": (
+                "INT",
+                {"default": None, "min": 0, "description": "Maximum reads per input; 0 removes the limit"},
+            ),
             "minimum_mapping_quality": ("INT", {"default": None, "min": 0}),
             "minimum_base_quality": ("INT", {"default": None, "min": 0}),
             "annotate": ("STRING_LIST", {"default": [], "description": "Output annotation tags"}),
@@ -57,8 +64,11 @@ class BCFtoolsMpileupNode(FixedVcfOutputNode):
             "skip_any_set": ("STRING", {"default": "", "description": "Documented SAM flag names or integer mask"}),
             "skip_all_unset": ("STRING", {"default": "", "description": "Documented SAM flag names or integer mask"}),
             "skip_any_unset": ("STRING", {"default": "", "description": "Documented SAM flag names or integer mask"}),
-            "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
-            "reference_source": ("STRING", {"default": "", "options": ["", "history", "cached", "none"], "advanced": True}),
+            "threads": ("INT", {"default": 4, "min": 0}),
+            "reference_source": (
+                "STRING",
+                {"default": "", "options": ["", "history", "cached", "none"], "advanced": True},
+            ),
         }
         return {
             "required": {"input_bams": ("FILE_LIST", {"description": "Coordinate-sorted BAM or CRAM inputs"})},
@@ -86,6 +96,10 @@ class BCFtoolsMpileupNode(FixedVcfOutputNode):
             if validation is not True:
                 return validation
             validation = validate_reference_index(inputs)
+            if validation is not True:
+                return validation
+        if inputs.get("max_depth") not in (None, ""):
+            validation = validate_number(inputs["max_depth"], "max_depth", minimum=0, integer=True)
             if validation is not True:
                 return validation
         if uses_regions(inputs):
@@ -138,7 +152,7 @@ class BCFtoolsMpileupNode(FixedVcfOutputNode):
         return command
 
 
-class BCFtoolsCallNode(FixedVcfOutputNode):
+class BCFtoolsCallNode(CoreFixedVcfOutputNode):
     """Call variants from a likelihood VCF using one exclusive caller."""
 
     NODE_ID = "bcftools_call"
@@ -150,7 +164,7 @@ class BCFtoolsCallNode(FixedVcfOutputNode):
     DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#call"
     UPSTREAM_SOURCE = "vcfcall.c"
     CALLERS = ("multiallelic", "consensus")
-    CONSTRAINTS = ("none", "alleles", "trio")
+    CONSTRAINTS = ("none", "alleles")
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -176,12 +190,14 @@ class BCFtoolsCallNode(FixedVcfOutputNode):
                 "ploidy": ("STRING", {"default": ""}),
                 "ploidy_file": ("FILE", {"default": ""}),
                 "insert_missed": ("BOOLEAN", {"default": False}),
-                "novel_rate": ("STRING", {"default": ""}),
                 "pval_threshold": ("FLOAT", {"default": None, "min": 0, "max": 1}),
                 "variants_only": ("BOOLEAN", {"default": False}),
                 "skip_variants": ("STRING", {"default": "", "options": ["", "snps", "indels"]}),
-                "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
-                "method": ("STRING", {"default": "", "advanced": True, "description": "Compatibility alias for caller"}),
+                "threads": ("INT", {"default": 4, "min": 0}),
+                "method": (
+                    "STRING",
+                    {"default": "", "advanced": True, "description": "Compatibility alias for caller"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -203,13 +219,48 @@ class BCFtoolsCallNode(FixedVcfOutputNode):
         if validation is not True:
             return validation
         constrain = str(inputs.get("constrain", "none") or "none")
+        if constrain == "trio":
+            return "constrain=trio is not runnable in BCFtools 1.24; upstream aborts constrained trio calling"
         validation = validate_choice(constrain, "constrain", cls.CONSTRAINTS)
         if validation is not True:
             return validation
-        if caller == "consensus" and constrain == "alleles":
-            return "constrain=alleles requires the multiallelic caller"
+        if constrain == "alleles":
+            if caller != "multiallelic":
+                return "constrain=alleles requires the multiallelic caller"
+            if not (inputs.get("targets") or inputs.get("targets_file")):
+                return "constrain=alleles requires targets or targets_file"
+        if inputs.get("insert_missed") and constrain != "alleles":
+            return "insert_missed requires constrain=alleles"
         if inputs.get("gvcf") and caller != "multiallelic":
             return "gvcf requires the multiallelic caller"
+        if inputs.get("gvcf") and inputs.get("variants_only"):
+            return "variants_only and gvcf are mutually exclusive"
+        if inputs.get("group_samples") and caller != "multiallelic":
+            return "group_samples requires the multiallelic caller"
+        if inputs.get("group_samples_tag") and not inputs.get("group_samples"):
+            return "group_samples_tag requires group_samples"
+        if inputs.get("prior_freqs"):
+            prior_tags = str(inputs["prior_freqs"]).split(",")
+            if len(prior_tags) != 2 or any(not tag.strip() for tag in prior_tags):
+                return "prior_freqs must contain exactly two non-empty comma-separated tags"
+            if caller != "multiallelic":
+                return "prior_freqs requires the multiallelic caller"
+        if inputs.get("prior") not in (None, ""):
+            validation = validate_number(inputs["prior"], "prior", minimum=0)
+            if validation is not True:
+                return validation
+            if caller != "multiallelic":
+                return "prior requires the multiallelic caller"
+        if inputs.get("pval_threshold") not in (None, ""):
+            validation = validate_number(inputs["pval_threshold"], "pval_threshold", minimum=0, maximum=1)
+            if validation is not True:
+                return validation
+            if caller != "consensus":
+                return "pval_threshold requires the consensus caller"
+        if inputs.get("novel_rate") not in (None, ""):
+            return "novel_rate applies only to trio calling, which is disabled in BCFtools 1.24"
+        if inputs.get("ploidy") and inputs.get("ploidy_file"):
+            return "ploidy and ploidy_file are mutually exclusive"
         for value in as_list(inputs.get("gvcf")):
             try:
                 if int(value) < 0 or str(int(value)) != value.strip():
@@ -249,7 +300,6 @@ class BCFtoolsCallNode(FixedVcfOutputNode):
             ("targets_overlap", "--targets-overlap"),
             ("ploidy", "--ploidy"),
             ("ploidy_file", "--ploidy-file"),
-            ("novel_rate", "--novel-rate"),
             ("pval_threshold", "--pval-threshold"),
             ("skip_variants", "--skip-variants"),
         ):

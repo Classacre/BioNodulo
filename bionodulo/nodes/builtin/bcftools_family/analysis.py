@@ -7,8 +7,8 @@ from typing import Any
 
 from .adapter import (
     COMMON_FILTER_INPUTS,
-    BCFtoolsCommandNode,
-    FixedVcfOutputNode,
+    CoreBCFtoolsCommandNode,
+    CoreFixedVcfOutputNode,
     add_common_filters,
     add_fixed_vcf_output,
     add_flag,
@@ -16,11 +16,12 @@ from .adapter import (
     require_path,
     uses_regions,
     validate_data_index,
+    validate_number,
     validate_reference_index,
 )
 
 
-class BCFtoolsCNVNode(BCFtoolsCommandNode):
+class BCFtoolsCNVNode(CoreBCFtoolsCommandNode):
     """Call CNVs and retain the complete source-defined output directory."""
 
     NODE_ID = "bcftools_cnv"
@@ -32,16 +33,21 @@ class BCFtoolsCNVNode(BCFtoolsCommandNode):
     OUTPUT_FILENAMES = ("results",)
     DOCUMENTATION_URL = "https://www.htslib.org/doc/bcftools.html#cnv"
     UPSTREAM_SOURCE = "vcfcnv.c"
+    REQUIRED_EXECUTABLES = ["bcftools", "python"]
+    REQUIRED_CONDA_PACKAGES = ["bcftools", "htslib", "python", "numpy", "matplotlib"]
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "input_file": ("VCF", {"description": "VCF with BAF and LRR intensity fields"}),
-                "query_sample": ("STRING", {"description": "Sample to call"}),
             },
             "optional": {
                 "input_index": COMMON_FILTER_INPUTS["input_index"],
+                "query_sample": (
+                    "STRING",
+                    {"default": "", "description": "Sample to call; omit only for a single-sample VCF"},
+                ),
                 "control_sample": ("STRING", {"default": ""}),
                 "af_file": ("TSV", {"default": ""}),
                 "plot_threshold": ("FLOAT", {"default": None}),
@@ -88,9 +94,9 @@ class BCFtoolsCNVNode(BCFtoolsCommandNode):
         if validation is not True:
             return validation
         query = str(inputs.get("query_sample", "")).strip()
-        if not query:
-            return "query_sample must be non-empty"
         control = str(inputs.get("control_sample", "")).strip()
+        if control and not query:
+            return "control_sample requires an explicit query_sample"
         if control and control == query:
             return "query_sample and control_sample must be distinct"
         control_settings = ("aberrant_control", "baf_dev_control", "lrr_dev_control")
@@ -117,7 +123,8 @@ class BCFtoolsCNVNode(BCFtoolsCommandNode):
         validation = cls.VALIDATE_INPUTS(inputs)
         if validation is not True:
             raise ValueError(str(validation))
-        command = ["bcftools", "cnv", "--output-dir", str(cls.result_dir(inputs)), "--query-sample", str(inputs["query_sample"])]
+        command = ["bcftools", "cnv", "--output-dir", str(cls.result_dir(inputs))]
+        add_value(command, "--query-sample", inputs.get("query_sample"))
         add_value(command, "--control-sample", inputs.get("control_sample"))
         add_value(command, "--AF-file", inputs.get("af_file") or inputs.get("AF_file"))
         add_value(command, "--plot-threshold", inputs.get("plot_threshold"))
@@ -141,7 +148,7 @@ class BCFtoolsCNVNode(BCFtoolsCommandNode):
         return command
 
 
-class BCFtoolsCSQNode(FixedVcfOutputNode):
+class BCFtoolsCSQNode(CoreFixedVcfOutputNode):
     """Annotate haplotype-aware consequences from reference and GFF3."""
 
     NODE_ID = "bcftools_csq"
@@ -168,7 +175,7 @@ class BCFtoolsCSQNode(FixedVcfOutputNode):
                 "local_csq": ("BOOLEAN", {"default": False}),
                 "phase": ("STRING", {"default": "", "options": ["", "a", "m", "r", "R", "s"]}),
                 "custom_tag": ("STRING", {"default": ""}),
-                "trim_protein_seq": ("INT", {"default": None, "min": 0}),
+                "trim_protein_seq": ("INT", {"default": None, "min": 1}),
                 "genetic_code": ("STRING", {"default": ""}),
                 "samples": ("STRING", {"default": ""}),
                 "samples_file": ("FILE", {"default": ""}),
@@ -180,6 +187,7 @@ class BCFtoolsCSQNode(FixedVcfOutputNode):
                 "targets": COMMON_FILTER_INPUTS["targets"],
                 "targets_file": COMMON_FILTER_INPUTS["targets_file"],
                 "targets_overlap": COMMON_FILTER_INPUTS["targets_overlap"],
+                "threads": ("INT", {"default": 0, "min": 0}),
                 "annotation": ("GFF3", {"default": "", "advanced": True}),
             },
             "hidden": {"output": ("STRING", {})},
@@ -201,6 +209,15 @@ class BCFtoolsCSQNode(FixedVcfOutputNode):
             return validation
         if inputs.get("samples") and inputs.get("samples_file"):
             return "samples and samples_file are mutually exclusive"
+        if inputs.get("trim_protein_seq") not in (None, ""):
+            validation = validate_number(
+                inputs["trim_protein_seq"],
+                "trim_protein_seq",
+                minimum=1,
+                integer=True,
+            )
+            if validation is not True:
+                return validation
         if uses_regions(inputs):
             validation = validate_data_index(inputs)
             if validation is not True:
@@ -227,6 +244,9 @@ class BCFtoolsCSQNode(FixedVcfOutputNode):
         add_value(command, "--trim-protein-seq", inputs.get("trim_protein_seq"))
         add_value(command, "--genetic-code", inputs.get("genetic_code"))
         add_common_filters(command, inputs, samples=True)
+        threads = inputs.get("threads", 0)
+        if threads:
+            command.extend(["--threads", str(threads)])
         add_fixed_vcf_output(command, cls, inputs)
         command.append(str(inputs["input_file"]))
         return command

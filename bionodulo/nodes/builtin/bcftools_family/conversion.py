@@ -7,8 +7,8 @@ from typing import Any
 
 from .adapter import (
     COMMON_FILTER_INPUTS,
-    BCFtoolsCommandNode,
-    FixedVcfOutputNode,
+    CoreBCFtoolsCommandNode,
+    CoreFixedVcfOutputNode,
     add_fixed_vcf_output,
     add_flag,
     add_value,
@@ -20,7 +20,7 @@ from .adapter import (
 )
 
 
-class BCFtoolsConvertToVcfNode(FixedVcfOutputNode):
+class BCFtoolsConvertToVcfNode(CoreFixedVcfOutputNode):
     """Convert TSV, gVCF, GEN, HAP, or HAP/LEGEND inputs to VCF."""
 
     NODE_ID = "bcftools_convert_to_vcf"
@@ -48,11 +48,13 @@ class BCFtoolsConvertToVcfNode(FixedVcfOutputNode):
                 "columns": ("STRING", {"default": "", "description": "TSV column mapping"}),
                 "samples": ("STRING", {"default": "", "description": "TSV sample names"}),
                 "samples_file": ("FILE", {"default": "", "description": "TSV sample-name file"}),
-                "sex_file": ("FILE", {"default": ""}),
-                "haploid2diploid": ("BOOLEAN", {"default": False}),
+                "convert_3n6": ("BOOLEAN", {"default": False, "description": "Expect 3*N+6 GEN/SAMPLE input"}),
                 "vcf_ids": ("BOOLEAN", {"default": False}),
-                "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
-                "convert_from": ("STRING", {"default": "", "advanced": True, "description": "Compatibility alias for mode"}),
+                "threads": ("INT", {"default": 4, "min": 0}),
+                "convert_from": (
+                    "STRING",
+                    {"default": "", "advanced": True, "description": "Compatibility alias for mode"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -60,7 +62,13 @@ class BCFtoolsConvertToVcfNode(FixedVcfOutputNode):
     @classmethod
     def _mode(cls, inputs: dict[str, Any]) -> str:
         value = str(inputs.get("mode") or inputs.get("convert_from") or "tsv")
-        return {"tsv2vcf": "tsv", "gvcf2vcf": "gvcf", "gen": "gen_sample", "hap": "hap_sample", "haplegendsample": "hap_legend_sample"}.get(value, value)
+        return {
+            "tsv2vcf": "tsv",
+            "gvcf2vcf": "gvcf",
+            "gen": "gen_sample",
+            "hap": "hap_sample",
+            "haplegendsample": "hap_legend_sample",
+        }.get(value, value)
 
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
@@ -85,16 +93,26 @@ class BCFtoolsConvertToVcfNode(FixedVcfOutputNode):
             return "reference and reference_index apply only to tsv and gvcf modes"
         if mode == "tsv" and not str(inputs.get("columns", "")).strip():
             return "columns is required for tsv mode"
+        if mode != "tsv" and (inputs.get("columns") or inputs.get("samples") or inputs.get("samples_file")):
+            return "columns, samples, and samples_file apply only to tsv mode"
         if mode in {"gen_sample", "hap_sample", "hap_legend_sample"}:
             validation = require_path(inputs, "sample_file")
             if validation is not True:
                 return validation
+        elif inputs.get("sample_file"):
+            return "sample_file requires a GEN or HAP conversion mode"
         if mode == "hap_legend_sample":
             validation = require_path(inputs, "legend_file")
             if validation is not True:
                 return validation
         elif inputs.get("legend_file"):
             return "legend_file requires hap_legend_sample mode"
+        if inputs.get("sex_file") or inputs.get("haploid2diploid"):
+            return "sex_file and haploid2diploid apply only when converting from VCF"
+        if inputs.get("convert_3n6") and mode != "gen_sample":
+            return "convert_3n6 requires gen_sample mode"
+        if inputs.get("vcf_ids") and mode not in {"gen_sample", "hap_sample"}:
+            return "vcf_ids is supported only for GEN/SAMPLE or HAP/SAMPLE input"
         return True
 
     @classmethod
@@ -105,7 +123,9 @@ class BCFtoolsConvertToVcfNode(FixedVcfOutputNode):
         mode = cls._mode(inputs)
         command = ["bcftools", "convert"]
         if mode == "tsv":
-            command.extend(["--tsv2vcf", str(inputs["input_file"]), "-c", str(inputs["columns"]), "-f", str(inputs["reference"])])
+            command.extend(
+                ["--tsv2vcf", str(inputs["input_file"]), "-c", str(inputs["columns"]), "-f", str(inputs["reference"])]
+            )
             add_value(command, "--samples", inputs.get("samples"))
             add_value(command, "--samples-file", inputs.get("samples_file"))
         elif mode == "gvcf":
@@ -120,8 +140,7 @@ class BCFtoolsConvertToVcfNode(FixedVcfOutputNode):
                 companions.append(str(inputs["legend_file"]))
             companions.append(str(inputs["sample_file"]))
             command.extend([flag, ",".join(companions)])
-            add_value(command, "--sex", inputs.get("sex_file"))
-            add_flag(command, "--haploid2diploid", inputs.get("haploid2diploid"))
+            add_flag(command, "--3N6", inputs.get("convert_3n6"))
             add_flag(command, "--vcf-ids", inputs.get("vcf_ids"))
         threads = inputs.get("threads", 4)
         if threads:
@@ -132,7 +151,7 @@ class BCFtoolsConvertToVcfNode(FixedVcfOutputNode):
         return command
 
 
-class BCFtoolsConvertFromVcfNode(BCFtoolsCommandNode):
+class BCFtoolsConvertFromVcfNode(CoreBCFtoolsCommandNode):
     """Convert a VCF into one native multi-file result directory."""
 
     NODE_ID = "bcftools_convert_from_vcf"
@@ -153,12 +172,26 @@ class BCFtoolsConvertFromVcfNode(BCFtoolsCommandNode):
             "optional": {
                 "input_index": COMMON_FILTER_INPUTS["input_index"],
                 "convert_to": ("STRING", {"default": "gen_sample", "options": list(cls.MODES)}),
+                "tag": (
+                    "STRING",
+                    {"default": "", "options": ["", "GT", "PL", "GP"], "description": "GEN probability source tag"},
+                ),
+                "convert_3n6": ("BOOLEAN", {"default": False, "description": "Write 3*N+6 GEN format"}),
+                "vcf_ids": ("BOOLEAN", {"default": False}),
+                "haploid2diploid": ("BOOLEAN", {"default": False}),
+                "sex_file": ("FILE", {"default": ""}),
+                "keep_duplicates": ("BOOLEAN", {"default": False}),
+                "include": COMMON_FILTER_INPUTS["include"],
+                "exclude": COMMON_FILTER_INPUTS["exclude"],
                 "regions": COMMON_FILTER_INPUTS["regions"],
                 "regions_file": COMMON_FILTER_INPUTS["regions_file"],
                 "regions_overlap": COMMON_FILTER_INPUTS["regions_overlap"],
+                "targets": COMMON_FILTER_INPUTS["targets"],
+                "targets_file": COMMON_FILTER_INPUTS["targets_file"],
+                "targets_overlap": COMMON_FILTER_INPUTS["targets_overlap"],
                 "samples": ("STRING", {"default": ""}),
                 "samples_file": ("FILE", {"default": ""}),
-                "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
+                "threads": ("INT", {"default": 4, "min": 0}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -181,11 +214,22 @@ class BCFtoolsConvertFromVcfNode(BCFtoolsCommandNode):
         validation = require_path(inputs, "input_file")
         if validation is not True:
             return validation
-        validation = validate_choice(str(inputs.get("convert_to", "gen_sample")), "convert_to", cls.MODES)
+        mode = str(inputs.get("convert_to", "gen_sample"))
+        validation = validate_choice(mode, "convert_to", cls.MODES)
         if validation is not True:
             return validation
-        if inputs.get("samples") and inputs.get("samples_file"):
-            return "samples and samples_file are mutually exclusive"
+        if inputs.get("tag"):
+            validation = validate_choice(str(inputs["tag"]), "tag", ("GT", "PL", "GP"))
+            if validation is not True:
+                return validation
+            if mode != "gen_sample":
+                return "tag requires gen_sample mode"
+        if inputs.get("convert_3n6") and mode != "gen_sample":
+            return "convert_3n6 requires gen_sample mode"
+        if inputs.get("keep_duplicates") and mode != "gen_sample":
+            return "keep_duplicates requires gen_sample mode"
+        if inputs.get("haploid2diploid") and mode == "gen_sample":
+            return "haploid2diploid requires a HAP output mode"
         if uses_regions(inputs):
             validation = validate_data_index(inputs)
             if validation is not True:
@@ -208,16 +252,25 @@ class BCFtoolsConvertFromVcfNode(BCFtoolsCommandNode):
         else:
             flag = "--haplegendsample"
             output_spec = (
-                f"{result_dir / 'converted.hap'},"
-                f"{result_dir / 'converted.legend'},"
-                f"{result_dir / 'converted.samples'}"
+                f"{result_dir / 'converted.hap'},{result_dir / 'converted.legend'},{result_dir / 'converted.samples'}"
             )
         command = ["bcftools", "convert", flag, output_spec]
+        add_value(command, "--tag", inputs.get("tag"))
+        add_flag(command, "--3N6", inputs.get("convert_3n6"))
+        add_flag(command, "--vcf-ids", inputs.get("vcf_ids"))
+        add_flag(command, "--haploid2diploid", inputs.get("haploid2diploid"))
+        add_value(command, "--sex", inputs.get("sex_file"))
+        add_flag(command, "--keep-duplicates", inputs.get("keep_duplicates"))
+        add_value(command, "--include", inputs.get("include"))
+        add_value(command, "--exclude", inputs.get("exclude"))
         add_value(command, "--samples", inputs.get("samples"))
         add_value(command, "--samples-file", inputs.get("samples_file"))
         add_value(command, "--regions", inputs.get("regions"))
         add_value(command, "--regions-file", inputs.get("regions_file"))
         add_value(command, "--regions-overlap", inputs.get("regions_overlap"))
+        add_value(command, "--targets", inputs.get("targets"))
+        add_value(command, "--targets-file", inputs.get("targets_file"))
+        add_value(command, "--targets-overlap", inputs.get("targets_overlap"))
         threads = inputs.get("threads", 4)
         if threads:
             command.extend(["--threads", str(threads)])

@@ -10,7 +10,8 @@ from .adapter import (
     BCFTOOLS_GIT_COMMIT,
     COMMON_FILTER_INPUTS,
     BCFtoolsCommandNode,
-    FixedVcfOutputNode,
+    CoreBCFtoolsCommandNode,
+    CoreFixedVcfOutputNode,
     add_common_filters,
     add_fixed_vcf_output,
     add_flag,
@@ -29,7 +30,7 @@ from .adapter import (
 )
 
 
-class BCFtoolsFilterNode(FixedVcfOutputNode):
+class BCFtoolsFilterNode(CoreFixedVcfOutputNode):
     """Apply documented expressions, masks, gaps, and soft filters."""
 
     NODE_ID = "bcftools_filter"
@@ -42,7 +43,7 @@ class BCFtoolsFilterNode(FixedVcfOutputNode):
     UPSTREAM_SOURCE = "vcffilter.c"
     SOURCE_REVISION = BCFTOOLS_GIT_COMMIT
     SOURCE_URL = f"https://github.com/samtools/bcftools/blob/{BCFTOOLS_GIT_COMMIT}/vcffilter.c"
-    SOURCE_PATHS = ("vcffilter.c", "doc/bcftools.1")
+    SOURCE_PATHS = ("vcffilter.c", "doc/bcftools.txt")
     AUDIT_STATUS = "contract-checked-no-external-execution"
     EXIT_SEMANTICS = (
         "bcftools filter exits non-zero for malformed expressions, invalid gap/mask options, "
@@ -54,20 +55,22 @@ class BCFtoolsFilterNode(FixedVcfOutputNode):
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         optional = dict(COMMON_FILTER_INPUTS)
-        optional.update({
-            "soft_filter": ("STRING", {"default": "", "description": "FILTER label, or + to append"}),
-            "mode": ("STRING", {"default": "", "options": ["", "+", "x"]}),
-            "set_gts": ("STRING", {"default": "", "options": ["", ".", "0"]}),
-            "snp_gap": ("STRING", {"default": ""}),
-            "indel_gap": ("INT", {"default": None, "min": 0}),
-            "mask": ("STRING", {"default": ""}),
-            "mask_file": ("FILE", {"default": ""}),
-            "mask_negate": ("BOOLEAN", {"default": False}),
-            "mask_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"]}),
-            "threads": ("INT", {"default": 4, "min": 0}),
-            "expr": ("STRING", {"default": "", "advanced": True, "description": "Compatibility alias for include"}),
-            "vcf": ("VCF", {"default": "", "advanced": True, "description": "Compatibility alias for input_file"}),
-        })
+        optional.update(
+            {
+                "soft_filter": ("STRING", {"default": "", "description": "FILTER label, or + to append"}),
+                "mode": ("STRING", {"default": "", "options": ["", "+", "x", "+x"]}),
+                "set_gts": ("STRING", {"default": "", "options": ["", ".", "0"]}),
+                "snp_gap": ("STRING", {"default": ""}),
+                "indel_gap": ("INT", {"default": None, "min": 0}),
+                "mask": ("STRING", {"default": ""}),
+                "mask_file": ("FILE", {"default": ""}),
+                "mask_negate": ("BOOLEAN", {"default": False}),
+                "mask_overlap": ("STRING", {"default": "", "options": ["", "0", "1", "2"]}),
+                "threads": ("INT", {"default": 4, "min": 0}),
+                "expr": ("STRING", {"default": "", "advanced": True, "description": "Compatibility alias for include"}),
+                "vcf": ("VCF", {"default": "", "advanced": True, "description": "Compatibility alias for input_file"}),
+            }
+        )
         return {
             "required": {"input_file": ("VCF", {"description": "VCF or BCF to filter"})},
             "optional": optional,
@@ -117,24 +120,20 @@ class BCFtoolsFilterNode(FixedVcfOutputNode):
             return "soft_filter is required with mask or mask_file"
         if inputs.get("mask_negate") and not (inputs.get("mask") or inputs.get("mask_file")):
             return "mask_negate requires mask or mask_file"
-        validation = validate_choice(inputs.get("mode", ""), "mode", ("", "+", "x"))
+        validation = validate_choice(inputs.get("mode", ""), "mode", ("", "+", "x", "+x"))
         if validation is not True:
             return validation
         validation = validate_choice(inputs.get("set_gts", ""), "set_gts", ("", ".", "0"))
         if validation is not True:
             return validation
-        validation = validate_choice(
-            inputs.get("mask_overlap", ""), "mask_overlap", ("", "0", "1", "2")
-        )
+        validation = validate_choice(inputs.get("mask_overlap", ""), "mask_overlap", ("", "0", "1", "2"))
         if validation is not True:
             return validation
         validation = cls._validate_snp_gap(inputs.get("snp_gap", ""))
         if validation is not True:
             return validation
         if inputs.get("indel_gap") not in (None, ""):
-            validation = validate_number(
-                inputs["indel_gap"], "indel_gap", minimum=0, integer=True
-            )
+            validation = validate_number(inputs["indel_gap"], "indel_gap", minimum=0, integer=True)
             if validation is not True:
                 return validation
         validation = validate_number(inputs.get("threads", 4), "threads", minimum=0, integer=True)
@@ -183,7 +182,7 @@ class BCFtoolsFilterNode(FixedVcfOutputNode):
         return command
 
 
-class BCFtoolsNormNode(FixedVcfOutputNode):
+class BCFtoolsNormNode(CoreFixedVcfOutputNode):
     """Normalize alleles and multiallelic records with documented modes."""
 
     NODE_ID = "bcftools_norm"
@@ -200,22 +199,24 @@ class BCFtoolsNormNode(FixedVcfOutputNode):
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         optional = dict(COMMON_FILTER_INPUTS)
-        optional.update({
-            "reference": ("FASTA", {"default": "", "description": "Reference used for left alignment"}),
-            "reference_index": ("FASTA_INDEX", {"default": "", "description": "Exact <reference>.fai"}),
-            "check_ref": ("STRING", {"default": "", "options": ["", "e", "w", "x", "s", "wx", "ws"]}),
-            "atomize": ("BOOLEAN", {"default": False}),
-            "atom_overlaps": ("STRING", {"default": "", "options": ["", ".", "*"]}),
-            "rm_dup": ("STRING", {"default": "", "options": list(cls.RM_DUP)}),
-            "multiallelics": ("STRING", {"default": "", "options": list(cls.MULTIALLELICS)}),
-            "multi_overlaps": ("STRING", {"default": "", "options": ["", "0", "."]}),
-            "sort": ("STRING", {"default": "pos", "options": ["pos", "lex"]}),
-            "strict_filter": ("BOOLEAN", {"default": False}),
-            "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
-            "vcf": ("VCF", {"default": "", "advanced": True}),
-            "multiallelic_mode": ("STRING", {"default": "", "advanced": True}),
-            "deduplicate": ("STRING", {"default": "", "advanced": True}),
-        })
+        optional.update(
+            {
+                "reference": ("FASTA", {"default": "", "description": "Reference used for left alignment"}),
+                "reference_index": ("FASTA_INDEX", {"default": "", "description": "Exact <reference>.fai"}),
+                "check_ref": ("STRING", {"default": "", "options": ["", "e", "w", "x", "s", "wx", "ws"]}),
+                "atomize": ("BOOLEAN", {"default": False}),
+                "atom_overlaps": ("STRING", {"default": "", "options": ["", ".", "*"]}),
+                "rm_dup": ("STRING", {"default": "", "options": list(cls.RM_DUP)}),
+                "multiallelics": ("STRING", {"default": "", "options": list(cls.MULTIALLELICS)}),
+                "multi_overlaps": ("STRING", {"default": "", "options": ["", "0", "."]}),
+                "sort": ("STRING", {"default": "pos", "options": ["pos", "lex"]}),
+                "strict_filter": ("BOOLEAN", {"default": False}),
+                "threads": ("INT", {"default": 4, "min": 0}),
+                "vcf": ("VCF", {"default": "", "advanced": True}),
+                "multiallelic_mode": ("STRING", {"default": "", "advanced": True}),
+                "deduplicate": ("STRING", {"default": "", "advanced": True}),
+            }
+        )
         return {
             "required": {"input_file": ("VCF", {"description": "VCF or BCF to normalize"})},
             "optional": optional,
@@ -254,6 +255,14 @@ class BCFtoolsNormNode(FixedVcfOutputNode):
         validation = validate_choice(rm_dup, "rm_dup", cls.RM_DUP)
         if validation is not True:
             return validation
+        if not (inputs.get("reference") or inputs.get("atomize") or rm_dup or multiallelics):
+            return "one of reference, atomize, rm_dup, or multiallelics is required"
+        if inputs.get("atom_overlaps") and not inputs.get("atomize"):
+            return "atom_overlaps requires atomize"
+        if inputs.get("multi_overlaps") and not multiallelics.startswith("-"):
+            return "multi_overlaps requires multiallelic splitting"
+        if inputs.get("strict_filter") and not multiallelics.startswith("+"):
+            return "strict_filter requires multiallelic joining"
         if inputs.get("check_ref") and not inputs.get("reference"):
             return "check_ref requires reference"
         if inputs.get("reference"):
@@ -293,7 +302,7 @@ class BCFtoolsNormNode(FixedVcfOutputNode):
         return command
 
 
-class BCFtoolsViewNode(FixedVcfOutputNode):
+class BCFtoolsViewNode(CoreFixedVcfOutputNode):
     """Subset typed VCF output without header-only text modes."""
 
     NODE_ID = "bcftools_view"
@@ -308,22 +317,24 @@ class BCFtoolsViewNode(FixedVcfOutputNode):
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         optional = dict(COMMON_FILTER_INPUTS)
-        optional.update({
-            "samples": ("STRING", {"default": ""}),
-            "samples_file": ("FILE", {"default": ""}),
-            "force_samples": ("BOOLEAN", {"default": False}),
-            "drop_genotypes": ("BOOLEAN", {"default": False}),
-            "no_update": ("BOOLEAN", {"default": False}),
-            "apply_filters": ("STRING", {"default": ""}),
-            "types": ("STRING", {"default": ""}),
-            "exclude_types": ("STRING", {"default": ""}),
-            "min_alleles": ("INT", {"default": None, "min": 1}),
-            "max_alleles": ("INT", {"default": None, "min": 1}),
-            "min_af": ("STRING", {"default": ""}),
-            "max_af": ("STRING", {"default": ""}),
-            "genotype": ("STRING", {"default": ""}),
-            "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
-        })
+        optional.update(
+            {
+                "samples": ("STRING", {"default": ""}),
+                "samples_file": ("FILE", {"default": ""}),
+                "force_samples": ("BOOLEAN", {"default": False}),
+                "drop_genotypes": ("BOOLEAN", {"default": False}),
+                "no_update": ("BOOLEAN", {"default": False}),
+                "apply_filters": ("STRING", {"default": ""}),
+                "types": ("STRING", {"default": ""}),
+                "exclude_types": ("STRING", {"default": ""}),
+                "min_alleles": ("INT", {"default": None, "min": 1}),
+                "max_alleles": ("INT", {"default": None, "min": 1}),
+                "min_af": ("STRING", {"default": ""}),
+                "max_af": ("STRING", {"default": ""}),
+                "genotype": ("STRING", {"default": ""}),
+                "threads": ("INT", {"default": 4, "min": 0}),
+            }
+        )
         return {
             "required": {"input_file": ("VCF", {"description": "VCF or BCF to subset"})},
             "optional": optional,
@@ -375,7 +386,7 @@ class BCFtoolsViewNode(FixedVcfOutputNode):
         return command
 
 
-class BCFtoolsConcatNode(FixedVcfOutputNode):
+class BCFtoolsConcatNode(CoreFixedVcfOutputNode):
     """Concatenate ordered VCF chunks with validated overlap modes."""
 
     NODE_ID = "bcftools_concat"
@@ -404,7 +415,7 @@ class BCFtoolsConcatNode(FixedVcfOutputNode):
                 "regions": COMMON_FILTER_INPUTS["regions"],
                 "regions_file": COMMON_FILTER_INPUTS["regions_file"],
                 "regions_overlap": COMMON_FILTER_INPUTS["regions_overlap"],
-                "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
+                "threads": ("INT", {"default": 4, "min": 0}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -419,13 +430,21 @@ class BCFtoolsConcatNode(FixedVcfOutputNode):
             return validation
         naive = bool(inputs.get("naive") or inputs.get("naive_force"))
         ligate = bool(inputs.get("ligate") or inputs.get("ligate_force") or inputs.get("ligate_warn"))
+        if inputs.get("naive") and inputs.get("naive_force"):
+            return "naive and naive_force are mutually exclusive"
+        if (inputs.get("ligate_force") or inputs.get("ligate_warn")) and not inputs.get("ligate"):
+            return "ligate_force and ligate_warn require ligate"
         if naive and (ligate or inputs.get("allow_overlaps")):
             return "naive mode cannot be combined with ligation or overlap processing"
         if inputs.get("allow_overlaps") and ligate:
             return "allow_overlaps and ligate modes are mutually exclusive"
         if inputs.get("ligate_force") and inputs.get("ligate_warn"):
             return "ligate_force and ligate_warn are mutually exclusive"
-        if (inputs.get("rm_duplicates") or inputs.get("rm_dups") or uses_regions(inputs)) and not inputs.get("allow_overlaps"):
+        if inputs.get("rm_duplicates") and inputs.get("rm_dups"):
+            return "rm_duplicates and rm_dups are mutually exclusive aliases"
+        if (inputs.get("rm_duplicates") or inputs.get("rm_dups") or uses_regions(inputs)) and not inputs.get(
+            "allow_overlaps"
+        ):
             return "duplicate removal and regions require allow_overlaps"
         if uses_regions(inputs):
             validation = validate_data_indexes(inputs, data_key="input_files", index_key="input_indexes")
@@ -458,7 +477,7 @@ class BCFtoolsConcatNode(FixedVcfOutputNode):
         return command
 
 
-class BCFtoolsMergeNode(FixedVcfOutputNode):
+class BCFtoolsMergeNode(CoreFixedVcfOutputNode):
     """Merge sample sets from multiple VCF files."""
 
     NODE_ID = "bcftools_merge"
@@ -473,9 +492,14 @@ class BCFtoolsMergeNode(FixedVcfOutputNode):
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
-            "required": {"input_files": ("VCF_LIST", {"multiple": True, "description": "VCFs with distinct sample sets"})},
+            "required": {
+                "input_files": ("VCF_LIST", {"multiple": True, "description": "VCFs with distinct sample sets"})
+            },
             "optional": {
-                "input_indexes": ("VCF_INDEX", {"default": [], "multiple": True, "description": "One colocated index per input unless no_index"}),
+                "input_indexes": (
+                    "VCF_INDEX",
+                    {"default": [], "multiple": True, "description": "One colocated index per input unless no_index"},
+                ),
                 "no_index": ("BOOLEAN", {"default": False}),
                 "force_samples": ("BOOLEAN", {"default": False}),
                 "force_single": ("BOOLEAN", {"default": False}),
@@ -486,7 +510,7 @@ class BCFtoolsMergeNode(FixedVcfOutputNode):
                 "regions": COMMON_FILTER_INPUTS["regions"],
                 "regions_file": COMMON_FILTER_INPUTS["regions_file"],
                 "regions_overlap": COMMON_FILTER_INPUTS["regions_overlap"],
-                "threads": ("INT", {"default": 4, "min": 0, "max": 128}),
+                "threads": ("INT", {"default": 4, "min": 0}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -496,7 +520,8 @@ class BCFtoolsMergeNode(FixedVcfOutputNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = require_paths(inputs, "input_files", minimum=2)
+        minimum = 1 if inputs.get("force_single") else 2
+        validation = require_paths(inputs, "input_files", minimum=minimum)
         if validation is not True:
             return validation
         if not inputs.get("no_index"):
@@ -531,7 +556,7 @@ class BCFtoolsMergeNode(FixedVcfOutputNode):
         return command
 
 
-class BCFtoolsIsecNode(FixedVcfOutputNode):
+class BCFtoolsIsecNode(CoreFixedVcfOutputNode):
     """Select one indexed VCF stream from an intersection or complement."""
 
     NODE_ID = "bcftools_isec"
@@ -554,7 +579,10 @@ class BCFtoolsIsecNode(FixedVcfOutputNode):
                 "nfiles": ("STRING", {"default": "", "description": "[+-=]N or ~BITMAP selection"}),
                 "complement": ("BOOLEAN", {"default": False}),
                 "write": ("INT", {"default": 1, "min": 1}),
-                "collapse": ("STRING", {"default": "none", "options": ["snps", "indels", "both", "all", "some", "none", "id"]}),
+                "collapse": (
+                    "STRING",
+                    {"default": "none", "options": ["snps", "indels", "both", "all", "some", "none", "id"]},
+                ),
                 "apply_filters": ("STRING", {"default": ""}),
                 "include": COMMON_FILTER_INPUTS["include"],
                 "exclude": COMMON_FILTER_INPUTS["exclude"],
@@ -564,6 +592,7 @@ class BCFtoolsIsecNode(FixedVcfOutputNode):
                 "targets": COMMON_FILTER_INPUTS["targets"],
                 "targets_file": COMMON_FILTER_INPUTS["targets_file"],
                 "targets_overlap": COMMON_FILTER_INPUTS["targets_overlap"],
+                "threads": ("INT", {"default": 0, "min": 0}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -580,7 +609,11 @@ class BCFtoolsIsecNode(FixedVcfOutputNode):
         if validation is not True:
             return validation
         write = inputs.get("write", 1)
-        if isinstance(write, bool) or not isinstance(write, int) or not 1 <= write <= len(as_list(inputs.get("input_files"))):
+        if (
+            isinstance(write, bool)
+            or not isinstance(write, int)
+            or not 1 <= write <= len(as_list(inputs.get("input_files")))
+        ):
             return "write must select exactly one existing input file"
         if inputs.get("complement") and inputs.get("nfiles"):
             return "complement and nfiles are mutually exclusive"
@@ -601,12 +634,15 @@ class BCFtoolsIsecNode(FixedVcfOutputNode):
         add_value(command, "--collapse", inputs.get("collapse", "none"))
         add_value(command, "--apply-filters", inputs.get("apply_filters"))
         add_common_filters(command, inputs)
+        threads = inputs.get("threads", 0)
+        if threads:
+            command.extend(["--threads", str(threads)])
         add_fixed_vcf_output(command, cls, inputs)
         command.extend(input_files)
         return command
 
 
-class BCFtoolsReheaderNode(BCFtoolsCommandNode):
+class BCFtoolsReheaderNode(CoreBCFtoolsCommandNode):
     """Modify a header while preserving the input VCF/BCF encoding."""
 
     NODE_ID = "bcftools_reheader"
@@ -621,13 +657,15 @@ class BCFtoolsReheaderNode(BCFtoolsCommandNode):
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
-            "required": {"input_file": (("VCF", "VCF_GZ", "BCF"), {"description": "VCF or BCF whose encoding is retained"})},
+            "required": {
+                "input_file": (("VCF", "VCF_GZ", "BCF"), {"description": "VCF or BCF whose encoding is retained"})
+            },
             "optional": {
                 "header": ("TXT", {"default": ""}),
                 "samples_file": ("TXT", {"default": ""}),
                 "samples": ("STRING_LIST", {"default": [], "description": "Ordered inline sample-name list"}),
                 "fai": ("FASTA_INDEX", {"default": "", "description": "FAI used to replace contig declarations"}),
-                "threads": ("INT", {"default": 0, "min": 0, "max": 128}),
+                "threads": ("INT", {"default": 0, "min": 0}),
             },
             "hidden": {"output": ("STRING", {})},
         }
