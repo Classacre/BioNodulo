@@ -14,8 +14,10 @@ from __future__ import annotations
 import gzip
 import hashlib
 import logging
+import os
 import re
 import shutil
+import tempfile
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -25,7 +27,7 @@ from bionodulo.nodes.command_node import CommandNode
 
 logger = logging.getLogger(__name__)
 
-URL_SCHEMES = {"http", "https", "ftp", "ftps"}
+URL_SCHEMES = {"http", "https", "ftp"}
 _HTTP_USER_AGENT = "BioNodulo/2.0 (https://github.com/Classacre/BioNodulo; input-node downloader)"
 _DOWNLOAD_TIMEOUT_S = 300
 
@@ -48,32 +50,62 @@ def _looks_like_url(value: Any) -> bool:
 _NCBI_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 
 
-def _ncbi_efetch_url(accession: str, *, db: str = "nuccore", rettype: str = "fasta") -> str:
-    """Build an NCBI efetch URL for one or more comma-separated accessions."""
+def _ncbi_efetch_url(
+    accession: str,
+    *,
+    email: str,
+    db: str = "nuccore",
+    rettype: str = "fasta",
+) -> str:
+    """Build an identified NCBI EFetch URL using the audited service adapter."""
+    from bionodulo.nodes.builtin.ncbi_family.adapter import identified_params
+
     ids = ",".join(part.strip() for part in str(accession).split(",") if part.strip())
-    query = urllib.parse.urlencode({"db": db, "id": ids, "rettype": rettype, "retmode": "text"})
+    query = urllib.parse.urlencode(
+        {
+            "db": db,
+            "id": ids,
+            "rettype": rettype,
+            "retmode": "text",
+            **identified_params(email=email),
+        }
+    )
     return f"{_NCBI_EFETCH}?{query}"
 
 
 def _safe_filename(url: str) -> str:
-    """Derive a safe local filename from a URL.
-
-    Uses the URL's path basename when present; falls back to a short hash so
-    multiple URLs at the same path (e.g. ``?download=1`` query variants)
-    don't collide in the cache.
-    """
+    """Derive a display-safe basename while cache identity remains URL-scoped."""
     parsed = urllib.parse.urlparse(url)
     name = Path(parsed.path).name or "download"
-    # Strip query string from name to avoid weird characters; if the URL had
-    # significant query state, append a short hash so distinct URLs map to
-    # distinct files.
-    name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._") or "download"
-    if parsed.query:
-        digest = hashlib.sha1(url.encode("utf-8")).hexdigest()[:8]
-        stem, *suffix = name.split(".", 1)
-        suffix_str = f".{suffix[0]}" if suffix else ""
-        name = f"{stem}-{digest}{suffix_str}"
-    return name
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._") or "download"
+
+
+def _url_cache_key(url: str) -> str:
+    """Return a collision-resistant identity for the complete URL."""
+
+    return hashlib.sha256(url.encode("utf-8")).hexdigest()
+
+
+def _source_basename(value: Any) -> str:
+    """Return the path basename of a local path or URL, excluding its query."""
+
+    raw = os.fsdecode(os.fspath(value))
+    parsed = urllib.parse.urlparse(raw)
+    path = parsed.path if parsed.scheme and parsed.netloc else raw
+    return Path(path).name
+
+
+def _is_compressed_vcf(value: Any) -> bool:
+    name = _source_basename(value).lower()
+    return name.endswith((".vcf.gz", ".vcf.bgz", ".bgz"))
+
+
+def _vcf_index_suffix(value: Any) -> str:
+    name = _source_basename(value).lower()
+    for suffix in (".tbi", ".csi"):
+        if name.endswith(suffix):
+            return suffix
+    return ""
 
 
 def _cache_root(context: Any) -> Path:
@@ -92,22 +124,32 @@ def _cache_root(context: Any) -> Path:
     return Path.home() / ".bionodulo" / "url_cache"
 
 
-def _download_to_cache(url: str, context: Any) -> Path:
+def _temporary_path(directory: Path, *, prefix: str, suffix: str) -> Path:
+    descriptor, value = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=directory)
+    os.close(descriptor)
+    return Path(value)
+
+
+def _download_to_cache(
+    url: str,
+    context: Any,
+    *,
+    decompress_gzip: bool = True,
+) -> Path:
     """Download *url* into the workspace cache, returning the local path.
 
-    Idempotent: if the destination already exists we return it as-is rather
-    than re-downloading. The download writes to a `.part` file and renames
-    on success so a half-completed transfer is never picked up as cached.
+    The complete URL SHA-256 selects an isolated cache directory, so unrelated
+    URLs with the same basename cannot alias. Downloaded and decompressed bytes
+    are promoted with ``os.replace`` only after the whole operation succeeds.
 
-    URLs ending in ``.gz`` are transparently decompressed; the cached file
-    has the ``.gz`` suffix stripped so downstream consumers see the actual
-    payload (this matches the example-data downloader's behaviour and is
-    what existing templates assume).
+    When ``decompress_gzip`` is true, URLs ending in ``.gz`` are transparently
+    decompressed and the cached filename loses that suffix. Callers such as
+    ``InputVCFNode`` disable this to preserve bgzip bytes and sidecar identity.
     """
-    cache_dir = _cache_root(context)
+    cache_dir = _cache_root(context) / _url_cache_key(url)
     cache_dir.mkdir(parents=True, exist_ok=True)
     fname = _safe_filename(url)
-    gunzip = fname.lower().endswith(".gz")
+    gunzip = decompress_gzip and fname.lower().endswith(".gz")
     if gunzip:
         fname = fname[:-3] or "download"
     dest = cache_dir / fname
@@ -115,22 +157,32 @@ def _download_to_cache(url: str, context: Any) -> Path:
         logger.debug("URL cache hit: %s -> %s", url, dest)
         return dest
 
-    logger.info("Downloading URL: %s -> %s", url, dest)
+    logger.info("Downloading URL cache key %s -> %s", _url_cache_key(url)[:12], dest)
     req = urllib.request.Request(url, headers={"User-Agent": _HTTP_USER_AGENT})
-    part_path = dest.with_suffix(dest.suffix + ".part")
+    download_path: Path | None = _temporary_path(
+        cache_dir,
+        prefix=".download-",
+        suffix=".part",
+    )
+    decoded_path: Path | None = None
     try:
         with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_S) as response:
-            with open(part_path, "wb") as fh:
+            with download_path.open("wb") as fh:
                 shutil.copyfileobj(response, fh)
         if gunzip:
-            with gzip.open(part_path, "rb") as gz_fh, open(dest, "wb") as out_fh:
+            decoded_path = _temporary_path(cache_dir, prefix=".decoded-", suffix=".part")
+            with gzip.open(download_path, "rb") as gz_fh, decoded_path.open("wb") as out_fh:
                 shutil.copyfileobj(gz_fh, out_fh)
-            part_path.unlink(missing_ok=True)
+            os.replace(decoded_path, dest)
+            decoded_path = None
         else:
-            part_path.replace(dest)
-    except Exception:
-        part_path.unlink(missing_ok=True)
-        raise
+            os.replace(download_path, dest)
+            download_path = None
+    finally:
+        if download_path is not None:
+            download_path.unlink(missing_ok=True)
+        if decoded_path is not None:
+            decoded_path.unlink(missing_ok=True)
     return dest
 
 
@@ -250,17 +302,44 @@ class CopyInputNode(CommandNode):
     ALLOW_EMPTY: ClassVar[bool] = False
     MISSING_INPUT_MESSAGE: ClassVar[str] = "No input provided"
     EXPECTED_KIND: ClassVar[str] = "any"
-    VERSION = "2.0.0"
+    DECOMPRESS_GZIP: ClassVar[bool] = False
+    VERSION = "2.1.0"
     GIT_URL = "https://github.com/Classacre/BioNodulo.git"
-    GIT_COMMIT = "a32a426c03ce4c925bf7dcdbd2cf08fbdedd55e9"
+    PRODUCT_SOURCE_COMMIT = "a32a426c03ce4c925bf7dcdbd2cf08fbdedd55e9"
+    FOCUSED_OWNERSHIP_COMMIT = "827ffffc57530d60becfc66f190c35e79d2df7fc"
+    PYTHON_VERSION = "3.12.13"
+    PYTHON_SOURCE_COMMIT = "3bb231a6a5dc02b95658877318bf61501a7209e9"
+    GIT_COMMIT = PRODUCT_SOURCE_COMMIT
     SOURCE_URL = (
         "https://github.com/Classacre/BioNodulo/blob/"
-        "a32a426c03ce4c925bf7dcdbd2cf08fbdedd55e9/bionodulo/nodes/builtin/inputs.py"
+        f"{PRODUCT_SOURCE_COMMIT}/bionodulo/nodes/builtin/inputs.py"
     )
     UPSTREAM_SOURCE = "bionodulo/nodes/builtin/inputs.py"
+    SOURCE_AUTHORITIES = {
+        "product_contract": SOURCE_URL,
+        "focused_ownership": (
+            "https://github.com/Classacre/BioNodulo/blob/"
+            f"{FOCUSED_OWNERSHIP_COMMIT}/bionodulo/nodes/builtin/input_family/adapter.py"
+        ),
+        "python_copy_runtime": (
+            "https://github.com/python/cpython/blob/"
+            f"{PYTHON_SOURCE_COMMIT}/Lib/shutil.py"
+        ),
+        "python_url_runtime": (
+            "https://github.com/python/cpython/blob/"
+            f"{PYTHON_SOURCE_COMMIT}/Lib/urllib/request.py"
+        ),
+        "python_gzip_runtime": (
+            "https://github.com/python/cpython/blob/"
+            f"{PYTHON_SOURCE_COMMIT}/Lib/gzip.py"
+        ),
+        "ncbi_efetch_contract": "https://www.ncbi.nlm.nih.gov/books/NBK25499/",
+    }
+    AUDIT_STATUS = "contract-checked-no-external-network-execution"
     EXIT_SEMANTICS = (
-        "Missing inputs, failed downloads, invalid source modes, and copy failures are fatal; "
-        "downloads are atomically promoted from .part files."
+        "This in-process node has no subprocess exit code. Missing inputs, failed downloads, "
+        "invalid source modes, duplicate destination names, and staging failures raise before "
+        "an output is returned; downloads and staged artifacts are promoted atomically."
     )
 
     @classmethod
@@ -281,8 +360,15 @@ class CopyInputNode(CommandNode):
         out_dir.mkdir(parents=True, exist_ok=True)
         return out_dir
 
-    @staticmethod
-    def _resolve_source(source: Any, context: Any, mode: str = "auto") -> Path:
+    @classmethod
+    def _resolve_source(
+        cls,
+        source: Any,
+        context: Any,
+        mode: str = "auto",
+        *,
+        ncbi_email: Any = "",
+    ) -> Path:
         """Resolve a source path, URL, or NCBI accession to a concrete file.
 
         ``mode`` selects how *source* is interpreted:
@@ -300,12 +386,44 @@ class CopyInputNode(CommandNode):
         to the ``EXAMPLE_DATA_MANIFEST`` so templates that ship synthetic
         example data keep working without an up-front bulk download.
         """
+        if mode != "local" and isinstance(source, str) and "://" in source:
+            parsed = urllib.parse.urlparse(source)
+            if parsed.scheme.lower() not in URL_SCHEMES:
+                supported = ", ".join(sorted(URL_SCHEMES))
+                raise ValueError(
+                    f"Unsupported URL scheme '{parsed.scheme}'; supported schemes: {supported}"
+                )
         if mode == "ncbi" and isinstance(source, str) and source.strip():
-            return _download_to_cache(_ncbi_efetch_url(source), context)
+            from bionodulo.nodes.builtin.ncbi_family.adapter import (
+                resolve_email,
+                validate_email,
+            )
+
+            email = resolve_email(ncbi_email)
+            if not email:
+                raise ValueError(
+                    "Input 'email' is required for source=ncbi; alternatively use ncbi_efetch"
+                )
+            validation = validate_email(email)
+            if validation is not True:
+                raise ValueError(str(validation))
+            return _download_to_cache(
+                _ncbi_efetch_url(source, email=email),
+                context,
+                decompress_gzip=cls.DECOMPRESS_GZIP,
+            )
         if mode == "url" and isinstance(source, str) and source.strip():
-            return _download_to_cache(source, context)
+            return _download_to_cache(
+                source,
+                context,
+                decompress_gzip=cls.DECOMPRESS_GZIP,
+            )
         if mode in ("auto", "") and isinstance(source, str) and _looks_like_url(source):
-            return _download_to_cache(source, context)
+            return _download_to_cache(
+                source,
+                context,
+                decompress_gzip=cls.DECOMPRESS_GZIP,
+            )
         src = Path(source)
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))
@@ -317,22 +435,122 @@ class CopyInputNode(CommandNode):
         return src
 
     @classmethod
-    def _copy_one(cls, source: Any, out_dir: Path, context: Any, mode: str = "auto") -> Path:
-        src = cls._resolve_source(source, context, mode)
+    def _validate_resolved_source(cls, src: Path) -> None:
         if not src.exists():
             raise FileNotFoundError(f"Source not found: {src}")
         if cls.EXPECTED_KIND == "file" and not src.is_file():
             raise ValueError(f"Expected a file input, got directory: {src}")
         if cls.EXPECTED_KIND == "directory" and not src.is_dir():
             raise ValueError(f"Expected a directory input, got file: {src}")
-        dst = out_dir / src.name
+
+    @staticmethod
+    def _remove_path(path: Path) -> None:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
+
+    @classmethod
+    def _promote_staged_path(cls, staged: Path, destination: Path) -> None:
+        destination_exists = destination.exists() or destination.is_symlink()
+        if not destination_exists or (staged.is_file() and destination.is_file()):
+            os.replace(staged, destination)
+            return
+
+        backup = Path(
+            tempfile.mkdtemp(
+                prefix=f".{destination.name}.backup-",
+                dir=destination.parent,
+            )
+        )
+        backup.rmdir()
+        os.replace(destination, backup)
+        try:
+            os.replace(staged, destination)
+        except Exception:
+            os.replace(backup, destination)
+            raise
+        else:
+            cls._remove_path(backup)
+
+    @classmethod
+    def _promote_staged_bundle(
+        cls,
+        staged_destinations: list[tuple[Path, Path]],
+    ) -> list[Path]:
+        """Promote a related artifact bundle with rollback on any failure."""
+
+        backups: list[tuple[Path, Path]] = []
+        promoted: list[Path] = []
+        try:
+            for _staged, destination in staged_destinations:
+                if not (destination.exists() or destination.is_symlink()):
+                    continue
+                backup = Path(
+                    tempfile.mkdtemp(
+                        prefix=f".{destination.name}.backup-",
+                        dir=destination.parent,
+                    )
+                )
+                backup.rmdir()
+                os.replace(destination, backup)
+                backups.append((backup, destination))
+
+            for staged, destination in staged_destinations:
+                os.replace(staged, destination)
+                promoted.append(destination)
+        except Exception:
+            for destination in reversed(promoted):
+                cls._remove_path(destination)
+            for backup, destination in reversed(backups):
+                if backup.exists() or backup.is_symlink():
+                    os.replace(backup, destination)
+            raise
+        else:
+            for backup, _destination in backups:
+                cls._remove_path(backup)
+        return [destination.resolve() for _staged, destination in staged_destinations]
+
+    @classmethod
+    def _stage_resolved_source(
+        cls,
+        src: Path,
+        out_dir: Path,
+        *,
+        destination_name: str | None = None,
+    ) -> Path:
+        cls._validate_resolved_source(src)
+        dst = out_dir / (destination_name or src.name)
         if src.resolve() == dst.resolve():
             return src.resolve()
+
         if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
+            staged = Path(
+                tempfile.mkdtemp(prefix=f".{dst.name}.staging-", dir=out_dir)
+            )
+            try:
+                shutil.copytree(src, staged, dirs_exist_ok=True)
+                cls._promote_staged_path(staged, dst)
+            finally:
+                if staged.exists():
+                    cls._remove_path(staged)
         else:
-            shutil.copy2(src, dst)
+            staged = _temporary_path(
+                out_dir,
+                prefix=f".{dst.name}.staging-",
+                suffix=".part",
+            )
+            try:
+                shutil.copy2(src, staged)
+                cls._promote_staged_path(staged, dst)
+            finally:
+                staged.unlink(missing_ok=True)
         return dst.resolve()
+
+    @classmethod
+    def _copy_one(cls, source: Any, out_dir: Path, context: Any, mode: str = "auto") -> Path:
+        src = cls._resolve_source(source, context, mode)
+        return cls._stage_resolved_source(src, out_dir)
 
     @classmethod
     def _format_outputs(cls, copied: list[Path]) -> dict[str, Any]:
@@ -360,7 +578,33 @@ class CopyInputNode(CommandNode):
         mode = str(kwargs.get("source") or "auto").strip().lower()
         context = kwargs.get("context")
         out_dir = self.__class__._output_dir(context, kwargs.get("output_dir"))
-        copied = [self.__class__._copy_one(src, out_dir, context, mode) for src in values]
+        resolved = [
+            self.__class__._resolve_source(
+                src,
+                context,
+                mode,
+                ncbi_email=kwargs.get("email", ""),
+            )
+            for src in values
+        ]
+        for source in resolved:
+            self.__class__._validate_resolved_source(source)
+
+        normalized_names = [source.name.casefold() for source in resolved]
+        duplicates = sorted(
+            name for name in set(normalized_names) if normalized_names.count(name) > 1
+        )
+        if duplicates:
+            rendered = ", ".join(duplicates)
+            raise ValueError(
+                "Input sources resolve to duplicate destination basenames; "
+                f"rename them before staging: {rendered}"
+            )
+
+        copied = [
+            self.__class__._stage_resolved_source(source, out_dir)
+            for source in resolved
+        ]
         return {"outputs": self.__class__._format_outputs(copied)}
 
     @classmethod
@@ -371,6 +615,16 @@ class CopyInputNode(CommandNode):
         mode = str(inputs.get("source") or "auto").strip().lower()
         if mode not in {"auto", "local", "url", "ncbi"}:
             return "Input 'source' must be one of: auto, local, url, ncbi"
+        if mode == "ncbi":
+            from bionodulo.nodes.builtin.ncbi_family.adapter import (
+                resolve_email,
+                validate_email,
+            )
+
+            email = resolve_email(inputs.get("email", ""))
+            if not email:
+                return "Input 'email' is required for source=ncbi; alternatively use ncbi_efetch"
+            return validate_email(email)
         return True
 
 
@@ -463,6 +717,7 @@ class _InputFASTAContract(CopyInputNode):
     OUTPUT_KEYS = ("reference",)
     MISSING_INPUT_MESSAGE = "No reference or file_path provided"
     EXPECTED_KIND = "file"
+    DECOMPRESS_GZIP = True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -476,6 +731,14 @@ class _InputFASTAContract(CopyInputNode):
                     "options": ["auto", "local", "url", "ncbi"],
                     "description": "How to interpret the value: auto (URL or local), local file, URL download, or NCBI accession (efetch).",
                 }),
+                "email": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "NCBI contact email required when source=ncbi",
+                    },
+                ),
             },
             "hidden": {
                 "file_path": ("STRING", {"description": "Alias for reference (backward compatibility)"}),
@@ -504,7 +767,7 @@ class _InputFileContract(CopyInputNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "file": ("FILE", {"description": "Local path, URL, or NCBI accession for the file. With source=auto, http(s)/ftp URLs are downloaded (gzip auto-decompressed) and everything else is a local path."}),
+                "file": ("FILE", {"description": "Local path, URL, or NCBI accession for the file. With source=auto, http(s)/ftp URLs are downloaded byte-for-byte and everything else is a local path."}),
             },
             "optional": {
                 "source": ("STRING", {
@@ -512,6 +775,14 @@ class _InputFileContract(CopyInputNode):
                     "options": ["auto", "local", "url", "ncbi"],
                     "description": "How to interpret the value: auto (URL or local), local file, URL download, or NCBI accession (efetch).",
                 }),
+                "email": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "advanced": True,
+                        "description": "NCBI contact email required when source=ncbi",
+                    },
+                ),
             },
             "hidden": {
                 "file_path": ("STRING", {"description": "Alias for file (backward compatibility)"}),
@@ -554,32 +825,135 @@ class _InputVCFContract(CopyInputNode):
     CATEGORY = "input"
     DESCRIPTION = "Import a VCF variant call file"
     SEARCH_ALIASES = ["vcf", "variants", "input variants"]
-    RETURN_TYPES = ("VCF", "VCF_GZ")
-    RETURN_NAMES = ("vcf", "vcf_gz")
+    RETURN_TYPES = ("VCF", "VCF_GZ", "VCF_INDEX")
+    RETURN_NAMES = ("vcf", "vcf_gz", "vcf_index")
     REQUIRES_EXTERNAL_TOOLS = False
-    DOCUMENTATION_URL = "https://samtools.github.io/hts-specs/VCFv4.2.pdf"
+    FORMAT_SPEC_GIT_COMMIT = "da617203a9527537746e200abda2885bec3a822c"
+    DOCUMENTATION_URL = (
+        "https://github.com/samtools/hts-specs/blob/"
+        f"{FORMAT_SPEC_GIT_COMMIT}/VCFv4.5.tex"
+    )
+    SOURCE_AUTHORITIES = {
+        **CopyInputNode.SOURCE_AUTHORITIES,
+        "vcf_format_and_indexing": DOCUMENTATION_URL,
+    }
     COMMAND = ["cp", "-r", "{inputs.vcf}", "{output}"]
     SOURCE_KEYS = ("vcf", "file_path")
-    OUTPUT_KEYS = ("vcf", "vcf_gz")
+    OUTPUT_KEYS = ("vcf", "vcf_gz", "vcf_index")
     MISSING_INPUT_MESSAGE = "No vcf or file_path provided"
     EXPECTED_KIND = "file"
+    DECOMPRESS_GZIP = False
+    SIDECAR_SEMANTICS = (
+        "A supplied TBI or CSI is staged as the exact <vcf>.tbi or <vcf>.csi sibling. "
+        "The index is optional because sequential consumers do not require random access."
+    )
 
     @classmethod
     def _format_outputs(cls, copied: list[Path]) -> dict[str, Any]:
         copied_path = str(copied[0])
-        if copied[0].suffix.lower() == ".gz":
-            return {"vcf": "", "vcf_gz": copied_path}
-        return {"vcf": copied_path, "vcf_gz": ""}
+        index_path = str(copied[1]) if len(copied) == 2 else ""
+        if _is_compressed_vcf(copied[0]):
+            return {"vcf": "", "vcf_gz": copied_path, "vcf_index": index_path}
+        return {"vcf": copied_path, "vcf_gz": "", "vcf_index": ""}
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "vcf": (("VCF", "VCF_GZ"), {"description": "Path or URL to a VCF file. http(s)/ftp URLs are downloaded on first use."}),
+                "vcf": (
+                    ("VCF", "VCF_GZ"),
+                    {
+                        "description": (
+                            "Path or URL to a VCF file; remote bgzip bytes are preserved"
+                        )
+                    },
+                ),
             },
-            "optional": {},
+            "optional": {
+                "vcf_index": (
+                    "VCF_INDEX",
+                    {
+                        "default": "",
+                        "description": (
+                            "Optional TBI or CSI staged as an exact compressed-VCF sibling"
+                        ),
+                    },
+                ),
+            },
             "hidden": {},
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+
+        vcf = cls._source_value(inputs)
+        index = inputs.get("vcf_index")
+        if index in (None, ""):
+            return True
+        if not _is_compressed_vcf(vcf):
+            return "Input 'vcf_index' is only valid with a bgzip-compressed VCF"
+        if not _vcf_index_suffix(index):
+            return "Input 'vcf_index' must end in .tbi or .csi"
+        return True
+
+    async def run(self, **kwargs: Any) -> dict[str, Any]:
+        validation = self.__class__.VALIDATE_INPUTS(kwargs)
+        if validation is not True:
+            raise ValueError(str(validation))
+
+        cls = self.__class__
+        context = kwargs.get("context")
+        out_dir = cls._output_dir(context, kwargs.get("output_dir"))
+        mode = str(kwargs.get("source") or "auto").strip().lower()
+
+        vcf_source = cls._resolve_source(
+            cls._source_value(kwargs),
+            context,
+            mode,
+            ncbi_email=kwargs.get("email", ""),
+        )
+        cls._validate_resolved_source(vcf_source)
+        index_value = kwargs.get("vcf_index")
+        index_source: Path | None = None
+        index_suffix = ""
+        if index_value not in (None, ""):
+            index_source = cls._resolve_source(
+                index_value,
+                context,
+                mode,
+                ncbi_email=kwargs.get("email", ""),
+            )
+            cls._validate_resolved_source(index_source)
+            index_suffix = _vcf_index_suffix(index_value)
+
+        if index_source is None:
+            staged_vcf = cls._stage_resolved_source(vcf_source, out_dir)
+            return {"outputs": cls._format_outputs([staged_vcf])}
+
+        bundle_dir = Path(tempfile.mkdtemp(prefix=".vcf-bundle-", dir=out_dir))
+        try:
+            bundled_vcf = cls._stage_resolved_source(vcf_source, bundle_dir)
+            bundled_index = cls._stage_resolved_source(
+                index_source,
+                bundle_dir,
+                destination_name=f"{vcf_source.name}{index_suffix}",
+            )
+            copied = cls._promote_staged_bundle(
+                [
+                    (bundled_vcf, out_dir / vcf_source.name),
+                    (
+                        bundled_index,
+                        out_dir / f"{vcf_source.name}{index_suffix}",
+                    ),
+                ]
+            )
+        finally:
+            if bundle_dir.exists():
+                cls._remove_path(bundle_dir)
+        return {"outputs": cls._format_outputs(copied)}
 
 
 class _InputGFFContract(CopyInputNode):
@@ -598,6 +972,7 @@ class _InputGFFContract(CopyInputNode):
     OUTPUT_KEYS = ("annotation",)
     MISSING_INPUT_MESSAGE = "No annotation or file_path provided"
     EXPECTED_KIND = "file"
+    DECOMPRESS_GZIP = True
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

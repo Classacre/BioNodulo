@@ -36,7 +36,7 @@ SOURCE_COMMITS = {
     "r_dataframe_builder": "827ffffc57530d60becfc66f190c35e79d2df7fc",
 }
 VERSIONS = {node_id: "1.0.0" for node_id in SOURCE_COMMITS}
-VERSIONS["input_sample_sheet"] = "2.0.0"
+VERSIONS["input_sample_sheet"] = "2.1.0"
 
 NODE_CLASSES = {
     node.NODE_ID: node
