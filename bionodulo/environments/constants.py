@@ -181,6 +181,11 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "bwrap": "bubblewrap",
     "CRISPResso": "crispresso2",
     "mageck": "mageck",
+    # MAGeCK ships these helper executables in the same ``mageck`` package.
+    # Treating their binary names as Conda package names makes Pixi solve for
+    # nonexistent ``RRA`` and ``mageckGSEA`` packages.
+    "RRA": "mageck",
+    "mageckGSEA": "mageck",
     "cas-offinder": "cas-offinder",
     "odgi": "odgi",
     "pggb": "pggb",

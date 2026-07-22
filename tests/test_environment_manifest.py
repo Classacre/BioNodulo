@@ -120,6 +120,17 @@ def test_current_family_environment_contracts_are_exact() -> None:
     assert "diann" not in PACKAGE_MIN_VERSIONS
 
 
+def test_mageck_helper_executables_resolve_to_the_mageck_package() -> None:
+    assert {
+        executable: EXECUTABLE_TO_CONDA_PACKAGE[executable]
+        for executable in ("mageck", "RRA", "mageckGSEA")
+    } == {
+        "mageck": "mageck",
+        "RRA": "mageck",
+        "mageckGSEA": "mageck",
+    }
+
+
 def test_environment_id_changes_with_effective_package_constraint(monkeypatch) -> None:
     monkeypatch.setitem(PACKAGE_MIN_VERSIONS, "samtools", ">=1.15")
     old_id = get_env_id(["samtools"])
@@ -135,11 +146,23 @@ def test_environment_id_still_normalizes_order_case_and_duplicates() -> None:
     )
 
 
-def test_committed_samtools_lock_materializes_exact_repository_bytes(tmp_path: Path) -> None:
-    digest = materialize_committed_lock(tmp_path, ["samtools"])
+@pytest.mark.parametrize(
+    ("packages", "environment_id"),
+    [
+        (["samtools"], "40db091121c94941"),
+        (["fastp", "fastqc", "multiqc"], "fba79120211a36f0"),
+    ],
+)
+def test_committed_locks_materialize_exact_repository_bytes(
+    tmp_path: Path,
+    packages: list[str],
+    environment_id: str,
+) -> None:
+    digest = materialize_committed_lock(tmp_path, packages)
     source = (
         Path(__file__).resolve().parents[1]
-        / "bionodulo/environments/locks/40db091121c94941"
+        / "bionodulo/environments/locks"
+        / environment_id
     )
 
     assert digest is not None
