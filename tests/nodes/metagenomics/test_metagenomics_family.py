@@ -501,6 +501,23 @@ def test_krona_argv_supplies_the_required_taxonomy_database() -> None:
     ]
 
 
+def test_krona_checks_the_materialized_taxonomy_sidecar(tmp_path: Path) -> None:
+    taxonomy = tmp_path / "krona-taxonomy"
+    taxonomy.mkdir()
+    inputs = {"classification": "classification.kraken", "taxonomy": str(taxonomy)}
+
+    with pytest.raises(ValueError, match="taxonomy.tab"):
+        KronaTaxonomyNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    taxonomy_tab = taxonomy / "taxonomy.tab"
+    taxonomy_tab.touch()
+    with pytest.raises(ValueError, match="non-empty"):
+        KronaTaxonomyNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+    taxonomy_tab.write_text("1\t0\t1\tno rank\troot\n", encoding="ascii")
+    KronaTaxonomyNode.PREPARE_EXECUTION(inputs, [tmp_path / "out"])
+
+
 def test_database_and_binning_nodes_have_exact_source_pins() -> None:
     assert Kraken2BuildNode.VERSION == "2.17.1"
     assert Kraken2BuildNode.GIT_COMMIT == "5e2aa928d00b96d61f204d517437637863da1d8c"

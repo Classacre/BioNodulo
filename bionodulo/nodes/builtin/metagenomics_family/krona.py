@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from .adapter import MetagenomicsCommandNode, path_value, validate_int
@@ -27,6 +28,15 @@ class KronaTaxonomyNode(MetagenomicsCommandNode):
     GIT_COMMIT = "106dedb36b6c80445c6bacbd53d745a2388de273"
     UPSTREAM_TAG = "v2.8.1"
     UPSTREAM_SOURCE = "KronaTools/scripts/ImportTaxonomy.pl; KronaTools/lib/KronaTools.pm"
+    SOURCE_PATHS = ("KronaTools/scripts/ImportTaxonomy.pl", "KronaTools/lib/KronaTools.pm")
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"{GIT_URL}/blob/{GIT_COMMIT}"
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
+    TAXONOMY_FILES = ("taxonomy.tab",)
+    SIDECAR_POLICY = (
+        "The materialized taxonomy directory must contain KronaTools' exact taxonomy.tab sibling; "
+        "ktImportTaxonomy discovers this file beneath the directory passed with -tax."
+    )
     DOCUMENTATION_URL = (
         "https://github.com/marbl/Krona/blob/"
         "106dedb36b6c80445c6bacbd53d745a2388de273/KronaTools/scripts/ImportTaxonomy.pl"
@@ -73,6 +83,26 @@ class KronaTaxonomyNode(MetagenomicsCommandNode):
         if inputs.get("query_column", 2) == inputs.get("taxid_column", 3):
             return "query_column and taxid_column must identify different columns"
         return True
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Validate Krona's sibling-discovered taxonomy database after staging."""
+
+        taxonomy = Path(path_value(inputs.get("taxonomy")))
+        if not taxonomy.exists():
+            return
+        if not taxonomy.is_dir():
+            raise ValueError(f"Krona taxonomy database must be a directory: {taxonomy}")
+        missing = [
+            name
+            for name in cls.TAXONOMY_FILES
+            if not (taxonomy / name).is_file() or (taxonomy / name).stat().st_size == 0
+        ]
+        if missing:
+            raise ValueError(
+                "Krona taxonomy database is missing required non-empty sidecar(s): "
+                + ", ".join(missing)
+            )
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
