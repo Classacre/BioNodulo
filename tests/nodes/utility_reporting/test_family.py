@@ -236,6 +236,91 @@ async def test_table_preview_accepts_headered_bed_as_tabular_text(tmp_path: Path
     assert "<td>chr1</td><td>0</td><td>10</td>" in rendered
 
 
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "genome.gff",
+        "sample_peaks.narrowPeak",
+        "quant.sf",
+        "bracken.kreport",
+        "sample_CpG.bedGraph",
+    ],
+)
+def test_table_preview_accepts_documented_official_template_outputs(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    source = tmp_path / filename
+    source.write_text("placeholder\n", encoding="utf-8")
+
+    assert TablePreviewNode.VALIDATE_INPUTS({"file": str(source)}) is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("filename", "payload", "expected_header", "expected_row", "excluded"),
+    [
+        (
+            "genome.gff",
+            "##gff-version 3\n"
+            "##sequence-region contig1 1 100\n"
+            "contig1\tProkka\tCDS\t1\t10\t.\t+\t0\tID=cds1\n"
+            "##FASTA\n>contig1\nACGT\n",
+            "<th>seqid</th><th>source</th><th>type</th>",
+            "<td>contig1</td><td>Prokka</td><td>CDS</td>",
+            "gff-version",
+        ),
+        (
+            "sample_peaks.narrowPeak",
+            "chr1\t10\t30\tpeak_1\t1000\t.\t42.5\t12\t8\t7\n",
+            "<th>chrom</th><th>start</th><th>end</th><th>name</th>",
+            "<td>chr1</td><td>10</td><td>30</td><td>peak_1</td>",
+            "<th>chr1</th>",
+        ),
+        (
+            "quant.sf",
+            "Name\tLength\tEffectiveLength\tTPM\tNumReads\n"
+            "tx1\t1000\t800.5\t12.5\t42\n",
+            "<th>Name</th><th>Length</th><th>EffectiveLength</th>",
+            "<td>tx1</td><td>1000</td><td>800.5</td>",
+            "<td>Name</td>",
+        ),
+        (
+            "bracken.kreport",
+            "75.00\t150\t120\tS\t562\t  Escherichia coli\n",
+            "<th>percentage</th><th>clade_reads</th><th>taxon_reads</th>",
+            "<td>75.00</td><td>150</td><td>120</td>",
+            "<th>75.00</th>",
+        ),
+        (
+            "sample_CpG.bedGraph",
+            'track type=bedGraph name="CpG"\nchr1\t20\t21\t87.5\n',
+            "<th>chrom</th><th>start</th><th>end</th><th>value</th>",
+            "<td>chr1</td><td>20</td><td>21</td><td>87.5</td>",
+            "track type",
+        ),
+    ],
+)
+async def test_table_preview_uses_format_aware_headers_and_comments(
+    tmp_path: Path,
+    filename: str,
+    payload: str,
+    expected_header: str,
+    expected_row: str,
+    excluded: str,
+) -> None:
+    source = tmp_path / filename
+    source.write_text(payload, encoding="utf-8")
+    context = _context(tmp_path)
+
+    await TablePreviewNode().run(file=str(source), rows=5, context=context)
+    rendered = Path(context.previews[0][0]).read_text(encoding="utf-8")
+
+    assert expected_header in rendered
+    assert expected_row in rendered
+    assert excluded not in rendered
+
+
 @pytest.mark.asyncio
 async def test_text_preview_caps_bytes_escapes_content_and_rejects_nul(tmp_path: Path) -> None:
     source = tmp_path / "sequence.fa"
