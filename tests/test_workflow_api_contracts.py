@@ -32,7 +32,13 @@ def test_object_info_api_exposes_advanced_gap_analysis_node_families() -> None:
         "alphafold_db": {
             "display_name": "AlphaFold DB",
             "category": "databases",
-            "output_name": ["structure_mmcif", "structure_metadata"],
+            "output_name": [
+                "structure_mmcif",
+                "structure_metadata",
+                "structure_file",
+                "pae_json",
+                "artifacts_directory",
+            ],
             "alias": "protein folding",
         },
         "llm_prompt": {

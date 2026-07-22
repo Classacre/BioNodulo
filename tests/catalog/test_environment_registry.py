@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from bionodulo.nodes.catalog import environment_registry as registry
 from bionodulo.nodes.contract.environments import ExecutionPlatform, PixiEnvironment
 from bionodulo.nodes.contract.model import NodeSpec
-from test_node_spec import evidence_record, external_identity, external_spec, pixi_environment
+from .test_node_spec import evidence_record, external_identity, external_spec, pixi_environment
 
 
 SHA_A = "sha256:" + "a" * 64

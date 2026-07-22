@@ -23,6 +23,12 @@ class PGGBBuildNode(PGGBNode):
     LEGACY_MULTI_FASTA_CONTRACT = True
 
     @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        """Expose the normalized PGGB artifacts as this operation's contract."""
+
+        return super().PLAN_OUTPUTS(inputs, output_dir)
+
+    @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         parent = PGGBNode.INPUT_TYPES()
         optional = dict(parent["optional"])

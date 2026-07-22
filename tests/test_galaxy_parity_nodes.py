@@ -3886,7 +3886,9 @@ def test_bionodulo_builtin_batch_nodes_expose_citation_and_dependency_metadata()
         "hmmer_nhmmscan": {
             "display_name": "HMMER nhmmscan",
             "category": "annotation",
-            "required_executables": ["nhmmscan", "hmmpress"],
+            # hmmpress prepares the explicitly staged .h3{f,i,m,p} siblings;
+            # nhmmscan itself does not invoke that preparation executable.
+            "required_executables": ["nhmmscan"],
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/bioinformatics/btt403",
         },
@@ -4489,11 +4491,11 @@ def test_featurecounts_renders_history_annotation_medium_command_and_outputs(tmp
 
     assert cmd == (
         "export FC_PATH=$(command -v featureCounts | sed 's@/bin/featureCounts$@@') && "
-        "featureCounts -a genes.gtf -F GTF -o output -T 2 -s 1 -Q 10 "
+        "featureCounts -a genes.gtf -F GTF -o output -T 1 -s 1 -Q 10 "
         "-t exon -g gene_id -f --minOverlap 1 --fracOverlap 0 --fracOverlapFeature 0 "
         "featureCounts_input1.bam && "
         "grep -v '^#' output | sed -e 's|featureCounts_input1.bam|featureCounts_input1.bam|g' > body.txt && "
-        "cut -f 1,7 body.txt > expression_matrix.txt && "
+        "cut -f 1,7- body.txt > expression_matrix.txt && "
         "cut -f 6 body.txt > gene_lengths.txt && "
         "paste expression_matrix.txt gene_lengths.txt > expression_matrix.txt.bak && "
         "mv -f expression_matrix.txt.bak /work/featurecounts/counts.tsv && "
@@ -4533,15 +4535,15 @@ def test_featurecounts_renders_builtin_fragment_bam_and_junction_command(tmp_pat
     assert cmd == (
         "export FC_PATH=$(command -v featureCounts | sed 's@/bin/featureCounts$@@') && "
         "featureCounts -a ${FC_PATH}/annotation/hg19_RefSeq_exon.txt -F SAF -o output "
-        "-T 2 -s 0 -Q 0 -O -M --fraction -J -G 'ref genome.fa' "
-        "--minOverlap 1 --fracOverlap 0 --fracOverlapFeature 0 -R BAM -p --countReadPairs "
+        "-T 1 -s 0 -Q 0 -O -M --fraction -J -G 'ref genome.fa' "
+        "--minOverlap 1 --fracOverlap 0 --fracOverlapFeature 0 -R BAM --Rpath /work/featurecounts -p --countReadPairs "
         "-P -d 50 -D 600 -B -C 'paired reads.bam' && "
         "grep -v '^#' output | sed -e 's|paired reads.bam|paired reads.bam|g' > body.txt && "
-        "cut -f 1,7 body.txt > /work/featurecounts/counts.tsv && "
+        "cut -f 1,7- body.txt > /work/featurecounts/counts.tsv && "
         "sed -e 's|paired reads.bam|paired reads.bam|g' output.jcounts > "
         "/work/featurecounts/junction_counts.tsv && "
-        "samtools sort --no-PG -o /work/featurecounts/annotated.bam -@ 2 "
-        "-T \"${TMPDIR:-.}\" *.featureCounts.bam && "
+        "samtools sort --no-PG -o /work/featurecounts/annotated.bam -@ 1 "
+        "-T \"${TMPDIR:-.}\" '/work/featurecounts/paired reads.bam.featureCounts.bam' && "
         "sed -e 's|paired reads.bam|paired reads.bam|g' output.summary > /work/featurecounts/summary.tsv"
     )
     assert node_class.PLAN_OUTPUTS(
