@@ -12,14 +12,19 @@ from bionodulo.environments.constants import (
 )
 from bionodulo.environments import manifest as environment_manifest
 from bionodulo.environments.manifest import (
+    WorkflowEnvironmentPlan,
+    _manifest_text_for_plan,
     ensure_workflow_env,
     generate_manifest,
     get_env_dir,
     get_env_id,
+    get_environment_plan_id,
     is_env_ready,
     is_env_ready_for_lock,
     mark_env_lock_installed,
     materialize_committed_lock,
+    workflow_to_environment_plan,
+    workflow_to_packages,
 )
 from bionodulo.manager.resolver import resolve_workflow
 from bionodulo.manager.installer import DependencyInstaller
@@ -146,6 +151,72 @@ def test_environment_id_still_normalizes_order_case_and_duplicates() -> None:
     )
 
 
+def test_named_environment_plan_partitions_manta_without_changing_flat_requirements() -> None:
+    class SamtoolsNode:
+        REQUIRED_CONDA_PACKAGES = ["samtools"]
+        REQUIRED_EXECUTABLES: list[str] = []
+        REQUIRED_R_PACKAGES: list[str] = []
+        ENVIRONMENT: dict[str, str] = {}
+
+    class MantaNode:
+        REQUIRED_CONDA_PACKAGES = ["manta"]
+        REQUIRED_EXECUTABLES: list[str] = []
+        REQUIRED_R_PACKAGES: list[str] = []
+        ENVIRONMENT = {"type": "pixi", "name": "manta"}
+
+    class Registry:
+        @staticmethod
+        def get(node_type: str) -> type | None:
+            return {"samtools": SamtoolsNode, "manta": MantaNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "sort", "type": "samtools"},
+            {"id": "sv", "type": "manta"},
+        ],
+        "edges": [],
+    }
+    plan = workflow_to_environment_plan(workflow, Registry())
+
+    assert plan == WorkflowEnvironmentPlan(
+        default_packages=("samtools",),
+        named_environments=(("manta", ("manta",)),),
+    )
+    assert workflow_to_packages(workflow, Registry()) == ["manta", "samtools"]
+    assert get_environment_plan_id(plan) != get_env_id(["manta", "samtools"])
+    assert _manifest_text_for_plan(plan).splitlines()[-5:] == [
+        "[feature.manta.dependencies]",
+        'manta = "1.6.0"',
+        "",
+        "[environments]",
+        'manta = { features = ["manta"], no-default-feature = true }',
+    ]
+
+
+def test_named_environment_readiness_requires_every_planned_prefix(tmp_path: Path) -> None:
+    (tmp_path / ".pixi/envs/default/bin").mkdir(parents=True)
+    assert is_env_ready(tmp_path, ("default", "manta")) is False
+    (tmp_path / ".pixi/envs/manta/bin").mkdir(parents=True)
+    assert is_env_ready(tmp_path, ("default", "manta")) is True
+
+
+def test_named_environment_manifest_drives_status_and_package_listing(tmp_path: Path) -> None:
+    plan = WorkflowEnvironmentPlan(
+        default_packages=("samtools",),
+        named_environments=(("manta", ("manta",)),),
+    )
+    environment_manifest.generate_environment_manifest(tmp_path, plan)
+    (tmp_path / ".pixi/envs/default/bin").mkdir(parents=True)
+    assert is_env_ready(tmp_path) is False
+
+    (tmp_path / ".pixi/envs/manta/bin").mkdir(parents=True)
+    assert is_env_ready(tmp_path) is True
+    assert environment_manifest.get_env_packages(tmp_path) == [
+        {"name": "manta", "version": "*"},
+        {"name": "samtools", "version": "*"},
+    ]
+
+
 @pytest.mark.parametrize(
     ("packages", "environment_id"),
     [
@@ -269,6 +340,72 @@ async def test_dependency_installer_uses_committed_lock_without_solving(
     assert (env_dir / "pixi.lock").read_bytes() == source_lock.read_bytes()
     assert (env_dir / ".bionodulo-lock-sha256").read_text(encoding="ascii").strip() == digest
     assert is_env_ready_for_lock(env_dir, digest) is True
+
+
+@pytest.mark.asyncio
+async def test_dependency_installer_installs_all_named_environments_from_one_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DefaultNode:
+        REQUIRED_CONDA_PACKAGES = ["samtools"]
+        REQUIRED_EXECUTABLES: list[str] = []
+        REQUIRED_R_PACKAGES: list[str] = []
+        ENVIRONMENT: dict[str, str] = {}
+
+    class MantaNode:
+        REQUIRED_CONDA_PACKAGES = ["manta"]
+        REQUIRED_EXECUTABLES: list[str] = []
+        REQUIRED_R_PACKAGES: list[str] = []
+        ENVIRONMENT = {"type": "pixi", "name": "manta"}
+
+    class Registry:
+        @staticmethod
+        def get(node_type: str) -> type | None:
+            return {"default": DefaultNode, "manta": MantaNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "default", "type": "default"},
+            {"id": "manta", "type": "manta"},
+        ],
+        "edges": [],
+    }
+    registry = Registry()
+    plan = workflow_to_environment_plan(workflow, registry)
+    committed_root = tmp_path / "committed"
+    bundle = committed_root / get_environment_plan_id(plan)
+    environment_manifest.generate_environment_manifest(bundle, plan)
+    (bundle / "pixi.lock").write_text("version: 7\n", encoding="utf-8")
+    monkeypatch.setattr(environment_manifest, "_COMMITTED_LOCKS_ROOT", committed_root)
+
+    install_calls: list[tuple[bool, bool]] = []
+
+    async def unexpected_lock(*_args: Any, **_kwargs: Any) -> tuple[bool, str]:
+        raise AssertionError("a committed multi-environment lock must not be solved")
+
+    async def fake_install(
+        env_dir: str | Path,
+        *_args: Any,
+        locked: bool = False,
+        all_environments: bool = False,
+        **_kwargs: Any,
+    ) -> tuple[bool, str]:
+        install_calls.append((locked, all_environments))
+        for name in plan.environment_names:
+            (Path(env_dir) / ".pixi" / "envs" / name / "bin").mkdir(parents=True)
+        return True, "installed"
+
+    monkeypatch.setattr(environment_manifest, "run_pixi_lock", unexpected_lock)
+    monkeypatch.setattr(environment_manifest, "run_pixi_install", fake_install)
+    installer = DependencyInstaller()
+    job_id = await installer.install_workflow_env(workflow, registry, tmp_path / "workspace")
+    job = installer.get_job(job_id)
+    assert job is not None and job._task is not None
+    await job._task
+
+    assert job.progress.status == "completed"
+    assert install_calls == [(True, True)]
 
 
 def test_resolver_does_not_reuse_ready_environment_from_old_constraint(

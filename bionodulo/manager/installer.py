@@ -15,8 +15,8 @@ from typing import Any, Callable
 
 from bionodulo.environments.manifest import (
     get_env_dir,
-    get_env_id,
-    workflow_to_packages,
+    get_environment_plan_id,
+    workflow_to_environment_plan,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,8 +112,9 @@ class DependencyInstaller:
 
         async def _run() -> None:
             try:
-                packages = workflow_to_packages(workflow, registry)
-                env_id = get_env_id(packages)
+                environment_plan = workflow_to_environment_plan(workflow, registry)
+                packages = list(environment_plan.all_packages)
+                env_id = get_environment_plan_id(environment_plan)
                 env_dir = get_env_dir(env_id, workspace_dir)
                 wf_name = workflow.get("name", "") if isinstance(workflow, dict) else ""
 
@@ -129,11 +130,13 @@ class DependencyInstaller:
 
                 from bionodulo.environments.manifest import (
                     generate_manifest,
+                    generate_environment_manifest,
                     is_env_ready,
-                    is_env_ready_for_lock,
+                    is_environment_manifest_current,
+                    is_environment_ready_for_lock,
                     is_manifest_current,
                     mark_env_lock_installed,
-                    materialize_committed_lock,
+                    materialize_committed_environment,
                     run_pixi_install,
                     run_pixi_lock,
                 )
@@ -141,21 +144,32 @@ class DependencyInstaller:
                 # A committed bundle is authoritative for package sets that have
                 # one.  Materialization also verifies the manifest bytes, so this
                 # path must never regenerate a lock from the network.
-                committed_lock_digest = materialize_committed_lock(env_dir, packages)
+                committed_lock_digest = materialize_committed_environment(
+                    env_dir,
+                    environment_plan,
+                )
                 if committed_lock_digest is None:
                     # Step 1: manifest
-                    if not is_manifest_current(env_dir, packages):
+                    manifest_current = (
+                        is_environment_manifest_current(env_dir, environment_plan)
+                        if environment_plan.named_environments
+                        else is_manifest_current(env_dir, packages)
+                    )
+                    if not manifest_current:
                         job.progress.message = "Generating pixi.toml manifest..."
                         if emit:
                             emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
-                        generate_manifest(env_dir, packages)
+                        if environment_plan.named_environments:
+                            generate_environment_manifest(env_dir, environment_plan)
+                        else:
+                            generate_manifest(env_dir, packages)
                         # CRITICAL FIX: Delete stale lockfile so pixi lock will regenerate it
                         lockfile = env_dir / "pixi.lock"
                         if lockfile.exists():
                             lockfile.unlink()
 
                     # Step 2: lock
-                    if not is_env_ready(env_dir):
+                    if not is_env_ready(env_dir, environment_plan.environment_names):
                         job.progress.message = "Locking dependencies with pixi (this may take a moment)..."
                         if emit:
                             emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
@@ -168,12 +182,19 @@ class DependencyInstaller:
                                 emit("install.progress", {"job_id": job_id, **job.progress.to_dict()})
                             return
 
-                    environment_ready = is_env_ready(env_dir)
+                    environment_ready = is_env_ready(
+                        env_dir,
+                        environment_plan.environment_names,
+                    )
                     locked_install = False
                 else:
                     # The committed lock already supplies the manifest and lock;
                     # only install when the environment lacks a matching digest.
-                    environment_ready = is_env_ready_for_lock(env_dir, committed_lock_digest)
+                    environment_ready = is_environment_ready_for_lock(
+                        env_dir,
+                        committed_lock_digest,
+                        environment_plan,
+                    )
                     locked_install = True
 
                 # Step 3: install
@@ -186,6 +207,7 @@ class DependencyInstaller:
                         emit=emit,
                         job_id=job_id,
                         locked=locked_install,
+                        all_environments=bool(environment_plan.named_environments),
                     )
                     if not ok:
                         job.progress.status = "failed"

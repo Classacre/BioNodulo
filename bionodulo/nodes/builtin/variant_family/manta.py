@@ -116,6 +116,11 @@ class MantaNode(IndexedBamReferenceNode):
     )
     REQUIRED_EXECUTABLES = ["configManta.py"]
     REQUIRED_CONDA_PACKAGES = ["manta"]
+    # Manta 1.6.0's pinned source rejects Python 3 and its generated workflow
+    # has a python2 shebang.  Keep that documented runtime in a named Pixi
+    # environment inside the workflow's single committed lock instead of
+    # contaminating the modern default toolchain.
+    ENVIRONMENT = {"type": "pixi", "name": "manta"}
     DOCUMENTATION_URL = "https://github.com/Illumina/manta"
     VERSION = "1.6.0"
     GIT_URL = "https://github.com/Illumina/manta.git"

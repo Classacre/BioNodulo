@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from bionodulo.environments.manifest import generate_manifest, get_env_id
+from bionodulo.environments.manifest import (
+    generate_environment_manifest,
+    generate_manifest,
+    get_env_id,
+    get_environment_plan_id,
+    workflow_to_environment_plan,
+)
 from scripts.audit_template_environment_locks import (
     audit_template_environment_locks,
     format_report,
@@ -30,26 +36,31 @@ def _write_template(path: Path, node_type: str) -> None:
     )
 
 
-def _write_minimal_lock(path: Path) -> None:
-    path.write_text(
-        "\n".join(
+def _write_minimal_lock(path: Path, environment_names: tuple[str, ...] = ("default",)) -> None:
+    lines = [
+        "version: 7",
+        "platforms:",
+        "- name: linux-64",
+        "environments:",
+    ]
+    for name in environment_names:
+        lines.extend(
             (
-                "version: 7",
-                "platforms:",
-                "- name: linux-64",
-                "environments:",
-                "  default:",
+                f"  {name}:",
                 "    packages:",
                 "      linux-64:",
-                "      - conda: https://example.invalid/linux-64/samtools-1.23.1-0.conda",
-                "packages:",
-                "- conda: https://example.invalid/linux-64/samtools-1.23.1-0.conda",
-                "  sha256: " + "a" * 64,
-                "",
+                f"      - conda: https://example.invalid/linux-64/{name}-1.0-0.conda",
             )
-        ),
-        encoding="utf-8",
+        )
+    lines.extend(
+        (
+            "packages:",
+            "- conda: https://example.invalid/linux-64/package-1.0-0.conda",
+            "  sha256: " + "a" * 64,
+            "",
+        )
     )
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def test_audit_reports_missing_bundle_with_stable_actionable_inventory(tmp_path: Path) -> None:
@@ -127,3 +138,42 @@ def test_audit_rejects_unknown_nodes_and_incomplete_or_stale_bundles(tmp_path: P
     report = audit_template_environment_locks(templates, locks, StubRegistry())
     by_template = {record.template: record for record in report.records}
     assert by_template["tool.json"].detail == "pixi.toml does not match the current package constraints"
+
+
+def test_audit_requires_every_named_environment_in_the_same_lock(tmp_path: Path) -> None:
+    class MantaNode:
+        REQUIRED_CONDA_PACKAGES = ["manta"]
+        REQUIRED_EXECUTABLES: list[str] = []
+        REQUIRED_R_PACKAGES: list[str] = []
+        ENVIRONMENT = {"type": "pixi", "name": "manta"}
+
+    class MultiRegistry:
+        @staticmethod
+        def get(node_type: str) -> type | None:
+            return {"tool": StubNode, "manta": MantaNode}.get(node_type)
+
+    templates = tmp_path / "templates"
+    locks = tmp_path / "locks"
+    templates.mkdir()
+    locks.mkdir()
+    workflow = {
+        "nodes": [
+            {"id": "tool", "type": "tool"},
+            {"id": "manta", "type": "manta"},
+        ],
+        "edges": [],
+    }
+    (templates / "variant.json").write_text(json.dumps(workflow), encoding="utf-8")
+    plan = workflow_to_environment_plan(workflow, MultiRegistry())
+    bundle = locks / get_environment_plan_id(plan)
+    generate_environment_manifest(bundle, plan)
+    _write_minimal_lock(bundle / "pixi.lock")
+
+    report = audit_template_environment_locks(templates, locks, MultiRegistry())
+    assert report.records[0].status == "invalid"
+    assert report.records[0].detail == "pixi.lock has no valid linux-64 environments: default, manta"
+
+    _write_minimal_lock(bundle / "pixi.lock", ("default", "manta"))
+    report = audit_template_environment_locks(templates, locks, MultiRegistry())
+    assert report.ok is True
+    assert report.records[0].environment_names == ("default", "manta")

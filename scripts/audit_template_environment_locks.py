@@ -26,9 +26,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from bionodulo.environments.manifest import (  # noqa: E402
-    _manifest_text,
-    get_env_id,
-    workflow_to_packages,
+    _manifest_text_for_plan,
+    get_environment_plan_id,
+    workflow_to_environment_plan,
 )
 from bionodulo.nodes.registry import NodeRegistry  # noqa: E402
 
@@ -45,6 +45,7 @@ class TemplateLockRecord:
     template: str
     environment_id: str
     packages: tuple[str, ...]
+    environment_names: tuple[str, ...]
     status: LockStatus
     detail: str = ""
 
@@ -82,7 +83,7 @@ def _workflow_node_types(workflow: dict[str, Any]) -> tuple[str, ...]:
     return tuple(sorted(node_types))
 
 
-def _lock_has_linux_64_environment(lock_path: Path) -> bool:
+def _lock_has_linux_64_environments(lock_path: Path, environment_names: tuple[str, ...]) -> bool:
     try:
         payload = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, yaml.YAMLError):
@@ -98,20 +99,23 @@ def _lock_has_linux_64_environment(lock_path: Path) -> bool:
     environments = payload.get("environments")
     if not isinstance(environments, dict):
         return False
-    default = environments.get("default")
-    if not isinstance(default, dict):
-        return False
-    packages = default.get("packages")
-    linux_packages = packages.get("linux-64") if isinstance(packages, dict) else None
-    return (
-        isinstance(linux_packages, list)
-        and bool(linux_packages)
-        and isinstance(payload.get("packages"), list)
-        and bool(payload["packages"])
-    )
+    for name in environment_names:
+        environment = environments.get(name)
+        if not isinstance(environment, dict):
+            return False
+        packages = environment.get("packages")
+        linux_packages = packages.get("linux-64") if isinstance(packages, dict) else None
+        if not isinstance(linux_packages, list) or not linux_packages:
+            return False
+    return isinstance(payload.get("packages"), list) and bool(payload["packages"])
 
 
-def _bundle_status(locks_dir: Path, environment_id: str, packages: tuple[str, ...]) -> tuple[LockStatus, str]:
+def _bundle_status(
+    locks_dir: Path,
+    environment_id: str,
+    environment_names: tuple[str, ...],
+    manifest_text: str,
+) -> tuple[LockStatus, str]:
     bundle_dir = locks_dir / environment_id
     manifest_path = bundle_dir / "pixi.toml"
     lock_path = bundle_dir / "pixi.lock"
@@ -126,10 +130,11 @@ def _bundle_status(locks_dir: Path, environment_id: str, packages: tuple[str, ..
         manifest = manifest_path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         return "invalid", f"cannot read pixi.toml: {exc}"
-    if manifest != _manifest_text(list(packages)):
+    if manifest != manifest_text:
         return "invalid", "pixi.toml does not match the current package constraints"
-    if not _lock_has_linux_64_environment(lock_path):
-        return "invalid", "pixi.lock has no valid default linux-64 environment"
+    if not _lock_has_linux_64_environments(lock_path, environment_names):
+        names = ", ".join(environment_names)
+        return "invalid", f"pixi.lock has no valid linux-64 environments: {names}"
     return "locked", ""
 
 
@@ -157,18 +162,22 @@ def audit_template_environment_locks(
                         template=template_path.name,
                         environment_id="",
                         packages=(),
+                        environment_names=(),
                         status="invalid",
                         detail=f"unknown node types: {', '.join(unknown)}",
                     )
                 )
                 continue
-            packages = tuple(workflow_to_packages(workflow, active_registry))
+            environment_plan = workflow_to_environment_plan(workflow, active_registry)
+            packages = tuple(environment_plan.all_packages)
+            environment_names = environment_plan.environment_names
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
             records.append(
                 TemplateLockRecord(
                     template=template_path.name,
                     environment_id="",
                     packages=(),
+                    environment_names=(),
                     status="invalid",
                     detail=f"invalid template: {exc}",
                 )
@@ -181,18 +190,25 @@ def audit_template_environment_locks(
                     template=template_path.name,
                     environment_id="base",
                     packages=(),
+                    environment_names=("default",),
                     status="base",
                 )
             )
             continue
 
-        environment_id = get_env_id(list(packages))
-        status, detail = _bundle_status(locks_dir, environment_id, packages)
+        environment_id = get_environment_plan_id(environment_plan)
+        status, detail = _bundle_status(
+            locks_dir,
+            environment_id,
+            environment_names,
+            _manifest_text_for_plan(environment_plan),
+        )
         records.append(
             TemplateLockRecord(
                 template=template_path.name,
                 environment_id=environment_id,
                 packages=packages,
+                environment_names=environment_names,
                 status=status,
                 detail=detail,
             )

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
-from bionodulo.environments.manifest import workflow_to_packages
+from bionodulo.environments.manifest import workflow_to_environment_plan, workflow_to_packages
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -140,6 +140,12 @@ def test_sv_workflow_alias_environment_metadata_is_available() -> None:
     registry.load_builtin_nodes()
 
     assert workflow_to_packages({"nodes": [{"id": "manta", "type": "manta_call"}]}, registry) == ["manta"]
+    manta_plan = workflow_to_environment_plan(
+        {"nodes": [{"id": "manta", "type": "manta_call"}]},
+        registry,
+    )
+    assert manta_plan.default_packages == ()
+    assert manta_plan.named_environments == (("manta", ("manta",)),)
     assert workflow_to_packages({"nodes": [{"id": "delly", "type": "delly_call"}]}, registry) == [
         "bcftools",
         "delly",

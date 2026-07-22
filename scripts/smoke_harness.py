@@ -29,12 +29,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from bionodulo.execution.executor import WorkflowExecutor  # noqa: E402
+from bionodulo.manager.installer import DependencyInstaller  # noqa: E402
 from bionodulo.nodes.registry import NodeRegistry  # noqa: E402
 from bionodulo.environments.manifest import (  # noqa: E402
-    ensure_workflow_env,
-    get_env_dir,
-    get_env_id,
-    workflow_to_packages,
+    workflow_to_environment_plan,
 )
 
 TEMPLATES = ROOT / "templates"
@@ -71,19 +69,22 @@ async def run_template(path: Path) -> dict:
             cache_dir=tmp_path / "cache",
             registry=registry,
         )
-        # Provision the workflow's pixi env the same way the cloud worker's
-        # ensure_environment() does — the executor only USES an installed env,
-        # it doesn't create one. Without this, every command node fails
-        # "<tool>: No such file or directory".
-        packages = workflow_to_packages(workflow, registry)
-        if packages:
-            env_dir = get_env_dir(get_env_id(packages), tmp_path)
-            env = await ensure_workflow_env(env_dir, packages, name=path.stem)
-            if not env.get("ready"):
+        # Provision through the production local installer, which shares the
+        # workflow environment plan and committed lock with the cloud worker.
+        # The executor only USES an installed env; it does not create one.
+        environment_plan = workflow_to_environment_plan(workflow, registry)
+        if environment_plan.all_packages:
+            installer = DependencyInstaller()
+            job_id = await installer.install_workflow_env(workflow, registry, tmp_path)
+            job = installer.get_job(job_id)
+            if job is None or job._task is None:
+                raise RuntimeError("workflow environment installer did not create a task")
+            await job._task
+            if job.progress.status != "completed":
                 return {
                     "template": path.name,
                     "status": "env_failed",
-                    "error": f"pixi env install failed: {env.get('message', '')[:300]}",
+                    "error": f"pixi env install failed: {job.progress.message[:300]}",
                     "order": [], "events": {}, "errors": {}, "node_types": {},
                 }
         try:

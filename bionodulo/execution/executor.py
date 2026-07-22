@@ -28,7 +28,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from bionodulo.core.credentials import merge_api_secrets, redact_tree
-from bionodulo.environments.manifest import get_env_dir, get_env_id, is_env_ready, workflow_to_packages
+from bionodulo.environments.manifest import (
+    get_env_dir,
+    get_environment_plan_id,
+    is_env_ready,
+    workflow_to_environment_plan,
+)
 from bionodulo.execution import head_preview as head_preview_mod
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.subprocess_runner import CommandCancelledError, run_subprocess
@@ -3604,13 +3609,14 @@ class WorkflowExecutor:
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
             node_class = self.registry.get(node_type)
 
-        # Use the node's own ENVIRONMENT if explicitly set
+        # A named Pixi environment is resolved inside the same committed
+        # workflow bundle.  Never fall back to ``pixi run -e`` from an ambient
+        # cwd: that would permit a fresh solve and could select a different
+        # lock than the one provisioned for this run.
         env_spec = getattr(node_class, "ENVIRONMENT", {}) if node_class else {}
-        if env_spec and isinstance(env_spec, dict):
-            env_type = env_spec.get("type", "pixi")
-            env_name = env_spec.get("name", "")
-            if env_name:
-                return self._command_prefix_list(env_type, env_name)
+        named_environment = None
+        if isinstance(env_spec, dict) and env_spec.get("type") == "pixi":
+            named_environment = str(env_spec.get("name", "")).strip() or None
 
         # Default: workflow-scoped manifest. Only use the pixi env when it is
         # actually installed — a failed/partial install leaves a pixi.toml behind,
@@ -3618,12 +3624,19 @@ class WorkflowExecutor:
         # node re-trigger a doomed solve (which hangs or fails the whole run).
         # Falling back to system PATH lets a missing tool fail fast instead.
         if workflow is not None:
-            packages = workflow_to_packages(workflow, self.registry)
-            env_id = get_env_id(packages)
+            environment_plan = workflow_to_environment_plan(workflow, self.registry)
+            env_id = get_environment_plan_id(environment_plan)
             env_dir = get_env_dir(env_id, self.workspace_dir)
             manifest_path = env_dir / "pixi.toml"
-            if manifest_path.exists() and is_env_ready(env_dir):
-                return self._command_prefix_list("pixi", None, manifest_path=manifest_path)
+            if manifest_path.exists() and is_env_ready(
+                env_dir,
+                environment_plan.environment_names,
+            ):
+                return self._command_prefix_list(
+                    "pixi",
+                    named_environment,
+                    manifest_path=manifest_path,
+                )
 
         # Fallback: system PATH
         return []
@@ -3646,7 +3659,11 @@ class WorkflowExecutor:
                 exe = "pixi"
 
         if env_type == "pixi" and manifest_path is not None:
-            return [exe, "run", "--manifest-path", str(manifest_path), "--"]
+            command = [exe, "run", "--locked", "--manifest-path", str(manifest_path)]
+            if env_name:
+                command.extend(["-e", env_name])
+            command.append("--")
+            return command
         if env_type == "pixi" and env_name:
-            return [exe, "run", "-e", env_name, "--"]
+            return [exe, "run", "--locked", "-e", env_name, "--"]
         return []

@@ -1,9 +1,9 @@
 """Workflow environment manifest generator for BioNodulo.
 
-Generates per-workflow pixi manifests based on the tools actually used
-in a workflow. Environments are content-addressed by the sorted list of
-required packages, so workflows with identical tool requirements share
-the same isolated environment.
+Generates per-workflow Pixi manifests based on the tools actually used in a
+workflow. Bundles are content-addressed by package constraints and, when a
+documented incompatibility requires it, the deterministic default/named
+environment partition.
 """
 from __future__ import annotations
 
@@ -15,8 +15,9 @@ import re
 import shutil
 import subprocess
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from bionodulo.environments.constants import (
     EXECUTABLE_TO_CONDA_PACKAGE,
@@ -29,6 +30,43 @@ logger = logging.getLogger(__name__)
 
 _COMMITTED_LOCKS_ROOT = Path(__file__).with_name("locks")
 _LOCK_DIGEST_MARKER = ".bionodulo-lock-sha256"
+_PIXI_ENVIRONMENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+@dataclass(frozen=True)
+class WorkflowEnvironmentPlan:
+    """Deterministic package partition for one committed Pixi bundle.
+
+    Most workflows use only ``default_packages`` and retain the historical
+    manifest bytes and environment ID.  A node may explicitly select a named
+    Pixi environment when its documented runtime is incompatible with the
+    workflow's default environment (Manta 1.6.0 is the first such case).
+    Named environments live in the same manifest and lock, so one digest still
+    attests the complete runtime closure.
+    """
+
+    default_packages: tuple[str, ...]
+    named_environments: tuple[tuple[str, tuple[str, ...]], ...] = ()
+
+    @property
+    def environment_names(self) -> tuple[str, ...]:
+        default = ("default",) if self.default_packages else ()
+        return (*default, *(name for name, _packages in self.named_environments))
+
+    @property
+    def all_packages(self) -> tuple[str, ...]:
+        packages = set(self.default_packages)
+        for _name, environment_packages in self.named_environments:
+            packages.update(environment_packages)
+        return tuple(sorted(packages))
+
+    def packages_for(self, environment_name: str) -> tuple[str, ...]:
+        if environment_name == "default":
+            return self.default_packages
+        for name, packages in self.named_environments:
+            if name == environment_name:
+                return packages
+        raise KeyError(environment_name)
 
 
 def _norm_pkg(name: str) -> str:
@@ -56,68 +94,136 @@ def get_env_id(packages: list[str]) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
+def get_environment_plan_id(plan: WorkflowEnvironmentPlan) -> str:
+    """Return the content ID for a package partition.
+
+    Default-only plans deliberately use the historical package-set identity so
+    every existing committed lock remains valid.  Partitioned plans include
+    environment names and their effective constraints to prevent two different
+    runtime layouts from colliding merely because their flat package union is
+    equal.
+    """
+    if not plan.named_environments:
+        return get_env_id(list(plan.default_packages))
+    canonical = json.dumps(
+        {
+            "default": {
+                package: _version_spec(package)
+                for package in plan.default_packages
+            },
+            "named": {
+                name: {
+                    package: _version_spec(package)
+                    for package in packages
+                }
+                for name, packages in plan.named_environments
+            },
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
 def get_env_dir(env_id: str, workspace_dir: str | Path) -> Path:
     """Return the directory for a given environment ID."""
     return Path(workspace_dir) / "envs" / env_id
+
+
+def _workflow_nodes(workflow: dict[str, Any]) -> list[Any]:
+    nodes = workflow.get("nodes", [])
+    if isinstance(nodes, dict):
+        return list(nodes.values())
+    return list(nodes) if isinstance(nodes, list) else []
+
+
+def _node_packages(node: Any, registry: Any | None = None) -> tuple[set[str], Any | None]:
+    if isinstance(node, dict):
+        node_type = node.get("type", "")
+    else:
+        node_type = getattr(node, "type", "")
+    if not node_type:
+        return set(), None
+
+    node_class = None
+    if registry is not None and hasattr(registry, "get"):
+        node_class = registry.get(node_type)
+
+    packages: set[str] = set()
+    if node_class is None:
+        node_info = node.get("node_info", {}) if isinstance(node, dict) else {}
+        executables = node_info.get("required_executables", [])
+        r_packages = node_info.get("required_r_packages", [])
+        conda_packages: list[str] = []
+    else:
+        executables = getattr(node_class, "REQUIRED_EXECUTABLES", [])
+        r_packages = getattr(node_class, "REQUIRED_R_PACKAGES", [])
+        conda_packages = getattr(node_class, "REQUIRED_CONDA_PACKAGES", [])
+
+    for conda_package in conda_packages:
+        if conda_package:
+            packages.add(normalize_conda_package(conda_package))
+    for executable in executables:
+        package = EXECUTABLE_TO_CONDA_PACKAGE.get(executable, executable)
+        if package:
+            packages.add(package)
+    for r_package in r_packages:
+        package = R_PACKAGE_TO_CONDA_PACKAGE.get(r_package)
+        if package:
+            packages.add(package)
+    if any(package.startswith("r-") or package.startswith("bioconductor-") for package in packages):
+        packages.add("r-base")
+    return packages, node_class
+
+
+def _named_pixi_environment(node_class: Any | None) -> str | None:
+    environment = getattr(node_class, "ENVIRONMENT", {}) if node_class is not None else {}
+    if not isinstance(environment, dict) or environment.get("type") != "pixi":
+        return None
+    name = str(environment.get("name", "")).strip()
+    if not name:
+        return None
+    if name == "default" or not _PIXI_ENVIRONMENT_NAME_RE.fullmatch(name):
+        raise ValueError(f"invalid named Pixi environment: {name!r}")
+    return name
+
+
+def workflow_to_environment_plan(
+    workflow: dict[str, Any],
+    registry: Any | None = None,
+) -> WorkflowEnvironmentPlan:
+    """Partition workflow packages into one default and optional named envs."""
+    default_packages: set[str] = set()
+    named_packages: dict[str, set[str]] = {}
+    for node in _workflow_nodes(workflow):
+        packages, node_class = _node_packages(node, registry)
+        environment_name = _named_pixi_environment(node_class)
+        if environment_name is None:
+            default_packages.update(packages)
+        else:
+            named_packages.setdefault(environment_name, set()).update(packages)
+
+    return WorkflowEnvironmentPlan(
+        default_packages=tuple(sorted(default_packages)),
+        named_environments=tuple(
+            (name, tuple(sorted(packages)))
+            for name, packages in sorted(named_packages.items())
+        ),
+    )
 
 
 def workflow_to_packages(
     workflow: dict[str, Any],
     registry: Any | None = None,
 ) -> list[str]:
-    """Extract the list of conda packages required by a workflow.
+    """Extract the flat list of conda packages required by a workflow.
 
     Scans all nodes for REQUIRED_EXECUTABLES and REQUIRED_R_PACKAGES,
-    maps them to conda package names, and returns a deduplicated list.
+    maps them to conda package names, and returns a deduplicated list.  This
+    compatibility API intentionally returns the union across named environments;
+    runtime callers that need the partition use ``workflow_to_environment_plan``.
     """
-    packages: set[str] = set()
-    nodes = workflow.get("nodes", [])
-    if isinstance(nodes, dict):
-        nodes = list(nodes.values())
-
-    for node in nodes:
-        if isinstance(node, dict):
-            node_type = node.get("type", "")
-        else:
-            node_type = getattr(node, "type", "")
-        if not node_type:
-            continue
-
-        node_class = None
-        if registry is not None and hasattr(registry, "get"):
-            node_class = registry.get(node_type)
-
-        if node_class is None:
-            # Try to get info from the node's stored node_info
-            node_info = node.get("node_info", {}) if isinstance(node, dict) else {}
-            executables = node_info.get("required_executables", [])
-            r_packages = node_info.get("required_r_packages", [])
-        else:
-            executables = getattr(node_class, "REQUIRED_EXECUTABLES", [])
-            r_packages = getattr(node_class, "REQUIRED_R_PACKAGES", [])
-            # Also check REQUIRED_CONDA_PACKAGES
-            conda_pkgs = getattr(node_class, "REQUIRED_CONDA_PACKAGES", [])
-            for cpkg in conda_pkgs:
-                if cpkg:
-                    packages.add(normalize_conda_package(cpkg))
-
-        for exe in executables:
-            pkg = EXECUTABLE_TO_CONDA_PACKAGE.get(exe, exe)
-            if pkg:
-                packages.add(pkg)
-
-        for rpkg in r_packages:
-            pkg = R_PACKAGE_TO_CONDA_PACKAGE.get(rpkg)
-            if pkg:
-                packages.add(pkg)
-
-    sorted_packages: list[str] = sorted(packages)
-    # Ensure r-base is present if any R packages are needed
-    if any(p.startswith("r-") or p.startswith("bioconductor-") for p in sorted_packages):
-        if "r-base" not in sorted_packages:
-            sorted_packages.append("r-base")
-            sorted_packages.sort()
-    return sorted_packages
+    return list(workflow_to_environment_plan(workflow, registry).all_packages)
 
 
 def _manifest_text(packages: list[str]) -> str:
@@ -138,6 +244,35 @@ def _manifest_text(packages: list[str]) -> str:
     return "\n".join(toml_lines)
 
 
+def _manifest_text_for_plan(plan: WorkflowEnvironmentPlan) -> str:
+    """Render the canonical manifest for a workflow environment plan."""
+    if not plan.named_environments:
+        return _manifest_text(list(plan.default_packages))
+
+    toml_lines = [
+        "[workspace]",
+        'name = "bionodulo-workflow"',
+        'version = "0.1.0"',
+        'channels = ["conda-forge", "bioconda"]',
+        'platforms = ["linux-64"]',
+        "",
+        "[dependencies]",
+    ]
+    for package in plan.default_packages:
+        toml_lines.append(f'{package} = "{_version_spec(package)}"')
+    for name, packages in plan.named_environments:
+        toml_lines.extend(("", f"[feature.{name}.dependencies]"))
+        for package in packages:
+            toml_lines.append(f'{package} = "{_version_spec(package)}"')
+    toml_lines.extend(("", "[environments]"))
+    for name, _packages in plan.named_environments:
+        toml_lines.append(
+            f'{name} = {{ features = ["{name}"], no-default-feature = true }}'
+        )
+    toml_lines.append("")
+    return "\n".join(toml_lines)
+
+
 def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
     """Write a pixi.toml manifest for the given packages.
 
@@ -149,6 +284,24 @@ def generate_manifest(env_dir: str | Path, packages: list[str]) -> Path:
     manifest_path = env_dir / "pixi.toml"
     manifest_path.write_text(_manifest_text(packages), encoding="utf-8")
     logger.info("Generated manifest at %s with %d packages", manifest_path, len(packages))
+    return manifest_path
+
+
+def generate_environment_manifest(
+    env_dir: str | Path,
+    plan: WorkflowEnvironmentPlan,
+) -> Path:
+    """Write a canonical manifest for a default/named environment plan."""
+    env_dir = Path(env_dir)
+    env_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = env_dir / "pixi.toml"
+    manifest_path.write_text(_manifest_text_for_plan(plan), encoding="utf-8")
+    logger.info(
+        "Generated environment plan %s with %d default and %d named environments",
+        manifest_path,
+        len(plan.default_packages),
+        len(plan.named_environments),
+    )
     return manifest_path
 
 
@@ -176,9 +329,49 @@ def materialize_committed_lock(env_dir: str | Path, packages: list[str]) -> str 
     return hashlib.sha256(source_lock.read_bytes()).hexdigest()
 
 
+def materialize_committed_environment(
+    env_dir: str | Path,
+    plan: WorkflowEnvironmentPlan,
+) -> str | None:
+    """Copy a committed manifest/lock pair for a possibly named plan."""
+    if not plan.named_environments:
+        return materialize_committed_lock(env_dir, list(plan.default_packages))
+
+    source_dir = _COMMITTED_LOCKS_ROOT / get_environment_plan_id(plan)
+    source_manifest = source_dir / "pixi.toml"
+    source_lock = source_dir / "pixi.lock"
+    if not source_manifest.exists() and not source_lock.exists():
+        return None
+    if not source_manifest.is_file() or not source_lock.is_file():
+        raise RuntimeError(f"Committed environment bundle is incomplete: {source_dir}")
+    expected_manifest = _manifest_text_for_plan(plan)
+    if source_manifest.read_text(encoding="utf-8") != expected_manifest:
+        raise RuntimeError(f"Committed environment manifest is stale: {source_manifest}")
+
+    env_path = Path(env_dir)
+    env_path.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_manifest, env_path / "pixi.toml")
+    shutil.copy2(source_lock, env_path / "pixi.lock")
+    return hashlib.sha256(source_lock.read_bytes()).hexdigest()
+
+
 def is_env_ready_for_lock(env_dir: str | Path, lock_digest: str | None) -> bool:
     """Return whether an installed environment attests to ``lock_digest``."""
     if not is_env_ready(env_dir):
+        return False
+    if lock_digest is None:
+        return True
+    marker = Path(env_dir) / _LOCK_DIGEST_MARKER
+    return marker.is_file() and marker.read_text(encoding="ascii").strip() == lock_digest
+
+
+def is_environment_ready_for_lock(
+    env_dir: str | Path,
+    lock_digest: str | None,
+    plan: WorkflowEnvironmentPlan,
+) -> bool:
+    """Require every planned Pixi prefix plus the committed-lock marker."""
+    if not is_env_ready(env_dir, plan.environment_names):
         return False
     if lock_digest is None:
         return True
@@ -230,11 +423,59 @@ def is_manifest_current(env_dir: str | Path, packages: list[str]) -> bool:
     return current_pkgs == required_pkgs
 
 
-def is_env_ready(env_dir: str | Path) -> bool:
-    """Check if the pixi environment has been installed."""
+def is_environment_manifest_current(
+    env_dir: str | Path,
+    plan: WorkflowEnvironmentPlan,
+) -> bool:
+    """Check exact canonical bytes for a default/named environment plan."""
+    manifest_path = Path(env_dir) / "pixi.toml"
+    try:
+        return manifest_path.read_text(encoding="utf-8") == _manifest_text_for_plan(plan)
+    except (OSError, UnicodeError):
+        return False
+
+
+def is_env_ready(
+    env_dir: str | Path,
+    environment_names: Iterable[str] | None = None,
+) -> bool:
+    """Check that every requested Pixi environment prefix is installed."""
     env_dir = Path(env_dir)
-    prefix = env_dir / ".pixi" / "envs" / "default"
-    return prefix.exists() and (prefix / "bin").exists()
+    names = (
+        tuple(environment_names)
+        if environment_names is not None
+        else _manifest_environment_names(env_dir / "pixi.toml")
+    )
+    if not names:
+        return False
+    return all(
+        (env_dir / ".pixi" / "envs" / name).is_dir()
+        and (env_dir / ".pixi" / "envs" / name / "bin").is_dir()
+        for name in names
+    )
+
+
+def _manifest_environment_names(manifest: Path) -> tuple[str, ...]:
+    """Return the Pixi prefixes declared by a workflow manifest."""
+    try:
+        import tomllib
+
+        with manifest.open("rb") as handle:
+            data = tomllib.load(handle)
+        names: list[str] = []
+        dependencies = data.get("dependencies")
+        if isinstance(dependencies, dict) and dependencies:
+            names.append("default")
+        environments = data.get("environments")
+        if isinstance(environments, dict):
+            names.extend(
+                str(name)
+                for name in sorted(environments)
+                if str(name) != "default"
+            )
+        return tuple(names) or ("default",)
+    except (OSError, UnicodeError, ValueError):
+        return ("default",)
 
 
 # ANSI escape sequence pattern (colors, cursor movement, etc.)
@@ -357,6 +598,7 @@ async def run_pixi_install(
     emit: Callable[[str, dict[str, Any]], Any] | None = None,
     job_id: str | None = None,
     locked: bool = False,
+    all_environments: bool = False,
 ) -> tuple[bool, str]:
     """Run `pixi install` in the environment directory.
 
@@ -384,6 +626,8 @@ async def run_pixi_install(
         command = [str(pixi), "install"]
         if locked:
             command.append("--locked")
+        if all_environments:
+            command.append("--all")
         proc = await asyncio.create_subprocess_exec(
             *command,
             cwd=str(env_dir),
@@ -713,25 +957,45 @@ def duplicate_env_dir(
 
 
 def _parse_manifest_packages(manifest: Path) -> list[str]:
-    """Parse package names from the [dependencies] section of a pixi.toml."""
+    """Parse package names across default and named Pixi environments."""
     if not manifest.exists():
         return []
-    pkgs: list[str] = []
-    in_deps = False
     try:
-        for line in manifest.read_text(encoding="utf-8").splitlines():
+        import tomllib
+
+        with manifest.open("rb") as handle:
+            data = tomllib.load(handle)
+        packages = set(data.get("dependencies", {}))
+        features = data.get("feature", {})
+        if isinstance(features, dict):
+            for feature in features.values():
+                if not isinstance(feature, dict):
+                    continue
+                dependencies = feature.get("dependencies", {})
+                if isinstance(dependencies, dict):
+                    packages.update(dependencies)
+        return sorted(str(package) for package in packages)
+    except (OSError, UnicodeError, ValueError):
+        packages: set[str] = set()
+        in_deps = False
+        try:
+            lines = manifest.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError):
+            return []
+        for line in lines:
             stripped = line.strip()
-            if stripped == "[dependencies]":
+            if stripped == "[dependencies]" or (
+                stripped.startswith("[feature.")
+                and stripped.endswith(".dependencies]")
+            ):
                 in_deps = True
                 continue
             if stripped.startswith("[") and stripped.endswith("]"):
                 in_deps = False
                 continue
             if in_deps and "=" in stripped:
-                pkgs.append(stripped.split("=")[0].strip())
-    except Exception:
-        pass
-    return pkgs
+                packages.add(stripped.split("=", 1)[0].strip())
+        return sorted(packages)
 
 
 def get_env_packages(env_dir: str | Path) -> list[dict[str, str]]:
