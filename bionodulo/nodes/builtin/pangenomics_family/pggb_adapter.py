@@ -61,14 +61,26 @@ class PGGBCommandNode(CommandNode):
     """Pinned PGGB metadata with mandatory FASTA-index preparation."""
 
     CATEGORY = "pangenomics"
-    REQUIRED_EXECUTABLES = ["pggb", "samtools"]
-    REQUIRED_CONDA_PACKAGES = ["pggb", "samtools"]
+    REQUIRED_EXECUTABLES = ["pggb", "samtools", "bash", "cp"]
+    REQUIRED_CONDA_PACKAGES = ["pggb", "samtools", "bash", "coreutils"]
     VERSION = "0.7.4"
+    CONDA_PACKAGE_CONSTRAINTS = {
+        "pggb": VERSION,
+        "samtools": "1.23.1",
+        "bash": "*",
+        "coreutils": "9.5",
+    }
+    PACKAGE_CONSTRAINTS = (
+        f"pggb=={VERSION}",
+        "samtools==1.23.1",
+        "bash",
+        "coreutils==9.5",
+    )
+    PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     GIT_URL = "https://github.com/pangenome/pggb.git"
     GIT_COMMIT = "e25486b9b219877eca82631a13953129386c8b09"
     DOCUMENTATION_URL = (
-        "https://github.com/pangenome/pggb/blob/"
-        "e25486b9b219877eca82631a13953129386c8b09/docs/rst/quick_start.rst"
+        "https://github.com/pangenome/pggb/blob/e25486b9b219877eca82631a13953129386c8b09/docs/rst/quick_start.rst"
     )
     CITATION_DOIS = ["10.1038/s41592-024-02430-3"]
     CITATION_URLS = ["https://doi.org/10.1038/s41592-024-02430-3"]
@@ -77,10 +89,25 @@ class PGGBCommandNode(CommandNode):
 
     UPSTREAM_TAG: ClassVar[str] = "v0.7.4"
     UPSTREAM_SOURCE: ClassVar[str] = "pggb"
+    SOURCE_URLS: ClassVar[tuple[str, ...]] = (
+        "https://github.com/pangenome/pggb/blob/e25486b9b219877eca82631a13953129386c8b09/pggb",
+        "https://github.com/pangenome/pggb/blob/e25486b9b219877eca82631a13953129386c8b09/README.md",
+        "https://github.com/pangenome/pggb/blob/e25486b9b219877eca82631a13953129386c8b09/docs/rst/quick_start.rst",
+    )
     BIOCONDA_RECIPE_COMMIT: ClassVar[str] = "d9929a470a5703120551635efbad7d27aed87ebd"
+    BIOCONDA_RECIPE_URL: ClassVar[str] = (
+        "https://github.com/bioconda/bioconda-recipes/blob/"
+        "d9929a470a5703120551635efbad7d27aed87ebd/recipes/pggb/meta.yaml"
+    )
+    BIOCONDA_SOURCE_ARCHIVE_SHA256: ClassVar[str] = "f443a6354f30307573545d03c7491de299ca50dfcba2a12832fb77e0452e46f4"
     BIOCONDA_ODGI_RUNTIME: ClassVar[str] = "0.9.2"
     FAIDX_VERSION: ClassVar[str] = "1.23.1"
     FAIDX_SOURCE_COMMIT: ClassVar[str] = "6efb9b6da35224cf804921dedecf9fb8f411365d"
+    EXIT_SEMANTICS: ClassVar[str] = (
+        "Any non-zero indexing, PGGB, or compound-shell status fails the node. The "
+        "wrapper also fails when PGGB exits zero without exactly one non-empty final GFA "
+        "and one non-empty final ODGI artifact."
+    )
 
     @classmethod
     def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:

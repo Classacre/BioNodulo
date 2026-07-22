@@ -25,9 +25,19 @@ class ODGIBuildNode(ODGICommandNode):
     SEARCH_ALIASES = ["odgi", "odgi build", "gfa to odgi", "pangenome graph", "graph conversion"]
     RETURN_TYPES = ("ODGI", "JSON")
     RETURN_NAMES = ("graph_odgi", "stats")
+    REQUIRED_EXECUTABLES = ["odgi", "bash"]
+    REQUIRED_CONDA_PACKAGES = ["odgi", "bash"]
+    CONDA_PACKAGE_CONSTRAINTS = {"odgi": "0.9.2", "bash": "*"}
+    PACKAGE_CONSTRAINTS = ("odgi==0.9.2", "bash")
+    PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     UPSTREAM_SOURCE = "src/subcommand/build_main.cpp"
     SUMMARY_SOURCE = "src/subcommand/stats_main.cpp"
     VALIDATE_SOURCE = "src/subcommand/validate_main.cpp"
+    SOURCE_URLS = (
+        "https://github.com/pangenome/odgi/blob/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/src/subcommand/build_main.cpp",
+        "https://github.com/pangenome/odgi/blob/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/src/subcommand/stats_main.cpp",
+        "https://github.com/pangenome/odgi/blob/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/src/subcommand/validate_main.cpp",
+    )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -104,8 +114,6 @@ class ODGIBuildNode(ODGICommandNode):
         threads = int(inputs.get("threads", 1))
         commands = [shlex.join(cls.build_argv(inputs))]
         if inputs.get("validate", False):
-            commands.append(
-                shlex.join(["odgi", "validate", "-i", str(graph_odgi), "-t", str(threads)])
-            )
+            commands.append(shlex.join(["odgi", "validate", "-i", str(graph_odgi), "-t", str(threads)]))
         commands.append(stats_json_pipeline(graph_odgi, stats, threads))
         return bash_pipeline(commands)

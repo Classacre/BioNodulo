@@ -18,6 +18,9 @@ class ODGIVizNode(ODGICommandNode):
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("viz_image",)
     UPSTREAM_SOURCE = "src/subcommand/viz_main.cpp"
+    SOURCE_URLS = (
+        "https://github.com/pangenome/odgi/blob/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/src/subcommand/viz_main.cpp",
+    )
 
     _MODES = {"plain", "gradient"}
 
@@ -25,7 +28,14 @@ class ODGIVizNode(ODGICommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "gfa_graph": ("GFA", {"description": "Readable GFAv1 or ODGI graph"}),
+                "gfa_graph": (
+                    "FILE",
+                    {
+                        "description": (
+                            "Readable native ODGI graph (preferred) or GFAv1 graph; ODGI converts GFAv1 on the fly"
+                        )
+                    },
+                ),
             },
             "optional": {
                 "width": ("INT", {"default": 1500, "min": 1}),

@@ -11,15 +11,6 @@ from typing import Any, ClassVar
 from bionodulo.nodes.command_node import CommandNode
 
 
-_SUMMARY_AWK = (
-    'BEGIN { FS = "\\t" } '
-    'NR == 2 && NF >= 5 { '
-    'printf "{\\\"edges\\\":%s,\\\"length\\\":%s,\\\"nodes\\\":%s,'
-    '\\\"paths\\\":%s,\\\"steps\\\":%s}\\n", $3, $1, $2, $4, $5 '
-    "}"
-)
-
-
 def path_value(value: Any) -> str | None:
     """Return one non-empty filesystem path."""
     try:
@@ -69,18 +60,30 @@ def stats_json_pipeline(
     output: str | os.PathLike[str],
     threads: int,
 ) -> str:
-    """Adapt ODGI's five-column summary to the existing JSON output port."""
-    output_text = os.fsdecode(os.fspath(output))
-    return (
-        f"{shlex.join(stats_argv(graph, threads))} | "
-        f"awk {shlex.quote(_SUMMARY_AWK)} > {shlex.quote(output_text)} && "
-        f"test -s {shlex.quote(output_text)}"
+    """Adapt ODGI's exact two-line summary using Bash built-ins only."""
+    output_q = shlex.quote(os.fsdecode(os.fspath(output)))
+    summary_command = shlex.join(stats_argv(graph, threads))
+    return "\n".join(
+        [
+            f": > {output_q}",
+            f"summary=$({summary_command})",
+            r'''header="${summary%%$'\n'*}"''',
+            r"""if [[ "$summary" == "$header" ]]; then printf '[bionodulo::odgi] expected a two-line summary\n' >&2; exit 1; fi""",
+            r'''row="${summary#*$'\n'}"''',
+            r"""if [[ "$row" == *$'\n'* ]]; then printf '[bionodulo::odgi] unexpected extra summary rows\n' >&2; exit 1; fi""",
+            r"""if [[ "$header" != $'#length\tnodes\tedges\tpaths\tsteps' ]]; then printf '[bionodulo::odgi] unexpected summary header\n' >&2; exit 1; fi""",
+            r'''IFS=$'\t' read -r length nodes edges paths steps extra <<< "$row"''',
+            r"""if [[ -n "$extra" ]]; then printf '[bionodulo::odgi] unexpected summary columns\n' >&2; exit 1; fi""",
+            r"""for value in "$length" "$nodes" "$edges" "$paths" "$steps"; do if [[ ! "$value" =~ ^[0-9]+$ ]]; then printf '[bionodulo::odgi] summary values must be unsigned integers\n' >&2; exit 1; fi; done""",
+            f"""printf '{{"edges":%s,"length":%s,"nodes":%s,"paths":%s,"steps":%s}}\\n' "$edges" "$length" "$nodes" "$paths" "$steps" > {output_q}""",
+            f"[[ -s {output_q} ]]",
+        ]
     )
 
 
 def bash_pipeline(commands: list[str]) -> list[str]:
     """Execute a fixed compound command with pipeline failure propagation."""
-    return ["bash", "-o", "pipefail", "-c", " && ".join(commands)]
+    return ["bash", "-o", "pipefail", "-c", "set -euo pipefail\n" + "\n".join(commands)]
 
 
 class ODGICommandNode(CommandNode):
@@ -90,11 +93,13 @@ class ODGICommandNode(CommandNode):
     REQUIRED_EXECUTABLES = ["odgi"]
     REQUIRED_CONDA_PACKAGES = ["odgi"]
     VERSION = "0.9.2"
+    CONDA_PACKAGE_CONSTRAINTS = {"odgi": VERSION}
+    PACKAGE_CONSTRAINTS = (f"odgi=={VERSION}",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
     GIT_URL = "https://github.com/pangenome/odgi.git"
     GIT_COMMIT = "be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6"
     DOCUMENTATION_URL = (
-        "https://github.com/pangenome/odgi/tree/"
-        "be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/docs/rst/commands"
+        "https://github.com/pangenome/odgi/tree/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/docs/rst/commands"
     )
     CITATION_DOIS = ["10.1093/bioinformatics/btac308"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btac308"]
@@ -103,7 +108,15 @@ class ODGICommandNode(CommandNode):
 
     UPSTREAM_TAG: ClassVar[str] = "v0.9.2"
     BIOCONDA_RECIPE_COMMIT: ClassVar[str] = "aac8e6e4ee3d12bd497495dddfc32825393c35da"
+    BIOCONDA_RECIPE_URL: ClassVar[str] = (
+        "https://github.com/bioconda/bioconda-recipes/blob/"
+        "aac8e6e4ee3d12bd497495dddfc32825393c35da/recipes/odgi/meta.yaml"
+    )
     UPSTREAM_SOURCE: ClassVar[str] = ""
+    EXIT_SEMANTICS: ClassVar[str] = (
+        "Any non-zero ODGI or compound-shell status, missing planned artifact, or empty "
+        "planned artifact fails the node."
+    )
 
     async def run(self, **kwargs: Any) -> tuple[Any, ...] | dict[str, Any]:
         result = await super().run(**kwargs)

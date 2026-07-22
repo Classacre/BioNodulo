@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "Pangenomics Graph QC and Visualization",
-  "description": "Pangenomics workflow template that validates a multi-sequence haplotype FASTA, builds a reference-free PGGB graph, validates the GFA output, runs ODGI build and stats, renders a graph visualization, and collects QC outputs into an HTML report.",
+  "description": "Pangenomics workflow template that validates a multi-sequence haplotype FASTA, builds a reference-free PGGB graph, validates the GFA output, runs ODGI build and stats, and renders a graph visualization.",
   "category": "Pangenomics",
   "tags": [
     "pangenomics",
@@ -30,7 +30,7 @@
         80
       ],
       "params": {
-        "text": "Pangenomics graph workflow: validate a multi-sequence haplotype FASTA, build a reference-free graph with PGGB, validate the GFA, build and summarize the graph with ODGI, render a graph image, then generate an HTML QC report.\n\nInputs are placeholders. Replace the haplotypes FASTA with a local multi-sequence FASTA containing all haplotypes or assemblies before execution, and update num_haplotypes to match the sequence count."
+        "text": "Pangenomics graph workflow: validate a multi-sequence haplotype FASTA, build a reference-free graph with PGGB, validate the GFA, build and summarize the graph with ODGI, and render a graph image.\n\nThe bundled PGGB v0.7.4 HLA-DRB1 fixture contains 12 non-PanSN sequences, so num_haplotypes is explicitly set to 12. Replace the FASTA and update num_haplotypes together for other datasets. PGGB's built-in diagnostic rendering is disabled because the dedicated ODGI Viz node produces the declared visualization artifact."
       },
       "ui": {
         "title": "Notes",
@@ -53,7 +53,7 @@
           "outputs": {
             "reference": {
               "expected_format": "fasta",
-              "min_records": 2,
+              "min_records": 12,
               "min_size_bytes": 1,
               "fail_on_error": true
             }
@@ -69,13 +69,13 @@
         80
       ],
       "params": {
-        "num_haplotypes": 2,
+        "num_haplotypes": 12,
         "threads": 16,
         "map_pct_id": 90,
         "segment_length": 5000,
         "min_match_length": 23,
         "poa_length_target": "700,1100",
-        "do_viz": true
+        "do_viz": false
       },
       "ui": {
         "title": "PGGB Build",
@@ -196,8 +196,8 @@
     {
       "id": "e5",
       "from": {
-        "node": "pggb_001",
-        "output": "smooth_gfa"
+        "node": "odgi_build_001",
+        "output": "graph_odgi"
       },
       "to": {
         "node": "odgi_viz_001",
@@ -207,8 +207,8 @@
     {
       "id": "e6",
       "from": {
-        "node": "pggb_001",
-        "output": "smooth_gfa"
+        "node": "odgi_build_001",
+        "output": "graph_odgi"
       },
       "to": {
         "node": "odgi_stats_001",

@@ -167,16 +167,15 @@ class PGGBNode(PGGBCommandNode):
                 "set -euo pipefail",
                 shlex.join(["samtools", "faidx", input_fasta]),
                 shlex.join(cls.pggb_argv(inputs)),
-                "gfas=()",
-                f"mapfile -d '' gfas < <(find {output_q} -maxdepth 1 -type f -name '*.final.gfa' -print0)",
+                "shopt -s nullglob",
+                f"gfas=({output_q}/*.final.gfa)",
                 'if (( ${#gfas[@]} != 1 )); then printf "[bionodulo::pggb] expected exactly one *.final.gfa, found %s\\n" "${#gfas[@]}" >&2; exit 1; fi',
-                "odgis=()",
-                f"mapfile -d '' odgis < <(find {output_q} -maxdepth 1 -type f -name '*.final.og' -print0)",
+                f"odgis=({output_q}/*.final.og)",
                 'if (( ${#odgis[@]} != 1 )); then printf "[bionodulo::pggb] expected exactly one *.final.og, found %s\\n" "${#odgis[@]}" >&2; exit 1; fi',
                 f'cp -- "${{gfas[0]}}" {stable_gfa_q}',
                 f'cp -- "${{odgis[0]}}" {stable_odgi_q}',
-                f"test -s {stable_gfa_q}",
-                f"test -s {stable_odgi_q}",
+                f"[[ -s {stable_gfa_q} ]]",
+                f"[[ -s {stable_odgi_q} ]]",
             ]
         )
         return ["bash", "-o", "pipefail", "-c", script]

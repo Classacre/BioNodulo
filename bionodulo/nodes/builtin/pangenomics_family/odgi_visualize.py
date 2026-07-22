@@ -18,6 +18,11 @@ class ODGIVisualizeNode(ODGICommandNode):
     SEARCH_ALIASES = ["odgi", "visualize", "pangenome", "graph viz", "graph layout"]
     RETURN_TYPES = ("IMAGE", "IMAGE")
     RETURN_NAMES = ("graph_1d", "graph_2d")
+    REQUIRED_EXECUTABLES = ["odgi", "bash"]
+    REQUIRED_CONDA_PACKAGES = ["odgi", "bash"]
+    CONDA_PACKAGE_CONSTRAINTS = {"odgi": "0.9.2", "bash": "*"}
+    PACKAGE_CONSTRAINTS = ("odgi==0.9.2", "bash")
+    PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     UPSTREAM_SOURCE = "src/subcommand/{build,viz,sort,layout,draw}_main.cpp"
     COMPATIBILITY_COMPOSITE = True
     COMPATIBILITY_OPERATIONS = ("odgi_build", "odgi_viz", "odgi_sort", "odgi_layout", "odgi_draw")
@@ -70,13 +75,35 @@ class ODGIVisualizeNode(ODGICommandNode):
         threads = str(inputs.get("threads", 1))
 
         build = ["odgi", "build", "-g", str(inputs.get("gfa_graph", "")), "-o", str(graph), "-O", "-t", threads]
-        viz = ["odgi", "viz", "-i", str(graph), "-o", str(image_1d), "-x", str(inputs.get("width", 1500)), "-y", str(inputs.get("height", 500))]
+        viz = [
+            "odgi",
+            "viz",
+            "-i",
+            str(graph),
+            "-o",
+            str(image_1d),
+            "-x",
+            str(inputs.get("width", 1500)),
+            "-y",
+            str(inputs.get("height", 500)),
+        ]
         if not inputs.get("show_path_names", True):
             viz.append("-H")
         viz.extend(["-t", threads])
         sort = ["odgi", "sort", "-i", str(graph), "-o", str(sorted_graph), "-p", "Ygs", "-O", "-t", threads]
         layout_command = ["odgi", "layout", "-i", str(sorted_graph), "-o", str(layout), "-t", threads]
-        draw = ["odgi", "draw", "-i", str(sorted_graph), "-c", str(layout), "-p", str(image_2d), "-H", str(inputs.get("draw_height", 1000))]
+        draw = [
+            "odgi",
+            "draw",
+            "-i",
+            str(sorted_graph),
+            "-c",
+            str(layout),
+            "-p",
+            str(image_2d),
+            "-H",
+            str(inputs.get("draw_height", 1000)),
+        ]
         if inputs.get("color_paths", True):
             draw.append("-C")
         draw.extend(["-t", threads])

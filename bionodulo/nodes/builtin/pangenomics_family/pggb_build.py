@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import os
 import shutil
 from pathlib import Path
@@ -84,7 +85,8 @@ class PGGBBuildNode(PGGBNode):
             for index, source in enumerate(fastas):
                 if index:
                     destination.write(b"\n")
-                with source.open("rb") as handle:
+                handle_context = gzip.open(source, "rb") if source.name.lower().endswith(".gz") else source.open("rb")
+                with handle_context as handle:
                     shutil.copyfileobj(handle, destination)
         inputs["input_fasta"] = str(staged)
         inputs["num_haplotypes"] = len(fastas)

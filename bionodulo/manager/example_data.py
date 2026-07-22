@@ -185,7 +185,7 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("biopython", "heatmap_annotation.csv", "https://raw.githubusercontent.com/bioconnector/workshops/master/data/airway_metadata.csv", description="airway sample annotations"),
 
     # pangenomics — pggb HLA-DRB1 tutorial haplotypes
-    DataFile("pangenomics", "haplotypes.fa", "https://raw.githubusercontent.com/pangenome/pggb/master/data/HLA/DRB1-3123.fa.gz", gunzip=True, description="pggb HLA-DRB1 haplotypes"),
+    DataFile("pangenomics", "haplotypes.fa", "https://raw.githubusercontent.com/pangenome/pggb/e25486b9b219877eca82631a13953129386c8b09/data/HLA/DRB1-3123.fa.gz", gunzip=True, description="pggb v0.7.4 HLA-DRB1 12-haplotype fixture"),
 
     # metagenomics — nf-core mag minigut shotgun reads
     DataFile("metagenomics", "reads_forward.fastq", f"{_NFCORE}/mag/test_data/test_minigut_R1.fastq.gz", gunzip=True, description="Shotgun metagenome R1 (nf-core mag)"),

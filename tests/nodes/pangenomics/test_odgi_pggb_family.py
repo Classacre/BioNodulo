@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import subprocess
@@ -29,6 +30,8 @@ ODGI_CLASSES = (
     ODGIVizNode,
     ODGIVisualizeNode,
 )
+ODGI_COMPOUND_CLASSES = (ODGIBuildNode, ODGIStatsNode, ODGIVisualizeNode)
+ODGI_DIRECT_CLASSES = (ODGIViewNode, ODGIVizNode)
 ALL_CLASSES = (*ODGI_CLASSES, PGGBNode, PGGBBuildNode)
 
 
@@ -115,8 +118,18 @@ def test_odgi_metadata_is_pinned_to_the_audited_source() -> None:
         assert node_class.BIOCONDA_RECIPE_COMMIT == "aac8e6e4ee3d12bd497495dddfc32825393c35da"
         assert node_class.UPSTREAM_SOURCE
         assert node_class.CITATION_DOIS == ["10.1093/bioinformatics/btac308"]
+
+    for node_class in ODGI_DIRECT_CLASSES:
         assert node_class.REQUIRED_EXECUTABLES == ["odgi"]
         assert node_class.REQUIRED_CONDA_PACKAGES == ["odgi"]
+        assert node_class.CONDA_PACKAGE_CONSTRAINTS == {"odgi": "0.9.2"}
+        assert node_class.PACKAGE_CONSTRAINTS == ("odgi==0.9.2",)
+
+    for node_class in ODGI_COMPOUND_CLASSES:
+        assert node_class.REQUIRED_EXECUTABLES == ["odgi", "bash"]
+        assert node_class.REQUIRED_CONDA_PACKAGES == ["odgi", "bash"]
+        assert node_class.CONDA_PACKAGE_CONSTRAINTS == {"odgi": "0.9.2", "bash": "*"}
+        assert node_class.PACKAGE_CONSTRAINTS == ("odgi==0.9.2", "bash")
 
 
 def test_pggb_metadata_is_pinned_with_its_odgi_runtime() -> None:
@@ -127,8 +140,25 @@ def test_pggb_metadata_is_pinned_with_its_odgi_runtime() -> None:
         assert node_class.BIOCONDA_RECIPE_COMMIT == "d9929a470a5703120551635efbad7d27aed87ebd"
         assert node_class.BIOCONDA_ODGI_RUNTIME == "0.9.2"
         assert node_class.FAIDX_VERSION == "1.23.1"
+        assert node_class.FAIDX_SOURCE_COMMIT == "6efb9b6da35224cf804921dedecf9fb8f411365d"
         assert node_class.CITATION_DOIS == ["10.1038/s41592-024-02430-3"]
-        assert node_class.REQUIRED_EXECUTABLES == ["pggb", "samtools"]
+        assert node_class.BIOCONDA_SOURCE_ARCHIVE_SHA256 == (
+            "f443a6354f30307573545d03c7491de299ca50dfcba2a12832fb77e0452e46f4"
+        )
+        assert node_class.REQUIRED_EXECUTABLES == ["pggb", "samtools", "bash", "cp"]
+        assert node_class.REQUIRED_CONDA_PACKAGES == ["pggb", "samtools", "bash", "coreutils"]
+        assert node_class.CONDA_PACKAGE_CONSTRAINTS == {
+            "pggb": "0.7.4",
+            "samtools": "1.23.1",
+            "bash": "*",
+            "coreutils": "9.5",
+        }
+        assert node_class.PACKAGE_CONSTRAINTS == (
+            "pggb==0.7.4",
+            "samtools==1.23.1",
+            "bash",
+            "coreutils==9.5",
+        )
 
 
 def test_odgi_input_contracts_match_the_operations() -> None:
@@ -138,10 +168,8 @@ def test_odgi_input_contracts_match_the_operations() -> None:
         "validate",
         "output_name",
     }
-    assert ODGIStatsNode.INPUT_TYPES()["required"]["gfa_graph"][0] == "GFA"
-    assert ODGIViewNode.INPUT_TYPES()["required"] == {
-        "graph": ("ODGI", {"description": "Readable ODGI graph"})
-    }
+    assert ODGIStatsNode.INPUT_TYPES()["required"]["gfa_graph"][0] == "FILE"
+    assert ODGIViewNode.INPUT_TYPES()["required"] == {"graph": ("ODGI", {"description": "Readable ODGI graph"})}
     assert set(ODGIViewNode.INPUT_TYPES()["optional"]) == {"threads", "node_annotations"}
     assert set(ODGIVizNode.INPUT_TYPES()["optional"]) == {
         "width",
@@ -150,6 +178,7 @@ def test_odgi_input_contracts_match_the_operations() -> None:
         "viz_mode",
         "threads",
     }
+    assert ODGIVizNode.INPUT_TYPES()["required"]["gfa_graph"][0] == "FILE"
 
 
 def test_odgi_validation_rejects_missing_empty_and_invalid_values(tmp_path: Path) -> None:
@@ -163,21 +192,22 @@ def test_odgi_validation_rejects_missing_empty_and_invalid_values(tmp_path: Path
         ODGIBuildNode.VALIDATE_INPUTS({"gfa_graph": missing, "threads": 1})
     )
     assert "is empty" in str(ODGIStatsNode.VALIDATE_INPUTS({"gfa_graph": empty, "threads": 1}))
-    assert ODGIBuildNode.VALIDATE_INPUTS({"gfa_graph": graph, "threads": 0}) == (
-        "threads must be at least 1"
+    assert ODGIBuildNode.VALIDATE_INPUTS({"gfa_graph": graph, "threads": 0}) == ("threads must be at least 1")
+    assert (
+        ODGIVizNode.VALIDATE_INPUTS({"gfa_graph": graph, "threads": 1, "viz_mode": "heatmap"})
+        == "Unsupported ODGI Viz mode: heatmap"
     )
-    assert ODGIVizNode.VALIDATE_INPUTS(
-        {"gfa_graph": graph, "threads": 1, "viz_mode": "heatmap"}
-    ) == "Unsupported ODGI Viz mode: heatmap"
 
     odgi_graph = tmp_path / "graph.og"
     odgi_graph.write_text("odgi\n", encoding="utf-8")
     assert "legacy odgi_view visualization inputs" in str(
-        ODGIViewNode.VALIDATE_INPUTS({
-            "graph": odgi_graph,
-            "threads": 1,
-            "mode": "png",
-        })
+        ODGIViewNode.VALIDATE_INPUTS(
+            {
+                "graph": odgi_graph,
+                "threads": 1,
+                "mode": "png",
+            }
+        )
     )
 
 
@@ -208,7 +238,7 @@ def test_odgi_build_renders_documented_build_validate_and_summary_operations() -
     assert "odgi validate -i '/tmp/node output/study_graph.odgi' -t 3" in script
     assert "odgi stats -i '/tmp/node output/study_graph.odgi' -S -t 3" in script
     assert " -j" not in script
-    assert script.endswith("test -s '/tmp/node output/study_graph.stats.json'")
+    assert script.endswith("[[ -s '/tmp/node output/study_graph.stats.json' ]]")
 
 
 def test_odgi_stats_pipeline_adapts_tabular_stdout_to_deterministic_json(
@@ -224,9 +254,7 @@ printf '#length\tnodes\tedges\tpaths\tsteps\n42\t5\t6\t2\t9\n'
     )
     output = tmp_path / "output with spaces"
     output.mkdir()
-    command = ODGIStatsNode.render_command(
-        {"gfa_graph": tmp_path / "input graph.gfa", "threads": 2, "output": output}
-    )
+    command = ODGIStatsNode.render_command({"gfa_graph": tmp_path / "input graph.gfa", "threads": 2, "output": output})
 
     completed = subprocess.run(
         command,
@@ -238,9 +266,7 @@ printf '#length\tnodes\tedges\tpaths\tsteps\n42\t5\t6\t2\t9\n'
 
     stats_path = output / "stats.json"
     assert completed.returncode == 0, completed.stderr
-    assert stats_path.read_text(encoding="utf-8") == (
-        '{"edges":6,"length":42,"nodes":5,"paths":2,"steps":9}\n'
-    )
+    assert stats_path.read_text(encoding="utf-8") == ('{"edges":6,"length":42,"nodes":5,"paths":2,"steps":9}\n')
     assert json.loads(stats_path.read_text(encoding="utf-8"))["length"] == 42
 
 
@@ -260,6 +286,31 @@ def test_odgi_stats_pipeline_propagates_upstream_failure(tmp_path: Path) -> None
     )
 
     assert completed.returncode != 0
+    assert (output / "stats.json").stat().st_size == 0
+
+
+def test_odgi_stats_pipeline_rejects_malformed_summary_values(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "odgi",
+        """#!/usr/bin/env bash
+printf '#length\tnodes\tedges\tpaths\tsteps\n42\t5\tbroken\t2\t9\n'
+""",
+    )
+    output = tmp_path / "output"
+    output.mkdir()
+
+    completed = subprocess.run(
+        ODGIStatsNode.render_command({"gfa_graph": "graph.og", "threads": 1, "output": output}),
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"},
+    )
+
+    assert completed.returncode != 0
+    assert "summary values must be unsigned integers" in completed.stderr
     assert (output / "stats.json").stat().st_size == 0
 
 
@@ -379,9 +430,7 @@ def test_pggb_contract_and_defaults_match_version_074() -> None:
     }
     assert inputs["optional"]["min_match_length"][1]["default"] == 23
     assert inputs["optional"]["poa_length_target"][1]["default"] == "700,1100"
-    assert PGGBNode.pggb_argv(
-        {"input_fasta": "haplotypes.fa", "threads": 8, "output": "/tmp/pggb"}
-    ) == [
+    assert PGGBNode.pggb_argv({"input_fasta": "haplotypes.fa", "threads": 8, "output": "/tmp/pggb"}) == [
         "pggb",
         "-i",
         "haplotypes.fa",
@@ -398,6 +447,13 @@ def test_pggb_contract_and_defaults_match_version_074() -> None:
         "-G",
         "700,1100",
     ]
+
+    script = PGGBNode.render_command({"input_fasta": "haplotypes.fa", "threads": 8, "output": "/tmp/pggb"})[4]
+    for removed_external in ("awk", "find", "mapfile", "test -s"):
+        assert removed_external not in script
+    assert script.count("cp --") == 2
+    assert "[[ -s /tmp/pggb/smooth_gfa.gfa ]]" in script
+    assert "[[ -s /tmp/pggb/smooth_odgi.og ]]" in script
 
 
 def test_pggb_renders_supported_optional_flags_only() -> None:
@@ -509,9 +565,7 @@ async def test_pggb_fake_execution_stages_fai_and_normalizes_final_outputs(
     assert (expected_root / "_inputs" / "input.fa.fai").is_file()
     assert (expected_root / "smooth_gfa.gfa").read_text(encoding="utf-8").startswith("H\t")
     assert (expected_root / "smooth_odgi.og").read_text(encoding="utf-8") == "fake odgi\n"
-    assert (expected_root / "seen-input.txt").read_text(encoding="utf-8").strip().endswith(
-        "/pggb/_inputs/input.fa"
-    )
+    assert (expected_root / "seen-input.txt").read_text(encoding="utf-8").strip().endswith("/pggb/_inputs/input.fa")
 
 
 @pytest.mark.asyncio
@@ -536,9 +590,7 @@ async def test_pggb_build_executes_the_multi_fasta_contract(
     output = tmp_path / "run" / "pggb_build"
     assert result == (str(output / "graph_gfa.gfa"), str(output / "graph_odgi.odgi"))
     assert (output / "_inputs" / "input.fa.fai").is_file()
-    assert (output / "seen-input.txt").read_text(encoding="utf-8").strip().endswith(
-        "/pggb_build/_inputs/input.fa"
-    )
+    assert (output / "seen-input.txt").read_text(encoding="utf-8").strip().endswith("/pggb_build/_inputs/input.fa")
 
 
 @pytest.mark.asyncio
@@ -572,9 +624,10 @@ def test_pggb_build_preserves_the_distinct_multi_fasta_contract(tmp_path: Path) 
     assert PGGBBuildNode.RETURN_NAMES == ("graph_gfa", "graph_odgi")
     assert PGGBBuildNode.INPUT_TYPES()["required"]["input_fasta"][1]["multiple"] is True
 
-    first = tmp_path / "haplotype-a.fa"
+    first = tmp_path / "haplotype-a.fa.gz"
     second = tmp_path / "haplotype-b.fa"
-    first.write_text(">a\nACGT\n", encoding="utf-8")
+    with gzip.open(first, "wt", encoding="utf-8") as handle:
+        handle.write(">a\nACGT\n")
     second.write_text(">b\nTGCA\n", encoding="utf-8")
     inputs: dict[str, Any] = {"input_fasta": [first, second], "threads": 2}
     outputs = PGGBBuildNode.PLAN_OUTPUTS(inputs, tmp_path)
@@ -602,11 +655,16 @@ def test_pggb_build_rejects_single_or_legacy_ambiguous_inputs(tmp_path: Path) ->
     assert PGGBBuildNode.VALIDATE_INPUTS({"input_fasta": [fasta], "threads": 1}) == (
         "pggb_build requires at least two haplotype FASTA files"
     )
-    assert PGGBBuildNode.VALIDATE_INPUTS({
-        "input_fasta": [fasta, fasta],
-        "threads": 1,
-        "graph_poas": 2,
-    }) == "legacy graph_poas has no PGGB 0.7.4 equivalent; use poa_length_target for -G"
+    assert (
+        PGGBBuildNode.VALIDATE_INPUTS(
+            {
+                "input_fasta": [fasta, fasta],
+                "threads": 1,
+                "graph_poas": 2,
+            }
+        )
+        == "legacy graph_poas has no PGGB 0.7.4 equivalent; use poa_length_target for -G"
+    )
 
 
 @pytest.mark.parametrize(

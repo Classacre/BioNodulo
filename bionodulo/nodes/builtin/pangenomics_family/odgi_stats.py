@@ -24,13 +24,28 @@ class ODGIStatsNode(ODGICommandNode):
     SEARCH_ALIASES = ["odgi", "odgi stats", "graph statistics", "pangenome graph", "stats json"]
     RETURN_TYPES = ("JSON",)
     RETURN_NAMES = ("stats_json",)
+    REQUIRED_EXECUTABLES = ["odgi", "bash"]
+    REQUIRED_CONDA_PACKAGES = ["odgi", "bash"]
+    CONDA_PACKAGE_CONSTRAINTS = {"odgi": "0.9.2", "bash": "*"}
+    PACKAGE_CONSTRAINTS = ("odgi==0.9.2", "bash")
+    PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     UPSTREAM_SOURCE = "src/subcommand/stats_main.cpp"
+    SOURCE_URLS = (
+        "https://github.com/pangenome/odgi/blob/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/src/subcommand/stats_main.cpp",
+    )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "gfa_graph": ("GFA", {"description": "Readable GFAv1 graph; ODGI accepts GFA on the fly"}),
+                "gfa_graph": (
+                    "FILE",
+                    {
+                        "description": (
+                            "Readable native ODGI graph (preferred) or GFAv1 graph; ODGI converts GFAv1 on the fly"
+                        )
+                    },
+                ),
             },
             "optional": {
                 "threads": ("INT", {"default": 1, "min": 1}),
