@@ -111,6 +111,15 @@ class ChopperFilterNode(LongReadCommandNode):
             return "Input 'min_quality' must not exceed 'max_quality'"
         if float(option_value(inputs, "min_gc", 0.0)) > float(option_value(inputs, "max_gc", 1.0)):
             return "Input 'min_gc' must not exceed 'max_gc'"
+        # Chopper 0.9.2's inverse branch (src/main.rs) inverts the quality,
+        # length, and contaminant predicates but does not evaluate GC bounds.
+        # Reject that combination instead of silently accepting flags that have
+        # no effect on the selected reads.
+        if option_value(inputs, "inverse", False) and (
+            float(option_value(inputs, "min_gc", 0.0)) != 0.0
+            or float(option_value(inputs, "max_gc", 1.0)) != 1.0
+        ):
+            return "Input 'min_gc' and 'max_gc' cannot be combined with inverse mode because Chopper ignores GC bounds there"
         contaminant = inputs.get("contaminant_reference")
         if contaminant not in (None, "") and not path_value(contaminant):
             return "Input 'contaminant_reference' must be a non-empty path-like value"

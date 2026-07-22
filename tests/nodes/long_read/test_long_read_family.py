@@ -86,8 +86,8 @@ def test_chopper_renders_complete_filter_argv_without_shell_or_fake_gzip() -> No
             "threads": 8,
             "contaminant_reference": "lambda.fa",
             "inverse": True,
-            "min_gc": 0.2,
-            "max_gc": 0.8,
+            "min_gc": 0.0,
+            "max_gc": 1.0,
         }
     )
 
@@ -110,12 +110,12 @@ def test_chopper_renders_complete_filter_argv_without_shell_or_fake_gzip() -> No
         "--contam",
         "lambda.fa",
         "--inverse",
-        "--input",
-        "reads.fastq.gz",
-        "--maxgc",
-        "0.8",
-        "--mingc",
-        "0.2",
+            "--input",
+            "reads.fastq.gz",
+            "--maxgc",
+            "1.0",
+            "--mingc",
+            "0.0",
     ]
     assert ChopperFilterNode.STDOUT_OUTPUT_INDEX == 0
     assert ChopperFilterNode.OUTPUT_FILENAMES == ("filtered_reads.fastq",)
@@ -143,6 +143,14 @@ def test_chopper_uses_upstream_defaults_and_validates_ranges() -> None:
         ChopperFilterNode.VALIDATE_INPUTS({"reads": "reads.fastq", "min_gc": 0.8, "max_gc": 0.2})
         == "Input 'min_gc' must not exceed 'max_gc'"
     )
+
+
+def test_chopper_rejects_gc_bounds_in_inverse_mode_because_upstream_ignores_them() -> None:
+    validation = ChopperFilterNode.VALIDATE_INPUTS(
+        {"reads": "reads.fastq", "inverse": True, "min_gc": 0.2}
+    )
+    assert validation is not True
+    assert "cannot be combined with inverse mode" in str(validation)
 
 
 def test_dorado_basecaller_uses_explicit_models_and_native_file_output() -> None:
