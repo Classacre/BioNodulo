@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import errno
 import os
+import shutil
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, ClassVar
@@ -37,6 +39,47 @@ def path_list(value: Any) -> list[str]:
         return []
     paths = [path_value(item) for item in values]
     return paths if paths and all(paths) else []
+
+
+_LINK_FALLBACK_ERRNOS = {errno.EXDEV, errno.EPERM, errno.ENOSYS}
+for _errno_name in ("ENOTSUP", "EOPNOTSUPP"):
+    _errno_value = getattr(errno, _errno_name, None)
+    if _errno_value is not None:
+        _LINK_FALLBACK_ERRNOS.add(_errno_value)
+
+
+def stage_file(source: str | os.PathLike[str], target: str | os.PathLike[str]) -> None:
+    """Place one input artifact at a deterministic local path.
+
+    Several long-read tools discover sidecars by looking beside the primary
+    input rather than accepting an index path on the command line.  Hard-link
+    where possible and copy across filesystems so a prepared pair has the
+    same basename and directory even when the upstream artifacts were staged
+    independently.
+    """
+    source_path = Path(source)
+    target_path = Path(target)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    source_lexical = os.path.abspath(os.path.normpath(os.fspath(source_path)))
+    target_lexical = os.path.abspath(os.path.normpath(os.fspath(target_path)))
+    if source_lexical == target_lexical:
+        return
+    if (
+        source_path.exists()
+        and target_path.exists()
+        and not target_path.is_symlink()
+        and os.path.samefile(source_path, target_path)
+    ):
+        return
+    if target_path.exists() or target_path.is_symlink():
+        target_path.unlink()
+    try:
+        os.link(source_path, target_path)
+    except OSError as exc:
+        if exc.errno not in _LINK_FALLBACK_ERRNOS:
+            raise
+        shutil.copy2(source_path, target_path)
 
 
 def validate_int(

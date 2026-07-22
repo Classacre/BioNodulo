@@ -533,6 +533,48 @@ def test_modkit_requires_exact_bam_and_reference_sidecars() -> None:
     )
 
 
+def test_modkit_rejects_percentile_when_filtering_is_disabled() -> None:
+    inputs = {
+        "bam": "/data/calls.sorted.bam",
+        "bam_index": "/data/calls.sorted.bam.bai",
+        "no_filtering": True,
+        "filter_percentile": 0.2,
+    }
+    assert ModkitPileupNode.VALIDATE_INPUTS(inputs) == (
+        "Input 'filter_percentile' cannot be combined with 'no_filtering'; "
+        "the pinned Modkit parser treats them as mutually exclusive"
+    )
+
+
+def test_modkit_prepares_bam_and_reference_sibling_pairs(tmp_path: Path) -> None:
+    bam = tmp_path / "source" / "calls.sorted.bam"
+    bam_index = Path(f"{bam}.bai")
+    reference = tmp_path / "source" / "reference.fa"
+    reference_index = Path(f"{reference}.fai")
+    for path in (bam, bam_index, reference, reference_index):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(path.name, encoding="utf-8")
+
+    inputs = {
+        "bam": str(bam),
+        "bam_index": str(bam_index),
+        "reference": str(reference),
+        "reference_index": str(reference_index),
+        "cpg": True,
+    }
+    output = tmp_path / "run" / "modkit_pileup" / "bedmethyl.bed"
+    ModkitPileupNode.PREPARE_EXECUTION(inputs, [output])
+
+    assert inputs["bam"] == str(tmp_path / "run" / "modkit_pileup" / "inputs" / "bam" / bam.name)
+    assert inputs["bam_index"] == f"{inputs['bam']}.bai"
+    assert inputs["reference"] == str(
+        tmp_path / "run" / "modkit_pileup" / "inputs" / "reference" / reference.name
+    )
+    assert inputs["reference_index"] == f"{inputs['reference']}.fai"
+    assert Path(inputs["bam"]).read_text(encoding="utf-8") == bam.name
+    assert Path(inputs["bam_index"]).read_text(encoding="utf-8") == bam_index.name
+
+
 def test_nanoplot_renders_one_source_with_documented_defaults_and_flags() -> None:
     assert NanoPlotQCNode.VERSION == "1.44.1"
     assert NanoPlotQCNode.CONDA_PACKAGE_CONSTRAINTS == {"nanoplot": "1.44.1"}

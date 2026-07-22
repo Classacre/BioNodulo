@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
@@ -12,6 +13,7 @@ from bionodulo.nodes.builtin._reference_sidecars import (
 from .adapter import (
     LongReadCommandNode,
     option_value,
+    stage_file,
     validate_int,
     validate_number,
 )
@@ -45,6 +47,13 @@ class ModkitPileupNode(LongReadCommandNode):
     SOURCE_TAG = "v0.4.3"
     DOCUMENTATION_URL = "https://nanoporetech.github.io/modkit/intro_pileup.html"
     UPSTREAM_SOURCE = "src/pileup/subcommand.rs; src/fasta.rs; src/bin/main.rs"
+    SOURCE_AUTHORITIES = {
+        "argv_parser": "src/pileup/subcommand.rs:ModBamPileup",
+        "bam_index_discovery": "src/pileup/subcommand.rs:IndexedReader::from_path",
+        "fasta_index_discovery": "src/fasta.rs:MotifLocationsLookup::from_paths",
+        "native_output": "src/pileup/subcommand.rs:PileupWriter::new",
+    }
+    AUDIT_STATUS = "contract-checked-no-binary-execution"
     EXIT_SEMANTICS = (
         "Clap rejects invalid option combinations; pileup errors print their cause "
         "chain and exit 1. Successful execution returns 0."
@@ -115,6 +124,13 @@ class ModkitPileupNode(LongReadCommandNode):
         )
         if validation is not True:
             return validation
+        if option_value(inputs, "no_filtering", False) and float(
+            option_value(inputs, "filter_percentile", 0.1)
+        ) != 0.1:
+            return (
+                "Input 'filter_percentile' cannot be combined with 'no_filtering'; "
+                "the pinned Modkit parser treats them as mutually exclusive"
+            )
         reference_supplied = inputs.get("reference") not in (None, "")
         index_supplied = inputs.get("reference_index") not in (None, "")
         needs_reference = bool(option_value(inputs, "cpg", False) or option_value(inputs, "combine_strands", False))
@@ -127,6 +143,27 @@ class ModkitPileupNode(LongReadCommandNode):
         if option_value(inputs, "combine_strands", False) and not option_value(inputs, "cpg", False):
             return "Input 'combine_strands' requires 'cpg' in this focused contract"
         return True
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Any]) -> None:
+        """Stage each implicit sidecar beside the file Modkit will open."""
+        node_dir = outputs[0].parent
+        bam_dir = node_dir / "inputs" / "bam"
+        bam_target = bam_dir / Path(str(inputs["bam"])).name
+        bam_index_target = Path(f"{bam_target}.bai")
+        stage_file(str(inputs["bam"]), bam_target)
+        stage_file(str(inputs["bam_index"]), bam_index_target)
+        inputs["bam"] = str(bam_target)
+        inputs["bam_index"] = str(bam_index_target)
+
+        if inputs.get("reference"):
+            reference_dir = node_dir / "inputs" / "reference"
+            reference_target = reference_dir / Path(str(inputs["reference"])).name
+            reference_index_target = Path(f"{reference_target}.fai")
+            stage_file(str(inputs["reference"]), reference_target)
+            stage_file(str(inputs["reference_index"]), reference_index_target)
+            inputs["reference"] = str(reference_target)
+            inputs["reference_index"] = str(reference_index_target)
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
