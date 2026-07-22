@@ -25,6 +25,47 @@ from .adapter import (
 )
 
 
+_SIMPLE_DEFAULTS: dict[str, Any] = {
+    "use_qual": False,
+    "consensus_fraction": 0.75,
+    "heterozygous_fraction": 0.15,
+}
+
+_BAYESIAN_DEFAULTS: dict[str, Any] = {
+    "config": "manual",
+    "cutoff": 10,
+    "use_mq": True,
+    "adjust_mq": True,
+    "nm_halo": 50,
+    "low_mq": 1,
+    "high_mq": 60,
+    "scale_mq": 1.0,
+    "p_het": 1.0e-03,
+    "p_indel": 2.0e-04,
+    "het_scale": 1.0,
+    "homopoly_fix": False,
+    "homopoly_score": None,
+    "qual_calibration": "file",
+    "qual_calibration_file": None,
+}
+
+_MQ_SUBSETTING_DEFAULTS: dict[str, Any] = {
+    key: _BAYESIAN_DEFAULTS[key]
+    for key in ("adjust_mq", "nm_halo", "low_mq", "high_mq", "scale_mq", "homopoly_fix", "homopoly_score")
+}
+
+
+def _changed_settings(inputs: dict[str, Any], defaults: dict[str, Any]) -> list[str]:
+    """Return supplied settings that differ from their inactive-mode defaults."""
+    changed: list[str] = []
+    for key, default in defaults.items():
+        if key not in inputs or inputs[key] in (None, ""):
+            continue
+        if inputs[key] != default:
+            changed.append(key)
+    return changed
+
+
 class SamtoolsConsensusNode(SamtoolsCommandNode):
     """Generate a consensus sequence from SAM/BAM/CRAM alignments."""
 
@@ -68,7 +109,10 @@ class SamtoolsConsensusNode(SamtoolsCommandNode):
         skipped_flags = _flag_sum(inputs.get("skipped_flags"))
         if required_flags:
             cmd.extend(["--rf", str(required_flags)])
-        if skipped_flags:
+        # ``--ff 0`` is meaningful: it disables the source default exclusion
+        # mask (UNMAP,SECONDARY,QCFAIL,DUP).  Testing only the parsed integer
+        # previously dropped that explicit request and silently kept filtering.
+        if inputs.get("skipped_flags") not in (None, "", []):
             cmd.extend(["--ff", str(skipped_flags)])
 
         mode = str(inputs.get("mode", "bayesian"))
@@ -81,8 +125,11 @@ class SamtoolsConsensusNode(SamtoolsCommandNode):
         cmd.extend(["--min-depth", str(inputs.get("min_depth", 1))])
         _add_if_value(cmd, "-r", inputs.get("region"))
         _add_if_value(cmd, "-T", inputs.get("reference"))
+        _add_if_value(cmd, "--ref-qual", inputs.get("reference_quality"))
         cmd.extend(["-l", str(inputs.get("line_len", 70))])
-        if inputs.get("output_all"):
+        if inputs.get("output_all_references"):
+            cmd.extend(["-a", "-a"])
+        elif inputs.get("output_all"):
             cmd.append("-a")
         cmd.extend(
             [
@@ -182,8 +229,9 @@ class SamtoolsConsensusNode(SamtoolsCommandNode):
             validation = validate_colocated_reference_index(inputs)
             if validation is not True:
                 return validation
+        input_path = str(inputs.get("input", ""))
+        is_sam = input_path.lower().endswith(".sam")
         if inputs.get("region"):
-            input_path = str(inputs.get("input", ""))
             if input_path.lower().endswith(".sam"):
                 return "region queries require indexed BAM or CRAM input"
             if input_path.lower().endswith(".cram"):
@@ -203,6 +251,10 @@ class SamtoolsConsensusNode(SamtoolsCommandNode):
             if validation is not True:
                 return validation
         elif inputs.get("bam_index"):
+            if is_sam:
+                return "bam_index is not consumed for SAM input"
+            if _additional_threads(inputs) == 0:
+                return "bam_index is only consumed by a region query or multi-threaded consensus"
             if str(inputs.get("input", "")).lower().endswith(".cram"):
                 validation = validate_index_pairs(
                     inputs,
@@ -219,6 +271,61 @@ class SamtoolsConsensusNode(SamtoolsCommandNode):
                 )
             if validation is not True:
                 return validation
+
+        mode = str(inputs.get("mode", "bayesian") or "bayesian")
+        config = str(inputs.get("config", "manual") or "manual")
+        if mode == "simple":
+            changed = _changed_settings(inputs, _BAYESIAN_DEFAULTS)
+            if changed:
+                return f"{', '.join(changed)} is only valid for Bayesian consensus modes"
+        else:
+            changed = _changed_settings(inputs, _SIMPLE_DEFAULTS)
+            if changed:
+                return f"{', '.join(changed)} is only valid for simple consensus mode"
+
+            if mode == "bayesian_116" and config != "manual":
+                return (
+                    "config presets force Samtools into bayesian mode and cannot be combined "
+                    "with bayesian_116"
+                )
+
+            if config != "manual":
+                manual_changes = _changed_settings(
+                    inputs,
+                    {key: value for key, value in _BAYESIAN_DEFAULTS.items() if key != "config"},
+                )
+                if manual_changes:
+                    return (
+                        f"{', '.join(manual_changes)} is overridden by the selected config preset; "
+                        "use config=manual"
+                    )
+
+            if not inputs.get("use_mq", True):
+                mq_changes = _changed_settings(inputs, _MQ_SUBSETTING_DEFAULTS)
+                if mq_changes:
+                    return f"{', '.join(mq_changes)} has no effect when use_mq is false"
+
+        output_format = cls._output_format(inputs)
+        if output_format == "pileup":
+            if inputs.get("mark_insertions"):
+                return "mark_insertions is only applied to FASTA or FASTQ output"
+            if inputs.get("line_len", 70) != 70:
+                return "line_len is only applied to FASTA or FASTQ output"
+        if inputs.get("mark_insertions") and not inputs.get("show_insertions", True):
+            return "mark_insertions has no effect when show_insertions is false"
+        if (
+            mode == "simple"
+            and inputs.get("heterozygous_fraction", 0.15) != 0.15
+            and not inputs.get("ambig")
+        ):
+            return "heterozygous_fraction requires ambig output in simple mode"
+        if inputs.get("output_all_references") and inputs.get("region"):
+            return "output_all_references cannot be combined with a region query"
+        if inputs.get("reference_quality", 0) != 0:
+            if not inputs.get("reference"):
+                return "reference_quality requires a reference FASTA"
+            if output_format != "fastq":
+                return "reference_quality is only represented in FASTQ output"
         if inputs.get("low_mq", 1) > inputs.get("high_mq", 60):
             return "low_mq must be less than or equal to high_mq"
         return True
@@ -251,7 +358,14 @@ class SamtoolsConsensusNode(SamtoolsCommandNode):
                 ),
                 "skipped_flags": (
                     "STRING",
-                    {"default": "", "description": "Comma-separated SAM flags to exclude", "advanced": True},
+                    {
+                        "default": "",
+                        "description": (
+                            "Comma-separated SAM flags to exclude; empty uses the Samtools default "
+                            "UNMAP,SECONDARY,QCFAIL,DUP, while 0 disables exclusions"
+                        ),
+                        "advanced": True,
+                    },
                 ),
                 "mode": (
                     "STRING",
@@ -349,12 +463,30 @@ class SamtoolsConsensusNode(SamtoolsCommandNode):
                     "FASTA_INDEX",
                     {"description": "Exact colocated <reference>.fai index", "advanced": True},
                 ),
+                "reference_quality": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 93,
+                        "description": "FASTQ quality assigned to reference-derived bases (--ref-qual)",
+                        "advanced": True,
+                    },
+                ),
                 "line_len": ("INT", {"default": 70, "description": "Maximum FASTA/FASTQ line length"}),
                 "output_all": (
                     "BOOLEAN",
                     {
                         "default": False,
-                        "description": "Output all positions, including references with no aligned data",
+                        "description": "Output every position from start to end of references containing aligned data (-a)",
+                    },
+                ),
+                "output_all_references": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Output every position in every reference, including references with no data (-aa)",
+                        "advanced": True,
                     },
                 ),
                 "show_deletions": (
