@@ -16,13 +16,13 @@ from .adapter import (
 )
 
 
-def _validate_manta_bai(
+def _validate_manta_alignment_index(
     inputs: dict[str, Any],
     *,
     bam_key: str,
     index_key: str,
 ) -> bool | str:
-    """Accept either BAI sibling spelling discovered by Manta 1.6.0."""
+    """Accept the BAM/CRAM index siblings checked by Manta 1.6.0."""
 
     def normalize_path(value: Any, *, key: str) -> Path | str:
         try:
@@ -37,7 +37,9 @@ def _validate_manta_bai(
     if isinstance(bam, str):
         return bam
 
-    candidates = {Path(f"{bam}.bai")}
+    # Manta's configureUtil.py checks appended .bai/.csi/.crai for both BAM
+    # and CRAM.  Its legacy extension-replaced fallback is only .bam -> .bai.
+    candidates = {Path(f"{bam}{suffix}") for suffix in (".bai", ".csi", ".crai")}
     if bam.suffix.lower() == ".bam":
         candidates.add(bam.with_suffix(".bai"))
     rendered = " or ".join(
@@ -46,7 +48,7 @@ def _validate_manta_bai(
     index_value = inputs.get(index_key)
     if index_value in (None, ""):
         return (
-            f"Input '{index_key}' must be an exact colocated index (BAI) "
+            f"Input '{index_key}' must be an exact colocated index (BAI/CSI/CRAI) "
             f"discovered by Manta for input '{bam_key}'; expected {rendered}"
         )
     index = normalize_path(index_value, key=index_key)
@@ -54,7 +56,7 @@ def _validate_manta_bai(
         return index
     if index not in candidates:
         return (
-            f"Input '{index_key}' must be an exact colocated index (BAI) "
+            f"Input '{index_key}' must be an exact colocated index (BAI/CSI/CRAI) "
             f"discovered by Manta for input '{bam_key}'; expected {rendered}"
         )
     return True
@@ -146,19 +148,24 @@ class MantaNode(IndexedBamReferenceNode):
 
     @classmethod
     def validate_primary_bam_index(cls, inputs: dict[str, Any]) -> bool | str:
-        return _validate_manta_bai(inputs, bam_key="bam", index_key="bam_index")
+        return _validate_manta_alignment_index(inputs, bam_key="bam", index_key="bam_index")
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "bam": (
-                    "BAM",
+                    "BAM,CRAM",
                     {"description": "Normal BAM, or tumor BAM when normal_bam is provided"},
                 ),
                 "bam_index": (
-                    "BAI",
-                    {"description": ("Explicit <bam>.bai or extension-replaced <stem>.bai index for the primary BAM")},
+                    "FILE",
+                    {
+                        "description": (
+                            "Explicit colocated BAI/CSI/CRAI index discovered by Manta "
+                            "for the primary BAM or CRAM"
+                        )
+                    },
                 ),
                 "reference": (
                     "FASTA",
@@ -172,13 +179,16 @@ class MantaNode(IndexedBamReferenceNode):
             },
             "optional": {
                 "normal_bam": (
-                    "BAM",
+                    "BAM,CRAM",
                     {"description": "Normal BAM for tumor-normal mode", "advanced": True},
                 ),
                 "normal_bam_index": (
-                    "BAI",
+                    "FILE",
                     {
-                        "description": ("Explicit <normal_bam>.bai or extension-replaced <stem>.bai index"),
+                        "description": (
+                            "Explicit colocated BAI/CSI/CRAI index discovered by Manta "
+                            "for the normal BAM or CRAM"
+                        ),
                         "advanced": True,
                     },
                 ),
@@ -287,7 +297,7 @@ class MantaNode(IndexedBamReferenceNode):
         if option_value(inputs, "rna", False) and normal_bam:
             return "rna mode requires exactly one normal sample and no tumor BAM"
         if normal_bam:
-            return _validate_manta_bai(
+            return _validate_manta_alignment_index(
                 inputs,
                 bam_key="normal_bam",
                 index_key="normal_bam_index",
@@ -312,6 +322,9 @@ class MantaNode(IndexedBamReferenceNode):
             raise ValueError(f"Input validation failed: {validation}")
         _clear_manta_generated_state(node_out)
         outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_root)
+        # Manta's generated workflow discovers BAM/FAI siblings by filename;
+        # materialize the explicit graph inputs before configuration runs.
+        self.__class__.PREPARE_EXECUTION(kwargs, outputs)
 
         commands = (
             ("Manta configuration", self.__class__._render_config_command(kwargs), "config"),

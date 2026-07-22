@@ -58,10 +58,11 @@ def _cli_inputs(node_id: str, tmp_path: Path) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("node_id", tuple(CLI_NODES))
-def test_cli_indexed_bam_consumers_require_bai_port(node_id: str) -> None:
+def test_cli_indexed_bam_consumers_expose_source_supported_index_port(node_id: str) -> None:
     required = CLI_NODES[node_id].INPUT_TYPES()["required"]
 
-    assert required["bam_index"][0] == "BAI"
+    expected = "FILE" if node_id in {"manta", "manta_call", "delly", "delly_call"} else "BAI"
+    assert required["bam_index"][0] == expected
 
 
 def test_coverage_plot_exposes_optional_bai_port() -> None:
@@ -102,9 +103,10 @@ def test_cli_indexed_bam_consumers_reject_missing_or_non_colocated_index(
 
     result = CLI_NODES[node_id].VALIDATE_INPUTS(inputs)
 
-    # htsjdk and Manta both discover the extension-replaced short sibling
-    # (`sample.bai`) in addition to the appended form (`sample.bam.bai`).
-    if node_id in {"gatk_haplotype_caller", "manta", "manta_call"} and bad_index == "sample.bai":
+    # htsjdk, Manta, and DELLY's bundled htslib discover the
+    # extension-replaced short sibling (`sample.bai`) in addition to the
+    # appended form (`sample.bam.bai`).
+    if node_id in {"gatk_haplotype_caller", "manta", "manta_call", "delly", "delly_call"} and bad_index == "sample.bai":
         assert result is True
         return
     assert result is not True
@@ -175,7 +177,7 @@ def test_alias_classes_inherit_index_contract_and_validation(
     inputs = _cli_inputs(alias.NODE_ID, tmp_path)
     assert alias.VALIDATE_INPUTS(inputs) is True
     inputs["bam_index"] = tmp_path / "sample.bai"
-    if alias is MantaCallNode:
+    if alias in {MantaCallNode, DellyCallNode}:
         assert alias.VALIDATE_INPUTS(inputs) is True
     else:
         assert alias.VALIDATE_INPUTS(inputs) is not True
@@ -429,7 +431,10 @@ def test_generated_catalog_exposes_indexed_bam_contracts() -> None:
         "sequence_dictionary",
     ]
     for node_id in CLI_NODES:
-        assert metadata[node_id]["input"]["required"]["bam_index"][0] == "BAI"
+        expected_index_type = (
+            "FILE" if node_id in {"manta", "manta_call", "delly", "delly_call"} else "BAI"
+        )
+        assert metadata[node_id]["input"]["required"]["bam_index"][0] == expected_index_type
     for node_id in {
         "gatk_haplotype_caller",
         "freebayes",

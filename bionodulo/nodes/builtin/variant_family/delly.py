@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
+from bionodulo.nodes.builtin._bam_index import validate_colocated_alignment_index
 
 from .adapter import (
     IndexedBamReferenceNode,
@@ -49,7 +49,11 @@ class DellyNode(IndexedBamReferenceNode):
     UPSTREAM_LONG_READ_SOURCE = "src/tegua.h"
     UPSTREAM_OUTPUT_SOURCE = "src/modvcf.h:vcfOutput"
     UPSTREAM_OPTIONS_SOURCE = "src/delly.h:delly; src/tegua.h:tegua"
-    UPSTREAM_BAM_INDEX_SOURCE = "src/delly.h:sam_index_load; src/tegua.h:sam_index_load"
+    UPSTREAM_BAM_INDEX_SOURCE = (
+        "src/delly.h:sam_index_load; src/tegua.h:sam_index_load; "
+        "src/htslib/hts.c:4331-4453; src/htslib/sam.c:1535-1551 "
+        "(htslib 6811ac546b5807ce879ec4a22e4297215b9f5fee)"
+    )
     UPSTREAM_REFERENCE_SOURCE = "src/delly.h:fai_load; src/tegua.h:fai_load"
     UPSTREAM_SOMATIC_SOURCE = "README.md:Somatic SV calling"
     UPSTREAM_THREADING_SOURCE = "README.md:Delly multi-threading mode"
@@ -62,11 +66,15 @@ class DellyNode(IndexedBamReferenceNode):
     TECHNOLOGIES = ("ont", "pb")
 
     @classmethod
+    def validate_primary_bam_index(cls, inputs: dict[str, Any]) -> bool | str:
+        return validate_colocated_alignment_index(inputs)
+
+    @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "bam": (
-                    "BAM",
+                    "BAM,CRAM",
                     {
                         "description": (
                             "Coordinate-sorted, indexed, duplicate-marked primary BAM "
@@ -75,8 +83,13 @@ class DellyNode(IndexedBamReferenceNode):
                     },
                 ),
                 "bam_index": (
-                    "BAI",
-                    {"description": "Exact <bam>.bai index for the input BAM"},
+                    "FILE",
+                    {
+                        "description": (
+                            "Exact colocated BAI/CSI for BAM or CRAI/CSI for CRAM "
+                            "as discovered by DELLY's bundled htslib"
+                        )
+                    },
                 ),
                 "reference": (
                     "FASTA",
@@ -93,7 +106,7 @@ class DellyNode(IndexedBamReferenceNode):
                     {"default": "call", "options": list(cls.MODES)},
                 ),
                 "normal_bam": (
-                    "BAM",
+                    "BAM,CRAM",
                     {
                         "description": (
                             "Matched control BAM appended after the primary/tumor BAM "
@@ -103,9 +116,12 @@ class DellyNode(IndexedBamReferenceNode):
                     },
                 ),
                 "normal_bam_index": (
-                    "BAI",
+                    "FILE",
                     {
-                        "description": "Exact <normal_bam>.bai index for the matched control BAM",
+                        "description": (
+                            "Exact colocated BAI/CSI for BAM or CRAI/CSI for CRAM "
+                            "matched control index"
+                        ),
                         "advanced": True,
                     },
                 ),
@@ -183,11 +199,18 @@ class DellyNode(IndexedBamReferenceNode):
             validation = validate_choice(inputs, "technology", "ont", cls.TECHNOLOGIES)
             if validation is not True:
                 return validation
+        elif inputs.get("technology") not in (None, "", "ont"):
+            # ``delly call`` has no technology option.  Do not silently drop a
+            # non-default UI value that the user intended to apply.
+            validation = validate_choice(inputs, "technology", "ont", cls.TECHNOLOGIES)
+            if validation is not True:
+                return validation
+            return "technology is only consumed when mode is 'lr'"
 
         normal_bam = inputs.get("normal_bam")
         normal_bam_index = inputs.get("normal_bam_index")
         if normal_bam:
-            return validate_colocated_bam_index(
+            return validate_colocated_alignment_index(
                 inputs,
                 bam_key="normal_bam",
                 index_key="normal_bam_index",

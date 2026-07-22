@@ -11,6 +11,7 @@ from bionodulo.nodes.builtin._reference_sidecars import (
     validate_colocated_reference_index,
     validate_colocated_sequence_dictionary,
 )
+from bionodulo.nodes.builtin._sidecar_staging import stage_variant_sidecars
 from bionodulo.nodes.command_node import CommandNode
 
 
@@ -295,6 +296,76 @@ class GATKCommandNode(CommandNode):
         node_dir = Path(output_dir) / cls.NODE_ID
         node_dir.mkdir(parents=True, exist_ok=True)
         return [node_dir / filename for filename in cls.OUTPUT_FILENAMES]
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Stage reference, alignment, and indexed resource bundles together.
+
+        GATK/htsjdk discovers these sidecars from the path passed on the
+        command line.  Keeping the explicit ports is useful for graph
+        validation; this hook makes the same contract true after cloud input
+        materialization, where each uploaded object may start in a different
+        directory.
+        """
+        # Capture whether both spellings referred to the same original path.
+        # Staging rewrites the canonical path; only an equivalent compatibility
+        # alias may be rewritten along with it.  A conflicting alias must remain
+        # visible to ``VALIDATE_INPUTS`` instead of being silently overwritten.
+        gvcf_alias_matches = False
+        if inputs.get("gvcf") not in (None, "") and inputs.get("gvcfs") not in (None, ""):
+            canonical_values = path_values(inputs.get("gvcf"), key="gvcf")
+            alias_values = path_values(
+                inputs.get("gvcfs"),
+                key="gvcfs",
+                split_commas=True,
+            )
+            if (
+                isinstance(canonical_values, list)
+                and isinstance(alias_values, list)
+                and len(canonical_values) == 1
+                and len(alias_values) == 1
+            ):
+                canonical_path = _absolute_path(canonical_values[0], key="gvcf")
+                alias_path = _absolute_path(alias_values[0], key="gvcfs")
+                gvcf_alias_matches = (
+                    isinstance(canonical_path, Path)
+                    and isinstance(alias_path, Path)
+                    and canonical_path == alias_path
+                )
+
+        bam_pairs = tuple(
+            pair
+            for pair in (
+                ("bam", "bam_index", "primary"),
+                ("tumor_bam", "tumor_bam_index", "tumor"),
+                ("normal_bam", "normal_bam_index", "normal"),
+            )
+            if inputs.get(pair[0]) not in (None, "") or inputs.get(pair[1]) not in (None, "")
+        )
+        variant_pairs: list[tuple[str, str, str, bool]] = [
+            ("dbsnp", "dbsnp_index", "dbsnp", False),
+            ("germline_resource", "germline_resource_index", "germline_resource", False),
+            ("panel_of_normals", "panel_of_normals_index", "panel_of_normals", False),
+            ("known_sites", "known_sites_indexes", "known_sites", True),
+        ]
+        # GenotypeGVCFs has a compatibility alias (gvcfs) for its canonical
+        # scalar input.  Stage whichever spelling the user supplied, while
+        # retaining a single canonical value for post-stage validation.
+        if inputs.get("gvcf") not in (None, ""):
+            variant_pairs.append(("gvcf", "gvcf_index", "gvcf", False))
+        elif inputs.get("gvcfs") not in (None, ""):
+            variant_pairs.append(("gvcfs", "gvcf_index", "gvcf", True))
+
+        stage_variant_sidecars(
+            inputs,
+            outputs,
+            bam_pairs=bam_pairs,
+            variant_pairs=tuple(variant_pairs),
+        )
+        if gvcf_alias_matches:
+            # Avoid a false alias-conflict after the canonical path has been
+            # rewritten by staging.
+            inputs["gvcfs"] = inputs["gvcf"]
 
     @classmethod
     def output_path(cls, inputs: Mapping[str, Any], index: int = 0) -> Path:

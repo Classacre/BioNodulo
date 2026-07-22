@@ -9,6 +9,7 @@ from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
 from bionodulo.nodes.builtin._reference_sidecars import (
     validate_colocated_reference_index,
 )
+from bionodulo.nodes.builtin._sidecar_staging import stage_variant_sidecars
 from bionodulo.nodes.command_node import CommandNode
 
 
@@ -87,6 +88,11 @@ class VariantCommandNode(CommandNode):
     OUTPUT_FILENAMES: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Materialize any explicitly declared filename-discovered sidecars."""
+        stage_variant_sidecars(inputs, outputs)
+
+    @classmethod
     def PLAN_OUTPUTS(
         cls,
         inputs: dict[str, Any],
@@ -110,6 +116,17 @@ class IndexedBamReferenceNode(VariantCommandNode):
     def validate_primary_bam_index(cls, inputs: dict[str, Any]) -> bool | str:
         """Validate the primary BAM index using the caller's discovery rules."""
         return validate_colocated_bam_index(inputs)
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        stage_variant_sidecars(
+            inputs,
+            outputs,
+            bam_pairs=(
+                ("bam", "bam_index", "primary"),
+                ("normal_bam", "normal_bam_index", "normal"),
+            ),
+        )
 
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:

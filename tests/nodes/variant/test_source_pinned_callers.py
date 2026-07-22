@@ -200,7 +200,7 @@ def test_delly_somatic_call_appends_matched_control_bam_after_tumor(
 def test_delly_normal_bam_index_is_an_explicit_colocated_sidecar() -> None:
     inputs = _indexed_inputs()
 
-    assert "expected '/data/normal.bam.bai'" in str(
+    assert "/data/normal.bam.bai" in str(
         DellyNode.VALIDATE_INPUTS({**inputs, "normal_bam": "/data/normal.bam"})
     )
     assert (
@@ -218,6 +218,29 @@ def test_delly_normal_bam_index_is_an_explicit_colocated_sidecar() -> None:
             }
         )
     )
+
+
+@pytest.mark.parametrize(
+    ("bam", "index"),
+    [
+        ("/data/sample.bam", "/data/sample.bam.csi"),
+        ("/data/sample.bam", "/data/sample.csi"),
+        ("/data/sample.cram", "/data/sample.cram.crai"),
+        ("/data/sample.cram", "/data/sample.crai"),
+    ],
+)
+def test_delly_accepts_htslib_alignment_index_siblings(bam: str, index: str) -> None:
+    inputs = _indexed_inputs(bam=bam, bam_index=index, mode="call")
+
+    assert DellyNode.VALIDATE_INPUTS(inputs) is True
+
+
+@pytest.mark.parametrize("index_suffix", [".csi", ".crai"])
+def test_manta_accepts_appended_source_supported_index_siblings(index_suffix: str) -> None:
+    bam = "/data/sample.bam"
+    inputs = _indexed_inputs(bam=bam, bam_index=f"{bam}{index_suffix}", threads=4)
+
+    assert MantaNode.VALIDATE_INPUTS(inputs) is True
 
 
 def test_delly_long_read_argv_uses_source_native_technology_flag(tmp_path: Path) -> None:
@@ -247,13 +270,17 @@ def test_delly_long_read_argv_uses_source_native_technology_flag(tmp_path: Path)
     ]
 
 
-def test_delly_only_validates_long_read_technology_for_long_read_mode() -> None:
+def test_delly_rejects_non_default_technology_that_call_mode_would_ignore() -> None:
     inputs = _indexed_inputs(mode="call", technology="not-a-long-read-platform")
 
-    assert DellyNode.VALIDATE_INPUTS(inputs) is True
+    assert DellyNode.VALIDATE_INPUTS(inputs) == "technology must be one of: ont, pb"
     assert DellyNode.VALIDATE_INPUTS(
         {**inputs, "mode": "lr"}
     ) == "technology must be one of: ont, pb"
+
+    assert DellyNode.VALIDATE_INPUTS(
+        _indexed_inputs(mode="call", technology="pb")
+    ) == "technology is only consumed when mode is 'lr'"
 
 
 def test_delly_map_qual_matches_the_source_uint16_range() -> None:
