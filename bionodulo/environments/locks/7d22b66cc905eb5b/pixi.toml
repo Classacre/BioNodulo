@@ -1,0 +1,13 @@
+[workspace]
+name = "bionodulo-workflow"
+version = "0.1.0"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+biopython = "1.87"
+fastp = "0.24.0"
+megahit = "1.2.9"
+prokka = "1.15.6"
+quast = "5.3.0"
+spades = "4.2.0"

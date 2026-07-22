@@ -1,0 +1,11 @@
+[workspace]
+name = "bionodulo-workflow"
+version = "0.1.0"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+cas-offinder = "2.4.1"
+crispresso2 = "2.3.4"
+fastp = "0.24.0"
+mageck = "0.5.9.5"
