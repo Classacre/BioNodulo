@@ -315,8 +315,8 @@ class FixedVcfOutputNode(BCFtoolsCommandNode):
         return cls.output_dir(inputs) / cls.OUTPUT_FILENAME
 
 
-class _CoreBCFtoolsAudit:
-    """Evidence state shared only by the 19 audited core subcommands."""
+class _AuditedBCFtoolsContract:
+    """Pinned evidence state shared by source-audited BCFtools contracts."""
 
     AUDIT_STATUS = "contract-checked-no-external-execution"
     EXIT_SEMANTICS = (
@@ -334,12 +334,38 @@ class _CoreBCFtoolsAudit:
             )
 
 
-class CoreBCFtoolsCommandNode(_CoreBCFtoolsAudit, BCFtoolsCommandNode):
+class CoreBCFtoolsCommandNode(_AuditedBCFtoolsContract, BCFtoolsCommandNode):
     """Audited core subcommand with arbitrary planned artifact types."""
 
 
-class CoreFixedVcfOutputNode(_CoreBCFtoolsAudit, FixedVcfOutputNode):
+class CoreFixedVcfOutputNode(_AuditedBCFtoolsContract, FixedVcfOutputNode):
     """Audited core subcommand with one fixed compressed-VCF artifact."""
+
+
+class AuditedPluginBCFtoolsCommandNode(_AuditedBCFtoolsContract, BCFtoolsCommandNode):
+    """Audited plugin contract with arbitrary planned artifact types."""
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        if uses_regions(inputs):
+            return validate_data_index(inputs)
+        return True
+
+
+class AuditedPluginFixedVcfOutputNode(_AuditedBCFtoolsContract, FixedVcfOutputNode):
+    """Audited plugin contract with one fixed compressed-VCF artifact."""
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        if uses_regions(inputs):
+            return validate_data_index(inputs)
+        return True
 
 
 def add_fixed_vcf_output(command: list[str], node: type[FixedVcfOutputNode], inputs: dict[str, Any]) -> None:

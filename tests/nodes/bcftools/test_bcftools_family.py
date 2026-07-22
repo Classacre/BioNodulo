@@ -196,8 +196,6 @@ CASES: list[tuple[str, dict[str, object], list[str]]] = [
             f"{OUTPUT}/fixploidy.vcf.gz",
             "in.vcf",
             "--",
-            "--default-ploidy",
-            "2",
             "--tags",
             "GT",
         ],
@@ -211,14 +209,13 @@ CASES: list[tuple[str, dict[str, object], list[str]]] = [
             "-Oz",
             "-o",
             f"{OUTPUT}/mendelian.vcf.gz",
-            "in.vcf",
-            "--",
             "--mode",
             "a",
             "--pfm",
             "2X:C,F,M",
             "--rules",
             "GRCh37",
+            "in.vcf",
         ],
     ),
     (
@@ -255,6 +252,7 @@ CASES: list[tuple[str, dict[str, object], list[str]]] = [
 
 
 CORE_NODE_IDS = {case[0] for case in CASES[:19]}
+PLUGIN_NODE_IDS = {case[0] for case in CASES[19:]}
 
 
 @pytest.fixture(scope="module")
@@ -301,11 +299,12 @@ def test_bcftools_family_metadata_and_outputs(
     else:
         assert node_class.REQUIRED_EXECUTABLES == ["bcftools"]
         assert node_class.REQUIRED_CONDA_PACKAGES == ["bcftools", "htslib"]
-    if node_id in CORE_NODE_IDS:
+    if node_id in CORE_NODE_IDS | PLUGIN_NODE_IDS:
         assert node_class.SOURCE_REVISION == node_class.GIT_COMMIT
         assert node_class.UPSTREAM_SOURCE
         assert node_class.UPSTREAM_SOURCE in node_class.SOURCE_PATHS
         assert node_class.UPSTREAM_DOC in node_class.SOURCE_PATHS
+        assert all(url.startswith("https://github.com/samtools/bcftools/blob/") for url in node_class.SOURCE_URLS)
         assert node_class.AUDIT_STATUS == "contract-checked-no-external-execution"
         assert node_class.EXECUTION_EVIDENCE == "not-run"
     assert node_class.DOCUMENTATION_URL.startswith("https://")
@@ -844,3 +843,325 @@ def test_bcftools_csq_enforces_trim_bound_and_renders_threads(registry: NodeRegi
         f"{OUTPUT}/csq.vcf.gz",
         "in.vcf",
     ]
+
+
+def test_bcftools_plugin_general_options_are_native_and_indexed(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_plugin_missing2ref")
+    inputs = {
+        "input_file": "in.vcf.gz",
+        "input_index": "in.vcf.gz.tbi",
+        "regions": "chr1",
+        "regions_overlap": "record",
+        "targets": "chr1:10-20",
+        "targets_overlap": "pos",
+        "threads": 3,
+        "phased": True,
+        "output": OUTPUT,
+    }
+    assert node_class.VALIDATE_INPUTS(inputs) is True
+    assert node_class.render_command(inputs) == [
+        "bcftools",
+        "+missing2ref",
+        "--regions",
+        "chr1",
+        "--regions-overlap",
+        "record",
+        "--targets",
+        "chr1:10-20",
+        "--targets-overlap",
+        "pos",
+        "--threads",
+        "3",
+        "-Oz",
+        "-o",
+        f"{OUTPUT}/missing2ref.vcf.gz",
+        "in.vcf.gz",
+        "--",
+        "--phased",
+    ]
+    assert node_class.VALIDATE_INPUTS({**inputs, "input_index": "wrong.tbi"}) is not True
+
+
+def test_bcftools_plugin_dosage_supports_general_record_filters(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_plugin_dosage")
+    inputs = {
+        "input_file": "in.vcf.gz",
+        "input_index": "in.vcf.gz.tbi",
+        "regions": "chr2",
+        "include": "QUAL>20",
+        "tags": ["GT"],
+    }
+    assert node_class.VALIDATE_INPUTS(inputs) is True
+    assert node_class.render_command(inputs) == [
+        "bcftools",
+        "+dosage",
+        "--include",
+        "QUAL>20",
+        "--regions",
+        "chr2",
+        "in.vcf.gz",
+        "--",
+        "-t",
+        "GT",
+    ]
+
+
+@pytest.mark.parametrize("conversion", ["XX-to-LXX", "PL-to-LPL", "AD-to-LAD"])
+def test_bcftools_plugin_tag2tag_rejects_upstream_todo_modes(
+    registry: NodeRegistry,
+    conversion: str,
+) -> None:
+    node_class = registry.get("bcftools_plugin_tag2tag")
+    assert node_class.VALIDATE_INPUTS({"input_file": "in.vcf", "conversion": conversion}) is not True
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"defaults": "bad"},
+        {"defaults": "AD:.,AD:0", "conversion": "LXX-to-XX"},
+        {"defaults": "AD:.", "conversion": "GP-to-GL"},
+        {"defaults": "AD:.", "conversion": "LPL-to-PL"},
+        {"defaults": "PL:.", "conversion": "LAD-to-AD"},
+        {"skip_nalt": 2, "conversion": "PL-to-GT"},
+        {"threshold": 0.2, "conversion": "PL-to-GT"},
+    ],
+)
+def test_bcftools_plugin_tag2tag_rejects_invalid_or_noop_controls(
+    registry: NodeRegistry,
+    extra: dict[str, object],
+) -> None:
+    node_class = registry.get("bcftools_plugin_tag2tag")
+    assert node_class.VALIDATE_INPUTS({"input_file": "in.vcf", **extra}) is not True
+
+
+def test_bcftools_plugin_tag2tag_preserves_zero_hard_call_threshold(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_plugin_tag2tag")
+    inputs = {
+        "input_file": "in.vcf",
+        "conversion": "GP-to-GT",
+        "threshold": 0,
+        "output": OUTPUT,
+    }
+    assert node_class.VALIDATE_INPUTS(inputs) is True
+    assert node_class.render_command(inputs)[-3:] == ["--GP-to-GT", "--threshold", "0"]
+    assert node_class.INPUT_TYPES()["optional"]["threshold"][1]["default"] == 0.1
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"target_gt": "a,r:0.5"},
+        {"target_gt": "b:AD"},
+        {"new_gt": "c:0/"},
+        {"seed": 7},
+    ],
+)
+def test_bcftools_plugin_setgt_rejects_parser_invalid_or_noop_controls(
+    registry: NodeRegistry,
+    extra: dict[str, object],
+) -> None:
+    assert registry.get("bcftools_plugin_setgt").VALIDATE_INPUTS({"input_file": "in.vcf", **extra}) is not True
+
+
+def test_bcftools_plugin_setgt_accepts_source_valid_random_and_binomial_modes(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_plugin_setgt")
+    assert node_class.VALIDATE_INPUTS({"input_file": "in.vcf", "target_gt": "b:AD<1e-3", "new_gt": "Mp"}) is True
+    random_inputs = {
+        "input_file": "in.vcf",
+        "target_gt": "r:0.25",
+        "new_gt": "0p",
+        "seed": 7,
+        "output": OUTPUT,
+    }
+    assert node_class.VALIDATE_INPUTS(random_inputs) is True
+    assert node_class.render_command(random_inputs)[-6:] == [
+        "-t",
+        "r:0.25",
+        "-n",
+        "0p",
+        "--seed",
+        "7",
+    ]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"force_ploidy": 1, "sex": "sex.tsv"},
+        {"force_ploidy": 1, "ploidy_file": "ploidy.tsv"},
+        {"default_ploidy": 3},
+        {"default_ploidy": 1.5, "ploidy_file": "ploidy.tsv"},
+    ],
+)
+def test_bcftools_plugin_fixploidy_rejects_ignored_or_noninteger_controls(
+    registry: NodeRegistry,
+    extra: dict[str, object],
+) -> None:
+    assert registry.get("bcftools_plugin_fixploidy").VALIDATE_INPUTS({"input_file": "in.vcf", **extra}) is not True
+
+
+def test_bcftools_plugin_fixploidy_binds_default_to_map(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_plugin_fixploidy")
+    inputs = {
+        "input_file": "in.vcf",
+        "ploidy_file": "ploidy.tsv",
+        "sex": "sex.tsv",
+        "default_ploidy": 3,
+        "threads": 2,
+        "output": OUTPUT,
+    }
+    assert node_class.VALIDATE_INPUTS(inputs) is True
+    command = node_class.render_command(inputs)
+    assert command[2:8] == ["--threads", "2", "-Oz", "-o", f"{OUTPUT}/fixploidy.vcf.gz", "in.vcf"]
+    assert command[-8:] == [
+        "--tags",
+        "GT",
+        "--default-ploidy",
+        "3",
+        "--ploidy",
+        "ploidy.tsv",
+        "--sex",
+        "sex.tsv",
+    ]
+
+
+def test_bcftools_plugin_mendelian_run_parser_has_no_plugin_separator(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_plugin_mendelian")
+    inputs = {
+        "input_file": "in.vcf.gz",
+        "input_index": "in.vcf.gz.tbi",
+        "child": "C",
+        "father": "F",
+        "mother": "M",
+        "regions": "chr1",
+        "regions_overlap": "2",
+        "targets": "chr1:10-20",
+        "targets_overlap": "0",
+        "output": OUTPUT,
+    }
+    assert node_class.VALIDATE_INPUTS(inputs) is True
+    command = node_class.render_command(inputs)
+    assert "--" not in command
+    assert command[-1] == "in.vcf.gz"
+    assert command[2:10] == [
+        "--regions",
+        "chr1",
+        "--regions-overlap",
+        "2",
+        "--targets",
+        "chr1:10-20",
+        "--targets-overlap",
+        "0",
+    ]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"mode": "S"},
+        {"mode": "s"},
+        {"num_x": "3X"},
+        {"rules": "unknown"},
+        {"ped": "one.ped", "trio_file": "two.ped"},
+    ],
+)
+def test_bcftools_plugin_mendelian_rejects_broken_or_ignored_controls(
+    registry: NodeRegistry,
+    extra: dict[str, object],
+) -> None:
+    inputs: dict[str, object] = {
+        "input_file": "in.vcf",
+        "child": "C",
+        "father": "F",
+        "mother": "M",
+        **extra,
+    }
+    if extra.get("ped"):
+        inputs.pop("child")
+        inputs.pop("father")
+        inputs.pop("mother")
+    assert registry.get("bcftools_plugin_mendelian").VALIDATE_INPUTS(inputs) is not True
+
+
+def test_bcftools_plugin_color_chrs_rejects_removed_legacy_noop(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_plugin_color_chrs")
+    assert (
+        node_class.VALIDATE_INPUTS(
+            {
+                "input_file": "in.vcf",
+                "sample_a": "A",
+                "sample_b": "B",
+                "sample_rel_sel": "legacy",
+            }
+        )
+        is not True
+    )
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"columns": "Consequence", "format": "%CHROM\\n"},
+        {"columns": "Consequence", "allow_undef_tags": True},
+        {"columns": "Consequence", "c": "IMPACT"},
+        {"columns": "Consequence", "annotation": "CSQ", "a": "ANN"},
+        {"select": "mane", "columns_types": "types.tsv"},
+        {"select": "mane", "keep_sites": True},
+        {"columns": "Consequence", "prioritize_genes": True},
+        {"columns": "Consequence", "gene_list_fields": "SYMBOL"},
+        {"columns": "Consequence", "columns_types": "-"},
+        {"columns": "Consequence", "severity": "?"},
+        {"select": "all"},
+        {"select": "all:missense"},
+    ],
+)
+def test_bcftools_plugin_split_vep_rejects_wrong_output_or_unbound_controls(
+    registry: NodeRegistry,
+    extra: dict[str, object],
+) -> None:
+    assert registry.get("bcftools_plugin_split_vep").VALIDATE_INPUTS({"input_file": "in.vcf", **extra}) is not True
+
+
+def test_bcftools_plugin_split_vep_renders_staged_vcf_controls(registry: NodeRegistry) -> None:
+    node_class = registry.get("bcftools_plugin_split_vep")
+    select_only = {"input_file": "in.vcf", "select": "mane", "output": OUTPUT}
+    assert node_class.VALIDATE_INPUTS(select_only) is True
+    assert node_class.render_command(select_only) == [
+        "bcftools",
+        "+split-vep",
+        "--select",
+        "mane",
+        "-Oz",
+        "-o",
+        f"{OUTPUT}/split_vep.vcf.gz",
+        "in.vcf",
+    ]
+
+    consequence_filter = {
+        "input_file": "in.vcf",
+        "select": "all:missense",
+        "drop_sites": True,
+        "output": OUTPUT,
+    }
+    assert node_class.VALIDATE_INPUTS(consequence_filter) is True
+    assert "--drop-sites" in node_class.render_command(consequence_filter)
+
+    inputs = {
+        "input_file": "in.vcf",
+        "columns": "Consequence,IMPACT",
+        "columns_types": "types.tsv",
+        "consequence_field": "Annotation",
+        "severity": "severity.tsv",
+        "gene_list": "genes.txt",
+        "prioritize_genes": True,
+        "gene_list_fields": "SYMBOL,Gene",
+        "output": OUTPUT,
+    }
+    assert node_class.VALIDATE_INPUTS(inputs) is True
+    command = node_class.render_command(inputs)
+    assert ["--gene-list", "+genes.txt"] == command[command.index("--gene-list") : command.index("--gene-list") + 2]
+    assert ["--columns-types", "types.tsv"] == command[
+        command.index("--columns-types") : command.index("--columns-types") + 2
+    ]
+    assert ["--severity", "severity.tsv"] == command[command.index("--severity") : command.index("--severity") + 2]
