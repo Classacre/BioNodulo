@@ -28,16 +28,17 @@ class MAFFTNode(PhylogenyCommandNode):
     SOURCE_URL = "https://mafft.cbrc.jp/alignment/software/mafft-7.525-with-extensions-src.tgz"
     SOURCE_SHA256 = "2876f4adc1a2de4ed206bc40896763bf208bf1a02bda52f8bfdd91cf52d73e4a"
     DOCUMENTATION_URL = "https://mafft.cbrc.jp/alignment/software/manual/manual.html"
-    UPSTREAM_SOURCE = "README.md; core/mafft.tmpl"
+    UPSTREAM_SOURCE = "README.md; core/mafft.tmpl:269,330-539,602-608,711-718"
     SOURCE_AUTHORITIES = {
         "source_archive": (SOURCE_URL, SOURCE_SHA256),
         "version_and_examples": "README.md",
         "argv_parser": "core/mafft.tmpl",
+        "input_output_and_default": "README.md: INPUT FORMAT/USAGE; core/mafft.tmpl:numthreads=0",
     }
     AUDIT_STATUS = "contract-checked-no-binary-execution"
     EXIT_SEMANTICS = (
         "A non-zero MAFFT exit is fatal; exit zero is accepted only when the captured stdout "
-        "alignment exists at alignment.fasta."
+        "alignment exists, is non-empty, and begins with a FASTA header."
     )
     DETERMINISM_SEMANTICS = (
         "MAFFT documents that iterative refinement can vary with multiple threads; use threads=0 "
@@ -57,7 +58,7 @@ class MAFFTNode(PhylogenyCommandNode):
             "optional": {
                 "threads": (
                     "INT",
-                    {"default": 4, "min": -1, "description": "Thread count; -1 auto-detects and 0 is single-threaded"},
+                    {"default": 0, "min": -1, "description": "Thread count; -1 auto-detects and 0 is single-threaded"},
                 ),
                 "strategy": (
                     "STRING",
@@ -76,10 +77,21 @@ class MAFFTNode(PhylogenyCommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = validate_int(inputs.get("threads", 4), "threads", minimum=-1)
+        validation = validate_int(inputs.get("threads", 0), "threads", minimum=-1)
         if validation is not True:
             return validation
-        return validate_choice(inputs.get("strategy", "auto"), "strategy", cls.STRATEGIES)
+        validation = validate_choice(inputs.get("strategy", "auto"), "strategy", cls.STRATEGIES)
+        if validation is not True:
+            return validation
+        input_path = Path(path_value(inputs.get("input")))
+        if not input_path.is_file():
+            return f"Input 'input' is not a materialized file: {input_path}"
+        try:
+            if input_path.stat().st_size == 0:
+                return f"Input 'input' file is empty: {input_path}"
+        except OSError as exc:
+            return f"Cannot inspect input 'input' file {input_path}: {exc}"
+        return True
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
@@ -100,7 +112,19 @@ class MAFFTNode(PhylogenyCommandNode):
         return [
             "mafft",
             "--thread",
-            str(inputs.get("threads", 4)),
+            str(inputs.get("threads", 0)),
             *strategy_args,
             path_value(inputs["input"]),
         ]
+
+    async def run(self, **kwargs: Any) -> tuple[str, ...]:
+        result = await super().run(**kwargs)
+        alignment = Path(result[0])
+        size = alignment.stat().st_size
+        if size == 0:
+            raise RuntimeError("MAFFT produced an empty stdout alignment")
+        with alignment.open("rb") as handle:
+            prefix = handle.read(min(size, 4096))
+        if not prefix.lstrip().startswith(b">"):
+            raise RuntimeError("MAFFT stdout alignment is not FASTA")
+        return result

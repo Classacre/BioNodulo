@@ -33,12 +33,17 @@ class IQTREENode(PhylogenyCommandNode):
     SOURCE_AUTHORITIES = {
         "release": (GIT_TAG, GIT_COMMIT),
         "argv_and_bounds": "utils/tools.cpp:parseArg",
+        "seed_default": "utils/tools.cpp:1463-1467,2038-2043",
         "tree_output": "tree/iqtree.cpp:.treefile writers",
     }
     AUDIT_STATUS = "contract-checked-no-binary-execution"
     EXIT_SEMANTICS = (
         "IQ-TREE argument, input, and inference failures exit non-zero. Exit zero is accepted only "
         "when the native .treefile exists, is non-empty, and terminates as Newick with a semicolon."
+    )
+    DETERMINISM_SEMANTICS = (
+        "IQ-TREE initializes its random seed from the system clock when --seed is omitted; provide "
+        "a non-negative seed to make stochastic inference choices reproducible."
     )
     CITATION_DOIS = ["10.1093/molbev/msu300", "10.1093/molbev/msaa015"]
     CITATION_URLS = [
@@ -71,7 +76,10 @@ class IQTREENode(PhylogenyCommandNode):
                     "INT",
                     {"default": None, "min": 0, "description": "SH-aLRT replicates; null disables and 0 selects parametric aLRT"},
                 ),
-                "seed": ("INT", {"default": None, "description": "Optional reproducibility seed"}),
+                "seed": (
+                    "INT",
+                    {"default": None, "min": 0, "description": "Optional non-negative reproducibility seed"},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -99,7 +107,7 @@ class IQTREENode(PhylogenyCommandNode):
             if 0 < alrt < 1000:
                 return "Input 'alrt_replicates' must be 0 or at least 1000"
         if inputs.get("seed") is not None:
-            validation = validate_int(inputs["seed"], "seed")
+            validation = validate_int(inputs["seed"], "seed", minimum=0)
             if validation is not True:
                 return validation
         alignment = Path(path_value(inputs.get("alignment")))

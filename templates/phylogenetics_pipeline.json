@@ -45,7 +45,7 @@
         80
       ],
       "params": {
-        "threads": 4,
+        "threads": 0,
         "strategy": "auto"
       },
       "ui": {
@@ -96,7 +96,8 @@
         "threads": 4,
         "model": "MFP",
         "ufboot_replicates": 1000,
-        "alrt_replicates": 1000
+        "alrt_replicates": 1000,
+        "seed": 1
       },
       "ui": {
         "title": "IQ-TREE"
