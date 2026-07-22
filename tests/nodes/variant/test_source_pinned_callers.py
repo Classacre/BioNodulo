@@ -47,6 +47,8 @@ def test_variant_callers_are_source_pinned(
     assert node.VERSION == version
     assert node.GIT_COMMIT == commit
     assert node.UPSTREAM_SOURCE == source
+    if node in {MantaNode, MantaCallNode}:
+        assert node.UPSTREAM_RUN_DIRECTORY_SOURCE == "src/python/lib/mantaOptions.py:147-154"
 
 
 def test_freebayes_native_output_and_default_argv_are_exact(tmp_path: Path) -> None:
@@ -483,6 +485,16 @@ def test_manta_normal_index_and_rna_mode_fail_closed() -> None:
     )
 
 
+@pytest.mark.parametrize("empty_bam", ["", "   ", b""])
+def test_manta_rejects_empty_primary_bam_path(empty_bam: Any) -> None:
+    result = MantaNode.VALIDATE_INPUTS(
+        _indexed_inputs(bam=empty_bam, bam_index="/data/sample.bam.bai", threads=4)
+    )
+
+    assert result is not True
+    assert "bam" in str(result)
+
+
 def test_manta_accepts_the_short_bai_sibling_spelling_from_configure_util() -> None:
     inputs = _indexed_inputs(
         bam_index="/data/sample.bai",
@@ -608,6 +620,97 @@ async def test_manta_runtime_stops_immediately_on_nonzero_step(
     with pytest.raises(RuntimeError, match=rf"Manta {label} failed \(exit 9\)"):
         await MantaNode().run(**inputs, context=context)
     assert context.calls == expected_calls
+
+
+@pytest.mark.asyncio
+async def test_manta_runtime_retry_clears_only_generated_state(
+    tmp_path: Path,
+) -> None:
+    inputs = _indexed_inputs(threads=4)
+
+    class Context:
+        node_dir = tmp_path / "run"
+
+        def __init__(self) -> None:
+            self.attempt = 0
+            self.commands: list[list[str]] = []
+
+        async def run_command(
+            self,
+            command: list[str],
+            **_kwargs: Any,
+        ) -> dict[str, Any]:
+            self.commands.append(command)
+            run_dir = self.node_dir / "manta"
+            unrelated = run_dir / "unrelated-user-file.txt"
+            if command[0] == "configManta.py":
+                if self.attempt:
+                    assert not (run_dir / "runWorkflow.py").exists()
+                    assert not (run_dir / "runWorkflow.py.config.pickle").exists()
+                    assert not (run_dir / "workspace").exists()
+                    assert not (run_dir / "results" / "variants" / "partial.vcf.gz").exists()
+                    assert unrelated.read_text(encoding="utf-8") == "keep"
+                else:
+                    unrelated.write_text("keep", encoding="utf-8")
+                (run_dir / "runWorkflow.py").write_text("generated", encoding="utf-8")
+                (run_dir / "runWorkflow.py.config.pickle").write_bytes(b"generated")
+                (run_dir / "workspace").mkdir()
+                (run_dir / "workspace" / "partial-state").write_text(
+                    "stale",
+                    encoding="utf-8",
+                )
+                return {"returncode": 0, "stdout": "", "stderr": ""}
+
+            self.attempt += 1
+            if self.attempt == 1:
+                (run_dir / "results" / "variants").mkdir(parents=True, exist_ok=True)
+                (run_dir / "results" / "variants" / "partial.vcf.gz").write_bytes(
+                    b"stale"
+                )
+                return {"returncode": 9, "stdout": "", "stderr": "workflow failed"}
+
+            for output in MantaNode.PLAN_OUTPUTS(inputs, self.node_dir):
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(b"native Manta artifact")
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    context = Context()
+    with pytest.raises(RuntimeError, match=r"Manta workflow failed \(exit 9\)"):
+        await MantaNode().run(**inputs, context=context)
+
+    result = await MantaNode().run(**inputs, context=context)
+    expected = MantaNode.PLAN_OUTPUTS(inputs, context.node_dir)
+
+    assert result == tuple(str(path) for path in expected)
+    assert (context.node_dir / "manta" / "unrelated-user-file.txt").exists()
+    assert len(context.commands) == 4
+
+
+@pytest.mark.asyncio
+async def test_manta_runtime_refuses_generated_state_symlinks(tmp_path: Path) -> None:
+    inputs = _indexed_inputs(threads=4)
+    run_dir = tmp_path / "run" / "manta"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "user-input.bam"
+    sentinel.write_bytes(b"keep")
+    run_dir.mkdir(parents=True)
+    (run_dir / "workspace").symlink_to(outside, target_is_directory=True)
+
+    class Context:
+        node_dir = tmp_path / "run"
+
+        async def run_command(
+            self,
+            _command: list[str],
+            **_kwargs: Any,
+        ) -> dict[str, Any]:
+            raise AssertionError("Manta must fail before executing a command")
+
+    with pytest.raises(RuntimeError, match="Refusing to clear unexpected Manta"):
+        await MantaNode().run(**inputs, context=Context())
+
+    assert sentinel.read_bytes() == b"keep"
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -22,10 +23,19 @@ def _validate_manta_bai(
     index_key: str,
 ) -> bool | str:
     """Accept either BAI sibling spelling discovered by Manta 1.6.0."""
-    try:
-        bam = Path(os.path.abspath(os.path.normpath(os.fsdecode(os.fspath(inputs.get(bam_key))))))
-    except TypeError:
-        return f"Input '{bam_key}' must be a non-empty path-like value"
+
+    def normalize_path(value: Any, *, key: str) -> Path | str:
+        try:
+            decoded = os.fsdecode(os.fspath(value))
+        except TypeError:
+            return f"Input '{key}' must be a non-empty path-like value"
+        if not decoded.strip():
+            return f"Input '{key}' must be a non-empty path-like value"
+        return Path(os.path.abspath(os.path.normpath(decoded)))
+
+    bam = normalize_path(inputs.get(bam_key), key=bam_key)
+    if isinstance(bam, str):
+        return bam
 
     candidates = {Path(f"{bam}.bai")}
     if bam.suffix.lower() == ".bam":
@@ -39,16 +49,47 @@ def _validate_manta_bai(
             f"Input '{index_key}' must be an exact colocated index (BAI) "
             f"discovered by Manta for input '{bam_key}'; expected {rendered}"
         )
-    try:
-        index = Path(os.path.abspath(os.path.normpath(os.fsdecode(os.fspath(index_value)))))
-    except TypeError:
-        return f"Input '{index_key}' must be a non-empty path-like value"
+    index = normalize_path(index_value, key=index_key)
+    if isinstance(index, str):
+        return index
     if index not in candidates:
         return (
             f"Input '{index_key}' must be an exact colocated index (BAI) "
             f"discovered by Manta for input '{bam_key}'; expected {rendered}"
         )
     return True
+
+
+def _clear_manta_generated_state(run_dir: Path) -> None:
+    """Remove only Manta-owned state before configuring a fresh attempt.
+
+    Manta 1.6.0 refuses to configure a run directory containing its generated
+    ``runWorkflow.py``.  BioNodulo retries reuse a node directory, so a workflow
+    failure after successful configuration would otherwise make every retry
+    fail during configuration.  Keep unrelated files intact and fail closed on
+    symlinks or unexpected artifact types rather than following or deleting
+    them.
+    """
+    if run_dir.is_symlink() or (run_dir.exists() and not run_dir.is_dir()):
+        raise RuntimeError(f"Manta run directory must be a regular directory: {run_dir}")
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    for name in ("runWorkflow.py", "runWorkflow.py.config.pickle"):
+        artifact = run_dir / name
+        if artifact.is_symlink() or (artifact.exists() and not artifact.is_file()):
+            raise RuntimeError(
+                f"Refusing to clear unexpected Manta generated artifact: {artifact}"
+            )
+        artifact.unlink(missing_ok=True)
+
+    for name in ("workspace", "results"):
+        artifact = run_dir / name
+        if artifact.is_symlink() or (artifact.exists() and not artifact.is_dir()):
+            raise RuntimeError(
+                f"Refusing to clear unexpected Manta generated artifact: {artifact}"
+            )
+        if artifact.exists():
+            shutil.rmtree(artifact)
 
 
 class MantaNode(IndexedBamReferenceNode):
@@ -93,6 +134,7 @@ class MantaNode(IndexedBamReferenceNode):
     UPSTREAM_OPTIONS_SOURCE = "src/python/lib/mantaOptions.py"
     UPSTREAM_INDEX_SOURCE = "src/python/lib/configureUtil.py"
     UPSTREAM_WORKFLOW_SOURCE = "src/python/lib/mantaWorkflow.py"
+    UPSTREAM_RUN_DIRECTORY_SOURCE = "src/python/lib/mantaOptions.py:147-154"
     UPSTREAM_REFERENCE_SOURCE = UPSTREAM_OPTIONS_SOURCE
     UPSTREAM_BAM_INDEX_SOURCE = UPSTREAM_INDEX_SOURCE
     SHELL = True
@@ -257,13 +299,13 @@ class MantaNode(IndexedBamReferenceNode):
             output_dir = getattr(context, "node_dir", ".")
         output_root = Path(output_dir or ".")
         node_out = output_root / self.__class__.NODE_ID
-        node_out.mkdir(parents=True, exist_ok=True)
         kwargs["output"] = str(node_out)
         kwargs["output_dir"] = str(node_out)
 
         validation = self.__class__.VALIDATE_INPUTS(kwargs)
         if validation is not True:
             raise ValueError(f"Input validation failed: {validation}")
+        _clear_manta_generated_state(node_out)
         outputs = self.__class__.PLAN_OUTPUTS(kwargs, output_root)
 
         commands = (

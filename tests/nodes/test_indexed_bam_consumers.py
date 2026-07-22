@@ -102,7 +102,9 @@ def test_cli_indexed_bam_consumers_reject_missing_or_non_colocated_index(
 
     result = CLI_NODES[node_id].VALIDATE_INPUTS(inputs)
 
-    if node_id == "gatk_haplotype_caller" and bad_index == "sample.bai":
+    # htsjdk and Manta both discover the extension-replaced short sibling
+    # (`sample.bai`) in addition to the appended form (`sample.bam.bai`).
+    if node_id in {"gatk_haplotype_caller", "manta", "manta_call"} and bad_index == "sample.bai":
         assert result is True
         return
     assert result is not True
@@ -173,7 +175,10 @@ def test_alias_classes_inherit_index_contract_and_validation(
     inputs = _cli_inputs(alias.NODE_ID, tmp_path)
     assert alias.VALIDATE_INPUTS(inputs) is True
     inputs["bam_index"] = tmp_path / "sample.bai"
-    assert alias.VALIDATE_INPUTS(inputs) is not True
+    if alias is MantaCallNode:
+        assert alias.VALIDATE_INPUTS(inputs) is True
+    else:
+        assert alias.VALIDATE_INPUTS(inputs) is not True
 
 
 @pytest.mark.parametrize("node_id", tuple(CLI_NODES))
