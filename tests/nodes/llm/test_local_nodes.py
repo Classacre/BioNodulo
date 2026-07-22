@@ -17,7 +17,12 @@ from bionodulo.nodes.builtin.llm_family.ai_sequence_classification import (
 )
 from bionodulo.nodes.builtin.llm_family.embedding_generation import EmbeddingGenerationNode
 from bionodulo.nodes.builtin.llm_family.fine_tune_llm import FineTuneLLMNode
-from bionodulo.nodes.builtin.llm_family.model_inference import ModelInferenceNode
+from bionodulo.nodes.builtin.llm_family import model_inference
+from bionodulo.nodes.builtin.llm_family.model_inference import (
+    FIXTURE_BACKEND,
+    FIXTURE_LABELS as MODEL_FIXTURE_LABELS,
+    ModelInferenceNode,
+)
 
 
 def context(tmp_path: Path) -> SimpleNamespace:
@@ -177,29 +182,121 @@ def test_custom_classifier_uses_checkpoint_labels_and_rejects_base_or_partial_he
 
 
 @pytest.mark.asyncio
-async def test_model_inference_writes_deterministic_outputs_and_rejects_unsupported_tasks(tmp_path: Path) -> None:
+async def test_model_inference_writes_explicit_non_scientific_fixture_outputs(
+    tmp_path: Path,
+) -> None:
     result = await ModelInferenceNode().run(
         input_data="BRCA1 regulates repair.\nTP53 responds to damage.",
-        model_name="facebook/bart-large-mnli",
+        model_name="",
         task="text_classification",
-        candidate_labels="repair, apoptosis",
         confidence_threshold=0.0,
-        fallback_backend="deterministic",
+        fallback_backend=FIXTURE_BACKEND,
         context=context(tmp_path),
     )
     payload = json.loads(Path(result["outputs"]["predictions_json"]).read_text(encoding="utf-8"))
 
-    assert payload["backend"] == "deterministic"
-    assert payload["resolved_model"] == "product-native/deterministic-classifier-v1"
+    assert payload["backend"] == "deterministic_fixture"
+    assert payload["status"] == "NON_SCIENTIFIC_FIXTURE_ONLY"
+    assert payload["scientific_prediction"] is False
+    assert payload["resolved_model"] == (
+        "product-native/non-scientific-model-inference-fixture-v1"
+    )
+    assert payload["labels"] == list(MODEL_FIXTURE_LABELS)
     assert payload["returned_predictions"] == 2
+    assert "NON-SCIENTIFIC FIXTURE" in payload["disclaimer"]
+    with Path(result["outputs"]["scores_csv"]).open(newline="", encoding="utf-8") as handle:
+        row = next(csv.DictReader(handle))
+    assert row["status"] == "NON_SCIENTIFIC_FIXTURE_ONLY"
+    assert row["scientific_prediction"] == "false"
+    assert row["top_prediction"].startswith("fixture_bucket_")
+
+
+@pytest.mark.asyncio
+async def test_model_inference_fails_closed_for_unsupported_or_ambiguous_contracts(
+    tmp_path: Path,
+) -> None:
     with pytest.raises(ValueError, match="task must be one of"):
         await ModelInferenceNode().run(
             input_data="text",
             model_name="model",
             task="feature_extraction",
-            fallback_backend="deterministic",
+            fallback_backend=FIXTURE_BACKEND,
             context=context(tmp_path),
         )
+    with pytest.raises(RuntimeError, match="immutable NLI checkpoint"):
+        await ModelInferenceNode().run(
+            input_data="text",
+            model_name="facebook/bart-large-mnli",
+            task="zero_shot_classification",
+            candidate_labels="repair,apoptosis",
+            fallback_backend="local",
+            context=context(tmp_path),
+        )
+    with pytest.raises(ValueError, match="must not silently become fixture"):
+        await ModelInferenceNode().run(
+            input_data="text",
+            model_name="facebook/model",
+            task="text_classification",
+            fallback_backend="auto",
+            context=context(tmp_path),
+        )
+    with pytest.raises(ValueError, match="candidate_labels is not accepted"):
+        await ModelInferenceNode().run(
+            input_data="text",
+            model_name="",
+            task="text_classification",
+            candidate_labels="positive,negative",
+            fallback_backend=FIXTURE_BACKEND,
+            context=context(tmp_path),
+        )
+
+
+@pytest.mark.asyncio
+async def test_model_inference_local_requires_immutable_exact_task_checkpoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="full immutable 40-character"):
+        await ModelInferenceNode().run(
+            input_data="text",
+            model_name="example/task-classifier",
+            model_revision="main",
+            task="text_classification",
+            fallback_backend="local",
+            context=context(tmp_path),
+        )
+
+    def fail_local(*_args, **_kwargs):
+        raise RuntimeError("checkpoint head is missing")
+
+    monkeypatch.setattr(
+        model_inference,
+        "_local_transformer_model_predictions",
+        fail_local,
+    )
+    with pytest.raises(RuntimeError, match="checkpoint head is missing"):
+        await ModelInferenceNode().run(
+            input_data="text",
+            model_name="example/task-classifier",
+            model_revision="a" * 40,
+            task="text_classification",
+            fallback_backend="local",
+            context=context(tmp_path),
+        )
+
+
+def test_model_inference_pins_transformers_loading_authorities() -> None:
+    assert ModelInferenceNode.GIT_COMMIT == "8cb5963cc22174954e7dca2c0a3320b7dc2f4edc"
+    assert ModelInferenceNode.AUDIT_STATUS == "contract-checked-no-model-execution"
+    assert ModelInferenceNode.SOURCE_AUTHORITIES == {
+        "transformers_commit": "8cb5963cc22174954e7dca2c0a3320b7dc2f4edc",
+        "transformers_modeling_auto_sha256": (
+            "6e4fa67c88e02a8b84d46d7b1719e760f197073b7b233bcf30eeb596f5a5f07a"
+        ),
+        "transformers_modeling_utils_sha256": (
+            "bf1c6b2a43cf7c36fb79f37c981424dd6ae78eb863fcaa5d2a37e76c9828611d"
+        ),
+    }
 
 
 @pytest.mark.asyncio
