@@ -243,6 +243,60 @@ async def test_coverage_plot_passes_exact_bam_index_to_pysam(
 
 
 @pytest.mark.asyncio
+async def test_coverage_plot_extracts_bam_through_the_prepared_python_environment(
+    tmp_path: Path,
+) -> None:
+    commands: list[tuple[list[str], str]] = []
+    bam = tmp_path / "sample.bam"
+    bam.write_bytes(b"BAM")
+    bam_index = tmp_path / "custom.bai"
+
+    class Context:
+        node_dir = tmp_path
+        env_prefix = ["pixi", "run", "--locked", "--"]
+
+        async def run_command(self, command: list[str], cwd: str) -> dict[str, Any]:
+            commands.append((command, cwd))
+            output = Path(command[command.index("--output") + 1])
+            output.write_text(
+                json.dumps(
+                    [
+                        {
+                            "chromosome": "chr1",
+                            "start": 1,
+                            "end": 6,
+                            "coverage": 2.0,
+                        },
+                        {
+                            "chromosome": "chr1",
+                            "start": 6,
+                            "end": 11,
+                            "coverage": 1.0,
+                        },
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    result = await CoveragePlotNode().run(
+        alignment=bam,
+        alignment_index=bam_index,
+        region="chr1:1-11",
+        window_size=5,
+        format="svg",
+        context=Context(),
+    )
+
+    assert len(commands) == 1
+    command, cwd = commands[0]
+    assert command[:2] == ["python", str(Path(__file__).resolve().parents[2] / "bionodulo/nodes/builtin/visualization_family/coverage_extract.py")]
+    assert command[command.index("--index") + 1] == str(bam_index)
+    assert cwd == str(tmp_path)
+    assert Path(result["outputs"]["coverage_image"]).exists()
+
+
+@pytest.mark.asyncio
 async def test_coverage_plot_rejects_bam_without_index_before_opening_pysam(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

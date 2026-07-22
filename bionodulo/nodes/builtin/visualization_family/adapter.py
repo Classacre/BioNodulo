@@ -1820,6 +1820,75 @@ def _read_coverage_bins(
     )
 
 
+async def _read_coverage_bins_in_environment(
+    path: Path,
+    *,
+    region: tuple[str, int, int],
+    window_size: int,
+    alignment_index: Path | None,
+    context: Any,
+) -> list[CoverageBin]:
+    """Read BAM/BigWig bins through the node's prepared Python environment."""
+    node_dir = Path(getattr(context, "node_dir", path.parent))
+    output_path = node_dir / "coverage_bins.json"
+    script_path = Path(__file__).with_name("coverage_extract.py")
+    chromosome, region_start, region_end = region
+    command = [
+        "python",
+        str(script_path),
+        "--input",
+        str(path),
+        "--region",
+        f"{chromosome}:{region_start}-{region_end}",
+        "--window-size",
+        str(max(window_size, 1)),
+        "--output",
+        str(output_path),
+    ]
+    if alignment_index is not None:
+        command.extend(("--index", str(alignment_index)))
+    result = await context.run_command(command, cwd=str(node_dir))
+    returncode = int(result.get("returncode", 0) or 0) if isinstance(result, dict) else 0
+    if returncode != 0:
+        stderr = result.get("stderr", "") if isinstance(result, dict) else ""
+        raise RuntimeError(f"Coverage extraction failed (exit {returncode}): {str(stderr)[-500:]}")
+    try:
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Coverage extractor did not produce valid JSON bins") from exc
+    if not isinstance(payload, list) or not payload:
+        raise RuntimeError("Coverage extractor produced no bins")
+
+    bins: list[CoverageBin] = []
+    for row in payload:
+        if not isinstance(row, dict):
+            raise RuntimeError("Coverage extractor returned a non-object bin")
+        try:
+            row_chromosome = str(row["chromosome"])
+            start = int(row["start"])
+            end = int(row["end"])
+            coverage = float(row["coverage"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError("Coverage extractor returned a malformed bin") from exc
+        if (
+            row_chromosome != chromosome
+            or start < region_start
+            or end > region_end
+            or end <= start
+            or not math.isfinite(coverage)
+        ):
+            raise RuntimeError("Coverage extractor returned an out-of-range bin")
+        bins.append(
+            CoverageBin(
+                chromosome=row_chromosome,
+                start=start,
+                end=end,
+                coverage=max(0.0, coverage),
+            )
+        )
+    return bins
+
+
 def _coverage_bounds(bins: list[CoverageBin], region: tuple[str, int, int]) -> PlotBounds:
     _, region_start, region_end = region
     y_max = max([item.coverage for item in bins] + [1.0])
@@ -7702,12 +7771,24 @@ class _CoveragePlotContract(VisualizationNode):
             if alignment_path.suffix.lower() == ".bam" and str(alignment_index_value or "").strip()
             else None
         )
-        bins = _read_coverage_bins(
-            alignment_path,
-            region=region,
-            window_size=window_size,
-            alignment_index=alignment_index,
-        )
+        binary_suffixes = {".bam", ".cram", ".bw", ".bigwig"}
+        if context is not None and getattr(context, "env_prefix", None) and (
+            {suffix.lower() for suffix in alignment_path.suffixes} & binary_suffixes
+        ):
+            bins = await _read_coverage_bins_in_environment(
+                alignment_path,
+                region=region,
+                window_size=window_size,
+                alignment_index=alignment_index,
+                context=context,
+            )
+        else:
+            bins = _read_coverage_bins(
+                alignment_path,
+                region=region,
+                window_size=window_size,
+                alignment_index=alignment_index,
+            )
         bounds = _coverage_bounds(bins, region)
         width_px, height_px = _pixel_dimensions(
             kwargs.get("width", 12.0),
