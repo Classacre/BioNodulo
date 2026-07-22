@@ -66,24 +66,53 @@ def test_coverage_renders_source_supported_filters_and_keeps_sibling_index_contr
         "min_depth": 2,
         "plot_depth": True,
         "ascii": True,
-        "no_header": True,
         "output": "/work/coverage",
     }
     assert node.VALIDATE_INPUTS(inputs) is True
     command = node.render_command(inputs)
     assert ["-d", "500"] == command[command.index("-d") : command.index("-d") + 2]
     assert "--min-depth" in command
-    assert "-D" in command and "-A" in command and "-H" in command
+    assert "-D" in command and "-A" in command
     assert "-X" not in command  # coverage.c has no custom-index option
     assert command[-3:] == ["-o", "/work/coverage/coverage.txt", "reads.bam"]
 
     default_histogram = node.render_command({"input_bams": ["reads.bam"], "histogram": True})
     assert default_histogram[default_histogram.index("-w") + 1] == "50"
 
+    tabular = node.render_command({"input_bams": ["reads.bam"], "no_header": True})
+    assert "-H" in tabular
+
     invalid_coverage = node.VALIDATE_INPUTS(
         {**inputs, "bam_indexes": ["/elsewhere/reads.bam.bai"]}
     )
     assert invalid_coverage is not True
+
+
+def test_coverage_rejects_ignored_values_and_applies_bins_to_implied_histograms() -> None:
+    node = _node("samtools_coverage")
+
+    assert node.VALIDATE_INPUTS({"input_bams": ["reads.bam"], "min_depth": 0}) is not True
+    assert node.VALIDATE_INPUTS({"input_bams": ["reads.bam"], "n_bins": 20}) is not True
+    assert (
+        node.VALIDATE_INPUTS(
+            {"input_bams": ["reads.bam"], "plot_depth": True, "no_header": True}
+        )
+        is not True
+    )
+
+    plot_command = node.render_command(
+        {"input_bams": ["reads.bam"], "plot_depth": True, "n_bins": 20}
+    )
+    assert ["-D", "-w", "20"] == plot_command[
+        plot_command.index("-D") : plot_command.index("-D") + 3
+    ]
+
+    ascii_command = node.render_command(
+        {"input_bams": ["reads.bam"], "ascii": True, "n_bins": 30}
+    )
+    assert ["-A", "-w", "30"] == ascii_command[
+        ascii_command.index("-A") : ascii_command.index("-A") + 3
+    ]
 
 
 def test_depth_intersects_bed_and_region_as_supported_by_upstream() -> None:
@@ -97,6 +126,29 @@ def test_depth_intersects_bed_and_region_as_supported_by_upstream() -> None:
     assert node.VALIDATE_INPUTS(inputs) is True
     command = node.render_command(inputs)
     assert command[2:6] == ["-b", "targets.bed", "-r", "chr1:1-20"]
+
+
+def test_depth_rejects_the_source_ignored_legacy_maxdepth_option() -> None:
+    node = _node("samtools_depth")
+    validation = node.VALIDATE_INPUTS({"input_bams": ["reads.bam"], "maxdepth": 100})
+    assert validation == (
+        "maxdepth is ignored by samtools depth 1.23.1; use samtools mpileup to cap depth"
+    )
+
+
+def test_idxstats_accepts_the_custom_index_location_supported_by_x() -> None:
+    node = _node("samtools_idxstats")
+    inputs = {
+        "input": "/data/reads.bam",
+        "bam_index": "/indexes/reads.bai",
+        "threads": 2,
+    }
+    assert node.VALIDATE_INPUTS(inputs) is True
+    assert node.render_command(inputs)[-3:] == [
+        "-X",
+        "/data/reads.bam",
+        "/indexes/reads.bai",
+    ]
 
 
 def test_mpileup_reference_and_fai_are_optional_but_pairing_is_fail_closed() -> None:

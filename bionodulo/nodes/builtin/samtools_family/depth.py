@@ -50,7 +50,6 @@ class SamtoolsDepthNode(SamtoolsCommandNode):
         if inputs.get("region"):
             cmd.extend(["-r", str(inputs["region"])])
         _add_if_value(cmd, "-l", inputs.get("minlength"))
-        _add_if_value(cmd, "-m", inputs.get("maxdepth"))
         _add_if_value(cmd, "-q", inputs.get("basequality"))
         _add_if_value(cmd, "-Q", inputs.get("mapquality"))
         include_flags = _flag_sum(inputs.get("include_flags"))
@@ -84,6 +83,8 @@ class SamtoolsDepthNode(SamtoolsCommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
+        if inputs.get("maxdepth") not in (None, ""):
+            return "maxdepth is ignored by samtools depth 1.23.1; use samtools mpileup to cap depth"
         return validate_index_pairs(
             inputs,
             data_key="input_bams",
@@ -114,7 +115,7 @@ class SamtoolsDepthNode(SamtoolsCommandNode):
                     {
                         "default": "",
                         "min": 0,
-                        "description": "Deprecated compatibility option accepted but ignored by Samtools 1.23.1",
+                        "description": "Retired compatibility port; Samtools 1.23.1 ignores -m/-d",
                         "advanced": True,
                     },
                 ),

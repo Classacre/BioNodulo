@@ -64,10 +64,15 @@ class SamtoolsCoverageNode(SamtoolsCommandNode):
             cmd.append("-D")
         if inputs.get("ascii"):
             cmd.append("-A")
+        histogram_mode = bool(
+            inputs.get("histogram") or inputs.get("plot_depth") or inputs.get("ascii")
+        )
         if inputs.get("no_header"):
             cmd.append("-H")
         if inputs.get("histogram"):
-            cmd.extend(["-m", "-w", str(inputs.get("n_bins", 50))])
+            cmd.append("-m")
+        if histogram_mode:
+            cmd.extend(["-w", str(inputs.get("n_bins", 50))])
         cmd.extend(["-o", str(cls.output_dir(inputs) / cls.OUTPUT_FILENAMES[0])])
         cmd.extend(input_bams)
         return cmd
@@ -77,6 +82,13 @@ class SamtoolsCoverageNode(SamtoolsCommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
+        histogram_mode = bool(
+            inputs.get("histogram") or inputs.get("plot_depth") or inputs.get("ascii")
+        )
+        if not histogram_mode and inputs.get("n_bins", 50) != 50:
+            return "n_bins is only valid for histogram, plot_depth, or ascii output"
+        if histogram_mode and inputs.get("no_header"):
+            return "no_header only affects tabular coverage output"
         return validate_index_pairs(
             inputs,
             data_key="input_bams",
@@ -121,7 +133,7 @@ class SamtoolsCoverageNode(SamtoolsCommandNode):
                     "INT",
                     {
                         "default": "",
-                        "min": 0,
+                        "min": 1,
                         "description": "Ignore positions below this coverage depth",
                         "advanced": True,
                     },

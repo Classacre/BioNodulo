@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
-
 from .adapter import (
     SamtoolsCommandNode,
     GALAXY_ALIAS,
@@ -13,6 +11,7 @@ from .adapter import (
     SAMTOOLS_CITATION_TEXT,
     SAMTOOLS_CITATION_URLS,
     _additional_threads,
+    validate_index_pairs,
 )
 
 
@@ -55,14 +54,25 @@ class SamtoolsIdxstatsNode(SamtoolsCommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        return validate_colocated_bam_index(inputs, bam_key="input")
+        # ``idxstats -X`` passes the index path explicitly to Samtools, so the
+        # index need not use a sibling filename.  Keep the data/index pairing
+        # explicit without rejecting the custom location that -X is for.
+        return validate_index_pairs(
+            inputs,
+            data_key="input",
+            index_key="bam_index",
+            required=True,
+        )
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "input": ("BAM", {"description": "Indexed BAM alignment file"}),
-                "bam_index": ("BAI", {"description": "Exact colocated <input>.bai index"}),
+                "bam_index": (
+                    "BAI",
+                    {"description": "Explicit BAI paired with input and passed through idxstats -X"},
+                ),
                 "threads": ("INT", {"default": 1, "min": 1, "max": 64, "display": "slider"}),
             },
             "optional": {},
