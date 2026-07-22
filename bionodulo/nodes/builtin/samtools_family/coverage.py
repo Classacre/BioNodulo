@@ -101,7 +101,13 @@ class SamtoolsCoverageNode(SamtoolsCommandNode):
                 "min_bq": ("INT", {"default": 0, "min": 0, "description": "Minimum base quality"}),
                 "required_flags": (
                     "STRING",
-                    {"default": "", "description": "Include reads with at least one listed SAM flag", "advanced": True},
+                    {
+                        "default": "",
+                        "description": (
+                            "Require every listed SAM flag bit; reads with any mask bit unset are skipped"
+                        ),
+                        "advanced": True,
+                    },
                 ),
                 "skipped_flags": (
                     "STRING",

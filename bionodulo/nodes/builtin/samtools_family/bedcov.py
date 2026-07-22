@@ -94,7 +94,14 @@ class SamtoolsBedcovNode(SamtoolsCommandNode):
                 ),
                 "required_flags": (
                     "STRING",
-                    {"default": "", "description": "Comma-separated SAM flags that must be set", "advanced": True},
+                    {
+                        "default": "",
+                        "description": (
+                            "Legacy port name for bedcov -g: include reads carrying these flags "
+                            "back into the default UNMAP,SECONDARY,QCFAIL,DUP filter"
+                        ),
+                        "advanced": True,
+                    },
                 ),
                 "skipped_flags": (
                     "STRING",
