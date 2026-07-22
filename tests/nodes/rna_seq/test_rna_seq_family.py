@@ -620,7 +620,8 @@ def test_featurecounts_uses_threads_and_enforces_documented_constraints(tmp_path
     assert "*.featureCounts.bam" not in command
     assert "fraction requires" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "multifeat": ""}))
     assert "requires only_both_ends" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "only_both_ends": False}))
-    assert "between 1 and 32" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "threads": 33}))
+    assert FeatureCountsNode.VALIDATE_INPUTS({**inputs, "threads": 64}) is True
+    assert "between 1 and 64" in str(FeatureCountsNode.VALIDATE_INPUTS({**inputs, "threads": 65}))
 
 
 def test_featurecounts_medium_format_preserves_every_count_column(tmp_path: Path) -> None:

@@ -350,8 +350,12 @@ class FeatureCountsNode(CommandNode):
         threads = inputs.get("threads", 1)
         if isinstance(threads, bool) or not isinstance(threads, int):
             return "threads must be an integer"
-        if not 1 <= threads <= 32:
-            return "threads must be between 1 and 32"
+        # Subread 2.1.1 defines FC_MAX_THREADS as 64 in src/subread.h and
+        # validates -T against that bound in src/readSummary.c.  Keep the
+        # node contract aligned with the executable rather than the former
+        # Galaxy slider's narrower 32-thread UI cap.
+        if not 1 <= threads <= 64:
+            return "threads must be between 1 and 64"
         if inputs.get("long_reads"):
             if threads != 1:
                 return "long_reads requires threads=1"
@@ -465,7 +469,7 @@ class FeatureCountsNode(CommandNode):
                 "bam": ("BAM", {"default": "", "description": "Compatibility alias for alignment"}),
                 "threads": (
                     "INT",
-                    {"default": 1, "min": 1, "max": 32, "display": "slider"},
+                    {"default": 1, "min": 1, "max": 64, "display": "slider"},
                 ),
                 "count_read_pairs": ("BOOLEAN", {"default": False, "advanced": True}),
                 "feature_type": ("STRING", {"default": "", "advanced": True}),
