@@ -11,7 +11,10 @@ from bionodulo.nodes.builtin.protein_database_family import (
 from bionodulo.nodes.builtin.protein_database_family.alphafold_db import (
     ALPHAFOLD_OPENAPI_SHA256,
 )
-from bionodulo.nodes.builtin.protein_database_family.rcsb_pdb import RCSB_OPENAPI_SHA256
+from bionodulo.nodes.builtin.protein_database_family.rcsb_pdb import (
+    RCSB_OPENAPI_SHA256,
+    RCSB_VOLUME_OPENAPI_SHA256,
+)
 from bionodulo.nodes.builtin.protein_database_family.uniprot import (
     UNIPROT_QUERY_HELP_SHA256,
     UNIPROT_RETRIEVE_HELP_SHA256,
@@ -23,6 +26,10 @@ def test_authoritative_api_snapshots_are_pinned() -> None:
     assert AlphaFoldDBNode.SOURCE_SHA256 == ALPHAFOLD_OPENAPI_SHA256
     assert PDBDownloadNode.VERSION == "1.56.1"
     assert PDBDownloadNode.SOURCE_SHA256 == RCSB_OPENAPI_SHA256
+    assert PDBDownloadNode.SOURCE_AUTHORITIES["volume_server"] == (
+        "https://maps.rcsb.org/openapi.json",
+        RCSB_VOLUME_OPENAPI_SHA256,
+    )
     assert UniProtSearchNode.VERSION == "2025-12-17"
     assert UniProtSearchNode.SOURCE_SHA256 == UNIPROT_QUERY_HELP_SHA256
     assert UniProtRetrieveNode.SOURCE_SHA256 == UNIPROT_RETRIEVE_HELP_SHA256

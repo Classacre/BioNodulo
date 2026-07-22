@@ -28,10 +28,17 @@ def test_alphafold_db_is_registered_for_frontend_discovery() -> None:
 
     assert info["alphafold_db"]["display_name"] == "AlphaFold DB"
     assert info["alphafold_db"]["category"] == "databases"
-    assert info["alphafold_db"]["output_name"] == ["structure_mmcif", "structure_metadata"]
+    expected_outputs = [
+        "structure_mmcif",
+        "structure_metadata",
+        "structure_file",
+        "pae_json",
+        "artifacts_directory",
+    ]
+    assert info["alphafold_db"]["output_name"] == expected_outputs
     assert info["alphafold"]["display_name"] == "AlphaFold"
     assert info["alphafold"]["category"] == "databases"
-    assert info["alphafold"]["output_name"] == ["structure_mmcif", "structure_metadata"]
+    assert info["alphafold"]["output_name"] == expected_outputs
     assert issubclass(registry.get("alphafold"), registry.get("alphafold_db"))
 
 
@@ -73,6 +80,7 @@ async def test_alphafold_requests_use_shared_http_client(monkeypatch: pytest.Mon
             "url": f"{module.ALPHAFOLD_BASE_URL}/prediction/P04637",
             "cache": module.ALPHAFOLD_API_CACHE,
             "rate_limiter": module.ALPHAFOLD_RATE_LIMITER,
+            "params": None,
             "headers": {"User-Agent": module.ALPHAFOLD_USER_AGENT},
             "timeout": 8.0,
             "retries": 4,
@@ -187,11 +195,27 @@ async def test_alphafold_db_downloads_structure_and_writes_metadata(
                 "uniprot_accession": "P04637",
                 "uniprot_name": "P53_HUMAN",
                 "latest_version": 4,
-                "structure_file": str(structure_path),
-                "pae_file": str(tmp_path / "alphafold_db" / "P04637_pae.json"),
+                "all_versions": None,
+                "sequence_checksum": None,
+                "is_complex": None,
+                "response_record_count": 1,
+                "structure_file": "P04637.cif",
+                "pae_file": "P04637_pae.json",
             }
         ],
-        "raw": {"P04637": [{"entryId": "AF-P04637-F1", "uniprotAccession": "P04637", "uniprotId": "P53_HUMAN", "cifUrl": "https://alphafold.example/P04637.cif", "pdbUrl": "https://alphafold.example/P04637.pdb", "paeDocUrl": "https://alphafold.example/P04637-pae.json", "latestVersion": 4}]},
+        "raw": {
+            "P04637": [
+                {
+                    "entryId": "AF-P04637-F1",
+                    "uniprotAccession": "P04637",
+                    "uniprotId": "P53_HUMAN",
+                    "cifUrl": "https://alphafold.example/P04637.cif",
+                    "pdbUrl": "https://alphafold.example/P04637.pdb",
+                    "paeDocUrl": "https://alphafold.example/P04637-pae.json",
+                    "latestVersion": 4,
+                }
+            ]
+        },
     }
     assert (tmp_path / "alphafold_db" / "P04637_pae.json").read_text(encoding="utf-8") == (
         "downloaded from https://alphafold.example/P04637-pae.json\n"
@@ -204,51 +228,15 @@ async def test_alphafold_db_downloads_structure_and_writes_metadata(
 
 
 @pytest.mark.asyncio
-async def test_alphafold_db_accepts_format_alias_for_structure_format(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
+async def test_alphafold_db_rejects_undocumented_format_alias() -> None:
     node_class = _node_class("alphafold_db")
-    module = importlib.import_module(node_class.__module__)
-    download_calls: list[tuple[str, Path]] = []
-
-    async def fake_json(resource: str, **_: Any) -> Any:
-        return [
-            {
-                "entryId": "AF-P04637-F1",
-                "uniprotAccession": "P04637",
-                "uniprotId": "P53_HUMAN",
-                "cifUrl": "https://alphafold.example/P04637.cif",
-                "pdbUrl": "https://alphafold.example/P04637.pdb",
-                "latestVersion": 4,
-            }
-        ]
-
-    async def fake_download(url: str, path: Path, **_: Any) -> None:
-        download_calls.append((url, path))
-        path.write_text(f"downloaded from {url}\n", encoding="utf-8")
-
-    monkeypatch.setattr(module, "_request_json", fake_json)
-    monkeypatch.setattr(module, "_download_file", fake_download)
-
-    assert node_class.INPUT_TYPES()["optional"]["format"][0] == "STRING"
-
-    result = await node_class().run(
-        uniprot_ids="P04637",
-        format="pdb",
-        context=SimpleNamespace(node_dir=tmp_path),
-    )
-
-    structure_path = Path(result["outputs"]["structure_mmcif"])
-    assert structure_path.name == "P04637.pdb"
-    assert structure_path.read_text(encoding="utf-8") == "downloaded from https://alphafold.example/P04637.pdb\n"
-    assert download_calls == [
-        ("https://alphafold.example/P04637.pdb", tmp_path / "alphafold_db" / "P04637.pdb"),
-    ]
+    assert "format" not in node_class.INPUT_TYPES()["optional"]
+    with pytest.raises(ValueError, match="unsupported; use 'structure_format'"):
+        await node_class().run(uniprot_ids="P04637", format="pdb")
 
 
 @pytest.mark.asyncio
-async def test_alphafold_db_prefers_planned_format_over_structure_format(
+async def test_alphafold_db_pdb_uses_generic_structure_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -277,12 +265,12 @@ async def test_alphafold_db_prefers_planned_format_over_structure_format(
 
     result = await node_class().run(
         uniprot_ids="P04637",
-        structure_format="mmcif",
-        format="pdb",
+        structure_format="pdb",
         context=SimpleNamespace(node_dir=tmp_path),
     )
 
-    structure_path = Path(result["outputs"]["structure_mmcif"])
+    assert result["outputs"]["structure_mmcif"] == ""
+    structure_path = Path(result["outputs"]["structure_file"])
     assert structure_path.name == "P04637.pdb"
     assert download_calls == [
         ("https://alphafold.example/P04637.pdb", tmp_path / "alphafold_db" / "P04637.pdb"),

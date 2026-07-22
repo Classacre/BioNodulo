@@ -28,16 +28,15 @@ def test_uniprot_retrieve_is_registered_for_frontend_discovery() -> None:
     assert info["uniprot_retrieve"]["display_name"] == "UniProt Retrieve"
     assert info["uniprot_retrieve"]["category"] == "databases"
     assert info["uniprot_retrieve"]["output_name"] == ["protein_data", "sequence"]
-    assert set(info["uniprot_retrieve"]["search_aliases"]).issuperset(
-        {"retrieve", "fetch", "sequence", "annotation"}
-    )
+    assert set(info["uniprot_retrieve"]["search_aliases"]).issuperset({"retrieve", "fetch", "sequence", "annotation"})
     assert info["uniprot_retrieve"]["input"]["required"]["uniprot_ids"] == (
         "STRING",
         {"default": "", "description": "UniProt accession(s), comma-separated"},
     )
-    assert info["uniprot_retrieve"]["input"]["optional"]["format"] == (
+    assert "format" not in info["uniprot_retrieve"]["input"]["optional"]
+    assert info["uniprot_retrieve"]["input"]["hidden"]["format"] == (
         "STRING",
-        {"default": "json", "options": ["json", "fasta"]},
+        {"description": ("Legacy compatibility only: when include_fasta is absent, fasta enables sequence output")},
     )
     assert info["uniprot_retrieve"]["input"]["optional"]["accession"] == (
         "STRING",
@@ -57,7 +56,7 @@ def test_uniprot_search_is_registered_for_frontend_discovery() -> None:
 
     assert info["uniprot_search"]["display_name"] == "UniProt Search"
     assert info["uniprot_search"]["category"] == "databases"
-    assert info["uniprot_search"]["output_name"] == ["results_table", "results_data"]
+    assert info["uniprot_search"]["output_name"] == ["results_table", "results_data", "raw_results"]
     assert "query" in info["uniprot_search"]["search_aliases"]
     assert info["uniprot_search"]["input"]["optional"]["database"] == (
         "STRING",
@@ -65,7 +64,13 @@ def test_uniprot_search_is_registered_for_frontend_discovery() -> None:
     )
     assert info["uniprot_search"]["input"]["optional"]["size"] == (
         "INT",
-        {"default": 25, "min": 1, "max": 500, "advanced": True},
+        {
+            "default": None,
+            "min": 1,
+            "max": 500,
+            "advanced": True,
+            "description": "Legacy alias for max_results",
+        },
     )
 
 
@@ -261,8 +266,7 @@ async def test_uniprot_retrieve_supports_comma_separated_accessions(
         "Q9Y6K9",
     ]
     assert Path(result["outputs"]["sequence"]).read_text(encoding="utf-8") == (
-        ">sp|P04637|P04637_ENTRY\nMSEQ\n"
-        ">sp|Q9Y6K9|Q9Y6K9_ENTRY\nMSEQ\n"
+        ">sp|P04637|P04637_ENTRY\nMSEQ\n>sp|Q9Y6K9|Q9Y6K9_ENTRY\nMSEQ\n"
     )
     assert json_calls == ["uniprotkb/P04637.json", "uniprotkb/Q9Y6K9.json"]
     assert fasta_calls == ["uniprotkb/P04637.fasta", "uniprotkb/Q9Y6K9.fasta"]
@@ -427,10 +431,23 @@ async def test_uniprot_search_accepts_planned_tsv_format(
     module = importlib.import_module(node_class.__module__)
     calls: list[tuple[str, dict[str, Any] | None]] = []
 
+    async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
+        calls.append((resource, params))
+        return {
+            "results": [
+                {
+                    "primaryAccession": "P04637",
+                    "uniProtkbId": "P53_HUMAN",
+                    "sequence": {"length": 393},
+                }
+            ]
+        }
+
     async def fake_text(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> str:
         calls.append((resource, params))
         return "Entry\tEntry Name\nP04637\tP53_HUMAN\n"
 
+    monkeypatch.setattr(module, "_request_json", fake_json)
     monkeypatch.setattr(module, "_request_text", fake_text)
 
     format_input = node_class.INPUT_TYPES()["optional"]["format"]
@@ -447,16 +464,25 @@ async def test_uniprot_search_accepts_planned_tsv_format(
     )
 
     table_path = Path(result["outputs"]["results_table"])
+    raw_path = Path(result["outputs"]["raw_results"])
     assert table_path.name == "tp53_search.tsv"
-    assert table_path.read_text(encoding="utf-8") == "Entry\tEntry Name\nP04637\tP53_HUMAN\n"
-    assert result["outputs"]["results_data"] == {
-        "query": "gene:TP53",
-        "effective_query": "gene:TP53",
-        "database": "uniprotkb",
-        "format": "tsv",
-        "record_count": 1,
-    }
+    assert table_path.read_text(encoding="utf-8") == (
+        "accession\tentry_name\tprotein_name\torganism\tgene_names\tsequence_length\nP04637\tP53_HUMAN\t\t\t\t393\n"
+    )
+    assert raw_path.name == "tp53_search.raw.tsv"
+    assert raw_path.read_text(encoding="utf-8") == "Entry\tEntry Name\nP04637\tP53_HUMAN\n"
+    assert result["outputs"]["results_data"]["record_count"] == 1
+    assert result["outputs"]["results_data"]["raw_path"] == str(raw_path)
     assert calls == [
+        (
+            "uniprotkb/search",
+            {
+                "query": "gene:TP53",
+                "format": "json",
+                "fields": "accession,id,gene_names,organism_name,protein_name,length",
+                "size": 25,
+            },
+        ),
         (
             "uniprotkb/search",
             {
@@ -465,7 +491,7 @@ async def test_uniprot_search_accepts_planned_tsv_format(
                 "fields": "accession,id,gene_names,organism_name,protein_name,length",
                 "size": 25,
             },
-        )
+        ),
     ]
 
 
@@ -478,10 +504,23 @@ async def test_uniprot_search_accepts_planned_raw_text_formats(
     module = importlib.import_module(node_class.__module__)
     calls: list[tuple[str, dict[str, Any] | None]] = []
 
+    async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
+        calls.append((resource, params))
+        return {
+            "results": [
+                {
+                    "primaryAccession": "P04637",
+                    "uniProtkbId": "P53_HUMAN",
+                    "sequence": {"length": 393},
+                }
+            ]
+        }
+
     async def fake_text(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> str:
         calls.append((resource, params))
-        return "<uniprot><entry dataset=\"Swiss-Prot\" /></uniprot>\n"
+        return '<uniprot><entry dataset="Swiss-Prot" /></uniprot>\n'
 
+    monkeypatch.setattr(module, "_request_json", fake_json)
     monkeypatch.setattr(module, "_request_text", fake_text)
 
     result = await node_class().run(
@@ -491,27 +530,35 @@ async def test_uniprot_search_accepts_planned_raw_text_formats(
         context=SimpleNamespace(node_dir=tmp_path),
     )
 
-    raw_path = Path(result["outputs"]["results_table"])
-    assert raw_path.name == "tp53_search.xml"
-    assert raw_path.read_text(encoding="utf-8") == "<uniprot><entry dataset=\"Swiss-Prot\" /></uniprot>\n"
-    assert result["outputs"]["results_data"] == {
-        "query": "gene:TP53",
-        "effective_query": "gene:TP53",
-        "database": "uniprotkb",
-        "format": "xml",
-        "record_count": None,
-        "raw_path": str(raw_path),
-    }
+    table_path = Path(result["outputs"]["results_table"])
+    raw_path = Path(result["outputs"]["raw_results"])
+    assert table_path.name == "tp53_search.tsv"
+    assert table_path.read_text(encoding="utf-8") == (
+        "accession\tentry_name\tprotein_name\torganism\tgene_names\tsequence_length\nP04637\tP53_HUMAN\t\t\t\t393\n"
+    )
+    assert raw_path.name == "tp53_search.raw.xml"
+    assert raw_path.read_text(encoding="utf-8") == '<uniprot><entry dataset="Swiss-Prot" /></uniprot>\n'
+    assert result["outputs"]["results_data"]["format"] == "xml"
+    assert result["outputs"]["results_data"]["record_count"] == 1
+    assert result["outputs"]["results_data"]["raw_path"] == str(raw_path)
     assert calls == [
         (
             "uniprotkb/search",
             {
                 "query": "gene:TP53",
-                "format": "xml",
+                "format": "json",
                 "fields": "accession,id,gene_names,organism_name,protein_name,length",
                 "size": 25,
             },
-        )
+        ),
+        (
+            "uniprotkb/search",
+            {
+                "query": "gene:TP53",
+                "format": "xml",
+                "size": 25,
+            },
+        ),
     ]
 
 
@@ -595,6 +642,13 @@ async def test_uniprot_nodes_forward_include_isoform(monkeypatch: pytest.MonkeyP
 
     async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
         calls.append((resource, params))
+        if params and params.get("query") == "accession:P04637":
+            return {
+                "results": [
+                    {"primaryAccession": "P04637", "uniProtkbId": "P53_HUMAN"},
+                    {"primaryAccession": "P04637-2", "uniProtkbId": "P53_HUMAN"},
+                ]
+            }
         if resource == "uniprotkb/search":
             return {"results": []}
         return {"primaryAccession": "P04637", "uniProtkbId": "P53_HUMAN"}
@@ -620,5 +674,21 @@ async def test_uniprot_nodes_forward_include_isoform(monkeypatch: pytest.MonkeyP
         "size": 25,
         "includeIsoform": "true",
     }
-    assert calls[1] == ("uniprotkb/P04637.json", {"includeIsoform": "true"})
-    assert calls[2] == ("uniprotkb/P04637.fasta", {"includeIsoform": "true"})
+    assert calls[1] == (
+        "uniprotkb/search",
+        {
+            "query": "accession:P04637",
+            "format": "json",
+            "size": 500,
+            "includeIsoform": "true",
+        },
+    )
+    assert calls[2] == (
+        "uniprotkb/search",
+        {
+            "query": "accession:P04637",
+            "format": "fasta",
+            "size": 500,
+            "includeIsoform": "true",
+        },
+    )

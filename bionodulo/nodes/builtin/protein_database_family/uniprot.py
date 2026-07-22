@@ -1,4 +1,5 @@
 """UniProt REST API nodes pinned to the 2025-12-17 help contract."""
+
 from __future__ import annotations
 
 import csv
@@ -27,8 +28,17 @@ _UNIPROT_CACHE = APICache.from_environment(default_ttl_seconds=UNIPROT_CACHE_TTL
 _UNIPROT_RATE_LIMITER = TokenBucketRateLimiter(rate_per_second=UNIPROT_RATE_LIMIT_PER_SECOND, burst=1)
 UNIPROT_SEARCH_FIELDS = "accession,id,gene_names,organism_name,protein_name,length"
 UNIPROT_SEARCH_DATABASES = ("uniprotkb", "uniref", "uniparc")
-UNIPROT_SEARCH_FORMATS = ("json", "tsv", "xml", "fasta", "rdf", "gff")
-UNIPROT_STRUCTURED_SEARCH_FORMATS = {"json", "tsv"}
+UNIPROT_SEARCH_FORMATS_BY_DATABASE = {
+    "uniprotkb": ("json", "tsv", "xml", "fasta", "rdf", "gff"),
+    "uniref": ("json", "tsv", "xml", "fasta", "rdf"),
+    "uniparc": ("json", "tsv", "xml", "fasta", "rdf"),
+}
+UNIPROT_SEARCH_FORMATS = tuple(
+    dict.fromkeys(output_format for formats in UNIPROT_SEARCH_FORMATS_BY_DATABASE.values() for output_format in formats)
+)
+DEFAULT_SEARCH_SIZE = 25
+MAX_SEARCH_SIZE = 500
+ISOFORM_SEARCH_SIZE = 500
 UNIPROT_SUMMARY_COLUMNS = (
     "accession",
     "entry_name",
@@ -65,6 +75,51 @@ def _coerce_accessions(value: Any) -> list[str]:
         if isinstance(parsed, list):
             return [str(item).strip() for item in parsed if str(item).strip()]
     return [part for part in re.split(r"[\s,;]+", text) if part]
+
+
+def _coerce_optional_int(value: Any, name: str) -> int | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"Input '{name}' must be an integer")
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Input '{name}' must be an integer") from exc
+
+
+def _resolve_search_size(inputs: dict[str, Any]) -> int:
+    """Resolve the canonical limit and the legacy ``size`` alias once."""
+
+    max_results = _coerce_optional_int(inputs.get("max_results"), "max_results")
+    legacy_size = _coerce_optional_int(inputs.get("size"), "size")
+    if legacy_size is not None:
+        if max_results not in (None, DEFAULT_SEARCH_SIZE, legacy_size):
+            raise ValueError("Inputs 'max_results' and legacy 'size' must not conflict")
+        return legacy_size
+    return DEFAULT_SEARCH_SIZE if max_results is None else max_results
+
+
+def _search_params(
+    *,
+    database: str,
+    query: str,
+    output_format: str,
+    size: int,
+    fields: str,
+    include_isoform: bool,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "query": query,
+        "format": output_format,
+        "size": size,
+    }
+    if database == "uniprotkb":
+        if output_format in {"json", "tsv"}:
+            params["fields"] = fields
+        if include_isoform:
+            params["includeIsoform"] = "true"
+    return params
 
 
 async def _request_json(
@@ -238,21 +293,16 @@ def _write_summary_tsv(path: Path, entries: list[dict[str, Any]]) -> None:
             writer.writerow(_summary_row(entry))
 
 
-def _count_tsv_records(text: str) -> int:
-    lines = [line for line in text.splitlines() if line.strip()]
-    return max(0, len(lines) - 1)
-
-
 class UniProtSearchNode(BaseNode):
-    """Search UniProtKB and write a summary table."""
+    """Search a supported UniProt database and write normalized plus raw results."""
 
     NODE_ID = "uniprot_search"
     DISPLAY_NAME = "UniProt Search"
     CATEGORY = "databases"
-    DESCRIPTION = "Search UniProtKB and return matching protein entries as JSON plus a TSV summary."
+    DESCRIPTION = "Search UniProtKB, UniRef, or UniParc and return a normalized TSV plus the requested raw format."
     SEARCH_ALIASES = ["uniprot", "protein", "search", "query", "swissprot", "trembl", "database"]
-    RETURN_TYPES = ("TSV", "JSON")
-    RETURN_NAMES = ("results_table", "results_data")
+    RETURN_TYPES = ("TSV", "JSON", "FILE")
+    RETURN_NAMES = ("results_table", "results_data", "raw_results")
     REQUIRES_EXTERNAL_TOOLS = False
     EXPERIMENTAL = True
     VERSION = UNIPROT_HELP_SNAPSHOT_DATE
@@ -261,7 +311,9 @@ class UniProtSearchNode(BaseNode):
     DOCUMENTATION_URL = "https://www.uniprot.org/help/api_queries"
     SOURCE_URL = "https://rest.uniprot.org/help/api_queries"
     SOURCE_SHA256 = UNIPROT_QUERY_HELP_SHA256
-    UPSTREAM_SOURCE = "/{database}/search query, format, fields, size, includeIsoform parameters"
+    UPSTREAM_SOURCE = (
+        "/{database}/search query, format, and size parameters; UniProtKB-only fields and includeIsoform parameters"
+    )
     EXIT_SEMANTICS = (
         "HTTP 4xx/5xx and transport failures are fatal after bounded retries; malformed result payloads "
         "produce an empty deterministic summary rather than invented records."
@@ -271,16 +323,37 @@ class UniProtSearchNode(BaseNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
-                "query": ("STRING", {"default": "", "description": "UniProt query, e.g. gene:TP53 AND organism_id:9606"}),
+                "query": (
+                    "STRING",
+                    {"default": "", "description": "UniProt query, e.g. gene:TP53 AND organism_id:9606"},
+                ),
             },
             "optional": {
                 "database": ("STRING", {"default": "uniprotkb", "options": list(UNIPROT_SEARCH_DATABASES)}),
-                "max_results": ("INT", {"default": 25, "min": 1, "max": 500}),
-                "size": ("INT", {"default": 25, "min": 1, "max": 500, "advanced": True}),
+                "max_results": ("INT", {"default": DEFAULT_SEARCH_SIZE, "min": 1, "max": MAX_SEARCH_SIZE}),
+                "size": (
+                    "INT",
+                    {
+                        "default": None,
+                        "min": 1,
+                        "max": MAX_SEARCH_SIZE,
+                        "advanced": True,
+                        "description": "Legacy alias for max_results",
+                    },
+                ),
                 "format": ("STRING", {"default": "json", "options": list(UNIPROT_SEARCH_FORMATS), "advanced": True}),
-                "reviewed_only": ("BOOLEAN", {"default": False}),
-                "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
-                "fields": ("STRING", {"default": UNIPROT_SEARCH_FIELDS, "advanced": True}),
+                "reviewed_only": (
+                    "BOOLEAN",
+                    {"default": False, "description": "UniProtKB only"},
+                ),
+                "include_isoform": (
+                    "BOOLEAN",
+                    {"default": False, "advanced": True, "description": "UniProtKB only"},
+                ),
+                "fields": (
+                    "STRING",
+                    {"default": UNIPROT_SEARCH_FIELDS, "advanced": True, "description": "UniProtKB only"},
+                ),
                 "output_name": ("STRING", {"default": "", "description": "Optional TSV filename stem"}),
             },
             "hidden": {},
@@ -297,14 +370,19 @@ class UniProtSearchNode(BaseNode):
         if database not in UNIPROT_SEARCH_DATABASES:
             return f"Input 'database' must be one of: {', '.join(UNIPROT_SEARCH_DATABASES)}"
         output_format = str(inputs.get("format", "json") or "json").lower()
-        if output_format not in UNIPROT_SEARCH_FORMATS:
-            return f"Input 'format' must be one of: {', '.join(UNIPROT_SEARCH_FORMATS)}"
+        supported_formats = UNIPROT_SEARCH_FORMATS_BY_DATABASE[database]
+        if output_format not in supported_formats:
+            return f"Input 'format' for {database} must be one of: {', '.join(supported_formats)}"
+        if database != "uniprotkb" and bool(inputs.get("reviewed_only", False)):
+            return "Input 'reviewed_only' is supported only for database 'uniprotkb'"
+        if database != "uniprotkb" and bool(inputs.get("include_isoform", False)):
+            return "Input 'include_isoform' is supported only for database 'uniprotkb'"
         try:
-            size = int(inputs.get("size") or inputs.get("max_results", 25))
-        except (TypeError, ValueError):
-            return "Input 'max_results' must be an integer"
-        if not 1 <= size <= 500:
-            return "Input 'max_results' must be between 1 and 500"
+            size = _resolve_search_size(inputs)
+        except ValueError as exc:
+            return str(exc)
+        if not 1 <= size <= MAX_SEARCH_SIZE:
+            return f"Input 'max_results' must be between 1 and {MAX_SEARCH_SIZE}"
         return True
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
@@ -313,60 +391,33 @@ class UniProtSearchNode(BaseNode):
         if validation is not True:
             raise ValueError(str(validation))
         query = str(kwargs.get("query", "") or "").strip()
-        max_results = int(kwargs.get("size") or kwargs.get("max_results", 25))
+        max_results = _resolve_search_size(kwargs)
         database = str(kwargs.get("database", "uniprotkb") or "uniprotkb").strip().lower()
         output_format = str(kwargs.get("format", "json") or "json").strip().lower()
 
-        effective_query = f"({query}) AND reviewed:true" if bool(kwargs.get("reviewed_only", False)) else query
+        effective_query = (
+            f"({query}) AND reviewed:true"
+            if database == "uniprotkb" and bool(kwargs.get("reviewed_only", False))
+            else query
+        )
         fields = str(kwargs.get("fields", "") or UNIPROT_SEARCH_FIELDS).strip()
-        params: dict[str, Any] = {
-            "query": effective_query,
-            "format": output_format,
-            "fields": fields,
-            "size": max_results,
-        }
-        if bool(kwargs.get("include_isoform", False)):
-            params["includeIsoform"] = "true"
+        include_isoform = database == "uniprotkb" and bool(kwargs.get("include_isoform", False))
 
         output_name = str(kwargs.get("output_name", "") or "").strip()
-        filename = _safe_filename(output_name or "uniprot_search") + ".tsv"
-        table_path = _node_output_dir(self, context) / filename
+        stem = _safe_filename(output_name or "uniprot_search")
+        out_dir = _node_output_dir(self, context)
+        table_path = out_dir / f"{stem}.tsv"
+        raw_path = out_dir / f"{stem}.raw.{output_format}"
 
-        if output_format == "tsv":
-            tsv_text = await _request_text(f"{database}/search", params=params)
-            table_path.write_text(tsv_text, encoding="utf-8")
-            return {
-                "outputs": {
-                    "results_table": str(table_path),
-                    "results_data": {
-                        "query": query,
-                        "effective_query": effective_query,
-                        "database": database,
-                        "format": output_format,
-                        "record_count": _count_tsv_records(tsv_text),
-                    },
-                }
-            }
-
-        if output_format not in UNIPROT_STRUCTURED_SEARCH_FORMATS:
-            raw_text = await _request_text(f"{database}/search", params=params)
-            raw_path = table_path.with_suffix(f".{output_format}")
-            raw_path.write_text(raw_text, encoding="utf-8")
-            return {
-                "outputs": {
-                    "results_table": str(raw_path),
-                    "results_data": {
-                        "query": query,
-                        "effective_query": effective_query,
-                        "database": database,
-                        "format": output_format,
-                        "record_count": None,
-                        "raw_path": str(raw_path),
-                    },
-                }
-            }
-
-        payload = await _request_json(f"{database}/search", params=params)
+        normalized_params = _search_params(
+            database=database,
+            query=effective_query,
+            output_format="json",
+            size=max_results,
+            fields=fields,
+            include_isoform=include_isoform,
+        )
+        payload = await _request_json(f"{database}/search", params=normalized_params)
         raw_entries = payload.get("results", [])
         if not isinstance(raw_entries, list):
             raw_entries = []
@@ -374,15 +425,36 @@ class UniProtSearchNode(BaseNode):
 
         _write_summary_tsv(table_path, entries)
 
+        if output_format == "json":
+            raw_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            raw_params = _search_params(
+                database=database,
+                query=effective_query,
+                output_format=output_format,
+                size=max_results,
+                fields=fields,
+                include_isoform=include_isoform,
+            )
+            raw_text = await _request_text(f"{database}/search", params=raw_params)
+            raw_path.write_text(raw_text, encoding="utf-8")
+
         return {
             "outputs": {
                 "results_table": str(table_path),
                 "results_data": {
                     "query": query,
                     "effective_query": effective_query,
+                    "database": database,
+                    "format": output_format,
                     "record_count": len(entries),
                     "entries": entries,
+                    "raw_path": str(raw_path),
                 },
+                "raw_results": str(raw_path),
             }
         }
 
@@ -416,7 +488,10 @@ class UniProtRetrieveNode(BaseNode):
     DOCUMENTATION_URL = "https://www.uniprot.org/help/api"
     SOURCE_URL = "https://rest.uniprot.org/help/api_retrieve_entries"
     SOURCE_SHA256 = UNIPROT_RETRIEVE_HELP_SHA256
-    UPSTREAM_SOURCE = "/uniprotkb/{accession}.json and /uniprotkb/{accession}.fasta"
+    UPSTREAM_SOURCE = (
+        "/uniprotkb/{accession}.json and /uniprotkb/{accession}.fasta; "
+        "/uniprotkb/search with includeIsoform=true for canonical-plus-isoform expansion"
+    )
     EXIT_SEMANTICS = (
         "Each requested accession is fetched independently; any HTTP or transport failure is fatal after "
         "bounded retries, so partial multi-accession outputs are not reported as complete."
@@ -429,7 +504,6 @@ class UniProtRetrieveNode(BaseNode):
                 "uniprot_ids": ("STRING", {"default": "", "description": "UniProt accession(s), comma-separated"}),
             },
             "optional": {
-                "format": ("STRING", {"default": "json", "options": ["json", "fasta"]}),
                 "accession": (
                     "STRING",
                     {
@@ -442,7 +516,16 @@ class UniProtRetrieveNode(BaseNode):
                 "include_isoform": ("BOOLEAN", {"default": False, "advanced": True}),
                 "output_name": ("STRING", {"default": "", "description": "Optional FASTA filename stem"}),
             },
-            "hidden": {},
+            "hidden": {
+                "format": (
+                    "STRING",
+                    {
+                        "description": (
+                            "Legacy compatibility only: when include_fasta is absent, fasta enables sequence output"
+                        )
+                    },
+                )
+            },
         }
 
     @classmethod
@@ -455,8 +538,8 @@ class UniProtRetrieveNode(BaseNode):
             return validation
         if not _coerce_accessions(effective_inputs.get("uniprot_ids", "")):
             return "Input 'uniprot_ids' must contain at least one accession"
-        output_format = str(inputs.get("format", "json") or "json").lower()
-        if output_format not in {"json", "fasta"}:
+        legacy_format = str(inputs.get("format", "") or "").lower()
+        if legacy_format and legacy_format not in {"json", "fasta"}:
             return "Input 'format' must be one of: json, fasta"
         return True
 
@@ -466,16 +549,41 @@ class UniProtRetrieveNode(BaseNode):
         if validation is not True:
             raise ValueError(str(validation))
         accessions = _coerce_accessions(kwargs.get("uniprot_ids", "") or kwargs.get("accession", ""))
-        output_format = str(kwargs.get("format", "json") or "json").strip().lower()
-
         entries: list[dict[str, Any]] = []
         fasta_records: list[str] = []
-        include_fasta = bool(kwargs["include_fasta"]) if "include_fasta" in kwargs else output_format == "fasta"
-        params = {"includeIsoform": "true"} if bool(kwargs.get("include_isoform", False)) else None
+        legacy_format = str(kwargs.get("format", "") or "").strip().lower()
+        if "include_fasta" in kwargs:
+            include_fasta = bool(kwargs["include_fasta"])
+        elif legacy_format:
+            include_fasta = legacy_format == "fasta"
+        else:
+            include_fasta = True
+        include_isoform = bool(kwargs.get("include_isoform", False))
         for accession in accessions:
-            entries.append(_with_summary(await _request_json(f"uniprotkb/{accession}.json", params=params)))
-            if include_fasta:
-                fasta_records.append(await _request_text(f"uniprotkb/{accession}.fasta", params=params))
+            if include_isoform:
+                query = f"accession:{accession}"
+                isoform_json_params = {
+                    "query": query,
+                    "format": "json",
+                    "size": ISOFORM_SEARCH_SIZE,
+                    "includeIsoform": "true",
+                }
+                payload = await _request_json("uniprotkb/search", params=isoform_json_params)
+                raw_entries = payload.get("results", [])
+                if not isinstance(raw_entries, list) or not raw_entries:
+                    raise RuntimeError(f"UniProt isoform search returned no entries for {accession}")
+                entries.extend(_with_summary(entry) for entry in raw_entries if isinstance(entry, dict))
+                if include_fasta:
+                    fasta_records.append(
+                        await _request_text(
+                            "uniprotkb/search",
+                            params={**isoform_json_params, "format": "fasta"},
+                        )
+                    )
+            else:
+                entries.append(_with_summary(await _request_json(f"uniprotkb/{accession}.json")))
+                if include_fasta:
+                    fasta_records.append(await _request_text(f"uniprotkb/{accession}.fasta"))
 
         protein_data: dict[str, Any]
         if len(entries) == 1:
@@ -483,6 +591,11 @@ class UniProtRetrieveNode(BaseNode):
         else:
             protein_data = {
                 "accessions": accessions,
+                "retrieved_accessions": [
+                    str(entry.get("summary", {}).get("accession", ""))
+                    for entry in entries
+                    if isinstance(entry.get("summary"), dict)
+                ],
                 "record_count": len(entries),
                 "entries": entries,
             }
