@@ -129,6 +129,18 @@ class RasusaNode(CommandNode):
     )
     UPSTREAM_READS_SOURCE = "src/reads.rs"
     UPSTREAM_ALIGNMENT_SOURCE = "src/alignment.rs"
+    UPSTREAM_CLI_SOURCE = "src/cli.rs"
+    UPSTREAM_READS_SOURCE_SHA256 = "d20bc1264bb6f2965a6f8bcf91d31a6bd75471a9d530d88462caee9ddf8f6c9f"
+    UPSTREAM_ALIGNMENT_SOURCE_SHA256 = "1090068d7a7af111677abc50ede22defd2a3e00bfce71e4937e60e77114e62eb"
+    UPSTREAM_CLI_SOURCE_SHA256 = "029f5be9e68cb90bfb2ab73325c1e3f587bf5117b692adc0e450022a9ee39d93"
+    DOCUMENTATION_SOURCE_URL = "https://github.com/mbhall88/rasusa/blob/59e28930210f1a7dccffb236273c2bddb7b4fedd/README.md"
+    DOCUMENTATION_SOURCE_SHA256 = "5383409578d8cc26a24616f17722ef2513c1d7dd109bc9391927efc6a980c912"
+    EXIT_SEMANTICS = (
+        "Rasusa exits non-zero for invalid target combinations, unreadable or malformed reads/alignments, "
+        "missing fetch indexes, and output failures; the aligned mode additionally requires successful "
+        "Samtools sorting and indexing of the native Rasusa stream."
+    )
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     SELECTORS = ("single", "paired", "paired_collection", "aligned")
     SUBSAMPLE_TYPES = ("coverage", "num_bases", "num_reads", "frac_reads")
     OUTPUT_EXTENSIONS = (
@@ -277,8 +289,8 @@ class RasusaNode(CommandNode):
                 return "num must be an integer of at least 1 for num_reads subsampling"
         else:
             value = inputs.get("frac", 0.1)
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 100:
-                return "frac must be greater than 0 and at most 100"
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
+                return "frac must be at least 0 and at most 100"
         explicit_extension = str(inputs.get("output_ext", "") or "").strip().lstrip(".")
         if explicit_extension and explicit_extension not in cls.OUTPUT_EXTENSIONS:
             return f"output_ext must be one of: {', '.join(cls.OUTPUT_EXTENSIONS)}"

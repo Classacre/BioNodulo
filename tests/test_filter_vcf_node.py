@@ -80,8 +80,24 @@ def test_filter_vcf_groups_custom_expressions_and_preserves_explicit_zero_maxima
     }
     assert FilterVCFNode.VALIDATE_INPUTS(inputs) is True
     assert FilterVCFNode._filter_expression(inputs) == (
-        'QUAL >= 30.0 && INFO/DP <= 0 && INFO/AF <= 0.0 && (TYPE="snp" || TYPE="indel")'
+        'QUAL >= 30.0 && INFO/DP <= 0 && (TYPE="snp" || TYPE="indel")'
     )
+    command = FilterVCFNode.render_command({**inputs, "output": "/tmp/out"})
+    assert command[command.index("--max-af") : command.index("--max-af") + 2] == ["--max-af", "0.0"]
+
+
+def test_filter_vcf_af_controls_use_native_ac_an_filters() -> None:
+    command = FilterVCFNode.render_command(
+        {
+            "vcf": "cohort.vcf.gz",
+            "min_af": 0.2,
+            "max_af": 0.8,
+            "output": "/tmp/out",
+        }
+    )
+    assert command[command.index("--min-af") : command.index("--min-af") + 2] == ["--min-af", "0.2"]
+    assert command[command.index("--max-af") : command.index("--max-af") + 2] == ["--max-af", "0.8"]
+    assert "INFO/AF" not in command
 
 
 def test_regions_require_an_explicit_colocated_index() -> None:

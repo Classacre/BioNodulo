@@ -19,6 +19,15 @@ def test_rasusa_is_source_pinned_and_has_truthful_conditional_ports() -> None:
         "subsampled_bam",
         "subsampled_bam_index",
     )
+    assert RasusaNode.UPSTREAM_READS_SOURCE_SHA256 == (
+        "d20bc1264bb6f2965a6f8bcf91d31a6bd75471a9d530d88462caee9ddf8f6c9f"
+    )
+    assert RasusaNode.UPSTREAM_ALIGNMENT_SOURCE_SHA256 == (
+        "1090068d7a7af111677abc50ede22defd2a3e00bfce71e4937e60e77114e62eb"
+    )
+    assert RasusaNode.UPSTREAM_CLI_SOURCE_SHA256 == (
+        "029f5be9e68cb90bfb2ab73325c1e3f587bf5117b692adc0e450022a9ee39d93"
+    )
 
 
 def test_rasusa_single_and_paired_read_commands_map_outputs_explicitly(tmp_path: Path) -> None:
@@ -80,6 +89,18 @@ def test_rasusa_preserves_inferred_fasta_format_and_compression(tmp_path: Path) 
     command = RasusaNode.render_command(inputs)
     assert ["--output", str(tmp_path / "rasusa" / "single.fasta.xz")] == command[2:4]
     assert ["--compress-type", "x", "reads.fa.xz"] == command[-3:]
+
+
+def test_rasusa_accepts_zero_fraction_as_documented() -> None:
+    inputs = {
+        "input_selector": "single",
+        "reads": "reads.fastq",
+        "subsample_type": "frac_reads",
+        "frac": 0,
+    }
+    assert RasusaNode.VALIDATE_INPUTS(inputs) is True
+    command = RasusaNode.render_command(inputs)
+    assert ["--frac", "0"] == command[command.index("--frac") : command.index("--frac") + 2]
 
 
 def test_aligned_fetch_requires_exact_bai_and_emits_sorted_bam_bai(tmp_path: Path) -> None:
@@ -146,7 +167,7 @@ def test_aligned_stream_uses_only_stream_specific_parameter(tmp_path: Path) -> N
     [
         ({"input_selector": "paired", "reads": ["R1.fq"], "subsample_type": "num_reads", "num": 1}, "exactly 2"),
         ({"input_selector": "single", "reads": "r.fq", "subsample_type": "coverage", "coverage": 10}, "genome_size"),
-        ({"input_selector": "single", "reads": "r.fq", "subsample_type": "frac_reads", "frac": 0}, "frac"),
+        ({"input_selector": "single", "reads": "r.fq", "subsample_type": "frac_reads", "frac": -0.1}, "frac"),
         ({"input_selector": "aligned", "aligned_input": "a.bam", "coverage": 4.5}, "integer"),
         (
             {"input_selector": "aligned", "aligned_input": "/data/a.bam", "coverage": 5, "strategy": "fetch"},

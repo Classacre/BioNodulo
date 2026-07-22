@@ -68,6 +68,15 @@ class SamblasterNode(CommandNode):
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btu314"]
     CITATION_TEXT = "SAMBLASTER: fast duplicate marking and structural variant read extraction."
     UPSTREAM_SOURCE = "samblaster.cpp"
+    UPSTREAM_SOURCE_SHA256 = "e1b85dba49dc1a0b4d75854aea433a918dd16a55f16b80fc5e232aed8e449bba"
+    DOCUMENTATION_SOURCE_URL = "https://github.com/GregoryFaust/samblaster/blob/b642639117eafedc760d8b84c0d2c4872b0da084/README.md"
+    DOCUMENTATION_SOURCE_SHA256 = "6e0fabf253ff6636ce8dba2c97f57d450052d7f886fa80b32e008b8cce5f6793"
+    EXIT_SEMANTICS = (
+        "samblaster exits non-zero for missing SAM headers, unsorted/read-id-un-grouped input, malformed "
+        "records, invalid splitter settings, and output failures; each downstream Samtools sort/index "
+        "stage must also succeed and create every enabled BAM/BAI pair."
+    )
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     SHELL = True
 
     @classmethod

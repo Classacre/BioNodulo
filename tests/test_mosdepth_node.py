@@ -14,6 +14,10 @@ def test_mosdepth_is_source_pinned_and_requires_an_alignment_index() -> None:
     assert MosdepthNode.REQUIRED_EXECUTABLES == ["mosdepth"]
     assert MosdepthNode.REQUIRED_CONDA_PACKAGES == ["mosdepth"]
     assert MosdepthNode.PACKAGE_CONSTRAINTS == ("mosdepth==0.3.14",)
+    assert MosdepthNode.UPSTREAM_SOURCE_SHA256 == (
+        "48ff35449367c03b9abbaf20ae4d01ba891c449d29516d0bca27182dfa1e0899"
+    )
+    assert MosdepthNode.DEFAULT_EXCLUDE_FLAG == 1796
     required = MosdepthNode.INPUT_TYPES()["required"]
     assert set(required) == {"input_alignment", "alignment_index"}
     validation = str(MosdepthNode.VALIDATE_INPUTS({"input_alignment": "/data/a.bam"}))
@@ -38,6 +42,8 @@ def test_mosdepth_default_command_preserves_native_summary_outputs(tmp_path: Pat
         "--threads",
         "4",
         "--no-per-base",
+        "--flag",
+        "1796",
         str(tmp_path / "mosdepth" / "output"),
         "sample.bam",
     ]
@@ -84,6 +90,17 @@ def test_mosdepth_conditional_tracks_keep_bgzf_and_csi_pairs(tmp_path: Path) -> 
         "thresholds_bed": planned[9],
         "thresholds_bed_index": planned[10],
     }
+
+
+def test_mosdepth_can_explicitly_disable_default_exclude_mask() -> None:
+    command = MosdepthNode.render_command(
+        {
+            "input_alignment": "sample.bam",
+            "alignment_index": "sample.bam.bai",
+            "exclude_flag": 0,
+        }
+    )
+    assert ["--flag", "0"] == command[command.index("--flag") : command.index("--flag") + 2]
 
 
 def test_cram_requires_and_stages_reference_fai_and_crai(tmp_path: Path) -> None:

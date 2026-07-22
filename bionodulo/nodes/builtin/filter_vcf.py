@@ -132,12 +132,6 @@ class FilterVCFNode(CommandNode):
         max_dp = inputs.get("max_dp")
         if max_dp not in (None, ""):
             expressions.append(f"INFO/DP <= {int(max_dp)}")
-        min_af = float(inputs.get("min_af") or 0.0)
-        if min_af > 0:
-            expressions.append(f"INFO/AF >= {min_af}")
-        max_af = inputs.get("max_af")
-        if max_af not in (None, ""):
-            expressions.append(f"INFO/AF <= {float(max_af)}")
         if inputs.get("pass_only", False):
             expressions.append('FILTER == "PASS"')
         custom = str(inputs.get("custom_filter") or "").strip()
@@ -238,6 +232,17 @@ class FilterVCFNode(CommandNode):
             command.extend(["--types", "snps"])
         elif inputs.get("indel_only", False):
             command.extend(["--types", "indels"])
+        # BCFtools' native AF filters are deliberately separate from the
+        # expression filter.  In 1.24 --min-af/--max-af calculate frequency
+        # from AC/AN (and fall back to genotypes), whereas INFO/AF is merely an
+        # optional annotation and can be absent or stale.  Translating these
+        # controls to INFO/AF would silently select different records.
+        min_af = float(inputs.get("min_af") or 0.0)
+        if min_af > 0:
+            command.extend(["--min-af", str(min_af)])
+        max_af = inputs.get("max_af")
+        if max_af not in (None, ""):
+            command.extend(["--max-af", str(float(max_af))])
         expression = cls._filter_expression(inputs)
         if expression:
             command.extend(["--include", expression])

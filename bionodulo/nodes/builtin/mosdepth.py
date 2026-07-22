@@ -139,6 +139,14 @@ class MosdepthNode(CommandNode):
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btx699"]
     CITATION_TEXT = "Mosdepth: quick coverage calculation for genomes and exomes."
     UPSTREAM_SOURCE = "mosdepth.nim"
+    UPSTREAM_SOURCE_SHA256 = "48ff35449367c03b9abbaf20ae4d01ba891c449d29516d0bca27182dfa1e0899"
+    DEFAULT_EXCLUDE_FLAG = 1796
+    EXIT_SEMANTICS = (
+        "mosdepth exits non-zero for unreadable or unindexed alignments, missing CRAM references, "
+        "invalid intervals/options, and output/index failures; every non-zero exit is fatal and all "
+        "declared native summary/BGZF/CSI artifacts must exist after success."
+    )
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     SHELL = True
 
     @classmethod
@@ -163,7 +171,14 @@ class MosdepthNode(CommandNode):
                 "window_size": ("INT", {"default": 400, "min": 1}),
                 "region_file": ("BED", {"default": ""}),
                 "chrom": ("STRING", {"default": ""}),
-                "exclude_flag": ("INT", {"default": "", "min": 0}),
+                "exclude_flag": (
+                    "INT",
+                    {
+                        "default": cls.DEFAULT_EXCLUDE_FLAG,
+                        "min": 0,
+                        "description": "Exclude reads with any of these SAM flag bits (mosdepth default: 1796)",
+                    },
+                ),
                 "include_flag": ("INT", {"default": "", "min": 0}),
                 "mapq": ("INT", {"default": 0, "min": 0}),
                 "fast_mode": ("BOOLEAN", {"default": False}),
@@ -276,7 +291,11 @@ class MosdepthNode(CommandNode):
         if Path(str(inputs.get("input_alignment", ""))).suffix.lower() == ".cram":
             command.extend(["--fasta", str(inputs.get("reference", ""))])
         _add_value(command, "--chrom", inputs.get("chrom"))
-        _add_value(command, "--flag", inputs.get("exclude_flag"))
+        # mosdepth 0.3.14 defaults --flag to 1796 (unmapped, secondary,
+        # QC-fail, and duplicate reads).  Keep that behavior unless the user
+        # explicitly supplies an empty value or zero to disable the mask.
+        exclude_flag = inputs.get("exclude_flag", cls.DEFAULT_EXCLUDE_FLAG)
+        _add_value(command, "--flag", exclude_flag)
         _add_value(command, "--include-flag", inputs.get("include_flag"))
         if inputs.get("mapq", 0) != 0:
             command.extend(["--mapq", str(inputs["mapq"])])

@@ -15,6 +15,9 @@ def test_samblaster_is_source_pinned_and_uses_samtools_not_sambamba() -> None:
     assert SamblasterNode.REQUIRED_EXECUTABLES == ["samblaster", "samtools"]
     assert SamblasterNode.REQUIRED_CONDA_PACKAGES == ["samblaster", "samtools"]
     assert "sambamba" not in SamblasterNode.REQUIRED_EXECUTABLES
+    assert SamblasterNode.UPSTREAM_SOURCE_SHA256 == (
+        "e1b85dba49dc1a0b4d75854aea433a918dd16a55f16b80fc5e232aed8e449bba"
+    )
 
 
 def test_samblaster_renders_queryname_grouping_and_indexed_bam_outputs(tmp_path: Path) -> None:
