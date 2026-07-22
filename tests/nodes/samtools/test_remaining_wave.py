@@ -211,21 +211,33 @@ def test_calmd_and_ampliconclip_match_reference_and_output_contracts() -> None:
         "/work/calmd/calmd.bam",
     ]
     assert calmd.SHELL is True
+    assert calmd.VALIDATE_INPUTS({**inputs, "adjust_mq": 10}) is not True
+    assert calmd.VALIDATE_INPUTS({**inputs, "adjust_mq": 1000}) is True
+    assert "--no-PG" in calmd.render_command({**inputs, "no_pg": True})
 
     clip = _node("samtools_ampliconclip")
+    invalid_clip = {
+        "input_bed": "primers.bed",
+        "input_bam": "a.bam",
+        "threads": 2,
+        "both_ends": True,
+        "strand": True,
+    }
+    assert clip.VALIDATE_INPUTS(invalid_clip) is not True
     command = clip.render_command(
         {
             "input_bed": "primers.bed",
             "input_bam": "a.bam",
             "threads": 2,
-            "both_ends": True,
             "strand": True,
+            "no_pg": True,
             "output": "/work/clip",
         }
     )
     assert "--primer-counts" in command
     assert "/work/clip/primer_counts.bedgraph" in command
-    assert "--strand" not in command
+    assert "--strand" in command
+    assert "--no-PG" in command
     assert command.count("|") == 3
     assert command[-2:] == ["-o", "/work/clip/clipped.bam"]
 
@@ -273,6 +285,41 @@ def test_fastx_uses_collate_pipeline_and_prepares_fixed_ports(tmp_path: Path) ->
     ]
     assert all(path.exists() for path in outputs)
 
+    casava = {
+        "input": "reads.bam",
+        "threads": 1,
+        "output_format": "fastq",
+        "illumina_casava": True,
+        "index_format": "i8",
+        "barcode_tag": "CB",
+        "quality_tag": "CY",
+    }
+    assert fastx.VALIDATE_INPUTS(casava) is True
+    casava_command = fastx.render_command(casava)
+    assert ["--index-format", "i8"] == casava_command[
+        casava_command.index("--index-format") : casava_command.index("--index-format") + 2
+    ]
+    assert ["--barcode-tag", "CB"] == casava_command[
+        casava_command.index("--barcode-tag") : casava_command.index("--barcode-tag") + 2
+    ]
+    assert ["--quality-tag", "CY"] == casava_command[
+        casava_command.index("--quality-tag") : casava_command.index("--quality-tag") + 2
+    ]
+
+    assert fastx.VALIDATE_INPUTS({**inputs, "index_format": "i8i8i8"}) is not True
+    assert fastx.VALIDATE_INPUTS({**inputs, "write_i2": True, "index_format": "i8"}) is not True
+    assert (
+        fastx.VALIDATE_INPUTS(
+            {
+                "input": "reads.bam",
+                "threads": 1,
+                "output_format": "fastq",
+                "index_format": "i8",
+            }
+        )
+        is not True
+    )
+
 
 def test_mpileup_places_options_before_explicit_bam_index_pairs() -> None:
     mpileup = _node("samtools_mpileup")
@@ -297,6 +344,20 @@ def test_mpileup_places_options_before_explicit_bam_index_pairs() -> None:
         "/idx/b.bai",
     ]
     assert command[command.index("--output") + 1] == "/work/mpileup/pileup.pileup"
+    assert mpileup.VALIDATE_INPUTS({"input_bams": ["a.bam"], "adjust_mq": 10}) is not True
+    assert mpileup.VALIDATE_INPUTS({"input_bams": ["a.bam"], "adjust_mq": 50}) is not True
+    assert mpileup.VALIDATE_INPUTS({"input_bams": ["a.bam"], "disable_baq": True}) is not True
+    assert mpileup.VALIDATE_INPUTS({"input_bams": ["a.bam"], "redo_baq": True}) is not True
+    assert (
+        mpileup.VALIDATE_INPUTS(
+            {
+                **inputs,
+                "disable_baq": True,
+                "redo_baq": True,
+            }
+        )
+        is not True
+    )
 
 
 def test_reheader_split_and_slice_keep_outputs_inside_declared_paths(tmp_path: Path) -> None:
@@ -323,8 +384,20 @@ def test_reheader_split_and_slice_keep_outputs_inside_declared_paths(tmp_path: P
     split_output = split.PLAN_OUTPUTS({}, tmp_path)[0]
     command = split.render_command({"input_bam": "a.bam", "threads": 1, "output": str(tmp_path / "samtools_split")})
     unaccounted = Path(command[command.index("-u") + 1])
+    filename_format = Path(command[command.index("-f") + 1])
     assert split_output == tmp_path / "samtools_split" / "readgroup_bams"
     assert unaccounted.parent == split_output
+    assert filename_format.parent == split_output
+    assert filename_format.name == "Read_Group_%#.bam"
+    assert "%!" not in filename_format.name
+    assert "--no-PG" in split.render_command(
+        {
+            "input_bam": "a.bam",
+            "threads": 1,
+            "no_pg": True,
+            "output": str(tmp_path / "samtools_split"),
+        }
+    )
 
     slice_node = _node("samtools_slice_bam")
     slice_inputs = {

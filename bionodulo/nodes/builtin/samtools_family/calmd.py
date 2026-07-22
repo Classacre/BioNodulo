@@ -51,6 +51,8 @@ class SamtoolsCalmdNode(SamtoolsCommandNode):
                 cmd.append("-E")
         if inputs.get("change_identical"):
             cmd.append("-e")
+        if inputs.get("no_pg"):
+            cmd.append("--no-PG")
         adjust_mq = int(inputs.get("adjust_mq", 0) or 0)
         if adjust_mq:
             cmd.extend(["-C", str(adjust_mq)])
@@ -79,6 +81,9 @@ class SamtoolsCalmdNode(SamtoolsCommandNode):
             return "modify_quality requires calculate_baq"
         if inputs.get("extended_baq") and not inputs.get("calculate_baq"):
             return "extended_baq requires calculate_baq"
+        adjust_mq = inputs.get("adjust_mq", 0)
+        if isinstance(adjust_mq, int) and 0 < adjust_mq <= 10:
+            return "adjust_mq must be 0 (disabled) or greater than 10; calmd ignores -C values from 1 through 10"
         return True
 
     @classmethod
@@ -107,13 +112,16 @@ class SamtoolsCalmdNode(SamtoolsCommandNode):
                     "BOOLEAN",
                     {"default": False, "description": "Change reference-identical bases to '='", "advanced": True},
                 ),
+                "no_pg": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not add a @PG line to the output header", "advanced": True},
+                ),
                 "adjust_mq": (
                     "INT",
                     {
                         "default": 0,
                         "min": 0,
-                        "max": 255,
-                        "description": "Coefficient for capping mapping quality of poorly mapped reads",
+                        "description": "Mapping-quality cap coefficient; 0 disables it and active values must exceed 10",
                         "advanced": True,
                     },
                 ),

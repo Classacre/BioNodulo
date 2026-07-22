@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from typing import Any
@@ -116,11 +117,15 @@ class SamtoolsFastxNode(SamtoolsCommandNode):
         if skipped_flags_all:
             cmd.extend(["-G", str(skipped_flags_all)])
 
+        index_options_active = bool(
+            inputs.get("write_index_reads") or inputs.get("illumina_casava")
+        )
         if inputs.get("write_index_reads"):
             if inputs.get("write_i1", True):
                 cmd.extend(["--i1", str(output / f"index1.{extension}")])
             if inputs.get("write_i2", True):
                 cmd.extend(["--i2", str(output / f"index2.{extension}")])
+        if index_options_active:
             _add_if_value(cmd, "--index-format", inputs.get("index_format"))
             _add_if_value(cmd, "--barcode-tag", inputs.get("barcode_tag"))
             _add_if_value(cmd, "--quality-tag", inputs.get("quality_tag"))
@@ -164,8 +169,29 @@ class SamtoolsFastxNode(SamtoolsCommandNode):
         if output_format != "fastq" and has_fastq_only_option:
             return "FASTQ quality options require output_format=fastq"
         index_format = str(inputs.get("index_format", "") or "").strip()
-        if (inputs.get("write_index_reads") or inputs.get("illumina_casava")) and not index_format:
+        index_options_active = bool(
+            inputs.get("write_index_reads") or inputs.get("illumina_casava")
+        )
+        if index_options_active and not index_format:
             return "index_format is required for index-read or Illumina Casava output"
+        if not index_options_active and any(
+            inputs.get(key) not in (None, "")
+            for key in ("index_format", "barcode_tag", "quality_tag")
+        ):
+            return "index_format, barcode_tag, and quality_tag require index-read or Illumina Casava output"
+        if index_options_active:
+            if re.fullmatch(r"(?:[in](?:[1-9][0-9]*|\*))+", index_format) is None:
+                return "index_format must contain documented i/n segments with a positive length or '*'"
+            index_count = index_format.count("i")
+            if index_count not in (1, 2):
+                return "index_format must define one or two index reads"
+            if inputs.get("write_index_reads"):
+                write_i1 = bool(inputs.get("write_i1", True))
+                write_i2 = bool(inputs.get("write_i2", True))
+                if not write_i1 and not write_i2:
+                    return "write_index_reads requires at least one selected index output"
+                if write_i2 and index_count < 2:
+                    return "write_i2 requires index_format to define two index reads"
         if inputs.get("write_i2", True) and not inputs.get("write_i1", True):
             return "write_i2 requires write_i1"
         return True

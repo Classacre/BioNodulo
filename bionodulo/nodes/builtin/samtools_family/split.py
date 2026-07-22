@@ -47,12 +47,17 @@ class SamtoolsSplitNode(SamtoolsCommandNode):
             "samtools",
             "split",
             "-f",
-            str(output_dir / "Read_Group_%!.bam"),
+            # The pinned source substitutes %! without sanitizing @RG IDs.
+            # Use the numeric header index so untrusted BAM metadata cannot
+            # escape the planned output directory through a filename.
+            str(output_dir / "Read_Group_%#.bam"),
             "--output-fmt",
             "bam",
         ]
         if inputs.get("header"):
             cmd.extend(["-h", str(inputs["header"])])
+        if inputs.get("no_pg"):
+            cmd.append("--no-PG")
         cmd.extend(
             [
                 "-u",
@@ -83,6 +88,10 @@ class SamtoolsSplitNode(SamtoolsCommandNode):
                 "header": (
                     ("SAM", "BAM", "CRAM"),
                     {"description": "Header for the unaccounted BAM output", "advanced": True},
+                ),
+                "no_pg": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not add @PG lines to split BAM headers", "advanced": True},
                 ),
             },
             "hidden": {"output": ("STRING", {})},

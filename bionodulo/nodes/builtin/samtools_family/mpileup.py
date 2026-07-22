@@ -106,6 +106,18 @@ class SamtoolsMpileupNode(SamtoolsCommandNode):
             validation = validate_colocated_reference_index(inputs)
             if validation is not True:
                 return validation
+        has_reference = bool(inputs.get("reference"))
+        if inputs.get("disable_baq") and not has_reference:
+            return "disable_baq requires reference; BAQ is not active without -f"
+        if inputs.get("redo_baq") and not has_reference:
+            return "redo_baq requires reference"
+        if inputs.get("disable_baq") and inputs.get("redo_baq"):
+            return "disable_baq and redo_baq are mutually exclusive"
+        adjust_mq = inputs.get("adjust_mq", 0)
+        if isinstance(adjust_mq, int) and 0 < adjust_mq <= 10:
+            return "adjust_mq must be 0 (disabled) or greater than 10; mpileup ignores -C values from 1 through 10"
+        if isinstance(adjust_mq, int) and adjust_mq > 10 and not has_reference:
+            return "adjust_mq requires reference"
         return validate_index_pairs(
             inputs,
             data_key="input_bams",

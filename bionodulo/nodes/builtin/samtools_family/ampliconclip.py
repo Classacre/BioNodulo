@@ -54,6 +54,8 @@ class SamtoolsAmpliconclipNode(SamtoolsCommandNode):
             "ampliconclip",
             "--hard-clip" if inputs.get("hard_clip") else "--soft-clip",
         ]
+        if inputs.get("no_pg"):
+            cmd.append("--no-PG")
         _add_if_value(cmd, "--fail-len", inputs.get("min_length"))
         cmd.extend(["--tolerance", str(inputs.get("tolerance", 5))])
         if inputs.get("strand") and not inputs.get("both_ends"):
@@ -101,6 +103,15 @@ class SamtoolsAmpliconclipNode(SamtoolsCommandNode):
         return cmd
 
     @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        if inputs.get("strand") and inputs.get("both_ends"):
+            return "strand cannot be combined with both_ends; samtools ampliconclip ignores --strand in that mode"
+        return True
+
+    @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
@@ -124,6 +135,10 @@ class SamtoolsAmpliconclipNode(SamtoolsCommandNode):
                 "no_excluded": (
                     "BOOLEAN",
                     {"default": False, "description": "Do not write excluded reads to output", "advanced": True},
+                ),
+                "no_pg": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Do not add a @PG line to the clipped BAM", "advanced": True},
                 ),
                 "min_length": (
                     "INT",
