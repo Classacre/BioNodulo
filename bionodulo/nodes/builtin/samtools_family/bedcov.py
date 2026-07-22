@@ -52,6 +52,11 @@ class SamtoolsBedcovNode(SamtoolsCommandNode):
         if skipped_flags:
             cmd.extend(["-G", str(skipped_flags)])
         _add_if_value(cmd, "-d", inputs.get("depth_thresh"))
+        _add_if_value(cmd, "--max-depth", inputs.get("max_depth"))
+        if inputs.get("read_count"):
+            cmd.append("-c")
+        if inputs.get("header"):
+            cmd.append("-H")
         cmd.append("-X")
         cmd.append(str(inputs.get("input_bed", "")))
         cmd.extend(_as_list(inputs.get("input_bams", inputs.get("bam"))))
@@ -102,6 +107,23 @@ class SamtoolsBedcovNode(SamtoolsCommandNode):
                         "min": 0,
                         "description": "Add a column counting bases with coverage at or above this threshold",
                     },
+                ),
+                "max_depth": (
+                    "INT",
+                    {
+                        "default": "",
+                        "min": 0,
+                        "description": "Maximum depth used by the bedcov pileup algorithm",
+                        "advanced": True,
+                    },
+                ),
+                "read_count": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Add one read-count column per input BAM"},
+                ),
+                "header": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Emit a BED column header"},
                 ),
             },
             "hidden": {"output": ("STRING", {})},

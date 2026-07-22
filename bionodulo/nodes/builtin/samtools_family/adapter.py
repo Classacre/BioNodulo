@@ -48,12 +48,56 @@ def _as_csv_list(value: Any) -> list[str]:
     return values
 
 
+# Keep this table in sync with ``bam_str2flag`` in the pinned Samtools/HTSlib
+# source.  The command-line tools accept both symbolic names and numeric masks
+# (decimal, hexadecimal, and octal); accepting only decimal values here made a
+# valid workflow fail while rendering its argv.
+_SAM_FLAG_NAMES = {
+    "PAIRED": 0x1,
+    "PROPER_PAIR": 0x2,
+    "UNMAP": 0x4,
+    "MUNMAP": 0x8,
+    "REVERSE": 0x10,
+    "MREVERSE": 0x20,
+    "READ1": 0x40,
+    "READ2": 0x80,
+    "SECONDARY": 0x100,
+    "QCFAIL": 0x200,
+    "DUP": 0x400,
+    "SUPPLEMENTARY": 0x800,
+}
+
+
+def _parse_flag_token(token: str) -> int:
+    normalized = token.strip()
+    if not normalized:
+        return 0
+    name = normalized.upper().replace("-", "_")
+    if name in _SAM_FLAG_NAMES:
+        return _SAM_FLAG_NAMES[name]
+    try:
+        # Samtools accepts hexadecimal (0x...), octal (0-prefixed), and plain
+        # decimal masks.  Python's ``int(value, 0)`` intentionally rejects
+        # legacy octal strings such as ``010``, so select the base explicitly.
+        if normalized.lower().startswith("0x"):
+            parsed = int(normalized[2:], 16)
+        elif len(normalized) > 1 and normalized.startswith("0"):
+            parsed = int(normalized, 8)
+        else:
+            parsed = int(normalized, 10)
+    except ValueError as exc:
+        raise ValueError(f"unsupported SAM flag '{normalized}'") from exc
+    if parsed < 0:
+        raise ValueError(f"SAM flags cannot be negative: '{normalized}'")
+    return parsed
+
+
 def _flag_sum(value: Any) -> int:
+    """Parse and combine Samtools flag masks using source-compatible rules."""
     total = 0
     for item in _as_list(value):
         for part in item.split(","):
-            if part.strip():
-                total += int(part.strip())
+            total |= _parse_flag_token(part)
     return total
 
 

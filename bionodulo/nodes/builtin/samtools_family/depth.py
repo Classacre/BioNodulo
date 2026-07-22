@@ -47,7 +47,7 @@ class SamtoolsDepthNode(SamtoolsCommandNode):
             cmd.append(all_positions)
         if inputs.get("input_bed"):
             cmd.extend(["-b", str(inputs["input_bed"])])
-        elif inputs.get("region"):
+        if inputs.get("region"):
             cmd.extend(["-r", str(inputs["region"])])
         _add_if_value(cmd, "-l", inputs.get("minlength"))
         _add_if_value(cmd, "-m", inputs.get("maxdepth"))
@@ -84,8 +84,6 @@ class SamtoolsDepthNode(SamtoolsCommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        if inputs.get("input_bed") and inputs.get("region"):
-            return "input_bed and region are mutually exclusive"
         return validate_index_pairs(
             inputs,
             data_key="input_bams",

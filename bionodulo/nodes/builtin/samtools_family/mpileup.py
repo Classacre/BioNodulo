@@ -47,12 +47,9 @@ class SamtoolsMpileupNode(SamtoolsCommandNode):
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
-        cmd = [
-            "samtools",
-            "mpileup",
-            "-f",
-            str(inputs.get("reference", "")),
-        ]
+        cmd = ["samtools", "mpileup"]
+        if inputs.get("reference"):
+            cmd.extend(["-f", str(inputs["reference"])])
         required_flags = _flag_sum(inputs.get("required_flags"))
         skipped_flags = _flag_sum(inputs.get("skipped_flags"))
         if required_flags:
@@ -86,6 +83,8 @@ class SamtoolsMpileupNode(SamtoolsCommandNode):
             cmd.append("-s")
         if inputs.get("output_qname"):
             cmd.append("--output-QNAME")
+        if inputs.get("ignore_read_groups"):
+            cmd.append("-R")
         if inputs.get("all_positions"):
             cmd.append(str(inputs["all_positions"]))
         _add_if_value(cmd, "--output-extra", inputs.get("output_extra"))
@@ -103,9 +102,10 @@ class SamtoolsMpileupNode(SamtoolsCommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = validate_colocated_reference_index(inputs)
-        if validation is not True:
-            return validation
+        if inputs.get("reference") or inputs.get("reference_index"):
+            validation = validate_colocated_reference_index(inputs)
+            if validation is not True:
+                return validation
         return validate_index_pairs(
             inputs,
             data_key="input_bams",
@@ -118,13 +118,13 @@ class SamtoolsMpileupNode(SamtoolsCommandNode):
         return {
             "required": {
                 "input_bams": ("BAM_LIST", {"description": "One or more indexed BAM files"}),
-                "reference": ("FASTA", {"description": "Reference FASTA"}),
-                "reference_index": (
-                    "FASTA_INDEX",
-                    {"description": "Exact colocated <reference>.fai index"},
-                ),
             },
             "optional": {
+                "reference": ("FASTA", {"description": "Optional reference FASTA; enables BAQ"}),
+                "reference_index": (
+                    "FASTA_INDEX",
+                    {"description": "Exact colocated <reference>.fai index when a reference is supplied"},
+                ),
                 "bam_indexes": (
                     "FILE_LIST",
                     {"description": "One BAI or CSI index per BAM; required for region queries"},
@@ -172,6 +172,10 @@ class SamtoolsMpileupNode(SamtoolsCommandNode):
                 "output_qname": (
                     "BOOLEAN",
                     {"default": False, "description": "Output read names", "advanced": True},
+                ),
+                "ignore_read_groups": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Treat all reads in each BAM as one sample", "advanced": True},
                 ),
                 "all_positions": (
                     "STRING",

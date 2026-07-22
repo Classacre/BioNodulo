@@ -50,10 +50,24 @@ class SamtoolsCoverageNode(SamtoolsCommandNode):
             cmd.extend(["--rf", str(required_flags)])
         if skipped_flags:
             cmd.extend(["--ff", str(skipped_flags)])
+        # coverage.c does not implement -X: when a region is requested it
+        # discovers the index beside each BAM.  VALIDATE_INPUTS therefore
+        # requires exact colocated sidecars rather than pretending these paths
+        # can be passed through argv.
+        if inputs.get("max_depth") is not None and str(inputs.get("max_depth")) != "":
+            cmd.extend(["-d", str(inputs["max_depth"])])
+        if inputs.get("min_depth") is not None and str(inputs.get("min_depth")) != "":
+            cmd.extend(["--min-depth", str(inputs["min_depth"])])
         if inputs.get("region"):
             cmd.extend(["-r", str(inputs["region"])])
+        if inputs.get("plot_depth"):
+            cmd.append("-D")
+        if inputs.get("ascii"):
+            cmd.append("-A")
+        if inputs.get("no_header"):
+            cmd.append("-H")
         if inputs.get("histogram"):
-            cmd.extend(["-m", "-w", str(inputs.get("n_bins", 100))])
+            cmd.extend(["-m", "-w", str(inputs.get("n_bins", 50))])
         cmd.extend(["-o", str(cls.output_dir(inputs) / cls.OUTPUT_FILENAMES[0])])
         cmd.extend(input_bams)
         return cmd
@@ -93,9 +107,34 @@ class SamtoolsCoverageNode(SamtoolsCommandNode):
                     "STRING",
                     {"default": "", "description": "Comma-separated SAM flags to exclude", "advanced": True},
                 ),
+                "max_depth": (
+                    "INT",
+                    {"default": "", "min": 0, "description": "Maximum allowed coverage depth", "advanced": True},
+                ),
+                "min_depth": (
+                    "INT",
+                    {
+                        "default": "",
+                        "min": 0,
+                        "description": "Ignore positions below this coverage depth",
+                        "advanced": True,
+                    },
+                ),
                 "region": ("STRING", {"default": "", "description": "Region such as chr1:100-200"}),
                 "histogram": ("BOOLEAN", {"default": False, "description": "Emit histogram data"}),
-                "n_bins": ("INT", {"default": 100, "min": 1, "description": "Number of histogram bins"}),
+                "n_bins": ("INT", {"default": 50, "min": 1, "description": "Number of histogram bins"}),
+                "plot_depth": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Plot depth rather than percent covered", "advanced": True},
+                ),
+                "ascii": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Use ASCII-only histogram characters", "advanced": True},
+                ),
+                "no_header": (
+                    "BOOLEAN",
+                    {"default": False, "description": "Suppress the tabular header", "advanced": True},
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
