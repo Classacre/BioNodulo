@@ -1572,14 +1572,17 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
     assert "single_cell_report_preview_001" not in node_types
     assert node_types["render_cr_count_tab_0"] == "table_preview"
     assert "render_metrics_summary_chart_ima_1" not in node_types
+    # Cell Ranger 9.0.1 writes a wide, two-line metrics CSV rather than a
+    # Metric Name/Metric Value table; preview the native table directly.
+    assert "metrics_summary_chart_001" not in node_types
 
     dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
     assert dashboard["params"]["run_name"] == "Single Cell QC"
     assert dashboard["params"]["title"] == "Single Cell QC Dashboard"
 
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
-    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
+    assert not _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
     assert _has_edge(workflow, "cr_count_001", "metrics_summary", "render_cr_count_tab_0", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
-    assert workflow["outputs"]["metrics_summary_chart"] == "metrics_summary_chart_001"
+    assert "metrics_summary_chart" not in workflow["outputs"]
     assert "report" not in workflow["outputs"]
