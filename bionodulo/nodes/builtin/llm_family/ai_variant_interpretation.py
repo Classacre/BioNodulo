@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,12 @@ class AIVariantInterpretationNode(LiteLLMNode):
     REQUIRES_EXTERNAL_TOOLS = False
     REQUIRED_CONDA_PACKAGES = ["litellm", "pandas"]
     EXPERIMENTAL = True
+    AUDIT_STATUS = "contract-checked-no-provider-execution"
+    ACMG_GUIDELINE_VERSION = "2015"
+    ACMG_GUIDELINE_DOI = "10.1038/gim.2015.30"
+    ACMG_GUIDELINE_URL = "https://doi.org/10.1038/gim.2015.30"
+    CITATION_DOIS = [ACMG_GUIDELINE_DOI]
+    CITATION_URLS = [ACMG_GUIDELINE_URL]
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -45,7 +52,21 @@ class AIVariantInterpretationNode(LiteLLMNode):
                     "STRING",
                     {"default": "", "multiline": True, "description": "Optional disease or panel context"},
                 ),
-                "include_literature": ("BOOLEAN", {"default": True}),
+                "include_literature": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": "Use only explicitly supplied literature_evidence; no retrieval is performed",
+                    },
+                ),
+                "literature_evidence": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "description": "Retrieved or curated evidence with identifiers/citations",
+                    },
+                ),
                 "max_variants": ("INT", {"default": 50, "min": 1, "max": 500}),
                 "provider": (["openai", "anthropic", "openrouter", "litellm", "custom"], {"default": "openai"}),
                 "model": ("STRING", {"default": "", "description": "Provider model name"}),
@@ -73,7 +94,13 @@ class AIVariantInterpretationNode(LiteLLMNode):
             ("ACMG", "research", "clinical_actionable"),
         )
         gene_context = str(kwargs.get("gene_context", "") or "")
-        include_literature = bool(kwargs.get("include_literature", True))
+        include_literature = bool(kwargs.get("include_literature", False))
+        literature_evidence = _literature_evidence_text(kwargs.get("literature_evidence", ""))
+        if include_literature and not literature_evidence:
+            raise ValueError(
+                "include_literature requires explicit retrieved or supplied literature_evidence; "
+                "this node does not retrieve evidence"
+            )
 
         if variants:
             config = _llm_config_from_kwargs(kwargs)
@@ -82,6 +109,7 @@ class AIVariantInterpretationNode(LiteLLMNode):
                 framework=framework,
                 gene_context=gene_context,
                 include_literature=include_literature,
+                literature_evidence=literature_evidence,
             )
             response = await call_llm(config, messages, json_mode=True)
             parsed = safe_json_parse(response.content)
@@ -99,6 +127,10 @@ class AIVariantInterpretationNode(LiteLLMNode):
             "framework": framework,
             "gene_context": gene_context,
             "include_literature": include_literature,
+            "literature_evidence_supplied": bool(literature_evidence),
+            "literature_evidence_sha256": (
+                hashlib.sha256(literature_evidence.encode("utf-8")).hexdigest() if literature_evidence else ""
+            ),
             "model": model,
             "usage": usage,
             "interpretations": interpretations,
@@ -142,22 +174,25 @@ def _variant_interpretation_messages(
     framework: str,
     gene_context: str,
     include_literature: bool,
+    literature_evidence: str,
 ) -> list[dict[str, str]]:
     variant_lines = []
     for index, variant in enumerate(variants, start=1):
         fields = ", ".join(f"{key}={value}" for key, value in variant.items() if value)
         variant_lines.append(f"{index}. {fields}")
     literature_instruction = (
-        "Include known literature or database evidence where relevant."
+        "Use only the supplied literature evidence below; cite its explicit identifiers and do not add other sources."
         if include_literature
-        else "Do not invent literature references; use only the supplied variant table context."
+        else "Do not use or invent literature references; use only the supplied variant table context."
     )
+    evidence_section = f"\nSupplied literature evidence:\n{literature_evidence}\n" if include_literature else ""
     prompt = (
         f"Interpret these variants using the {framework} framework.\n"
         f"Gene or disease context: {gene_context or 'general variant interpretation'}.\n"
         f"{literature_instruction}\n\n"
         "Variants:\n"
-        f"{chr(10).join(variant_lines)}\n\n"
+        f"{chr(10).join(variant_lines)}\n"
+        f"{evidence_section}\n"
         "Return a JSON object with an interpretations array. Each item must include variant_id, gene, "
         "pathogenicity, confidence, summary, and evidence."
     )
@@ -168,6 +203,12 @@ def _variant_interpretation_messages(
         ),
         prompt=prompt,
     )
+
+
+def _literature_evidence_text(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, indent=2, sort_keys=True)
+    return str(value or "").strip()
 
 
 def _normalise_interpretations(parsed: dict[str, Any], variants: list[dict[str, str]]) -> list[dict[str, Any]]:

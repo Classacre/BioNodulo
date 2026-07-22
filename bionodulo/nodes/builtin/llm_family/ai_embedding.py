@@ -33,6 +33,7 @@ class AIEmbeddingNode(BaseNode):
     DOCUMENTATION_URL = "https://huggingface.co/docs/transformers/v4.57.1/en/model_doc/auto"
     GIT_URL = "https://github.com/huggingface/transformers"
     GIT_COMMIT = "8cb5963cc22174954e7dca2c0a3320b7dc2f4edc"
+    AUDIT_STATUS = "contract-checked-no-model-execution"
     CITATION_URLS = [
         "https://huggingface.co/docs/transformers/v4.57.1/en/model_doc/auto",
         "https://github.com/huggingface/transformers",
@@ -58,15 +59,7 @@ class AIEmbeddingNode(BaseNode):
                     "STRING",
                     {
                         "default": "esm2_t6_8M",
-                        "options": [
-                            "esm2_t6_8M",
-                            "esm2_t12_35M",
-                            "esm2_t30_150M",
-                            "esm2_t33_650M",
-                            "dnabert",
-                            "dnabert2",
-                            "text_embedding",
-                        ],
+                        "options": list(_EMBEDDING_MODEL_REGISTRY),
                     },
                 ),
             },
@@ -80,7 +73,14 @@ class AIEmbeddingNode(BaseNode):
                 "compute_device": ("STRING", {"default": "auto", "options": ["auto", "cpu", "cuda", "mps"]}),
                 "fallback_backend": (
                     "STRING",
-                    {"default": "auto", "options": ["auto", "deterministic", "local", "api"]},
+                    {
+                        "default": "auto",
+                        "options": ["auto", "local", "api", "deterministic_fixture"],
+                        "description": (
+                            "auto/local failures are fatal; deterministic_fixture is an explicit "
+                            "non-scientific workflow-test backend"
+                        ),
+                    },
                 ),
                 "api_key": ("STRING", {"default": "", "password": True, "advanced": True}),
             },
@@ -120,7 +120,7 @@ class AIEmbeddingNode(BaseNode):
         fallback_backend = validate_choice(
             kwargs.get("fallback_backend", "auto"),
             "fallback_backend",
-            ("auto", "deterministic", "local", "api"),
+            ("auto", "local", "api", "deterministic_fixture"),
         )
         api_key = resolve_secret_value(
             kwargs.get("api_key", ""),
@@ -139,16 +139,18 @@ class AIEmbeddingNode(BaseNode):
                 records=[],
                 embeddings=embeddings,
                 embedding_model=embedding_model,
-                model_name=_EMBEDDING_MODEL_REGISTRY.get(embedding_model, embedding_model),
+                model_name=str(_EMBEDDING_MODEL_REGISTRY[embedding_model]["model"]),
+                model_revision=str(_EMBEDDING_MODEL_REGISTRY[embedding_model]["revision"]),
                 molecule_type=molecule_type,
                 pooling=pooling,
                 layer=layer,
                 normalize=normalize,
                 compute_device=compute_device,
                 backend="empty",
+                status="NO_INPUT_RECORDS",
             )
         else:
-            embeddings, backend, model_name, device = await _generate_embeddings(
+            embeddings, backend, model_name, model_revision, device, status = await _generate_embeddings(
                 [record["sequence"] for record in records],
                 embedding_model=embedding_model,
                 batch_size=batch_size,
@@ -165,12 +167,14 @@ class AIEmbeddingNode(BaseNode):
                 embeddings=embeddings,
                 embedding_model=embedding_model,
                 model_name=model_name,
+                model_revision=model_revision,
                 molecule_type=molecule_type,
                 pooling=pooling,
                 layer=layer,
                 normalize=normalize,
                 compute_device=device,
                 backend=backend,
+                status=status,
             )
 
         np = _numpy()
@@ -180,18 +184,38 @@ class AIEmbeddingNode(BaseNode):
         return {"outputs": {"embeddings_npy": str(npy_path), "metadata_json": str(metadata_path)}}
 
 
-_EMBEDDING_MODEL_REGISTRY = {
-    "esm2_t6_8M": "facebook/esm2_t6_8M_UR50D",
-    "esm2_t12_35M": "facebook/esm2_t12_35M_UR50D",
-    "esm2_t30_150M": "facebook/esm2_t30_150M_UR50D",
-    "esm2_t33_650M": "facebook/esm2_t33_650M_UR50D",
-    "dnabert": "zhihan1996/DNABERT-2-117M",
-    "dnabert2": "zhihan1996/DNABERT-2-117M",
-    "text_embedding": "text-embedding-3-small",
+_EMBEDDING_MODEL_REGISTRY: dict[str, dict[str, str]] = {
+    "esm2_t6_8M": {
+        "model": "facebook/esm2_t6_8M_UR50D",
+        "revision": "c731040fcd8d73dceaa04b0a8e6329b345b0f5df",
+        "url": "https://huggingface.co/facebook/esm2_t6_8M_UR50D",
+    },
+    "esm2_t12_35M": {
+        "model": "facebook/esm2_t12_35M_UR50D",
+        "revision": "6fbf070e65b0b7291e7bbcd451118c216cff79d8",
+        "url": "https://huggingface.co/facebook/esm2_t12_35M_UR50D",
+    },
+    "esm2_t30_150M": {
+        "model": "facebook/esm2_t30_150M_UR50D",
+        "revision": "a695f6045e2e32885fa60af20c13cb35398ce30c",
+        "url": "https://huggingface.co/facebook/esm2_t30_150M_UR50D",
+    },
+    "esm2_t33_650M": {
+        "model": "facebook/esm2_t33_650M_UR50D",
+        "revision": "08e4846e537177426273712802403f7ba8261b6c",
+        "url": "https://huggingface.co/facebook/esm2_t33_650M_UR50D",
+    },
+    "text_embedding": {
+        "model": "text-embedding-3-small",
+        "revision": "provider-managed",
+        "url": "https://platform.openai.com/docs/models/text-embedding-3-small",
+    },
 }
 
 
 _DETERMINISTIC_EMBEDDING_DIM = 32
+_FIXTURE_MODEL_ID = "product-native/non-scientific-sha256-fixture-v1"
+_FIXTURE_REVISION = "1"
 
 
 def _numpy() -> Any:
@@ -311,8 +335,10 @@ async def _generate_embeddings(
     compute_device: str,
     fallback_backend: str,
     api_key: str,
-) -> tuple[Any, str, str, str]:
-    model_name = _EMBEDDING_MODEL_REGISTRY.get(embedding_model, embedding_model)
+) -> tuple[Any, str, str, str, str, str]:
+    model_spec = _EMBEDDING_MODEL_REGISTRY[embedding_model]
+    model_name = str(model_spec["model"])
+    model_revision = str(model_spec["revision"])
     if fallback_backend == "api":
         if embedding_model != "text_embedding":
             raise ValueError("The API embedding backend is only supported for text_embedding")
@@ -324,30 +350,75 @@ async def _generate_embeddings(
         )
         if normalize:
             embeddings = _normalize_embeddings(embeddings)
-        return embeddings, f"api:{provider}", model_name, "remote"
-    if fallback_backend != "deterministic":
-        try:
-            embeddings, device = _local_transformer_embeddings(
-                sequences,
-                model_name=model_name,
-                batch_size=batch_size,
-                max_length=max_length,
-                pooling=pooling,
-                layer=layer,
-                compute_device=compute_device,
-            )
-            if normalize:
-                embeddings = _normalize_embeddings(embeddings)
-            return embeddings, "local_transformer", model_name, device
-        except Exception:
-            if fallback_backend == "local":
-                raise
+        return (
+            embeddings,
+            f"api:{provider}",
+            model_name,
+            model_revision,
+            "remote",
+            "REMOTE_PROVIDER_MODEL_NOT_BIT_REPRODUCIBLE",
+        )
 
-    embeddings = _deterministic_embeddings(sequences)
+    if fallback_backend == "deterministic_fixture":
+        embeddings = _deterministic_embeddings(sequences)
+        if normalize:
+            embeddings = _normalize_embeddings(embeddings)
+        return (
+            embeddings,
+            "deterministic_fixture",
+            _FIXTURE_MODEL_ID,
+            _FIXTURE_REVISION,
+            "cpu",
+            "NON_SCIENTIFIC_FIXTURE_ONLY",
+        )
+
+    if embedding_model == "text_embedding":
+        if fallback_backend == "local":
+            raise ValueError("text_embedding has no local checkpoint contract; select the api backend")
+        if not api_key:
+            raise ValueError(
+                "auto selected the text embedding API, but no api_key is available; "
+                "provide credentials or explicitly select deterministic_fixture"
+            )
+        embeddings, provider = await _api_text_embeddings(
+            sequences,
+            model_name=model_name,
+            batch_size=batch_size,
+            api_key=api_key,
+        )
+        if normalize:
+            embeddings = _normalize_embeddings(embeddings)
+        return (
+            embeddings,
+            f"api:{provider}",
+            model_name,
+            model_revision,
+            "remote",
+            "REMOTE_PROVIDER_MODEL_NOT_BIT_REPRODUCIBLE",
+        )
+
+    # Both auto and local resolve to the same immutable local-model operation.
+    # Import, cache, configuration, and inference failures intentionally escape.
+    embeddings, device = _local_transformer_embeddings(
+        sequences,
+        model_name=model_name,
+        revision=model_revision,
+        batch_size=batch_size,
+        max_length=max_length,
+        pooling=pooling,
+        layer=layer,
+        compute_device=compute_device,
+    )
     if normalize:
         embeddings = _normalize_embeddings(embeddings)
-    device = "cpu" if compute_device == "auto" else compute_device
-    return embeddings, "deterministic", "product-native/sha256-embedding-v1", device
+    return (
+        embeddings,
+        "local_revision_pinned_transformer",
+        model_name,
+        model_revision,
+        device,
+        "IMMUTABLE_MODEL_REVISION",
+    )
 
 
 async def _api_text_embeddings(
@@ -380,6 +451,7 @@ def _local_transformer_embeddings(
     sequences: list[str],
     *,
     model_name: str,
+    revision: str,
     batch_size: int,
     max_length: int,
     pooling: str,
@@ -396,8 +468,9 @@ def _local_transformer_embeddings(
     device = compute_device
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=False, local_files_only=True)
-    model = AutoModel.from_pretrained(model_name, trust_remote_code=False, local_files_only=True)
+    load_args = {"revision": revision, "trust_remote_code": False, "local_files_only": True}
+    tokenizer = AutoTokenizer.from_pretrained(model_name, **load_args)
+    model = AutoModel.from_pretrained(model_name, **load_args)
     model = model.to(device)
     model.eval()
 
@@ -448,18 +521,23 @@ def _embedding_metadata(
     embeddings: Any,
     embedding_model: str,
     model_name: str,
+    model_revision: str,
     molecule_type: str,
     pooling: str,
     layer: int,
     normalize: bool,
     compute_device: str,
     backend: str,
+    status: str,
 ) -> dict[str, Any]:
     shape = list(embeddings.shape) if hasattr(embeddings, "shape") else [0, 0]
     return {
         "backend": backend,
+        "status": status,
+        "scientific_embedding": False if backend == "deterministic_fixture" else None,
         "embedding_model": embedding_model,
         "model_name": model_name,
+        "model_revision": model_revision,
         "molecule_type": molecule_type,
         "sequence_count": len(records),
         "sequence_ids": [str(record.get("id", "")) for record in records],
@@ -471,4 +549,9 @@ def _embedding_metadata(
         "layer": layer,
         "normalize": normalize,
         "device": compute_device,
+        "disclaimer": (
+            "NON-SCIENTIFIC FIXTURE: SHA-derived vectors are workflow-test artifacts, not model embeddings."
+            if backend == "deterministic_fixture"
+            else "Model identity and backend status are recorded; downstream scientific validity remains user-owned."
+        ),
     }

@@ -103,6 +103,7 @@ class AILiteratureSearchNode(LiteLLMNode):
     REQUIRES_EXTERNAL_TOOLS = False
     REQUIRED_CONDA_PACKAGES = ["litellm"]
     EXPERIMENTAL = True
+    AUDIT_STATUS = "contract-checked-no-provider-execution"
     CITATION_URLS = [
         "https://www.ncbi.nlm.nih.gov/books/NBK25499/",
         "https://docs.litellm.ai/docs/completion/input",
@@ -127,7 +128,14 @@ class AILiteratureSearchNode(LiteLLMNode):
                 ),
             },
             "optional": {
-                "databases": ("STRING", {"default": "pubmed", "options": ["pubmed", "pubmed+biorxiv", "pubmed+arxiv"]}),
+                "databases": (
+                    "STRING",
+                    {
+                        "default": "pubmed",
+                        "options": ["pubmed"],
+                        "description": "Implemented source: PubMed through pinned NCBI E-utilities",
+                    },
+                ),
                 "max_results": ("INT", {"default": 10, "min": 1, "max": 100}),
                 "year_range": ("STRING", {"default": "", "description": "Year filter such as 2020:2026"}),
                 "search_depth": ("STRING", {"default": "standard", "options": ["quick", "standard", "deep"]}),
@@ -158,7 +166,7 @@ class AILiteratureSearchNode(LiteLLMNode):
         databases = validate_choice(
             kwargs.get("databases", "pubmed"),
             "databases",
-            ("pubmed", "pubmed+biorxiv", "pubmed+arxiv"),
+            ("pubmed",),
         )
         max_results = max(1, min(int(kwargs.get("max_results", 10) or 10), 100))
         year_range = str(kwargs.get("year_range", "") or "").strip()

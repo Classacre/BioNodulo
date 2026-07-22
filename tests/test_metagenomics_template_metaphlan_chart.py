@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from bionodulo.nodes.builtin.visualization_family.adapter import _read_bar_rows
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -67,3 +71,62 @@ def test_metagenomics_template_charts_metaphlan_profile_in_taxonomy_report() -> 
     assert workflow["outputs"]["validated_metaphlan_profile"] == "metaphlan_001"
     assert workflow["outputs"]["metaphlan_chart"] == "metaphlan_bar_001"
     assert "taxonomy_report_preview" not in workflow["outputs"]
+
+
+def test_bar_parser_skips_only_leading_metaphlan_metadata(tmp_path: Path) -> None:
+    profile = tmp_path / "sample.metaphlan.tsv"
+    profile.write_text(
+        "#mpa_vJun23_CHOCOPhlAnSGB_202403\n"
+        "#MetaPhlAn version 4.2.4\n"
+        "#clade_name\tNCBI_tax_id\trelative_abundance\n"
+        "k__Bacteria\t2\t97.5\n"
+        "k__Archaea\t2157\t2.5\n",
+        encoding="utf-8",
+    )
+
+    rows = _read_bar_rows(
+        profile,
+        delimiter="auto",
+        x_column="clade_name",
+        y_column="relative_abundance",
+        group_column="",
+    )
+
+    assert [(row.category, row.value) for row in rows] == [
+        ("k__Bacteria", 97.5),
+        ("k__Archaea", 2.5),
+    ]
+
+
+def test_metaphlan_bar_parser_fails_closed_without_exact_header(tmp_path: Path) -> None:
+    profile = tmp_path / "sample.metaphlan.tsv"
+    profile.write_text(
+        "#mpa_vJun23_CHOCOPhlAnSGB_202403\n"
+        "#clade_name_extra\tNCBI_tax_id\trelative_abundance\n"
+        "k__Bacteria\t2\t97.5\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="#clade_name"):
+        _read_bar_rows(
+            profile,
+            delimiter="auto",
+            x_column="clade_name",
+            y_column="relative_abundance",
+            group_column="",
+        )
+
+
+def test_generic_tsv_header_is_not_normalized(tmp_path: Path) -> None:
+    table = tmp_path / "ordinary.tsv"
+    table.write_text("#clade_name\trelative_abundance\nk__Bacteria\t97.5\n", encoding="utf-8")
+
+    rows = _read_bar_rows(
+        table,
+        delimiter="auto",
+        x_column="#clade_name",
+        y_column="relative_abundance",
+        group_column="",
+    )
+
+    assert rows[0].category == "k__Bacteria"

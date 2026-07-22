@@ -6,6 +6,7 @@ import binascii
 import csv
 import gzip
 import html
+import io
 import json
 import math
 import struct
@@ -607,7 +608,36 @@ def _read_bar_rows(
         sample = handle.read(4096)
         handle.seek(0)
         resolved_delimiter = _resolve_delimiter(delimiter, sample)
-        reader = csv.reader(handle, delimiter=resolved_delimiter)
+        if path.name.endswith(".metaphlan.tsv"):
+            # MetaPhlAn emits metadata comments before a header whose first
+            # field is intentionally prefixed with ``#``.  Only this exact
+            # filename convention gets the special handling; ordinary CSV/TSV
+            # inputs retain the generic first-line header behavior below.
+            lines = handle.readlines()
+            header_index: int | None = None
+            for index, line in enumerate(lines):
+                content = line.rstrip("\r\n")
+                if content and content.split(resolved_delimiter, 1)[0] == "#clade_name":
+                    header_index = index
+                    break
+                if not content.startswith("#"):
+                    raise ValueError(
+                        "MetaPhlAn table must contain leading metadata comments followed by "
+                        "the exact '#clade_name' header"
+                    )
+
+            if header_index is None:
+                raise ValueError("MetaPhlAn table is missing the exact '#clade_name' header")
+
+            header_line = lines[header_index]
+            newline = "\r\n" if header_line.endswith("\r\n") else "\n"
+            header_fields = header_line.rstrip("\r\n").split(resolved_delimiter)
+            header_fields[0] = "clade_name"
+            normalized_text = resolved_delimiter.join(header_fields) + newline
+            normalized_text += "".join(lines[header_index + 1 :])
+            reader = csv.reader(io.StringIO(normalized_text), delimiter=resolved_delimiter)
+        else:
+            reader = csv.reader(handle, delimiter=resolved_delimiter)
         try:
             raw_header = next(reader)
         except StopIteration as exc:
@@ -7600,6 +7630,16 @@ class _CoveragePlotContract(VisualizationNode):
 
     LEGACY_NODE_ID = "coverage_plot"
     OUTPUT_PATTERNS = ("coverage_plot.{format}",)
+    REQUIRED_CONDA_PACKAGES = ["pysam", "pybigwig"]
+    CONDA_PACKAGE_CONSTRAINTS = {
+        "pysam": PYSAM_AUDIT_VERSION,
+        "pybigwig": PYBIGWIG_AUDIT_VERSION,
+    }
+    PACKAGE_CONSTRAINTS = (
+        f"pysam=={PYSAM_AUDIT_VERSION}",
+        f"pybigwig=={PYBIGWIG_AUDIT_VERSION}",
+    )
+    PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     OPTIONAL_PYSAM_AUDIT_VERSION = PYSAM_AUDIT_VERSION
     OPTIONAL_PYSAM_GIT_COMMIT = PYSAM_GIT_COMMIT
     OPTIONAL_PYSAM_SOURCE_URL = PYSAM_SOURCE_URL
@@ -7609,8 +7649,8 @@ class _CoveragePlotContract(VisualizationNode):
     ALIGNMENT_SPEC_SOURCE_URL = SAM_SPEC_SOURCE_URL
     BEDGRAPH_SPECIFICATION_URL = BEDGRAPH_SPECIFICATION_URL
     OPTIONAL_DEPENDENCY_SEMANTICS = (
-        "BAM/CRAM paths require an available pysam runtime; BigWig paths require pyBigWig. "
-        "These optional Python packages are not constrained by the base visualization environment."
+        "BAM/CRAM paths require pysam and BigWig paths require pyBigWig. "
+        "Both packages are pinned in the coverage-plot environment contract."
     )
     DISPLAY_NAME = "Coverage Plot"
     CATEGORY = "visualization"

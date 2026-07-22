@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from bionodulo.environments.constants import PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin import visualization
 from bionodulo.nodes.builtin.visualization_family import (
@@ -83,11 +84,16 @@ def test_visualization_authorities_and_backend_semantics_are_pinned() -> None:
         assert node_class.INTERACTIVE_GIT_COMMIT == "22efc2fb76f4c890a2c33448e6f1485ecab77f26"
         assert node_class.INTERACTIVE_RENDERER == "Plotly.js 2.35.2 loaded from cdn.plot.ly"
         assert node_class.REQUIRED_EXECUTABLES == []
-        assert node_class.REQUIRED_CONDA_PACKAGES == []
+        expected_packages = ["pysam", "pybigwig"] if node_class is CoveragePlotNode else []
+        assert node_class.REQUIRED_CONDA_PACKAGES == expected_packages
         assert node_class.GIT_COMMIT in node_class.SOURCE_URL
 
     assert CoveragePlotNode.OPTIONAL_PYSAM_GIT_COMMIT == "cefbaa9079b0b2ad65dd8d60a532bc3eb31389ee"
     assert CoveragePlotNode.OPTIONAL_PYBIGWIG_GIT_COMMIT == "7300b0a4599e7f72085c3c27c19b375e3a2c2cc0"
+    assert CoveragePlotNode.CONDA_PACKAGE_CONSTRAINTS == {"pysam": "0.23.3", "pybigwig": "0.3.24"}
+    assert CoveragePlotNode.PACKAGE_CONSTRAINTS == ("pysam==0.23.3", "pybigwig==0.3.24")
+    assert PACKAGE_MIN_VERSIONS["pysam"] == "0.23.3"
+    assert PACKAGE_MIN_VERSIONS["pybigwig"] == "0.3.24"
     assert VCFStatsChartNode.FORMAT_SPEC_GIT_COMMIT == "da617203a9527537746e200abda2885bec3a822c"
     assert "not invoked" in CircosPlotNode.BACKEND_SEMANTICS
     assert "not launched" in IGVSnapshotNode.BACKEND_SEMANTICS

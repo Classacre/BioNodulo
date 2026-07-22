@@ -82,7 +82,16 @@ async def test_variant_interpretation_writes_both_artifacts(tmp_path: Path, monk
     variants = tmp_path / "variants.csv"
     variants.write_text("chrom,pos,ref,alt,gene\n17,43071077,A,G,BRCA1\n", encoding="utf-8")
 
-    async def fake_call(*_args: Any, **_kwargs: Any) -> LLMResponse:
+    calls: list[list[dict[str, Any]]] = []
+
+    async def fake_call(
+        _config: LLMConfig,
+        messages: list[dict[str, Any]],
+        *,
+        json_mode: bool = False,
+    ) -> LLMResponse:
+        calls.append(messages)
+        assert json_mode is True
         return LLMResponse(
             content=json.dumps(
                 {
@@ -101,9 +110,20 @@ async def test_variant_interpretation_writes_both_artifacts(tmp_path: Path, monk
         )
 
     monkeypatch.setattr(ai_variant_interpretation, "call_llm", fake_call)
+    with pytest.raises(ValueError, match="requires explicit retrieved or supplied"):
+        await ai_variant_interpretation.AIVariantInterpretationNode().run(
+            variant_table=str(variants),
+            framework="ACMG",
+            include_literature=True,
+            provider="litellm",
+            context=context(tmp_path),
+        )
+
     result = await ai_variant_interpretation.AIVariantInterpretationNode().run(
         variant_table=str(variants),
         framework="ACMG",
+        include_literature=True,
+        literature_evidence="PMID:12345 curated evidence summary",
         provider="litellm",
         context=context(tmp_path),
     )
@@ -112,7 +132,10 @@ async def test_variant_interpretation_writes_both_artifacts(tmp_path: Path, monk
     assert Path(result["outputs"]["scores_csv"]).is_file()
     payload = json.loads(Path(result["outputs"]["interpretation_json"]).read_text(encoding="utf-8"))
     assert payload["variant_count"] == 1
+    assert payload["literature_evidence_supplied"] is True
+    assert len(payload["literature_evidence_sha256"]) == 64
     assert payload["interpretations"][0]["gene"] == "BRCA1"
+    assert "PMID:12345 curated evidence summary" in calls[0][-1]["content"]
 
 
 @pytest.mark.asyncio
@@ -195,6 +218,18 @@ async def test_literature_search_uses_fake_pubmed_and_writes_attested_artifacts(
     assert payload["papers"][0]["pmid"] == "12345"
     assert (tmp_path / "ai_literature_search" / "papers.json").is_file()
     assert (tmp_path / "ai_literature_search" / "summary.txt").is_file()
+
+
+@pytest.mark.asyncio
+async def test_literature_search_advertises_only_its_implemented_pubmed_source() -> None:
+    options = ai_literature_search.AILiteratureSearchNode.INPUT_TYPES()["optional"]["databases"][1]["options"]
+    assert options == ["pubmed"]
+    with pytest.raises(ValueError, match="databases must be one of: pubmed"):
+        await ai_literature_search.AILiteratureSearchNode().run(
+            research_question="TP53",
+            databases="pubmed+arxiv",
+            provider="litellm",
+        )
 
 
 @pytest.mark.asyncio

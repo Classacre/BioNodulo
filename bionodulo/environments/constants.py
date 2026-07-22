@@ -340,6 +340,8 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "binette": "1.2.1",
     "binning_refiner": "1.4.3",
     "python-bioext": "0.21.10",
+    "pybigwig": "0.3.24",
+    "pysam": "0.23.3",
     "beagle": "5.4_29Oct24.c8e",
     "breseq": "0.35.5",
     "biscot": "2.3.3",

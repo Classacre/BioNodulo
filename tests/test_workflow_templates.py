@@ -901,25 +901,17 @@ def test_biopython_template_adds_sequence_stats_chart_report() -> None:
     assert workflow["outputs"]["sequence_length_chart"] == "seq_length_chart_001"
 
 
-def test_biopython_template_runs_ai_sequence_classification_on_coding_sequences() -> None:
+def test_biopython_template_does_not_present_fixture_scores_as_sequence_classification() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["sequence_classification_001"] == "ai_sequence_classification"
-    classifier = next(node for node in workflow["nodes"] if node["id"] == "sequence_classification_001")
-    assert classifier["params"]["classifier"] == "deeploc"
-    assert classifier["params"]["fallback_backend"] == "deterministic"
-    assert classifier["params"]["confidence_threshold"] == 0.0
-    assert classifier["params"]["top_k"] == 3
-    assert _has_edge(workflow, "coding_001", "reference", "sequence_classification_001", "input_fasta")
-    assert _has_edge(
-        workflow, "sequence_classification_001", "classifications_csv", "render_sequence_classification_tab_1", "file"
-    )
-    assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
-    assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
+    assert "sequence_classification_001" not in node_types
+    assert "render_sequence_classification_tab_1" not in node_types
+    assert "sequence_classifications" not in workflow["outputs"]
+    assert "sequence_classifications_csv" not in workflow["outputs"]
 
 
-def test_biopython_template_demonstrates_generic_http_api_lookup() -> None:
+def test_biopython_template_does_not_advertise_generic_http_api_lookup() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
@@ -1377,24 +1369,18 @@ def test_metagenomics_template_adds_bracken_taxonomy_chart_report() -> None:
     node_types = _node_types(workflow)
 
     assert node_types["bracken_bar_001"] == "bar_chart"
-    assert node_types["bracken_heatmap_001"] == "heatmap"
+    assert "bracken_heatmap_001" not in node_types
     assert "render_bracken_bar_ima_1" not in node_types
-    assert "render_bracken_heatmap_ima_2" not in node_types
     assert node_types["render_bracken_tab_0"] == "table_preview"
     chart = next(node for node in workflow["nodes"] if node["id"] == "bracken_bar_001")
-    heatmap = next(node for node in workflow["nodes"] if node["id"] == "bracken_heatmap_001")
     assert chart["params"]["x_column"] == "name"
     assert chart["params"]["y_column"] == "fraction_total_reads"
     assert chart["params"]["orientation"] == "horizontal"
     assert chart["params"]["format"] == "svg"
-    assert heatmap["params"]["title"] == "Bracken Abundance Heatmap"
-    assert heatmap["params"]["scale"] == "column"
-    assert heatmap["params"]["format"] == "html"
-    assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
-    assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
+    assert _has_edge(workflow, "bracken_001", "abundance", "bracken_bar_001", "table")
     assert _has_edge(workflow, "bracken_001", "report", "render_bracken_tab_0", "file")
     assert workflow["outputs"]["taxonomy_chart"] == "bracken_bar_001"
-    assert workflow["outputs"]["taxonomy_heatmap"] == "bracken_heatmap_001"
+    assert "taxonomy_heatmap" not in workflow["outputs"]
 
 
 def test_metagenomics_template_validates_reads_before_trimming_and_qc() -> None:
@@ -1480,8 +1466,8 @@ def test_metagenomics_template_validates_bracken_report_before_visualization() -
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
     assert not _has_edge(workflow, "bracken_001", "report", "validate_bracken_001", "input")
-    assert _has_edge(workflow, "bracken_001", "report", "bracken_bar_001", "table")
-    assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
+    assert _has_edge(workflow, "bracken_001", "abundance", "bracken_bar_001", "table")
+    assert "bracken_heatmap_001" not in node_types
     assert _has_edge(workflow, "bracken_001", "report", "render_bracken_tab_0", "file")
     assert workflow["outputs"]["validated_bracken_report"] == "bracken_001"
 

@@ -67,11 +67,11 @@ def test_biopython_template_previews_sequence_report() -> None:
     node_types = _node_types(workflow)
 
     # The sequence_report_001 html_report and its html_preview were removed by design;
-    # each feeder now renders into a dedicated preview node.
+    # the surviving sequence-statistics feeder renders into a dedicated preview node.
     assert "sequence_report_001" not in node_types
     assert "sequence_report_preview_001" not in node_types
     assert "render_seq_length_chart_ima_2" not in node_types
-    assert node_types["render_sequence_classification_tab_1"] == "table_preview"
+    assert "render_sequence_classification_tab_1" not in node_types
     assert node_types["table_preview_001"] == "table_preview"
 
     # The sequence-length chart is now rendered with ggplot2 (r_plot) for
@@ -99,27 +99,17 @@ def test_biopython_template_wires_dead_end_outputs_to_viewers() -> None:
     assert _has_edge(workflow, "seqio_write_001", "output_file", "view_genbank_001", "file")
 
 
-def test_biopython_template_runs_ai_sequence_classification_on_validated_coding_sequences() -> None:
+def test_biopython_template_does_not_present_fixture_scores_as_sequence_classification() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["sequence_classification_001"] == "ai_sequence_classification"
-
-    classifier = _node(workflow, "sequence_classification_001")
-    assert classifier["params"]["classifier"] == "deeploc"
-    assert classifier["params"]["fallback_backend"] == "deterministic"
-    assert classifier["params"]["confidence_threshold"] == 0.0
-    assert classifier["params"]["top_k"] == 3
-
-    assert _has_edge(workflow, "coding_001", "reference", "sequence_classification_001", "input_fasta")
-    assert _has_edge(
-        workflow, "sequence_classification_001", "classifications_csv", "render_sequence_classification_tab_1", "file"
-    )
-    assert workflow["outputs"]["sequence_classifications"] == "sequence_classification_001"
-    assert workflow["outputs"]["sequence_classifications_csv"] == "sequence_classification_001"
+    assert "sequence_classification_001" not in node_types
+    assert "render_sequence_classification_tab_1" not in node_types
+    assert "sequence_classifications" not in workflow["outputs"]
+    assert "sequence_classifications_csv" not in workflow["outputs"]
 
 
-def test_biopython_template_demonstrates_generic_http_api_lookup() -> None:
+def test_biopython_template_does_not_advertise_generic_http_api_lookup() -> None:
     workflow = _load_template("biopython_analysis_pipeline.json")
     node_types = _node_types(workflow)
 

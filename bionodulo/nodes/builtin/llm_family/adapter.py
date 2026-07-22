@@ -27,6 +27,8 @@ LITELLM_VERSION = "1.87.1"
 LITELLM_SOURCE_URL = "https://github.com/BerriAI/litellm"
 LITELLM_SOURCE_COMMIT = "cc9b99c2e35795476c7a00e34a85ee0573d6d66c"
 LITELLM_DOCUMENTATION_URL = "https://docs.litellm.ai/docs/completion/input"
+LITELLM_MAIN_SOURCE = "litellm/main.py"
+LITELLM_MAIN_SOURCE_SHA256 = "41836055172c66154795feb7637d05cd5a1669590a12a60ecb4f5e1a95b2ed06"
 SUPPORTED_PROVIDERS = frozenset({"openai", "anthropic", "openrouter", "litellm", "custom"})
 
 
@@ -41,6 +43,13 @@ class LiteLLMNode(BaseNode):
     GIT_URL = LITELLM_SOURCE_URL
     GIT_COMMIT = LITELLM_SOURCE_COMMIT
     CITATION_URLS = [LITELLM_DOCUMENTATION_URL, LITELLM_SOURCE_URL]
+    AUDIT_STATUS = "contract-checked-no-provider-execution"
+    SOURCE_AUTHORITIES = {
+        "litellm_version": LITELLM_VERSION,
+        "litellm_commit": LITELLM_SOURCE_COMMIT,
+        "litellm_main_source": LITELLM_MAIN_SOURCE,
+        "litellm_main_sha256": LITELLM_MAIN_SOURCE_SHA256,
+    }
     ENVIRONMENT = {"package_constraints": {"litellm": LITELLM_VERSION}}
 
 
@@ -158,6 +167,8 @@ def require_artifacts(*paths: Path) -> None:
 
 __all__ = [
     "LITELLM_DOCUMENTATION_URL",
+    "LITELLM_MAIN_SOURCE",
+    "LITELLM_MAIN_SOURCE_SHA256",
     "LITELLM_SOURCE_COMMIT",
     "LITELLM_SOURCE_URL",
     "LITELLM_VERSION",

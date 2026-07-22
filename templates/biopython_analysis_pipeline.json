@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython, Biostrings, AI sequence classification, and generic HTTP API integration.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein.\n5. SeqIO Write: Convert parsed sequences to GenBank format.\n6. Biostrings Stats: ORF finding, reverse complement, 6-frame translation (R + Biostrings).\n7. AI Sequence Classification: Classify validated coding sequences with deterministic local fallback.\n8. HTTP API Lookup: Demonstrate a cached, rate-limited UniProt REST query.\n\nData: NCBI 16S rRNA sequences + synthetic bacterial gene fragments."
+        "text": "Biopython Analysis Pipeline\n\nDemonstrates BioNodulo's Biopython and Biostrings integration.\n\n1. SeqIO Read: Parse FASTA and export sequence metadata as JSON.\n2. Sequence Stats: Compute GC%, length, and molecular weight.\n3. BLAST Search: Run a local blastn of one sequence against the set.\n4. Translate DNA: Translate coding sequences to protein.\n5. SeqIO Write: Convert parsed sequences to GenBank format.\n6. Biostrings Stats: ORF finding, reverse complement, 6-frame translation (R + Biostrings).\n\nData: NCBI 16S rRNA sequences + synthetic bacterial gene fragments."
       },
       "ui": {
         "title": "Notes",
@@ -204,35 +204,6 @@
       }
     },
     {
-      "id": "sequence_classification_001",
-      "type": "ai_sequence_classification",
-      "position": [
-        440,
-        1328
-      ],
-      "params": {
-        "classifier": "deeploc",
-        "confidence_threshold": 0.0,
-        "top_k": 3,
-        "fallback_backend": "deterministic"
-      },
-      "ui": {
-        "title": "AI Sequence Classification"
-      }
-    },
-    {
-      "id": "render_sequence_classification_tab_1",
-      "type": "table_preview",
-      "position": [
-        1520,
-        300
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Table: sequence_classification"
-      }
-    },
-    {
       "id": "view_blast_hits_001",
       "type": "text_preview",
       "position": [
@@ -369,17 +340,6 @@
       }
     },
     {
-      "id": "e7a",
-      "from": {
-        "node": "coding_001",
-        "output": "reference"
-      },
-      "to": {
-        "node": "sequence_classification_001",
-        "input": "input_fasta"
-      }
-    },
-    {
       "id": "e8",
       "from": {
         "node": "seq_stats_001",
@@ -399,16 +359,6 @@
       "to": {
         "node": "seq_length_chart_001",
         "input": "data_csv"
-      }
-    },
-    {
-      "from": {
-        "node": "sequence_classification_001",
-        "output": "classifications_csv"
-      },
-      "to": {
-        "node": "render_sequence_classification_tab_1",
-        "input": "file"
       }
     },
     {
@@ -465,8 +415,6 @@
     "fetched_fasta": "ncbi_efetch_001",
     "validated_sequences": "ncbi_efetch_001",
     "validated_coding_sequences": "coding_001",
-    "sequence_length_chart": "seq_length_chart_001",
-    "sequence_classifications": "sequence_classification_001",
-    "sequence_classifications_csv": "sequence_classification_001"
+    "sequence_length_chart": "seq_length_chart_001"
   }
 }

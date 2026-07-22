@@ -246,22 +246,6 @@
       }
     },
     {
-      "id": "bracken_heatmap_001",
-      "type": "heatmap",
-      "position": [
-        2240,
-        1264
-      ],
-      "params": {
-        "title": "Bracken Abundance Heatmap",
-        "scale": "column",
-        "format": "html"
-      },
-      "ui": {
-        "title": "Abundance Heatmap"
-      }
-    },
-    {
       "id": "metaphlan_001",
       "type": "metaphlan",
       "position": [
@@ -360,7 +344,7 @@
       "params": {
         "title": "HUMAnN Pathway Coverage",
         "x_column": "# Pathway",
-        "y_column": "trimmed_reads_Coverage",
+        "y_column": "humann_Coverage",
         "orientation": "horizontal",
         "format": "svg"
       },
@@ -645,22 +629,11 @@
       "id": "e14",
       "from": {
         "node": "bracken_001",
-        "output": "report"
+        "output": "abundance"
       },
       "to": {
         "node": "bracken_bar_001",
         "input": "table"
-      }
-    },
-    {
-      "id": "e14a",
-      "from": {
-        "node": "bracken_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "bracken_heatmap_001",
-        "input": "matrix"
       }
     },
     {
@@ -806,7 +779,6 @@
   "outputs": {
     "taxonomy": "bracken_001",
     "taxonomy_chart": "bracken_bar_001",
-    "taxonomy_heatmap": "bracken_heatmap_001",
     "metaphlan_chart": "metaphlan_bar_001",
     "validated_bracken_report": "bracken_001",
     "validated_metaphlan_profile": "metaphlan_001",
