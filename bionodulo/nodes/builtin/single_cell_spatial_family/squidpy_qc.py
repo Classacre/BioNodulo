@@ -12,6 +12,17 @@ from .adapter import PythonScriptNode, SCANPY_COMMIT, SQUIDPY_COMMIT, path_value
 class SquidpyQCNode(PythonScriptNode):
     """Read a complete Space Ranger outs directory and run spatial QC."""
 
+    VISIUM_REQUIRED_FILES = (
+        "filtered_feature_bc_matrix.h5",
+        "spatial/scalefactors_json.json",
+        "spatial/tissue_hires_image.png",
+        "spatial/tissue_lowres_image.png",
+    )
+    VISIUM_POSITION_FILES = (
+        "spatial/tissue_positions.csv",
+        "spatial/tissue_positions_list.csv",
+    )
+
     NODE_ID = "squidpy_qc"
     DISPLAY_NAME = "Squidpy QC"
     CATEGORY = "spatial_transcriptomics"
@@ -80,6 +91,34 @@ class SquidpyQCNode(PythonScriptNode):
         return validate_number(inputs.get("resolution", 0.8), "resolution", minimum=0.1, maximum=2.0)
 
     @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Validate Squidpy's sibling-discovered Visium files before launch."""
+
+        value = path_value(inputs.get("visium_path"))
+        if value:
+            visium_path = Path(value)
+            if visium_path.exists():
+                if not visium_path.is_dir():
+                    raise ValueError(f"Visium input must be a directory: {visium_path}")
+                missing = [
+                    relative
+                    for relative in cls.VISIUM_REQUIRED_FILES
+                    if not (visium_path / relative).is_file()
+                ]
+                if not any(
+                    (visium_path / relative).is_file()
+                    for relative in cls.VISIUM_POSITION_FILES
+                ):
+                    missing.append(
+                        "spatial/tissue_positions.csv or spatial/tissue_positions_list.csv"
+                    )
+                if missing:
+                    raise ValueError(
+                        "Visium directory is missing required file(s): " + ", ".join(missing)
+                    )
+        super().PREPARE_EXECUTION(inputs, outputs)
+
+    @classmethod
     def build_script(cls, inputs: dict[str, Any], outputs: list[Path]) -> str:
         return textwrap.dedent(
             f"""\
@@ -119,7 +158,8 @@ class SquidpyQCNode(PythonScriptNode):
                 n_iterations=2,
                 directed=False,
             )
-            sq.gr.spatial_neighbors_grid(adata, n_neighs=6, n_rings=1)
+            grid_n_neighs = min(6, adata.n_obs - 1)
+            sq.gr.spatial_neighbors_grid(adata, n_neighs=grid_n_neighs, n_rings=1)
             sq.gr.nhood_enrichment(adata, cluster_key="leiden", seed=0)
             adata.write_h5ad({str(outputs[0])!r})
 

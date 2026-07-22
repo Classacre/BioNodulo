@@ -13,6 +13,24 @@ from .adapter import path_value, validate_int, validate_run_id
 class CellRangerCountNode(CommandNode):
     """Run the licensed Cell Ranger count binary in a deterministic node directory."""
 
+    # Cell Ranger 9.0.1's ``check_refdata`` preflight (pinned source:
+    # ``lib/python/cellranger/preflight.py``) discovers these files relative to
+    # the supplied reference directory.  Keep the directory as one staged
+    # artifact, but validate the native sibling layout once it is materialized.
+    REFERENCE_REQUIRED_FILES = (
+        "reference.json",
+        "fasta/genome.fa",
+        "star/chrLength.txt",
+        "star/chrNameLength.txt",
+        "star/chrName.txt",
+        "star/chrStart.txt",
+        "star/Genome",
+        "star/genomeParameters.txt",
+        "star/SA",
+        "star/SAindex",
+    )
+    REFERENCE_GTF_FILES = ("genes/genes.gtf", "genes/genes.gtf.gz")
+
     NODE_ID = "cellranger_count"
     DISPLAY_NAME = "Cell Ranger Count"
     CATEGORY = "single_cell"
@@ -63,13 +81,18 @@ class CellRangerCountNode(CommandNode):
     )
     UPSTREAM_SOURCE = (
         "bin/sc_rna/count; bin/tenkit/common/_includes; lib/rust/cr_wrap/src/create_bam_arg.rs; "
-        "mro/rna/sc_rna_counter_cs.mro"
+        "mro/rna/sc_rna_counter_cs.mro; lib/python/cellranger/preflight.py:check_refdata; "
+        "lib/python/cellranger/constants.py"
     )
     SOURCE_AUTHORITIES = {
         "source": SOURCE_URL,
         "count_cli": "bin/sc_rna/count; bin/tenkit/common/_includes",
         "create_bam_cli": "lib/rust/cr_wrap/src/create_bam_arg.rs",
         "native_outputs": "mro/rna/sc_rna_counter_cs.mro",
+        "reference_preflight": (
+            "lib/python/cellranger/preflight.py:check_refdata; "
+            "lib/python/cellranger/constants.py"
+        ),
         "license": LICENSE_URL,
     }
     PACKAGE_CONSTRAINT = "external BYOL binary cellranger 9.0.1"
@@ -191,6 +214,35 @@ class CellRangerCountNode(CommandNode):
         if sample and any(not part for part in sample.split(",")):
             return "Input 'sample' must contain non-empty comma-separated prefixes"
         return True
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Validate Cell Ranger's native reference bundle before launch.
+
+        Input directories may still be symbolic paths during editor/dry-run
+        rendering and before cloud staging, so defer validation until the path
+        is materialized.  Once present, the exact sibling layout required by
+        Cell Ranger 9.0.1 is checked before invoking the external binary.
+        """
+
+        reference = Path(path_value(inputs.get("transcriptome")))
+        if not reference.exists():
+            return
+        if not reference.is_dir():
+            raise ValueError(f"Cell Ranger reference must be a directory: {reference}")
+
+        missing = [
+            relative
+            for relative in cls.REFERENCE_REQUIRED_FILES
+            if not (reference / relative).is_file()
+        ]
+        if not any((reference / relative).is_file() for relative in cls.REFERENCE_GTF_FILES):
+            missing.append("genes/genes.gtf or genes/genes.gtf.gz")
+        if missing:
+            raise ValueError(
+                "Cell Ranger reference is missing required file(s): "
+                + ", ".join(missing)
+            )
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:

@@ -6,6 +6,8 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from bionodulo.manager.example_data import EXAMPLE_DATA_MANIFEST
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -125,6 +127,32 @@ def test_spatial_transcriptomics_template_validates_outputs_and_analysis_paramet
     assert workflow["outputs"]["spatial_plot_preview"] == "spatial_plot_preview_001"
     assert workflow["outputs"]["scanpy_clusters"] == "scanpy_spatial_001"
     assert workflow["outputs"]["scanpy_umap_preview"] == "scanpy_umap_preview_001"
+
+
+def test_spatial_example_stages_complete_matching_visium_image_pair() -> None:
+    workflow = _load_template("spatial_transcriptomics_qc_clustering.json")
+    note = _node_by_id(workflow, "note_spatial_transcriptomics_pipeline")["params"]["text"]
+    spatial_files = {
+        item.filename: item.url
+        for item in EXAMPLE_DATA_MANIFEST
+        if item.category == "spatial_transcriptomics"
+    }
+
+    image_names = {
+        "visium_outs/spatial/tissue_hires_image.png",
+        "visium_outs/spatial/tissue_lowres_image.png",
+    }
+    assert image_names <= spatial_files.keys()
+    assert {
+        str(spatial_files[name]).rsplit("/spatial/", 1)[0]
+        for name in image_names
+    } == {
+        "https://raw.githubusercontent.com/nf-core/test-datasets/spatialvi/testdata/"
+        "human-brain-cancer-11-mm-capture-area-ffpe-2-standard_v2_ffpe_cytassist/outs"
+    }
+    assert "both hires and lowres tissue images" in note
+    assert "count matrix plus spot coordinates" not in note
+    assert "coordinates CSV" not in note
 
 
 def test_spatial_transcriptomics_template_is_discoverable_from_workflow_templates_api() -> None:

@@ -223,7 +223,11 @@ def test_squidpy_qc_loads_complete_visium_spatial_data_and_new_grid_api(tmp_path
     assert command == ["python", str(script_path)]
     assert "sq.read.visium('/data/visium/outs', load_images=True)" in script
     assert "load_images=False" not in script
-    assert "sq.gr.spatial_neighbors_grid(adata, n_neighs=6, n_rings=1)" in script
+    assert "grid_n_neighs = min(6, adata.n_obs - 1)" in script
+    assert (
+        "sq.gr.spatial_neighbors_grid(adata, n_neighs=grid_n_neighs, n_rings=1)"
+        in script
+    )
     assert "sq.gr.nhood_enrichment(adata, cluster_key=\"leiden\", seed=0)" in script
     assert "adata.raw = adata.copy()" in script
     assert SquidpyQCNode.PLAN_OUTPUTS({}, tmp_path) == [

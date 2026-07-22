@@ -240,6 +240,7 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("spatial_transcriptomics", "visium_outs/filtered_feature_bc_matrix.h5", f"{_VISIUM}/filtered_feature_bc_matrix.h5", description="Visium matrix (nf-core spatialvi)"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/scalefactors_json.json", f"{_VISIUM}/spatial/scalefactors_json.json", description="Visium scalefactors"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_positions.csv", f"{_VISIUM}/spatial/tissue_positions.csv", description="Visium tissue positions"),
+    DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_hires_image.png", f"{_VISIUM}/spatial/tissue_hires_image.png", description="Visium hires image"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_lowres_image.png", f"{_VISIUM}/spatial/tissue_lowres_image.png", description="Visium lowres image"),
 
     # synthetic_biology — Cello (UCF/options/netlist) + COPASI + BioModels toggle switch
