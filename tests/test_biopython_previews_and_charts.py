@@ -54,7 +54,7 @@ def test_seq_stats_emits_csv_for_charting(tmp_path: Path) -> None:
     csv_path = Path(out[2])
     assert csv_path.name == "stats.csv"
     header = csv_path.read_text(encoding="utf-8").splitlines()[0]
-    assert header == "id,length,gc_content,molecular_weight"
+    assert header == "id,length,gc_content,molecular_weight,molecular_weight_error"
 
 
 def test_bitmap_font_draws_ink_into_buffer() -> None:
