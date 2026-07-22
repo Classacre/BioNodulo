@@ -72,7 +72,7 @@ OUTPUT_NAMES = {
     "deeptools_compute_matrix": ("matrix.gz",),
     "deeptools_plot_heatmap": ("heatmap.png",),
     "deeptools_plot_profile": ("profile.png",),
-    "bedtools_closest": ("closest.bed",),
+    "bedtools_closest": ("closest.tsv",),
 }
 
 
@@ -351,6 +351,18 @@ def test_closest_captures_stdout_without_unsupported_sorted_flag() -> None:
         "all",
     ]
     assert BEDToolsClosestNode.STDOUT_OUTPUT_INDEX == 0
+    assert BEDToolsClosestNode.RETURN_TYPES == ("TSV",)
+    assert BEDToolsClosestNode.OUTPUT_FILENAMES == ("closest.tsv",)
+    assert BEDToolsClosestNode.PACKAGE_CONSTRAINTS == ("bedtools==2.31.1",)
+    assert BEDToolsClosestNode.SOURCE_SHA256 == (
+        "9882b5a8d106c6c6a14d09257961c79fdb78c542cedb86f27efdd0c34c33557b"
+    )
+    assert BEDToolsClosestNode.DOCUMENTATION_URL.endswith(
+        "705ccfdf2c9a77d71560c8adcece0663c2f5e18e/docs/content/tools/closest.rst"
+    )
+    assert "sorted-input checks internally" in BEDToolsClosestNode.EXIT_SEMANTICS
+    assert BEDToolsClosestNode.INPUT_TYPES()["required"]["variants"][0] == "FILE"
+    assert BEDToolsClosestNode.INPUT_TYPES()["required"]["annotations"][0] == "FILE"
     assert "-sorted" not in command
     assert ">" not in command
     assert "sorted" not in BEDToolsClosestNode.INPUT_TYPES()["optional"]

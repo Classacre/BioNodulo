@@ -13,14 +13,30 @@ class BEDToolsClosestNode(BEDToolsCommandNode):
 
     NODE_ID = "bedtools_closest"
     DISPLAY_NAME = "BEDTools Closest"
-    DESCRIPTION = "Find the closest features for chromosome/start-sorted query intervals"
+    DESCRIPTION = "Append the closest feature and optional distance to each chromosome/start-sorted query interval"
     SEARCH_ALIASES = ["bedtools", "closest", "nearest gene", "nearest feature", "bed annotation"]
-    RETURN_TYPES = ("BED",)
+    RETURN_TYPES = ("TSV",)
     RETURN_NAMES = ("closest",)
-    OUTPUT_FILENAMES = ("closest.bed",)
+    OUTPUT_FILENAMES = ("closest.tsv",)
     STDOUT_OUTPUT_INDEX = 0
-    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/closest.html"
-    UPSTREAM_SOURCE = "src/utils/Contexts/ContextClosest.cpp"
+    CONDA_PACKAGE_CONSTRAINTS = {"bedtools": "2.31.1"}
+    PACKAGE_CONSTRAINTS = ("bedtools==2.31.1",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
+    DOCUMENTATION_URL = (
+        "https://github.com/arq5x/bedtools2/blob/"
+        "705ccfdf2c9a77d71560c8adcece0663c2f5e18e/docs/content/tools/closest.rst"
+    )
+    SOURCE_URL = DOCUMENTATION_URL
+    SOURCE_SHA256 = "9882b5a8d106c6c6a14d09257961c79fdb78c542cedb86f27efdd0c34c33557b"
+    UPSTREAM_SOURCE = (
+        "docs/content/tools/closest.rst; src/utils/Contexts/ContextClosest.cpp; "
+        "src/closestFile/closestFile.cpp; src/utils/RecordOutputMgr/RecordOutputMgr.cpp"
+    )
+    EXIT_SEMANTICS = (
+        "closest enables BEDTools sorted-input checks internally and exits 1 for out-of-order records or "
+        "inconsistent chromosome ordering; every other non-zero exit is fatal. Standard output is captured "
+        "as the planned TSV artifact, which must exist after a zero exit."
+    )
 
     TIE_MODES = ("all", "first", "last")
     STRAND_MODES = ("ignore", "same", "opposite")
@@ -30,12 +46,22 @@ class BEDToolsClosestNode(BEDToolsCommandNode):
         return {
             "required": {
                 "variants": (
-                    "BED",
-                    {"description": "Query intervals sorted by chromosome and start"},
+                    "FILE",
+                    {
+                        "description": (
+                            "BED, GFF, or VCF query intervals presorted by chromosome and start in the same chromosome "
+                            "order as annotations"
+                        )
+                    },
                 ),
                 "annotations": (
-                    "BED",
-                    {"description": "Annotation intervals sorted by chromosome and start"},
+                    "FILE",
+                    {
+                        "description": (
+                            "BED, GFF, or VCF annotation intervals presorted by chromosome and start in the same "
+                            "chromosome order as variants"
+                        )
+                    },
                 ),
             },
             "optional": {

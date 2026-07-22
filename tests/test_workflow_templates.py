@@ -112,7 +112,7 @@ def test_variant_calling_template_marks_duplicates_before_gatk_and_adds_annotati
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_001", "bam")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "vcf")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "html"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
@@ -272,9 +272,9 @@ def test_variant_calling_template_prioritizes_annotated_variants() -> None:
     assert "prioritized VCF" in gate["params"]["error_message"]
     assert _has_edge(workflow, "snpeff_001", "annotated_vcf", "prioritize_vcf_001", "vcf")
     assert _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "gate_prioritized_vcf_001", "value")
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
-    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "render_gate_prioritized_vcf_tab_0", "file")
-    assert not _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "render_gate_prioritized_vcf_tab_0", "file")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "vcf")
+    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "render_gate_prioritized_vcf_tab_0", "vcf")
+    assert not _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "render_gate_prioritized_vcf_tab_0", "vcf")
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf_quality_gate"] == "gate_prioritized_vcf_001"
@@ -301,7 +301,7 @@ def test_wgs_variant_template_marks_duplicates_before_freebayes_and_adds_annotat
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "fb_001", "bam")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "snpeff_001", "vcf")
     assert _has_edge(workflow, "filter_001", "filtered_vcf", "vcf_stats_001", "vcf")
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "vcf")
     assert next(node for node in workflow["nodes"] if node["id"] == "vcf_stats_001")["params"]["format"] == "html"
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["variant_stats"] == "vcf_stats_001"
@@ -393,9 +393,9 @@ def test_wgs_variant_template_prioritizes_annotated_variants() -> None:
     assert "prioritized VCF" in gate["params"]["error_message"]
     assert _has_edge(workflow, "snpeff_001", "annotated_vcf", "prioritize_vcf_001", "vcf")
     assert _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "gate_prioritized_vcf_001", "value")
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
-    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "render_gate_prioritized_vcf_tab_0", "file")
-    assert not _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "render_gate_prioritized_vcf_tab_0", "file")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "vcf")
+    assert not _has_edge(workflow, "snpeff_001", "annotated_vcf", "render_gate_prioritized_vcf_tab_0", "vcf")
+    assert not _has_edge(workflow, "prioritize_vcf_001", "filtered_vcf", "render_gate_prioritized_vcf_tab_0", "vcf")
     assert workflow["outputs"]["vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf_quality_gate"] == "gate_prioritized_vcf_001"
@@ -1313,6 +1313,8 @@ def test_chip_seq_template_annotates_validated_peaks_to_nearest_features() -> No
 
     assert node_types["peak_annotation_bed_001"] == "input_file"
     assert "validate_peak_annotation_bed_001" not in node_types
+    assert node_types["sort_peaks_bed_001"] == "bedtools_sortbed"
+    assert node_types["sort_peak_annotations_bed_001"] == "bedtools_sortbed"
     assert node_types["peak_annotation_001"] == "bedtools_closest"
 
     annotation_input = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_bed_001")
@@ -1326,11 +1328,35 @@ def test_chip_seq_template_annotates_validated_peaks_to_nearest_features() -> No
     assert annotator["params"]["mode"] == "first"
 
     assert not _has_edge(workflow, "peak_annotation_bed_001", "file", "validate_peak_annotation_bed_001", "input")
-    assert _has_edge(workflow, "macs2_001", "peaks", "peak_annotation_001", "variants")
-    assert _has_edge(workflow, "peak_annotation_bed_001", "file", "peak_annotation_001", "annotations")
+    assert _has_edge(workflow, "macs2_001", "peaks", "sort_peaks_bed_001", "input")
+    assert _has_edge(
+        workflow,
+        "peak_annotation_bed_001",
+        "file",
+        "sort_peak_annotations_bed_001",
+        "input",
+    )
+    assert _has_edge(
+        workflow,
+        "sort_peaks_bed_001",
+        "sorted_intervals",
+        "peak_annotation_001",
+        "variants",
+    )
+    assert _has_edge(
+        workflow,
+        "sort_peak_annotations_bed_001",
+        "sorted_intervals",
+        "peak_annotation_001",
+        "annotations",
+    )
+    assert not _has_edge(workflow, "macs2_001", "peaks", "peak_annotation_001", "variants")
+    assert not _has_edge(workflow, "peak_annotation_bed_001", "file", "peak_annotation_001", "annotations")
     assert _has_edge(workflow, "peak_annotation_001", "closest", "render_peak_annotation_tab_1", "file")
     assert workflow["outputs"]["validated_peak_annotation_bed"] == "peak_annotation_bed_001"
     assert workflow["outputs"]["peak_annotation"] == "peak_annotation_001"
+    result = validate_workflow(workflow, NodeRegistry.create_isolated())
+    assert result.valid, result.errors
 
 
 def test_chip_seq_template_validates_multiqc_report_before_preview() -> None:

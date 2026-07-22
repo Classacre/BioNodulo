@@ -86,13 +86,33 @@ def test_rna_seq_template_reports_qualimap_alignment_qc() -> None:
     node_types = _node_types(workflow)
 
     # The alignment_qc_report_001 html_report and its html_preview were removed by
-    # design; QualiMap and flagstat outputs render into dedicated preview nodes.
+    # design; Qualimap remains a validated bundle because its HTML uses relative
+    # assets, while the self-contained flagstat text keeps a direct preview.
     assert "alignment_qc_report_001" not in node_types
     assert "alignment_qc_report_preview_001" not in node_types
-    assert node_types["render_qualimap_tab_0"] == "table_preview"
+    assert "render_qualimap_tab_0" not in node_types
     assert node_types["render_flagstat_tab_1"] == "table_preview"
 
-    assert _has_edge(workflow, "qualimap_001", "report", "render_qualimap_tab_0", "file")
     assert _has_edge(workflow, "flagstat_001", "stats", "render_flagstat_tab_1", "file")
+    assert all(
+        edge.get("from", {}).get("node") != "qualimap_001"
+        or edge.get("from", {}).get("output") != "report"
+        for edge in workflow["edges"]
+    )
+
+    qualimap_validation = _node(workflow, "qualimap_001")["ui"]["validation"]["outputs"]
+    assert qualimap_validation["report"] == {
+        "expected_format": "auto",
+        "min_size_bytes": 1,
+        "fail_on_error": True,
+    }
+    assert qualimap_validation["report_dir"] == {
+        "expected_format": "directory",
+        "min_size_bytes": 1,
+        "fail_on_error": True,
+    }
+
+    assert workflow["outputs"]["alignment_qc"] == "qualimap_001"
+    assert "alignment_qc_bundle" not in workflow["outputs"]
     assert "alignment_qc_report" not in workflow["outputs"]
     assert "alignment_qc_report_preview" not in workflow["outputs"]

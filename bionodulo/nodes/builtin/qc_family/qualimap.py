@@ -74,6 +74,9 @@ class QualiMapNode(CommandNode):
 
     REPORT_DIRECTORY = "report"
     REPORT_FILENAME = "qualimapReport.html"
+    # The HTML uses sibling CSS, image, and raw-data directories. Serving only
+    # this file through the generic preview endpoint breaks those assets.
+    AUTO_PREVIEW = False
     REPORT_ASSET_DIRECTORIES = (
         "css",
         "images_qualimapReport",

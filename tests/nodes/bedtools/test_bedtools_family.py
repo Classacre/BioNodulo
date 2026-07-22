@@ -45,8 +45,9 @@ from bionodulo.nodes.builtin.wrapped_bedtools import (
     BEDToolsUnionBedGraphNode,
     BEDToolsWindowNode,
 )
+from bionodulo.nodes.builtin.bedtools_family.closest import BEDToolsClosestNode
 from bionodulo.nodes.builtin.bedtools_family.getfasta import BEDToolsGetFastaNode as FocusedGetFasta
-from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.nodes.registry import NodeRegistry, _to_frontend_input_spec
 
 
 CASES = [
@@ -117,6 +118,28 @@ def test_bedtools_stdout_and_native_file_contracts() -> None:
         else:
             assert node_class.STDOUT_OUTPUT_INDEX == 0
         assert node_class.SHELL is False
+
+
+def test_chip_seq_sort_dependency_is_pinned_to_the_documented_coordinate_sort() -> None:
+    assert BEDToolsSortNode.PACKAGE_CONSTRAINTS == ("bedtools==2.31.1",)
+    assert BEDToolsSortNode.SOURCE_SHA256 == "d69117e1b2d24caae92fe6e84034a1f7e6f16877e94eaca6466528f8b4e0ee02"
+    assert BEDToolsSortNode.UPSTREAM_SOURCE_SHA256 == (
+        "c72bb170d3397693c2ceae5d7556c451f32c9edb427e5db586a7da0af32ba7ef"
+    )
+    assert BEDToolsSortNode.render_command({"input": "peaks.bed"}) == [
+        "bedtools",
+        "sort",
+        "-i",
+        "peaks.bed",
+    ]
+
+
+def test_closest_accepts_generic_sorted_interval_artifacts_in_the_editor() -> None:
+    required = BEDToolsClosestNode.INPUT_TYPES()["required"]
+    assert required["variants"][0] == "FILE"
+    assert required["annotations"][0] == "FILE"
+    assert _to_frontend_input_spec(required["variants"])[0] == "FILE"
+    assert _to_frontend_input_spec(required["annotations"])[0] == "FILE"
 
 
 @pytest.mark.parametrize(

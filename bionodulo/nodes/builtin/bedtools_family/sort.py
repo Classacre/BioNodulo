@@ -15,8 +15,22 @@ class BEDToolsSortNode(BEDToolsStdoutNode):
     SEARCH_ALIASES = ["BioNodulo builtin", "bedtools", "sort", "sortbed", "coordinate sort"]
     RETURN_TYPES = ("FILE",)
     RETURN_NAMES = ("sorted_intervals",)
-    DOCUMENTATION_URL = "https://bedtools.readthedocs.io/en/latest/content/tools/sort.html"
+    CONDA_PACKAGE_CONSTRAINTS = {"bedtools": "2.31.1"}
+    PACKAGE_CONSTRAINTS = ("bedtools==2.31.1",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
+    DOCUMENTATION_URL = (
+        "https://github.com/arq5x/bedtools2/blob/"
+        "705ccfdf2c9a77d71560c8adcece0663c2f5e18e/docs/content/tools/sort.rst"
+    )
+    SOURCE_URL = DOCUMENTATION_URL
+    SOURCE_SHA256 = "d69117e1b2d24caae92fe6e84034a1f7e6f16877e94eaca6466528f8b4e0ee02"
     UPSTREAM_SOURCE = "src/sortBed/sortBed.cpp"
+    UPSTREAM_SOURCE_SHA256 = "c72bb170d3397693c2ceae5d7556c451f32c9edb427e5db586a7da0af32ba7ef"
+    EXIT_SEMANTICS = (
+        "Malformed interval records, missing genome-order chromosomes, and score sorting of records below BED5 "
+        "exit non-zero; every non-zero exit is fatal. Standard output is captured as the planned artifact, which "
+        "must exist after a zero exit."
+    )
     REQUIRED_PATH_INPUTS = ("input",)
     SORT_MODES = ("", "-sizeA", "-sizeD", "-chrThenSizeA", "-chrThenSizeD", "-chrThenScoreA", "-chrThenScoreD")
 

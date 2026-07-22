@@ -28,7 +28,7 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
     )
 
 
-def test_variant_template_previews_final_variant_report() -> None:
+def test_variant_template_renders_compressed_vcf_with_vcf_aware_stats() -> None:
     workflow = _load_template("variant_calling_pipeline.json")
     node_types = _node_types(workflow)
 
@@ -36,9 +36,9 @@ def test_variant_template_previews_final_variant_report() -> None:
     assert unsupported_vep_branch.isdisjoint(node_types)
     assert "render_vcf_stats_ima_2" not in node_types
     assert "render_coverage_plot_ima_3" not in node_types
-    assert node_types["render_gate_prioritized_vcf_tab_0"] == "table_preview"
+    assert node_types["render_gate_prioritized_vcf_tab_0"] == "vcf_stats_chart"
 
-    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "file")
+    assert _has_edge(workflow, "gate_prioritized_vcf_001", "output", "render_gate_prioritized_vcf_tab_0", "vcf")
     assert all(
         edge.get("from", {}).get("node") not in unsupported_vep_branch
         and edge.get("to", {}).get("node") not in unsupported_vep_branch

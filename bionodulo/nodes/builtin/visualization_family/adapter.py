@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import binascii
 import csv
+import gzip
 import html
 import json
 import math
@@ -278,6 +279,7 @@ class VCFRecord:
     alts: tuple[str, ...]
     quality: float | None
     depth: float | None
+    svtype: str | None
 
 
 @dataclass(frozen=True)
@@ -1981,12 +1983,18 @@ def _read_vcf_records(path: Path) -> list[VCFRecord]:
         raise FileNotFoundError(f"VCF file not found: {path}")
 
     records: list[VCFRecord] = []
-    with path.open("r", encoding="utf-8-sig") as handle:
+    if path.suffix.lower() in {".gz", ".bgz"}:
+        handle = gzip.open(path, "rt", encoding="utf-8-sig")
+    else:
+        handle = path.open("r", encoding="utf-8-sig")
+    saw_column_header = False
+    with handle:
         for line_number, raw_line in enumerate(handle, start=1):
             line = raw_line.strip()
             if not line or line.startswith("##"):
                 continue
             if line.startswith("#CHROM"):
+                saw_column_header = True
                 continue
             if line.startswith("#"):
                 continue
@@ -2007,12 +2015,22 @@ def _read_vcf_records(path: Path) -> list[VCFRecord]:
                     alts=tuple(alt.upper() for alt in fields[4].split(",") if alt and alt != "."),
                     quality=quality,
                     depth=depth,
+                    svtype=_vcf_info_value(fields[7], "SVTYPE"),
                 )
             )
 
-    if not records:
-        raise ValueError("No VCF variant records found")
+    if not saw_column_header:
+        raise ValueError("VCF column header (#CHROM) is missing")
     return records
+
+
+def _vcf_info_value(info: str, key: str) -> str | None:
+    prefix = f"{key}="
+    for entry in str(info or "").split(";"):
+        if entry.startswith(prefix):
+            value = entry[len(prefix) :].split(",", 1)[0].strip().upper()
+            return value or None
+    return None
 
 
 def _vcf_depth(info: str, sample_fields: list[str]) -> float | None:
@@ -2032,6 +2050,11 @@ def _vcf_depth(info: str, sample_fields: list[str]) -> float | None:
 
 
 def _variant_type(ref: str, alt: str) -> str:
+    if alt.startswith("<") and alt.endswith(">"):
+        symbolic = alt[1:-1].split(":", 1)[0].strip().upper()
+        return symbolic or "OTHER"
+    if "[" in alt or "]" in alt:
+        return "BND"
     if len(ref) == 1 and len(alt) == 1:
         return "SNP"
     if len(alt) > len(ref):
@@ -2045,7 +2068,18 @@ def _variant_type(ref: str, alt: str) -> str:
 
 def _vcf_stats(records: list[VCFRecord]) -> VCFStats:
     transitions = {("A", "G"), ("G", "A"), ("C", "T"), ("T", "C")}
-    variant_types = {"SNP": 0, "INS": 0, "DEL": 0, "MNP": 0, "MIXED": 0, "OTHER": 0}
+    variant_types = {
+        "SNP": 0,
+        "INS": 0,
+        "DEL": 0,
+        "DUP": 0,
+        "INV": 0,
+        "CNV": 0,
+        "BND": 0,
+        "MNP": 0,
+        "MIXED": 0,
+        "OTHER": 0,
+    }
     qualities: list[float] = []
     depths: list[float] = []
     chromosome_counts: dict[str, int] = {}
@@ -2058,6 +2092,9 @@ def _vcf_stats(records: list[VCFRecord]) -> VCFStats:
             qualities.append(record.quality)
         if record.depth is not None:
             depths.append(record.depth)
+        if record.svtype:
+            variant_types[record.svtype] = variant_types.get(record.svtype, 0) + 1
+            continue
         if len(record.alts) != 1:
             variant_types["MIXED"] += 1
             continue

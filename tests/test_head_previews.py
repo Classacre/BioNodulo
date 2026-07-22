@@ -7,13 +7,15 @@ for nodes lacking a visual preview without overriding existing ones.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from bionodulo.execution import head_preview as hp
-from bionodulo.execution.executor import WorkflowExecutor
+from bionodulo.execution.executor import ExecutionContext, WorkflowExecutor
+from bionodulo.nodes.builtin.qc import QualiMapNode
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +94,42 @@ def test_native_extension_is_skipped(tmp_path: Path) -> None:
 
 def test_missing_file_returns_none(tmp_path: Path) -> None:
     assert hp.write_head_preview(tmp_path / "nope.txt", tmp_path / "out") is None
+
+
+def test_qualimap_bundle_opts_out_of_automatic_single_file_previews(tmp_path: Path) -> None:
+    report_dir = tmp_path / "report"
+    report_dir.mkdir()
+    report = report_dir / QualiMapNode.REPORT_FILENAME
+    report.write_text('<link rel="stylesheet" href="css/qualimap.css">', encoding="utf-8")
+    manual = tmp_path / "bundle-aware-preview.html"
+    manual.write_text("<html>served deliberately</html>", encoding="utf-8")
+
+    ctx = ExecutionContext(
+        run_id="qualimap-preview-run",
+        node_id="qualimap_001",
+        node_type=QualiMapNode.NODE_ID,
+        node_dir=tmp_path,
+        workspace_dir=tmp_path,
+        params={},
+        api_secrets={},
+        emit=lambda *_: None,
+        cancel_event=asyncio.Event(),
+    )
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache")
+    result = {"outputs": {"report": str(report), "report_dir": str(report_dir)}}
+
+    assert QualiMapNode.AUTO_PREVIEW is False
+    assert executor._collect_previews(ctx, result, QualiMapNode) == []
+    assert not (report_dir / "_head_preview").exists()
+
+    ctx.register_preview(manual, label="Bundle-aware preview")
+    assert executor._collect_previews(ctx, result, QualiMapNode) == [
+        {
+            "path": str(manual),
+            "label": "Bundle-aware preview",
+            "node_id": "qualimap_001",
+        }
+    ]
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -1214,18 +1215,21 @@ async def test_phylogenetic_tree_viewer_writes_interactive_html_and_registers_pr
 
 
 @pytest.mark.asyncio
-async def test_vcf_stats_chart_writes_svg_json_and_registers_preview(tmp_path: Path) -> None:
+async def test_vcf_stats_chart_reads_bgzip_compatible_vcf_and_writes_svg_json(tmp_path: Path) -> None:
     node_class = _node_class("vcf_stats_chart")
-    vcf = tmp_path / "variants.vcf"
-    vcf.write_text(
-        "##fileformat=VCFv4.2\n"
-        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-        "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=12\n"
-        "chr1\t120\trs2\tC\tA\t80\tPASS\tDP=30\n"
-        "chr2\t200\trs3\tA\tAT\t60\tPASS\tDP=9\n"
-        "chr2\t240\trs4\tAT\tA\t20\tPASS\tDP=4\n",
-        encoding="utf-8",
-    )
+    vcf = tmp_path / "variants.vcf.gz"
+    with gzip.open(vcf, "wt", encoding="utf-8") as handle:
+        handle.write(
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=12\n"
+            "chr1\t120\trs2\tC\tA\t80\tPASS\tDP=30\n"
+            "chr2\t200\trs3\tA\tAT\t60\tPASS\tDP=9\n"
+            "chr2\t240\trs4\tAT\tA\t20\tPASS\tDP=4\n"
+            "chr3\t300\tmanta-del\tN\t<DEL>\t30\tPASS\tSVTYPE=DEL;END=500\n"
+            "chr3\t400\tmanta-inv\tN\t<INV>\t30\tPASS\tSVTYPE=INV;END=600\n"
+            "chr3\t450\tmanta-bnd\tN\tN]chr4:500]\t30\tPASS\tSVTYPE=BND\n",
+        )
     previews: list[tuple[str, str]] = []
     context = SimpleNamespace(
         node_dir=tmp_path,
@@ -1257,15 +1261,48 @@ async def test_vcf_stats_chart_writes_svg_json_and_registers_preview(tmp_path: P
     assert 'data-type="SNP"' in svg
     assert 'class="quality-bin"' in svg
     assert 'class="chromosome-count-bar"' in svg
-    assert stats["total_variants"] == 4
+    assert stats["total_variants"] == 7
     assert stats["variant_types"]["SNP"] == 2
     assert stats["variant_types"]["INS"] == 1
-    assert stats["variant_types"]["DEL"] == 1
+    assert stats["variant_types"]["DEL"] == 2
+    assert stats["variant_types"]["INV"] == 1
+    assert stats["variant_types"]["BND"] == 1
     assert stats["transitions"] == 1
     assert stats["transversions"] == 1
     assert stats["titv_ratio"] == 1.0
-    assert stats["chromosome_counts"] == {"chr1": 2, "chr2": 2}
+    assert stats["chromosome_counts"] == {"chr1": 2, "chr2": 2, "chr3": 3}
     assert previews == [(str(svg_path), "VCF Stats Chart")]
+
+
+@pytest.mark.asyncio
+async def test_vcf_stats_chart_renders_a_valid_header_only_no_call_vcf(tmp_path: Path) -> None:
+    node_class = _node_class("vcf_stats_chart")
+    vcf = tmp_path / "no_calls.vcf.gz"
+    with gzip.open(vcf, "wt", encoding="utf-8") as handle:
+        handle.write(
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        )
+
+    result = await node_class().run(
+        vcf=str(vcf),
+        format="html",
+        context=SimpleNamespace(node_dir=tmp_path / "empty_run"),
+    )
+
+    stats = json.loads(Path(result["outputs"]["stats_json"]).read_text(encoding="utf-8"))
+    assert Path(result["outputs"]["stats_image"]).is_file()
+    assert stats["total_variants"] == 0
+    assert stats["chromosome_counts"] == {}
+    assert all(count == 0 for count in stats["variant_types"].values())
+
+    malformed = tmp_path / "missing_header.vcf"
+    malformed.write_text("##fileformat=VCFv4.2\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="#CHROM"):
+        await node_class().run(
+            vcf=str(malformed),
+            context=SimpleNamespace(node_dir=tmp_path / "malformed_run"),
+        )
 
 
 @pytest.mark.asyncio

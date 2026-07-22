@@ -99,6 +99,34 @@
       }
     },
     {
+      "id": "sort_peaks_bed_001",
+      "type": "bedtools_sortbed",
+      "position": [
+        2600,
+        80
+      ],
+      "params": {
+        "sort_by": ""
+      },
+      "ui": {
+        "title": "Sort Called Peaks"
+      }
+    },
+    {
+      "id": "sort_peak_annotations_bed_001",
+      "type": "bedtools_sortbed",
+      "position": [
+        2600,
+        300
+      ],
+      "params": {
+        "sort_by": ""
+      },
+      "ui": {
+        "title": "Sort Gene Annotations"
+      }
+    },
+    {
       "id": "view_001",
       "type": "samtools_view",
       "position": [
@@ -298,7 +326,7 @@
       "id": "peak_annotation_001",
       "type": "bedtools_closest",
       "position": [
-        2600,
+        2960,
         80
       ],
       "params": {
@@ -313,7 +341,7 @@
       "id": "chip_signal_plot_001",
       "type": "coverage_plot",
       "position": [
-        2600,
+        2960,
         430
       ],
       "params": {
@@ -546,8 +574,8 @@
         "output": "peaks"
       },
       "to": {
-        "node": "peak_annotation_001",
-        "input": "variants"
+        "node": "sort_peaks_bed_001",
+        "input": "input"
       }
     },
     {
@@ -555,6 +583,28 @@
       "from": {
         "node": "peak_annotation_bed_001",
         "output": "file"
+      },
+      "to": {
+        "node": "sort_peak_annotations_bed_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e8a_sorted",
+      "from": {
+        "node": "sort_peaks_bed_001",
+        "output": "sorted_intervals"
+      },
+      "to": {
+        "node": "peak_annotation_001",
+        "input": "variants"
+      }
+    },
+    {
+      "id": "e8b_sorted",
+      "from": {
+        "node": "sort_peak_annotations_bed_001",
+        "output": "sorted_intervals"
       },
       "to": {
         "node": "peak_annotation_001",

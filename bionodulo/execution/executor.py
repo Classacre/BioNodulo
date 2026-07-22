@@ -704,21 +704,23 @@ class WorkflowExecutor:
                         "outputs": cached_outputs,
                     }
                     node_outputs[node_id] = cached_outputs
-                    # Collect previews from cached outputs too
-                    for port, path in cached_outputs.items():
-                        paths = path if isinstance(path, (list, tuple)) else [path]
-                        for p_str in paths:
-                            if not isinstance(p_str, (str, Path)):
-                                continue
-                            p = Path(p_str)
-                            if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
-                                previews.append(
-                                    {
-                                        "path": str(p),
-                                        "label": f"{node_id}/{port}",
-                                        "node_id": node_id,
-                                    }
-                                )
+                    # Some HTML reports are directory bundles whose relative
+                    # assets cannot be served by the single-file preview route.
+                    if self._automatic_previews_enabled(_node_class):
+                        for port, path in cached_outputs.items():
+                            paths = path if isinstance(path, (list, tuple)) else [path]
+                            for p_str in paths:
+                                if not isinstance(p_str, (str, Path)):
+                                    continue
+                                p = Path(p_str)
+                                if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
+                                    previews.append(
+                                        {
+                                            "path": str(p),
+                                            "label": f"{node_id}/{port}",
+                                            "node_id": node_id,
+                                        }
+                                    )
                     continue
 
                 # ---- Build execution context ----
@@ -819,7 +821,7 @@ class WorkflowExecutor:
                         )
 
                     # Collect previews
-                    node_previews = self._collect_previews(ctx, result)
+                    node_previews = self._collect_previews(ctx, result, _node_class)
                     previews.extend(node_previews)
 
                     emit(
@@ -3440,6 +3442,7 @@ class WorkflowExecutor:
         self,
         ctx: ExecutionContext,
         result: dict[str, Any],
+        node_class: type[Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Collect previewable output files (HTML, images, JSON, etc.).
 
@@ -3448,6 +3451,9 @@ class WorkflowExecutor:
         node's primary output when it has no visual preview yet — so every
         node (FASTA, VCF, GFF, logs, BAM, …) shows something on the canvas.
         """
+        if not self._automatic_previews_enabled(node_class):
+            return list(ctx._previews)
+
         previews: list[dict[str, Any]] = []
 
         for port, path in result.get("outputs", {}).items():
@@ -3470,6 +3476,15 @@ class WorkflowExecutor:
         if head_preview is not None:
             all_previews.append(head_preview)
         return all_previews
+
+    @staticmethod
+    def _automatic_previews_enabled(node_class: type[Any] | None) -> bool:
+        """Return whether outputs may use automatic single-file previews.
+
+        Nodes with bundle-aware outputs can set ``AUTO_PREVIEW = False``.
+        Explicit previews registered through the execution context survive.
+        """
+        return getattr(node_class, "AUTO_PREVIEW", True) is not False
 
     def _maybe_head_preview(
         self,

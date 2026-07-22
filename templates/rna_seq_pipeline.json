@@ -280,7 +280,21 @@
         "paint_chromosome_limits": true
       },
       "ui": {
-        "title": "QualiMap BAM QC"
+        "title": "QualiMap BAM QC",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            },
+            "report_dir": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -345,18 +359,6 @@
       "params": {},
       "ui": {
         "title": "View Table: normalize_counts"
-      }
-    },
-    {
-      "id": "render_qualimap_tab_0",
-      "type": "table_preview",
-      "position": [
-        2960,
-        1292
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Table: qualimap"
       }
     },
     {
@@ -610,16 +612,6 @@
       },
       "to": {
         "node": "render_normalize_counts_tab_1",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "qualimap_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "render_qualimap_tab_0",
         "input": "file"
       }
     },
