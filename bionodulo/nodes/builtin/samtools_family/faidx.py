@@ -84,8 +84,6 @@ class SamtoolsFaidxNode(SamtoolsCommandNode):
             "&&",
             "samtools",
             "dict",
-            "-u",
-            "file:reference.fa",
             "-o",
             str(output / cls.OUTPUT_FILENAMES[2]),
             reference,

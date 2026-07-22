@@ -64,8 +64,6 @@ def test_faidx_plans_and_renders_colocated_reference_sidecars(tmp_path: Path) ->
         "&&",
         "samtools",
         "dict",
-        "-u",
-        "file:reference.fa",
         "-o",
         str(outputs[2]),
         str(outputs[0]),
