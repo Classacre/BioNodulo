@@ -72,13 +72,23 @@ class FilterVCFNode(CommandNode):
     GIT_URL = "https://github.com/samtools/bcftools.git"
     GIT_COMMIT = "fb9f0f783e0f67d734f6fa7fe4df9d230522f196"
     DOCUMENTATION_URL = "https://www.htslib.org/doc/1.24/bcftools.html"
+    SOURCE_URL = f"https://github.com/samtools/bcftools/blob/{GIT_COMMIT}/vcfview.c"
+    DOCUMENTATION_SOURCE_URL = f"https://github.com/samtools/bcftools/blob/{GIT_COMMIT}/doc/bcftools.txt"
+    DOCUMENTATION_SOURCE_SHA256 = "378bcf1f2faa5cef1f776c8cdcfdf096ad4b977a9e9d811a9c74d4d5830af0f7"
+    UPSTREAM_SOURCE_SHA256 = "0834e06b0a6338e36b21f105b1a49c5f337c8f4dc358abe68cf6b59026f16412"
     CITATION_DOIS = ["10.1093/gigascience/giab008"]
     CITATION_URLS = ["https://doi.org/10.1093/gigascience/giab008"]
     CITATION_TEXT = "Twelve years of SAMtools and BCFtools."
     UPSTREAM_DOC = "doc/bcftools.txt"
     UPSTREAM_SOURCE = "vcfview.c"
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     OUTPUT_FILENAME = "filtered_vcf.vcf.gz"
     OUTPUT_INDEX_FILENAME = "filtered_vcf.vcf.gz.csi"
+    EXIT_SEMANTICS = (
+        "BCFtools view exits non-zero for unreadable inputs, invalid filters, missing random-access indexes, "
+        "and output/index failures; every non-zero exit is fatal. BioNodulo also requires both the BGZF VCF "
+        "and requested CSI output after a zero exit."
+    )
     SHELL = False
 
     @classmethod
@@ -105,7 +115,7 @@ class FilterVCFNode(CommandNode):
                 "indel_only": ("BOOLEAN", {"default": False}),
                 "custom_filter": ("STRING", {"default": "", "description": "BCFtools include expression"}),
                 "samples": ("STRING", {"default": "", "description": "Comma-separated samples to retain"}),
-                "threads": ("INT", {"default": 1, "min": 1, "max": 64}),
+                "threads": ("INT", {"default": 0, "min": 0}),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -151,7 +161,7 @@ class FilterVCFNode(CommandNode):
             ("max_dp", None, 0.0, None, True),
             ("min_af", 0.0, 0.0, 1.0, False),
             ("max_af", None, 0.0, 1.0, False),
-            ("threads", 1, 1.0, 64.0, True),
+            ("threads", 0, 0.0, None, True),
         ):
             value = inputs.get(name, default)
             if default is None and value in (None, ""):
@@ -189,6 +199,8 @@ class FilterVCFNode(CommandNode):
             if absolute_index not in expected:
                 rendered = ", ".join(str(path) for path in expected)
                 return f"vcf_index must be colocated with vcf; expected one of: {rendered}"
+        if "output_type" in inputs:
+            return "output_type is stale; Filter VCF always emits an indexed BGZF VCF"
         return True
 
     @classmethod
@@ -210,7 +222,7 @@ class FilterVCFNode(CommandNode):
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         output_dir = Path(str(inputs.get("output", inputs.get("output_dir", "."))))
-        command = ["bcftools", "view", "--threads", str(inputs.get("threads", 1))]
+        command = ["bcftools", "view", "--threads", str(inputs.get("threads", 0))]
         regions = str(inputs.get("regions") or "").strip()
         if regions:
             command.extend(["--regions", regions])

@@ -700,6 +700,15 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
         "TSV",
         "EMBEDDING",
     }
+    if "," in bionodulo_type or "|" in bionodulo_type:
+        members = [member.strip() for member in bionodulo_type.replace(",", "|").split("|")]
+        if not members or any(not member for member in members):
+            return "STRING"
+        if any(member not in passthrough_types and member != "ANY" for member in members):
+            return "STRING"
+        # The editor already treats ``|`` as a socket union. Preserve each
+        # recognized member instead of collapsing the entire contract to STRING.
+        return "|".join(dict.fromkeys("*" if member == "ANY" else member for member in members))
     if bionodulo_type in passthrough_types:
         return bionodulo_type
     if bionodulo_type == "ANY":

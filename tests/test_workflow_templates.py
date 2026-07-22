@@ -266,7 +266,7 @@ def test_variant_calling_template_prioritizes_annotated_variants() -> None:
     gate = next(node for node in workflow["nodes"] if node["id"] == "gate_prioritized_vcf_001")
     assert prioritizer["params"]["custom_filter"] == "INFO/ANN ~ 'HIGH|MODERATE'"
     assert prioritizer["params"]["pass_only"] is True
-    assert prioritizer["params"]["output_type"] == "VCF_GZ"
+    assert "output_type" not in prioritizer["params"]
     assert gate["params"]["condition_mode"] == "file_exists"
     assert gate["params"]["on_fail"] == "halt"
     assert "prioritized VCF" in gate["params"]["error_message"]
@@ -387,7 +387,7 @@ def test_wgs_variant_template_prioritizes_annotated_variants() -> None:
     gate = next(node for node in workflow["nodes"] if node["id"] == "gate_prioritized_vcf_001")
     assert prioritizer["params"]["custom_filter"] == "INFO/ANN ~ 'HIGH|MODERATE'"
     assert prioritizer["params"]["pass_only"] is True
-    assert prioritizer["params"]["output_type"] == "VCF_GZ"
+    assert "output_type" not in prioritizer["params"]
     assert gate["params"]["condition_mode"] == "file_exists"
     assert gate["params"]["on_fail"] == "halt"
     assert "prioritized VCF" in gate["params"]["error_message"]

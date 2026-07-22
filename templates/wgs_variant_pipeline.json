@@ -293,8 +293,7 @@
       ],
       "params": {
         "custom_filter": "INFO/ANN ~ 'HIGH|MODERATE'",
-        "pass_only": true,
-        "output_type": "VCF_GZ"
+        "pass_only": true
       },
       "ui": {
         "title": "Prioritize variants"

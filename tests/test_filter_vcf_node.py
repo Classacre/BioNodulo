@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from bionodulo.nodes.builtin.filter_vcf import FilterVCFNode
+from bionodulo.nodes.registry import _to_frontend_input_spec
 
 
 def test_filter_vcf_is_pinned_and_returns_an_indexed_vcf_pair() -> None:
@@ -15,7 +16,16 @@ def test_filter_vcf_is_pinned_and_returns_an_indexed_vcf_pair() -> None:
     assert FilterVCFNode.RETURN_NAMES == ("filtered_vcf", "filtered_vcf_index")
     assert FilterVCFNode.REQUIRED_EXECUTABLES == ["bcftools"]
     assert FilterVCFNode.PACKAGE_CONSTRAINTS == ("bcftools==1.24",)
+    assert FilterVCFNode.DOCUMENTATION_SOURCE_SHA256 == (
+        "378bcf1f2faa5cef1f776c8cdcfdf096ad4b977a9e9d811a9c74d4d5830af0f7"
+    )
+    assert FilterVCFNode.UPSTREAM_SOURCE_SHA256 == (
+        "0834e06b0a6338e36b21f105b1a49c5f337c8f4dc358abe68cf6b59026f16412"
+    )
     assert FilterVCFNode.SHELL is False
+
+    socket_type, _ = _to_frontend_input_spec(FilterVCFNode.INPUT_TYPES()["required"]["vcf"])
+    assert socket_type == "VCF|VCF_GZ|BCF"
 
 
 def test_filter_vcf_renders_one_native_bcftools_view_command(tmp_path: Path) -> None:
@@ -127,6 +137,21 @@ def test_filter_vcf_invalid_contracts_fail_closed(inputs: dict[str, Any], messag
     validation = FilterVCFNode.VALIDATE_INPUTS(inputs)
     assert validation is not True
     assert message in str(validation)
+
+
+def test_filter_vcf_preserves_upstream_thread_default_and_rejects_stale_output_type() -> None:
+    threads = FilterVCFNode.INPUT_TYPES()["optional"]["threads"]
+    assert threads == ("INT", {"default": 0, "min": 0})
+    assert FilterVCFNode.VALIDATE_INPUTS({"vcf": "cohort.vcf", "threads": 128}) is True
+    assert FilterVCFNode.render_command({"vcf": "cohort.vcf"})[:4] == [
+        "bcftools",
+        "view",
+        "--threads",
+        "0",
+    ]
+    assert "output_type is stale" in str(
+        FilterVCFNode.VALIDATE_INPUTS({"vcf": "cohort.vcf", "output_type": "VCF_GZ"})
+    )
 
 
 @pytest.mark.asyncio
