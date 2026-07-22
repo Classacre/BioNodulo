@@ -59,12 +59,16 @@ class BEDToolsCoverageNode(BEDToolsStdoutNode):
             return "overlap_a is required for either-fraction overlap"
         if inputs.get("reciprocal_overlap") and inputs.get("a_or_b"):
             return "reciprocal and either-fraction overlap modes are mutually exclusive"
+        if inputs.get("reciprocal_overlap") and inputs.get("overlap_b") not in (None, ""):
+            return "overlap_b cannot be combined with reciprocal overlap"
         for key, choices, default in (("report", cls.REPORTS, "default"), ("strand", ("", "same", "opposite"), "")):
             validation = cls.validate_choice(inputs.get(key, default), choices, key)
             if validation is not True:
                 return validation
         if inputs.get("genome") and not inputs.get("sorted"):
             return "genome is only valid with sorted=True"
+        if str(inputs.get("inputA", "")).lower().endswith(".bam") and inputs.get("header"):
+            return "header is ignored by BEDTools when inputA is BAM"
         return True
 
     @classmethod

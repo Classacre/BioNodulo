@@ -51,8 +51,8 @@ class BEDToolsTagBedNode(BEDToolsStdoutNode):
         if validation is not True:
             return validation
         tag = str(inputs.get("tag", "YB"))
-        if not 1 <= len(tag) <= 2:
-            return "tag must contain one or two characters"
+        if len(tag) != 2:
+            return "tag must contain exactly two characters"
         labels = [str(label) for label in inputs.get("labels", [])]
         files = cls.path_list(inputs.get("inputB"))
         if field == "labels" or inputs.get("intervals"):

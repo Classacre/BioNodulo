@@ -59,6 +59,7 @@ def test_chip_seq_bedtools_commands_and_outputs(tmp_path: Path) -> None:
     [
         {"a": "a.bed", "b": "b.bed", "v": True, "wo": True},
         {"a": "a.bed", "b": "b.bed", "wa": True, "wo": True},
+        {"a": "a.bed", "b": "b.bed", "f": 0.0},
         {"a": "a.bed", "b": "b.bed", "f": 2.0},
     ],
 )

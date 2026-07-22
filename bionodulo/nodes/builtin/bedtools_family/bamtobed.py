@@ -49,6 +49,8 @@ class BEDToolsBamToBedNode(BEDToolsStdoutNode):
             return "ed_score is incompatible with split or BED12 output"
         if mode == "bedpe" and str(inputs.get("tag", "")).strip():
             return "tag score mode is not supported with BEDPE output"
+        if mode == "bedpe" and inputs.get("split"):
+            return "split is ignored by BEDTools with BEDPE output"
         if "threads" in inputs:
             return "threads is stale; bamtobed does not sort BAM input"
         return True

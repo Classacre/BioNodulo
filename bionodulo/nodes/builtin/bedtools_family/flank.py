@@ -50,6 +50,11 @@ class BEDToolsFlankNode(BEDToolsStdoutNode):
                 return f"Input '{key}' must be a non-negative number"
             if not inputs.get("pct") and not float(value).is_integer():
                 return f"Input '{key}' must be an integer unless pct=True"
+        if mode == "b":
+            if inputs.get("left") not in (None, "", 0) or inputs.get("right") not in (None, "", 0):
+                return "left and right are ignored when addition_mode=b"
+        elif inputs.get("both") not in (None, "", 1):
+            return "both is ignored when addition_mode=lr"
         return True
 
     @classmethod

@@ -54,14 +54,27 @@ class BEDToolsWindowNode(BEDToolsStdoutNode):
             validation = cls.validate_choice(inputs.get(key, default), choices, key)
             if validation is not True:
                 return validation
-        size_keys = ("left", "right") if inputs.get("addition_mode", "window") == "lr" else ("window",)
+        mode = str(inputs.get("addition_mode", "window"))
+        size_keys = ("left", "right") if mode == "lr" else ("window",)
         for key in size_keys:
             validation = cls.validate_int(inputs.get(key, 1000), key, minimum=0)
             if validation is not True:
                 return validation
+        if mode == "lr":
+            if inputs.get("window") not in (None, "", 1000):
+                return "window is ignored in asymmetric lr mode"
+        else:
+            if inputs.get("left") not in (None, "", 1000) or inputs.get("right") not in (None, "", 1000):
+                return "left and right are ignored in symmetric window mode"
+            if inputs.get("strand_window"):
+                return "strand_window only has an effect in asymmetric lr mode"
         is_bam = str(inputs.get("inputA", "")).lower().endswith(".bam")
         if inputs.get("bed") and not is_bam:
             return "bed conversion is only valid for BAM inputA"
+        if is_bam and inputs.get("header"):
+            return "header is ignored by BEDTools when inputA is BAM"
+        if is_bam and inputs.get("report", "default") == "c" and not inputs.get("bed"):
+            return "report=c requires bed=True when inputA is BAM"
         return True
 
     @classmethod

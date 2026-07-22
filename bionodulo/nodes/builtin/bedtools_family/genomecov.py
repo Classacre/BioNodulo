@@ -66,6 +66,8 @@ class BEDToolsGenomeCoverageNode(BEDToolsStdoutNode):
             return "scale is only valid for bedGraph or per-base reports"
         if inputs.get("five") and inputs.get("three"):
             return "five and three end-only modes are mutually exclusive"
+        if inputs.get("split") and (inputs.get("five") or inputs.get("three")):
+            return "split cannot be combined with five or three end-only modes"
         return True
 
     @classmethod

@@ -69,6 +69,12 @@ class BEDToolsIntersectBedNode(BEDToolsStdoutNode):
         is_bam = str(inputs.get("inputA", "")).lower().endswith(".bam")
         if inputs.get("bed") and not is_bam:
             return "bed output conversion is only valid when inputA is BAM"
+        if is_bam and inputs.get("header"):
+            return "header is ignored by BEDTools when inputA is BAM"
+        if is_bam and report in ("wb", "wo", "wao", "loj", "c", "C") and not inputs.get("bed"):
+            return f"report={report} requires bed=True when inputA is BAM"
+        if report == "c" and names:
+            return "report=c cannot be combined with names; use report=C"
         return True
 
     @classmethod

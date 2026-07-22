@@ -41,6 +41,8 @@ class BEDToolsMaskFastaNode(BEDToolsCommandNode):
         character = str(inputs.get("mask_character", "N"))
         if len(character) != 1:
             return "mask_character must be exactly one character"
+        if inputs.get("soft") and character != "N":
+            return "mask_character is ignored when soft=True"
         return True
 
     @classmethod

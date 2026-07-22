@@ -64,6 +64,12 @@ class BEDToolsMakeWindowsNode(BEDToolsStdoutNode):
             return validation
         if action == "number" and inputs.get("step_size") not in (None, ""):
             return "step_size is only valid with windowsize action"
+        if action == "number" and inputs.get("windowsize") not in (None, "", 1):
+            return "windowsize is ignored with number action"
+        if action == "windowsize" and inputs.get("number") not in (None, "", 1):
+            return "number is ignored with windowsize action"
+        if inputs.get("reverse") and inputs.get("sourcename", "") not in ("winnum", "srcwinnum"):
+            return "reverse only affects winnum and srcwinnum identifiers"
         return cls.validate_int(inputs.get("step_size"), "step_size", minimum=1)
 
     @classmethod

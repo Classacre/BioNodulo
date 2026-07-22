@@ -104,6 +104,8 @@ def test_bedtools_family_metadata_and_planned_outputs(node_class: type, _: dict[
     assert node_class.GIT_COMMIT == "705ccfdf2c9a77d71560c8adcece0663c2f5e18e"
     assert node_class.REQUIRED_EXECUTABLES == ["bedtools"]
     assert node_class.REQUIRED_CONDA_PACKAGES == ["bedtools"]
+    assert node_class.PACKAGE_CONSTRAINTS == ("bedtools==2.31.1",)
+    assert node_class.SOURCE_REVISION == "705ccfdf2c9a77d71560c8adcece0663c2f5e18e"
     assert node_class.DOCUMENTATION_URL.startswith("https://")
     outputs = node_class.PLAN_OUTPUTS({}, tmp_path)
     assert outputs
@@ -155,6 +157,173 @@ def test_closest_accepts_generic_sorted_interval_artifacts_in_the_editor() -> No
 )
 def test_bedtools_contracts_fail_closed_for_stale_or_missing_sidecars(node_class: type, inputs: dict[str, object]) -> None:
     assert node_class.VALIDATE_INPUTS(inputs) is not True
+
+
+@pytest.mark.parametrize(
+    ("node_class", "inputs"),
+    [
+        (
+            BEDToolsIntersectBedNode,
+            {
+                "inputA": "a.bed",
+                "inputB": ["b.bed"],
+                "overlap": 0.5,
+                "overlap_b": 0.25,
+                "reciprocal": True,
+            },
+        ),
+        (
+            BEDToolsCoverageNode,
+            {
+                "inputA": "a.bed",
+                "inputB": ["b.bed"],
+                "overlap_a": 0.5,
+                "overlap_b": 0.25,
+                "reciprocal_overlap": True,
+            },
+        ),
+        (
+            BEDToolsIntersectBedNode,
+            {"inputA": "a.bam", "inputB": ["b.bed"], "report": "wo"},
+        ),
+        (
+            BEDToolsIntersectBedNode,
+            {
+                "inputA": "a.bed",
+                "inputB": ["b.bed"],
+                "report": "c",
+                "names": ["annotations"],
+            },
+        ),
+        (
+            BEDToolsWindowNode,
+            {"inputA": "a.bed", "inputB": "b.bed", "left": 50},
+        ),
+        (
+            BEDToolsWindowNode,
+            {
+                "inputA": "a.bed",
+                "inputB": "b.bed",
+                "addition_mode": "lr",
+                "window": 50,
+            },
+        ),
+        (
+            BEDToolsWindowNode,
+            {"inputA": "a.bam", "inputB": "b.bed", "header": True},
+        ),
+        (
+            BEDToolsWindowNode,
+            {"inputA": "a.bam", "inputB": "b.bed", "report": "c"},
+        ),
+        (
+            BEDToolsBamToBedNode,
+            {"input": "a.bam", "option": "bedpe", "split": True},
+        ),
+        (
+            BEDToolsGenomeCoverageNode,
+            {
+                "input_type": "bam",
+                "input": "a.bam",
+                "report": "bg",
+                "split": True,
+                "five": True,
+            },
+        ),
+        (
+            BEDToolsFlankNode,
+            {"input": "a.bed", "genome": "genome.sizes", "left": 10},
+        ),
+        (
+            BEDToolsSlopNode,
+            {
+                "inputA": "a.bed",
+                "genome": "genome.sizes",
+                "addition_mode": "lr",
+                "both": 10,
+            },
+        ),
+        (
+            BEDToolsMakeWindowsNode,
+            {
+                "type": "genome",
+                "action": "number",
+                "genome": "genome.sizes",
+                "windowsize": 10,
+            },
+        ),
+        (
+            BEDToolsMakeWindowsNode,
+            {
+                "type": "genome",
+                "action": "number",
+                "genome": "genome.sizes",
+                "reverse": True,
+            },
+        ),
+        (
+            BEDToolsMaskFastaNode,
+            {"input": "a.bed", "fasta": "ref.fa", "soft": True, "mask_character": "X"},
+        ),
+        (
+            BEDToolsTagBedNode,
+            {
+                "inputA": "a.bam",
+                "inputB": ["genes.bed"],
+                "labels": ["genes"],
+                "tag": "Z",
+            },
+        ),
+        (
+            BEDToolsMapNode,
+            {"inputA": "a.bed", "inputB": "b.bed", "columns": "5", "operations": "bogus"},
+        ),
+        (
+            BEDToolsMergeNode,
+            {"input": "a.bed", "distance": "ten"},
+        ),
+        (
+            BEDToolsMergeNode,
+            {"input": "a.bed", "distance": 0, "delimiter": "|"},
+        ),
+    ],
+)
+def test_bedtools_contracts_reject_invalid_or_ignored_upstream_modes(
+    node_class: type,
+    inputs: dict[str, object],
+) -> None:
+    assert node_class.VALIDATE_INPUTS(inputs) is not True
+
+
+@pytest.mark.parametrize(
+    ("node_class", "inputs", "expected_tail"),
+    [
+        (
+            BEDToolsMapNode,
+            {"inputA": "a.bed", "inputB": "b.bed", "columns": "5", "operations": "min,max"},
+            ["-c", "5", "-o", "min,max"],
+        ),
+        (
+            BEDToolsMergeNode,
+            {"input": "a.bed", "distance": 0, "columns": "5", "operations": "min,max"},
+            ["-c", "5", "-o", "min,max", "-delim", ";"],
+        ),
+        (
+            BEDToolsGroupByNode,
+            {"inputA": "a.tsv", "group": "1-4", "columns": "5", "operation": "min,max"},
+            ["-g", "1-4", "-c", "5", "-o", "min,max"],
+        ),
+    ],
+)
+def test_bedtools_column_operations_allow_one_column_with_multiple_operations(
+    node_class: type,
+    inputs: dict[str, object],
+    expected_tail: list[str],
+) -> None:
+    assert node_class.VALIDATE_INPUTS(inputs) is True
+    command = node_class.render_command(inputs)
+    start = command.index(expected_tail[0])
+    assert command[start : start + len(expected_tail)] == expected_tail
 
 
 def test_bedtools_fasta_staging_preserves_siblings(tmp_path: Path) -> None:

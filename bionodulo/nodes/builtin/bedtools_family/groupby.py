@@ -37,7 +37,11 @@ class BEDToolsGroupByNode(BEDToolsStdoutNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = cls.validate_positive_columns(inputs.get("group"), "group")
+        validation = cls.validate_positive_columns(
+            inputs.get("group"),
+            "group",
+            allow_ranges=True,
+        )
         if validation is not True:
             return validation
         return cls.validate_column_operations(

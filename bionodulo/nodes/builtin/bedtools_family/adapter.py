@@ -18,8 +18,15 @@ class BEDToolsCommandNode(CommandNode):
     REQUIRED_EXECUTABLES = ["bedtools"]
     REQUIRED_CONDA_PACKAGES = ["bedtools"]
     VERSION = "2.31.1"
+    CONDA_PACKAGE_CONSTRAINTS = {"bedtools": VERSION}
+    PACKAGE_CONSTRAINTS = (f"bedtools=={VERSION}",)
+    PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]
     GIT_URL = "https://github.com/arq5x/bedtools2.git"
     GIT_COMMIT = "705ccfdf2c9a77d71560c8adcece0663c2f5e18e"
+    GIT_TAG = "v2.31.1"
+    SOURCE_REF = f"tag {GIT_TAG} at {GIT_COMMIT}"
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"https://github.com/arq5x/bedtools2/tree/{GIT_COMMIT}"
     CITATION_DOIS = ["10.1093/bioinformatics/btq033"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btq033"]
     CITATION_TEXT = "BEDTools: a flexible suite of utilities for comparing genomic features."
@@ -29,6 +36,31 @@ class BEDToolsCommandNode(CommandNode):
     UPSTREAM_SOURCE = ""
     REQUIRED_PATH_INPUTS: ClassVar[tuple[str, ...]] = ()
     REQUIRED_PATH_LIST_INPUTS: ClassVar[tuple[str, ...]] = ()
+    COLUMN_OPERATIONS: ClassVar[tuple[str, ...]] = (
+        "sum",
+        "mean",
+        "stdev",
+        "sstdev",
+        "median",
+        "mode",
+        "antimode",
+        "min",
+        "max",
+        "absmin",
+        "absmax",
+        "count",
+        "distinct",
+        "count_distinct",
+        "distinct_only",
+        "distinct_sort_num",
+        "distinct_sort_num_desc",
+        "collapse",
+        "concat",
+        "freqasc",
+        "freqdesc",
+        "first",
+        "last",
+    )
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
@@ -150,6 +182,8 @@ class BEDToolsCommandNode(CommandNode):
             return f"Input '{a_key}' is required when either-fraction overlap is enabled"
         if inputs.get("reciprocal") and inputs.get("either_fraction"):
             return "reciprocal and either-fraction overlap modes are mutually exclusive"
+        if inputs.get("reciprocal") and inputs.get(b_key) not in (None, ""):
+            return f"Input '{b_key}' cannot be combined with reciprocal overlap"
         return True
 
     @classmethod
@@ -177,16 +211,35 @@ class BEDToolsCommandNode(CommandNode):
         return [item for item in raw if item]
 
     @classmethod
-    def validate_positive_columns(cls, value: Any, key: str) -> bool | str:
+    def validate_positive_columns(
+        cls,
+        value: Any,
+        key: str,
+        *,
+        allow_ranges: bool = False,
+    ) -> bool | str:
         values = cls.csv_values(value)
         if not values:
             return f"Input '{key}' must contain at least one 1-based column"
-        try:
-            columns = [int(item) for item in values]
-        except ValueError:
-            return f"Input '{key}' must contain comma-separated integers"
-        if any(column < 1 for column in columns):
-            return f"Input '{key}' columns must be positive and 1-based"
+        for item in values:
+            if allow_ranges and "-" in item:
+                bounds = item.split("-")
+                if len(bounds) != 2:
+                    return f"Input '{key}' ranges must use start-end syntax"
+                try:
+                    start, end = (int(bound) for bound in bounds)
+                except ValueError:
+                    return f"Input '{key}' must contain integers or integer ranges"
+                if start < 1 or end < start:
+                    return f"Input '{key}' ranges must be positive, 1-based, and ascending"
+                continue
+            try:
+                column = int(item)
+            except ValueError:
+                qualifier = "integers or integer ranges" if allow_ranges else "comma-separated integers"
+                return f"Input '{key}' must contain {qualifier}"
+            if column < 1:
+                return f"Input '{key}' columns must be positive and 1-based"
         return True
 
     @classmethod
@@ -205,10 +258,24 @@ class BEDToolsCommandNode(CommandNode):
         operation_values = cls.csv_values(operations)
         if not operation_values:
             return f"Input '{operations_key}' must contain at least one operation"
-        if len(operation_values) not in (1, len(column_values)):
+        unsupported = [
+            operation
+            for operation in operation_values
+            if operation not in cls.COLUMN_OPERATIONS
+        ]
+        if unsupported:
             return (
-                f"Input '{operations_key}' must contain one operation or exactly "
-                f"one per '{columns_key}' column"
+                f"Input '{operations_key}' contains unsupported BEDTools operation(s): "
+                f"{', '.join(unsupported)}"
+            )
+        if (
+            len(column_values) > 1
+            and len(operation_values) > 1
+            and len(operation_values) != len(column_values)
+        ):
+            return (
+                f"Input '{operations_key}' must contain one operation, use one "
+                f"'{columns_key}' column, or contain exactly one operation per column"
             )
         return True
 

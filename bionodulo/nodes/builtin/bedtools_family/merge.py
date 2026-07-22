@@ -42,6 +42,9 @@ class BEDToolsMergeNode(BEDToolsStdoutNode):
         validation = cls.validate_choice(inputs.get("strand", ""), cls.STRANDS, "strand")
         if validation is not True:
             return validation
+        validation = cls.validate_int(inputs.get("distance", 0), "distance")
+        if validation is not True:
+            return validation
         columns = inputs.get("columns")
         operations = inputs.get("operations")
         if bool(cls.csv_values(columns)) != bool(cls.csv_values(operations)):
@@ -52,6 +55,8 @@ class BEDToolsMergeNode(BEDToolsStdoutNode):
                 return validation
         if not str(inputs.get("delimiter", ";")):
             return "delimiter must be non-empty"
+        if not cls.csv_values(columns) and inputs.get("delimiter", ";") != ";":
+            return "delimiter is only valid with columns and operations"
         if "cols" in inputs or "operation" in inputs:
             return "legacy cols/operation inputs are stale; use columns/operations"
         return True

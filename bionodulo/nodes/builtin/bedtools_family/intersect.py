@@ -44,7 +44,7 @@ class BEDToolsIntersectNode(BEDToolsStdoutNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = cls.validate_fraction(inputs.get("f", 1e-9), "f")
+        validation = cls.validate_fraction(inputs.get("f", 1e-9), "f", allow_zero=False)
         if validation is not True:
             return validation
         if inputs.get("v") and any(inputs.get(key) for key in ("wb", "wo")):
