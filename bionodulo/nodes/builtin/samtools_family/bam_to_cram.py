@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
 from bionodulo.nodes.builtin._reference_sidecars import (
     validate_colocated_reference_index,
 )
@@ -18,6 +17,7 @@ from .adapter import (
     _add_if_value,
     _additional_threads,
     TOOLS_IUC_GIT_COMMIT,
+    validate_index_pairs,
 )
 
 
@@ -97,10 +97,19 @@ class SamtoolsBamToCramNode(SamtoolsCommandNode):
             return "region_string is required when target_region is region"
         if target_region == "regions_bed_file" and not str(inputs.get("regions_bed_file", "") or "").strip():
             return "regions_bed_file is required when target_region is regions_bed_file"
+        if target_region != "region" and str(inputs.get("region_string", "") or "").strip():
+            return "region_string is only valid when target_region is region"
+        if target_region != "regions_bed_file" and inputs.get("regions_bed_file"):
+            return "regions_bed_file is only valid when target_region is regions_bed_file"
         if target_region == "region":
-            return validate_colocated_bam_index(inputs, bam_key="input")
+            return validate_index_pairs(
+                inputs,
+                data_key="input",
+                index_key="bam_index",
+                required=True,
+            )
         if inputs.get("bam_index"):
-            return validate_colocated_bam_index(inputs, bam_key="input")
+            return "bam_index is only consumed when target_region is region"
         return True
 
     @classmethod
@@ -118,7 +127,7 @@ class SamtoolsBamToCramNode(SamtoolsCommandNode):
             "optional": {
                 "bam_index": (
                     "BAI",
-                    {"description": "Exact colocated <input>.bai index required for region queries", "advanced": True},
+                    {"description": "Explicit BAI passed with -X for a region query", "advanced": True},
                 ),
                 "target_region": (
                     "STRING",

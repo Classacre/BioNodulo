@@ -402,7 +402,7 @@ def test_reheader_split_and_slice_keep_outputs_inside_declared_paths(tmp_path: P
     slice_node = _node("samtools_slice_bam")
     slice_inputs = {
         "input_bam": "a.bam",
-        "bam_index": "a.bam.bai",
+        "bam_index": "/indexes/a.bai",
         "slice_method": "manual",
         "regions": ["chr1:1-10", "chr2:20-30"],
         "threads": 2,
@@ -419,9 +419,15 @@ def test_reheader_split_and_slice_keep_outputs_inside_declared_paths(tmp_path: P
         "-X",
         "a.bam",
     ]
-    assert "a.bam.bai" in slice_command
+    assert "/indexes/a.bai" in slice_command
     assert "|" in slice_command
     assert slice_command[-1] == "-"
+    assert (
+        slice_node.VALIDATE_INPUTS(
+            {**slice_inputs, "slice_method": "manual", "input_interval": "unused.bed"}
+        )
+        is not True
+    )
 
 
 def test_phase_and_consensus_capture_stdout_and_plan_real_filenames(tmp_path: Path) -> None:
@@ -458,7 +464,7 @@ def test_format_conversion_nodes_require_explicit_reference_sidecars() -> None:
     bam_to_cram = _node("samtools_bam_to_cram")
     bam_inputs = {
         "input": "a.bam",
-        "bam_index": "a.bam.bai",
+        "bam_index": "/indexes/a.bai",
         "reference": "ref.fa",
         "reference_index": "ref.fa.fai",
         "threads": 2,
@@ -470,12 +476,18 @@ def test_format_conversion_nodes_require_explicit_reference_sidecars() -> None:
     command = bam_to_cram.render_command(bam_inputs)
     assert "--output-fmt-option" not in command
     assert "-t" not in command
-    assert command[-4:] == ["-X", "a.bam", "a.bam.bai", "chr1:1-10"]
+    assert command[-4:] == ["-X", "a.bam", "/indexes/a.bai", "chr1:1-10"]
+    assert (
+        bam_to_cram.VALIDATE_INPUTS(
+            {**bam_inputs, "target_region": "entire_input_file", "bam_index": "/indexes/a.bai"}
+        )
+        is not True
+    )
 
     cram_to_bam = _node("samtools_cram_to_bam")
     cram_inputs = {
         "input": "a.cram",
-        "cram_index": "a.cram.crai",
+        "cram_index": "/indexes/a.crai",
         "reference": "ref.fa",
         "reference_index": "ref.fa.fai",
         "threads": 2,
@@ -487,9 +499,15 @@ def test_format_conversion_nodes_require_explicit_reference_sidecars() -> None:
     assert cram_to_bam.render_command(cram_inputs)[-4:] == [
         "-X",
         "a.cram",
-        "a.cram.crai",
+        "/indexes/a.crai",
         "chr2:1-20",
     ]
+    assert (
+        cram_to_bam.VALIDATE_INPUTS(
+            {**cram_inputs, "target_region": "regions_bed_file", "cram_index": "/indexes/a.crai"}
+        )
+        is not True
+    )
 
 
 def test_sam_bam_aliases_preserve_ports_but_use_explicit_fai_inputs() -> None:

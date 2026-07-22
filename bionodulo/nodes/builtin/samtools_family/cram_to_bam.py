@@ -94,12 +94,17 @@ class SamtoolsCramToBamNode(SamtoolsCommandNode):
             return "region_string is required when target_region is region"
         if target_region == "regions_bed_file" and not str(inputs.get("regions_bed_file", "") or "").strip():
             return "regions_bed_file is required when target_region is regions_bed_file"
+        if target_region != "region" and str(inputs.get("region_string", "") or "").strip():
+            return "region_string is only valid when target_region is region"
+        if target_region != "regions_bed_file" and inputs.get("regions_bed_file"):
+            return "regions_bed_file is only valid when target_region is regions_bed_file"
+        if target_region != "region" and inputs.get("cram_index"):
+            return "cram_index is only consumed when target_region is region"
         return validate_index_pairs(
             inputs,
             data_key="input",
             index_key="cram_index",
             required=target_region == "region",
-            colocated_suffix=".crai",
         )
 
     @classmethod
@@ -117,7 +122,7 @@ class SamtoolsCramToBamNode(SamtoolsCommandNode):
             "optional": {
                 "cram_index": (
                     "FILE",
-                    {"description": "Exact colocated <input>.crai index required for region queries", "advanced": True},
+                    {"description": "Explicit CRAI passed with -X for a region query", "advanced": True},
                 ),
                 "target_region": (
                     "STRING",

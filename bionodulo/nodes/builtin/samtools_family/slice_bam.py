@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
-
 from .adapter import (
     SamtoolsCommandNode,
     GALAXY_ALIAS,
@@ -16,6 +14,7 @@ from .adapter import (
     _as_csv_list,
     _sort_memory,
     TOOLS_IUC_GIT_COMMIT,
+    validate_index_pairs,
 )
 
 
@@ -95,7 +94,12 @@ class SamtoolsSliceBamNode(SamtoolsCommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        validation = validate_colocated_bam_index(inputs, bam_key="input_bam")
+        validation = validate_index_pairs(
+            inputs,
+            data_key="input_bam",
+            index_key="bam_index",
+            required=True,
+        )
         if validation is not True:
             return validation
         slice_method = str(inputs.get("slice_method", "bed"))
@@ -105,6 +109,12 @@ class SamtoolsSliceBamNode(SamtoolsCommandNode):
             return "refs is required when slice_method is chromosomes"
         if slice_method == "manual" and not _as_csv_list(inputs.get("regions")):
             return "regions is required when slice_method is manual"
+        if slice_method != "bed" and inputs.get("input_interval"):
+            return "input_interval is only valid when slice_method is bed"
+        if slice_method != "chromosomes" and _as_csv_list(inputs.get("refs")):
+            return "refs is only valid when slice_method is chromosomes"
+        if slice_method != "manual" and _as_csv_list(inputs.get("regions")):
+            return "regions is only valid when slice_method is manual"
         return True
 
     @classmethod
@@ -112,7 +122,10 @@ class SamtoolsSliceBamNode(SamtoolsCommandNode):
         return {
             "required": {
                 "input_bam": ("BAM", {"description": "Indexed BAM file to slice"}),
-                "bam_index": ("BAI", {"description": "Exact colocated <input_bam>.bai index"}),
+                "bam_index": (
+                    "BAI",
+                    {"description": "Explicit BAI paired with input_bam and passed through samtools view -X"},
+                ),
                 "slice_method": (
                     "STRING",
                     {"default": "bed", "options": ["bed", "chromosomes", "manual"], "description": "Region source"},
