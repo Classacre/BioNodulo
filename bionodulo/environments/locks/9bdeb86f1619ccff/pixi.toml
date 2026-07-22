@@ -1,0 +1,11 @@
+[workspace]
+name = "bionodulo-workflow"
+version = "0.1.0"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+bismark = "3.1.0"
+bowtie2 = "2.5.5"
+methyldackel = "0.6.1"
+samtools = "1.23.1"
