@@ -59,6 +59,25 @@
       }
     },
     {
+      "family_id": "kallisto",
+      "ownership": "external_tool",
+      "node_id_prefix": "kallisto_",
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.rna_seq.kallisto",
+      "source_path": "bionodulo/nodes/builtin/rna_seq/kallisto.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/kallisto",
+      "fixture_prefix": "kallisto/",
+      "cloud_job_label": "catalog-kallisto",
+      "r2_test_prefix": "catalog-tests/kallisto/",
+      "upstream": {
+        "repository_url": "https://github.com/pachterlab/kallisto",
+        "release_tag": "v0.52.0",
+        "tag_object": "4e9f29cf3b021260415430c057a22469ca081391",
+        "commit": "4e9f29cf3b021260415430c057a22469ca081391",
+        "documentation_url": "https://github.com/pachterlab/kallisto/blob/4e9f29cf3b021260415430c057a22469ca081391/README.md"
+      }
+    },
+    {
       "family_id": "macs2",
       "ownership": "external_tool",
       "node_id_prefix": "macs2_",
@@ -94,6 +113,25 @@
         "tag_object": "4ac78a7e9938dbef3c6f97d549758feceb0252db",
         "commit": "6efb9b6da35224cf804921dedecf9fb8f411365d",
         "documentation_url": "https://www.htslib.org/doc/samtools.html"
+      }
+    },
+    {
+      "family_id": "salmon",
+      "ownership": "external_tool",
+      "node_id_prefix": "salmon_",
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.rna_seq.salmon",
+      "source_path": "bionodulo/nodes/builtin/rna_seq/salmon.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/salmon",
+      "fixture_prefix": "salmon/",
+      "cloud_job_label": "catalog-salmon",
+      "r2_test_prefix": "catalog-tests/salmon/",
+      "upstream": {
+        "repository_url": "https://github.com/COMBINE-lab/salmon",
+        "release_tag": "v2.3.4",
+        "tag_object": "a218814bcdfafe0b6916ef6a186e95c82bd2d9e0",
+        "commit": "d53fed6f0af6966a40825558f0edf71b6df7cf52",
+        "documentation_url": "https://github.com/COMBINE-lab/salmon/tree/d53fed6f0af6966a40825558f0edf71b6df7cf52/website/src/content/docs"
       }
     }
   ]
