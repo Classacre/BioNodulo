@@ -18,6 +18,10 @@ from bionodulo.nodes.builtin.long_read_family import (
 def test_pinned_authorities_outputs_and_legacy_reexports() -> None:
     assert DoradoCorrectNode.GIT_COMMIT == "0949eb8de80dce9a198c08c0e37e31ed1eb627fc"
     assert DoradoDuplexNode.GIT_COMMIT == "0949eb8de80dce9a198c08c0e37e31ed1eb627fc"
+    assert DoradoCorrectNode.SOURCE_REVISION == DoradoCorrectNode.GIT_COMMIT
+    assert DoradoDuplexNode.SOURCE_REVISION == DoradoDuplexNode.GIT_COMMIT
+    assert DoradoCorrectNode.AUDIT_STATUS == "contract-checked-no-external-execution"
+    assert DoradoDuplexNode.AUDIT_STATUS == "contract-checked-no-external-execution"
     assert DoradoCorrectNode.REQUIRED_CONDA_PACKAGES == []
     assert DoradoCorrectNode.RETURN_TYPES == ("FASTA",)
     assert DoradoDuplexNode.RETURN_NAMES == ("duplex_bam", "duplex_bam_index")

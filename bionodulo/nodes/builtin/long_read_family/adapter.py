@@ -210,7 +210,11 @@ class DoradoCommandNode(LongReadCommandNode):
     GIT_URL = "https://github.com/nanoporetech/dorado.git"
     GIT_COMMIT = "0949eb8de80dce9a198c08c0e37e31ed1eb627fc"
     SOURCE_TAG = "v0.9.6"
-    DOCUMENTATION_URL = "https://github.com/nanoporetech/dorado/tree/v0.9.6"
+    DOCUMENTATION_URL = f"https://github.com/nanoporetech/dorado/tree/{GIT_COMMIT}"
+    SOURCE_REF = f"tag {SOURCE_TAG} at {GIT_COMMIT}"
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"https://github.com/nanoporetech/dorado/tree/{GIT_COMMIT}"
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     LINUX_X64_BINARY_URL = "https://cdn.oxfordnanoportal.com/software/analysis/dorado-0.9.6-linux-x64.tar.gz"
     PACKAGE_CONSTRAINT = (
         "official Dorado 0.9.6 binary; no package exists in the configured conda-forge/bioconda channels"

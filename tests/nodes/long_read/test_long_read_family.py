@@ -28,6 +28,11 @@ def test_pinned_source_authorities_and_direct_argv_metadata() -> None:
     assert ChopperFilterNode.GIT_COMMIT == "ca85a03f6c4a8836ab5f163592e24a30b9d3a3c4"
     assert ChopperFilterNode.PACKAGE_CONSTRAINT == "chopper = 0.9.2"
     assert DoradoBasecallerNode.GIT_COMMIT == "0949eb8de80dce9a198c08c0e37e31ed1eb627fc"
+    assert DoradoBasecallerNode.SOURCE_REF == (
+        "tag v0.9.6 at 0949eb8de80dce9a198c08c0e37e31ed1eb627fc"
+    )
+    assert DoradoBasecallerNode.SOURCE_REVISION == DoradoBasecallerNode.GIT_COMMIT
+    assert DoradoBasecallerNode.AUDIT_STATUS == "contract-checked-no-external-execution"
     assert DoradoBasecallerNode.PACKAGE_CONSTRAINT.startswith("official Dorado 0.9.6 binary")
     assert DoradoBasecallerNode.REQUIRED_CONDA_PACKAGES == []
     assert DoradoBasecallerNode.LINUX_X64_BINARY_URL.endswith("dorado-0.9.6-linux-x64.tar.gz")
