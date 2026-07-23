@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
 
 from bionodulo.nodes.catalog.tools.samtools import SPECS, collate, fixmate, flagstat, index, markdup, sort, view
+from bionodulo.nodes.catalog.tools.samtools.common import SAMTOOLS_SOURCE_EVIDENCE
 from bionodulo.nodes.catalog.tools.samtools.artifacts import SAMTOOLS_ARTIFACT_REGISTRY
 from bionodulo.nodes.contract.execution import ArgvPlan
 from bionodulo.nodes.contract.evidence import (
@@ -76,7 +78,10 @@ def test_evidence_digests_verify_against_pinned_checkout_bytes() -> None:
             expected_contract_pointer="/execution_factory",
             contract_value=module.SPEC.execution_factory,
         )
-        assert (root / source_name).read_bytes()
+        source_bytes = (root / source_name).read_bytes()
+        expected = SAMTOOLS_SOURCE_EVIDENCE[module.SPEC.identity.machine_id.removeprefix("samtools_")]
+        assert len(source_bytes) == expected["source_length"]
+        assert "sha256:" + hashlib.sha256(source_bytes).hexdigest() == expected["source_sha256"]
 
 
 def test_samtools_artifact_registry_requires_explicit_alignment_union() -> None:
@@ -129,3 +134,9 @@ def test_markdup_plan_preserves_source_option_order(tmp_path: Path) -> None:
         "--read-coords",
         "([0-9]+)_([0-9]+)",
     )
+
+
+def test_build_plan_accepts_keyword_inputs_for_runtime_factory(tmp_path: Path) -> None:
+    plan = view.build_plan(alignment="input.sam", threads=2, output_dir=tmp_path)
+    assert plan.token_array()[-1] == "input.sam"
+    assert "-@" in plan.token_array()

@@ -45,8 +45,14 @@ SPEC: NodeSpec = make_spec(
 )
 
 
-def build_plan(inputs: Mapping[str, object], output_dir: str | Path = "."):
-    return build_argv_plan(LEGACY_NODE, inputs, output_dir)
+def build_plan(
+    inputs: Mapping[str, object] | None = None,
+    output_dir: str | Path = ".",
+    **kwargs: object,
+):
+    values = dict(inputs or {})
+    values.update(kwargs)
+    return build_argv_plan(LEGACY_NODE, values, output_dir)
 
 
 async def run_legacy(**inputs: object):
