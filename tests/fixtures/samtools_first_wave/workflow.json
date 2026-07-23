@@ -1,8 +1,8 @@
 {
   "version": "2.0",
   "app": "bionodulo",
-  "name": "Samtools First-Wave Catalog Canary",
-  "description": "Pinned HTTPS input followed by the seven Samtools promotion-candidate nodes",
+  "name": "Samtools First-Wave Cloud Canary",
+  "description": "Normal cloud workflow for runtime installation and execution of seven Samtools nodes",
   "nodes": [
     {
       "id": "input_001",

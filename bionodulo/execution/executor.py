@@ -36,12 +36,6 @@ from bionodulo.environments.manifest import (
 )
 from bionodulo.execution import head_preview as head_preview_mod
 from bionodulo.execution.cache import CacheStore
-from bionodulo.execution.catalog_canary import (
-    CANARY_NODE_MARKER,
-    CANARY_OPTION,
-    CatalogCanaryError,
-    CatalogCanaryRunner,
-)
 from bionodulo.execution.subprocess_runner import CommandCancelledError, run_subprocess
 from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
 
@@ -330,13 +324,6 @@ class WorkflowExecutor:
             emit = _noop_emit
 
         try:
-            catalog_canary = CatalogCanaryRunner.from_options(options)
-        except CatalogCanaryError as exc:
-            msg = str(exc)
-            emit("error", {"run_id": run_id, "message": msg})
-            return {"status": "failed", "run_id": run_id, "error": msg}
-
-        try:
             workflow_parameters = self._resolve_workflow_parameters(
                 workflow.get("parameters", []),
                 options.get("parameters", {}),
@@ -393,17 +380,6 @@ class WorkflowExecutor:
             else:
                 nodes = {}
                 edges = []
-
-        if catalog_canary is not None:
-            try:
-                # The marker carries a live per-run runner and must never be
-                # inserted into the caller's serializable workflow document.
-                nodes = {node_id: dict(node) for node_id, node in nodes.items()}
-                catalog_canary.bind_nodes(list(nodes.values()))
-            except CatalogCanaryError as exc:
-                msg = str(exc)
-                emit("error", {"run_id": run_id, "message": msg})
-                return {"status": "failed", "run_id": run_id, "error": msg}
 
         all_nodes = nodes
         loop_bodies = self._loop_bodies(all_nodes, edges)
@@ -492,10 +468,7 @@ class WorkflowExecutor:
         }
         if resume_checkpoint:
             run_metadata["resume_checkpoint"] = resume_checkpoint
-        if catalog_canary is not None:
-            run_metadata[CANARY_OPTION] = catalog_canary.metadata()
-
-        stop_on_error = True if catalog_canary is not None else options.get("stop_on_error", True)
+        stop_on_error = options.get("stop_on_error", True)
 
         cancelled_holder: dict[str, str | None] = {}
 
@@ -647,7 +620,6 @@ class WorkflowExecutor:
                     or node_id in force_nodes
                     or executes_loop_body
                     or executes_try_catch_branches
-                    or CANARY_NODE_MARKER in node
                     or self._executor_cache_policy(_node_class) == "always_run"
                 )
                 if not forced_node:
@@ -974,7 +946,7 @@ class WorkflowExecutor:
         self._write_metadata(run_id, run_metadata)
 
         # Embed provenance in outputs
-        if catalog_canary is None and options.get("embed_provenance", True):
+        if options.get("embed_provenance", True):
             try:
                 from bionodulo.provenance.workflow_embed import embed_workflow_in_outputs
                 embed_workflow_in_outputs(workflow, artifacts)
@@ -1005,16 +977,6 @@ class WorkflowExecutor:
         """Return a no-execute preview of node commands, outputs, cache, and environments."""
         options = options or {}
         force_nodes = force_nodes or set()
-        try:
-            catalog_canary = CatalogCanaryRunner.from_options(options)
-        except CatalogCanaryError as exc:
-            return {"status": "failed", "run_id": run_id, "error": str(exc)}
-        if catalog_canary is not None:
-            return {
-                "status": "failed",
-                "run_id": run_id,
-                "error": "catalog canary dry-run is not supported; submit the explicit canary run",
-            }
         graph = self._prepare_execution_plan_graph(workflow, options)
         if graph.get("status") == "failed":
             return {"status": "failed", "run_id": run_id, "error": graph["error"]}
@@ -1327,9 +1289,6 @@ class WorkflowExecutor:
         return bool(getattr(node_class, "EXECUTES_TRY_CATCH_BRANCHES", False))
 
     def _node_class_for(self, node: dict[str, Any]) -> Any:
-        catalog_canary = node.get(CANARY_NODE_MARKER)
-        if isinstance(catalog_canary, CatalogCanaryRunner):
-            return catalog_canary.metadata_class(str(node.get("type", "unknown")))
         node_class = node.get("_node_class")
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
             node_class = self.registry.get(str(node.get("type", "unknown")))
@@ -2994,9 +2953,6 @@ class WorkflowExecutor:
         inputs: dict[str, Any],
     ) -> dict[str, Any]:
         """Execute a single node via its ``run()`` method."""
-        catalog_canary = node.get(CANARY_NODE_MARKER)
-        if isinstance(catalog_canary, CatalogCanaryRunner):
-            return await catalog_canary.execute(context=ctx, node=node, inputs=inputs)
         node_class = node.get("_node_class")
         # Fallback: look up in registry if _node_class is not attached
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
@@ -3641,11 +3597,6 @@ class WorkflowExecutor:
         Uses the workflow's content-addressed pixi manifest so that every
         workflow runs in an environment containing exactly the tools it needs.
         """
-        # Catalog canaries are provisioned from their committed lock by the
-        # cloud worker image. Avoid consulting the legacy registry or starting
-        # a fresh solve from this transitional execution path.
-        if CANARY_NODE_MARKER in node:
-            return []
         node_type = node.get("type", "")
         node_class = node.get("_node_class")
 

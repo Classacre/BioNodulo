@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getCloudWorkflow, saveCloudWorkflow, submitCloudRun } from '../api/website';
 import type { Workflow } from '../types';
-import { SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST } from '../utils/catalogCanary';
 
 describe('submitCloudRun', () => {
   afterEach(() => {
@@ -21,16 +20,7 @@ describe('submitCloudRun', () => {
     };
     const parameters = { tiny_sam: '/workspace/tiny.sam' };
 
-    await submitCloudRun(
-      'wf-1',
-      { resourceProfile: 'small' },
-      inputs,
-      parameters,
-      {
-        profile: 'samtools-first-wave',
-        catalog_digest: SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST,
-      },
-    );
+    await submitCloudRun('wf-1', { resourceProfile: 'small' }, inputs, parameters);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -39,10 +29,6 @@ describe('submitCloudRun', () => {
       resourceProfile: 'small',
       inputs,
       parameters,
-      catalog_canary: {
-        profile: 'samtools-first-wave',
-        catalog_digest: SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST,
-      },
     });
   });
 

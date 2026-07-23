@@ -14,7 +14,6 @@ import { cloudConfigAtom } from '../../state/appAtoms';
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
 import { collectLocalFilePaths } from '../../utils/workflowFiles';
-import { catalogCanaryForWorkflow } from '../../utils/catalogCanary';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -343,7 +342,6 @@ export function useWorkflow() {
         options?.compute,
         options?.inputs,
         options?.parameters,
-        catalogCanaryForWorkflow(persisted),
       );
       return {
         run_id: res.runId,
@@ -354,7 +352,6 @@ export function useWorkflow() {
         workflow_name: wf.name,
       } as unknown as RunRecord;
     }
-    const catalogCanary = catalogCanaryForWorkflow(wf);
     const r = await apiRequest('/runs', {
       method: 'POST',
       json: {
@@ -366,7 +363,6 @@ export function useWorkflow() {
         force_nodes: options?.force_nodes || [],
         target_nodes: options?.target_nodes || [],
         parameters: options?.parameters || {},
-        ...(catalogCanary ? { catalog_canary: catalogCanary } : {}),
         ...(options?.dry_run !== undefined ? { dry_run: options.dry_run } : {}),
         ...(options?.resume_checkpoint !== undefined ? { resume_checkpoint: options.resume_checkpoint } : {}),
       },

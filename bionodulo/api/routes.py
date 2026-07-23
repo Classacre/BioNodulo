@@ -620,11 +620,6 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
     execution_options = {
         **({"target_nodes": body.target_nodes} if body.target_nodes else {}),
         **({"parameters": body.parameters} if body.parameters else {}),
-        **(
-            {"catalog_canary": body.catalog_canary.model_dump(mode="json")}
-            if body.catalog_canary is not None
-            else {}
-        ),
     }
     resume_checkpoint = _resolve_resume_checkpoint(settings, body.resume_checkpoint)
     if resume_checkpoint:
@@ -663,11 +658,6 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
                 "force_nodes": body.force_nodes,
                 "parameters": body.parameters,
                 "resume_checkpoint": resume_checkpoint,
-                "catalog_canary": (
-                    body.catalog_canary.model_dump(mode="json")
-                    if body.catalog_canary is not None
-                    else None
-                ),
             },
             options=execution_options,
             force=body.no_cache,
@@ -685,11 +675,6 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
             "force_nodes": body.force_nodes,
             "parameters": body.parameters,
             "resume_checkpoint": resume_checkpoint,
-            "catalog_canary": (
-                body.catalog_canary.model_dump(mode="json")
-                if body.catalog_canary is not None
-                else None
-            ),
         }
         request.app.state.runs = runs
 

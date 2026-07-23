@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 # Upper bound on nodes in a single submitted workflow — a sanity guard against
 # absurd payloads, well above any realistic pipeline.
@@ -23,22 +23,6 @@ class ValidationRequest(BaseModel):
     """Request body for POST /workflow/validate."""
 
     workflow: dict[str, Any] = Field(..., description="Workflow JSON object")
-
-
-class CatalogCanaryRequest(BaseModel):
-    """Explicit selector for one trusted generated-catalog canary profile."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    profile: Literal["samtools-first-wave"] = Field(
-        ...,
-        description="Bounded catalog promotion profile to execute",
-    )
-    catalog_digest: str = Field(
-        ...,
-        pattern=r"^sha256:[0-9a-f]{64}$",
-        description="Exact committed generated-catalog digest expected by the worker",
-    )
 
 
 class RunCreateRequest(BaseModel):
@@ -80,12 +64,6 @@ class RunCreateRequest(BaseModel):
         default_factory=dict,
         description="Runtime workflow parameter overrides keyed by parameter name",
     )
-    catalog_canary: CatalogCanaryRequest | None = Field(
-        None,
-        description="Explicit trusted generated-catalog canary selector",
-    )
-
-
 class QueueReorderRequest(BaseModel):
     """Request body for POST /queue/reorder."""
 

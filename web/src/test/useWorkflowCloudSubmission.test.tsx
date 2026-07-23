@@ -1,8 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Workflow } from '../types';
-import fixture from '../../../tests/fixtures/samtools_first_wave/workflow.json';
-import { SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST } from '../utils/catalogCanary';
 
 const websiteMocks = vi.hoisted(() => ({
   createCloudWorkflow: vi.fn(),
@@ -42,8 +40,6 @@ const workflow: Workflow = {
   parameters: [{ name: 'tiny_sam', type: 'SAM', required: true }],
 };
 
-const canaryWorkflow = fixture as unknown as Workflow;
-
 describe('useWorkflow cloud submission', () => {
   beforeEach(() => {
     storage.clear();
@@ -68,18 +64,16 @@ describe('useWorkflow cloud submission', () => {
     };
 
     await act(async () => {
-      await result.current.submitRun(canaryWorkflow, {
+      await result.current.submitRun(workflow, {
         forceCloud: true,
         parameters,
         inputs,
       });
     });
 
-    expect(websiteMocks.createCloudWorkflow).toHaveBeenCalledWith(
-      'Samtools First-Wave Catalog Canary',
-    );
+    expect(websiteMocks.createCloudWorkflow).toHaveBeenCalledWith('Cloud canary');
     expect(websiteMocks.saveCloudWorkflow).toHaveBeenCalledWith({
-      ...canaryWorkflow,
+      ...workflow,
       id: 'wf-cloud-server',
     });
     expect(websiteMocks.submitCloudRun).toHaveBeenCalledWith(
@@ -87,10 +81,6 @@ describe('useWorkflow cloud submission', () => {
       undefined,
       inputs,
       parameters,
-      {
-        profile: 'samtools-first-wave',
-        catalog_digest: SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST,
-      },
     );
     expect(websiteMocks.saveCloudWorkflow.mock.invocationCallOrder[0]).toBeLessThan(
       websiteMocks.submitCloudRun.mock.invocationCallOrder[0],
