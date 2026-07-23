@@ -65,6 +65,8 @@ def test_fastp_contract_and_pinned_upstream_authority_are_exact() -> None:
     assert FastpNode.VERSION == "0.24.0"
     assert FastpNode.GIT_URL == "https://github.com/OpenGene/fastp.git"
     assert FastpNode.GIT_COMMIT == "4f273f1d8afac977a82460e1de174daa3e66f3f5"
+    assert FastpNode.SOURCE_REF == "tag v0.24.0 at 4f273f1d8afac977a82460e1de174daa3e66f3f5"
+    assert FastpNode.SOURCE_REVISION == FastpNode.GIT_COMMIT
     assert FastpNode.DOCUMENTATION_URL == ("https://github.com/OpenGene/fastp/tree/v0.24.0")
     assert FastpNode.SOURCE_URL == (
         "https://github.com/OpenGene/fastp/tree/4f273f1d8afac977a82460e1de174daa3e66f3f5"

@@ -123,6 +123,27 @@
       }
     },
     {
+      "family_id": "fastp",
+      "ownership": "external_tool",
+      "node_ids": [
+        "fastp"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.trimming.fastp",
+      "source_path": "bionodulo/nodes/builtin/trimming/fastp.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/fastp",
+      "fixture_prefix": "fastp/",
+      "cloud_job_label": "catalog-fastp",
+      "r2_test_prefix": "catalog-tests/fastp/",
+      "upstream": {
+        "repository_url": "https://github.com/OpenGene/fastp",
+        "release_tag": "v0.24.0",
+        "tag_object": "4f273f1d8afac977a82460e1de174daa3e66f3f5",
+        "commit": "4f273f1d8afac977a82460e1de174daa3e66f3f5",
+        "documentation_url": "https://github.com/OpenGene/fastp/blob/4f273f1d8afac977a82460e1de174daa3e66f3f5/README.md"
+      }
+    },
+    {
       "family_id": "gatk_haplotype_caller",
       "ownership": "external_tool",
       "node_ids": [

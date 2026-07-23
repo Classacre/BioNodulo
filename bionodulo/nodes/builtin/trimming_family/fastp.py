@@ -59,6 +59,9 @@ class FastpNode(CommandNode):
     VERSION = "0.24.0"
     GIT_URL = "https://github.com/OpenGene/fastp.git"
     GIT_COMMIT = "4f273f1d8afac977a82460e1de174daa3e66f3f5"
+    GIT_TAG = "v0.24.0"
+    SOURCE_REF = f"tag {GIT_TAG} at {GIT_COMMIT}"
+    SOURCE_REVISION = GIT_COMMIT
     SOURCE_URL = f"https://github.com/OpenGene/fastp/tree/{GIT_COMMIT}"
     CITATION_DOIS = ["10.1002/imt2.107"]
     CITATION_URLS = ["https://doi.org/10.1002/imt2.107"]

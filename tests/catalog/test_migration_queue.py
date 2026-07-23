@@ -1115,7 +1115,7 @@ def test_cli_rejects_internally_inconsistent_baseline_without_output_mutation(tm
 def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
     queue = build_queue(load_baseline(), load_rules())
 
-    assert queue["summary"]["confirmed_family_nodes"] == 57
+    assert queue["summary"]["confirmed_family_nodes"] == 58
     by_family = {
         family_id: sorted(item["node_id"] for item in queue["assignments"] if item["family_id"] == family_id)
         for family_id in (
@@ -1123,6 +1123,7 @@ def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
             "bowtie2",
             "delly",
             "dorado",
+            "fastp",
             "fastqc",
             "freebayes",
             "gatk_haplotype_caller",
@@ -1144,6 +1145,7 @@ def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
     assert by_family["bowtie2"] == ["bowtie2_align", "bowtie2_build", "bowtie2_inspect"]
     assert by_family["delly"] == ["delly", "delly_call"]
     assert by_family["dorado"] == ["dorado_basecaller", "dorado_correct", "dorado_demux", "dorado_duplex"]
+    assert by_family["fastp"] == ["fastp"]
     assert by_family["fastqc"] == ["fastqc"]
     assert by_family["freebayes"] == ["freebayes"]
     assert by_family["gatk_haplotype_caller"] == ["gatk_haplotype_caller"]
@@ -1163,6 +1165,7 @@ def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
             "bowtie2",
             "delly",
             "dorado",
+            "fastp",
             "fastqc",
             "freebayes",
             "gatk_haplotype_caller",
@@ -1178,6 +1181,7 @@ def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
         "bowtie2": {"0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2"},
         "delly": {"e6246dbb18b7f6df2b7b381d542cdeaea6be8c82"},
         "dorado": {"0949eb8de80dce9a198c08c0e37e31ed1eb627fc"},
+        "fastp": {"4f273f1d8afac977a82460e1de174daa3e66f3f5"},
         "fastqc": {"e7ef390bf10382f60786bdd0cf28abd4f8683ffd"},
         "freebayes": {"b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993"},
         "gatk_haplotype_caller": {"76edc75c26504da94bbaee66584e107e76ee15de"},
@@ -1270,7 +1274,7 @@ def test_cli_writes_and_checks_exact_canonical_bytes(tmp_path: Path) -> None:
     expected = canonical_json_bytes(build_queue(load_baseline(), load_rules()))
     assert output.read_bytes() == expected
     assert "943 nodes queued" in written.stdout
-    assert "886 pending family review" in checked.stdout
+    assert "885 pending family review" in checked.stdout
 
 
 def test_cli_rejects_duplicate_json_object_members(tmp_path: Path) -> None:
