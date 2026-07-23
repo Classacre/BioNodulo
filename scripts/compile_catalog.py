@@ -134,8 +134,17 @@ def _compile() -> tuple[Any, dict[str, Any]]:
         "status_counts": statuses,
         "all_nodes_released": all(record["status"] == "released" for record in node_records),
     }
+    promotion_status = (
+        "released"
+        if summary["all_nodes_released"]
+        else "promotion_candidate"
+        if statuses.get("promotion_candidate", 0)
+        else "quarantined"
+    )
+    summary["promotion_status"] = promotion_status
     promotion = {
         "schema_version": 1,
+        "status": promotion_status,
         "catalog_digest": compiled.catalog_digest,
         "baseline_ledger_aggregate_sha256": baseline["aggregate_sha256"],
         "baseline_ledger_bytes_sha256": baseline_bytes_digest,

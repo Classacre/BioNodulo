@@ -22,9 +22,11 @@ def test_first_wave_projections_are_deterministic_and_cover_seven_nodes() -> Non
         "all_nodes_released": False,
         "baseline_nodes": BASELINE_NODE_COUNT,
         "implemented_nodes": 7,
+        "promotion_status": "promotion_candidate",
         "remaining_nodes": 936,
         "status_counts": {"promotion_candidate": 7},
     }
+    assert promotion["status"] == "promotion_candidate"
     assert len(promotion["nodes"]) == 7
     assert {node["status"] for node in promotion["nodes"]} == {"promotion_candidate"}
     assert all(node["contract_digest"].startswith("sha256:") for node in promotion["nodes"])
