@@ -1055,13 +1055,26 @@ def test_cli_rejects_internally_inconsistent_baseline_without_output_mutation(tm
     assert output.read_bytes() == b"existing artifact\n"
 
 
-def test_repository_rules_build_the_reviewed_samtools_lane() -> None:
+def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
     queue = build_queue(load_baseline(), load_rules())
 
-    assert queue["summary"]["confirmed_family_nodes"] == 27
+    assert queue["summary"]["confirmed_family_nodes"] == 32
+    by_family = {
+        family_id: sorted(item["node_id"] for item in queue["assignments"] if item["family_id"] == family_id)
+        for family_id in ("bowtie2", "hisat2", "samtools")
+    }
+    assert by_family["bowtie2"] == ["bowtie2_align", "bowtie2_build", "bowtie2_inspect"]
+    assert by_family["hisat2"] == ["hisat2_align", "hisat2_build"]
     assert next(lane for lane in queue["lanes"] if lane["lane_id"] == "samtools")["node_ids"] == sorted(
-        item["node_id"] for item in queue["assignments"] if item["family_id"] == "samtools"
+        by_family["samtools"]
     )
+    assert {
+        family_id: {item["upstream"]["commit"] for item in queue["assignments"] if item["family_id"] == family_id}
+        for family_id in ("bowtie2", "hisat2")
+    } == {
+        "bowtie2": {"0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2"},
+        "hisat2": {"99583d7536b9ee017ac07de8834017a3bf99a2fe"},
+    }
 
 
 def test_confirmed_upstream_identity_is_closed_and_immutable() -> None:
@@ -1144,7 +1157,7 @@ def test_cli_writes_and_checks_exact_canonical_bytes(tmp_path: Path) -> None:
     expected = canonical_json_bytes(build_queue(load_baseline(), load_rules()))
     assert output.read_bytes() == expected
     assert "943 nodes queued" in written.stdout
-    assert "916 pending family review" in checked.stdout
+    assert "911 pending family review" in checked.stdout
 
 
 def test_cli_rejects_duplicate_json_object_members(tmp_path: Path) -> None:

@@ -2,6 +2,44 @@
   "schema_version": 1,
   "confirmed_families": [
     {
+      "family_id": "bowtie2",
+      "ownership": "external_tool",
+      "node_id_prefix": "bowtie2_",
+      "expected_count": 3,
+      "source_module": "bionodulo.nodes.builtin.alignment.bowtie2",
+      "source_path": "bionodulo/nodes/builtin/alignment/bowtie2.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/bowtie2",
+      "fixture_prefix": "bowtie2/",
+      "cloud_job_label": "catalog-bowtie2",
+      "r2_test_prefix": "catalog-tests/bowtie2/",
+      "upstream": {
+        "repository_url": "https://github.com/BenLangmead/bowtie2",
+        "release_tag": "v2.5.5",
+        "tag_object": "0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2",
+        "commit": "0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2",
+        "documentation_url": "https://github.com/BenLangmead/bowtie2/blob/0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2/MANUAL.markdown"
+      }
+    },
+    {
+      "family_id": "hisat2",
+      "ownership": "external_tool",
+      "node_id_prefix": "hisat2_",
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.alignment.hisat2",
+      "source_path": "bionodulo/nodes/builtin/alignment/hisat2.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/hisat2",
+      "fixture_prefix": "hisat2/",
+      "cloud_job_label": "catalog-hisat2",
+      "r2_test_prefix": "catalog-tests/hisat2/",
+      "upstream": {
+        "repository_url": "https://github.com/DaehwanKimLab/hisat2",
+        "release_tag": "v2.2.2",
+        "tag_object": "99583d7536b9ee017ac07de8834017a3bf99a2fe",
+        "commit": "99583d7536b9ee017ac07de8834017a3bf99a2fe",
+        "documentation_url": "https://github.com/DaehwanKimLab/hisat2/blob/99583d7536b9ee017ac07de8834017a3bf99a2fe/docs/_pages/manual.md"
+      }
+    },
+    {
       "family_id": "samtools",
       "ownership": "external_tool",
       "node_id_prefix": "samtools_",
