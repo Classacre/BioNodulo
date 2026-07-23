@@ -73,6 +73,9 @@ class FastQCNode(CommandNode):
     GIT_URL = "https://github.com/s-andrews/FastQC.git"
     GIT_COMMIT = "e7ef390bf10382f60786bdd0cf28abd4f8683ffd"
     UPSTREAM_TAG = "v0.12.1"
+    SOURCE_REF = f"tag {UPSTREAM_TAG} at {GIT_COMMIT}"
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"https://github.com/s-andrews/FastQC/tree/{GIT_COMMIT}"
     UPSTREAM_CLI_SOURCE = "fastqc"
     UPSTREAM_RUNNER_SOURCE = "uk/ac/babraham/FastQC/Analysis/OfflineRunner.java"
     UPSTREAM_ARCHIVE_SOURCE = "uk/ac/babraham/FastQC/Report/HTMLReportArchive.java"

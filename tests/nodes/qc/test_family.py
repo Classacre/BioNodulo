@@ -86,6 +86,8 @@ def test_nodes_pin_exact_official_release_authorities() -> None:
         assert node.GIT_URL == git_url
         assert node.GIT_COMMIT == git_commit
         assert node.UPSTREAM_TAG == tag
+        assert node.SOURCE_REF == f"tag {tag} at {git_commit}"
+        assert node.SOURCE_REVISION == git_commit
         assert node.REQUIRED_EXECUTABLES == [executable]
         assert node.REQUIRED_CONDA_PACKAGES == [executable]
         assert node.SHELL is False

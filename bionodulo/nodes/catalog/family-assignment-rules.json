@@ -102,6 +102,27 @@
       }
     },
     {
+      "family_id": "fastqc",
+      "ownership": "external_tool",
+      "node_ids": [
+        "fastqc"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.qc.fastqc",
+      "source_path": "bionodulo/nodes/builtin/qc/fastqc.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/fastqc",
+      "fixture_prefix": "fastqc/",
+      "cloud_job_label": "catalog-fastqc",
+      "r2_test_prefix": "catalog-tests/fastqc/",
+      "upstream": {
+        "repository_url": "https://github.com/s-andrews/FastQC",
+        "release_tag": "v0.12.1",
+        "tag_object": "e7ef390bf10382f60786bdd0cf28abd4f8683ffd",
+        "commit": "e7ef390bf10382f60786bdd0cf28abd4f8683ffd",
+        "documentation_url": "https://github.com/s-andrews/FastQC/blob/e7ef390bf10382f60786bdd0cf28abd4f8683ffd/README.md"
+      }
+    },
+    {
       "family_id": "gatk_haplotype_caller",
       "ownership": "external_tool",
       "node_ids": [
@@ -196,6 +217,27 @@
         "tag_object": "be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6",
         "commit": "be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6",
         "documentation_url": "https://github.com/pangenome/odgi/tree/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/docs/rst/commands"
+      }
+    },
+    {
+      "family_id": "multiqc",
+      "ownership": "external_tool",
+      "node_ids": [
+        "multiqc"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.qc.multiqc",
+      "source_path": "bionodulo/nodes/builtin/qc/multiqc.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/multiqc",
+      "fixture_prefix": "multiqc/",
+      "cloud_job_label": "catalog-multiqc",
+      "r2_test_prefix": "catalog-tests/multiqc/",
+      "upstream": {
+        "repository_url": "https://github.com/MultiQC/MultiQC",
+        "release_tag": "v1.33",
+        "tag_object": "5953b5417ccb70bf4a2309562d43015fced8b585",
+        "commit": "5953b5417ccb70bf4a2309562d43015fced8b585",
+        "documentation_url": "https://github.com/MultiQC/MultiQC/blob/5953b5417ccb70bf4a2309562d43015fced8b585/docs/markdown/getting_started/running_multiqc.md"
       }
     },
     {

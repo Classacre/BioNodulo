@@ -50,6 +50,9 @@ class MultiQCNode(CommandNode):
     GIT_URL = "https://github.com/MultiQC/MultiQC.git"
     GIT_COMMIT = "5953b5417ccb70bf4a2309562d43015fced8b585"
     UPSTREAM_TAG = "v1.33"
+    SOURCE_REF = f"tag {UPSTREAM_TAG} at {GIT_COMMIT}"
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"https://github.com/MultiQC/MultiQC/tree/{GIT_COMMIT}"
     UPSTREAM_CLI_SOURCE = "multiqc/multiqc.py"
     UPSTREAM_OUTPUT_SOURCE = "multiqc/core/write_results.py"
     UPSTREAM_ERROR_SOURCE = "multiqc/core/exceptions.py"
