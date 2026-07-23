@@ -81,6 +81,27 @@
       }
     },
     {
+      "family_id": "freebayes",
+      "ownership": "external_tool",
+      "node_ids": [
+        "freebayes"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.variant.freebayes",
+      "source_path": "bionodulo/nodes/builtin/variant/freebayes.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/freebayes",
+      "fixture_prefix": "freebayes/",
+      "cloud_job_label": "catalog-freebayes",
+      "r2_test_prefix": "catalog-tests/freebayes/",
+      "upstream": {
+        "repository_url": "https://github.com/freebayes/freebayes",
+        "release_tag": "v1.3.10",
+        "tag_object": "b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993",
+        "commit": "b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993",
+        "documentation_url": "https://github.com/freebayes/freebayes/blob/b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993/README.md"
+      }
+    },
+    {
       "family_id": "hisat2",
       "ownership": "external_tool",
       "node_id_prefix": "hisat2_",

@@ -20,10 +20,15 @@ class FreeBayesNode(IndexedBamReferenceNode):
     OUTPUT_FILENAMES = ("vcf.vcf",)
     REQUIRED_EXECUTABLES = ["freebayes"]
     REQUIRED_CONDA_PACKAGES = ["freebayes"]
-    DOCUMENTATION_URL = "https://github.com/freebayes/freebayes"
+    DOCUMENTATION_URL = (
+        "https://github.com/freebayes/freebayes/blob/b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993/README.md"
+    )
     VERSION = "1.3.10"
     GIT_URL = "https://github.com/freebayes/freebayes.git"
     GIT_COMMIT = "b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993"
+    GIT_TAG = "v1.3.10"
+    SOURCE_REF = f"tag {GIT_TAG} at {GIT_COMMIT}"
+    SOURCE_REVISION = GIT_COMMIT
     SOURCE_URL = f"https://github.com/freebayes/freebayes/tree/{GIT_COMMIT}"
     PACKAGE_CONSTRAINTS = ("freebayes==1.3.10",)
     PACKAGE_CONSTRAINT = "freebayes==1.3.10"
