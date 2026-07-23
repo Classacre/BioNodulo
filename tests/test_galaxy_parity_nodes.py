@@ -4455,8 +4455,8 @@ def test_featurecounts_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "subread" in node_info["search_aliases"]
     assert "featureCounts gene counts" in node_info["search_aliases"]
     assert "RNA-seq read counting" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["alignment"][0] == "SAM"
-    assert node_info["input"]["required"]["alignment"][1]["options"] == ["SAM", "BAM"]
+    assert node_info["input"]["required"]["alignment"][0] == "SAM|BAM"
+    assert "options" not in node_info["input"]["required"]["alignment"][1]
     assert node_info["input"]["optional"]["anno_select"][1]["default"] == "history"
     assert node_info["input"]["optional"]["anno_select"][1]["options"] == ["builtin", "cached", "history"]
     assert node_info["input"]["optional"]["reference_gene_sets"][0] == "GFF_GTF"
@@ -5058,7 +5058,7 @@ def test_abricate_summary_exposes_galaxy_aligned_metadata_and_software_citation(
     assert info["display_name"] == "ABRicate Summary"
     assert info["category"] == "annotation"
     assert info["description"] == "Combine ABRicate reports into a gene presence and coverage matrix."
-    assert info["input"]["required"]["abricate_reports"][0] == "STRING"
+    assert info["input"]["required"]["abricate_reports"][0] == "TSV_LIST"
     assert info["input"]["required"]["abricate_reports"][1]["multiple"] is True
     assert info["output"] == ["TSV"]
     assert info["output_name"] == ["summary"]
@@ -5240,7 +5240,7 @@ def test_staramr_search_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert info["description"] == (
         "Scan bacterial genome assemblies against ResFinder, PointFinder, and PlasmidFinder databases with starAMR."
     )
-    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][0] == "FASTA_LIST"
     assert info["input"]["required"]["genomes"][1]["multiple"] is True
     assert info["input"]["required"]["database"][0] == "DIRECTORY"
     assert info["input"]["optional"]["pointfinder_organism"][1]["default"] == "disabled"
@@ -5427,7 +5427,7 @@ def test_add_input_name_as_column_exposes_galaxy_metadata_without_citation_doi()
     assert info["display_name"] == "Add input name as column"
     assert info["category"] == "data_transform"
     assert info["description"] == "Add the input dataset name as an appended or prepended tabular column."
-    assert info["input"]["required"]["input"][0] == "STRING"
+    assert info["input"]["required"]["input"][0] == "TXT"
     assert info["input"]["required"]["label"][0] == "STRING"
     assert info["input"]["optional"]["contains_header"][1]["default"] == "yes"
     assert info["input"]["optional"]["contains_header"][1]["options"] == ["yes", "no"]
@@ -5840,7 +5840,7 @@ def test_falco_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["input"]["optional"]["input_ext"][1]["options"] == ["fastq", "fastq.gz", "bam", "sam"]
     assert info["input"]["optional"]["contaminants"][0] == "TSV"
     assert info["input"]["optional"]["adapters"][0] == "TSV"
-    assert info["input"]["optional"]["limits"][0] == "STRING"
+    assert info["input"]["optional"]["limits"][0] == "TXT"
     assert info["input"]["optional"]["subsample"][1]["default"] == 1
     assert info["input"]["optional"]["generate_summary"][1]["default"] is False
 
@@ -6121,7 +6121,7 @@ def test_crossmap_bed_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BED" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BED"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
     assert info["input"]["optional"]["chromid"][1]["options"] == ["a", "l", "s"]
     assert info["input"]["optional"]["merge_unmapped_entries"][0] == "BOOLEAN"
@@ -6198,7 +6198,7 @@ def test_crossmap_bam_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BAM" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BAM"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["optional_tags"][0] == "BOOLEAN"
     assert info["input"]["optional"]["insert_size"][1]["default"] == 200.0
     assert info["input"]["optional"]["insert_size_stdev"][1]["default"] == 30.0
@@ -6277,7 +6277,7 @@ def test_crossmap_bw_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BigWig" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BIGWIG"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
 
 
@@ -6334,7 +6334,7 @@ def test_crossmap_gff_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover GFF" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "GFF_GTF"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["include_fails"][0] == "BOOLEAN"
     assert info["input"]["optional"]["include_fails"][1]["default"] is False
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
@@ -6395,7 +6395,7 @@ def test_crossmap_region_exposes_galaxy_metadata_inputs_outputs_and_doi() -> Non
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BED regions" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BED"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["ratio"][1]["default"] == 0.85
     assert info["input"]["optional"]["ratio"][1]["min"] == 0
     assert info["input"]["optional"]["ratio"][1]["max"] == 1
@@ -6477,7 +6477,7 @@ def test_crossmap_vcf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "liftover VCF" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "VCF"
     assert info["input"]["required"]["input_fasta"][0] == "FASTA"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["index_source_s"][1]["options"] == ["cached", "history"]
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
     assert info["input"]["optional"]["no_comp_alleles"][0] == "BOOLEAN"
@@ -6558,7 +6558,7 @@ def test_crossmap_wig_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover Wiggle" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "FILE"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
 
 
@@ -7086,7 +7086,7 @@ def test_calculate_contrast_threshold_exposes_galaxy_metadata_inputs_outputs_and
     assert info["display_name"] == "Calculate Contrast threshold"
     assert info["category"] == "visualization"
     assert info["description"] == "Calculate heatmap contrast thresholds from tag pileup CDT matrices."
-    assert info["input"]["required"]["input_file"][0] == "STRING"
+    assert info["input"]["required"]["input_file"][0] == "TXT"
     assert info["input"]["optional"]["header"][1]["default"] is True
     assert info["input"]["optional"]["start_col"][1]["default"] == 2
     assert info["input"]["optional"]["col_num"][1]["default"] == 300
@@ -8646,7 +8646,7 @@ def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None
     assert info["display_name"] == "AEGeAn CanonGFF3"
     assert info["category"] == "annotation"
     assert info["description"] == "Clean GFF3 annotations so they contain canonical protein-coding gene features."
-    assert info["input"]["required"]["gff3file"][0] == "STRING"
+    assert info["input"]["required"]["gff3file"][0] == "GFF3_LIST"
     assert info["input"]["required"]["gff3file"][1]["multiple"] is True
     assert info["input"]["optional"]["infer"][1]["default"] is False
     assert info["input"]["optional"]["source"][1]["default"] == ""
@@ -8697,8 +8697,8 @@ def test_aegean_gaeval_exposes_galaxy_metadata_without_citation_doi() -> None:
     assert info["display_name"] == "AEGeAn GAEVAL"
     assert info["category"] == "annotation"
     assert info["description"] == "Compute gene model coverage and integrity scores from transcript alignments."
-    assert info["input"]["required"]["alignmentgff3"][0] == "STRING"
-    assert info["input"]["required"]["genesgff3"][0] == "STRING"
+    assert info["input"]["required"]["alignmentgff3"][0] == "GFF3"
+    assert info["input"]["required"]["genesgff3"][0] == "GFF3"
     assert info["input"]["optional"]["alpha"][1]["default"] == 0.6
     assert info["input"]["optional"]["beta"][1]["default"] == 0.3
     assert info["input"]["optional"]["gamma"][1]["default"] == 0.05
@@ -8772,7 +8772,7 @@ def test_aegean_locuspocus_exposes_galaxy_metadata_with_iloci_doi() -> None:
     assert info["display_name"] == "AEGeAn LocusPocus"
     assert info["category"] == "annotation"
     assert info["description"] == "Calculate interval locus coordinates from GFF3 gene annotations."
-    assert info["input"]["required"]["genesgff3"][0] == "STRING"
+    assert info["input"]["required"]["genesgff3"][0] == "GFF3"
     assert info["input"]["optional"]["delta"][1]["default"] == 500
     assert info["input"]["optional"]["mode"][1]["options"] == ["", "--skipends", "--endsonly"]
     assert info["input"]["optional"]["skipiloci"][1]["default"] is False
@@ -8859,8 +8859,8 @@ def test_aegean_parseval_exposes_galaxy_metadata_with_doi() -> None:
     assert info["display_name"] == "AEGeAn ParsEval"
     assert info["category"] == "annotation"
     assert info["description"] == "Compare two GFF3 gene annotation sets for the same sequence."
-    assert info["input"]["required"]["referencegff3"][0] == "STRING"
-    assert info["input"]["required"]["predictiongff3"][0] == "STRING"
+    assert info["input"]["required"]["referencegff3"][0] == "GFF3"
+    assert info["input"]["required"]["predictiongff3"][0] == "GFF3"
     assert info["input"]["optional"]["delta"][1]["default"] == 0
     assert info["input"]["optional"]["maxtrans"][1]["default"] == 32
     assert info["input"]["optional"]["output_type"][1]["options"] == ["text", "html"]
@@ -11294,7 +11294,7 @@ def test_chewbbaca_extractcgmlst_exposes_metadata_inputs_outputs_and_citation() 
     assert info["input"]["required"]["input_file"][0] == "TSV"
     assert info["input"]["optional"]["threshold"][1]["default"] == "0.95 0.99 1"
     assert info["input"]["optional"]["genes2remove"][0] == "TSV"
-    assert info["input"]["optional"]["genomes2remove"][0] == "STRING"
+    assert info["input"]["optional"]["genomes2remove"][0] == "TXT"
 
 
 def test_chewbbaca_extractcgmlst_renders_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -11532,7 +11532,7 @@ def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> N
     assert info["version"] == "1.2.5+galaxy0"
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "lineage-specific marker sets" in info["search_aliases"]
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
     assert info["input"]["optional"]["unique"][1]["default"] == 10
     assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
@@ -11775,7 +11775,7 @@ def test_checkm_tree_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["version"] == "1.2.5+galaxy0"
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm tree" in info["search_aliases"]
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
     assert info["input"]["optional"]["reduced_tree"][1]["default"] is False
     assert info["input"]["optional"]["extra_outputs"][1]["options"] == [
@@ -11950,7 +11950,7 @@ def test_checkm_tree_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert "checkm tree_qa" in info["search_aliases"]
     assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
-    assert info["input"]["required"]["hmmer_tree"][0] == "STRING"
+    assert info["input"]["required"]["hmmer_tree"][0] == "TXT"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["1", "2", "3", "4", "5"]
     assert info["input"]["optional"]["concatenated_tre"][0] == "PHYLOGENY_TREE"
     assert info["input"]["optional"]["concatenated_fasta"][0] == "FASTA"
@@ -12132,7 +12132,7 @@ def test_checkm_lineage_set_exposes_galaxy_metadata_inputs_outputs_and_doi() -> 
     assert "checkm lineage_set" in info["search_aliases"]
     assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
-    assert info["input"]["required"]["hmmer_tree"][0] == "STRING"
+    assert info["input"]["required"]["hmmer_tree"][0] == "TXT"
     assert info["input"]["required"]["concatenated_tre"][0] == "PHYLOGENY_TREE"
     assert info["input"]["optional"]["unique"][1]["default"] == 10
     assert info["input"]["optional"]["multi"][1]["default"] == 10
@@ -12360,7 +12360,7 @@ def test_checkm_taxonomy_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> 
         "species",
     ]
     assert info["input"]["required"]["taxon"][0] == "STRING"
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
     assert info["input"]["optional"]["ali"][1]["default"] is False
     assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
@@ -12565,7 +12565,7 @@ def test_checkm_plot_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["version"] == "1.2.5+galaxy0"
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm plot" in info["search_aliases"]
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["required"]["plot_command"][1]["options"] == [
         "gc_plot",
         "coding_plot",
@@ -12577,7 +12577,7 @@ def test_checkm_plot_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     ]
     assert info["input"]["optional"]["image_type"][1]["options"] == ["eps", "pdf", "png", "svg"]
     assert info["input"]["optional"]["dist_value"][1]["default"] == ""
-    assert info["input"]["optional"]["gff"][0] == "STRING"
+    assert info["input"]["optional"]["gff"][0] == "GFF_LIST"
     assert info["input"]["optional"]["tetra_profile"][0] == "TSV"
     assert info["input"]["optional"]["marker_gene_stats"][0] == "TSV"
 
@@ -12760,7 +12760,7 @@ def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert info["version"] == "1.2.5+galaxy0"
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm analyze" in info["search_aliases"]
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["required"]["marker_file"][0] == "TSV"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
     assert info["input"]["optional"]["ali"][1]["default"] is False
@@ -12899,7 +12899,7 @@ def test_checkm_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["input"]["required"]["marker_file"][0] == "TSV"
     assert info["input"]["required"]["checkm_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_analyze"][0] == "TSV"
-    assert info["input"]["required"]["hmmer_analyze"][0] == "STRING"
+    assert info["input"]["required"]["hmmer_analyze"][0] == "TXT"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
     assert info["input"]["optional"]["extra_outputs"][1]["options"] == ["marker_gene_stats"]
@@ -16199,7 +16199,7 @@ def test_rapidnj_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "RapidNJ" in node_info["search_aliases"]
     assert node_info["version"] == "2.3.2"
-    assert node_info["input"]["required"]["alignments"][0] == "STRING"
+    assert node_info["input"]["required"]["alignments"][0] == "ALIGNMENT"
     assert node_info["input"]["optional"]["output_format"][1]["options"] == ["t", "m"]
     assert node_info["input"]["optional"]["evolution_model"][1]["options"] == ["kim", "jc"]
     assert node_info["input"]["optional"]["alignment_type"][1]["options"] == ["p", "d"]
@@ -19295,7 +19295,7 @@ def test_amplican_exposes_galaxy_metadata_and_citation() -> None:
     assert info["display_name"] == "AmpliCan"
     assert info["category"] == "crispr"
     assert info["description"].startswith("Analyze CRISPR and other genome editing amplicon sequencing")
-    assert info["input"]["required"]["config_file"][0] == "STRING"
+    assert info["input"]["required"]["config_file"][0] == "TXT"
     assert info["input"]["required"]["fastq_files"][0] == "FASTQ_LIST"
     assert info["input"]["required"]["fastq_files"][1]["multiple"] is True
     assert info["input"]["optional"]["outputs"][1]["multiple"] is True
@@ -19702,7 +19702,7 @@ def test_ampvis2_core_exposes_galaxy_metadata_and_citation() -> None:
     assert info["description"] == "Create core-community plots for grouped ampvis2 samples."
     assert info["version"] == "2.8.11+galaxy2"
     assert info["input"]["required"]["data"][0] == "FILE"
-    assert info["input"]["required"]["group_by"][0] == "STRING"
+    assert info["input"]["required"]["group_by"][0] == "STRING_LIST"
     assert info["input"]["required"]["group_by"][1]["multiple"] is True
     assert info["input"]["optional"]["metadata_list"][0] == "TSV"
     assert info["input"]["optional"]["core_pct"][1]["default"] == 80
@@ -21989,7 +21989,7 @@ def test_alphagenome_interval_predictor_exposes_galaxy_metadata_and_citation() -
     assert info["input"]["required"]["input_bed"][0] == "BED"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["output_types"][0] == "STRING"
+    assert info["input"]["optional"]["output_types"][0] == "STRING_LIST"
     assert info["input"]["optional"]["output_types"][1]["default"] == ["RNA_SEQ"]
     assert info["input"]["optional"]["output_types"][1]["multiple"] is True
     assert info["input"]["optional"]["output_types"][1]["options"] == [
@@ -22109,7 +22109,7 @@ def test_alphagenome_ism_scanner_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["required"]["input_bed"][0] == "BED"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["scorers"][0] == "STRING"
+    assert info["input"]["optional"]["scorers"][0] == "STRING_LIST"
     assert info["input"]["optional"]["scorers"][1]["default"] == ["RNA_SEQ", "ATAC"]
     assert info["input"]["optional"]["scorers"][1]["multiple"] is True
     assert info["input"]["optional"]["scorers"][1]["options"] == [
@@ -22236,7 +22236,7 @@ def test_alphagenome_sequence_predictor_exposes_galaxy_metadata_and_citation() -
     assert info["input"]["required"]["input_fasta"][0] == "FASTA"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["output_types"][0] == "STRING"
+    assert info["input"]["optional"]["output_types"][0] == "STRING_LIST"
     assert info["input"]["optional"]["output_types"][1]["default"] == ["RNA_SEQ"]
     assert info["input"]["optional"]["output_types"][1]["multiple"] is True
     assert info["input"]["optional"]["output_types"][1]["options"] == [
@@ -22355,7 +22355,7 @@ def test_alphagenome_variant_effect_exposes_galaxy_metadata_and_citation() -> No
     assert info["input"]["required"]["input_vcf"][0] == "VCF"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["output_types"][0] == "STRING"
+    assert info["input"]["optional"]["output_types"][0] == "STRING_LIST"
     assert info["input"]["optional"]["output_types"][1]["default"] == ["RNA_SEQ"]
     assert info["input"]["optional"]["output_types"][1]["multiple"] is True
     assert info["input"]["optional"]["output_types"][1]["options"] == [
@@ -22459,7 +22459,7 @@ def test_alphagenome_variant_scorer_exposes_galaxy_metadata_and_citation() -> No
     assert info["input"]["required"]["input_vcf"][0] == "VCF"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["scorers"][0] == "STRING"
+    assert info["input"]["optional"]["scorers"][0] == "STRING_LIST"
     assert info["input"]["optional"]["scorers"][1]["default"] == ["RNA_SEQ", "ATAC", "SPLICE_SITES"]
     assert info["input"]["optional"]["scorers"][1]["multiple"] is True
     assert info["input"]["optional"]["scorers"][1]["options"] == [
@@ -26409,7 +26409,7 @@ def test_kraken_report_exposes_galaxy_aligned_inputs_outputs_and_citation() -> N
     assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
     assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
 
-    assert info["input"]["required"]["kraken_output"][0] == "STRING"
+    assert info["input"]["required"]["kraken_output"][0] == "KRAKEN_OUTPUT"
     assert info["input"]["required"]["kraken_output"][1]["description"] == "Taxonomy classification produced by Kraken"
     assert info["input"]["required"]["db"][0] == "DIRECTORY"
     assert info["input"]["hidden"]["output"][0] == "STRING"
@@ -26474,7 +26474,7 @@ def test_kraken_filter_exposes_galaxy_aligned_inputs_outputs_and_citation() -> N
     assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
     assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
 
-    assert info["input"]["required"]["input"][0] == "STRING"
+    assert info["input"]["required"]["input"][0] == "KRAKEN_OUTPUT"
     assert info["input"]["required"]["input"][1]["description"] == "Taxonomy classification produced by Kraken"
     assert info["input"]["required"]["db"][0] == "DIRECTORY"
     assert info["input"]["optional"]["threshold"][0] == "FLOAT"
@@ -33518,9 +33518,12 @@ def test_mashmap_exposes_galaxy_metadata_inputs_outputs_and_verified_dois() -> N
     assert "fast approximate algorithm" in node_info["citation_text"]
     assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "local alignment boundaries" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["query"] == ("STRING", {"multiple": True, "description": "One or more query FASTA or FASTQ sequences"})
+    assert node_info["input"]["required"]["query"] == (
+        "FASTA_LIST",
+        {"multiple": True, "description": "One or more query FASTA or FASTQ sequences"},
+    )
     assert node_info["input"]["required"]["reflist"] == (
-        "STRING",
+        "FASTA_LIST",
         {"multiple": True, "description": "One or more reference FASTA or FASTQ sequences"},
     )
     assert node_info["input"]["optional"]["perc_identity"][1]["default"] == 85.0
@@ -37145,7 +37148,7 @@ def test_drep_compare_renders_genome_comparison_command_outputs_and_validation(t
         "mdb",
         "ndb",
     ]
-    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][0] == "FASTA_LIST"
     assert info["input"]["required"]["genomes"][1]["multiple"] is True
     assert info["input"]["required"]["genomes"][1]["min"] == 2
     assert info["input"]["optional"]["comparison_steps"][1]["options"] == ["default", "SkipMash", "SkipSecondary"]
@@ -37252,7 +37255,7 @@ def test_drep_dereplicate_renders_dereplication_command_outputs_and_validation(t
         "widb",
         "chdb",
     ]
-    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][0] == "FASTA_LIST"
     assert info["input"]["required"]["genomes"][1]["multiple"] is True
     assert info["input"]["optional"]["quality_source"][1]["options"] == ["checkm", "genomeInfo", "ignoreGenomeQuality"]
     assert "10.1038/ismej.2017.126" in info["citation_dois"]
@@ -40510,8 +40513,8 @@ def test_heinz_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "protein-protein interaction networks" in info["search_aliases"]
     assert info["version"] == "1.0"
-    assert info["input"]["required"]["score"][0] == "STRING"
-    assert info["input"]["required"]["edge"][0] == "STRING"
+    assert info["input"]["required"]["score"][0] == "TXT"
+    assert info["input"]["required"]["edge"][0] == "TXT"
     assert info["input"]["optional"]["threads"][1]["default"] == 2
 
 
@@ -40570,13 +40573,13 @@ def test_heinz_scoring_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert "Heinz score" in info["search_aliases"]
     assert "BUM model" in info["search_aliases"]
     assert info["version"] == "1.0"
-    assert info["input"]["required"]["node"][0] == "STRING"
+    assert info["input"]["required"]["node"][0] == "TXT"
     assert info["input"]["optional"]["FDR"][1]["default"] == 0.5
     assert info["input"]["optional"]["FDR"][1]["min"] == 0
     assert info["input"]["optional"]["FDR"][1]["max"] == 1
     assert info["input"]["optional"]["input_type_selector"][1]["default"] == "bum_output"
     assert info["input"]["optional"]["input_type_selector"][1]["options"] == ["bum_output", "bum_type"]
-    assert info["input"]["optional"]["input_bum"][0] == "STRING"
+    assert info["input"]["optional"]["input_bum"][0] == "TXT"
     assert info["input"]["optional"]["lambda_param"][1]["default"] == 0.5
     assert info["input"]["optional"]["alpha"][1]["default"] == 0.5
     assert info["input"]["optional"]["script_path"][1]["default"] == ""
@@ -42329,7 +42332,7 @@ def test_ucsc_maffrags_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["input"]["optional"]["meFirst"][0] == "BOOLEAN"
     assert info["input"]["optional"]["txStarts"][0] == "BOOLEAN"
     assert info["input"]["optional"]["refCoords"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["orgs"][0] == "STRING"
+    assert info["input"]["optional"]["orgs"][0] == "TXT"
     assert info["input"]["optional"]["ucsc_db_connection"][0] == "FILE"
 
 

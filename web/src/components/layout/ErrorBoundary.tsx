@@ -55,7 +55,6 @@ export default class ErrorBoundary extends Component<Props, State> {
     logError(scope, error);
     // componentStack lives on errorInfo, not error — keep it visible in
     // DevTools without folding it into the structured log payload.
-    // eslint-disable-next-line no-console
     console.error(`[${scope}] componentStack`, errorInfo.componentStack);
   }
 

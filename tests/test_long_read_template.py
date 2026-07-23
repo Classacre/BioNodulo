@@ -187,7 +187,9 @@ def test_long_read_selected_fastq_path_uses_explicit_type_refinement() -> None:
     editor_info = registry.object_info()
     demux_info = editor_info["dorado_demux"]
     assert demux_info["output"][demux_info["output_name"].index("selected_bam")] == "BAM"
-    assert "BAM" in editor_info["samtools_fastx"]["input"]["required"]["input"][1]["options"]
+    fastx_input = editor_info["samtools_fastx"]["input"]["required"]["input"]
+    assert fastx_input[0] == "SAM|BAM|CRAM"
+    assert "options" not in fastx_input[1]
     assert editor_info["samtools_fastx"]["output"][0] == "FILE"
     assert editor_info["data_validator"]["input"]["required"]["input"][0] == "*"
     validated_fastq_index = editor_info["data_validator"]["output_name"].index("validated_fastq")

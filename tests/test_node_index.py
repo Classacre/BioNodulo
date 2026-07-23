@@ -20,7 +20,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from bionodulo.nodes.registry import NodeRegistry  # noqa: E402
+from bionodulo.nodes.registry import NodeRegistry, _to_frontend_input_spec  # noqa: E402
 
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 import gen_node_index  # noqa: E402
@@ -122,6 +122,78 @@ def test_node_metadata_is_fresh():
     live = json.loads(json.dumps(gen_node_index.build_metadata(), sort_keys=True))
     committed = json.loads((_REPO_ROOT / "bionodulo/nodes/node_metadata.json").read_text())
     assert committed == live, "node_metadata.json is stale — run `python scripts/gen_node_index.py`"
+
+
+def test_frontend_metadata_distinguishes_socket_unions_from_enum_options():
+    socket_type, socket_config = _to_frontend_input_spec(
+        (("SAM", "BAM"), {"description": "Alignment input"})
+    )
+    enum_type, enum_config = _to_frontend_input_spec(
+        (["fastq", "fasta"], {"default": "fastq"})
+    )
+
+    assert socket_type == "SAM|BAM"
+    assert socket_config == {"description": "Alignment input"}
+    assert enum_type == "STRING"
+    assert enum_config == {"default": "fastq", "options": ["fastq", "fasta"]}
+    assert _to_frontend_input_spec(("QC_REPORT_DIR", {}))[0] == "QC_REPORT_DIR"
+
+
+def test_official_template_edges_have_renderable_editor_handles():
+    """Every bundled edge must attach to a port the editor actually renders."""
+    metadata = json.loads((_REPO_ROOT / "bionodulo/nodes/node_metadata.json").read_text())
+    widget_types = {"STRING", "INT", "FLOAT", "BOOLEAN", "COMBO"}
+    failures: list[str] = []
+
+    for template_path in sorted((_REPO_ROOT / "templates").glob("*.json")):
+        workflow = json.loads(template_path.read_text(encoding="utf-8"))
+        nodes = {str(node["id"]): node for node in workflow.get("nodes", [])}
+        for edge in workflow.get("edges", []):
+            edge_id = str(edge.get("id", "<unnamed>"))
+            source = edge.get("from", {})
+            target = edge.get("to", {})
+            source_node = nodes.get(str(source.get("node")))
+            target_node = nodes.get(str(target.get("node")))
+            if source_node is None or target_node is None:
+                failures.append(f"{template_path.name}:{edge_id}: missing endpoint node")
+                continue
+
+            source_meta = metadata.get(str(source_node.get("type")))
+            target_meta = metadata.get(str(target_node.get("type")))
+            if source_meta is None or target_meta is None:
+                failures.append(f"{template_path.name}:{edge_id}: missing node metadata")
+                continue
+
+            source_handle = str(source.get("output"))
+            if source_handle not in source_meta.get("output_name", []):
+                failures.append(
+                    f"{template_path.name}:{edge_id}: missing source handle {source_handle!r}"
+                )
+
+            visible_inputs = {
+                **target_meta.get("input", {}).get("required", {}),
+                **target_meta.get("input", {}).get("optional", {}),
+            }
+            target_handle = str(target.get("input"))
+            spec = visible_inputs.get(target_handle)
+            if not isinstance(spec, list) or len(spec) < 2:
+                failures.append(
+                    f"{template_path.name}:{edge_id}: missing target handle {target_handle!r}"
+                )
+                continue
+
+            input_type, config = str(spec[0]), spec[1]
+            config = config if isinstance(config, dict) else {}
+            is_widget = (
+                input_type in widget_types or bool(config.get("options"))
+            ) and not config.get("forceInput") and not config.get("link")
+            promoted = target_handle in target_node.get("ui", {}).get("promotedInputs", [])
+            if is_widget and not promoted:
+                failures.append(
+                    f"{template_path.name}:{edge_id}: target {target_handle!r} renders as a widget"
+                )
+
+    assert failures == [], "\n".join(failures)
 
 
 def test_every_indexed_node_is_lazily_resolvable():

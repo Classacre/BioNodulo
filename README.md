@@ -67,7 +67,7 @@ cd ..
 ### Running
 
 ```bash
-# Start the server
+# Start the built application on the default port
 python main.py
 
 # Or with options
@@ -81,6 +81,16 @@ python main.py --config bionodulo.yaml
 ```
 
 Then open http://localhost:8000 in your browser.
+
+For frontend development, run the backend on the port configured in
+`web/vite.config.ts` and Vite on port 5173 with one command:
+
+```bash
+make dev
+```
+
+Then open http://localhost:5173. To run the processes in separate terminals,
+use `make dev-backend` and `make dev-web`; the backend listens on port 8765.
 
 ### Using HPC Mode
 

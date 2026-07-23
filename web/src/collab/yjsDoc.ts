@@ -49,7 +49,7 @@ function validId(id: unknown): id is string {
 
 function serializeNode(node: WorkflowNode): Record<string, unknown> {
   // Strip node_info from Yjs storage (reconstructible from type)
-  const { node_info, ...rest } = node;
+  const { node_info: _nodeInfo, ...rest } = node;
   return cleanForYjs(rest);
 }
 
@@ -110,7 +110,7 @@ function serializeParameters(parameters: WorkflowParameter[] | undefined): Recor
 
 function serializeComment(comment: Comment): Record<string, unknown> {
   // `replies` is derived for the UI; store only the flat fields.
-  const { replies, ...rest } = comment;
+  const { replies: _replies, ...rest } = comment;
   return cleanForYjs(rest);
 }
 
