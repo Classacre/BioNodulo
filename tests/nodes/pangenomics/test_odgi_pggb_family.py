@@ -115,6 +115,9 @@ def test_odgi_metadata_is_pinned_to_the_audited_source() -> None:
         assert node_class.VERSION == "0.9.2"
         assert node_class.UPSTREAM_TAG == "v0.9.2"
         assert node_class.GIT_COMMIT == "be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6"
+        assert node_class.SOURCE_REF == f"tag v0.9.2 at {node_class.GIT_COMMIT}"
+        assert node_class.SOURCE_REVISION == node_class.GIT_COMMIT
+        assert node_class.AUDIT_STATUS == "contract-checked-no-external-execution"
         assert node_class.BIOCONDA_RECIPE_COMMIT == "aac8e6e4ee3d12bd497495dddfc32825393c35da"
         assert node_class.UPSTREAM_SOURCE
         assert node_class.CITATION_DOIS == ["10.1093/bioinformatics/btac308"]

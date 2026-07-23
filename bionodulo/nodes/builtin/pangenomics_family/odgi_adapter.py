@@ -101,6 +101,10 @@ class ODGICommandNode(CommandNode):
     DOCUMENTATION_URL = (
         "https://github.com/pangenome/odgi/tree/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/docs/rst/commands"
     )
+    SOURCE_REF = f"tag v0.9.2 at {GIT_COMMIT}"
+    SOURCE_REVISION = GIT_COMMIT
+    SOURCE_URL = f"https://github.com/pangenome/odgi/tree/{GIT_COMMIT}"
+    AUDIT_STATUS = "contract-checked-no-external-execution"
     CITATION_DOIS = ["10.1093/bioinformatics/btac308"]
     CITATION_URLS = ["https://doi.org/10.1093/bioinformatics/btac308"]
     CITATION_TEXT = "Guarracino et al. ODGI: understanding pangenome graphs. Bioinformatics (2022)."

@@ -1058,10 +1058,10 @@ def test_cli_rejects_internally_inconsistent_baseline_without_output_mutation(tm
 def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
     queue = build_queue(load_baseline(), load_rules())
 
-    assert queue["summary"]["confirmed_family_nodes"] == 42
+    assert queue["summary"]["confirmed_family_nodes"] == 47
     by_family = {
         family_id: sorted(item["node_id"] for item in queue["assignments"] if item["family_id"] == family_id)
-        for family_id in ("bismark", "bowtie2", "hisat2", "kallisto", "macs2", "salmon", "samtools")
+        for family_id in ("bismark", "bowtie2", "hisat2", "kallisto", "macs2", "odgi", "salmon", "samtools")
     }
     assert by_family["bismark"] == [
         "bismark_align",
@@ -1073,19 +1073,21 @@ def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
     assert by_family["hisat2"] == ["hisat2_align", "hisat2_build"]
     assert by_family["kallisto"] == ["kallisto_index", "kallisto_quant"]
     assert by_family["macs2"] == ["macs2_bdgpeak", "macs2_callpeak"]
+    assert by_family["odgi"] == ["odgi_build", "odgi_stats", "odgi_view", "odgi_visualize", "odgi_viz"]
     assert by_family["salmon"] == ["salmon_index", "salmon_quant"]
     assert next(lane for lane in queue["lanes"] if lane["lane_id"] == "samtools")["node_ids"] == sorted(
         by_family["samtools"]
     )
     assert {
         family_id: {item["upstream"]["commit"] for item in queue["assignments"] if item["family_id"] == family_id}
-        for family_id in ("bismark", "bowtie2", "hisat2", "kallisto", "macs2", "salmon")
+        for family_id in ("bismark", "bowtie2", "hisat2", "kallisto", "macs2", "odgi", "salmon")
     } == {
         "bismark": {"e552b8f307a7041bcebed8f8e5a764ebcf7b046c"},
         "bowtie2": {"0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2"},
         "hisat2": {"99583d7536b9ee017ac07de8834017a3bf99a2fe"},
         "kallisto": {"4e9f29cf3b021260415430c057a22469ca081391"},
         "macs2": {"1afcae6a09ced8cf9bb1e87c44dd58f7d7e4891c"},
+        "odgi": {"be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6"},
         "salmon": {"d53fed6f0af6966a40825558f0edf71b6df7cf52"},
     }
 
@@ -1170,7 +1172,7 @@ def test_cli_writes_and_checks_exact_canonical_bytes(tmp_path: Path) -> None:
     expected = canonical_json_bytes(build_queue(load_baseline(), load_rules()))
     assert output.read_bytes() == expected
     assert "943 nodes queued" in written.stdout
-    assert "901 pending family review" in checked.stdout
+    assert "896 pending family review" in checked.stdout
 
 
 def test_cli_rejects_duplicate_json_object_members(tmp_path: Path) -> None:
