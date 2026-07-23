@@ -662,6 +662,42 @@ def test_featurecounts_long_read_mode_enforces_source_thread_and_read_constraint
     )
 
 
+def test_featurecounts_matches_source_mapq_bound_and_literal_header_rewrite(tmp_path: Path) -> None:
+    """The 2.1.1 CLI rejects MAPQ >255 and headers may contain literal path characters."""
+
+    alignment = _materialize_file(tmp_path / "reads|control.bam", "BAM\n")
+    assert FeatureCountsNode.VALIDATE_INPUTS(
+        {"alignment": alignment, "anno_select": "builtin", "mapping_quality": 255}
+    ) is True
+    assert "mapping_quality must be <= 255" in str(
+        FeatureCountsNode.VALIDATE_INPUTS(
+            {"alignment": alignment, "anno_select": "builtin", "mapping_quality": 256}
+        )
+    )
+
+    command = FeatureCountsNode.render_command(
+        {
+            "alignment": alignment,
+            "anno_select": "builtin",
+            "output": str(tmp_path / "featurecounts"),
+        }
+    )
+    assert "sed -e 's#" in command
+    assert "reads|control\\.bam#reads|control.bam#g'" in command
+
+    windows_style = r"/work/paired\\reads.bam"
+    assignment_command = FeatureCountsNode.render_command(
+        {
+            "alignment": windows_style,
+            "anno_select": "builtin",
+            "R": True,
+            "output": str(tmp_path / "featurecounts"),
+        }
+    )
+    assert "paired\\\\reads.bam.featureCounts.bam" not in assignment_command
+    assert "reads.bam.featureCounts.bam" in assignment_command
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("include_feature_lengths", "annotate_bam", "count_junctions"),

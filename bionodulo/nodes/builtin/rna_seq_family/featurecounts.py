@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,34 @@ def _validate_file(value: str, name: str) -> bool | str:
     except OSError as exc:
         return f"cannot inspect {name} file {path}: {exc}"
     return True
+
+
+def _sed_sample_expression(alignment: str, label: str) -> str:
+    """Build a literal, shell-safe sed substitution for featureCounts headers.
+
+    featureCounts writes the input path verbatim in its count and summary
+    headers.  The old wrapper interpolated that path directly into a ``sed``
+    expression, so a perfectly valid filename containing ``|`` (or a BRE
+    metacharacter) made the post-processing command fail or rewrite the wrong
+    text.  Preserve the historical expression for ordinary names, but switch
+    to an escaped expression whenever the values need it.
+    """
+
+    if not any(character in alignment + label for character in "|\\&[]^$*#\n\r"):
+        return f"s|{alignment}|{label}|g"
+
+    def _pattern(value: str) -> str:
+        value = value.replace("\\", "\\\\")
+        for character in ".[]^$*#":
+            value = value.replace(character, f"\\{character}")
+        return value
+
+    def _replacement(value: str) -> str:
+        value = value.replace("\\", "\\\\")
+        value = value.replace("&", r"\&")
+        return value.replace("#", r"\#")
+
+    return f"s#{_pattern(alignment)}#{_replacement(label)}#g"
 
 
 class FeatureCountsNode(CommandNode):
@@ -116,7 +145,10 @@ class FeatureCountsNode(CommandNode):
 
     @classmethod
     def _sample_label(cls, alignment: str) -> str:
-        return str(Path(alignment).name) if alignment else ""
+        # Subread's get_short_fname treats both slash styles as separators,
+        # even on POSIX workers.  Match that behavior so --R output names are
+        # resolved to the same ``<basename>.featureCounts.bam`` artifact.
+        return re.split(r"[\\/]", alignment)[-1] if alignment else ""
 
     @classmethod
     def _counts_command(cls, inputs: dict[str, Any]) -> list[str]:
@@ -219,7 +251,9 @@ class FeatureCountsNode(CommandNode):
         out = _out(inputs)
         alignment = cls._alignment(inputs)
         label = cls._sample_label(alignment)
-        sed_sample = _shell_join(["sed", "-e", f"s|{alignment}|{label}|g"])
+        sed_sample = _shell_join(
+            ["sed", "-e", _sed_sample_expression(alignment, label)]
+        )
         commands = [
             "export FC_PATH=$(command -v featureCounts | sed 's@/bin/featureCounts$@@')",
             _shell_join(cls._counts_command(inputs)).replace("'${FC_PATH}/", "${FC_PATH}/").replace(".txt'", ".txt"),
@@ -339,6 +373,11 @@ class FeatureCountsNode(CommandNode):
         mapping_quality = int(inputs.get("mapping_quality", 0))
         if mapping_quality < 0:
             return "mapping_quality must be >= 0"
+        # featureCounts parses -Q with is_valid_digit_range(..., 0, 255)
+        # (src/readSummary.c); values above the SAM MAPQ byte range fail in
+        # the executable and must be rejected at the node boundary.
+        if mapping_quality > 255:
+            return "mapping_quality must be <= 255"
         for key in ("frac_overlap", "frac_overlap_feature"):
             value = float(inputs.get(key, 0))
             if value < 0 or value > 1:
@@ -444,7 +483,7 @@ class FeatureCountsNode(CommandNode):
                 "check_distance": ("BOOLEAN", {"default": False, "advanced": True}),
                 "minimum_fragment_length": ("INT", {"default": 50, "min": 0, "advanced": True}),
                 "maximum_fragment_length": ("INT", {"default": 600, "min": 1, "advanced": True}),
-                "mapping_quality": ("INT", {"default": 0, "min": 0}),
+                "mapping_quality": ("INT", {"default": 0, "min": 0, "max": 255}),
                 "splitonly": ("STRING", {"default": "", "options": cls.SPLITONLY_OPTIONS, "advanced": True}),
                 "primary": ("BOOLEAN", {"default": False, "advanced": True}),
                 "ignore_dup": ("BOOLEAN", {"default": False, "advanced": True}),
