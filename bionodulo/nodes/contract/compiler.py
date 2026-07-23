@@ -23,7 +23,6 @@ import json
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Any
 
 from bionodulo.nodes.catalog.artifacts import ARTIFACT_REGISTRY
@@ -105,9 +104,9 @@ def _json_model(value: Any) -> Any:
 class CompiledCatalog:
     """Immutable in-memory catalog projections.
 
-    The dictionaries are copied by the compiler and exposed through read-only
-    mapping wrappers at the top level.  Values are JSON-compatible primitives,
-    so callers can safely serialize them or pass them to the registry.
+    The dictionaries contain only JSON-compatible primitives, so callers can
+    serialize them directly or pass them to the registry.  ``NodeSpec`` values
+    themselves remain immutable Pydantic models.
     """
 
     specs: tuple[NodeSpec, ...]
@@ -130,7 +129,7 @@ class CompiledCatalog:
         """The ID-keyed lazy-index entries without document metadata."""
 
         nodes = self.node_index.get("nodes", self.node_index)
-        return nodes if isinstance(nodes, Mapping) else MappingProxyType({})
+        return nodes if isinstance(nodes, Mapping) else {}
 
     @property
     def catalog_lock(self) -> Mapping[str, Any]:
@@ -297,11 +296,19 @@ class CatalogCompiler:
             ui_nodes[stable_id] = {
                 "identity": _json_model(spec.identity),
                 "presentation": _json_model(spec.presentation),
-                "artifact_inputs": [_json_model(item) for item in spec.artifact_inputs],
-                "value_inputs": [_json_model(item) for item in spec.value_inputs],
-                "parameters": [_json_model(item) for item in spec.parameters],
-                "secrets": [_json_model(item) for item in spec.secrets],
-                "outputs": [_json_model(item) for item in spec.outputs],
+                "artifact_inputs": [
+                    _json_model(item) for item in sorted(spec.artifact_inputs, key=lambda item: item.port_id)
+                ],
+                "value_inputs": [
+                    _json_model(item) for item in sorted(spec.value_inputs, key=lambda item: item.port_id)
+                ],
+                "parameters": [
+                    _json_model(item) for item in sorted(spec.parameters, key=lambda item: item.parameter_id)
+                ],
+                "secrets": [
+                    _json_model(item) for item in sorted(spec.secrets, key=lambda item: item.secret_id)
+                ],
+                "outputs": [_json_model(item) for item in sorted(spec.outputs, key=lambda item: item.port_id)],
                 "status": status,
                 "contract_digest": spec.contract_digest(),
             }
@@ -335,16 +342,14 @@ class CatalogCompiler:
                 spec.identity.stable_id: spec.contract_digest() for spec in ordered
             },
         }
-        # MappingProxyType prevents accidental mutation of top-level generated
-        # documents while preserving ordinary dict semantics for serialization.
         return CompiledCatalog(
             specs=ordered,
             catalog_digest=catalog_digest,
-            node_index=MappingProxyType(node_index_document),
-            runtime=MappingProxyType(runtime),
-            ui=MappingProxyType(ui),
-            compatibility=MappingProxyType(compatibility_document),
-            lock=MappingProxyType(lock),
+            node_index=node_index_document,
+            runtime=runtime,
+            ui=ui,
+            compatibility=compatibility_document,
+            lock=lock,
         )
 
     def _module_specs(self, module: Any, module_name: str) -> tuple[NodeSpec, ...]:
