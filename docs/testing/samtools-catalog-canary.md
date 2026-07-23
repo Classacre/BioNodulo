@@ -18,7 +18,7 @@ top-level field to the request body:
   "no_cache": true,
   "catalog_canary": {
     "profile": "samtools-first-wave",
-    "catalog_digest": "sha256:f070be36e0215603d7b5affb371fd1c6c528b02f996e4a1f145e6b2d2d467530"
+    "catalog_digest": "sha256:bee248d86257ab760c9492f0774ab5195d82f0743f46412ed81726ecba50ce52"
   }
 }
 ```
@@ -43,14 +43,17 @@ The disposable cloud worker must contain:
 - The exact application revision used to build the image, including all six
   generated catalog documents and this canary bridge.
 - Pixi and the committed environment bundle at
-  `bionodulo/environments/locks/7d209cfa47f8a01a/`.
+  `bionodulo/environments/locks/40db091121c94941/`.
 - `pixi.lock` SHA-256
-  `918389cd4bc1f2a934e953317c4e160b505232fb8fc3e2795d9897a3b87a32b7`.
+  `da58ebe2f489d3d740f23c302e9495ab23068491bad714f605438a92fb8afaa4`.
 - Samtools package `samtools-1.23.1-ha83d96e_0.conda`, SHA-256
   `2cb721907a2df7c54580298d655ae7587dbed593bd5536fa8ef4a22c9ae2a496`.
 - The environment installed during image build with the committed lock
-  (`pixi install --locked`), with that environment's `samtools` on the worker
-  process `PATH`. Runtime execution must not perform a fresh solve.
+  (`pixi install --locked`) under
+  `/opt/bionodulo-catalog-envs/40db091121c94941`. The canary validates the
+  committed manifest and lock bytes and invokes that environment's absolute
+  `samtools` path. Runtime execution must not perform a fresh solve or fall
+  back to an ambient `samtools`.
 - Outbound HTTPS access to the commit-pinned `tiny.sam` raw GitHub URL in the
   fixture. The bridge verifies downloaded bytes against SHA-256
   `0b621dee8e14e8ebf5e52772c3c6695b47c312e5190b52591644ce872ee422c7`.

@@ -15,6 +15,10 @@ cache/
 workspace/
 envs/
 environments/
+# The worker image bakes promotion-canary locks from the application package.
+# Keep root runtime caches excluded while retaining committed lock bundles.
+!bionodulo/environments/
+!bionodulo/environments/**
 SPEC.md
 examples/
 *.fq

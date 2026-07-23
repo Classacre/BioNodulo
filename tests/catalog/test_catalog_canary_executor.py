@@ -8,15 +8,18 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from bionodulo.execution import catalog_canary as catalog_canary_module
 from bionodulo.execution.arq_executor import ArqWorkflowExecutor
 from bionodulo.execution.catalog_canary import (
     CANARY_OPTION,
     CatalogCanaryError,
     CatalogCanaryRunner,
     SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST,
+    SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID,
     SAMTOOLS_FIRST_WAVE_INPUT_SHA256,
     SAMTOOLS_FIRST_WAVE_INPUT_URL,
     SAMTOOLS_FIRST_WAVE_PROFILE,
+    validate_catalog_canary_environment,
 )
 from bionodulo.execution.executor import ExecutionContext, WorkflowExecutor
 from bionodulo.nodes.builtin.input_family.file import InputFileNode
@@ -28,6 +31,36 @@ CANARY_SELECTOR = {
     "profile": SAMTOOLS_FIRST_WAVE_PROFILE,
     "catalog_digest": SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST,
 }
+
+
+@pytest.fixture(autouse=True)
+def _installed_catalog_canary_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> Path:
+    """Provide the immutable image layout without installing bioinformatics tools."""
+
+    environment_root = tmp_path / "catalog-envs" / SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID
+    committed_root = (
+        Path(__file__).resolve().parents[2]
+        / "bionodulo"
+        / "environments"
+        / "locks"
+        / SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID
+    )
+    environment_root.mkdir(parents=True)
+    shutil.copy2(committed_root / "pixi.toml", environment_root / "pixi.toml")
+    shutil.copy2(committed_root / "pixi.lock", environment_root / "pixi.lock")
+    executable = environment_root / ".pixi" / "envs" / "default" / "bin" / "samtools"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o755)
+    monkeypatch.setattr(
+        catalog_canary_module,
+        "SAMTOOLS_FIRST_WAVE_ENV_ROOT",
+        environment_root,
+    )
+    return environment_root
 
 
 class RejectingLegacyRegistry:
@@ -70,7 +103,8 @@ def _fake_samtools_runner(commands: list[list[str]]):
     ) -> dict[str, Any]:
         del kwargs
         assert isinstance(cmd, list)
-        assert cmd[:1] == ["samtools"]
+        assert Path(cmd[0]).is_absolute()
+        assert Path(cmd[0]).name == "samtools"
         commands.append(cmd)
         operation = cmd[1]
         stdout = ""
@@ -171,6 +205,8 @@ async def test_explicit_canary_executes_typed_plans_without_legacy_lookup(
 
     metadata = result["metadata"][CANARY_OPTION]
     assert metadata["catalog_digest"] == SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST
+    assert metadata["environment"]["environment_id"] == SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID
+    assert metadata["environment"]["packages"] == ["samtools==1.23.1"]
     assert metadata["provenance_embedding"] is False
     assert len(metadata["nodes"]) == 8
     assert metadata["nodes"]["input_001"] == {
@@ -280,6 +316,35 @@ def test_quarantined_status_in_generated_documents_fails_closed(tmp_path: Path) 
             catalog_digest=SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST,
             generated_dir=tmp_path,
         )
+
+
+def test_catalog_canary_environment_preflight_returns_exact_image_runtime() -> None:
+    environment = validate_catalog_canary_environment(CANARY_SELECTOR)
+
+    assert environment["environment_id"] == SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID
+    assert environment["lock_sha256"] == (
+        "sha256:da58ebe2f489d3d740f23c302e9495ab23068491bad714f605438a92fb8afaa4"
+    )
+    assert environment["packages"] == ["samtools==1.23.1"]
+    assert Path(environment["executable"]).name == "samtools"
+
+
+def test_catalog_canary_environment_preflight_rejects_changed_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    environment_root = tmp_path / "tampered-env"
+    environment_root.mkdir()
+    (environment_root / "pixi.toml").write_text("changed\n", encoding="utf-8")
+    (environment_root / "pixi.lock").write_text("changed\n", encoding="utf-8")
+    monkeypatch.setattr(
+        catalog_canary_module,
+        "SAMTOOLS_FIRST_WAVE_ENV_ROOT",
+        environment_root,
+    )
+
+    with pytest.raises(CatalogCanaryError, match="manifest digest mismatch"):
+        validate_catalog_canary_environment(CANARY_SELECTOR)
 
 
 @pytest.mark.asyncio

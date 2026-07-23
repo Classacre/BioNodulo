@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import os
 import platform
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -29,7 +30,7 @@ CANARY_OPTION = "catalog_canary"
 CANARY_NODE_MARKER = "_catalog_canary_runner"
 SAMTOOLS_FIRST_WAVE_PROFILE = "samtools-first-wave"
 SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST = (
-    "sha256:f070be36e0215603d7b5affb371fd1c6c528b02f996e4a1f145e6b2d2d467530"
+    "sha256:bee248d86257ab760c9492f0774ab5195d82f0743f46412ed81726ecba50ce52"
 )
 SAMTOOLS_FIRST_WAVE_MACHINE_IDS = frozenset(
     {
@@ -43,10 +44,17 @@ SAMTOOLS_FIRST_WAVE_MACHINE_IDS = frozenset(
     }
 )
 SAMTOOLS_FIRST_WAVE_LOCK_SHA256 = (
-    "sha256:918389cd4bc1f2a934e953317c4e160b505232fb8fc3e2795d9897a3b87a32b7"
+    "sha256:da58ebe2f489d3d740f23c302e9495ab23068491bad714f605438a92fb8afaa4"
+)
+SAMTOOLS_FIRST_WAVE_MANIFEST_SHA256 = (
+    "sha256:d75e6a1c8420b9adafb9171604266b93d8890c47023af7c059843a0a279eec4e"
 )
 SAMTOOLS_FIRST_WAVE_PACKAGE_SHA256 = (
     "sha256:2cb721907a2df7c54580298d655ae7587dbed593bd5536fa8ef4a22c9ae2a496"
+)
+SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID = "40db091121c94941"
+SAMTOOLS_FIRST_WAVE_ENV_ROOT = (
+    Path("/opt/bionodulo-catalog-envs") / SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID
 )
 SAMTOOLS_FIRST_WAVE_INPUT_TYPE = "input_file"
 SAMTOOLS_FIRST_WAVE_INPUT_URL = (
@@ -167,6 +175,7 @@ class CatalogCanaryRunner:
             self._validate_entry(entry)
             profile_ids.add(str(entry["node_id"]))
         self._profile_node_ids = frozenset(profile_ids)
+        self._samtools_executable = self._validate_environment()
 
     @classmethod
     def from_options(
@@ -257,8 +266,22 @@ class CatalogCanaryRunner:
             "required_platform": "linux/amd64",
             "required_environment_lock_sha256": SAMTOOLS_FIRST_WAVE_LOCK_SHA256,
             "required_samtools_package_sha256": SAMTOOLS_FIRST_WAVE_PACKAGE_SHA256,
+            "environment": self.environment_metadata(),
             "provenance_embedding": False,
             "nodes": {},
+        }
+
+    def environment_metadata(self) -> dict[str, Any]:
+        """Return the immutable preinstalled environment selected by this run."""
+
+        return {
+            "environment_id": SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID,
+            "lock_sha256": SAMTOOLS_FIRST_WAVE_LOCK_SHA256,
+            "manifest_sha256": SAMTOOLS_FIRST_WAVE_MANIFEST_SHA256,
+            "packages": ["samtools==1.23.1"],
+            "platform": "linux-64",
+            "prefix": str(self._samtools_executable.parent.parent),
+            "executable": str(self._samtools_executable),
         }
 
     def metadata_class(self, node_type: str) -> type[Any]:
@@ -367,8 +390,14 @@ class CatalogCanaryRunner:
         node_metadata = canary_metadata.setdefault("nodes", {})
         node_metadata[context.node_id] = node_attestation
 
+        argv = list(plan.token_array())
+        if not argv or argv[0] != "samtools":
+            raise CatalogCanaryError(
+                f"catalog canary plan for {resolved.entry['node_id']} did not select samtools"
+            )
+        argv[0] = str(self._samtools_executable)
         process = await context.run_command(
-            list(plan.token_array()),
+            argv,
             cwd=context.node_dir,
             timeout=plan.resources.wall_timeout_seconds,
         )
@@ -468,6 +497,34 @@ class CatalogCanaryRunner:
                 raise CatalogCanaryError(f"catalog promotion {key} mismatch for {node_id}")
 
     @staticmethod
+    def _validate_environment() -> Path:
+        """Resolve the exact image-baked Samtools binary or fail closed."""
+
+        root = Path(SAMTOOLS_FIRST_WAVE_ENV_ROOT)
+        expected_files = (
+            (root / "pixi.toml", SAMTOOLS_FIRST_WAVE_MANIFEST_SHA256, "manifest"),
+            (root / "pixi.lock", SAMTOOLS_FIRST_WAVE_LOCK_SHA256, "lock"),
+        )
+        for path, expected_digest, label in expected_files:
+            try:
+                actual_digest = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError as error:
+                raise CatalogCanaryError(
+                    f"Samtools catalog canary environment {label} is unavailable: {path}"
+                ) from error
+            if actual_digest != expected_digest:
+                raise CatalogCanaryError(
+                    f"Samtools catalog canary environment {label} digest mismatch"
+                )
+
+        executable = root / ".pixi" / "envs" / "default" / "bin" / "samtools"
+        if not executable.is_file() or not os.access(executable, os.X_OK):
+            raise CatalogCanaryError(
+                f"Samtools catalog canary executable is unavailable: {executable}"
+            )
+        return executable
+
+    @staticmethod
     def _validate_input_prelude(node: Mapping[str, Any]) -> None:
         params = node.get("params")
         if not isinstance(params, Mapping):
@@ -498,15 +555,31 @@ class CatalogCanaryRunner:
         return paths
 
 
+def validate_catalog_canary_environment(selector: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one submitted selector and its image-baked runtime environment.
+
+    Cloud workers call this before skipping normal per-workflow environment
+    provisioning.  Construction validates the selector, platform, generated
+    catalog documents, promotion state, committed lock bytes, and executable.
+    """
+
+    runner = CatalogCanaryRunner.from_options({CANARY_OPTION: selector})
+    if runner is None:  # pragma: no cover - the explicit mapping above is non-empty
+        raise CatalogCanaryError("catalog canary selector is required")
+    return runner.environment_metadata()
+
+
 __all__ = [
     "CANARY_NODE_MARKER",
     "CANARY_OPTION",
     "CatalogCanaryError",
     "CatalogCanaryRunner",
     "SAMTOOLS_FIRST_WAVE_CATALOG_DIGEST",
+    "SAMTOOLS_FIRST_WAVE_ENVIRONMENT_ID",
     "SAMTOOLS_FIRST_WAVE_INPUT_SHA256",
     "SAMTOOLS_FIRST_WAVE_INPUT_TYPE",
     "SAMTOOLS_FIRST_WAVE_INPUT_URL",
     "SAMTOOLS_FIRST_WAVE_MACHINE_IDS",
     "SAMTOOLS_FIRST_WAVE_PROFILE",
+    "validate_catalog_canary_environment",
 ]
