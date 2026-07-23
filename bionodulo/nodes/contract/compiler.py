@@ -28,7 +28,7 @@ from typing import Any
 
 from bionodulo.nodes.catalog.artifacts import ARTIFACT_REGISTRY
 from bionodulo.nodes.contract.artifacts import ArtifactRegistry
-from bionodulo.nodes.contract.model import NodeSpec
+from bionodulo.nodes.contract.model import NodeOwnership, NodeSpec
 
 
 class CatalogError(ValueError):
@@ -80,6 +80,15 @@ def _maturity_status(spec: NodeSpec) -> str:
     if maturity is not None and maturity.released:
         return "released"
     if maturity is not None and maturity.assessments:
+        return "promotion_candidate"
+    if (
+        spec.presentation.owner is not NodeOwnership.BIONODULO_CORE
+        and spec.evidence is not None
+        and spec.environment is not None
+        and spec.runtime_binding is not None
+    ):
+        # A complete external authoring contract is ready for verification,
+        # but it is still non-released until all maturity gates are retained.
         return "promotion_candidate"
     return "quarantined"
 
