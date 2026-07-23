@@ -66,6 +66,7 @@ OUTPUT_NAMES = {
         "sample_peaks_peaks.xls",
         "sample_peaks_summits.bed",
         "sample_peaks_control_lambda.bdg",
+        "sample_peaks_model.r",
     ),
     "macs2_bdgpeak": ("score_peaks.narrowPeak",),
     "deeptools_bamcoverage": ("coverage_bw.bw",),
@@ -433,12 +434,12 @@ async def test_success_without_required_artifact_fails_closed(node: type, tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_callpeak_requires_all_five_source_guaranteed_artifacts(tmp_path: Path) -> None:
+async def test_callpeak_requires_all_six_source_guaranteed_artifacts(tmp_path: Path) -> None:
     inputs = dict(VALID_INPUTS["macs2_callpeak"])
     outputs = MACS2CallpeakNode.PLAN_OUTPUTS(inputs, tmp_path)
     context = FakeContext(outputs[:-1])
 
-    with pytest.raises(RuntimeError, match="sample_peaks_control_lambda.bdg"):
+    with pytest.raises(RuntimeError, match="sample_peaks_model.r"):
         await MACS2CallpeakNode().run(**inputs, context=context, output_dir=tmp_path)
 
 

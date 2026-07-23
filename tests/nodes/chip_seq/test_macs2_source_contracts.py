@@ -46,13 +46,21 @@ def test_macs2_nodes_pin_source_and_environment_identity(node_class: type) -> No
 def test_callpeak_defaults_and_native_filenames_match_v2291(tmp_path: Path) -> None:
     inputs = MACS2CallpeakNode.INPUT_TYPES()
 
-    assert MACS2CallpeakNode.RETURN_TYPES == ("NARROW_PEAK", "BEDGRAPH", "TSV", "BED", "BEDGRAPH")
+    assert MACS2CallpeakNode.RETURN_TYPES == (
+        "NARROW_PEAK",
+        "BEDGRAPH",
+        "TSV",
+        "BED",
+        "BEDGRAPH",
+        "FILE",
+    )
     assert MACS2CallpeakNode.RETURN_NAMES == (
         "peaks",
         "signal",
         "peak_table",
         "summits",
         "control_lambda",
+        "model_script",
     )
     assert inputs["required"]["name"][1]["default"] == "NA"
     assert inputs["required"]["genome_size"][1]["default"] == "hs"
@@ -91,7 +99,45 @@ def test_callpeak_defaults_and_native_filenames_match_v2291(tmp_path: Path) -> N
         tmp_path / "macs2_callpeak" / "NA_peaks.xls",
         tmp_path / "macs2_callpeak" / "NA_summits.bed",
         tmp_path / "macs2_callpeak" / "NA_control_lambda.bdg",
+        tmp_path / "macs2_callpeak" / "NA_model.r",
     ]
+
+
+def test_callpeak_bampe_skips_source_conditional_model_script(tmp_path: Path) -> None:
+    inputs = {
+        "treatment": "chip.bam",
+        "name": "paired",
+        "genome_size": "hs",
+        "format": "BAMPE",
+        "output": str(tmp_path / "macs2_callpeak"),
+    }
+
+    outputs = MACS2CallpeakNode.PLAN_OUTPUTS(inputs, tmp_path)
+
+    assert len(outputs) == 5
+    assert all(path.name != "paired_model.r" for path in outputs)
+    command = MACS2CallpeakNode.render_command(inputs)
+    assert command[:10] == [
+        "macs2",
+        "callpeak",
+        "-t",
+        "chip.bam",
+        "-f",
+        "BAMPE",
+        "-g",
+        "hs",
+        "-n",
+        "paired",
+    ]
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_callpeak_rejects_nonfinite_effective_genome_size(value: str) -> None:
+    validation = MACS2CallpeakNode.VALIDATE_INPUTS(
+        {"treatment": "chip.bam", "name": "peaks", "genome_size": value}
+    )
+
+    assert validation == "genome_size must be hs, mm, ce, dm, or a positive number"
 
 
 def test_callpeak_rejects_legacy_broad_mode_instead_of_silently_calling_narrow_peaks() -> None:
