@@ -257,7 +257,7 @@ def _evidence(
             proof_content_sha256=source_evidence["manual_excerpt_sha256"],  # type: ignore[arg-type]
         ),
     )
-    upstream_url = f"{SAMTOOLS_GIT_URL}/blob/{SAMTOOLS_GIT_COMMIT}/{source_file}"
+    upstream_url = f"{SAMTOOLS_GIT_URL.removesuffix('.git')}/blob/{SAMTOOLS_GIT_COMMIT}/{source_file}"
     upstream_source = EvidenceSource(
         source_id=f"samtools-{operation}-source",
         tool_id="samtools",
