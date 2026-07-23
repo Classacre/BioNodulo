@@ -266,7 +266,10 @@ class CatalogCompiler:
             module, symbol = _factory_parts(spec.execution_factory)
             # A module containing SPEC is authoritative only when the caller
             # supplied it; execution_factory remains the runtime import path.
-            authoring_module = source_modules.get(stable_id, module)
+            authoring_module = source_modules.get(
+                stable_id,
+                source_modules.get(spec.identity.machine_id, module),
+            )
             aliases = tuple(sorted({*spec.identity.aliases, spec.identity.machine_id}))
             status = _maturity_status(spec)
             entry = {
