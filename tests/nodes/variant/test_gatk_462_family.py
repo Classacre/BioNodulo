@@ -219,6 +219,8 @@ def test_metadata_and_pinned_source_are_exact(node_id: str) -> None:
     assert node.VERSION == "4.6.2.0"
     assert node.GIT_URL == "https://github.com/broadinstitute/gatk.git"
     assert node.GIT_COMMIT == GATK_COMMIT
+    assert node.SOURCE_REF == f"tag 4.6.2.0 at {GATK_COMMIT}"
+    assert node.SOURCE_REVISION == GATK_COMMIT
     assert node.REQUIRED_EXECUTABLES == ["gatk"]
     assert node.REQUIRED_CONDA_PACKAGES == ["gatk4"]
     assert node.SHELL is False

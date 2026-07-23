@@ -102,6 +102,27 @@
       }
     },
     {
+      "family_id": "gatk_haplotype_caller",
+      "ownership": "external_tool",
+      "node_ids": [
+        "gatk_haplotype_caller"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.variant.gatk",
+      "source_path": "bionodulo/nodes/builtin/variant/gatk.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/gatk_haplotype_caller",
+      "fixture_prefix": "gatk_haplotype_caller/",
+      "cloud_job_label": "catalog-gatk-haplotype-caller",
+      "r2_test_prefix": "catalog-tests/gatk_haplotype_caller/",
+      "upstream": {
+        "repository_url": "https://github.com/broadinstitute/gatk",
+        "release_tag": "4.6.2.0",
+        "tag_object": "fa139825782647bff044f00cda70d8ffe11af8c8",
+        "commit": "76edc75c26504da94bbaee66584e107e76ee15de",
+        "documentation_url": "https://github.com/broadinstitute/gatk/blob/76edc75c26504da94bbaee66584e107e76ee15de/src/main/java/org/broadinstitute/hellbender/tools/walkers/haplotypecaller/HaplotypeCaller.java"
+      }
+    },
+    {
       "family_id": "hisat2",
       "ownership": "external_tool",
       "node_id_prefix": "hisat2_",
