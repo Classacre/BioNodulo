@@ -2,6 +2,25 @@
   "schema_version": 1,
   "confirmed_families": [
     {
+      "family_id": "bismark",
+      "ownership": "external_tool",
+      "node_id_prefix": "bismark_",
+      "expected_count": 4,
+      "source_module": "bionodulo.nodes.builtin.epigenomics.bismark",
+      "source_path": "bionodulo/nodes/builtin/epigenomics/bismark.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/bismark",
+      "fixture_prefix": "bismark/",
+      "cloud_job_label": "catalog-bismark",
+      "r2_test_prefix": "catalog-tests/bismark/",
+      "upstream": {
+        "repository_url": "https://github.com/FelixKrueger/Bismark",
+        "release_tag": "bismark-rust-v3.1.0",
+        "tag_object": "e552b8f307a7041bcebed8f8e5a764ebcf7b046c",
+        "commit": "e552b8f307a7041bcebed8f8e5a764ebcf7b046c",
+        "documentation_url": "https://github.com/FelixKrueger/Bismark/blob/e552b8f307a7041bcebed8f8e5a764ebcf7b046c/README.md"
+      }
+    },
+    {
       "family_id": "bowtie2",
       "ownership": "external_tool",
       "node_id_prefix": "bowtie2_",
