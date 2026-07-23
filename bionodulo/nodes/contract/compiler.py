@@ -25,7 +25,6 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from bionodulo.nodes.catalog.artifacts import ARTIFACT_REGISTRY
 from bionodulo.nodes.contract.artifacts import ArtifactRegistry
 from bionodulo.nodes.contract.model import NodeOwnership, NodeSpec
 
@@ -171,7 +170,14 @@ class CatalogCompiler:
         artifact_registry: ArtifactRegistry | None = None,
         importer: Callable[[str], Any] | None = None,
     ) -> None:
-        self.artifact_registry = artifact_registry or ARTIFACT_REGISTRY
+        if artifact_registry is None:
+            # Import lazily to avoid a package-initialisation cycle:
+            # ``catalog.artifacts`` imports the contract models, while the
+            # contract package re-exports ``CatalogCompiler``.
+            from bionodulo.nodes.catalog.artifacts import ARTIFACT_REGISTRY
+
+            artifact_registry = ARTIFACT_REGISTRY
+        self.artifact_registry = artifact_registry
         self.importer = importer or importlib.import_module
 
     def compile_modules(self, module_names: Iterable[str]) -> CompiledCatalog:
@@ -294,6 +300,7 @@ class CatalogCompiler:
                 "symbol": symbol,
                 "contract_digest": spec.contract_digest(),
                 "status": status,
+                "implementation_status": "implemented",
                 "maturity": None if spec.maturity is None else _json_model(spec.maturity),
             }
             ui_nodes[stable_id] = {
@@ -313,6 +320,7 @@ class CatalogCompiler:
                 ],
                 "outputs": [_json_model(item) for item in sorted(spec.outputs, key=lambda item: item.port_id)],
                 "status": status,
+                "implementation_status": "implemented",
                 "contract_digest": spec.contract_digest(),
             }
 

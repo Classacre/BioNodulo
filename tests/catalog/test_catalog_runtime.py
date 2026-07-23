@@ -20,6 +20,13 @@ from bionodulo.nodes.contract.model import (
 from bionodulo.nodes.contract.parameters import ParameterSpec, ValueKind
 
 
+def _samtools_compiled():
+    from bionodulo.nodes.catalog.tools.samtools.artifacts import SAMTOOLS_ARTIFACT_REGISTRY
+    from bionodulo.nodes.catalog.tools.samtools import SPECS
+
+    return CatalogCompiler(artifact_registry=SAMTOOLS_ARTIFACT_REGISTRY).compile(SPECS)
+
+
 def _spec(*, stable_id: str = "legacy::String Value", machine_id: str = "string_primitive") -> NodeSpec:
     return NodeSpec(
         identity=NodeIdentity(
@@ -85,3 +92,36 @@ def test_registry_unknown_ids_never_fall_back_to_legacy() -> None:
     registry = CatalogRegistry(CatalogCompiler().compile((_spec(),)), allow_quarantined=True)
     with pytest.raises(UnknownNodeError):
         registry.resolve("not_a_node")
+
+
+def test_promotion_candidates_require_explicit_promotion_override() -> None:
+    compiled = _samtools_compiled()
+    imported: list[str] = []
+
+    def importer(name: str) -> object:
+        imported.append(name)
+        module = __import__(name, fromlist=["build_plan"])
+        return module
+
+    registry = CatalogRegistry(compiled, importer=importer)
+    with pytest.raises(QuarantinedNodeError):
+        registry.resolve("samtools_view")
+    assert imported == []
+    resolved = registry.resolve("samtools_view", allow_quarantined=True)
+    assert resolved is not None
+    assert imported == ["bionodulo.nodes.catalog.tools.samtools.view"]
+    assert registry.entry("samtools_view")["status"] == "promotion_candidate"
+
+
+def test_unknown_status_stays_fail_closed() -> None:
+    spec = _spec()
+    compiled = CatalogCompiler().compile((spec,))
+    runtime = {**compiled.runtime, "nodes": {**compiled.runtime["nodes"], spec.identity.stable_id: {
+        **compiled.runtime["nodes"][spec.identity.stable_id], "status": "future"
+    }}}
+    index = {**compiled.node_index, "nodes": {**compiled.node_index["nodes"], spec.identity.stable_id: {
+        **compiled.node_index["nodes"][spec.identity.stable_id], "status": "future"
+    }}}
+    registry = CatalogRegistry.from_documents(index, runtime)
+    with pytest.raises(QuarantinedNodeError):
+        registry.resolve(spec.identity.stable_id)

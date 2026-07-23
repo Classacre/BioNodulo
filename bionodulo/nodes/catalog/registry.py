@@ -3,9 +3,9 @@
 The v2 registry intentionally knows nothing about the legacy ``NodeRegistry``.
 It accepts a compiler result (or the two generated runtime/index documents),
 performs a cheap digest consistency check, and imports only the factory needed
-for a requested node.  Quarantined nodes are never executable by default; a
-caller must opt into ``allow_quarantined`` explicitly for local promotion and
-contract testing.
+for a requested node. Non-released nodes require an explicit
+``allow_quarantined`` override for local promotion and contract testing; the
+override is never implicit in a normal runtime.
 """
 
 from __future__ import annotations
