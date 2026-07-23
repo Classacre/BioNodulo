@@ -40,6 +40,25 @@
       }
     },
     {
+      "family_id": "macs2",
+      "ownership": "external_tool",
+      "node_id_prefix": "macs2_",
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.chip_seq.macs2",
+      "source_path": "bionodulo/nodes/builtin/chip_seq/macs2.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/macs2",
+      "fixture_prefix": "macs2/",
+      "cloud_job_label": "catalog-macs2",
+      "r2_test_prefix": "catalog-tests/macs2/",
+      "upstream": {
+        "repository_url": "https://github.com/macs3-project/MACS",
+        "release_tag": "v2.2.9.1",
+        "tag_object": "1afcae6a09ced8cf9bb1e87c44dd58f7d7e4891c",
+        "commit": "1afcae6a09ced8cf9bb1e87c44dd58f7d7e4891c",
+        "documentation_url": "https://github.com/macs3-project/MACS/blob/1afcae6a09ced8cf9bb1e87c44dd58f7d7e4891c/README.md"
+      }
+    },
+    {
       "family_id": "samtools",
       "ownership": "external_tool",
       "node_id_prefix": "samtools_",
