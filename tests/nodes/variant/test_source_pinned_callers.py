@@ -47,6 +47,10 @@ def test_variant_callers_are_source_pinned(
     assert node.VERSION == version
     assert node.GIT_COMMIT == commit
     assert node.UPSTREAM_SOURCE == source
+    if node in {DellyNode, DellyCallNode}:
+        assert node.SOURCE_REF == f"tag v1.2.6 at {DELLY_COMMIT}"
+        assert node.SOURCE_REVISION == DELLY_COMMIT
+        assert node.AUDIT_STATUS == "contract-checked-no-external-execution"
     if node in {MantaNode, MantaCallNode}:
         assert node.UPSTREAM_RUN_DIRECTORY_SOURCE == "src/python/lib/mantaOptions.py:147-154"
 

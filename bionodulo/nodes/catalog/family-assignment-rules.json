@@ -59,6 +59,28 @@
       }
     },
     {
+      "family_id": "delly",
+      "ownership": "external_tool",
+      "node_ids": [
+        "delly",
+        "delly_call"
+      ],
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.variant.delly",
+      "source_path": "bionodulo/nodes/builtin/variant/delly.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/delly",
+      "fixture_prefix": "delly/",
+      "cloud_job_label": "catalog-delly",
+      "r2_test_prefix": "catalog-tests/delly/",
+      "upstream": {
+        "repository_url": "https://github.com/dellytools/delly",
+        "release_tag": "v1.2.6",
+        "tag_object": "e6246dbb18b7f6df2b7b381d542cdeaea6be8c82",
+        "commit": "e6246dbb18b7f6df2b7b381d542cdeaea6be8c82",
+        "documentation_url": "https://github.com/dellytools/delly/blob/e6246dbb18b7f6df2b7b381d542cdeaea6be8c82/README.md"
+      }
+    },
+    {
       "family_id": "hisat2",
       "ownership": "external_tool",
       "node_id_prefix": "hisat2_",

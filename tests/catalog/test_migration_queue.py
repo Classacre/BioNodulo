@@ -481,6 +481,63 @@ def test_node_id_prefix_accepts_a_canonical_family_prefix() -> None:
     assert build_queue(load_baseline(), rules)["summary"]["confirmed_family_nodes"] == 27
 
 
+def test_exact_node_ids_select_a_sorted_stable_family_without_prefix_inference() -> None:
+    rules = samtools_rules()
+    family = rules["confirmed_families"][0]
+    family.pop("node_id_prefix")
+    family["node_ids"] = ["samtools_index", "samtools_sort"]
+    family["expected_count"] = 2
+
+    queue = build_queue(load_baseline(), rules)
+    confirmed = [item for item in queue["assignments"] if item["family_id"] == "samtools"]
+
+    assert [item["node_id"] for item in confirmed] == ["samtools_index", "samtools_sort"]
+    assert queue["summary"]["confirmed_family_nodes"] == 2
+
+
+@pytest.mark.parametrize("keep_prefix", [True, False])
+def test_confirmed_family_requires_exactly_one_node_selector(keep_prefix: bool) -> None:
+    rules = samtools_rules()
+    family = rules["confirmed_families"][0]
+    if keep_prefix:
+        family["node_ids"] = ["samtools_sort"]
+    else:
+        family.pop("node_id_prefix")
+
+    with pytest.raises(MigrationQueueError, match="exactly one of node_id_prefix or node_ids"):
+        build_queue(load_baseline(), rules)
+
+
+@pytest.mark.parametrize(
+    "node_ids",
+    [
+        ["samtools_sort", "samtools_index"],
+        ["samtools_sort", "samtools_sort"],
+        ["../samtools_sort"],
+    ],
+)
+def test_exact_node_ids_require_canonical_sorted_unique_stable_ids(node_ids: list[str]) -> None:
+    rules = samtools_rules()
+    family = rules["confirmed_families"][0]
+    family.pop("node_id_prefix")
+    family["node_ids"] = node_ids
+    family["expected_count"] = len(node_ids)
+
+    with pytest.raises(MigrationQueueError, match="node_ids|safe stable identifier"):
+        build_queue(load_baseline(), rules)
+
+
+def test_exact_node_id_count_must_match_expected_count() -> None:
+    rules = samtools_rules()
+    family = rules["confirmed_families"][0]
+    family.pop("node_id_prefix")
+    family["node_ids"] = ["samtools_index", "samtools_sort"]
+    family["expected_count"] = 3
+
+    with pytest.raises(MigrationQueueError, match="expected_count 3.*2 explicit node_ids"):
+        build_queue(load_baseline(), rules)
+
+
 def test_overlapping_confirmed_rules_are_fatal() -> None:
     rules, _family = rules_with_second_family()
 
@@ -1058,12 +1115,13 @@ def test_cli_rejects_internally_inconsistent_baseline_without_output_mutation(tm
 def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
     queue = build_queue(load_baseline(), load_rules())
 
-    assert queue["summary"]["confirmed_family_nodes"] == 51
+    assert queue["summary"]["confirmed_family_nodes"] == 53
     by_family = {
         family_id: sorted(item["node_id"] for item in queue["assignments"] if item["family_id"] == family_id)
         for family_id in (
             "bismark",
             "bowtie2",
+            "delly",
             "dorado",
             "hisat2",
             "kallisto",
@@ -1080,6 +1138,7 @@ def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
         "bismark_methylation_extractor",
     ]
     assert by_family["bowtie2"] == ["bowtie2_align", "bowtie2_build", "bowtie2_inspect"]
+    assert by_family["delly"] == ["delly", "delly_call"]
     assert by_family["dorado"] == ["dorado_basecaller", "dorado_correct", "dorado_demux", "dorado_duplex"]
     assert by_family["hisat2"] == ["hisat2_align", "hisat2_build"]
     assert by_family["kallisto"] == ["kallisto_index", "kallisto_quant"]
@@ -1091,10 +1150,21 @@ def test_repository_rules_build_the_reviewed_external_tool_lanes() -> None:
     )
     assert {
         family_id: {item["upstream"]["commit"] for item in queue["assignments"] if item["family_id"] == family_id}
-        for family_id in ("bismark", "bowtie2", "dorado", "hisat2", "kallisto", "macs2", "odgi", "salmon")
+        for family_id in (
+            "bismark",
+            "bowtie2",
+            "delly",
+            "dorado",
+            "hisat2",
+            "kallisto",
+            "macs2",
+            "odgi",
+            "salmon",
+        )
     } == {
         "bismark": {"e552b8f307a7041bcebed8f8e5a764ebcf7b046c"},
         "bowtie2": {"0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2"},
+        "delly": {"e6246dbb18b7f6df2b7b381d542cdeaea6be8c82"},
         "dorado": {"0949eb8de80dce9a198c08c0e37e31ed1eb627fc"},
         "hisat2": {"99583d7536b9ee017ac07de8834017a3bf99a2fe"},
         "kallisto": {"4e9f29cf3b021260415430c057a22469ca081391"},
@@ -1184,7 +1254,7 @@ def test_cli_writes_and_checks_exact_canonical_bytes(tmp_path: Path) -> None:
     expected = canonical_json_bytes(build_queue(load_baseline(), load_rules()))
     assert output.read_bytes() == expected
     assert "943 nodes queued" in written.stdout
-    assert "892 pending family review" in checked.stdout
+    assert "890 pending family review" in checked.stdout
 
 
 def test_cli_rejects_duplicate_json_object_members(tmp_path: Path) -> None:

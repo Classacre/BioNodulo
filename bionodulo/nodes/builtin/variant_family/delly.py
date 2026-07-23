@@ -33,10 +33,15 @@ class DellyNode(IndexedBamReferenceNode):
     OUTPUT_FILENAMES = ("sv_calls.bcf", "sv_calls.bcf.csi")
     REQUIRED_EXECUTABLES = ["delly"]
     REQUIRED_CONDA_PACKAGES = ["delly"]
-    DOCUMENTATION_URL = "https://github.com/dellytools/delly"
+    DOCUMENTATION_URL = (
+        "https://github.com/dellytools/delly/blob/e6246dbb18b7f6df2b7b381d542cdeaea6be8c82/README.md"
+    )
     VERSION = "1.2.6"
     GIT_URL = "https://github.com/dellytools/delly.git"
     GIT_COMMIT = "e6246dbb18b7f6df2b7b381d542cdeaea6be8c82"
+    GIT_TAG = "v1.2.6"
+    SOURCE_REF = f"tag {GIT_TAG} at {GIT_COMMIT}"
+    SOURCE_REVISION = GIT_COMMIT
     SOURCE_URL = f"https://github.com/dellytools/delly/tree/{GIT_COMMIT}"
     PACKAGE_CONSTRAINTS = ("delly==1.2.6",)
     PACKAGE_CONSTRAINT = "delly==1.2.6"

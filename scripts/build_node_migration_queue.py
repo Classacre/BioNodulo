@@ -34,6 +34,7 @@ canonical_json_chunks = _ledger_validation.canonical_json_chunks
 _expect_mapping = _ledger_validation.expect_mapping
 _expect_string = _ledger_validation.expect_string
 _safe_identifier = _ledger_validation.safe_identifier
+_stable_node_id = _ledger_validation._stable_node_id
 _validated_baseline = _ledger_validation.validate_baseline
 
 
@@ -228,6 +229,20 @@ def _node_id_prefix(value: object) -> str:
     return value
 
 
+def _exact_node_ids(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value or len(value) > EXPECTED_NODE_COUNT:
+        raise MigrationQueueError(
+            f"node_ids must be a nonempty array with at most {EXPECTED_NODE_COUNT} stable IDs"
+        )
+    node_ids = tuple(
+        _stable_node_id(node_id, f"node_ids[{index}]")
+        for index, node_id in enumerate(value)
+    )
+    if node_ids != tuple(sorted(set(node_ids))):
+        raise MigrationQueueError("node_ids must be canonical sorted unique stable IDs")
+    return node_ids
+
+
 def _source_module(value: object) -> str:
     module = _expect_string(value, "source_module")
     if len(module) > _MAX_PATH_LENGTH:
@@ -346,10 +361,9 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
     family_ids: set[str] = set()
     for index, raw_family in enumerate(families):
         family = _expect_mapping(raw_family, f"confirmed_families[{index}]")
-        expected = {
+        common_fields = {
             "family_id",
             "ownership",
-            "node_id_prefix",
             "expected_count",
             "source_module",
             "source_path",
@@ -359,6 +373,12 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
             "r2_test_prefix",
             "upstream",
         }
+        selector_fields = set(family) & {"node_id_prefix", "node_ids"}
+        if len(selector_fields) != 1:
+            raise MigrationQueueError(
+                f"confirmed_families[{index}] must declare exactly one of node_id_prefix or node_ids"
+            )
+        expected = common_fields | selector_fields
         if set(family) != expected:
             raise MigrationQueueError(f"confirmed_families[{index}] contains unknown or missing fields")
         family_id = _safe_identifier(_expect_string(family["family_id"], "family_id"), "family_id")
@@ -368,6 +388,17 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
         expected_count = family["expected_count"]
         if type(expected_count) is not int or not 1 <= expected_count <= EXPECTED_NODE_COUNT:
             raise MigrationQueueError(f"expected_count must be an exact integer between 1 and {EXPECTED_NODE_COUNT}")
+        selector: dict[str, object]
+        if "node_id_prefix" in selector_fields:
+            selector = {"node_id_prefix": _node_id_prefix(family["node_id_prefix"])}
+        else:
+            node_ids = _exact_node_ids(family["node_ids"])
+            if len(node_ids) != expected_count:
+                raise MigrationQueueError(
+                    f"confirmed family {family_id} expected_count {expected_count} does not match "
+                    f"its {len(node_ids)} explicit node_ids"
+                )
+            selector = {"node_ids": node_ids}
         source_path = _source_path(family["source_path"])
         source_module = _source_module(family["source_module"])
         if source_module != _source_identity.module_name(source_path):
@@ -382,8 +413,8 @@ def _validated_rules(rules: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
             {
                 **family,
                 **scope,
+                **selector,
                 "expected_count": expected_count,
-                "node_id_prefix": _node_id_prefix(family["node_id_prefix"]),
                 "ownership": _node_ownership(family["ownership"]),
                 "source_module": source_module,
                 "source_path": source_path,
@@ -405,17 +436,28 @@ def build_queue(
 
     matched_rules: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for family in families:
-        prefix = _expect_string(family["node_id_prefix"], "node_id_prefix")
-        matching_entries = sorted(
-            (
-                entry
-                for entry in entries
-                if isinstance(entry, dict)
-                and isinstance(entry.get("node_id"), str)
-                and entry["node_id"].startswith(prefix)
-            ),
-            key=lambda entry: entry["node_id"],
-        )
+        if "node_id_prefix" in family:
+            prefix = _expect_string(family["node_id_prefix"], "node_id_prefix")
+            matching_entries = sorted(
+                (
+                    entry
+                    for entry in entries
+                    if isinstance(entry, dict)
+                    and isinstance(entry.get("node_id"), str)
+                    and entry["node_id"].startswith(prefix)
+                ),
+                key=lambda entry: entry["node_id"],
+            )
+        else:
+            exact_ids = set(family["node_ids"])
+            matching_entries = sorted(
+                (
+                    entry
+                    for entry in entries
+                    if isinstance(entry, dict) and entry.get("node_id") in exact_ids
+                ),
+                key=lambda entry: entry["node_id"],
+            )
         matching = [entry["node_id"] for entry in matching_entries]
         expected_count = family["expected_count"]
         if len(matching) != expected_count:
