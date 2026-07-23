@@ -24,6 +24,7 @@ from bionodulo.nodes.contract.model import (
     RuntimeBinding,
     SEMVER_PATTERN,
 )
+from bionodulo.nodes.contract.compiler import CatalogCompiler, CatalogError, CompiledCatalog
 
 
 __all__ = [
@@ -49,4 +50,7 @@ __all__ = [
     "RuntimeBinding",
     "SEMVER_PATTERN",
     "UnknownArtifactTypeError",
+    "CatalogCompiler",
+    "CatalogError",
+    "CompiledCatalog",
 ]
