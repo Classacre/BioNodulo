@@ -26,13 +26,18 @@ def _bam_bins(
     region: tuple[str, int, int],
     window_size: int,
     index_path: Path | None,
+    reference_path: Path | None,
 ) -> list[dict[str, object]]:
     try:
         import pysam  # type: ignore[import-not-found]
     except ImportError as exc:
         raise RuntimeError("pysam is required for BAM/CRAM coverage") from exc
     chromosome, region_start, region_end = region
-    kwargs = {"index_filename": str(index_path)} if index_path is not None else {}
+    kwargs: dict[str, str] = {}
+    if index_path is not None:
+        kwargs["index_filename"] = str(index_path)
+    if reference_path is not None:
+        kwargs["reference_filename"] = str(reference_path)
     rows: list[dict[str, object]] = []
     with pysam.AlignmentFile(str(path), "rb", **kwargs) as alignment:
         for start in range(region_start, region_end, max(window_size, 1)):
@@ -86,6 +91,7 @@ def main() -> int:
     parser.add_argument("--region", required=True)
     parser.add_argument("--window-size", required=True, type=int)
     parser.add_argument("--index", type=Path)
+    parser.add_argument("--reference", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     if not args.input.is_file():
@@ -93,7 +99,7 @@ def main() -> int:
     region = _parse_region(args.region)
     suffixes = {suffix.lower() for suffix in args.input.suffixes}
     if suffixes & {".bam", ".cram"}:
-        rows = _bam_bins(args.input, region, args.window_size, args.index)
+        rows = _bam_bins(args.input, region, args.window_size, args.index, args.reference)
     elif suffixes & {".bw", ".bigwig"}:
         rows = _bigwig_bins(args.input, region, args.window_size)
     else:

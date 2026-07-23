@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin._sidecar_staging import stage_reference_bundle
 
 
 SUPPORTED_IMAGE_FORMATS = ("png", "svg")
@@ -1709,6 +1710,7 @@ def _read_bam_coverage(
     region: tuple[str, int, int],
     window_size: int,
     index_path: Path | None = None,
+    reference_path: Path | None = None,
 ) -> list[CoverageBin]:
     try:
         import pysam  # type: ignore[import-not-found]
@@ -1718,7 +1720,11 @@ def _read_bam_coverage(
     chromosome, region_start, region_end = region
     window = max(window_size, 1)
     bins: list[CoverageBin] = []
-    alignment_kwargs = {"index_filename": str(index_path)} if index_path is not None else {}
+    alignment_kwargs: dict[str, str] = {}
+    if index_path is not None:
+        alignment_kwargs["index_filename"] = str(index_path)
+    if reference_path is not None:
+        alignment_kwargs["reference_filename"] = str(reference_path)
     with pysam.AlignmentFile(str(path), "rb", **alignment_kwargs) as alignment:
         for start in range(region_start, region_end, window):
             end = min(start + window, region_end)
@@ -1798,6 +1804,7 @@ def _read_coverage_bins(
     region: tuple[str, int, int],
     window_size: int,
     alignment_index: Path | None = None,
+    reference_path: Path | None = None,
 ) -> list[CoverageBin]:
     suffixes = {suffix.lower() for suffix in path.suffixes}
     if suffixes & {".bam", ".cram"}:
@@ -1808,6 +1815,7 @@ def _read_coverage_bins(
             region=region,
             window_size=window_size,
             index_path=alignment_index,
+            reference_path=reference_path,
         )
     if suffixes & {".bw", ".bigwig"}:
         if not path.exists():
@@ -1826,6 +1834,7 @@ async def _read_coverage_bins_in_environment(
     region: tuple[str, int, int],
     window_size: int,
     alignment_index: Path | None,
+    reference_path: Path | None,
     context: Any,
 ) -> list[CoverageBin]:
     """Read BAM/BigWig bins through the node's prepared Python environment."""
@@ -1847,6 +1856,8 @@ async def _read_coverage_bins_in_environment(
     ]
     if alignment_index is not None:
         command.extend(("--index", str(alignment_index)))
+    if reference_path is not None:
+        command.extend(("--reference", str(reference_path)))
     result = await context.run_command(command, cwd=str(node_dir))
     returncode = int(result.get("returncode", 0) or 0) if isinstance(result, dict) else 0
     if returncode != 0:
@@ -7739,8 +7750,16 @@ class _CoveragePlotContract(VisualizationNode):
             },
             "optional": {
                 "alignment_index": (
-                    "BAI",
-                    {"description": "Explicit BAM index used by pysam"},
+                    "FILE",
+                    {"description": "Explicit BAI/CSI for BAM or CRAI/CSI for CRAM, passed to pysam"},
+                ),
+                "reference": (
+                    "FASTA",
+                    {"default": "", "description": "Reference FASTA required for CRAM"},
+                ),
+                "reference_index": (
+                    "FASTA_INDEX",
+                    {"default": "", "description": "Exact <reference>.fai required for CRAM"},
                 ),
                 "window_size": ("INT", {"default": 50, "min": 1, "max": 1000000}),
                 "title": ("STRING", {"default": "Coverage Plot"}),
@@ -7763,14 +7782,35 @@ class _CoveragePlotContract(VisualizationNode):
         region = _parse_region(str(kwargs.get("region", "") or ""))
         window_size = max(_coerce_int(kwargs.get("window_size", 50), 50), 1)
         alignment_path = Path(str(kwargs["alignment"]))
+        alignment_suffix = alignment_path.suffix.lower()
         alignment_index_value = kwargs.get("alignment_index")
-        if alignment_path.suffix.lower() == ".bam" and not str(alignment_index_value or "").strip():
-            raise ValueError("alignment_index is required when alignment is a BAM file")
+        if alignment_suffix in {".bam", ".cram"} and not str(alignment_index_value or "").strip():
+            raise ValueError("alignment_index is required when alignment is a BAM or CRAM file")
         alignment_index = (
             Path(str(alignment_index_value))
-            if alignment_path.suffix.lower() == ".bam" and str(alignment_index_value or "").strip()
+            if alignment_suffix in {".bam", ".cram"} and str(alignment_index_value or "").strip()
             else None
         )
+        reference_path: Path | None = None
+        if alignment_suffix == ".cram":
+            if not str(kwargs.get("reference") or "").strip():
+                raise ValueError("reference is required when alignment is a CRAM file")
+            if not str(kwargs.get("reference_index") or "").strip():
+                raise ValueError("reference_index is required when alignment is a CRAM file")
+            reference_path = Path(str(kwargs["reference"]))
+            reference_index_path = Path(str(kwargs["reference_index"]))
+            for key, path in (("reference", reference_path), ("reference_index", reference_index_path)):
+                if path.exists() and (not path.is_file() or path.stat().st_size == 0):
+                    raise ValueError(f"{key} must be a non-empty file for CRAM coverage: {path}")
+
+        out_dir = _node_output_dir(self, context)
+        if alignment_suffix == ".cram":
+            # pysam exposes only reference_filename; htslib discovers the FAI
+            # from its sibling name. Stage both artifacts together after cloud
+            # download so separate upload paths cannot silently break CRAM.
+            stage_reference_bundle(kwargs, out_dir / "inputs")
+            reference_path = Path(str(kwargs["reference"]))
+
         binary_suffixes = {".bam", ".cram", ".bw", ".bigwig"}
         if context is not None and getattr(context, "env_prefix", None) and (
             {suffix.lower() for suffix in alignment_path.suffixes} & binary_suffixes
@@ -7780,6 +7820,7 @@ class _CoveragePlotContract(VisualizationNode):
                 region=region,
                 window_size=window_size,
                 alignment_index=alignment_index,
+                reference_path=reference_path,
                 context=context,
             )
         else:
@@ -7788,6 +7829,7 @@ class _CoveragePlotContract(VisualizationNode):
                 region=region,
                 window_size=window_size,
                 alignment_index=alignment_index,
+                reference_path=reference_path,
             )
         bounds = _coverage_bounds(bins, region)
         width_px, height_px = _pixel_dimensions(
@@ -7799,7 +7841,6 @@ class _CoveragePlotContract(VisualizationNode):
         title = str(kwargs.get("title", "Coverage Plot") or "Coverage Plot")
         fill_color = str(kwargs.get("fill_color", "#2563EB") or "#2563EB")
 
-        out_dir = _node_output_dir(self, context)
         output_path = out_dir / f"coverage_plot.{output_format}"
         if output_format == "svg":
             _render_coverage_svg(

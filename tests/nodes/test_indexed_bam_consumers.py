@@ -68,7 +68,7 @@ def test_cli_indexed_bam_consumers_expose_source_supported_index_port(node_id: s
 def test_coverage_plot_exposes_optional_bai_port() -> None:
     optional = CoveragePlotNode.INPUT_TYPES()["optional"]
 
-    assert optional["alignment_index"][0] == "BAI"
+    assert optional["alignment_index"][0] == "FILE"
 
 
 @pytest.mark.parametrize("node_id", tuple(CLI_NODES))
@@ -318,27 +318,19 @@ async def test_coverage_plot_rejects_bam_without_index_before_opening_pysam(
 
 
 @pytest.mark.asyncio
-async def test_coverage_plot_preserves_cram_index_autodiscovery(
+async def test_coverage_plot_requires_explicit_cram_index_and_reference(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, str, dict[str, Any]]] = []
-    _install_fake_pysam(monkeypatch, calls)
     cram = tmp_path / "sample.CRAM"
     cram.write_bytes(b"CRAM")
 
-    await CoveragePlotNode().run(
-        alignment=cram,
-        region="chr1:1-11",
-        format="svg",
-        context=SimpleNamespace(node_dir=tmp_path),
-    )
+    with pytest.raises(ValueError, match="alignment_index"):
+        await CoveragePlotNode().run(alignment=cram, region="chr1:1-11", format="svg")
 
-    assert calls == [(str(cram), "rb", {})]
 
 
 @pytest.mark.asyncio
-async def test_coverage_plot_ignores_bai_port_for_cram(
+async def test_coverage_plot_passes_cram_index_and_staged_reference_to_pysam(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -346,16 +338,30 @@ async def test_coverage_plot_ignores_bai_port_for_cram(
     _install_fake_pysam(monkeypatch, calls)
     cram = tmp_path / "sample.cram"
     cram.write_bytes(b"CRAM")
+    cram_index = tmp_path / "indexes" / "sample.crai"
+    cram_index.parent.mkdir()
+    cram_index.write_bytes(b"CRAI")
+    reference = tmp_path / "refs" / "genome.fa"
+    reference.parent.mkdir()
+    reference.write_text(">chr1\nACGT\n", encoding="ascii")
+    reference_index = tmp_path / "indexes" / "genome.fa.fai"
+    reference_index.write_text("chr1\t4\t6\t4\t5\n", encoding="ascii")
 
     await CoveragePlotNode().run(
         alignment=cram,
-        alignment_index=tmp_path / "not-a-cram-index.bai",
+        alignment_index=cram_index,
+        reference=reference,
+        reference_index=reference_index,
         region="chr1:1-11",
         format="svg",
         context=SimpleNamespace(node_dir=tmp_path),
     )
 
-    assert calls == [(str(cram), "rb", {})]
+    assert len(calls) == 1
+    assert calls[0] == (str(cram), "rb", {
+        "index_filename": str(cram_index),
+        "reference_filename": str(tmp_path / "coverage_plot" / "inputs" / "reference.fa"),
+    })
 
 
 @pytest.mark.asyncio
@@ -449,4 +455,4 @@ def test_generated_catalog_exposes_indexed_bam_contracts() -> None:
         ["sequence_dictionary"][0]
         == "SEQUENCE_DICTIONARY"
     )
-    assert metadata["coverage_plot"]["input"]["optional"]["alignment_index"][0] == "BAI"
+    assert metadata["coverage_plot"]["input"]["optional"]["alignment_index"][0] == "FILE"
