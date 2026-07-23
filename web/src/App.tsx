@@ -249,6 +249,12 @@ function remapTemplateWorkflow(data: Workflow): Workflow {
     from: { ...e.from, node: oldToNew.get(e.from.node) || e.from.node },
     to: { ...e.to, node: oldToNew.get(e.to.node) || e.to.node },
   }));
+  data.outputs = Object.fromEntries(
+    Object.entries(data.outputs || {}).map(([name, nodeId]) => [
+      name,
+      oldToNew.get(nodeId) || nodeId,
+    ]),
+  );
   return data;
 }
 

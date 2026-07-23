@@ -7,6 +7,7 @@
 // token plumbing. Base is configurable for cross-origin builds.
 import type { Workflow } from '../types';
 import { getToken } from '../collab/authStorage';
+import type { CatalogCanarySelector } from '../utils/catalogCanary';
 
 const WEBSITE_API_BASE = (import.meta.env.VITE_WEBSITE_API_BASE || '/api').replace(/\/+$/, '');
 
@@ -129,6 +130,7 @@ export function submitCloudRun(
   compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } },
   inputs?: CloudRunInputs,
   parameters?: Record<string, unknown>,
+  catalogCanary?: CatalogCanarySelector,
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
   return call('/runs', {
     method: 'POST',
@@ -137,6 +139,7 @@ export function submitCloudRun(
       ...(compute ?? {}),
       ...(inputs ? { inputs } : {}),
       ...(parameters ? { parameters } : {}),
+      ...(catalogCanary ? { catalog_canary: catalogCanary } : {}),
     }),
   });
 }
