@@ -245,7 +245,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "bwa": "0.7.19",
     "bwa-mem2": "2.3",
     "bowtie2": "2.5.5",
-    "samtools": "1.23.1",
+    "samtools": "==1.23.1",
     "mosdepth": "0.3.14",
     "rasusa": "4.1.0",
     "samblaster": "0.1.26",

@@ -19,8 +19,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 @pytest.mark.parametrize(
     ("template_name", "environment_id"),
     [
-        ("variant_calling_pipeline.json", "9368fa3f65a7b28d"),
-        ("wgs_variant_pipeline.json", "45a947a668894642"),
+        ("variant_calling_pipeline.json", "4997531d441c35bf"),
+        ("wgs_variant_pipeline.json", "5789cfdfd03011a4"),
     ],
 )
 def test_variant_templates_partition_only_manta_into_a_named_environment(
@@ -37,7 +37,7 @@ def test_variant_templates_partition_only_manta_into_a_named_environment(
     assert {"bcftools", "htslib", "samtools"} <= set(plan.default_packages)
 
 
-@pytest.mark.parametrize("environment_id", ["9368fa3f65a7b28d", "45a947a668894642"])
+@pytest.mark.parametrize("environment_id", ["4997531d441c35bf", "5789cfdfd03011a4"])
 def test_variant_locks_attest_compatible_hts_build_and_manta_python2_island(
     environment_id: str,
 ) -> None:

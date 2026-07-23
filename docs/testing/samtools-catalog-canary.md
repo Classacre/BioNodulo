@@ -15,8 +15,8 @@ Run control. The request must not contain a `catalog_canary` selector.
 The generic worker must:
 
 - load the submitted workflow and normal node registry;
-- derive `samtools=1.23.1` from the nodes' package constraints;
-- select environment `40db091121c94941`;
+- derive `samtools==1.23.1` from the nodes' package constraints;
+- select environment `a8aef18369bd202f`;
 - materialize its committed `pixi.toml` and `pixi.lock` into the job workspace
   or content-addressed shared cache;
 - run `pixi install --locked --all` at runtime when that environment is not
@@ -32,7 +32,7 @@ preinstalled in the image.
 ## Fixed evidence
 
 - Samtools version: `1.23.1`
-- Environment ID: `40db091121c94941`
+- Environment ID: `a8aef18369bd202f`
 - Environment lock SHA-256:
   `da58ebe2f489d3d740f23c302e9495ab23068491bad714f605438a92fb8afaa4`
 - Samtools package SHA-256:

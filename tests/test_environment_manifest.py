@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -140,7 +141,7 @@ def test_environment_id_changes_with_effective_package_constraint(monkeypatch) -
     monkeypatch.setitem(PACKAGE_MIN_VERSIONS, "samtools", ">=1.15")
     old_id = get_env_id(["samtools"])
 
-    monkeypatch.setitem(PACKAGE_MIN_VERSIONS, "samtools", "1.23.1")
+    monkeypatch.setitem(PACKAGE_MIN_VERSIONS, "samtools", "==1.23.1")
 
     assert get_env_id(["samtools"]) != old_id
 
@@ -149,6 +150,35 @@ def test_environment_id_still_normalizes_order_case_and_duplicates() -> None:
     assert get_env_id(["samtools", "bcftools"]) == get_env_id(
         [" BCFTOOLS ", "samtools", "SAMTOOLS"]
     )
+
+
+def test_committed_samtools_manifests_use_explicit_exact_constraint() -> None:
+    locks_root = (
+        Path(__file__).resolve().parents[1]
+        / "bionodulo"
+        / "environments"
+        / "locks"
+    )
+    expected_environment_ids = {
+        "0afc7b58f0758f5f",
+        "4997531d441c35bf",
+        "5789cfdfd03011a4",
+        "5f56c77e87adf0dc",
+        "a3e1f5870a14637e",
+        "a8aef18369bd202f",
+        "beea8043b91d36dc",
+        "e7d71a57eedc92e4",
+    }
+    actual_environment_ids = set()
+
+    for manifest_path in locks_root.glob("*/pixi.toml"):
+        manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        if "samtools" not in manifest.get("dependencies", {}):
+            continue
+        assert manifest["dependencies"]["samtools"] == "==1.23.1"
+        actual_environment_ids.add(manifest_path.parent.name)
+
+    assert actual_environment_ids == expected_environment_ids
 
 
 def test_named_environment_plan_partitions_manta_without_changing_flat_requirements() -> None:
@@ -220,7 +250,7 @@ def test_named_environment_manifest_drives_status_and_package_listing(tmp_path: 
 @pytest.mark.parametrize(
     ("packages", "environment_id"),
     [
-        (["samtools"], "40db091121c94941"),
+        (["samtools"], "a8aef18369bd202f"),
         (["fastp", "fastqc", "multiqc"], "fba79120211a36f0"),
     ],
 )
@@ -330,7 +360,7 @@ async def test_dependency_installer_uses_committed_lock_without_solving(
     env_dir = tmp_path / "envs" / get_env_id(["samtools"])
     source_lock = (
         Path(__file__).resolve().parents[1]
-        / "bionodulo/environments/locks/40db091121c94941/pixi.lock"
+        / "bionodulo/environments/locks/a8aef18369bd202f/pixi.lock"
     )
     digest = hashlib.sha256(source_lock.read_bytes()).hexdigest()
     assert lock_calls == []
@@ -431,7 +461,7 @@ def test_resolver_does_not_reuse_ready_environment_from_old_constraint(
     (old_env_dir / ".pixi" / "envs" / "default" / "bin").mkdir(parents=True)
     assert is_env_ready(old_env_dir) is True
 
-    monkeypatch.setitem(PACKAGE_MIN_VERSIONS, "samtools", "1.23.1")
+    monkeypatch.setitem(PACKAGE_MIN_VERSIONS, "samtools", "==1.23.1")
     report = resolve_workflow(
         {"nodes": [{"id": "tool_001", "type": "tool"}], "edges": []},
         Registry(),

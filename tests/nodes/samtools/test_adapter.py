@@ -104,6 +104,9 @@ def test_first_wave_nodes_declare_exact_shared_and_source_metadata(
     assert node.CATEGORY == "samtools"
     assert node.REQUIRED_EXECUTABLES == ["samtools"]
     assert node.REQUIRED_CONDA_PACKAGES == ["samtools"]
+    assert node.CONDA_PACKAGE_CONSTRAINTS == {"samtools": "==1.23.1"}
+    assert node.PACKAGE_CONSTRAINTS == ("samtools==1.23.1",)
+    assert node.PACKAGE_CONSTRAINT == "samtools==1.23.1"
     assert node.VERSION == "1.23.1"
     assert node.GIT_URL == "https://github.com/samtools/samtools.git"
     assert node.GIT_COMMIT == "6efb9b6da35224cf804921dedecf9fb8f411365d"
@@ -133,10 +136,10 @@ def test_adapter_declares_narrow_source_metadata_slots() -> None:
 
 
 def test_samtools_pixi_constraint_is_exact() -> None:
-    assert PACKAGE_MIN_VERSIONS["samtools"] == "1.23.1"
+    assert PACKAGE_MIN_VERSIONS["samtools"] == "==1.23.1"
 
 
 def test_generated_manifest_uses_exact_samtools_constraint(tmp_path) -> None:
     manifest = generate_manifest(tmp_path, ["samtools"])
 
-    assert 'samtools = "1.23.1"' in manifest.read_text(encoding="utf-8").splitlines()
+    assert 'samtools = "==1.23.1"' in manifest.read_text(encoding="utf-8").splitlines()
