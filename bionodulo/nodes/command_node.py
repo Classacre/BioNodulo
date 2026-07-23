@@ -249,6 +249,23 @@ class CommandNode(BaseNode):
         return paths
 
     @classmethod
+    def REQUIRED_OUTPUT_PATHS(
+        cls,
+        inputs: dict[str, Any],
+        outputs: list[Path],
+    ) -> list[Path]:
+        """Return the planned paths that must be created for success.
+
+        Most commands have a fixed artifact set, so every planned path is
+        required by default.  A source tool may, however, conditionally omit
+        an artifact after inspecting its inputs (for example, a plot emitted
+        only when enough usable samples remain).  Such a node can override
+        this hook while keeping the rest of the command execution and
+        fail-closed checks unchanged.
+        """
+        return outputs
+
+    @classmethod
     def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
         """Prepare deterministic artifacts or inputs before command rendering."""
         return None
@@ -463,7 +480,8 @@ class CommandNode(BaseNode):
                     logger.info("[%s] reference cache publish skipped: %s",
                                 self.__class__.NODE_ID, exc)
 
-            missing_outputs = [path for path in outputs if not path.exists()]
+            required_outputs = self.__class__.REQUIRED_OUTPUT_PATHS(kwargs, outputs)
+            missing_outputs = [path for path in required_outputs if not path.exists()]
             if missing_outputs:
                 missing = ", ".join(str(path) for path in missing_outputs)
                 raise RuntimeError(f"Command completed but did not create expected output(s): {missing}")

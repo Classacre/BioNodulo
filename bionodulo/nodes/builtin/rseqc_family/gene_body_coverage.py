@@ -71,6 +71,28 @@ class RSeQCGeneBodyCoverageNode(RSeQCCommandNode):
         return outputs
 
     @classmethod
+    def REQUIRED_OUTPUT_PATHS(
+        cls,
+        inputs: dict[str, Any],
+        outputs: list[Path],
+    ) -> list[Path]:
+        """Require the curve, table, and R script but not a conditional heatmap.
+
+        RSeQC's pinned ``Rcode_write`` source only writes ``heatMap`` when at
+        least three BAMs successfully produce coverage.  The input list can
+        contain more files than that runtime dataset because the source skips
+        files with no coverage signal.
+        """
+        return [path for path in outputs if not path.name.startswith("output.geneBodyCoverage.heatMap.")]
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Remove a prior conditional heatmap before a fresh source run."""
+        for path in outputs:
+            if path.name.startswith("output.geneBodyCoverage.heatMap."):
+                path.unlink(missing_ok=True)
+
+    @classmethod
     def MAP_PLANNED_OUTPUTS(cls, planned_paths: list[Path]) -> dict[str, Any]:
         """Bind the table/script and group one or two native plot files."""
         tables = [path for path in planned_paths if path.name == "output.geneBodyCoverage.txt"]
@@ -132,7 +154,11 @@ class RSeQCGeneBodyCoverageNode(RSeQCCommandNode):
 
     async def run(self, **kwargs: Any) -> dict[str, Any]:
         result = await super().run(**kwargs)
-        mapped = self.__class__.MAP_PLANNED_OUTPUTS([Path(path) for path in result])
+        # The heatmap is planned when three inputs are supplied, but may be
+        # absent when upstream skips one or more BAMs with no usable signal.
+        # Only expose artifacts that actually exist at runtime.
+        planned = [Path(path) for path in result if Path(path).exists()]
+        mapped = self.__class__.MAP_PLANNED_OUTPUTS(planned)
         return {
             "outputs": {
                 name: [str(path) for path in value] if isinstance(value, list) else str(value)

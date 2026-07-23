@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -380,6 +381,77 @@ def test_layout_dependent_outputs_are_grouped_into_stable_ports(
     multi = gene_body.PLAN_OUTPUTS({"input": ["a.bam", "b.bam", "c.bam"]}, tmp_path)
     assert len(gene_body.MAP_PLANNED_OUTPUTS(single)["coverage_plots"]) == 1
     assert len(gene_body.MAP_PLANNED_OUTPUTS(multi)["coverage_plots"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_gene_body_coverage_allows_source_skipped_heatmap(
+    tmp_path: Path,
+    registry: NodeRegistry,
+) -> None:
+    """RSeQC may omit the heatmap after skipping an unusable BAM."""
+    node_class = registry.get("rseqc_gene_body_coverage")
+    assert node_class is not None
+
+    class Context:
+        node_dir = tmp_path
+
+        async def run_command(self, _command: list[str], **kwargs: Any) -> dict[str, Any]:
+            output_dir = Path(str(kwargs["cwd"]))
+            (output_dir / "output.geneBodyCoverage.txt").write_text("Percentile\t1\n")
+            (output_dir / "output.geneBodyCoverage.r").write_text("# generated\n")
+            (output_dir / "output.geneBodyCoverage.curves.pdf").write_bytes(b"curves")
+            # The pinned source omits heatMap when fewer than three datasets
+            # survive its no-coverage filtering.
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    stale_heatmap = tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.heatMap.pdf"
+    stale_heatmap.parent.mkdir(parents=True, exist_ok=True)
+    stale_heatmap.write_bytes(b"stale")
+    result = await node_class().run(
+        context=Context(),
+        output_dir=tmp_path,
+        input=["one.bam", "two.bam", "three.bam"],
+        bam_indexes=["one.bam.bai", "two.bam.bai", "three.bam.bai"],
+        refgene="genes.bed",
+    )
+    assert result["outputs"]["coverage_plots"] == [
+        str(tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.curves.pdf")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_gene_body_coverage_returns_heatmap_when_source_creates_it(
+    tmp_path: Path,
+    registry: NodeRegistry,
+) -> None:
+    node_class = registry.get("rseqc_gene_body_coverage")
+    assert node_class is not None
+
+    class Context:
+        node_dir = tmp_path
+
+        async def run_command(self, _command: list[str], **kwargs: Any) -> dict[str, Any]:
+            output_dir = Path(str(kwargs["cwd"]))
+            for name in (
+                "output.geneBodyCoverage.txt",
+                "output.geneBodyCoverage.r",
+                "output.geneBodyCoverage.heatMap.pdf",
+                "output.geneBodyCoverage.curves.pdf",
+            ):
+                (output_dir / name).write_bytes(b"artifact")
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    result = await node_class().run(
+        context=Context(),
+        output_dir=tmp_path,
+        input=["one.bam", "two.bam", "three.bam"],
+        bam_indexes=["one.bam.bai", "two.bam.bai", "three.bam.bai"],
+        refgene="genes.bed",
+    )
+    assert result["outputs"]["coverage_plots"] == [
+        str(tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.heatMap.pdf"),
+        str(tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.curves.pdf"),
+    ]
 
 
 def test_tin_uses_node_directory_for_cwd_relative_source_outputs(registry: NodeRegistry) -> None:
