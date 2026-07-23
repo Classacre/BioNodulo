@@ -432,6 +432,7 @@ __all__ = [
     "SAMTOOLS_LOCK_SHA256",
     "SAMTOOLS_PACKAGE_SHA256",
     "SAMTOOLS_PLATFORM",
+    "SAMTOOLS_SOURCE_EVIDENCE",
     "build_argv_plan",
     "exact_output",
     "make_spec",
