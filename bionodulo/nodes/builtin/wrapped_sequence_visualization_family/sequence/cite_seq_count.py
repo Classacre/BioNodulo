@@ -1,7 +1,5 @@
-"""Stable owner for ``cite_seq_count``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _CiteSeqCountContract
+from bionodulo.nodes.builtin.single_cell_family.cite_seq_count import CiteSeqCountNode
 
-
-class CiteSeqCountNode(_CiteSeqCountContract):
-    NODE_ID = "cite_seq_count"
+__all__ = ["CiteSeqCountNode"]

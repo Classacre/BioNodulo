@@ -1,7 +1,5 @@
-"""Stable owner for ``cialign``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _CIAlignContract
+from bionodulo.nodes.builtin.alignment_family.cialign import CIAlignNode
 
-
-class CIAlignNode(_CIAlignContract):
-    NODE_ID = "cialign"
+__all__ = ["CIAlignNode"]

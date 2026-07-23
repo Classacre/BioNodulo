@@ -1,7 +1,5 @@
-"""Stable owner for ``circos_wiggle_to_scatter``."""
+"""Compatibility export for a relocated Circos node."""
 
-from ..adapter import _CircosWiggleToScatterContract
+from bionodulo.nodes.builtin.circos_family.wiggle_to_scatter import CircosWiggleToScatterNode
 
-
-class CircosWiggleToScatterNode(_CircosWiggleToScatterContract):
-    NODE_ID = "circos_wiggle_to_scatter"
+__all__ = ["CircosWiggleToScatterNode"]

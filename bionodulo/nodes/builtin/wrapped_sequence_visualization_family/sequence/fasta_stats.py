@@ -1,7 +1,5 @@
-"""Stable owner for ``fasta-stats``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _FastaStatsContract
+from bionodulo.nodes.builtin.qc_family.fasta_stats import FastaStatsNode
 
-
-class FastaStatsNode(_FastaStatsContract):
-    NODE_ID = "fasta-stats"
+__all__ = ["FastaStatsNode"]

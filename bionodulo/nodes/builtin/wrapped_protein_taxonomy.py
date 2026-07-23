@@ -1,7 +1,7 @@
 """Compatibility facade for focused protein and taxonomy wrapper nodes."""
 # ruff: noqa: F401
 
-from bionodulo.nodes.builtin.wrapped_protein_taxonomy_family import (
+from bionodulo.nodes.builtin.beacon2_family import (
     Beacon2AnalysesNode,
     Beacon2BiosamplesNode,
     Beacon2BracketNode,
@@ -13,12 +13,16 @@ from bionodulo.nodes.builtin.wrapped_protein_taxonomy_family import (
     Beacon2RangeNode,
     Beacon2RunsNode,
     Beacon2SequenceNode,
-    CentrifugeNode,
+)
+from bionodulo.nodes.builtin.centrifuge_family import CentrifugeNode
+from bionodulo.nodes.builtin.diamond_family import (
     DiamondAlignNode,
     DiamondMakeDBNode,
     GalaxyDiamondMakeDBNode,
     GalaxyDiamondNode,
     GalaxyDiamondViewNode,
+)
+from bionodulo.nodes.builtin.hmmer_family import (
     HMMERAlimaskNode,
     HMMERHmmalignNode,
     HMMERHmmbuildNode,
@@ -31,16 +35,22 @@ from bionodulo.nodes.builtin.wrapped_protein_taxonomy_family import (
     HMMERNhmmerNode,
     HMMERNhmmscanNode,
     HMMERPhmmerNode,
+)
+from bionodulo.nodes.builtin.kaiju_family import (
     Kaiju2KronaNode,
     Kaiju2TableNode,
     KaijuAddTaxonNamesNode,
     KaijuMergeOutputsNode,
     KaijuNode,
+)
+from bionodulo.nodes.builtin.kraken_family import (
     KrakenFilterNode,
     KrakenMpaReportNode,
     KrakenNode,
     KrakenReportNode,
     KrakenTranslateNode,
+)
+from bionodulo.nodes.builtin.mmseqs2_family import (
     MMseqs2EasyClusterNode,
     MMseqs2EasyLinclustNode,
     MMseqs2EasyLinsearchNode,

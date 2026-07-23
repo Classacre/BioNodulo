@@ -6,11 +6,15 @@ These guard the two things that must not drift:
 Plus the runtime behaviours: lazy get() imports only the needed module, and
 object_info() serves from the manifest without importing node classes.
 """
+
 from __future__ import annotations
 
 import json
 import sys
+from collections import defaultdict
 from pathlib import Path
+
+import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
@@ -22,13 +26,109 @@ sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 import gen_node_index  # noqa: E402
 
 
-def test_node_index_is_fresh():
-    """The committed node_index.json matches a live rebuild (no drift)."""
-    live = gen_node_index.build_index()
-    committed = json.loads((_REPO_ROOT / "bionodulo/nodes/node_index.json").read_text())
-    assert committed == live, (
-        "node_index.json is stale — run `python scripts/gen_node_index.py`"
+EXPECTED_NODE_COUNT = 943
+EXPECTED_HISTORICAL_ALIAS_COUNT = 22
+BUILTIN_MODULE_PREFIX = "bionodulo.nodes.builtin."
+
+
+@pytest.fixture(scope="module")
+def live_owners() -> tuple[gen_node_index.NodeOwner, ...]:
+    return gen_node_index.discover_node_owners()
+
+
+def test_catalog_identity_and_generated_manifests_are_consistent(live_owners):
+    """Pin node ownership, historical IDs, and both generated manifests."""
+    owners_by_id: dict[str, list[gen_node_index.NodeOwner]] = defaultdict(list)
+    for owner in live_owners:
+        owners_by_id[owner.node_id].append(owner)
+
+    duplicate_owners = {
+        node_id: [owner.qualified_class for owner in owners]
+        for node_id, owners in owners_by_id.items()
+        if len(owners) != 1
+    }
+    assert len(live_owners) == EXPECTED_NODE_COUNT
+    assert len(owners_by_id) == EXPECTED_NODE_COUNT
+    assert duplicate_owners == {}
+
+    live_index = gen_node_index.build_index(live_owners)
+    committed_index = json.loads((_REPO_ROOT / "bionodulo/nodes/node_index.json").read_text())
+    assert committed_index == live_index, "node_index.json is stale — run `python scripts/gen_node_index.py`"
+
+    baseline = json.loads((_REPO_ROOT / "bionodulo/nodes/generated/baseline-ledger.json").read_text())
+    baseline_ids = {entry["node_id"] for entry in baseline["entries"]}
+    live_ids = set(owners_by_id)
+    assert len(baseline["entries"]) == EXPECTED_NODE_COUNT
+    assert baseline_ids == live_ids
+
+    committed_metadata = json.loads((_REPO_ROOT / "bionodulo/nodes/node_metadata.json").read_text())
+    assert set(committed_metadata) == live_ids
+
+    historical_aliases = {
+        entry["node_id"]: entry["alias_of"] for entry in baseline["entries"] if entry.get("alias_of") is not None
+    }
+    assert len(historical_aliases) == EXPECTED_HISTORICAL_ALIAS_COUNT
+    assert set(historical_aliases) <= live_ids
+    assert set(historical_aliases.values()) <= live_ids
+
+
+def test_build_index_rejects_duplicate_ids_within_one_module():
+    owners = (
+        gen_node_index.NodeOwner("duplicate", "example.nodes", "FirstNode"),
+        gen_node_index.NodeOwner("duplicate", "example.nodes", "SecondNode"),
     )
+    with pytest.raises(SystemExit, match="example.nodes.FirstNode.*SecondNode"):
+        gen_node_index.build_index(owners)
+
+
+def owner_module_root(module: str) -> str:
+    """Return the first package component below ``builtin``."""
+    return module.removeprefix(BUILTIN_MODULE_PREFIX).split(".", 1)[0]
+
+
+def test_final_one_node_per_file_family_layout(live_owners):
+    """Become a strict final-layout pass as soon as relocation is complete."""
+    owners_by_module: dict[str, list[str]] = defaultdict(list)
+    for owner in live_owners:
+        owners_by_module[owner.module].append(owner.node_id)
+
+    multi_owner_modules = {
+        module: sorted(node_ids) for module, node_ids in owners_by_module.items() if len(node_ids) != 1
+    }
+    direct_builtin = {
+        owner.node_id: owner.module
+        for owner in live_owners
+        if "." not in owner.module.removeprefix(BUILTIN_MODULE_PREFIX)
+    }
+    wrapped_modules = {
+        module: len(node_ids)
+        for module, node_ids in owners_by_module.items()
+        if owner_module_root(module).startswith("wrapped_")
+    }
+
+    if multi_owner_modules or direct_builtin or wrapped_modules:
+        excess_owners = sum(len(node_ids) - 1 for node_ids in multi_owner_modules.values())
+        wrapped_owner_count = sum(wrapped_modules.values())
+        wrapped_roots: dict[str, dict[str, int]] = defaultdict(lambda: {"modules": 0, "nodes": 0})
+        for module, owner_count in wrapped_modules.items():
+            root_summary = wrapped_roots[owner_module_root(module)]
+            root_summary["modules"] += 1
+            root_summary["nodes"] += owner_count
+        report = {
+            "multi_owner_modules": {module: len(node_ids) for module, node_ids in multi_owner_modules.items()},
+            "direct_builtin": direct_builtin,
+            "wrapped_roots": dict(sorted(wrapped_roots.items())),
+        }
+        pytest.xfail(
+            "final node layout pending: "
+            f"{len(multi_owner_modules)} multi-owner modules with "
+            f"{excess_owners} excess owners; "
+            f"{len(direct_builtin)} direct-builtin nodes; "
+            f"{wrapped_owner_count} wrapped nodes across "
+            f"{len(wrapped_modules)} modules. Remaining layout: " + json.dumps(report, sort_keys=True)
+        )
+
+    assert len(owners_by_module) == EXPECTED_NODE_COUNT
 
 
 def test_node_metadata_is_fresh():
@@ -40,9 +140,7 @@ def test_node_metadata_is_fresh():
     """
     live = json.loads(json.dumps(gen_node_index.build_metadata(), sort_keys=True))
     committed = json.loads((_REPO_ROOT / "bionodulo/nodes/node_metadata.json").read_text())
-    assert committed == live, (
-        "node_metadata.json is stale — run `python scripts/gen_node_index.py`"
-    )
+    assert committed == live, "node_metadata.json is stale — run `python scripts/gen_node_index.py`"
 
 
 def test_every_indexed_node_is_lazily_resolvable():

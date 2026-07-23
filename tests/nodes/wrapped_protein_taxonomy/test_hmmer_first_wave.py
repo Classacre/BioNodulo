@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.hmmer import (
+from bionodulo.nodes.builtin.hmmer_family import (
     HMMERAlimaskNode,
     HMMERHmmalignNode,
     HMMERHmmbuildNode,

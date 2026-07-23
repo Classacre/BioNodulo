@@ -1,7 +1,5 @@
-"""Stable owner for ``circos_tableviewer``."""
+"""Compatibility export for a relocated Circos node."""
 
-from ..adapter import _CircosTableviewerContract
+from bionodulo.nodes.builtin.circos_family.tableviewer import CircosTableviewerNode
 
-
-class CircosTableviewerNode(_CircosTableviewerContract):
-    NODE_ID = "circos_tableviewer"
+__all__ = ["CircosTableviewerNode"]

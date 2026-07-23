@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin import qc
 from bionodulo.nodes.builtin.qc_family.qualimap import QualiMapAliasNode, QualiMapNode
 
@@ -42,17 +40,10 @@ def _write_report_bundle(report_dir: Path, *, outside: bool = False) -> None:
             (asset_dir / filename).write_bytes(content)
 
 
-def test_qualimap_ids_are_owned_only_by_the_focused_module() -> None:
-    assert QualiMapNode.__module__.endswith("qc_family.qualimap")
-    assert QualiMapAliasNode.__module__.endswith("qc_family.qualimap")
+def test_qualimap_facade_reexports_compatible_classes() -> None:
     assert qc.QualiMapNode is QualiMapNode
     assert qc.QualiMapAliasNode is QualiMapAliasNode
-    legacy_ids = {
-        obj.NODE_ID
-        for _name, obj in inspect.getmembers(qc, inspect.isclass)
-        if issubclass(obj, BaseNode) and obj is not BaseNode and obj.__module__ == qc.__name__ and obj.NODE_ID
-    }
-    assert {"qualimap", "qualimap_bamqc"}.isdisjoint(legacy_ids)
+    assert issubclass(QualiMapAliasNode, QualiMapNode)
 
 
 def test_qualimap_pinned_authority_runtime_and_bam_access_contract() -> None:

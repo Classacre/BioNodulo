@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import copy
-import importlib
 import inspect
-import pkgutil
 from pathlib import Path
 from typing import Any
 
@@ -11,8 +9,7 @@ import pytest
 
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin import wrapped_hyphy_metagenomics as facade
-from bionodulo.nodes.builtin import wrapped_hyphy_metagenomics_family as family
-from bionodulo.nodes.builtin.wrapped_hyphy_metagenomics_family.contracts import (
+from bionodulo.nodes.builtin.comparative_genomics_family.contracts import (
     AGGRESSIVE,
     EXIT_CODE,
     GALAXY_DEFAULT,
@@ -42,37 +39,6 @@ HYPHY_IDS = (
     "hyphy_conv",
     "hyphy_cln",
 )
-
-EXPECTED_MODULES = {
-    "hyphy_absrel": "hyphy.absrel",
-    "hyphy_annotate": "hyphy.annotate",
-    "hyphy_b_still": "hyphy.b_still",
-    "hyphy_bgm": "hyphy.bgm",
-    "hyphy_fade": "hyphy.fade",
-    "hyphy_fel": "hyphy.fel",
-    "hyphy_fubar": "hyphy.fubar",
-    "hyphy_gard": "hyphy.gard",
-    "hyphy_infer_stasis_clusters": "hyphy.infer_stasis_clusters",
-    "hyphy_meme": "hyphy.meme",
-    "hyphy_prime": "hyphy.prime",
-    "hyphy_relax": "hyphy.relax",
-    "hyphy_slac": "hyphy.slac",
-    "hyphy_sm19": "hyphy.sm19",
-    "hyphy_strike_ambigs": "hyphy.strike_ambigs",
-    "hyphy_busted": "hyphy.busted",
-    "hyphy_cfel": "hyphy.cfel",
-    "hyphy_conv": "hyphy.conv",
-    "hyphy_cln": "hyphy.cln",
-    "merge_metaphlan_tables": "metaphlan.merge_tables",
-    "extract_metaphlan_database": "metaphlan.extract_database",
-    "customize_metaphlan_database": "metaphlan.customize_database",
-    "mash_dist": "mash.dist",
-    "mash_sketch": "mash.sketch",
-    "mash_paste": "mash.paste",
-    "mash_screen": "mash.screen",
-    "mashmap": "comparative.mashmap",
-    "fastani": "comparative.fastani",
-}
 
 EXPECTED_OUTPUTS = {
     "hyphy_absrel": ("absrel_stdout.md", "absrel_output.json"),
@@ -164,32 +130,13 @@ def _command_text(command: Any) -> str:
     return str(command)
 
 
-def test_exactly_28_stable_ids_have_focused_owners() -> None:
+def test_facade_exports_exactly_28_stable_ids() -> None:
     classes = _node_classes()
-    assert set(classes) == set(EXPECTED_MODULES) == set(EXPECTED_OUTPUTS) == set(NODE_EVIDENCE)
+    assert set(classes) == set(EXPECTED_OUTPUTS) == set(NODE_EVIDENCE)
     assert len(classes) == 28
-    for node_id, module_suffix in EXPECTED_MODULES.items():
-        assert classes[node_id].__module__ == (
-            f"bionodulo.nodes.builtin.wrapped_hyphy_metagenomics_family.{module_suffix}"
-        )
-
-
-def test_each_stable_id_is_declared_once_in_the_family() -> None:
-    owners: dict[str, list[str]] = {}
-    for _finder, module_name, is_package in pkgutil.walk_packages(family.__path__, prefix=f"{family.__name__}."):
-        if is_package:
-            continue
-        module = importlib.import_module(module_name)
-        for _name, candidate in inspect.getmembers(module, inspect.isclass):
-            if (
-                issubclass(candidate, BaseNode)
-                and candidate is not BaseNode
-                and candidate.__module__ == module_name
-                and candidate.NODE_ID
-            ):
-                owners.setdefault(candidate.NODE_ID, []).append(module_name)
-    assert set(owners) == set(EXPECTED_MODULES)
-    assert all(len(modules) == 1 for modules in owners.values())
+    for node_id, node_class in classes.items():
+        assert getattr(facade, node_class.__name__) is node_class
+        assert node_class.NODE_ID == node_id
 
 
 def test_exact_tools_iuc_authorities_and_package_constraints() -> None:

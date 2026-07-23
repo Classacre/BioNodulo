@@ -1,7 +1,5 @@
-"""Stable owner for ``circos_interval_to_text``."""
+"""Compatibility export for a relocated Circos node."""
 
-from ..adapter import _CircosIntervalToTextContract
+from bionodulo.nodes.builtin.circos_family.interval_to_text import CircosIntervalToTextNode
 
-
-class CircosIntervalToTextNode(_CircosIntervalToTextContract):
-    NODE_ID = "circos_interval_to_text"
+__all__ = ["CircosIntervalToTextNode"]

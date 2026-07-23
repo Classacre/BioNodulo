@@ -1,7 +1,5 @@
-"""Stable owner for ``circos_binlinks``."""
+"""Compatibility export for a relocated Circos node."""
 
-from ..adapter import _CircosBinlinksContract
+from bionodulo.nodes.builtin.circos_family.binlinks import CircosBinlinksNode
 
-
-class CircosBinlinksNode(_CircosBinlinksContract):
-    NODE_ID = "circos_binlinks"
+__all__ = ["CircosBinlinksNode"]

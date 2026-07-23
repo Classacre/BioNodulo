@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin.protein_database_family import alphafold_db
 from bionodulo.nodes.builtin.protein_database_family.alphafold_db import AlphaFoldDBNode
+from bionodulo.nodes.builtin.protein_database_family import alphafold_db_adapter
 
 
 CURRENT_OPENAPI_SHA256 = "714607265fd8edc581baf28df038ea804d96d871baa6034ff60d22d0cf893163"
@@ -84,8 +84,8 @@ async def test_live_shaped_response_selects_exact_accession_and_exposes_all_arti
         downloads.append(url)
         path.write_text("synthetic", encoding="utf-8")
 
-    monkeypatch.setattr(alphafold_db, "_request_json", fake_request)
-    monkeypatch.setattr(alphafold_db, "_download_file", fake_download)
+    monkeypatch.setattr(alphafold_db_adapter, "_request_json", fake_request)
+    monkeypatch.setattr(alphafold_db_adapter, "_download_file", fake_download)
 
     result = await AlphaFoldDBNode().run(
         uniprot_ids="P04637,Q5VSL9",
@@ -148,8 +148,8 @@ async def test_include_complexes_materializes_every_returned_complex_artifact(
         downloads.append((url, path))
         path.write_text("synthetic", encoding="utf-8")
 
-    monkeypatch.setattr(alphafold_db, "_request_json", fake_request)
-    monkeypatch.setattr(alphafold_db, "_download_file", fake_download)
+    monkeypatch.setattr(alphafold_db_adapter, "_request_json", fake_request)
+    monkeypatch.setattr(alphafold_db_adapter, "_download_file", fake_download)
 
     result = await AlphaFoldDBNode().run(
         uniprot_ids="P04637",
@@ -188,7 +188,7 @@ async def test_sequence_checksum_is_forwarded_and_verified_locally(
         requests.append(params)
         return [_entry("P04637", sequence_checksum="f" * 32)]
 
-    monkeypatch.setattr(alphafold_db, "_request_json", fake_request)
+    monkeypatch.setattr(alphafold_db_adapter, "_request_json", fake_request)
 
     with pytest.raises(RuntimeError, match="checksum did not match"):
         await AlphaFoldDBNode().run(
@@ -215,7 +215,7 @@ async def test_missing_exact_prediction_response_fails_closed(
     async def fake_request(*_args: Any, **_kwargs: Any) -> list[Any]:
         return [] if response_kind == "empty" else [_entry("Q5VSL9")]
 
-    monkeypatch.setattr(alphafold_db, "_request_json", fake_request)
+    monkeypatch.setattr(alphafold_db_adapter, "_request_json", fake_request)
 
     with pytest.raises(RuntimeError, match=message):
         await AlphaFoldDBNode().run(uniprot_ids="P04637")
@@ -237,8 +237,8 @@ async def test_requested_missing_artifact_url_fails_closed(
     async def fake_download(url: str, *_args: Any, **_kwargs: Any) -> None:
         downloads.append(url)
 
-    monkeypatch.setattr(alphafold_db, "_request_json", fake_request)
-    monkeypatch.setattr(alphafold_db, "_download_file", fake_download)
+    monkeypatch.setattr(alphafold_db_adapter, "_request_json", fake_request)
+    monkeypatch.setattr(alphafold_db_adapter, "_download_file", fake_download)
 
     with pytest.raises(RuntimeError, match="did not provide"):
         await AlphaFoldDBNode().run(

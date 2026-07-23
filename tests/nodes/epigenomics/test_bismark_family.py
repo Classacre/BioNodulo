@@ -22,7 +22,6 @@ from bionodulo.nodes.builtin.bismark_family.methylation_extractor import (
     BismarkMethylationNode,
 )
 from bionodulo.nodes.registry import NodeRegistry
-from scripts.gen_node_index import build_index
 
 
 PINNED_COMMIT = "e552b8f307a7041bcebed8f8e5a764ebcf7b046c"
@@ -67,16 +66,7 @@ def test_align_environment_declares_bowtie2_runtime_dependency() -> None:
     assert all(PINNED_COMMIT in url for url in BismarkAlignNode.SOURCE_URLS)
 
 
-def test_focused_modules_own_stable_ids_and_legacy_imports_remain_valid() -> None:
-    live_index = build_index()
-    expected = {
-        "bismark_genome_preparation": "bionodulo.nodes.builtin.bismark_family.genome_preparation",
-        "bismark_align": "bionodulo.nodes.builtin.bismark_family.align",
-        "bismark_methylation_extractor": ("bionodulo.nodes.builtin.bismark_family.methylation_extractor"),
-        "bismark_methylation": "bionodulo.nodes.builtin.bismark_family.methylation_extractor",
-    }
-    assert {node_id: live_index[node_id] for node_id in expected} == expected
-
+def test_legacy_imports_remain_valid() -> None:
     legacy = importlib.import_module("bionodulo.nodes.builtin.epigenomics")
     assert legacy.BismarkGenomePreparationNode is BismarkGenomePreparationNode
     assert legacy.BismarkAlignNode is BismarkAlignNode

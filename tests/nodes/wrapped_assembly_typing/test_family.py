@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import importlib
 import inspect
 from pathlib import Path
 from typing import Any
@@ -83,20 +82,6 @@ EXPECTED_OUTPUTS = {
         "staramr_hits",
     ),
 }
-
-ADAPTER_MODULES = (
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.contracts",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.abricate.adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.bacterial.assembly_adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.bacterial.typing_adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.checkm.adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.checkm.checkm2_adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.chewbbaca.adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.chira.adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.dastool.adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.graph.bandage_adapter",
-    "bionodulo.nodes.builtin.wrapped_assembly_typing_family.graph.gfa_adapter",
-)
 
 SOURCE_GROUPS = (
     (("gfa_to_fa",), TOOLS_IUC_COMMIT, "tools/gfa_to_fa", "0.1.2", "python wrapper gfa_to_fa==0.1.2"),
@@ -229,17 +214,6 @@ def _node_classes() -> dict[str, type[BaseNode]]:
     }
 
 
-def _owned_node_classes(module: Any) -> list[type[BaseNode]]:
-    return [
-        candidate
-        for _name, candidate in inspect.getmembers(module, inspect.isclass)
-        if issubclass(candidate, BaseNode)
-        and candidate is not BaseNode
-        and candidate.__module__ == module.__name__
-        and candidate.NODE_ID
-    ]
-
-
 def _sample_value(name: str, spec: Any) -> Any:
     type_spec = spec[0]
     config = spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {}
@@ -339,17 +313,12 @@ def _planned_relatives(node_class: type[BaseNode], inputs: dict[str, Any], tmp_p
     return tuple(str(Path(path).relative_to(root)) for path in paths)
 
 
-def test_exactly_42_stable_ids_have_focused_owners() -> None:
+def test_exactly_42_stable_ids_keep_legacy_facade_exports() -> None:
     classes = _node_classes()
     assert set(classes) == set(EXPECTED_OUTPUTS)
     assert len(classes) == 42
 
-    for module_name in ADAPTER_MODULES:
-        assert _owned_node_classes(importlib.import_module(module_name)) == []
-
     for node_id, node_class in classes.items():
-        owner = importlib.import_module(node_class.__module__)
-        assert _owned_node_classes(owner) == [node_class]
         assert getattr(facade, node_class.__name__) is node_class
         assert node_class.NODE_ID == node_id
 

@@ -1,7 +1,5 @@
-"""Stable owner for ``chopper``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _ChopperContract
+from bionodulo.nodes.builtin.trimming_family.chopper import ChopperNode
 
-
-class ChopperNode(_ChopperContract):
-    NODE_ID = "chopper"
+__all__ = ["ChopperNode"]

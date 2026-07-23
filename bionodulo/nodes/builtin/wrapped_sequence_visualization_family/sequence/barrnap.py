@@ -1,7 +1,5 @@
-"""Stable owner for ``barrnap``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _BarrnapContract
+from bionodulo.nodes.builtin.annotation_family.barrnap import BarrnapNode
 
-
-class BarrnapNode(_BarrnapContract):
-    NODE_ID = "barrnap"
+__all__ = ["BarrnapNode"]

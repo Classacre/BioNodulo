@@ -1,7 +1,5 @@
-"""Stable owner for ``circexplorer2``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _CIRCexplorer2Contract
+from bionodulo.nodes.builtin.rna_seq_family.circexplorer2 import CIRCexplorer2Node
 
-
-class CIRCexplorer2Node(_CIRCexplorer2Contract):
-    NODE_ID = "circexplorer2"
+__all__ = ["CIRCexplorer2Node"]

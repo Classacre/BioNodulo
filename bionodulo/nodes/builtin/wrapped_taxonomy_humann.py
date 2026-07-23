@@ -1,15 +1,15 @@
 """Compatibility facade for focused taxonomy and HUMAnN wrapper nodes."""
 # ruff: noqa: F401
 
-from bionodulo.nodes.builtin.wrapped_taxonomy_humann_family import (
-    BMTaggerNode,
+from bionodulo.nodes.builtin.biom_family import (
     BiomAddMetadataNode,
     BiomConvertNode,
     BiomFromUcNode,
     BiomNormalizeTableNode,
     BiomSubsetTableNode,
     BiomSummarizeTableNode,
-    BrackenEstAbundanceNode,
+)
+from bionodulo.nodes.builtin.humann_family import (
     HUMAnNBarplotNode,
     HUMAnNJoinTablesNode,
     HUMAnNReduceTableNode,
@@ -19,20 +19,30 @@ from bionodulo.nodes.builtin.wrapped_taxonomy_humann_family import (
     HUMAnNSplitStratifiedTableNode,
     HUMAnNSplitTableNode,
     HUMAnNUnpackPathwaysNode,
-    HybPiperNode,
+)
+from bionodulo.nodes.builtin.hybpiper_family import HybPiperNode
+from bionodulo.nodes.builtin.krakentools_family import (
     KrakentoolsAlphaDiversityNode,
     KrakentoolsBetaDiversityNode,
     KrakentoolsCombineKreportsNode,
     KrakentoolsExtractKrakenReadsNode,
     KrakentoolsKreport2KronaNode,
     KrakentoolsKreport2MpaNode,
-    MagicBlastNode,
     MothurTaxonomyToKronaNode,
-    RecentrifugeNode,
+    TaxonomyKronaChartNode,
+)
+from bionodulo.nodes.builtin.taxonkit_family import (
     TaxonKitName2TaxidNode,
     TaxonKitProfile2CamiNode,
-    TaxonomyKronaChartNode,
+)
+from bionodulo.nodes.builtin.taxonomy_family import (
+    BMTaggerNode,
+    BrackenEstAbundanceNode,
+    MagicBlastNode,
+    RecentrifugeNode,
     TaxpastaNode,
+)
+from bionodulo.nodes.builtin.tracy_family import (
     TracyAlignNode,
     TracyAssembleNode,
     TracyBasecallNode,

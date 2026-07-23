@@ -1,7 +1,5 @@
-"""Stable owner for ``circos_interval_to_tile``."""
+"""Compatibility export for a relocated Circos node."""
 
-from ..adapter import _CircosIntervalToTileContract
+from bionodulo.nodes.builtin.circos_family.interval_to_tile import CircosIntervalToTileNode
 
-
-class CircosIntervalToTileNode(_CircosIntervalToTileContract):
-    NODE_ID = "circos_interval_to_tile"
+__all__ = ["CircosIntervalToTileNode"]

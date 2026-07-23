@@ -1,7 +1,5 @@
-"""Stable owner for ``circos_gc_skew``."""
+"""Compatibility export for a relocated Circos node."""
 
-from ..adapter import _CircosGCSkewContract
+from bionodulo.nodes.builtin.circos_family.gc_skew import CircosGCSkewNode
 
-
-class CircosGCSkewNode(_CircosGCSkewContract):
-    NODE_ID = "circos_gc_skew"
+__all__ = ["CircosGCSkewNode"]

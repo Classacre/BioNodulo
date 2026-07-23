@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import inspect
 import struct
 from pathlib import Path
 from typing import Any, Callable
 
 import pytest
 
-from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin import rna_seq
 from bionodulo.nodes.builtin.rna_seq_family.featurecounts import FeatureCountsNode
 from bionodulo.nodes.builtin.rna_seq_family.feature_counts_alias import FeatureCountsAliasNode
@@ -67,35 +65,14 @@ def _materialize_salmon_index(path: Path, index_version: int = 1) -> str:
     return str(path)
 
 
-def test_stable_ids_are_owned_by_focused_modules_and_legacy_aliases_remain() -> None:
-    assert SalmonIndexNode.__module__.endswith("rna_seq_family.salmon")
-    assert SalmonQuantNode.__module__.endswith("rna_seq_family.salmon")
-    assert KallistoIndexNode.__module__.endswith("rna_seq_family.kallisto")
-    assert KallistoQuantNode.__module__.endswith("rna_seq_family.kallisto")
-    assert FeatureCountsNode.__module__.endswith("rna_seq_family.featurecounts")
-    assert FeatureCountsAliasNode.__module__.endswith("rna_seq_family.feature_counts_alias")
+def test_legacy_facades_reexport_compatible_classes() -> None:
     assert rna_seq.SalmonIndexNode is SalmonIndexNode
     assert rna_seq.SalmonQuantNode is SalmonQuantNode
     assert rna_seq.KallistoIndexNode is KallistoIndexNode
     assert rna_seq.KallistoQuantNode is KallistoQuantNode
-
-    legacy_ids = {
-        obj.NODE_ID
-        for _name, obj in inspect.getmembers(rna_seq, inspect.isclass)
-        if issubclass(obj, BaseNode) and obj not in {BaseNode} and obj.__module__ == rna_seq.__name__ and obj.NODE_ID
-    }
-    assert {"salmon_index", "salmon_quant", "kallisto_index", "kallisto_quant"}.isdisjoint(legacy_ids)
-    assert "feature_counts" not in legacy_ids
+    assert rna_seq.FeatureCountsNode is FeatureCountsNode
+    assert rna_seq.FeatureCountsAliasNode is FeatureCountsAliasNode
     assert wrapped_annotation_sequence.FeatureCountsNode is FeatureCountsNode
-    wrapped_ids = {
-        obj.NODE_ID
-        for _name, obj in inspect.getmembers(wrapped_annotation_sequence, inspect.isclass)
-        if issubclass(obj, BaseNode)
-        and obj is not BaseNode
-        and obj.__module__ == wrapped_annotation_sequence.__name__
-        and obj.NODE_ID
-    }
-    assert "featurecounts" not in wrapped_ids
 
 
 def test_pinned_sources_and_output_contracts_are_exact() -> None:

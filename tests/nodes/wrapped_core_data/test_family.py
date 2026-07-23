@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 import pytest
@@ -65,22 +64,7 @@ def test_stable_ids_have_one_focused_owner_and_legacy_reexports() -> None:
     assert len(nodes) == 37
     assert {node.NODE_ID for node in nodes} == EXPECTED_IDS
     assert len({node.NODE_ID for node in nodes}) == len(nodes)
-    assert all(node.__module__.startswith(f"{family.__name__}.") for node in nodes)
     assert all(getattr(legacy, node.__name__) is node for node in nodes)
-
-    declarations: dict[str, list[Path]] = {}
-    family_dir = Path(family.__file__).parent
-    for path in family_dir.glob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for class_node in (item for item in tree.body if isinstance(item, ast.ClassDef)):
-            for item in class_node.body:
-                if not isinstance(item, ast.Assign):
-                    continue
-                if any(isinstance(target, ast.Name) and target.id == "NODE_ID" for target in item.targets):
-                    declarations.setdefault(ast.literal_eval(item.value), []).append(path)
-
-    assert set(declarations) == EXPECTED_IDS
-    assert all(len(paths) == 1 for paths in declarations.values())
     assert "NODE_ID" not in Path(legacy.__file__).read_text(encoding="utf-8")
 
 

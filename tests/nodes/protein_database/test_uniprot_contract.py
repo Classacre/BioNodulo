@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin.protein_database_family import uniprot
+from bionodulo.nodes.builtin.protein_database_family import uniprot, uniprot_adapter
 
 
 @pytest.mark.parametrize(
@@ -66,7 +66,7 @@ async def test_non_uniprotkb_search_omits_uniprotkb_only_parameters(
         calls.append((resource, params))
         return {"results": []}
 
-    monkeypatch.setattr(uniprot, "_request_json", fake_json)
+    monkeypatch.setattr(uniprot_adapter, "_request_json", fake_json)
 
     await uniprot.UniProtSearchNode().run(
         query="identity:0.9",
@@ -123,8 +123,8 @@ async def test_retrieve_isoforms_uses_search_and_combines_fasta(
         calls.append((resource, params))
         return ">sp|P04637|P53_HUMAN\nMSEQ\n>sp|P04637-2|P53_HUMAN\nMISEQ\n"
 
-    monkeypatch.setattr(uniprot, "_request_json", fake_json)
-    monkeypatch.setattr(uniprot, "_request_text", fake_text)
+    monkeypatch.setattr(uniprot_adapter, "_request_json", fake_json)
+    monkeypatch.setattr(uniprot_adapter, "_request_text", fake_text)
 
     result = await uniprot.UniProtRetrieveNode().run(
         uniprot_ids="P04637",
@@ -186,8 +186,8 @@ async def test_hidden_legacy_retrieve_format_only_controls_fasta_when_unspecifie
         text_calls.append(resource)
         return ">sp|P04637|P53_HUMAN\nMSEQ\n"
 
-    monkeypatch.setattr(uniprot, "_request_json", fake_json)
-    monkeypatch.setattr(uniprot, "_request_text", fake_text)
+    monkeypatch.setattr(uniprot_adapter, "_request_json", fake_json)
+    monkeypatch.setattr(uniprot_adapter, "_request_text", fake_text)
 
     result = await uniprot.UniProtRetrieveNode().run(
         uniprot_ids="P04637",

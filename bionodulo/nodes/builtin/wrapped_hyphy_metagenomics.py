@@ -1,10 +1,8 @@
 """Compatibility facade for focused HyPhy and metagenomics wrapper nodes."""
 # ruff: noqa: F401
 
-from bionodulo.nodes.builtin.wrapped_hyphy_metagenomics_family import (
-    CustomizeMetaPhlAnDatabaseNode,
-    ExtractMetaPhlAnDatabaseNode,
-    FastANINode,
+from bionodulo.nodes.builtin.comparative_genomics_family import FastANINode
+from bionodulo.nodes.builtin.hyphy_family import (
     HyPhyABSRELNode,
     HyPhyAnnotateNode,
     HyPhyBGMNode,
@@ -24,11 +22,17 @@ from bionodulo.nodes.builtin.wrapped_hyphy_metagenomics_family import (
     HyPhySLACNode,
     HyPhySM2019Node,
     HyPhyStrikeAmbigsNode,
+)
+from bionodulo.nodes.builtin.mash_family import (
     MashDistNode,
     MashMapNode,
     MashPasteNode,
     MashScreenNode,
     MashSketchNode,
+)
+from bionodulo.nodes.builtin.metaphlan_family import (
+    CustomizeMetaPhlAnDatabaseNode,
+    ExtractMetaPhlAnDatabaseNode,
     MergeMetaPhlAnTablesNode,
 )
 

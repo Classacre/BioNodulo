@@ -18,30 +18,11 @@ from bionodulo.nodes.builtin.r_family.deseq2 import DESeq2AliasNode, DESeq2Node
 from bionodulo.nodes.builtin.r_family.pheatmap import PheatmapNode
 from bionodulo.nodes.builtin.r_family.plot import RPlotNode
 from bionodulo.nodes.builtin.r_family.script import RScriptNode
-from bionodulo.nodes.registry import NodeRegistry
-
-
-NODE_MODULES = {
-    "deseq2_analysis": "bionodulo.nodes.builtin.r_family.deseq2",
-    "deseq2": "bionodulo.nodes.builtin.r_family.deseq2",
-    "r_pheatmap": "bionodulo.nodes.builtin.r_family.pheatmap",
-    "r_biostrings_stats": "bionodulo.nodes.builtin.r_family.biostrings_stats",
-    "r_dataframe_builder": "bionodulo.nodes.builtin.r_family.dataframe_builder",
-    "r_plot": "bionodulo.nodes.builtin.r_family.plot",
-    "r_script": "bionodulo.nodes.builtin.r_family.script",
-}
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_r_family_has_focused_ownership_without_changing_catalog_size() -> None:
-    registry = NodeRegistry.create_isolated()
-    registry.load_builtin_nodes()
-
-    assert len(registry.object_info()) == 943
-    assert {node_id: registry.get(node_id).__module__ for node_id in NODE_MODULES} == NODE_MODULES
+def test_deseq2_facade_and_alias_preserve_class_identity() -> None:
     assert FacadeDESeq2Node is DESeq2Node
-    assert registry.get("deseq2_analysis") is DESeq2Node
-    assert registry.get("deseq2") is DESeq2AliasNode
     assert issubclass(DESeq2AliasNode, DESeq2Node)
 
 

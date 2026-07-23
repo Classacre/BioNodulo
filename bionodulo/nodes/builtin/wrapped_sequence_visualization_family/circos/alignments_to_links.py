@@ -1,7 +1,5 @@
-"""Stable owner for ``circos_aln_to_links``."""
+"""Compatibility export for a relocated Circos node."""
 
-from ..adapter import _CircosAlignmentsToLinksContract
+from bionodulo.nodes.builtin.circos_family.alignments_to_links import CircosAlignmentsToLinksNode
 
-
-class CircosAlignmentsToLinksNode(_CircosAlignmentsToLinksContract):
-    NODE_ID = "circos_aln_to_links"
+__all__ = ["CircosAlignmentsToLinksNode"]

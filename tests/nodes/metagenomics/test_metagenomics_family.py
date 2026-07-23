@@ -7,14 +7,14 @@ from typing import Any
 
 import pytest
 
+from bionodulo.nodes.builtin.checkm_family.checkm import CheckMNode
 from bionodulo.nodes.builtin.metagenomics_family.bracken import BrackenNode
-from bionodulo.nodes.builtin.metagenomics_family.checkm import CheckMNode
-from bionodulo.nodes.builtin.metagenomics_family.humann import HUMAnNNode
 from bionodulo.nodes.builtin.metagenomics_family.kraken2 import Kraken2Node
 from bionodulo.nodes.builtin.metagenomics_family.kraken2_build import FINAL_DATABASE_FILES, Kraken2BuildNode
 from bionodulo.nodes.builtin.metagenomics_family.krona import KronaTaxonomyNode
 from bionodulo.nodes.builtin.metagenomics_family.maxbin import MaxBinNode
-from bionodulo.nodes.builtin.metagenomics_family.metaphlan import MetaPhlAnNode
+from bionodulo.nodes.builtin.humann_family.humann import HUMAnNNode
+from bionodulo.nodes.builtin.metaphlan_family.metaphlan import MetaPhlAnNode
 
 
 ALL_NODES = (Kraken2Node, BrackenNode, MetaPhlAnNode, HUMAnNNode, KronaTaxonomyNode)
@@ -140,9 +140,14 @@ def test_source_and_package_contracts_are_exactly_pinned(
     assert node.SHELL is False
 
 
-def test_stable_ids_are_unique_and_owned_by_one_focused_module_each() -> None:
+def test_stable_ids_are_grouped_with_their_tool_families() -> None:
     assert {node.NODE_ID for node in ALL_NODES} == {"kraken2", "bracken", "metaphlan", "humann", "krona"}
-    assert all(node.__module__.startswith("bionodulo.nodes.builtin.metagenomics_family.") for node in ALL_NODES)
+    assert HUMAnNNode.__module__ == "bionodulo.nodes.builtin.humann_family.humann"
+    assert MetaPhlAnNode.__module__ == "bionodulo.nodes.builtin.metaphlan_family.metaphlan"
+    assert all(
+        node.__module__.startswith("bionodulo.nodes.builtin.metagenomics_family.")
+        for node in (Kraken2Node, BrackenNode, KronaTaxonomyNode)
+    )
 
 
 def test_database_and_cross_tool_inputs_are_explicit_ports() -> None:
@@ -525,9 +530,10 @@ def test_database_and_binning_nodes_have_exact_source_pins() -> None:
     assert MaxBinNode.SOURCE_SHA256 == "cb6429e857280c2b75823c8cd55058ed169c93bc707a46bde0c4383f2bffe09e"
     assert CheckMNode.VERSION == "1.2.5"
     assert CheckMNode.GIT_COMMIT == "acb42ba20b29661054933d0df44a78fd28fd0bcc"
+    assert CheckMNode.__module__ == "bionodulo.nodes.builtin.checkm_family.checkm"
     assert all(
         node.__module__.startswith("bionodulo.nodes.builtin.metagenomics_family.")
-        for node in (Kraken2BuildNode, MaxBinNode, CheckMNode)
+        for node in (Kraken2BuildNode, MaxBinNode)
     )
 
 

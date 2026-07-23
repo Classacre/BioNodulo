@@ -11,19 +11,6 @@ from bionodulo.nodes.builtin.data_transform_family.sample_subset import SampleSu
 from bionodulo.nodes.builtin.data_transform_family.split_file import SplitFileNode
 from bionodulo.nodes.builtin.input_family.sample_sheet import SampleSheetNode
 from bionodulo.nodes.builtin.r_family.dataframe_builder import DataFrameBuilderNode
-from scripts.gen_node_index import build_index
-
-
-EXPECTED_OWNERS = {
-    "aggregate": "bionodulo.nodes.builtin.data_transform_family.aggregate",
-    "normalize_data": "bionodulo.nodes.builtin.data_transform_family.normalize_data",
-    "pivot_table": "bionodulo.nodes.builtin.data_transform_family.pivot_table",
-    "reshape_table": "bionodulo.nodes.builtin.data_transform_family.pivot_table",
-    "sample_subset": "bionodulo.nodes.builtin.data_transform_family.sample_subset",
-    "split_file": "bionodulo.nodes.builtin.data_transform_family.split_file",
-    "input_sample_sheet": "bionodulo.nodes.builtin.input_family.sample_sheet",
-    "r_dataframe_builder": "bionodulo.nodes.builtin.r_family.dataframe_builder",
-}
 
 SOURCE_COMMITS = {
     "aggregate": "45518cfd3754b40ae44304bd65bc17d5ee6e2816",
@@ -112,13 +99,8 @@ PORT_CONTRACTS = {
 }
 
 
-def test_native_data_operations_have_focused_pinned_owners() -> None:
-    index = build_index()
-
-    for node_id, owner_name in EXPECTED_OWNERS.items():
-        assert index[node_id] == owner_name
-        node_class = NODE_CLASSES[node_id]
-        assert node_class.__module__ == owner_name
+def test_native_data_operations_preserve_pinned_contract_metadata() -> None:
+    for node_id, node_class in NODE_CLASSES.items():
         assert node_class.PRODUCT_SOURCE_COMMIT == SOURCE_COMMITS[node_id]
         assert node_class.GIT_URL == "https://github.com/Classacre/BioNodulo.git"
         assert node_class.GIT_COMMIT == node_class.PRODUCT_SOURCE_COMMIT
@@ -173,29 +155,15 @@ def test_native_data_operation_selector_defaults_match_the_implemented_branches(
     assert DataFrameBuilderNode.INPUT_TYPES()["optional"]["group_column"][1]["default"] == ""
 
 
-def test_legacy_imports_resolve_to_focused_classes() -> None:
-    for node_id, module_name in {
-        node_id: owner_name.rsplit(".", 1)[-1]
-        for node_id, owner_name in EXPECTED_OWNERS.items()
-        if node_id in {"aggregate", "normalize_data", "pivot_table", "reshape_table", "sample_subset", "split_file"}
-    }.items():
-        facade_name = {
-            "aggregate": "aggregate",
-            "normalize_data": "normalize_data",
-            "pivot_table": "pivot_table",
-            "reshape_table": "pivot_table",
-            "sample_subset": "sample_subset",
-            "split_file": "split_file",
-        }[node_id]
+def test_legacy_imports_reexport_compatible_classes() -> None:
+    legacy_exports = {
+        "aggregate": (AggregateNode, "aggregate"),
+        "normalize_data": (NormalizeDataNode, "normalize_data"),
+        "pivot_table": (PivotTableNode, "pivot_table"),
+        "reshape_table": (ReshapeTableNode, "pivot_table"),
+        "sample_subset": (SampleSubsetNode, "sample_subset"),
+        "split_file": (SplitFileNode, "split_file"),
+    }
+    for node_class, facade_name in legacy_exports.values():
         facade = importlib.import_module(f"bionodulo.nodes.builtin.{facade_name}")
-        owner = importlib.import_module(
-            f"bionodulo.nodes.builtin.data_transform_family.{module_name}"
-        )
-        node_class = next(
-            value
-            for value in vars(owner).values()
-            if isinstance(value, type)
-            and value.__module__ == owner.__name__
-            and getattr(value, "NODE_ID", None) == node_id
-        )
         assert node_class in vars(facade).values()

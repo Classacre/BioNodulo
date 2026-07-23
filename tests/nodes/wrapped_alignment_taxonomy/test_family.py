@@ -12,7 +12,7 @@ import pytest
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.builtin import wrapped_alignment_taxonomy as facade
-from bionodulo.nodes.builtin.wrapped_alignment_taxonomy_family.contracts import (
+from bionodulo.nodes.builtin._alignment_taxonomy_contracts import (
     NODE_EVIDENCE,
     TOOLS_IUC_GIT_COMMIT,
 )
@@ -55,11 +55,11 @@ EXPECTED_OUTPUTS = {
 }
 
 ADAPTER_MODULES = (
-    "bionodulo.nodes.builtin.wrapped_alignment_taxonomy_family.contracts",
-    "bionodulo.nodes.builtin.wrapped_alignment_taxonomy_family.alignment.adapter",
-    "bionodulo.nodes.builtin.wrapped_alignment_taxonomy_family.utilities.adapter",
-    "bionodulo.nodes.builtin.wrapped_alignment_taxonomy_family.bctools.adapter",
-    "bionodulo.nodes.builtin.wrapped_alignment_taxonomy_family.taxonomy.adapter",
+    "bionodulo.nodes.builtin._alignment_taxonomy_contracts",
+    "bionodulo.nodes.builtin._alignment_taxonomy_alignment_adapter",
+    "bionodulo.nodes.builtin._alignment_taxonomy_taxonomy_adapter",
+    "bionodulo.nodes.builtin._alignment_taxonomy_utilities_adapter",
+    "bionodulo.nodes.builtin.bctools_family.adapter",
 )
 
 

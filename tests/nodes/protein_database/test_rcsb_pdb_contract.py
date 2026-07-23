@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
-from bionodulo.nodes.builtin.protein_database_family import rcsb_pdb
+from bionodulo.nodes.builtin.protein_database_family import rcsb_pdb, rcsb_pdb_adapter
 from bionodulo.nodes.builtin.protein_database_family.rcsb_pdb import PDBDownloadNode
 
 
@@ -31,7 +31,7 @@ async def test_multiple_ids_expose_download_directory_with_relative_manifest_art
     async def fake_download(url: str, path: Path, **_kwargs: Any) -> None:
         await _recording_download(downloads, url, path)
 
-    monkeypatch.setattr(rcsb_pdb, "_download_file", fake_download)
+    monkeypatch.setattr(rcsb_pdb_adapter, "_download_file", fake_download)
 
     result = await PDBDownloadNode().run(
         pdb_ids="4hhb,1cbs",
@@ -91,8 +91,8 @@ async def test_xray_density_uses_pdb_id_and_explicit_detail(
     async def fake_download(url: str, path: Path, **_kwargs: Any) -> None:
         await _recording_download(downloads, url, path)
 
-    monkeypatch.setattr(rcsb_pdb, "_request_json", fake_metadata)
-    monkeypatch.setattr(rcsb_pdb, "_download_file", fake_download)
+    monkeypatch.setattr(rcsb_pdb_adapter, "_request_json", fake_metadata)
+    monkeypatch.setattr(rcsb_pdb_adapter, "_download_file", fake_download)
 
     result = await PDBDownloadNode().run(
         pdb_ids="1cbs",
@@ -142,8 +142,8 @@ async def test_electron_microscopy_density_uses_emdb_identifier(
     async def fake_download(url: str, path: Path, **_kwargs: Any) -> None:
         await _recording_download(downloads, url, path)
 
-    monkeypatch.setattr(rcsb_pdb, "_request_json", fake_metadata)
-    monkeypatch.setattr(rcsb_pdb, "_download_file", fake_download)
+    monkeypatch.setattr(rcsb_pdb_adapter, "_request_json", fake_metadata)
+    monkeypatch.setattr(rcsb_pdb_adapter, "_download_file", fake_download)
 
     result = await PDBDownloadNode().run(
         pdb_ids="6vxx",
@@ -208,8 +208,8 @@ async def test_only_density_not_found_is_optional(
     async def fake_metadata(_resource: str, **_kwargs: Any) -> dict[str, Any]:
         return {"exptl": [{"method": "X-RAY DIFFRACTION"}]}
 
-    monkeypatch.setattr(rcsb_pdb, "APIHttpClient", FakeClient)
-    monkeypatch.setattr(rcsb_pdb, "_request_json", fake_metadata)
+    monkeypatch.setattr(rcsb_pdb_adapter, "APIHttpClient", FakeClient)
+    monkeypatch.setattr(rcsb_pdb_adapter, "_request_json", fake_metadata)
 
     kwargs = {
         "pdb_ids": "1CBS",

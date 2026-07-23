@@ -160,10 +160,11 @@ NODE_EVIDENCE: dict[str, WrapperEvidence] = {
 def pin_contract(node_class: type[Any]) -> type[Any]:
     """Attach exact wrapper provenance and fail import on version drift."""
 
-    evidence = NODE_EVIDENCE[node_class.NODE_ID]
+    node_id = getattr(node_class, "NODE_ID", "") or node_class.LEGACY_NODE_ID
+    evidence = NODE_EVIDENCE[node_id]
     if node_class.VERSION != evidence.version:
         raise RuntimeError(
-            f"{node_class.NODE_ID} declares {node_class.VERSION}, expected {evidence.version}"
+            f"{node_id} declares {node_class.VERSION}, expected {evidence.version}"
         )
     node_class.WRAPPER_GIT_COMMIT = TOOLS_IUC_COMMIT
     node_class.WRAPPER_SOURCE = evidence.wrapper_path

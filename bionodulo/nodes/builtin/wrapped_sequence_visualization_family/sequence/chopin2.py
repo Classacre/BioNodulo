@@ -1,7 +1,5 @@
-"""Stable owner for ``chopin2``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _Chopin2Contract
+from bionodulo.nodes.builtin.sequence_family.chopin2 import Chopin2Node
 
-
-class Chopin2Node(_Chopin2Contract):
-    NODE_ID = "chopin2"
+__all__ = ["Chopin2Node"]

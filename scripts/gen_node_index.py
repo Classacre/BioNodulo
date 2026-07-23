@@ -13,6 +13,7 @@ so it cannot silently drift.
 Usage:  python scripts/gen_node_index.py         # writes bionodulo/nodes/node_index.json
         python scripts/gen_node_index.py --check  # exit 1 if stale (CI)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,7 +22,9 @@ import inspect
 import json
 import pkgutil
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
 # Ensure the repo root is importable when run directly.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -35,24 +38,41 @@ INDEX_PATH = _REPO_ROOT / "bionodulo" / "nodes" / "node_index.json"
 METADATA_PATH = _REPO_ROOT / "bionodulo" / "nodes" / "node_metadata.json"
 
 
-def build_index() -> dict[str, str]:
-    """Return {node_id: module_name} for every builtin node (sorted)."""
+@dataclass(frozen=True)
+class NodeOwner:
+    """One concrete, own-module builtin node class."""
+
+    node_id: str
+    module: str
+    class_name: str
+
+    @property
+    def qualified_class(self) -> str:
+        return f"{self.module}.{self.class_name}"
+
+
+def discover_node_owners() -> tuple[NodeOwner, ...]:
+    """Return every unique own-module builtin ``BaseNode`` subclass.
+
+    Owners are kept as individual records instead of being collapsed into an
+    ID-keyed dictionary.  That distinction lets callers detect two classes
+    claiming the same ``NODE_ID`` even when both classes live in one module.
+    """
     import bionodulo.nodes.builtin as builtin_pkg
 
     pkg_path = Path(builtin_pkg.__file__).parent
-    index: dict[str, str] = {}
-    collisions: list[str] = []
+    owners: list[NodeOwner] = []
+    seen_classes: set[type[BaseNode]] = set()
+    import_errors: list[str] = []
 
-    for _, full_name, ispkg in pkgutil.walk_packages(
-        [str(pkg_path)], prefix="bionodulo.nodes.builtin."
-    ):
+    for _, full_name, ispkg in pkgutil.walk_packages([str(pkg_path)], prefix="bionodulo.nodes.builtin."):
         modname = full_name.rsplit(".", 1)[-1]
         if ispkg or modname.startswith("_"):
             continue
         try:
             module = importlib.import_module(full_name)
         except Exception as exc:  # noqa: BLE001
-            print(f"WARN: skipping {full_name}: {exc}", file=sys.stderr)
+            import_errors.append(f"{full_name}: {exc}")
             continue
         for _name, obj in inspect.getmembers(module, inspect.isclass):
             if (
@@ -62,16 +82,49 @@ def build_index() -> dict[str, str]:
                 and getattr(obj, "NODE_ID", "")
                 and obj.__module__ == module.__name__  # own-module only
             ):
-                nid = obj.NODE_ID
-                if nid in index and index[nid] != full_name:
-                    collisions.append(f"{nid}: {index[nid]} vs {full_name}")
-                index[nid] = full_name
+                # A module may expose the same class under two names.  That is
+                # one owner, unlike two distinct classes sharing a NODE_ID.
+                if obj in seen_classes:
+                    continue
+                seen_classes.add(obj)
+                owners.append(
+                    NodeOwner(
+                        node_id=obj.NODE_ID,
+                        module=full_name,
+                        class_name=obj.__qualname__,
+                    )
+                )
+
+    if import_errors:
+        raise SystemExit(
+            "Failed to import builtin node modules (index not generated):\n  " + "\n  ".join(import_errors)
+        )
+
+    return tuple(
+        sorted(
+            owners,
+            key=lambda owner: (owner.node_id, owner.module, owner.class_name),
+        )
+    )
+
+
+def build_index(owners: Iterable[NodeOwner] | None = None) -> dict[str, str]:
+    """Return ``{node_id: module_name}`` for every builtin node (sorted)."""
+    discovered = tuple(owners) if owners is not None else discover_node_owners()
+    owners_by_id: dict[str, list[NodeOwner]] = {}
+    for owner in discovered:
+        owners_by_id.setdefault(owner.node_id, []).append(owner)
+
+    collisions = {node_id: node_owners for node_id, node_owners in owners_by_id.items() if len(node_owners) > 1}
 
     if collisions:
-        raise SystemExit(
-            "Duplicate NODE_IDs across modules (fix before indexing):\n  "
-            + "\n  ".join(collisions)
-        )
+        details = []
+        for node_id, node_owners in sorted(collisions.items()):
+            qualified = " vs ".join(owner.qualified_class for owner in node_owners)
+            details.append(f"{node_id}: {qualified}")
+        raise SystemExit("Duplicate NODE_ID class owners (fix before indexing):\n  " + "\n  ".join(details))
+
+    index = {owner.node_id: owner.module for owner in discovered}
     return dict(sorted(index.items()))
 
 
@@ -118,10 +171,7 @@ def main() -> int:
 
     INDEX_PATH.write_text(index_payload)
     METADATA_PATH.write_text(metadata_payload)
-    print(
-        f"Wrote {INDEX_PATH.name} ({len(index)} nodes) + "
-        f"{METADATA_PATH.name} ({len(metadata_payload)//1024} KB)."
-    )
+    print(f"Wrote {INDEX_PATH.name} ({len(index)} nodes) + {METADATA_PATH.name} ({len(metadata_payload) // 1024} KB).")
     return 0
 
 

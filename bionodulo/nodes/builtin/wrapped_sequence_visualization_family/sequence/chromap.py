@@ -1,7 +1,5 @@
-"""Stable owner for ``chromap``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _ChromapContract
+from bionodulo.nodes.builtin.alignment_family.chromap import ChromapNode
 
-
-class ChromapNode(_ChromapContract):
-    NODE_ID = "chromap"
+__all__ = ["ChromapNode"]

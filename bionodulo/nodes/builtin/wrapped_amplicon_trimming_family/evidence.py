@@ -109,12 +109,13 @@ ASSET_EVIDENCE = {
 def pin_contract(node_class: type[Any]) -> type[Any]:
     """Attach immutable wrapper evidence and fail import on drift."""
 
-    evidence = NODE_EVIDENCE[node_class.NODE_ID]
+    node_id = getattr(node_class, "NODE_ID", "") or node_class.LEGACY_NODE_ID
+    evidence = NODE_EVIDENCE[node_id]
     if node_class.VERSION != evidence.version:
-        raise RuntimeError(f"{node_class.NODE_ID} declares {node_class.VERSION}, expected {evidence.version}")
+        raise RuntimeError(f"{node_id} declares {node_class.VERSION}, expected {evidence.version}")
     node_class.WRAPPER_GIT_COMMIT = TOOLS_IUC_COMMIT
     node_class.WRAPPER_SOURCE = evidence.wrapper_path
-    node_class.WRAPPER_TOOL_ID = evidence.wrapper_id or node_class.NODE_ID
+    node_class.WRAPPER_TOOL_ID = evidence.wrapper_id or node_id
     node_class.SOURCE_URL = evidence.source_url
     node_class.UPSTREAM_SOURCE = evidence.wrapper_path
     node_class.PACKAGE_CONSTRAINTS = evidence.package_constraints

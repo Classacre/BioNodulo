@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import importlib
 import inspect
 from pathlib import Path
 from typing import Any
@@ -65,35 +64,12 @@ EXPECTED_OUTPUTS = {
     "mmseqs2_taxonomy_assignment": ("taxo_result.tsv", "taxo_result.txt", "taxo_result.html"),
 }
 
-ADAPTER_MODULES = (
-    "bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.contracts",
-    "bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.beacon.adapter",
-    "bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.diamond.adapter",
-    "bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.hmmer.adapter",
-    "bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.kaiju.adapter",
-    "bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.kaiju.table_adapter",
-    "bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.kraken.adapter",
-    "bionodulo.nodes.builtin.wrapped_protein_taxonomy_family.mmseqs2.adapter",
-)
-
-
 def _node_classes() -> dict[str, type[BaseNode]]:
     return {
         candidate.NODE_ID: candidate
         for _name, candidate in inspect.getmembers(facade, inspect.isclass)
         if issubclass(candidate, BaseNode) and candidate is not BaseNode and candidate.NODE_ID
     }
-
-
-def _owned_node_classes(module: Any) -> list[type[BaseNode]]:
-    return [
-        candidate
-        for _name, candidate in inspect.getmembers(module, inspect.isclass)
-        if issubclass(candidate, BaseNode)
-        and candidate is not BaseNode
-        and candidate.__module__ == module.__name__
-        and candidate.NODE_ID
-    ]
 
 
 def _sample_value(name: str, spec: Any) -> Any:
@@ -161,17 +137,12 @@ def _planned_names(planned: Any) -> tuple[str, ...]:
     return tuple(path.name for path in paths)
 
 
-def test_exactly_46_stable_ids_have_focused_owners() -> None:
+def test_facade_exports_exactly_46_stable_ids() -> None:
     classes = _node_classes()
     assert set(classes) == set(EXPECTED_OUTPUTS)
     assert len(classes) == 46
 
-    for module_name in ADAPTER_MODULES:
-        assert _owned_node_classes(importlib.import_module(module_name)) == []
-
     for node_id, node_class in classes.items():
-        owner = importlib.import_module(node_class.__module__)
-        assert _owned_node_classes(owner) == [node_class]
         assert getattr(facade, node_class.__name__) is node_class
         assert node_class.NODE_ID == node_id
 

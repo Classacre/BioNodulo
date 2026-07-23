@@ -20,6 +20,12 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def _adapter_module() -> Any:
+    return importlib.import_module(
+        "bionodulo.nodes.builtin.protein_database_family.rcsb_pdb_adapter"
+    )
+
+
 def test_pdb_download_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -55,8 +61,8 @@ def test_pdb_download_advertises_format_as_string_options() -> None:
 
 @pytest.mark.asyncio
 async def test_rcsb_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    node_class = _node_class("pdb_download")
-    module = importlib.import_module(node_class.__module__)
+    _node_class("pdb_download")
+    module = _adapter_module()
     calls: list[dict[str, Any]] = []
 
     assert isinstance(module.RCSB_API_CACHE, module.APICache)
@@ -106,8 +112,8 @@ async def test_rcsb_downloads_use_shared_http_client(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    node_class = _node_class("pdb_download")
-    module = importlib.import_module(node_class.__module__)
+    _node_class("pdb_download")
+    module = _adapter_module()
     calls: list[dict[str, Any]] = []
 
     class FakeClient:
@@ -156,7 +162,7 @@ async def test_pdb_download_writes_structure_density_and_metadata(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("pdb_download")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     json_calls: list[str] = []
     download_calls: list[tuple[str, Path]] = []
 
@@ -244,7 +250,7 @@ async def test_pdb_download_accepts_mmcif_format_alias(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("pdb_download")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     download_calls: list[tuple[str, Path]] = []
 
     async def fake_download(url: str, path: Path, **_: Any) -> None:
@@ -278,7 +284,7 @@ async def test_pdb_retrieve_accepts_singular_pdb_id_alias(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("pdb_retrieve")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     download_calls: list[tuple[str, Path]] = []
 
     async def fake_download(url: str, path: Path, **_: Any) -> None:

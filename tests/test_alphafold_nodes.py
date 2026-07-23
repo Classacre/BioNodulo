@@ -20,6 +20,12 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def _adapter_module() -> Any:
+    return importlib.import_module(
+        "bionodulo.nodes.builtin.protein_database_family.alphafold_db_adapter"
+    )
+
+
 def test_alphafold_db_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -44,8 +50,8 @@ def test_alphafold_db_is_registered_for_frontend_discovery() -> None:
 
 @pytest.mark.asyncio
 async def test_alphafold_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    node_class = _node_class("alphafold_db")
-    module = importlib.import_module(node_class.__module__)
+    _node_class("alphafold_db")
+    module = _adapter_module()
     calls: list[dict[str, Any]] = []
 
     assert isinstance(module.ALPHAFOLD_API_CACHE, module.APICache)
@@ -96,8 +102,8 @@ async def test_alphafold_downloads_use_shared_http_client(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    node_class = _node_class("alphafold_db")
-    module = importlib.import_module(node_class.__module__)
+    _node_class("alphafold_db")
+    module = _adapter_module()
     calls: list[dict[str, Any]] = []
 
     class FakeClient:
@@ -146,7 +152,7 @@ async def test_alphafold_db_downloads_structure_and_writes_metadata(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("alphafold_db")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     json_calls: list[str] = []
     download_calls: list[tuple[str, Path]] = []
 
@@ -241,7 +247,7 @@ async def test_alphafold_db_pdb_uses_generic_structure_output(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("alphafold_db")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     download_calls: list[tuple[str, Path]] = []
 
     async def fake_json(resource: str, **_: Any) -> Any:

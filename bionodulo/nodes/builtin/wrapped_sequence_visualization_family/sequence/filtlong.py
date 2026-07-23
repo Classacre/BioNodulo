@@ -1,7 +1,5 @@
-"""Stable owner for ``filtlong``."""
+"""Compatibility export for a relocated sequence node."""
 
-from ..adapter import _FiltlongContract
+from bionodulo.nodes.builtin.trimming_family.filtlong import FiltlongNode
 
-
-class FiltlongNode(_FiltlongContract):
-    NODE_ID = "filtlong"
+__all__ = ["FiltlongNode"]

@@ -19,6 +19,12 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def _adapter_module() -> Any:
+    return importlib.import_module(
+        "bionodulo.nodes.builtin.protein_database_family.uniprot_adapter"
+    )
+
+
 def test_uniprot_retrieve_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -78,8 +84,8 @@ def test_uniprot_search_is_registered_for_frontend_discovery() -> None:
 async def test_uniprot_request_uses_shared_http_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    node_class = _node_class("uniprot_retrieve")
-    module = importlib.import_module(node_class.__module__)
+    _node_class("uniprot_retrieve")
+    module = _adapter_module()
     calls: list[dict[str, Any]] = []
 
     class FakeClient:
@@ -139,7 +145,7 @@ async def test_uniprot_retrieve_fetches_json_and_writes_fasta(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_retrieve")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     calls: list[tuple[str, str]] = []
 
     async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
@@ -195,7 +201,7 @@ async def test_uniprot_retrieve_accepts_planned_uniprot_ids_and_format(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_retrieve")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     calls: list[tuple[str, str]] = []
 
     async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
@@ -237,7 +243,7 @@ async def test_uniprot_retrieve_supports_comma_separated_accessions(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_retrieve")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     json_calls: list[str] = []
     fasta_calls: list[str] = []
 
@@ -278,7 +284,7 @@ async def test_uniprot_search_database_option_selects_search_endpoint(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_search")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     calls: list[str] = []
 
     async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
@@ -305,7 +311,7 @@ async def test_uniprot_search_summarizes_uniref_json_results(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_search")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
 
     async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
         assert resource == "uniref/search"
@@ -352,7 +358,7 @@ async def test_uniprot_search_summarizes_uniparc_json_results(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_search")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
 
     async def fake_json(resource: str, **_: Any) -> dict[str, Any]:
         assert resource == "uniparc/search"
@@ -397,7 +403,7 @@ async def test_uniprot_search_accepts_planned_size_alias(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_search")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     calls: list[dict[str, Any] | None] = []
 
     async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
@@ -428,7 +434,7 @@ async def test_uniprot_search_accepts_planned_tsv_format(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_search")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     calls: list[tuple[str, dict[str, Any] | None]] = []
 
     async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
@@ -501,7 +507,7 @@ async def test_uniprot_search_accepts_planned_raw_text_formats(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_search")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     calls: list[tuple[str, dict[str, Any] | None]] = []
 
     async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
@@ -568,7 +574,7 @@ async def test_uniprot_search_writes_summary_tsv_and_returns_payload(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("uniprot_search")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     calls: list[tuple[str, dict[str, Any] | None]] = []
 
     async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:
@@ -637,7 +643,7 @@ async def test_uniprot_search_writes_summary_tsv_and_returns_payload(
 async def test_uniprot_nodes_forward_include_isoform(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     search_class = _node_class("uniprot_search")
     retrieve_class = _node_class("uniprot_retrieve")
-    module = importlib.import_module(search_class.__module__)
+    module = _adapter_module()
     calls: list[tuple[str, dict[str, Any] | None]] = []
 
     async def fake_json(resource: str, *, params: dict[str, Any] | None = None, **_: Any) -> dict[str, Any]:

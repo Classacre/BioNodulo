@@ -1,7 +1,5 @@
-"""Stable owner for ``circos_wiggle_to_stacked``."""
+"""Compatibility export for a relocated Circos node."""
 
-from ..adapter import _CircosWiggleToStackedContract
+from bionodulo.nodes.builtin.circos_family.wiggle_to_stacked import CircosWiggleToStackedNode
 
-
-class CircosWiggleToStackedNode(_CircosWiggleToStackedContract):
-    NODE_ID = "circos_wiggle_to_stacked"
+__all__ = ["CircosWiggleToStackedNode"]

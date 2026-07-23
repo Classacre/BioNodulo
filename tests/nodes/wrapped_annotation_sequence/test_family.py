@@ -10,9 +10,9 @@ from typing import Any
 import pytest
 
 from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.builtin import _annotation_sequence_contracts as contracts
 from bionodulo.nodes.builtin import wrapped_annotation_sequence as facade
-from bionodulo.nodes.builtin import wrapped_annotation_sequence_family as family
-from bionodulo.nodes.builtin.wrapped_annotation_sequence_family import contracts
+from bionodulo.nodes.builtin import wrapped_annotation_sequence as family
 
 
 Case = tuple[type[BaseNode], dict[str, Any], str, tuple[str, ...], tuple[str, ...]]
