@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import ast
+import importlib
+import inspect
 import re
 from pathlib import Path
 
@@ -61,6 +62,49 @@ EXPECTED_IDS = {
     "red",
 }
 
+EXPECTED_FAMILY_BY_ID = {
+    "abritamr": "annotation_family",
+    "allegro": "population_genetics_family",
+    "alphagenome_interval_predictor": "alphagenome_family",
+    "alphagenome_ism_scanner": "alphagenome_family",
+    "alphagenome_sequence_predictor": "alphagenome_family",
+    "alphagenome_variant_effect": "alphagenome_family",
+    "alphagenome_variant_scorer": "alphagenome_family",
+    "amas_concat": "amas_family",
+    "amas_remove": "amas_family",
+    "amas_replicate": "amas_family",
+    "amas_split": "amas_family",
+    "amas_summary": "amas_family",
+    "amplican": "crispr_family",
+    "art_454": "art_family",
+    "art_illumina": "art_family",
+    "art_solid": "art_family",
+    "assembly_stats": "assembly_family",
+    "bbtools_bbduk": "bbtools_family",
+    "bbtools_bbmap": "bbtools_family",
+    "bbtools_bbmerge": "bbtools_family",
+    "bbtools_bbnorm": "bbtools_family",
+    "bbtools_callvariants": "bbtools_family",
+    "bbtools_tadpole": "bbtools_family",
+    "clustalw": "phylogeny_family",
+    "eukrep": "metagenomics_family",
+    "flash": "trimming_family",
+    "fraggenescan": "annotation_family",
+    "gamma": "annotation_family",
+    "gamma_s": "annotation_family",
+    "genomescope": "assembly_family",
+    "iuc_pear": "trimming_family",
+    "minia": "assembly_family",
+    "nonpareil": "metagenomics_family",
+    "phyml": "phylogeny_family",
+    "plasclass": "metagenomics_family",
+    "plasflow": "metagenomics_family",
+    "prodigal": "annotation_family",
+    "quicktree": "phylogeny_family",
+    "rapidnj": "phylogeny_family",
+    "red": "genomics_family",
+}
+
 
 def _nodes() -> list[type]:
     return [getattr(family, name) for name in family.__all__]
@@ -71,23 +115,31 @@ def test_stable_ids_have_one_focused_owner_and_legacy_reexports() -> None:
     assert len(nodes) == 40
     assert {node.NODE_ID for node in nodes} == EXPECTED_IDS
     assert len({node.NODE_ID for node in nodes}) == len(nodes)
-    assert all(node.__module__.startswith(f"{family.__name__}.") for node in nodes)
     assert all(getattr(legacy, node.__name__) is node for node in nodes)
 
-    declarations: dict[str, list[Path]] = {}
-    family_dir = Path(family.__file__).parent
-    for path in family_dir.glob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for class_node in (item for item in tree.body if isinstance(item, ast.ClassDef)):
-            for item in class_node.body:
-                if not isinstance(item, ast.Assign):
-                    continue
-                if any(isinstance(target, ast.Name) and target.id == "NODE_ID" for target in item.targets):
-                    declarations.setdefault(ast.literal_eval(item.value), []).append(path)
+    owner_modules = {node.NODE_ID: node.__module__ for node in nodes}
+    assert len(set(owner_modules.values())) == len(nodes)
+    for node_id, module_name in owner_modules.items():
+        expected_prefix = f"bionodulo.nodes.builtin.{EXPECTED_FAMILY_BY_ID[node_id]}."
+        assert module_name.startswith(expected_prefix)
+        module = importlib.import_module(module_name)
+        owners = [
+            value
+            for _, value in inspect.getmembers(module, inspect.isclass)
+            if value.__module__ == module_name and getattr(value, "NODE_ID", "")
+        ]
+        assert owners == [getattr(family, next(node.__name__ for node in nodes if node.NODE_ID == node_id))]
 
-    assert set(declarations) == EXPECTED_IDS
-    assert all(len(paths) == 1 for paths in declarations.values())
+    wrapper_dir = Path(family.__file__).parent
+    assert not any("NODE_ID =" in path.read_text(encoding="utf-8") for path in wrapper_dir.glob("*.py"))
     assert "NODE_ID" not in Path(legacy.__file__).read_text(encoding="utf-8")
+
+
+def test_amas_focused_owners_preserve_parent_relationships() -> None:
+    assert issubclass(family.AMASConcatNode, family.AMASSummaryNode)
+    assert issubclass(family.AMASSplitNode, family.AMASSummaryNode)
+    assert issubclass(family.AMASRemoveNode, family.AMASConcatNode)
+    assert issubclass(family.AMASReplicateNode, family.AMASConcatNode)
 
 
 @pytest.mark.parametrize("node", _nodes(), ids=lambda node: node.NODE_ID)

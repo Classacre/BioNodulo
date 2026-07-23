@@ -11,6 +11,7 @@ from .ma_plot import MAPlotNode
 from .manhattan_plot import ManhattanPlotNode
 from .phylo_tree_viewer import PhylogeneticTreeViewerNode
 from .phylogenetic_tree_viewer import PhylogeneticTreeViewerCompatibilityNode
+from .qq_manhattan import QQManhattanNode
 from .scatter_plot import ScatterPlotNode
 from .vcf_stats_chart import VCFStatsChartNode
 from .volcano_plot import VolcanoPlotNode
@@ -27,6 +28,7 @@ __all__ = [
     "ManhattanPlotNode",
     "PhylogeneticTreeViewerCompatibilityNode",
     "PhylogeneticTreeViewerNode",
+    "QQManhattanNode",
     "ScatterPlotNode",
     "VCFStatsChartNode",
     "VolcanoPlotNode",

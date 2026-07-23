@@ -87,7 +87,7 @@ def owner_module_root(module: str) -> str:
 
 
 def test_final_one_node_per_file_family_layout(live_owners):
-    """Become a strict final-layout pass as soon as relocation is complete."""
+    """Enforce the final one-owner-per-file semantic family layout."""
     owners_by_module: dict[str, list[str]] = defaultdict(list)
     for owner in live_owners:
         owners_by_module[owner.module].append(owner.node_id)
@@ -106,28 +106,9 @@ def test_final_one_node_per_file_family_layout(live_owners):
         if owner_module_root(module).startswith("wrapped_")
     }
 
-    if multi_owner_modules or direct_builtin or wrapped_modules:
-        excess_owners = sum(len(node_ids) - 1 for node_ids in multi_owner_modules.values())
-        wrapped_owner_count = sum(wrapped_modules.values())
-        wrapped_roots: dict[str, dict[str, int]] = defaultdict(lambda: {"modules": 0, "nodes": 0})
-        for module, owner_count in wrapped_modules.items():
-            root_summary = wrapped_roots[owner_module_root(module)]
-            root_summary["modules"] += 1
-            root_summary["nodes"] += owner_count
-        report = {
-            "multi_owner_modules": {module: len(node_ids) for module, node_ids in multi_owner_modules.items()},
-            "direct_builtin": direct_builtin,
-            "wrapped_roots": dict(sorted(wrapped_roots.items())),
-        }
-        pytest.xfail(
-            "final node layout pending: "
-            f"{len(multi_owner_modules)} multi-owner modules with "
-            f"{excess_owners} excess owners; "
-            f"{len(direct_builtin)} direct-builtin nodes; "
-            f"{wrapped_owner_count} wrapped nodes across "
-            f"{len(wrapped_modules)} modules. Remaining layout: " + json.dumps(report, sort_keys=True)
-        )
-
+    assert multi_owner_modules == {}, json.dumps(multi_owner_modules, sort_keys=True)
+    assert direct_builtin == {}, json.dumps(direct_builtin, sort_keys=True)
+    assert wrapped_modules == {}, json.dumps(wrapped_modules, sort_keys=True)
     assert len(owners_by_module) == EXPECTED_NODE_COUNT
 
 

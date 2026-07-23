@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from bionodulo.nodes.builtin.wrapped_variant_assembly_family import evidence
-from bionodulo.nodes.builtin.wrapped_variant_assembly_family.lofreq import LoFreqAlnQualNode
+from bionodulo.nodes.builtin import _variant_assembly_contracts as evidence
+from bionodulo.nodes.builtin.lofreq_family.lofreq_alnqual import LoFreqAlnQualNode
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -15,9 +15,10 @@ def test_wrapped_variant_assembly_ids_have_one_focused_owner_and_pinned_evidence
 
     for node_id in expected:
         node_class = registry.get(node_id)
-        assert node_class.__module__.startswith(
-            "bionodulo.nodes.builtin.wrapped_variant_assembly_family."
-        )
+        assert node_class.NODE_ID == node_id
+        assert node_class.__module__.startswith("bionodulo.nodes.builtin.")
+        assert ".wrapped_" not in node_class.__module__
+        assert not node_class.__module__.endswith(".adapter")
         authority = evidence.TOOL_EVIDENCE[evidence.NODE_TO_TOOL[node_id]]
         assert node_class.VERSION == authority.version
         assert node_class.SOURCE_URL == authority.source_url

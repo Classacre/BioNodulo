@@ -6,13 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from bionodulo.nodes.builtin.wrapped_variant_assembly_family.bayescan import (
-    BayeScanGalaxyNode,
-    BayeScanNode,
-)
-from bionodulo.nodes.builtin.wrapped_variant_assembly_family.evidence import (
-    TOOL_EVIDENCE,
-)
+from bionodulo.nodes.builtin._variant_assembly_contracts import TOOL_EVIDENCE
+from bionodulo.nodes.builtin.bayescan_family import BayeScanGalaxyNode, BayeScanNode
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -26,7 +21,9 @@ def test_bayescan_aliases_share_the_verified_archive_authority(node_class: type[
     assert node_class.SOURCE_PATHS == ("source/start.cpp", "source/read_write.cpp")
     assert node_class.DOCUMENTATION_LOCATOR == "BayeScan2.1_manual.pdf pages 3-4 and 8"
     assert "without options prints usage and exits 0" in node_class.EXIT_SEMANTICS
-    assert NodeRegistry.create_isolated().get(node_class.NODE_ID) is node_class
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    assert registry.get(node_class.NODE_ID) is node_class
 
 
 def test_bayescan_uses_the_documented_snp_fstat_and_thread_options() -> None:
