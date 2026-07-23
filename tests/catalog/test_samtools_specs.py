@@ -7,9 +7,22 @@ import pytest
 from bionodulo.nodes.catalog.tools.samtools import SPECS, collate, fixmate, flagstat, index, markdup, sort, view
 from bionodulo.nodes.catalog.tools.samtools.artifacts import SAMTOOLS_ARTIFACT_REGISTRY
 from bionodulo.nodes.contract.execution import ArgvPlan
+from bionodulo.nodes.contract.evidence import (
+    verify_documentation_proof_content,
+    verify_evidence_claim_content,
+)
 
 
 MODULES = (view, collate, fixmate, sort, markdup, index, flagstat)
+SOURCE_FILES = {
+    view: ("samtools-view.1", "sam_view.c"),
+    collate: ("samtools-collate.1", "bamshuf.c"),
+    fixmate: ("samtools-fixmate.1", "bam_mate.c"),
+    sort: ("samtools-sort.1", "bam_sort.c"),
+    markdup: ("samtools-markdup.1", "bam_markdup.c"),
+    index: ("samtools-index.1", "bam_index.c"),
+    flagstat: ("samtools-flagstat.1", "bam_stat.c"),
+}
 
 
 def test_first_wave_has_one_typed_spec_per_legacy_node() -> None:
@@ -39,6 +52,31 @@ def test_samtools_contracts_are_deterministic_and_source_pinned() -> None:
         assert spec.evidence.sources[0].url is not None
         assert "htslib.org/doc/samtools-" in spec.evidence.sources[0].url
         assert spec.evidence.sources[1].commit == "6efb9b6da35224cf804921dedecf9fb8f411365d"
+
+
+def test_evidence_digests_verify_against_pinned_checkout_bytes() -> None:
+    root = Path("/tmp/bionodulo-samtools-1.23.1")
+    if not root.exists():
+        pytest.skip("pinned Samtools checkout is unavailable on this host")
+    for module in MODULES:
+        doc_name, source_name = SOURCE_FILES[module]
+        evidence = module.SPEC.evidence
+        assert evidence is not None
+        manual = evidence.sources[0]
+        source_bytes = (root / "doc" / doc_name).read_bytes()
+        assert manual.documentation_proof is not None
+        verify_documentation_proof_content(
+            manual.documentation_proof,
+            source_content=source_bytes,
+        )
+        claim = evidence.claims[0]
+        verify_evidence_claim_content(
+            claim,
+            source_content=source_bytes,
+            expected_contract_pointer="/execution_factory",
+            contract_value=module.SPEC.execution_factory,
+        )
+        assert (root / source_name).read_bytes()
 
 
 def test_samtools_artifact_registry_requires_explicit_alignment_union() -> None:

@@ -68,6 +68,62 @@ SAMTOOLS_PACKAGE_SHA256 = "sha256:2cb721907a2df7c54580298d655ae7587dbed593bd5536
 SAMTOOLS_RETRIEVED_AT = date(2026, 7, 23)
 SAMTOOLS_PLATFORM = ExecutionPlatform.LINUX_AMD64
 
+# SHA-256 identities of the exact files in the pinned upstream checkout
+# ``/tmp/bionodulo-samtools-1.23.1`` at commit
+# 6efb9b6da35224cf804921dedecf9fb8f411365d.  We retain only digests in the
+# catalog; source bytes are reopened by evidence verification tooling.
+SAMTOOLS_SOURCE_EVIDENCE: dict[str, dict[str, str | int]] = {
+    "view": {
+        "manual_sha256": "sha256:c4efdd51e9ad6a9f5ae1d8f752f3ed5412816cce1ff51063d108c603b99db05a",
+        "manual_length": 21522,
+        "manual_excerpt_sha256": "sha256:281fd9c75e15b194e69e9b72bab0a5a5d17aa2aca3fb1ef24feaafcb71f533a6",
+        "source_sha256": "sha256:49102b2145657ed84e519423934050119990ca5aaf7a823df2cc4a63cb0e9c35",
+        "source_length": 65557,
+    },
+    "collate": {
+        "manual_sha256": "sha256:4a4546a49904ea0ee117f6eb3d136eb0dcb5de574563955399c1dd14517aab6d",
+        "manual_length": 5045,
+        "manual_excerpt_sha256": "sha256:840cdfbb81d06aa93dafef9488a0f20f18a1b6760dd69e1be811329c828ebef6",
+        "source_sha256": "sha256:098fc15d22e0997f9707464858a12c645d7d2e4b60245393474218f2a3c999ef",
+        "source_length": 20628,
+    },
+    "fixmate": {
+        "manual_sha256": "sha256:f91e0ae8f6e8d25d3431744386f71f1b2edf8d6009c4e7e19b5354d078134a7d",
+        "manual_length": 3549,
+        "manual_excerpt_sha256": "sha256:2d79f056c993c45ba07f8010f6a9a16db90853a2699387b95f99fa502b2c3918",
+        "source_sha256": "sha256:d01338f188c64a9f9d62308e084465d3252374374d15e1651791d42b89f15ecb",
+        "source_length": 43201,
+    },
+    "sort": {
+        "manual_sha256": "sha256:38a72be83b39bf93e8aee8a23d5c197ff0f296a9a251bc2d56a7afbebaa2434c",
+        "manual_length": 11441,
+        "manual_excerpt_sha256": "sha256:426a1a997edf78f1e4c6f5d6e69ed791bcced6820c4ef1a343810335dd3469a3",
+        "source_sha256": "sha256:398e25e740dd3fb1ed0379c352c8da19248342ceb4ddf2931bb0a260f2b0a7d6",
+        "source_length": 136849,
+    },
+    "markdup": {
+        "manual_sha256": "sha256:42f3cd5f96188ece990929e1115584e2f8ad8d0ece63411a62b6176dfd2a8667",
+        "manual_length": 9723,
+        "manual_excerpt_sha256": "sha256:855469754360e9241630b3a62cc6926774cb9b633694bf3c216c1836b361ad76",
+        "source_sha256": "sha256:9352675009926d2ba35c4d18d9322d0972eb1663fd61c2ffe5c65fa3e1c52d3d",
+        "source_length": 84991,
+    },
+    "index": {
+        "manual_sha256": "sha256:4eaf8f0b0298291d52ef5706056e74012dccfaa97d8fbf9a6777fac1585d1e6e",
+        "manual_length": 3906,
+        "manual_excerpt_sha256": "sha256:20cdbb81cf010c678a82e1c87e98d9227495e4deadb7f059353a18ad056f3bfe",
+        "source_sha256": "sha256:ac7e0f4157c655c654cc8f264e66bb749c6938a9e3b7eaa85c40440207e4718b",
+        "source_length": 9716,
+    },
+    "flagstat": {
+        "manual_sha256": "sha256:38ac635d440c7d8a0758842ac217512e39df136a26c3cfafd9830afe69e26965",
+        "manual_length": 6049,
+        "manual_excerpt_sha256": "sha256:e3d804c2921a8fdefe0e4ace851838b6c21c0f5caeed5e91f45c26eab559b8ca",
+        "source_sha256": "sha256:9a5623b2f3534045627ed7f6ed658a7e3645ab395ef6f5819dbbfca215f50c62",
+        "source_length": 13640,
+    },
+}
+
 
 def _sha256(content: bytes) -> str:
     return "sha256:" + hashlib.sha256(content).hexdigest()
@@ -160,28 +216,29 @@ def threads_parameter(default: int = 4) -> ParameterSpec:
     )
 
 
-def _evidence(operation: str, *, source_file: str, source_symbol: str) -> EvidenceRecord:
+def _evidence(
+    operation: str,
+    *,
+    source_file: str,
+    source_symbol: str,
+    contract_factory: str,
+) -> EvidenceRecord:
     """Build source-backed evidence for one operation.
 
-    The captured bytes are compact deterministic snapshots used to bind source
-    and claim digests.  The URL and exact upstream commit identify the
-    authoritative release; the compiler may later replace snapshots with
-    reopened official bytes without changing the node contract shape.
+    The source identities are SHA-256 digests of the exact pinned manpage and
+    C source files.  Verification tooling reopens those files and checks the
+    declared 0..1024-byte proof range before admitting evidence.
     """
 
+    source_evidence = SAMTOOLS_SOURCE_EVIDENCE[operation]
     manual_url = f"https://www.htslib.org/doc/samtools-{operation}.html"
-    manual_bytes = (
-        f"samtools {operation} manual\nversion {SAMTOOLS_VERSION}\n"
-        f"source {manual_url}\n"
-    ).encode()
-    manual_excerpt = manual_bytes[:32]
     manual_source = EvidenceSource(
         source_id=f"samtools-{operation}-manual",
         tool_id="samtools",
         kind=SourceKind.OFFICIAL_MANUAL,
         tool_version=SAMTOOLS_VERSION,
         retrieved_at=SAMTOOLS_RETRIEVED_AT,
-        content_sha256=_sha256(manual_bytes),
+        content_sha256=source_evidence["manual_sha256"],  # type: ignore[arg-type]
         content_format=SourceContentFormat.TEXT,
         title=_author_text(operation, "title"),
         description=_author_text(operation, "description"),
@@ -191,24 +248,23 @@ def _evidence(operation: str, *, source_file: str, source_symbol: str) -> Eviden
             tool_id="samtools",
             tool_version=SAMTOOLS_VERSION,
             source_url=manual_url,
-            source_content_sha256=_sha256(manual_bytes),
+            source_content_sha256=source_evidence["manual_sha256"],  # type: ignore[arg-type]
             locator=ByteRangeLocator(
                 kind=ContentLocatorKind.BYTE_RANGE,
                 start_byte=0,
-                end_byte_exclusive=len(manual_excerpt),
+                end_byte_exclusive=1024,
             ),
-            proof_content_sha256=_sha256(manual_excerpt),
+            proof_content_sha256=source_evidence["manual_excerpt_sha256"],  # type: ignore[arg-type]
         ),
     )
     upstream_url = f"{SAMTOOLS_GIT_URL}/blob/{SAMTOOLS_GIT_COMMIT}/{source_file}"
-    upstream_bytes = f"{source_file}\n{source_symbol}\n{SAMTOOLS_GIT_COMMIT}\n".encode()
     upstream_source = EvidenceSource(
         source_id=f"samtools-{operation}-source",
         tool_id="samtools",
         kind=SourceKind.UPSTREAM_SOURCE,
         tool_version=SAMTOOLS_VERSION,
         retrieved_at=SAMTOOLS_RETRIEVED_AT,
-        content_sha256=_sha256(upstream_bytes),
+        content_sha256=source_evidence["source_sha256"],  # type: ignore[arg-type]
         content_format=SourceContentFormat.SOURCE_CODE,
         title=_author_text(operation, "title"),
         description=_author_text(operation, "description"),
@@ -217,7 +273,13 @@ def _evidence(operation: str, *, source_file: str, source_symbol: str) -> Eviden
         source_path=source_file,
         symbol_locator=source_symbol,
     )
-    claim_bytes = b"The pinned manpage and upstream source define the command contract."
+    contract_content = json.dumps(
+        contract_factory,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
     claim = EvidenceClaim(
         claim_id="command-contract",
         contract_pointer="/execution_factory",
@@ -225,12 +287,12 @@ def _evidence(operation: str, *, source_file: str, source_symbol: str) -> Eviden
         locator=ByteRangeLocator(
             kind=ContentLocatorKind.BYTE_RANGE,
             start_byte=0,
-            end_byte_exclusive=len(manual_excerpt),
+            end_byte_exclusive=1024,
         ),
         statement=_author_text(operation, "description"),
         source_content_sha256=manual_source.content_sha256,
-        excerpt_sha256=_sha256(manual_excerpt),
-        contract_value_sha256=_sha256(claim_bytes),
+        excerpt_sha256=source_evidence["manual_excerpt_sha256"],  # type: ignore[arg-type]
+        contract_value_sha256=_sha256(contract_content),
     )
     return EvidenceRecord(
         schema_version=2,
@@ -265,7 +327,12 @@ def make_spec(
         tool_id="samtools",
         tool_version=SAMTOOLS_VERSION,
     )
-    evidence = _evidence(operation, source_file=source_file, source_symbol=source_symbol)
+    evidence = _evidence(
+        operation,
+        source_file=source_file,
+        source_symbol=source_symbol,
+        contract_factory=factory,
+    )
     return NodeSpec(
         identity=identity,
         presentation=NodePresentation(
