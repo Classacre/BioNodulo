@@ -4,6 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from bionodulo.execution.executor import WorkflowExecutor
+from bionodulo.nodes.registry import NodeRegistry
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,6 +31,45 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
         and edge.get("to") == {"node": target, "input": target_input}
         for edge in workflow["edges"]
     )
+
+
+@pytest.mark.asyncio
+async def test_variant_template_dry_run_preserves_retry_bam_sidecar_pair(tmp_path: Path) -> None:
+    """The retry policy must not invent a new BAM basename in the plan.
+
+    GATK receives the BAM through ``retry.passthrough`` while its BAI is wired
+    directly from ``samtools_index``.  The retry node returns its input
+    unchanged at runtime, so a dry run must model that same identity or GATK's
+    explicit colocated-index validation rejects an otherwise valid template.
+    """
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    executor = WorkflowExecutor(
+        workspace_dir=tmp_path,
+        cache_dir=tmp_path / "cache",
+        registry=registry,
+    )
+
+    preview = await executor.dry_run(
+        "variant-template",
+        _load_template("variant_calling_pipeline.json"),
+        options={
+            "parameters": {
+                "snpeff_genome": "stub",
+                "snpeff_database": "/inputs/snpEffectPredictor.bin",
+            }
+        },
+    )
+
+    assert preview["status"] == "dry_run"
+    plans = {node["node_id"]: node for node in preview["nodes"]}
+    retry = plans["gatk_retry_001"]
+    gatk = plans["gatk_001"]
+
+    assert retry["planned_outputs"]["passthrough"] == retry["inputs"]["input"]
+    bam = Path(gatk["inputs"]["bam"])
+    bam_index = Path(gatk["inputs"]["bam_index"])
+    assert bam_index == Path(f"{bam}.bai")
 
 
 def test_variant_template_retries_gatk_haplotype_caller() -> None:

@@ -1891,6 +1891,24 @@ class RetryNode(WorkflowEnhancementContract):
     RETRY_ON_OPTIONS = {"all", "timeout", "memory", "exit_code"}
 
     @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> dict[str, Any]:
+        """Preserve the pass-through artifact identity during workflow planning.
+
+        Retry is a policy/flow node, not a file-producing transform.  Its
+        runtime returns ``input`` verbatim, so assigning a synthetic
+        ``passthrough.out`` path during dry runs breaks consumers that validate
+        colocated sidecars (for example a BAM plus BAI).  Keep that identity in
+        the plan and expose the policy log at the same location used by
+        ``run``.
+        """
+        output_root = Path(output_dir)
+        output_root.mkdir(parents=True, exist_ok=True)
+        return {
+            "passthrough": inputs.get("input"),
+            "retry_log": output_root / "retry_policy.json",
+        }
+
+    @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
