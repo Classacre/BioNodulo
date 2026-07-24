@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Compile the first typed catalog promotion wave.
+"""Compile the typed catalog and the operational legacy compatibility catalog.
 
 The migration ledger is forensic evidence and is intentionally read-only here.
-This build compiles exactly the seven Samtools modules, writes the normal v2
-runtime/UI/index/compatibility projections, and records a separate promotion
-manifest showing the cumulative ``7/943`` implementation count.  A release
-status is never inferred from implementation: the seven specs remain
-``promotion_candidate`` until their cloud and workflow gates pass.
+The strict v2 projections still compile exactly the seven typed Samtools
+modules.  In parallel, the operational projection exposes every existing
+one-node-per-file ``BaseNode`` class through an explicitly marked
+``legacy_compatible`` adapter lane.  This makes the classes selectable and
+resolvable without pretending that their tool, cloud, and workflow evidence
+has been completed.
 
 Usage::
 
@@ -23,6 +24,7 @@ import os
 import stat
 import sys
 import tempfile
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -32,6 +34,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 GENERATED_DIR = REPO_ROOT / "bionodulo" / "nodes" / "generated"
 BASELINE_LEDGER = GENERATED_DIR / "baseline-ledger.json"
+LEGACY_NODE_INDEX = REPO_ROOT / "bionodulo" / "nodes" / "node_index.json"
+LEGACY_NODE_METADATA = REPO_ROOT / "bionodulo" / "nodes" / "node_metadata.json"
 BASELINE_NODE_COUNT = 943
 SAMTOOLS_MODULES: tuple[str, ...] = (
     "bionodulo.nodes.catalog.tools.samtools.view",
@@ -50,7 +54,12 @@ OUTPUT_NAMES: tuple[str, ...] = (
     "node-index.json",
     "catalog.lock.json",
     "catalog.promotion.json",
+    "catalog.operational.json",
 )
+
+LEGACY_RUNTIME_ADAPTER = "base_node_v1"
+LEGACY_STATUS = "legacy_compatible"
+LEGACY_PENDING_STATUS = "evidence_pending"
 
 
 class CatalogBuildError(RuntimeError):
@@ -93,6 +102,184 @@ def _read_baseline() -> tuple[dict[str, Any], str]:
     if not isinstance(aggregate, str) or len(aggregate) != 64:
         raise CatalogBuildError("baseline ledger aggregate_sha256 is missing or malformed")
     return document, _sha256(content)
+
+
+def _read_json_mapping(path: Path, *, label: str) -> tuple[dict[str, Any], str]:
+    try:
+        content = path.read_bytes()
+        document = json.loads(content)
+    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise CatalogBuildError(f"cannot read {label} {path}: {error}") from error
+    if not isinstance(document, dict):
+        raise CatalogBuildError(f"{label} must be a JSON object")
+    return document, _sha256(content)
+
+
+def _json_pointer_token(value: str) -> str:
+    return value.replace("~", "~0").replace("/", "~1")
+
+
+def _legacy_factory(
+    node_id: str,
+    module_name: object,
+    metadata: Mapping[str, Any],
+) -> tuple[str, str, str]:
+    if not isinstance(module_name, str) or not module_name:
+        raise CatalogBuildError(f"legacy node {node_id!r} has an invalid index module")
+    python_class = metadata.get("python_class")
+    if not isinstance(python_class, str) or not python_class:
+        raise CatalogBuildError(f"legacy node {node_id!r} has no python_class metadata")
+    class_module, separator, symbol = python_class.rpartition(".")
+    if not separator or not class_module or not symbol:
+        raise CatalogBuildError(f"legacy node {node_id!r} has malformed python_class metadata")
+    if class_module != module_name:
+        raise CatalogBuildError(
+            f"legacy node {node_id!r} index/metadata module mismatch: {module_name!r} != {class_module!r}"
+        )
+    if not symbol.isidentifier():
+        raise CatalogBuildError(f"legacy node {node_id!r} has an invalid class symbol {symbol!r}")
+    return class_module, symbol, f"{class_module}:{symbol}"
+
+
+def _build_operational_document(compiled: Any) -> dict[str, Any]:
+    """Project all focused legacy classes without manufacturing typed evidence."""
+
+    baseline, baseline_bytes_digest = _read_baseline()
+    legacy_index, legacy_index_digest = _read_json_mapping(
+        LEGACY_NODE_INDEX,
+        label="legacy node index",
+    )
+    legacy_metadata, legacy_metadata_digest = _read_json_mapping(
+        LEGACY_NODE_METADATA,
+        label="legacy node metadata",
+    )
+    baseline_entries = baseline.get("entries")
+    if not isinstance(baseline_entries, list):
+        raise CatalogBuildError("baseline ledger entries are missing")
+    baseline_by_id = {
+        entry.get("node_id"): entry
+        for entry in baseline_entries
+        if isinstance(entry, dict) and isinstance(entry.get("node_id"), str)
+    }
+    expected_ids = set(baseline_by_id)
+    if len(expected_ids) != BASELINE_NODE_COUNT:
+        raise CatalogBuildError(f"baseline ledger must contain {BASELINE_NODE_COUNT} unique node IDs")
+    if set(legacy_index) != expected_ids:
+        raise CatalogBuildError("legacy node index IDs differ from the forensic baseline")
+    if set(legacy_metadata) != expected_ids:
+        raise CatalogBuildError("legacy node metadata IDs differ from the forensic baseline")
+
+    typed_by_machine = {spec.identity.machine_id: spec for spec in compiled.specs}
+    missing_typed = sorted(set(typed_by_machine) - expected_ids)
+    if missing_typed:
+        raise CatalogBuildError(f"typed catalog machine IDs are absent from the legacy catalog: {missing_typed}")
+    typed_stable_ids = {spec.identity.stable_id for spec in compiled.specs}
+    collisions = sorted(typed_stable_ids & expected_ids)
+    if collisions:
+        raise CatalogBuildError(f"typed stable IDs collide with legacy workflow IDs: {collisions}")
+
+    operational_nodes: dict[str, dict[str, Any]] = {}
+    qualified_classes: dict[str, str] = {}
+    verification_counts: Counter[str] = Counter()
+
+    for node_id in sorted(expected_ids):
+        metadata = legacy_metadata[node_id]
+        if not isinstance(metadata, dict):
+            raise CatalogBuildError(f"legacy node metadata for {node_id!r} must be an object")
+        if metadata.get("name") != node_id:
+            raise CatalogBuildError(f"legacy node {node_id!r} metadata name does not match its ID")
+        module_name, symbol, execution_factory = _legacy_factory(
+            node_id,
+            legacy_index[node_id],
+            metadata,
+        )
+        previous = qualified_classes.get(execution_factory)
+        if previous is not None:
+            raise CatalogBuildError(
+                f"legacy execution factory {execution_factory} is shared by {previous!r} and {node_id!r}"
+            )
+        qualified_classes[execution_factory] = node_id
+
+        typed_spec = typed_by_machine.get(node_id)
+        typed_entry = None
+        aliases: list[str] = []
+        verification_status = LEGACY_PENDING_STATUS
+        if typed_spec is not None:
+            typed_entry = compiled.nodes[typed_spec.identity.stable_id]
+            aliases.append(typed_spec.identity.stable_id)
+            verification_status = str(typed_entry["status"])
+        verification_counts[verification_status] += 1
+
+        node_metadata_digest = _sha256(_canonical_json_bytes(metadata))
+        baseline_entry = baseline_by_id[node_id]
+        legacy_alias_of = baseline_entry.get("alias_of")
+        common: dict[str, Any] = {
+            "aliases": aliases,
+            "availability": "active",
+            "execution_factory": execution_factory,
+            "implementation_status": LEGACY_STATUS,
+            "legacy_execution_factory": execution_factory,
+            "machine_id": node_id,
+            "metadata_digest": node_metadata_digest,
+            "module": module_name,
+            "node_id": node_id,
+            "runtime_adapter": LEGACY_RUNTIME_ADAPTER,
+            "status": LEGACY_STATUS,
+            "symbol": symbol,
+            "verification_status": verification_status,
+        }
+        if isinstance(legacy_alias_of, str):
+            common["legacy_alias_of"] = legacy_alias_of
+        if typed_spec is not None and typed_entry is not None:
+            common.update(
+                {
+                    "typed_contract_digest": typed_spec.contract_digest(),
+                    "typed_execution_factory": typed_spec.execution_factory,
+                    "typed_stable_id": typed_spec.identity.stable_id,
+                }
+            )
+        common["legacy_metadata_ref"] = "bionodulo/nodes/node_metadata.json#/" + _json_pointer_token(node_id)
+        operational_nodes[node_id] = common
+
+    typed_status_counts = Counter(entry["status"] for entry in compiled.nodes.values())
+    released_typed_nodes = typed_status_counts.get("released", 0)
+    summary = {
+        "active_nodes": len(operational_nodes),
+        "all_nodes_active": len(operational_nodes) == BASELINE_NODE_COUNT,
+        "all_nodes_released": released_typed_nodes == BASELINE_NODE_COUNT,
+        "baseline_nodes": BASELINE_NODE_COUNT,
+        "evidence_pending_nodes": verification_counts.get(LEGACY_PENDING_STATUS, 0),
+        "legacy_compatible_nodes": len(operational_nodes),
+        "operational_nodes": len(operational_nodes),
+        "released_typed_nodes": released_typed_nodes,
+        "remaining_operational_nodes": BASELINE_NODE_COUNT - len(operational_nodes),
+        "remaining_typed_contract_nodes": BASELINE_NODE_COUNT - len(compiled.specs),
+        "typed_contract_nodes": len(compiled.specs),
+        "typed_status_counts": dict(sorted(typed_status_counts.items())),
+        "verification_status_counts": dict(sorted(verification_counts.items())),
+    }
+    source_manifests = {
+        "baseline_ledger_aggregate_sha256": baseline["aggregate_sha256"],
+        "baseline_ledger_bytes_sha256": baseline_bytes_digest,
+        "legacy_node_index_sha256": legacy_index_digest,
+        "legacy_node_metadata_sha256": legacy_metadata_digest,
+    }
+    digest_payload = {
+        "schema_version": 1,
+        "nodes": operational_nodes,
+        "source_manifests": source_manifests,
+        "summary": summary,
+        "typed_catalog_digest": compiled.catalog_digest,
+    }
+    catalog_digest = _sha256(_canonical_json_bytes(digest_payload))
+    return {
+        "schema_version": 1,
+        "catalog_digest": catalog_digest,
+        "nodes": operational_nodes,
+        "source_manifests": source_manifests,
+        "summary": summary,
+        "typed_catalog_digest": compiled.catalog_digest,
+    }
 
 
 def _compile() -> tuple[Any, dict[str, Any]]:
@@ -155,11 +342,22 @@ def _compile() -> tuple[Any, dict[str, Any]]:
 
 
 def expected_documents() -> dict[Path, bytes]:
-    """Build every first-wave generated document without writing files."""
+    """Build every typed and operational generated document without writing."""
 
     compiled, promotion = _compile()
+    operational = _build_operational_document(compiled)
+    promotion = {
+        **promotion,
+        "availability_status": "active",
+        "operational_catalog_digest": operational["catalog_digest"],
+        "operational_summary": operational["summary"],
+    }
     lock = dict(compiled.lock)
     lock["promotion"] = promotion["summary"]
+    lock["operational"] = {
+        "catalog_digest": operational["catalog_digest"],
+        **operational["summary"],
+    }
     documents: dict[Path, object] = {
         GENERATED_DIR / "catalog.runtime.json": compiled.runtime,
         GENERATED_DIR / "catalog.ui.json": compiled.ui,
@@ -167,6 +365,7 @@ def expected_documents() -> dict[Path, bytes]:
         GENERATED_DIR / "node-index.json": compiled.node_index,
         GENERATED_DIR / "catalog.lock.json": lock,
         GENERATED_DIR / "catalog.promotion.json": promotion,
+        GENERATED_DIR / "catalog.operational.json": operational,
     }
     return {path: _canonical_json_bytes(document) for path, document in documents.items()}
 
@@ -229,9 +428,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         if stale:
             print("STALE: " + ", ".join(stale) + ". Run --write.", file=sys.stderr)
             return 1
-        print(f"Catalog projections are up to date ({len(documents)} files; 7/{BASELINE_NODE_COUNT} implemented).")
+        print(
+            f"Catalog projections are up to date ({len(documents)} files; "
+            f"{BASELINE_NODE_COUNT}/{BASELINE_NODE_COUNT} operational, "
+            f"{len(SAMTOOLS_MODULES)}/{BASELINE_NODE_COUNT} typed)."
+        )
         return 0
-    print(f"Wrote {len(documents)} catalog projections ({7}/{BASELINE_NODE_COUNT} implemented).")
+    print(
+        f"Wrote {len(documents)} catalog projections "
+        f"({BASELINE_NODE_COUNT}/{BASELINE_NODE_COUNT} operational, "
+        f"{len(SAMTOOLS_MODULES)}/{BASELINE_NODE_COUNT} typed)."
+    )
     return 0
 
 

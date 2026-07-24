@@ -1,11 +1,12 @@
-"""Lazy runtime registry for compiled catalog projections.
+"""Lazy runtime registry for compiled and operational catalog projections.
 
 The v2 registry intentionally knows nothing about the legacy ``NodeRegistry``.
 It accepts a compiler result (or the two generated runtime/index documents),
 performs a cheap digest consistency check, and imports only the factory needed
-for a requested node. Non-released nodes require an explicit
-``allow_quarantined`` override for local promotion and contract testing; the
-override is never implicit in a normal runtime.
+for a requested node. Strict typed nodes must be released (or receive an
+explicit test override). The separate operational projection may expose an
+existing ``BaseNode`` class through the narrowly defined ``base_node_v1``
+compatibility lane without claiming evidence-backed release maturity.
 """
 
 from __future__ import annotations
@@ -14,6 +15,10 @@ import importlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
+
+
+_LEGACY_COMPATIBLE_STATUS = "legacy_compatible"
+_LEGACY_RUNTIME_ADAPTER = "base_node_v1"
 
 
 class CatalogRegistryError(RuntimeError):
@@ -164,6 +169,36 @@ class CatalogRegistry:
             allow_quarantined=allow_quarantined,
         )
 
+    @classmethod
+    def from_operational_document(
+        cls,
+        document: Mapping[str, Any],
+        *,
+        importer: Callable[[str], Any] | None = None,
+        allow_quarantined: bool = False,
+    ) -> "CatalogRegistry":
+        """Load the generated 943-node ``base_node_v1`` projection."""
+
+        if not isinstance(document, Mapping):
+            raise CatalogIntegrityError("operational catalog document must be an object")
+        nodes = document.get("nodes")
+        digest = document.get("catalog_digest")
+        if not isinstance(nodes, Mapping):
+            raise CatalogIntegrityError("operational catalog requires a nodes object")
+        if not isinstance(digest, str):
+            raise CatalogIntegrityError("operational catalog requires catalog_digest")
+        projection = {
+            "schema_version": document.get("schema_version", 1),
+            "catalog_digest": digest,
+            "nodes": nodes,
+        }
+        return cls.from_documents(
+            projection,
+            projection,
+            importer=importer,
+            allow_quarantined=allow_quarantined,
+        )
+
     @property
     def catalog_digest(self) -> str:
         return self._catalog_digest
@@ -206,7 +241,8 @@ class CatalogRegistry:
         entry = self._entries[canonical]
         permitted = self._allow_quarantined if allow_quarantined is None else bool(allow_quarantined)
         status = entry.get("status", "quarantined")
-        if status != "released" and not permitted:
+        legacy_compatible = self._is_legacy_compatible(entry)
+        if status != "released" and not legacy_compatible and not permitted:
             reason = entry.get("release_block_reason") or f"status is {status}"
             raise QuarantinedNodeError(f"node {canonical} is quarantined: {reason}")
 
@@ -221,6 +257,15 @@ class CatalogRegistry:
             implementation = getattr(module, symbol)
         except Exception as error:  # pragma: no cover - importer exceptions vary
             raise NodeImportError(f"failed to resolve {canonical} from {module_name}:{symbol}: {error}") from error
+        if legacy_compatible:
+            from bionodulo.nodes.base import BaseNode
+
+            if not isinstance(implementation, type) or not issubclass(implementation, BaseNode):
+                raise NodeImportError(f"legacy-compatible node {canonical} factory is not a BaseNode class")
+            if implementation.NODE_ID != canonical:
+                raise NodeImportError(
+                    f"legacy-compatible node {canonical} factory declares NODE_ID {implementation.NODE_ID!r}"
+                )
         resolved = ResolvedNode(node_id=canonical, entry=entry, implementation=implementation)
         self._cache[canonical] = resolved
         return resolved if wrapped else implementation
@@ -237,6 +282,19 @@ class CatalogRegistry:
             return self._aliases[node_id]
         except KeyError as error:
             raise UnknownNodeError(f"unknown catalog node: {node_id}") from error
+
+    @staticmethod
+    def _is_legacy_compatible(entry: Mapping[str, Any]) -> bool:
+        """Recognize only the explicit, generated BaseNode compatibility lane."""
+
+        if entry.get("status") != _LEGACY_COMPATIBLE_STATUS:
+            return False
+        if entry.get("runtime_adapter") != _LEGACY_RUNTIME_ADAPTER:
+            return False
+        if entry.get("availability") != "active":
+            return False
+        factory = entry.get("execution_factory")
+        return isinstance(factory, str) and entry.get("legacy_execution_factory") == factory
 
     @staticmethod
     def _documents_from_catalog(catalog: Any) -> tuple[Mapping[str, Any], Mapping[str, Any], Any]:
