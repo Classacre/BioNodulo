@@ -27,7 +27,7 @@
         80
       ],
       "params": {
-        "file": "examples/data/biopython/deseq2_counts.csv"
+        "file": "templates/data/smoke/counts.csv"
       },
       "ui": {
         "title": "Count Matrix",
@@ -51,7 +51,7 @@
         231
       ],
       "params": {
-        "file": "examples/data/biopython/deseq2_sample_info.csv"
+        "file": "templates/data/smoke/sample_info.csv"
       },
       "ui": {
         "title": "Sample Info",
@@ -76,7 +76,7 @@
         533
       ],
       "params": {
-        "file": "examples/data/biopython/heatmap_annotation.csv"
+        "file": "templates/data/smoke/heatmap_annotation.csv"
       },
       "ui": {
         "title": "Heatmap Annotation",

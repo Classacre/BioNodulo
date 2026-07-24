@@ -455,6 +455,72 @@ def test_variant_templates_supply_exact_snpeff_database_dependencies() -> None:
         assert "exact Staphylococcus aureus wildtype.fna tutorial reference" in description
 
 
+def test_official_variant_templates_wire_every_required_sidecar_input() -> None:
+    """Keep template DAG dependencies aligned with the focused node contracts."""
+    expected_by_template = {
+        "variant_calling_pipeline.json": {
+            "gatk_001": {"bam_index", "reference_index", "sequence_dictionary"},
+            "gatk_genotype_001": {
+                "gvcf_index",
+                "reference_index",
+                "sequence_dictionary",
+            },
+            "manta_sv_001": {"bam_index", "reference_index"},
+            "delly_sv_001": {"bam_index", "reference_index"},
+            "snpeff_001": {"database"},
+        },
+        "wgs_variant_pipeline.json": {
+            "fb_001": {"bam_index", "reference_index"},
+            "manta_sv_001": {"bam_index", "reference_index"},
+            "delly_sv_001": {"bam_index", "reference_index"},
+            "snpeff_001": {"database"},
+        },
+    }
+    sidecar_inputs = {
+        "bam_index",
+        "database",
+        "gvcf_index",
+        "normal_bam_index",
+        "reference_index",
+        "sequence_dictionary",
+    }
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    for template_name, expected_nodes in expected_by_template.items():
+        workflow = _load_template(template_name)
+        node_types = _node_types(workflow)
+        incoming = {
+            node_id: {
+                str(edge["to"]["input"])
+                for edge in workflow["edges"]
+                if edge.get("to", {}).get("node") == node_id
+            }
+            for node_id in expected_nodes
+        }
+
+        producer = registry.get(node_types["ref_sidecars_001"])
+        assert producer is not None
+        assert set(producer.RETURN_NAMES) == {
+            "reference",
+            "fai_index",
+            "sequence_dictionary",
+        }
+
+        for node_id, expected_inputs in expected_nodes.items():
+            node_class = registry.get(node_types[node_id])
+            assert node_class is not None
+            declared_required = set(node_class.INPUT_TYPES()["required"]) & sidecar_inputs
+            assert declared_required == expected_inputs
+            assert incoming[node_id] & sidecar_inputs == expected_inputs
+
+        for node_id in ("manta_sv_001", "delly_sv_001"):
+            node_class = registry.get(node_types[node_id])
+            assert node_class is not None
+            assert "normal_bam_index" in node_class.INPUT_TYPES()["optional"]
+            assert incoming[node_id].isdisjoint({"normal_bam", "normal_bam_index"})
+
+
 def test_fastq_qc_template_validates_and_gates_multiqc_report_before_preview() -> None:
     workflow = _load_template("fastq_qc_pipeline.json")
     node_types = _node_types(workflow)
@@ -1261,7 +1327,7 @@ def test_chip_seq_template_builds_index_from_real_reference_before_alignment() -
     assert node_types["genome_001"] == "input_fasta"
     assert node_types["bt2build_001"] == "bowtie2_build"
     genome = next(n for n in workflow["nodes"] if n["id"] == "genome_001")
-    assert genome["params"]["reference"] == "examples/data/chip_seq/genome.fa"
+    assert genome["params"]["reference"] == "templates/data/smoke/reference.fasta"
     assert _has_edge(workflow, "genome_001", "reference", "bt2build_001", "reference")
     assert _has_edge(workflow, "bt2build_001", "index", "bt2_001", "index")
     assert _has_edge(workflow, "bt2build_001", "index", "bt2_control_001", "index")

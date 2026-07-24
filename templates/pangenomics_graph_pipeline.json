@@ -45,7 +45,7 @@
         80
       ],
       "params": {
-        "reference": "examples/data/pangenomics/haplotypes.fa"
+        "reference": "templates/data/smoke/haplotypes.fasta"
       },
       "ui": {
         "title": "Haplotype FASTA",

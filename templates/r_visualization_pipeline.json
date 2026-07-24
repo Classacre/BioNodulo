@@ -128,7 +128,7 @@
         876
       ],
       "params": {
-        "file": "examples/data/biopython/heatmap_data.csv"
+        "file": "templates/data/smoke/heatmap_data.csv"
       },
       "ui": {
         "title": "Heatmap Data",
@@ -153,7 +153,7 @@
         1288
       ],
       "params": {
-        "file": "examples/data/biopython/heatmap_annotation.csv"
+        "file": "templates/data/smoke/heatmap_annotation.csv"
       },
       "ui": {
         "title": "Heatmap Annotation",

@@ -101,8 +101,12 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert _output_validation(workflow, "genome_001", "reference")["min_records"] >= 1
     assert _output_validation(workflow, "amplicon_r1_001", "read1")["expected_format"] == "fastq"
     assert _output_validation(workflow, "amplicon_r2_001", "read1")["expected_format"] == "fastq"
-    assert _node_by_id(workflow, "amplicon_r1_001")["params"]["reads"] == ["examples/data/crispr/amplicon_R1.fastq.gz"]
-    assert _node_by_id(workflow, "amplicon_r2_001")["params"]["reads"] == ["examples/data/crispr/amplicon_R2.fastq.gz"]
+    assert _node_by_id(workflow, "amplicon_r1_001")["params"]["reads"] == [
+        "templates/data/smoke/paired_R1.fastq"
+    ]
+    assert _node_by_id(workflow, "amplicon_r2_001")["params"]["reads"] == [
+        "templates/data/smoke/paired_R2.fastq"
+    ]
     assert _output_validation(workflow, "screen_reads_001", "reads")["expected_format"] == "fastq"
     assert _output_validation(workflow, "library_001", "file")["expected_format"] == "tsv"
     # No required_fields: the real MAGeCK demo library ships headerless (sgRNA/sequence/gene columns).

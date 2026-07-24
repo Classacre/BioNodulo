@@ -43,6 +43,11 @@ server.pid
 # Example template data (large files; user downloads via Getting Started)
 examples/data/
 
+# Tiny deterministic fixtures used by official-template smoke defaults
+!templates/data/smoke/
+!templates/data/smoke/*.fastq
+!templates/data/smoke/*.fasta
+
 # Ad-hoc QA / screenshot output produced by local tooling
 artifacts/
 output/

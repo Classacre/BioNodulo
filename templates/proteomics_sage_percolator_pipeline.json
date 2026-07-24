@@ -65,7 +65,7 @@
         231
       ],
       "params": {
-        "reference": "examples/data/proteomics/target_decoy.fasta"
+        "reference": "templates/data/smoke/target_decoy.fasta"
       },
       "ui": {
         "title": "Protein FASTA",

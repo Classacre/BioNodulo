@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "ctrl_rep1",
         "reads": [
-          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/001/SRR6357071/SRR6357071_1.fastq.gz",
-          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/001/SRR6357071/SRR6357071_2.fastq.gz"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ]
       },
       "ui": {

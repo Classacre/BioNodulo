@@ -74,7 +74,7 @@
         231
       ],
       "params": {
-        "reference": "examples/data/long_read/reference.fasta"
+        "reference": "templates/data/smoke/reference.fasta"
       },
       "ui": {
         "title": "Reference FASTA",

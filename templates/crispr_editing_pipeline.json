@@ -48,7 +48,7 @@
         80
       ],
       "params": {
-        "reference": "examples/data/crispr/genome.fa"
+        "reference": "templates/data/smoke/reference.fasta"
       },
       "ui": {
         "title": "Genome FASTA",
@@ -204,7 +204,7 @@
       ],
       "params": {
         "reads": [
-          "examples/data/crispr/amplicon_R1.fastq.gz"
+          "templates/data/smoke/paired_R1.fastq"
         ]
       },
       "ui": {
@@ -230,7 +230,7 @@
       ],
       "params": {
         "reads": [
-          "examples/data/crispr/amplicon_R2.fastq.gz"
+          "templates/data/smoke/paired_R2.fastq"
         ]
       },
       "ui": {
@@ -256,8 +256,8 @@
       ],
       "params": {
         "reads": [
-          "examples/data/crispr/control.fastq",
-          "examples/data/crispr/treated.fastq"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ],
         "sample_name": "screen"
       },
@@ -283,7 +283,7 @@
         723
       ],
       "params": {
-        "file": "examples/data/crispr/sgrna_library.tsv"
+        "file": "templates/data/smoke/sgrna_library.tsv"
       },
       "ui": {
         "title": "sgRNA Library",

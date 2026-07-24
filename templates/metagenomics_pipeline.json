@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "sample1",
         "reads": [
-          "examples/data/metagenomics/reads_forward.fastq",
-          "examples/data/metagenomics/reads_reverse.fastq"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ]
       },
       "ui": {
@@ -92,7 +92,7 @@
         590
       ],
       "params": {
-        "file": "examples/data/metagenomics/reads_forward.fastq",
+        "file": "templates/data/smoke/paired_R1.fastq",
         "source": "local"
       },
       "ui": {

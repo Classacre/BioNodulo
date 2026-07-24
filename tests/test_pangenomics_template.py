@@ -102,7 +102,9 @@ def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() ->
     odgi_viz = _node_by_id(workflow, "odgi_viz_001")
     odgi_stats = _node_by_id(workflow, "odgi_stats_001")
 
-    assert _node_by_id(workflow, "haplotypes_001")["params"]["reference"] == "examples/data/pangenomics/haplotypes.fa"
+    assert _node_by_id(workflow, "haplotypes_001")["params"]["reference"] == (
+        "templates/data/smoke/haplotypes.fasta"
+    )
     assert haplotype_validator["expected_format"] == "fasta"
     assert haplotype_validator["min_records"] == 12
     assert haplotype_validator["min_size_bytes"] > 0

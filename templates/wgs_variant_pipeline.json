@@ -44,8 +44,8 @@
       "params": {
         "sample_name": "wgs1",
         "reads": [
-          "https://github.com/tseemann/shovill/raw/master/test/R1.fq",
-          "https://github.com/tseemann/shovill/raw/master/test/R2.fq"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ]
       },
       "ui": {

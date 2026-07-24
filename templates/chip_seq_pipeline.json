@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "treatment",
         "reads": [
-          "examples/data/chip_seq/wt_Spt5_read1.fastq",
-          "examples/data/chip_seq/wt_Spt5_read2.fastq"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ]
       },
       "ui": {
@@ -57,8 +57,8 @@
       "params": {
         "sample_name": "control",
         "reads": [
-          "examples/data/chip_seq/input_control_read1.fastq",
-          "examples/data/chip_seq/input_control_read2.fastq"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ]
       },
       "ui": {
@@ -83,7 +83,7 @@
         611
       ],
       "params": {
-        "file": "examples/data/chip_seq/genes.bed"
+        "file": "templates/data/smoke/genes.bed"
       },
       "ui": {
         "title": "Gene Annotation BED",
@@ -423,8 +423,8 @@
         340
       ],
       "params": {
-        "file": "examples/data/chip_seq/genome.fa",
-        "reference": "examples/data/chip_seq/genome.fa"
+        "file": "templates/data/smoke/reference.fasta",
+        "reference": "templates/data/smoke/reference.fasta"
       },
       "ui": {
         "title": "Yeast Reference (SacCer)"
