@@ -278,6 +278,30 @@ def _safe_path(path_str: str, root: Path) -> Path:
     return ensure_within(Path(path_str), root)
 
 
+_BUNDLED_TEMPLATE_DATA_ROOT = (REPO_ROOT / "templates" / "data").resolve()
+
+
+def _safe_cloud_input_source(path_str: str, workspace_root: Path) -> Path:
+    """Resolve a workspace input or a read-only bundled template fixture.
+
+    Shared-editor Lambdas keep their writable workspace under ``/tmp`` while
+    official template fixtures are packaged under ``REPO_ROOT/templates/data``.
+    Only that public fixture subtree may fall back outside the workspace; all
+    other paths retain the normal workspace-containment contract.
+    """
+    workspace_target = _safe_path(path_str, workspace_root)
+    if workspace_target.exists():
+        return workspace_target
+
+    prefix = "templates/data/"
+    if "\\" in path_str or not path_str.startswith(prefix):
+        return workspace_target
+    relative = path_str[len(prefix):]
+    if not relative:
+        return workspace_target
+    return ensure_within(Path(relative), _BUNDLED_TEMPLATE_DATA_ROOT)
+
+
 # Run identifiers are server- or client-supplied but must always be a single
 # safe path segment — never a traversal sequence used to walk outside runs/.
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -1349,6 +1373,7 @@ async def read_file(request: Request, path: str) -> Any:
     return PlainTextResponse(content)
 
 
+@router.head("/workspace/download", include_in_schema=False)
 @router.get("/workspace/download")
 async def download_file(request: Request, path: str) -> FileResponse:
     """Stream a workspace file's raw bytes (any size), path-validated.
@@ -1358,7 +1383,7 @@ async def download_file(request: Request, path: str) -> FileResponse:
     """
     settings = _get_settings(request)
     try:
-        target = _safe_path(path, settings.project_root)
+        target = _safe_cloud_input_source(path, settings.project_root)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not target.exists() or not target.is_file():
@@ -1553,9 +1578,16 @@ def _validate_s3_url(url: str) -> None:
     if p.scheme != "https":
         raise HTTPException(status_code=400, detail="Only https S3 URLs are allowed")
     host = (p.hostname or "").lower()
-    # <bucket>.s3.amazonaws.com, <bucket>.s3.<region>.amazonaws.com, or the
-    # path-style s3.<region>.amazonaws.com host. Reject anything else (SSRF).
-    ok = host.endswith(".amazonaws.com") and (".s3." in host or host.startswith("s3.") or ".s3-" in host)
+    # AWS S3 plus the production Cloudflare R2 S3-compatible endpoint. Keep the
+    # allowlist structural and suffix-anchored so a caller cannot turn this
+    # relay into a generic SSRF primitive.
+    aws_s3 = host.endswith(".amazonaws.com") and (
+        ".s3." in host or host.startswith("s3.") or ".s3-" in host
+    )
+    cloudflare_r2 = re.fullmatch(
+        r"[0-9a-f]{32}\.r2\.cloudflarestorage\.com", host
+    ) is not None
+    ok = aws_s3 or cloudflare_r2
     if not ok:
         raise HTTPException(status_code=400, detail="URL is not an S3 endpoint")
 
@@ -1650,7 +1682,7 @@ async def cloud_upload(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="expected_size is required and must be within the upload limit")
     _validate_s3_url(url)
     try:
-        target = _safe_path(path, settings.project_root)
+        target = _safe_cloud_input_source(path, settings.project_root)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not target.exists() or not target.is_file():
@@ -1664,9 +1696,22 @@ async def cloud_upload(request: Request) -> dict[str, Any]:
         "direction": "upload", "name": target.name, "loaded": 0,
         "total": actual_size, "status": "active", "error": None,
     }
-    task = asyncio.create_task(asyncio.to_thread(_sync_s3_put, tid, target, url, content_type))
-    _track_background_task(task, f"cloud upload {tid}")
-    return {"transfer_id": tid, "total": _CLOUD_TRANSFERS[tid]["total"]}
+    if request.app.state.cloud_settings.editor_mode:
+        # Lambda may freeze immediately after returning a response, so a shared
+        # editor must finish its tiny bundled-fixture upload in this invocation.
+        await asyncio.to_thread(_sync_s3_put, tid, target, url, content_type)
+    else:
+        task = asyncio.create_task(
+            asyncio.to_thread(_sync_s3_put, tid, target, url, content_type)
+        )
+        _track_background_task(task, f"cloud upload {tid}")
+    transfer = _CLOUD_TRANSFERS[tid]
+    return {
+        "transfer_id": tid,
+        "total": transfer["total"],
+        "status": transfer["status"],
+        "error": transfer["error"],
+    }
 
 
 @router.post("/workspace/cloud-directory-info")
@@ -1678,7 +1723,7 @@ async def cloud_directory_info(request: Request) -> dict[str, Any]:
     if not path:
         raise HTTPException(status_code=400, detail="path is required")
     try:
-        target = _safe_path(path, settings.project_root)
+        target = _safe_cloud_input_source(path, settings.project_root)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not target.exists() or not target.is_dir():
@@ -1697,7 +1742,7 @@ async def cloud_directory_archive(request: Request) -> dict[str, Any]:
     if not path:
         raise HTTPException(status_code=400, detail="path is required")
     try:
-        target = _safe_path(path, settings.project_root)
+        target = _safe_cloud_input_source(path, settings.project_root)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not target.exists() or not target.is_dir():
@@ -1773,18 +1818,26 @@ async def cloud_upload_directory(request: Request) -> dict[str, Any]:
         "status": "active",
         "error": None,
     }
-    task = asyncio.create_task(
-        asyncio.to_thread(
-            _sync_s3_put,
-            tid,
-            archive_path,
-            url,
-            content_type,
-            remove_after=True,
-        )
+    upload = asyncio.to_thread(
+        _sync_s3_put,
+        tid,
+        archive_path,
+        url,
+        content_type,
+        remove_after=True,
     )
-    _track_background_task(task, f"cloud directory upload {tid}")
-    return {"transfer_id": tid, "total": expected_size}
+    if request.app.state.cloud_settings.editor_mode:
+        await upload
+    else:
+        task = asyncio.create_task(upload)
+        _track_background_task(task, f"cloud directory upload {tid}")
+    transfer = _CLOUD_TRANSFERS[tid]
+    return {
+        "transfer_id": tid,
+        "total": transfer["total"],
+        "status": transfer["status"],
+        "error": transfer["error"],
+    }
 
 
 @router.post("/workspace/cloud-download")

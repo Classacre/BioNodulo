@@ -15,4 +15,23 @@ describe('App template loading', () => {
     expect(handler).not.toContain('updateWorkflow(activeIndex, sharedWorkflow);');
     expect(handler).toContain('setWorkflow, t]);');
   });
+
+  it('stages template artifacts before the shared-editor Run submission', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    const stagingStart = appSource.indexOf('const stageCloudRunInputs = useCallback');
+    const runStart = appSource.indexOf('const handleRun = useCallback', stagingStart);
+    const runEnd = appSource.indexOf('const handleBatchSheetSubmit = useCallback', runStart);
+
+    expect(stagingStart).toBeGreaterThanOrEqual(0);
+    expect(runStart).toBeGreaterThan(stagingStart);
+    expect(runEnd).toBeGreaterThan(runStart);
+
+    const staging = appSource.slice(stagingStart, runStart);
+    const run = appSource.slice(runStart, runEnd);
+    expect(staging).toContain('collectLocalInputArtifacts(');
+    expect(staging).toContain('uploadWorkspaceFileToCloud(path, baseName(path))');
+    expect(run).toContain('editorMode && !dryRunPreview');
+    expect(run).toContain('await stageCloudRunInputs(activeWorkflow, parameterOverrides)');
+    expect(run).toContain('inputs,');
+  });
 });

@@ -1675,6 +1675,44 @@ export default function App() {
     );
   }, [addLog, updateRun, activeWorkflow, t]);
 
+  const stageCloudRunInputs = useCallback(async (
+    workflow: Workflow,
+    parameterOverrides: Record<string, unknown>,
+  ): Promise<CloudRunInputs | undefined> => {
+    const localArtifacts = collectLocalInputArtifacts(
+      workflow,
+      parameterOverrides,
+      objectInfo,
+    );
+    if (localArtifacts.length === 0) return undefined;
+
+    const sizes = await Promise.all(localArtifacts.map(async artifact => ({
+      ...artifact,
+      size: artifact.kind === 'directory'
+        ? await localDirectorySize(artifact.path)
+        : await localFileSize(artifact.path),
+    })));
+    const big = sizes.filter(artifact => artifact.size >= 50 * 1024 * 1024);
+    if (big.length > 0) {
+      const ok = await confirmDialog(t('console.actions.cloudLargeFilesConfirm', {
+        defaultValue: 'Files over 50 MB will be uploaded to the cloud before running the workflow. Continue?',
+      }));
+      if (!ok) throw new Error('Cloud input upload was cancelled.');
+    }
+
+    const artifactKeys: NonNullable<CloudRunInputs['artifacts']> = {};
+    for (const { path, kind } of sizes) {
+      const key = await (
+        kind === 'directory'
+          ? uploadWorkspaceDirectoryToCloud(path, baseName(path))
+          : uploadWorkspaceFileToCloud(path, baseName(path))
+      ).catch(() => null);
+      if (!key) throw new Error(`Cloud upload failed for ${baseName(path)}`);
+      artifactKeys[path] = { uploadKey: key, kind };
+    }
+    return { artifacts: artifactKeys };
+  }, [objectInfo, t]);
+
   const handleRun = useCallback(async () => {
     setIsRunning(true);
     logTelemetry('workflow.run.start', {
@@ -1729,6 +1767,9 @@ export default function App() {
           return;
         }
       }
+      const inputs = editorMode && !dryRunPreview
+        ? await stageCloudRunInputs(activeWorkflow, parameterOverrides)
+        : undefined;
       const count = dryRunPreview ? 1 : Math.max(1, Math.min(99, batchCount));
       for (let index = 0; index < count; index += 1) {
         const workflowFallbackName = activeWorkflow.name || t('common.untitled');
@@ -1742,6 +1783,7 @@ export default function App() {
           dry_run: dryRunPreview,
           resume_checkpoint: resumeCheckpoint?.checkpoint,
           compute: specToRunBody(computeSpec),
+          inputs,
         });
         if (dryRunPreview || result.status === 'dry_run') {
           const preview = result as RunRecord & {
@@ -1851,7 +1893,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled, editorMode, pollCloudRun, computeSpec]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled, editorMode, pollCloudRun, computeSpec, stageCloudRunInputs]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;
@@ -1924,37 +1966,9 @@ export default function App() {
         cancelLabel: t('parameters.runPromptCancel'),
       });
       if (parameterOverrides === null) return;
-      // Pre-flight: upload referenced LOCAL workspace artifacts so the worker
-      // can materialize files and directories before execution. Small inputs
-      // upload silently; any artifact >=50 MB requires confirmation first.
-      let inputs: CloudRunInputs | undefined;
-      const localArtifacts = collectLocalInputArtifacts(activeWorkflow, parameterOverrides, objectInfo);
-      if (localArtifacts.length > 0) {
-        const sizes = await Promise.all(localArtifacts.map(async artifact => ({
-          ...artifact,
-          size: artifact.kind === 'directory'
-            ? await localDirectorySize(artifact.path)
-            : await localFileSize(artifact.path),
-        })));
-        const big = sizes.filter(s => s.size >= 50 * 1024 * 1024);
-        if (big.length > 0) {
-          const ok = await confirmDialog(t('console.actions.cloudLargeFilesConfirm', {
-            defaultValue: 'Files over 50 MB will be uploaded to the cloud before running the workflow. Continue?',
-          }));
-          if (!ok) { setIsRunning(false); return; }
-        }
-        const artifactKeys: NonNullable<CloudRunInputs['artifacts']> = {};
-        for (const { path, kind } of sizes) {
-          const key = await (
-            kind === 'directory'
-              ? uploadWorkspaceDirectoryToCloud(path, baseName(path))
-              : uploadWorkspaceFileToCloud(path, baseName(path))
-          ).catch(() => null);
-          if (!key) throw new Error(`Cloud upload failed for ${baseName(path)}`);
-          artifactKeys[path] = { uploadKey: key, kind };
-        }
-        if (Object.keys(artifactKeys).length > 0) inputs = { artifacts: artifactKeys };
-      }
+      // Use the same canonical input preflight as the shared editor's Run
+      // button so local and cloud paths cannot drift again.
+      const inputs = await stageCloudRunInputs(activeWorkflow, parameterOverrides);
       const result = await submitRun(activeWorkflow, {
         forceCloud: true,
         name: activeWorkflow.name,
@@ -1990,7 +2004,7 @@ export default function App() {
     } finally {
       setIsRunning(false);
     }
-  }, [authUser, cloudConfig, clerk, editorMode, validate, activeWorkflow, objectInfo, promptDialog, submitRun, computeSpec, addLog, addRun, pollCloudRun, setConsoleVisible, setRailTab, setRunsDrawerOpen, setIsRunning, t]);
+  }, [authUser, cloudConfig, clerk, editorMode, validate, activeWorkflow, promptDialog, submitRun, computeSpec, addLog, addRun, pollCloudRun, setConsoleVisible, setRailTab, setRunsDrawerOpen, setIsRunning, stageCloudRunInputs, t]);
 
   const handleRunSelected = useCallback(async (nodeIds: string[]) => {
     if (nodeIds.length === 0) return;

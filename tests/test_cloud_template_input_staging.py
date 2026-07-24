@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+
+
+_PROXY_SECRET = "test-proxy-secret-value"
+_HEADERS = {"X-Bionodulo-Session": _PROXY_SECRET}
+_R2_HOST = "c8c417e5b639695becad5bbf2c1c2dfd.r2.cloudflarestorage.com"
+
+
+def _editor_env(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    monkeypatch.setenv("BIONODULO_ROOT", str(root))
+    monkeypatch.setenv("BIONODULO_EDITOR_MODE", "1")
+    monkeypatch.setenv("BIONODULO_PROXY_SECRET", _PROXY_SECRET)
+
+
+def test_editor_serves_only_packaged_template_data_for_cloud_staging(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from server import create_app
+
+    _editor_env(monkeypatch, tmp_path)
+    path = "templates/data/smoke/paired_R1.fastq"
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/api/workspace/download", params={"path": path}, headers=_HEADERS
+        )
+        head = client.head(
+            "/api/workspace/download", params={"path": path}, headers=_HEADERS
+        )
+        traversal = client.get(
+            "/api/workspace/download",
+            params={"path": "templates/data/../../pyproject.toml"},
+            headers=_HEADERS,
+        )
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"@")
+    assert head.status_code == 200
+    assert int(head.headers["content-length"]) == len(response.content)
+    assert traversal.status_code == 400
+
+
+def test_cloud_relay_accepts_production_r2_without_widening_ssrf_allowlist() -> None:
+    from bionodulo.api.routes import _validate_s3_url
+
+    _validate_s3_url(f"https://{_R2_HOST}/uploads/example")
+    with pytest.raises(HTTPException):
+        _validate_s3_url(f"https://{_R2_HOST}.example.com/uploads/example")
+
+
+def test_editor_cloud_upload_finishes_before_lambda_response(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import bionodulo.api.routes as routes
+    from server import create_app
+
+    _editor_env(monkeypatch, tmp_path)
+    source = tmp_path / "tiny.fastq"
+    source.write_bytes(b"@read\nACGT\n+\n!!!!\n")
+    completed: list[Path] = []
+
+    def fake_put(
+        tid: str,
+        local_path: Path,
+        _url: str,
+        _content_type: str,
+        *,
+        remove_after: bool = False,
+    ) -> None:
+        completed.append(local_path)
+        transfer = routes._CLOUD_TRANSFERS[tid]
+        transfer["loaded"] = local_path.stat().st_size
+        transfer["status"] = "done"
+        if remove_after:
+            local_path.unlink(missing_ok=True)
+
+    monkeypatch.setattr(routes, "_sync_s3_put", fake_put)
+    routes._CLOUD_TRANSFERS.clear()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/workspace/cloud-upload",
+            headers=_HEADERS,
+            json={
+                "path": "tiny.fastq",
+                "url": f"https://{_R2_HOST}/uploads/tiny.fastq",
+                "content_type": "application/octet-stream",
+                "expected_size": source.stat().st_size,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "done"
+    assert completed == [source]

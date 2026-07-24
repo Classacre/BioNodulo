@@ -22,6 +22,14 @@ interface BackendTransfer {
   error?: string | null;
 }
 
+interface BackendTransferStart {
+  transfer_id: string;
+  total: number;
+  /** Shared-editor Lambdas complete uploads before returning. */
+  status?: BackendTransfer['status'];
+  error?: string | null;
+}
+
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -64,6 +72,24 @@ async function pollBackendTransfer(backendId: string, storeId: string, fallbackT
   }
 }
 
+/** Handle a relay that already finished inside a serverless invocation. */
+function completedBackendTransfer(
+  start: BackendTransferStart,
+  storeId: string,
+  fallbackTotal: number,
+): boolean | null {
+  const total = start.total || fallbackTotal;
+  if (start.status === 'done') {
+    updateTransfer(storeId, { status: 'done', loaded: total, total });
+    return true;
+  }
+  if (start.status === 'error') {
+    updateTransfer(storeId, { status: 'error', error: start.error || 'Transfer failed' });
+    return false;
+  }
+  return null;
+}
+
 /**
  * HEAD a local workspace file to get its size (for the presign size check and
  * the Run-on-Cloud >50 MB prompt) without downloading it.
@@ -100,9 +126,11 @@ export async function uploadWorkspaceFileToCloud(path: string, name: string): Pr
     const size = await localFileSize(path);
     updateTransfer(id, { total: size });
     const { url, key } = await presignCloudUpload(name, 'application/octet-stream', size);
-    const start = await apiPost<{ transfer_id: string; total: number }>('/workspace/cloud-upload', {
+    const start = await apiPost<BackendTransferStart>('/workspace/cloud-upload', {
       path, url, content_type: 'application/octet-stream', expected_size: size,
     });
+    const completed = completedBackendTransfer(start, id, size);
+    if (completed !== null) return completed ? key : null;
     const ok = await pollBackendTransfer(start.transfer_id, id, start.total || size);
     return ok ? key : null;
   } catch (e) {
@@ -147,13 +175,15 @@ export async function uploadWorkspaceDirectoryToCloud(
       'application/x-tar',
       prepared.size,
     );
-    const start = await apiPost<{ transfer_id: string; total: number }>('/workspace/cloud-upload-directory', {
+    const start = await apiPost<BackendTransferStart>('/workspace/cloud-upload-directory', {
       archive_id: prepared.archive_id,
       url,
       content_type: 'application/x-tar',
       expected_size: prepared.size,
     });
     uploadStarted = true;
+    const completed = completedBackendTransfer(start, id, prepared.size);
+    if (completed !== null) return completed ? key : null;
     const ok = await pollBackendTransfer(start.transfer_id, id, start.total || prepared.size);
     return ok ? key : null;
   } catch (e) {
