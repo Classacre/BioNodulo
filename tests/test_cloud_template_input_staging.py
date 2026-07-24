@@ -43,6 +43,7 @@ def test_editor_serves_only_packaged_template_data_for_cloud_staging(
     assert response.content.startswith(b"@")
     assert head.status_code == 200
     assert int(head.headers["content-length"]) == len(response.content)
+    assert int(head.headers["x-bionodulo-file-size"]) == len(response.content)
     assert traversal.status_code == 400
 
 

@@ -1388,7 +1388,14 @@ async def download_file(request: Request, path: str) -> FileResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail=f"File not found: '{path}'")
-    return FileResponse(target, filename=target.name)
+    return FileResponse(
+        target,
+        filename=target.name,
+        # Mangum/Lambda correctly emits a zero Content-Length for the empty HEAD
+        # body. Preserve the selected file representation's actual size in
+        # explicit metadata so the website proxy can forward it unchanged.
+        headers={"X-Bionodulo-File-Size": str(target.stat().st_size)},
+    )
 
 
 # --- Cloud transfer relay -----------------------------------------------------
