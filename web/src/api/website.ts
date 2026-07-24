@@ -114,8 +114,17 @@ export function saveCloudWorkflow(wf: Workflow): Promise<WorkflowRow> {
   });
 }
 
-/** Canonical uploaded-file manifest accepted by the website run API. */
+export type CloudRunInputKind = 'file' | 'directory';
+
+export interface CloudRunInputArtifact {
+  uploadKey: string;
+  kind: CloudRunInputKind;
+}
+
+/** Canonical uploaded-artifact manifest accepted by the website run API. */
 export interface CloudRunInputs {
+  artifacts?: Record<string, CloudRunInputArtifact>;
+  /** Rolling-deploy compatibility for older saved/editor payloads. */
   files?: Record<string, string>;
 }
 
@@ -139,6 +148,11 @@ export function submitCloudRun(
       ...(parameters ? { parameters } : {}),
     }),
   });
+}
+
+/** Cancel a website-managed cloud run. Local queue runs use the host API. */
+export function cancelCloudRun(runId: string): Promise<{ runId: string; status: string }> {
+  return call(`/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' });
 }
 
 export interface CloudRunSnapshot {

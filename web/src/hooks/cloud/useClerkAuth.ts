@@ -77,10 +77,12 @@ export function useClerkAuth(): UseClerkAuthResult {
     if (!active || !publishableKey) return;
     let cancelled = false;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
+    let unsubscribe: (() => void) | null = null;
 
     // Pull the current session JWT and mirror the Clerk user into the app's
     // token store + authUser atom. Clearing happens when no session is active.
-    const sync = async (clerk: Clerk) => {
+    const sync = async (clerk: Clerk, skipCache = false) => {
+      if (cancelled) return;
       try {
         const session = clerk.session;
         if (!session || !clerk.user) {
@@ -91,10 +93,13 @@ export function useClerkAuth(): UseClerkAuthResult {
         }
         let token: string | null = null;
         try {
-          token = await session.getToken({ template: CLERK_JWT_TEMPLATE });
+          token = await session.getToken({
+            template: CLERK_JWT_TEMPLATE,
+            ...(skipCache ? { skipCache: true } : {}),
+          });
         } catch {
           // No such template configured — fall back to the default session JWT.
-          token = await session.getToken();
+          token = await session.getToken(skipCache ? { skipCache: true } : undefined);
         }
         if (cancelled) return;
         if (!token) {
@@ -134,11 +139,16 @@ export function useClerkAuth(): UseClerkAuthResult {
         clerkRef.current = clerk;
         setClerkEnabled(true);
         await sync(clerk);
+        if (cancelled) return;
         // React to sign-in / sign-out / session changes.
-        clerk.addListener(() => { void sync(clerk); });
-        // clerk-js refreshes the underlying session itself; we just re-pull the
-        // short-lived JWT on a timer and when the tab regains focus.
-        refreshTimer = setInterval(() => { void sync(clerk); }, TOKEN_REFRESH_MS);
+        unsubscribe = clerk.addListener(() => {
+          void sync(clerk);
+        });
+        // Force a server token read before the mirrored bearer expires. A plain
+        // getToken() may legally return Clerk's cached JWT within its TTL.
+        refreshTimer = setInterval(() => {
+          void sync(clerk, true);
+        }, TOKEN_REFRESH_MS);
       } catch (err) {
         logError('clerk.load', err);
       }
@@ -146,7 +156,7 @@ export function useClerkAuth(): UseClerkAuthResult {
 
     const onFocus = () => {
       const clerk = clerkRef.current;
-      if (clerk) void sync(clerk);
+      if (clerk) void sync(clerk, true);
     };
     window.addEventListener('focus', onFocus);
 
@@ -154,6 +164,8 @@ export function useClerkAuth(): UseClerkAuthResult {
       cancelled = true;
       window.removeEventListener('focus', onFocus);
       if (refreshTimer) clearInterval(refreshTimer);
+      unsubscribe?.();
+      clerkRef.current = null;
     };
     // publishableKey/active fully determine the effect.
   }, [active, publishableKey, setAuthUserAtom]);

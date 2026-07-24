@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectLocalFilePaths, baseName } from '../utils/workflowFiles';
+import { collectLocalFilePaths, collectLocalInputArtifacts, baseName } from '../utils/workflowFiles';
 import type { NodeMetadata, ObjectInfo, Workflow } from '../types';
 
 function wf(nodes: Workflow['nodes']): Workflow {
@@ -104,7 +104,7 @@ describe('collectLocalFilePaths', () => {
     ]);
   });
 
-  it('fails explicitly for unsupported local directory inputs', () => {
+  it('collects typed directory inputs for cloud archive staging', () => {
     const objectInfo: ObjectInfo = {
       input_directory: meta('input_directory', 'input', { directory: { type: 'DIRECTORY' } }),
     };
@@ -115,9 +115,9 @@ describe('collectLocalFilePaths', () => {
       params: { directory: 'data/reference-index' },
     }]);
 
-    expect(() => collectLocalFilePaths(w, {}, objectInfo)).toThrow(
-      "Cloud file staging does not support directory input 'directory'",
-    );
+    expect(collectLocalInputArtifacts(w, {}, objectInfo)).toEqual([
+      { path: 'data/reference-index', kind: 'directory' },
+    ]);
   });
 
   it('does not stage workflow placeholders or hidden file/control slots', () => {

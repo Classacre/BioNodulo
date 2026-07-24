@@ -62,20 +62,31 @@ function localPath(value: unknown, allowBare = false): string | null {
   return path;
 }
 
-function collectPathValues(value: unknown, out: Set<string>, allowBare = false): void {
+export type LocalInputArtifactKind = 'file' | 'directory';
+
+export interface LocalInputArtifact {
+  path: string;
+  kind: LocalInputArtifactKind;
+}
+
+function collectArtifactValues(
+  value: unknown,
+  out: Map<string, LocalInputArtifactKind>,
+  kind: LocalInputArtifactKind,
+  allowBare = false,
+): void {
   const path = localPath(value, allowBare);
   if (path) {
-    out.add(path);
+    const existing = out.get(path);
+    if (existing && existing !== kind) {
+      throw new Error(`Cloud input '${path}' is declared as both a file and a directory.`);
+    }
+    out.set(path, kind);
     return;
   }
   if (Array.isArray(value)) {
-    for (const item of value) collectPathValues(item, out, allowBare);
+    for (const item of value) collectArtifactValues(item, out, kind, allowBare);
   }
-}
-
-function hasLocalValue(value: unknown): boolean {
-  if (localPath(value, true)) return true;
-  return Array.isArray(value) && value.some(hasLocalValue);
 }
 
 function metadataForNode(node: WorkflowNode, objectInfo: ObjectInfo): NodeMetadata | undefined {
@@ -97,13 +108,13 @@ function isInputNode(node: WorkflowNode, meta: NodeMetadata | undefined): boolea
   return node.type.startsWith('input_') || String(meta?.category || '').toLowerCase() === 'input';
 }
 
-/** Distinct local file paths referenced by node inputs or typed run parameters. */
-export function collectLocalFilePaths(
+/** Distinct local files and directories referenced by node inputs or run parameters. */
+export function collectLocalInputArtifacts(
   workflow: Workflow,
   runtimeParameters: Record<string, unknown> = {},
   objectInfo: ObjectInfo = {},
-): string[] {
-  const out = new Set<string>();
+): LocalInputArtifact[] {
+  const out = new Map<string, LocalInputArtifactKind>();
   for (const node of workflow.nodes || []) {
     const meta = metadataForNode(node, objectInfo);
     const { types: declaredTypes, hidden } = inputTypes(meta);
@@ -113,17 +124,13 @@ export function collectLocalFilePaths(
       const directory = isDirectoryType(type)
         || (canonicalInputNode && (key === 'directory' || key === 'dir_path'));
       if (directory) {
-        if (hasLocalValue(value)) {
-          throw new Error(
-            `Cloud file staging does not support directory input '${key}' on node '${node.id}'.`,
-          );
-        }
+        collectArtifactValues(value, out, 'directory', true);
         continue;
       }
       if (!isFileType(type) && !(canonicalInputNode && INPUT_SOURCE_KEYS.has(key) && !hidden.has(key))) continue;
       // Input-node source values and declared artifact ports are paths even when
       // an extension is absent; URLs and existing cloud keys remain untouched.
-      collectPathValues(value, out, true);
+      collectArtifactValues(value, out, 'file', true);
     }
   }
 
@@ -137,14 +144,22 @@ export function collectLocalFilePaths(
     const type = definitions.get(name);
     if (!type) continue;
     if (isDirectoryType(type)) {
-      if (hasLocalValue(value)) {
-        throw new Error(`Cloud file staging does not support directory workflow parameter '${name}'.`);
-      }
+      collectArtifactValues(value, out, 'directory', true);
       continue;
     }
-    if (isFileType(type)) collectPathValues(value, out, true);
+    if (isFileType(type)) collectArtifactValues(value, out, 'file', true);
   }
-  return [...out];
+  return [...out].map(([path, kind]) => ({ path, kind }));
+}
+
+/** Backward-compatible path-only view used by callers that do not need kind. */
+export function collectLocalFilePaths(
+  workflow: Workflow,
+  runtimeParameters: Record<string, unknown> = {},
+  objectInfo: ObjectInfo = {},
+): string[] {
+  return collectLocalInputArtifacts(workflow, runtimeParameters, objectInfo)
+    .map(artifact => artifact.path);
 }
 
 /** Basename for a workspace path (handles both `/` and `\`). */

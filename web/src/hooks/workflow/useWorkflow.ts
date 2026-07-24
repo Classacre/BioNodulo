@@ -13,7 +13,7 @@ import {
 import { cloudConfigAtom } from '../../state/appAtoms';
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
-import { collectLocalFilePaths } from '../../utils/workflowFiles';
+import { collectLocalInputArtifacts } from '../../utils/workflowFiles';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -316,8 +316,12 @@ export function useWorkflow() {
           `Cloud runs do not yet support these execution options: ${unsupportedOptions.join(', ')}`,
         );
       }
-      const stagedPaths = new Set(Object.keys(options?.inputs?.files ?? {}));
-      const unstagedPaths = collectLocalFilePaths(wf, options?.parameters ?? {})
+      const stagedPaths = new Set([
+        ...Object.keys(options?.inputs?.artifacts ?? {}),
+        ...Object.keys(options?.inputs?.files ?? {}),
+      ]);
+      const unstagedPaths = collectLocalInputArtifacts(wf, options?.parameters ?? {})
+        .map(artifact => artifact.path)
         .filter(path => !stagedPaths.has(path));
       if (unstagedPaths.length > 0) {
         throw new Error(

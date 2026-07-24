@@ -32,8 +32,13 @@ import MissingDependenciesBanner from './components/layout/MissingDependenciesBa
 import HostPrerequisitesBanner from './components/layout/HostPrerequisitesBanner';
 import Icon from './components/ui/Icon';
 import TransferWindow from './components/cloud/TransferWindow';
-import { collectLocalFilePaths, baseName } from './utils/workflowFiles';
-import { localFileSize, uploadWorkspaceFileToCloud } from './api/cloudFiles';
+import { collectLocalInputArtifacts, baseName } from './utils/workflowFiles';
+import {
+  localDirectorySize,
+  localFileSize,
+  uploadWorkspaceDirectoryToCloud,
+  uploadWorkspaceFileToCloud,
+} from './api/cloudFiles';
 import {
   CommandPaletteHost,
   ConfirmDialogHost,
@@ -100,7 +105,7 @@ import { recoverAndReprompt } from './collab/collabAuthRecovery';
 import { setCollabRemoteBase } from './collab/remoteBase';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
-import { getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';
+import { cancelCloudRun, getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';
 import {
   mapCloudRunStatus,
   isTerminalCloudStatus,
@@ -1919,13 +1924,18 @@ export default function App() {
         cancelLabel: t('parameters.runPromptCancel'),
       });
       if (parameterOverrides === null) return;
-      // Pre-flight: upload any referenced LOCAL workspace files to the cloud so
-      // the run can reach them. Files <50 MB upload silently; if any is >=50 MB
-      // the user confirms first. The uploaded key map rides along as run inputs.
+      // Pre-flight: upload referenced LOCAL workspace artifacts so the worker
+      // can materialize files and directories before execution. Small inputs
+      // upload silently; any artifact >=50 MB requires confirmation first.
       let inputs: CloudRunInputs | undefined;
-      const localPaths = collectLocalFilePaths(activeWorkflow, parameterOverrides, objectInfo);
-      if (localPaths.length > 0) {
-        const sizes = await Promise.all(localPaths.map(async p => ({ path: p, size: await localFileSize(p) })));
+      const localArtifacts = collectLocalInputArtifacts(activeWorkflow, parameterOverrides, objectInfo);
+      if (localArtifacts.length > 0) {
+        const sizes = await Promise.all(localArtifacts.map(async artifact => ({
+          ...artifact,
+          size: artifact.kind === 'directory'
+            ? await localDirectorySize(artifact.path)
+            : await localFileSize(artifact.path),
+        })));
         const big = sizes.filter(s => s.size >= 50 * 1024 * 1024);
         if (big.length > 0) {
           const ok = await confirmDialog(t('console.actions.cloudLargeFilesConfirm', {
@@ -1933,13 +1943,17 @@ export default function App() {
           }));
           if (!ok) { setIsRunning(false); return; }
         }
-        const fileKeys: Record<string, string> = {};
-        for (const { path } of sizes) {
-          const key = await uploadWorkspaceFileToCloud(path, baseName(path)).catch(() => null);
+        const artifactKeys: NonNullable<CloudRunInputs['artifacts']> = {};
+        for (const { path, kind } of sizes) {
+          const key = await (
+            kind === 'directory'
+              ? uploadWorkspaceDirectoryToCloud(path, baseName(path))
+              : uploadWorkspaceFileToCloud(path, baseName(path))
+          ).catch(() => null);
           if (!key) throw new Error(`Cloud upload failed for ${baseName(path)}`);
-          fileKeys[path] = key;
+          artifactKeys[path] = { uploadKey: key, kind };
         }
-        if (Object.keys(fileKeys).length > 0) inputs = { files: fileKeys };
+        if (Object.keys(artifactKeys).length > 0) inputs = { artifacts: artifactKeys };
       }
       const result = await submitRun(activeWorkflow, {
         forceCloud: true,
@@ -2148,7 +2162,11 @@ export default function App() {
     const ok = await confirmDialog(consoleActionCopy.cancelRunDialog(run));
     if (!ok) return;
     try {
-      await apiPost(`/api/queue/${encodeURIComponent(run.run_id)}/cancel`);
+      if (run.options?.cloud === true) {
+        await cancelCloudRun(run.run_id);
+      } else {
+        await apiPost(`/api/queue/${encodeURIComponent(run.run_id)}/cancel`);
+      }
       updateRun(run.run_id, { status: 'cancelled', end_time: new Date().toISOString() });
       toast.warning(consoleActionCopy.toast.runCancelled, { message: run.workflow_name || run.run_id });
     } catch (err) {
@@ -2305,7 +2323,10 @@ export default function App() {
       // persists to the DB-backed workflow (a new client-id tab would 404 on
       // autosave and be lost on reload).
       const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
-      updateWorkflow(activeIndex, sharedWorkflow);
+      // Replace the tab's document instead of shallow-merging it. A template
+      // without parameters must not inherit runtime parameters from the
+      // workflow that was open before it.
+      setWorkflow(activeIndex, () => sharedWorkflow);
       if (collabSessionActive) {
         if (collabDoc) {
           workflowToDoc(sharedWorkflow, collabDoc);
@@ -2328,7 +2349,7 @@ export default function App() {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, editorMode, publishCollabWorkflowSnapshot, t, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, editorMode, publishCollabWorkflowSnapshot, setWorkflow, t]);
 
   const handleImport = useCallback((wf: Workflow) => {
     logTelemetry('workflow.import', { name: wf.name, nodes: wf.nodes?.length ?? 0 });
