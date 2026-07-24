@@ -35,8 +35,17 @@ def test_official_template_smoke_defaults_are_local_small_and_well_formed() -> N
     }
     fixtures = {path.relative_to(ROOT).as_posix() for path in SMOKE.iterdir() if path.is_file()}
     assert defaults == fixtures
-    assert all(0 < (ROOT / path).stat().st_size <= 4_096 for path in defaults)
-    assert sum((ROOT / path).stat().st_size for path in defaults) <= 8_192
+    size_limits = {
+        # PGGB's documented 5 kb segment size requires real sequences longer
+        # than the previous 56 bp synthetic records. This is the pinned
+        # upstream HLA-DRB1 example from PGGB v0.7.4 (EOF-normalized).
+        "templates/data/smoke/haplotypes.fasta": 200_000,
+    }
+    assert all(
+        0 < (ROOT / path).stat().st_size <= size_limits.get(path, 4_096)
+        for path in defaults
+    )
+    assert sum((ROOT / path).stat().st_size for path in defaults) <= 200_000
 
     serialized = "\n".join(json.dumps(template) for template in templates)
     for retired in (
@@ -61,5 +70,6 @@ def test_official_template_smoke_defaults_are_local_small_and_well_formed() -> N
         record[0].removesuffix("/2") for record in paired_records[1]
     ]
 
-    haplotypes = (SMOKE / "haplotypes.fasta").read_text(encoding="utf-8").splitlines()
+    haplotype_path = SMOKE / "haplotypes.fasta"
+    haplotypes = haplotype_path.read_text(encoding="utf-8").splitlines()
     assert sum(line.startswith(">") for line in haplotypes) == 12

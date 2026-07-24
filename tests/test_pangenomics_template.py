@@ -131,6 +131,26 @@ def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() ->
     assert odgi_viz["params"]["viz_mode"] == "gradient"
     assert odgi_stats["params"]["threads"] >= 4
 
+    fixture_path = ROOT / _node_by_id(workflow, "haplotypes_001")["params"]["reference"]
+    fixture_text = fixture_path.read_text(encoding="utf-8")
+    sequence_lengths: list[int] = []
+    current_length = 0
+    for line in fixture_text.splitlines():
+        if line.startswith(">"):
+            if current_length:
+                sequence_lengths.append(current_length)
+            current_length = 0
+        else:
+            current_length += len(line.strip())
+    if current_length:
+        sequence_lengths.append(current_length)
+
+    assert len(sequence_lengths) == pggb["params"]["num_haplotypes"]
+    assert min(sequence_lengths) >= pggb["params"]["segment_length"]
+    assert hashlib.sha256(fixture_path.read_bytes()).hexdigest() == (
+        "44d138b568b3eb5b588f3aaaaf6f5895c32ec5f7f2178a89c40b953fb7977943"
+    )
+
     assert workflow["outputs"]["validated_haplotypes"] == "haplotypes_001"
     assert workflow["outputs"]["pggb_graph"] == "pggb_001"
     assert workflow["outputs"]["validated_graph_gfa"] == "pggb_001"
