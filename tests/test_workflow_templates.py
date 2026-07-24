@@ -628,7 +628,7 @@ def test_phylogenetics_template_validates_input_fasta_before_alignment() -> None
     assert efetch["params"]["database"] == "nuccore"
     assert efetch["params"]["rettype"] == "fasta"
     assert efetch["params"]["retmode"] == "text"
-    assert efetch["params"]["id_list"] == "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1"
+    assert efetch["params"]["accessions"] == "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1"
     assert efetch["params"]["output_name"] == "16s_sequences.fasta"
     assert validator["params"]["expected_format"] == "fasta"
     assert validator["params"]["min_records"] >= 3
