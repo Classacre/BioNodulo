@@ -96,7 +96,11 @@ function completedBackendTransfer(
  */
 export async function localFileSize(path: string): Promise<number> {
   const res = await apiRequest(`/workspace/download?path=${encodeURIComponent(path)}`, { method: 'HEAD' });
-  const raw = res.headers.get('content-length');
+  // The shared Next.js editor proxy cannot safely forward Content-Length after
+  // response transformations, so it preserves Lambda's validated HEAD size in
+  // a dedicated metadata header. Direct/local backends still use the standard
+  // header.
+  const raw = res.headers.get('x-bionodulo-file-size') ?? res.headers.get('content-length');
   const size = raw === null ? Number.NaN : Number(raw);
   if (!Number.isSafeInteger(size) || size < 0) {
     throw new Error(`Could not determine a trustworthy size for ${path}`);
