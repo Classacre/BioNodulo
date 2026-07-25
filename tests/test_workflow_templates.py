@@ -1280,8 +1280,8 @@ def test_chip_seq_template_validates_input_reads_before_trimming() -> None:
     assert validator["fail_on_error"] is True
     treatment = next(node for node in workflow["nodes"] if node["id"] == "treat_001")
     assert treatment["params"]["reads"] == [
-        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz",
-        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_2.fastq.gz",
+        "https://raw.githubusercontent.com/nf-core/test-datasets/dc342f94ec86799d7bd635e7192b1cbb3654b559/testdata/SRR5204807_Spt5-ChIP_IP1_SacCer_ChIP-Seq_ss100k_R1.fastq.gz",
+        "https://raw.githubusercontent.com/nf-core/test-datasets/dc342f94ec86799d7bd635e7192b1cbb3654b559/testdata/SRR5204807_Spt5-ChIP_IP1_SacCer_ChIP-Seq_ss100k_R2.fastq.gz",
     ]
     assert not _has_edge(workflow, "treat_001", "reads", "validate_reads_001", "input")
     assert _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
@@ -1306,8 +1306,8 @@ def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
     gate = next(node for node in workflow["nodes"] if node["id"] == "gate_control_reads_001")
     assert control["params"]["sample_name"] == "control"
     assert control["params"]["reads"] == [
-        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test2_1.fastq.gz",
-        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test2_2.fastq.gz",
+        "https://raw.githubusercontent.com/nf-core/test-datasets/dc342f94ec86799d7bd635e7192b1cbb3654b559/testdata/SRR5204809_Spt5-ChIP_Input1_SacCer_ChIP-Seq_ss100k_R1.fastq.gz",
+        "https://raw.githubusercontent.com/nf-core/test-datasets/dc342f94ec86799d7bd635e7192b1cbb3654b559/testdata/SRR5204809_Spt5-ChIP_Input1_SacCer_ChIP-Seq_ss100k_R2.fastq.gz",
     ]
     assert validator["expected_format"] == "fastq"
     assert validator["fail_on_error"] is True
@@ -1336,7 +1336,7 @@ def test_chip_seq_template_builds_index_from_real_reference_before_alignment() -
     assert node_types["genome_001"] == "input_fasta"
     assert node_types["bt2build_001"] == "bowtie2_build"
     genome = next(n for n in workflow["nodes"] if n["id"] == "genome_001")
-    assert genome["params"]["reference"] == "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/genome/genome.fasta"
+    assert genome["params"]["reference"] == "https://raw.githubusercontent.com/nf-core/test-datasets/dc342f94ec86799d7bd635e7192b1cbb3654b559/reference/genome.fa"
     assert _has_edge(workflow, "genome_001", "reference", "bt2build_001", "reference")
     assert _has_edge(workflow, "bt2build_001", "index", "bt2_001", "index")
     assert _has_edge(workflow, "bt2build_001", "index", "bt2_control_001", "index")
@@ -1394,7 +1394,7 @@ def test_chip_seq_template_annotates_validated_peaks_to_nearest_features() -> No
     annotation_input = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_bed_001")
     validator = _output_validation(workflow, "peak_annotation_bed_001", "file")
     annotator = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_001")
-    assert annotation_input["params"]["file"] == "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/genome/bed/test.bed"
+    assert annotation_input["params"]["file"] == "https://raw.githubusercontent.com/nf-core/test-datasets/dc342f94ec86799d7bd635e7192b1cbb3654b559/reference/genes.bed"
     assert validator["expected_format"] == "text"
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
