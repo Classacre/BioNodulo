@@ -30651,7 +30651,10 @@ def test_hyphy_infer_stasis_clusters_exposes_galaxy_aligned_inputs_outputs_and_c
     assert info["input"]["optional"]["merge"][1]["min"] == 0
     assert info["input"]["optional"]["merge"][1]["max"] == 100
     assert info["input"]["optional"]["script_path"][0] == "FILE"
-    assert info["input"]["optional"]["script_path"][1]["default"].endswith("infer_stasis_clusters.py")
+    # Blank by design: an absolute path here is frozen into node_metadata.json
+    # and would ship the build host's layout to clients and cloud workers. The
+    # vendored script is resolved at render time instead.
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_hyphy_infer_stasis_clusters_renders_default_command_and_outputs(tmp_path: Path) -> None:

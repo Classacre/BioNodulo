@@ -112,6 +112,38 @@ def test_final_one_node_per_file_family_layout(live_owners):
     assert len(owners_by_module) == EXPECTED_NODE_COUNT
 
 
+def test_no_node_bakes_a_build_host_path_into_its_metadata():
+    """Generated metadata must be machine-independent.
+
+    A widget default computed from ``__file__`` is correct in-process but is
+    frozen into node_metadata.json at generation time, shipping the build
+    host's directory layout to every client and cloud worker — where the path
+    does not exist. Defaults must be blank and resolved at runtime instead.
+    """
+    metadata = json.loads((_REPO_ROOT / "bionodulo/nodes/node_metadata.json").read_text())
+    offenders: dict[str, str] = {}
+
+    def scan(value: object, trail: str, node_id: str) -> None:
+        if isinstance(value, str):
+            if value.startswith("/") and ("/home/" in value or "/Users/" in value):
+                offenders[f"{node_id}{trail}"] = value
+        elif isinstance(value, dict):
+            for key, child in value.items():
+                scan(child, f"{trail}.{key}", node_id)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                scan(child, f"{trail}[{index}]", node_id)
+
+    for node_id, node_meta in metadata.items():
+        scan(node_meta, "", node_id)
+
+    assert not offenders, (
+        "Absolute build-host paths baked into node metadata — resolve these at "
+        "runtime and leave the widget default blank:\n  "
+        + "\n  ".join(f"{where} = {what}" for where, what in sorted(offenders.items()))
+    )
+
+
 def test_node_metadata_is_fresh():
     """The committed node_metadata.json matches a live object_info() build.
 

@@ -190,8 +190,12 @@ class HyPhyInferStasisClustersNode(ToolsIUCCommandContract):
                 "script_path": (
                     "FILE",
                     {
-                        "default": cls._default_script_path(),
-                        "description": "Path to the Galaxy infer_stasis_clusters.py helper script",
+                        # Empty, not _default_script_path(): an absolute path here
+                        # is frozen into node_metadata.json at generation time and
+                        # would ship the build host's layout to every client and
+                        # cloud worker. _script_path falls back to the vendored copy.
+                        "default": "",
+                        "description": "Override the Galaxy infer_stasis_clusters.py helper script (blank uses the vendored copy)",
                         "advanced": True,
                     },
                 ),

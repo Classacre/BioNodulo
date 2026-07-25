@@ -239,9 +239,13 @@ class ANGSDContaminationNode(CommandNode):
                 "script_path": (
                     "FILE",
                     {
-                        "default": asset_path("print_x_contamination.py"),
+                        # Empty, not asset_path(): an absolute path here is frozen
+                        # into node_metadata.json at generation time and would ship
+                        # the build host's layout to every client and cloud worker.
+                        # render_command falls back to the vendored asset.
+                        "default": "",
                         "advanced": True,
-                        "description": "Pinned Galaxy contamination report parser",
+                        "description": "Override the pinned Galaxy contamination report parser (blank uses the vendored copy)",
                     },
                 ),
             },

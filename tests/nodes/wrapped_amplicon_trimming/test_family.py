@@ -97,7 +97,7 @@ def test_every_contract_has_exact_wrapper_packages_and_failure_semantics() -> No
         assert node.AUDIT_STATUS == "contract-checked-no-external-execution"
 
 
-def test_vendored_assets_match_pinned_hashes_and_are_defaulted_absolutely() -> None:
+def test_vendored_assets_match_pinned_hashes_and_resolve_at_runtime() -> None:
     for name, evidence in ASSET_EVIDENCE.items():
         path = ASSET_DIR / name
         assert path.is_absolute()
@@ -111,9 +111,14 @@ def test_vendored_assets_match_pinned_hashes_and_are_defaulted_absolutely() -> N
         family.ANGSDContaminationNode: "print_x_contamination.py",
     }
     for node, filename in defaults.items():
-        script_path = Path(node.INPUT_TYPES()["optional"]["script_path"][1]["default"])
-        assert script_path == ASSET_DIR / filename
-        assert script_path.is_absolute()
+        # The widget default must stay blank. A non-empty absolute path is
+        # frozen into node_metadata.json at generation time and would ship the
+        # build host's directory layout to every client and cloud worker.
+        assert node.INPUT_TYPES()["optional"]["script_path"][1]["default"] == ""
+        # The vendored asset is resolved at render time instead.
+        command = node.render_command({"output": "/work/out"})
+        rendered = command if isinstance(command, str) else " ".join(command)
+        assert str(ASSET_DIR / filename) in rendered
 
 
 def test_ampvis2_variable_plots_use_image_ports_and_valid_ggsave_calls() -> None:

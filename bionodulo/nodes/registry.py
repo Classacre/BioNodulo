@@ -68,6 +68,7 @@ class NodeRegistry:
 
     _nodes: dict[str, Type[BaseNode]]
     _loaded: set[str]
+    import_errors: dict[str, str]
     _object_info_cache: dict[str, Any] | None
     _node_index: dict[str, str]
     _index_exhausted: bool
@@ -96,6 +97,9 @@ class NodeRegistry:
     def _initialise_instance(registry: NodeRegistry) -> None:
         registry._nodes = {}
         registry._loaded = set()
+        # Module import failures from the tolerant load path, kept so callers
+        # can tell an incomplete catalog from a complete one.
+        registry.import_errors = {}
         registry._object_info_cache = None
         registry._custom_node_packages = {}
         registry._custom_node_sources = {}
@@ -260,14 +264,23 @@ class NodeRegistry:
 
     # ── Discovery ────────────────────────────────────────────────────
 
-    def load_builtin_nodes(self) -> int:
+    def load_builtin_nodes(self, *, strict: bool = False) -> int:
         """Import and register all built-in node modules.
 
         Walks the bionodulo.nodes.builtin package and registers
         all BaseNode subclasses found.
 
+        Args:
+            strict: Raise if any module fails to import. Build-time callers
+                (index generation, tests, CI) want this: a partial catalog is
+                a defect. Workers keep the default so one node's missing
+                optional dependency cannot take down an unrelated workflow.
+
         Returns:
             Number of node classes registered.
+
+        Raises:
+            RuntimeError: If ``strict`` and any builtin module failed to import.
         """
         import bionodulo.nodes.builtin as builtin_pkg
 
@@ -285,8 +298,20 @@ class NodeRegistry:
                 module = importlib.import_module(full_name)
                 count += self.register_from_module(module, own_module_only=True)
                 self._loaded.add(full_name)
+                self.import_errors.pop(full_name, None)
             except Exception as exc:
+                # Recorded as well as logged: a warning alone leaves callers
+                # unable to distinguish a complete catalog from a partial one.
+                self.import_errors[full_name] = f"{type(exc).__name__}: {exc}"
                 logger.warning("Failed to load builtin module %s: %s", full_name, exc)
+
+        if strict and self.import_errors:
+            details = "\n  ".join(
+                f"{module}: {reason}" for module, reason in sorted(self.import_errors.items())
+            )
+            raise RuntimeError(
+                f"Failed to import {len(self.import_errors)} builtin node module(s):\n  {details}"
+            )
 
         logger.info("Loaded %d nodes from builtin modules", count)
         return count

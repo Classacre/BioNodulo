@@ -296,9 +296,13 @@ class ALDEx2Node(CommandNode):
                 "script_path": (
                     "FILE",
                     {
-                        "default": asset_path("aldex2.R"),
+                        # Empty, not asset_path(): an absolute path here is frozen
+                        # into node_metadata.json at generation time and would ship
+                        # the build host's layout to every client and cloud worker.
+                        # render_command falls back to the vendored asset.
+                        "default": "",
                         "advanced": True,
-                        "description": "Pinned Galaxy ALDEx2 R helper script",
+                        "description": "Override the pinned Galaxy ALDEx2 R helper script (blank uses the vendored copy)",
                     },
                 ),
             },
@@ -524,9 +528,10 @@ class ANCOMBCNode(CommandNode):
                 "script_path": (
                     "FILE",
                     {
-                        "default": asset_path("ancombc.R"),
+                        # Empty, not asset_path(): see the ALDEx2 note above.
+                        "default": "",
                         "advanced": True,
-                        "description": "Pinned Galaxy ANCOM-BC R helper script",
+                        "description": "Override the pinned Galaxy ANCOM-BC R helper script (blank uses the vendored copy)",
                     },
                 ),
             },
