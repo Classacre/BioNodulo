@@ -27,7 +27,7 @@
         80
       ],
       "params": {
-        "file": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/mus_musculus/rnaseq_expression/SRP254919.salmon.merged.gene_counts.top1000cov.tsv"
+        "file": "templates/data/smoke/counts.csv"
       },
       "ui": {
         "title": "Count Matrix",
@@ -51,7 +51,7 @@
         231
       ],
       "params": {
-        "file": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/mus_musculus/rnaseq_expression/SRP254919.samplesheet.csv"
+        "file": "templates/data/smoke/sample_info.csv"
       },
       "ui": {
         "title": "Sample Info",

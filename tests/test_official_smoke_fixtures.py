@@ -22,10 +22,21 @@ TEMPLATES = ROOT / "templates"
 
 # Synthetic inputs with no public upstream equivalent. Additions need a
 # deliberate decision, not a silent commit.
+#
+# The tabular and decoy entries were briefly pointed at real upstream files and
+# had to be reverted: these inputs carry node-specific schemas that no public
+# dataset happens to match — a `gene` column for the heatmap/DESeq2 chain (the
+# nf-core counts matrix uses gene_id/gene_name and is TSV), and decoy-tagged
+# accessions for Sage (a plain proteome has none). Sequence data has real
+# upstream sources; these do not.
 ALLOWED_LOCAL_INPUTS = {
     "templates/data/deseq2_gene_sets.json",
+    "templates/data/smoke/counts.csv",
     "templates/data/smoke/heatmap_annotation.csv",
+    "templates/data/smoke/heatmap_data.csv",
+    "templates/data/smoke/sample_info.csv",
     "templates/data/smoke/sgrna_library.tsv",
+    "templates/data/smoke/target_decoy.fasta",
 }
 
 # Sources that were tried and abandoned because they rot or are unreasonably
