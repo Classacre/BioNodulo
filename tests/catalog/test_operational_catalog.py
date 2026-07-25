@@ -55,6 +55,40 @@ def test_operational_registry_resolves_all_943_base_node_classes() -> None:
         assert implementation.NODE_ID == node_id
 
 
+def test_availability_agrees_with_what_actually_resolves() -> None:
+    """``availability`` must mean what it says.
+
+    The palette and the preflight both trust this field. If a node marked
+    active cannot be resolved, an invalid workflow reaches a provisioned cloud
+    worker before anything notices; if a node marked blocked resolves fine, we
+    are hiding working nodes. Pin both directions.
+    """
+    document = _operational_document()
+    nodes = document["nodes"]
+    registry = CatalogRegistry.from_operational_document(document)
+
+    claimed_active = {node_id for node_id, entry in nodes.items() if entry["availability"] == "active"}
+    claimed_blocked = {node_id for node_id, entry in nodes.items() if entry["availability"] == "blocked"}
+    assert claimed_active | claimed_blocked == set(nodes), "unexpected availability value"
+
+    unresolvable: list[str] = []
+    for node_id in sorted(claimed_active):
+        try:
+            registry.resolve(node_id)
+        except Exception as error:  # noqa: BLE001 - any failure disproves "active"
+            unresolvable.append(f"{node_id}: {type(error).__name__}: {error}")
+
+    assert not unresolvable, "nodes advertised as active that do not resolve:\n  " + "\n  ".join(unresolvable)
+
+    for node_id in sorted(claimed_blocked):
+        assert nodes[node_id]["blocked_reason"], f"{node_id} is blocked without a reason"
+
+    summary = document["summary"]
+    assert summary["availability_counts"]["active"] == len(claimed_active)
+    assert summary["availability_counts"]["blocked"] == len(claimed_blocked)
+    assert summary["importability_verified"] is (len(claimed_blocked) == 0)
+
+
 def test_operational_samtools_entries_use_the_focused_one_file_classes() -> None:
     document = _operational_document()
     nodes = document["nodes"]
