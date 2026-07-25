@@ -22,6 +22,7 @@ import hashlib
 import importlib
 import json
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -142,6 +143,26 @@ def _legacy_factory(
     return class_module, symbol, f"{class_module}:{symbol}"
 
 
+_MAX_REASON_LENGTH = 300
+
+
+def _sanitise_reason(reason: str) -> str:
+    """Strip build-host detail out of a reason that ships to clients.
+
+    catalog.operational.json is served to the editor, so an import traceback
+    must not carry the build machine's directory layout into it — the same leak
+    that put absolute asset paths into node_metadata.json.
+    """
+    cleaned = reason.replace(str(REPO_ROOT), "<repo>")
+    # Any surviving absolute path is from outside the repo (a site-packages or
+    # home directory) and is pure build-host detail.
+    cleaned = re.sub(r"(?:/[\w.\-+]+){2,}/?", "<path>", cleaned)
+    cleaned = " ".join(cleaned.split())
+    if len(cleaned) > _MAX_REASON_LENGTH:
+        cleaned = cleaned[: _MAX_REASON_LENGTH - 1] + "…"
+    return cleaned
+
+
 def _blocked_reason(
     module_name: str,
     symbol: str,
@@ -157,7 +178,7 @@ def _blocked_reason(
     try:
         module = importer(module_name)
     except Exception as error:  # noqa: BLE001 - any import failure blocks the node
-        return f"{type(error).__name__}: {error}"
+        return _sanitise_reason(f"{type(error).__name__}: {error}")
     if module is None:
         raise CatalogBuildError(f"legacy importer returned None for module {module_name!r}")
     if not hasattr(module, symbol):

@@ -178,6 +178,27 @@ def test_lock_marks_importability_unverified_when_a_node_is_blocked() -> None:
     assert lock["operational"]["importability_verified"] is False
 
 
+def test_blocked_reason_does_not_leak_build_host_paths() -> None:
+    """catalog.operational.json ships to clients; a traceback must not carry
+    the build machine's directory layout into it."""
+
+    def importer(module_name: str) -> Any:
+        if module_name == SAMPLE_MODULE:
+            raise ImportError(
+                "cannot open /home/buildbot/secrets/creds.pem while loading "
+                "/opt/hostedtoolcache/python/site-packages/thing.py"
+            )
+        return importlib.import_module(module_name)
+
+    operational = _operational(expected_documents(legacy_importer=importer))
+    reason = operational["nodes"][SAMPLE_NODE_ID]["blocked_reason"]
+
+    assert "/home/buildbot" not in reason
+    assert "/opt/hostedtoolcache" not in reason
+    assert "ImportError" in reason
+    assert len(reason) <= 300
+
+
 def test_importer_returning_a_non_module_is_a_build_error() -> None:
     """Guard the guard: a silently wrong importer must not pass as healthy."""
 

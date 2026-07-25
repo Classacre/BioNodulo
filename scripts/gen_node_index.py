@@ -139,7 +139,10 @@ def build_metadata() -> dict[str, object]:
     from bionodulo.nodes.registry import NodeRegistry
 
     reg = NodeRegistry.create_isolated()
-    reg.load_builtin_nodes()
+    # strict: a module failing to import here would silently drop its nodes from
+    # the generated manifest, and the palette would advertise a catalog nobody
+    # proved. A partial catalog is a build failure, not a warning.
+    reg.load_builtin_nodes(strict=True)
     return reg.object_info()
 
 
