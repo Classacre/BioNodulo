@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "ctrl_rep1",
         "reads": [
-          "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz",
-          "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_2.fastq.gz"
+          "https://raw.githubusercontent.com/nf-core/test-datasets/72a702d346833d5523bc40d032323ea548603b00/testdata/GSE110004/SRR6357072_1.fastq.gz",
+          "https://raw.githubusercontent.com/nf-core/test-datasets/72a702d346833d5523bc40d032323ea548603b00/testdata/GSE110004/SRR6357072_2.fastq.gz"
         ]
       },
       "ui": {
