@@ -43,3 +43,12 @@ templates/
 .mypy_cache/
 *.md
 uv.lock
+
+# Re-include the template fixture data (244 KB). templates/ and the sequence
+# file extensions above are excluded, and last match wins, so these negations
+# must stay at the end. The worker needs these paths: a few template inputs are
+# synthetic files with no public upstream (a counts matrix keyed by `gene`, a
+# decoy-tagged protein database, an sgRNA library), and without them the run
+# fails with "Source not found: /tmp/workspace/templates/data/...".
+!templates/data/
+!templates/data/**
