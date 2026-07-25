@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "Protein Structure Database Workflow",
-  "description": "Database workflow template that searches UniProt for reviewed human TP53 entries, retrieves the TP53 FASTA sequence, fetches the AlphaFold DB predicted mmCIF structure and PAE metadata, downloads an RCSB PDB mmCIF structure, validates each file output, and previews a compact HTML report.",
+  "description": "Database workflow template that searches UniProt for reviewed human TP53 entries, retrieves the TP53 FASTA sequence, fetches the AlphaFold DB predicted mmCIF structure and PAE metadata, downloads an RCSB PDB mmCIF structure, validates each file output, and previews the tabular and text artifacts.",
   "category": "Protein Structure",
   "tags": [
     "protein-structure",
@@ -18,7 +18,9 @@
     "uniprot_search",
     "uniprot_retrieve",
     "alphafold_db",
-    "pdb_download"
+    "pdb_download",
+    "table_preview",
+    "text_preview"
   ],
   "nodes": [
     {
@@ -29,7 +31,7 @@
         80
       ],
       "params": {
-        "text": "Protein structure database workflow: search UniProtKB for reviewed human TP53 entries, retrieve the P04637 FASTA sequence, fetch the AlphaFold DB predicted mmCIF model and PAE metadata, download an RCSB PDB mmCIF structure, validate each file artifact, and preview an HTML report from the UniProt TSV summary.\n\nThe AlphaFold and RCSB metadata outputs are exposed separately because the HTML report table input is intended for CSV/TSV data."
+        "text": "Protein structure database workflow: search UniProtKB for reviewed human TP53 entries, retrieve the P04637 FASTA sequence, fetch the AlphaFold DB predicted mmCIF model and PAE metadata, download an RCSB PDB mmCIF structure, validate each file artifact, and preview the resulting TSV, FASTA, and JSON text.\n\nThe UniProt summary uses the delimited-table preview. FASTA and JSON artifacts use bounded text previews because they are not tabular inputs."
       },
       "ui": {
         "title": "Notes",
@@ -71,7 +73,7 @@
         261
       ],
       "params": {
-        "accession": "P04637",
+        "uniprot_ids": "P04637",
         "include_fasta": true,
         "output_name": "tp53"
       },
@@ -98,7 +100,7 @@
       "params": {
         "uniprot_ids": "P04637",
         "structure_format": "mmcif",
-        "model_version": "",
+        "include_complexes": false,
         "download_pae": true
       },
       "ui": {
@@ -107,6 +109,21 @@
           "outputs": {
             "structure_mmcif": {
               "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            },
+            "structure_metadata": {
+              "expected_format": "json",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            },
+            "pae_json": {
+              "expected_format": "json",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            },
+            "artifacts_directory": {
+              "expected_format": "directory",
               "min_size_bytes": 1,
               "fail_on_error": true
             }
@@ -135,6 +152,16 @@
               "expected_format": "auto",
               "min_size_bytes": 1,
               "fail_on_error": true
+            },
+            "pdb_metadata": {
+              "expected_format": "json",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            },
+            "download_directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
             }
           }
         }
@@ -154,7 +181,7 @@
     },
     {
       "id": "render_uniprot_seq_0",
-      "type": "table_preview",
+      "type": "text_preview",
       "position": [
         800,
         261
@@ -166,7 +193,7 @@
     },
     {
       "id": "render_alphafold_meta_0",
-      "type": "table_preview",
+      "type": "text_preview",
       "position": [
         800,
         442
@@ -178,7 +205,7 @@
     },
     {
       "id": "render_pdb_meta_0",
-      "type": "table_preview",
+      "type": "text_preview",
       "position": [
         800,
         623
@@ -236,6 +263,8 @@
     "uniprot_search_results": "uniprot_search_001",
     "uniprot_sequence": "uniprot_retrieve_001",
     "alphafold_structure": "alphafold_db_001",
-    "pdb_structure": "pdb_download_001"
+    "alphafold_pae": "alphafold_db_001",
+    "pdb_structure": "pdb_download_001",
+    "pdb_downloads": "pdb_download_001"
   }
 }

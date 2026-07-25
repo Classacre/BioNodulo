@@ -1379,7 +1379,8 @@ async def test_delay_wait_timeout_raises_by_default(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_delay_wait_poll_url_uses_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
     node = _node_class("delay_wait")()
-    module = __import__(node.__class__.__module__, fromlist=["APIHttpClient"])
+    from bionodulo.nodes.builtin.flow_control_family import adapter as module
+
     calls: list[dict[str, Any]] = []
 
     class FakeClient:

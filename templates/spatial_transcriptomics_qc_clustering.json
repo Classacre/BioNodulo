@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "Spatial Transcriptomics QC and Clustering",
-  "description": "Spatial transcriptomics workflow for precomputed 10x Genomics Visium outputs. It validates a Space Ranger outs directory, runs Squidpy QC and spatial visualization, optionally clusters a small count matrix with Scanpy, previews generated plots, and assembles an HTML QC report.",
+  "description": "Spatial transcriptomics workflow for precomputed 10x Genomics Visium outputs. It validates a Space Ranger outs directory, runs Squidpy QC and spatial visualization, passes the resulting H5AD artifact into Scanpy clustering, and previews the generated plots.",
   "category": "Spatial Transcriptomics",
   "tags": [
     "spatial-transcriptomics",
@@ -30,7 +30,7 @@
         80
       ],
       "params": {
-        "text": "Spatial transcriptomics QC and clustering workflow: validate a precomputed Space Ranger outs directory, run Squidpy QC and spatial visualization, run Scanpy clustering on a small count matrix plus spot coordinates, preview generated images, and compile the QC outputs into an HTML report.\n\nInputs are placeholders. Use a Space Ranger outs directory for Squidpy. The optional Scanpy branch expects a gene-by-spot CSV count matrix and a coordinates CSV containing a barcode column."
+        "text": "Spatial transcriptomics QC and clustering workflow: validate a precomputed Space Ranger outs directory, run Squidpy QC and spatial visualization, pass the resulting H5AD artifact into Scanpy clustering, and preview the generated images.\n\nInputs are placeholders. Provide a complete Space Ranger outs directory containing the feature matrix, tissue positions, scalefactors, and both hires and lowres tissue images."
       },
       "ui": {
         "title": "Notes",
@@ -109,7 +109,6 @@
       ],
       "params": {
         "sample_name": "visium_sample",
-        "delimiter": "comma",
         "min_cells": 3,
         "min_genes": 200,
         "n_hvg": 2000,
@@ -178,12 +177,12 @@
     },
     {
       "from": {
-        "node": "visium_outs_001",
-        "output": "directory"
+        "node": "squidpy_qc_001",
+        "output": "adata"
       },
       "to": {
         "node": "scanpy_spatial_001",
-        "input": "visium_path"
+        "input": "adata"
       }
     }
   ],

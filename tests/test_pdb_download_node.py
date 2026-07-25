@@ -20,6 +20,12 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def _adapter_module() -> Any:
+    return importlib.import_module(
+        "bionodulo.nodes.builtin.protein_database_family.rcsb_pdb_adapter"
+    )
+
+
 def test_pdb_download_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -28,10 +34,11 @@ def test_pdb_download_is_registered_for_frontend_discovery() -> None:
 
     assert info["pdb_download"]["display_name"] == "PDB Download"
     assert info["pdb_download"]["category"] == "api"
-    assert info["pdb_download"]["output_name"] == ["structure_file", "pdb_metadata"]
+    expected_outputs = ["structure_file", "pdb_metadata", "download_directory"]
+    assert info["pdb_download"]["output_name"] == expected_outputs
     assert info["pdb_retrieve"]["display_name"] == "PDB Retrieve"
     assert info["pdb_retrieve"]["category"] == "api"
-    assert info["pdb_retrieve"]["output_name"] == ["structure_file", "pdb_metadata"]
+    assert info["pdb_retrieve"]["output_name"] == expected_outputs
     assert info["pdb_retrieve"]["input"]["optional"]["pdb_id"] == (
         "STRING",
         {"default": "", "advanced": True, "description": "Backward-compatible singular PDB ID"},
@@ -54,8 +61,8 @@ def test_pdb_download_advertises_format_as_string_options() -> None:
 
 @pytest.mark.asyncio
 async def test_rcsb_requests_use_shared_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    node_class = _node_class("pdb_download")
-    module = importlib.import_module(node_class.__module__)
+    _node_class("pdb_download")
+    module = _adapter_module()
     calls: list[dict[str, Any]] = []
 
     assert isinstance(module.RCSB_API_CACHE, module.APICache)
@@ -105,8 +112,8 @@ async def test_rcsb_downloads_use_shared_http_client(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    node_class = _node_class("pdb_download")
-    module = importlib.import_module(node_class.__module__)
+    _node_class("pdb_download")
+    module = _adapter_module()
     calls: list[dict[str, Any]] = []
 
     class FakeClient:
@@ -155,7 +162,7 @@ async def test_pdb_download_writes_structure_density_and_metadata(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("pdb_download")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     json_calls: list[str] = []
     download_calls: list[tuple[str, Path]] = []
 
@@ -165,7 +172,7 @@ async def test_pdb_download_writes_structure_density_and_metadata(
         return {
             "rcsb_id": pdb_id,
             "struct": {"title": f"{pdb_id} test structure"},
-            "rcsb_entry_info": {"experimental_method": ["X-ray"]},
+            "exptl": [{"method": "X-RAY DIFFRACTION"}],
         }
 
     async def fake_download(url: str, path: Path, **_: Any) -> None:
@@ -189,9 +196,7 @@ async def test_pdb_download_writes_structure_density_and_metadata(
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
 
     assert structure_path.name == "4HHB.cif"
-    assert structure_path.read_text(encoding="utf-8") == (
-        "downloaded from https://files.rcsb.org/download/4HHB.cif\n"
-    )
+    assert structure_path.read_text(encoding="utf-8") == ("downloaded from https://files.rcsb.org/download/4HHB.cif\n")
     assert metadata_path.name == "pdb_metadata.json"
     assert metadata == {
         "record_count": 2,
@@ -199,23 +204,27 @@ async def test_pdb_download_writes_structure_density_and_metadata(
             {
                 "pdb_id": "4HHB",
                 "format": "cif",
-                "structure_file": str(tmp_path / "pdb_download" / "4HHB.cif"),
-                "density_file": str(tmp_path / "pdb_download" / "4HHB_density.bcif"),
+                "structure_file": "4HHB.cif",
+                "density_file": "4HHB_density_detail0.bcif",
+                "density_files": ["4HHB_density_detail0.bcif"],
+                "density_detail": 0,
                 "metadata": {
                     "rcsb_id": "4HHB",
                     "struct": {"title": "4HHB test structure"},
-                    "rcsb_entry_info": {"experimental_method": ["X-ray"]},
+                    "exptl": [{"method": "X-RAY DIFFRACTION"}],
                 },
             },
             {
                 "pdb_id": "1MBN",
                 "format": "cif",
-                "structure_file": str(tmp_path / "pdb_download" / "1MBN.cif"),
-                "density_file": str(tmp_path / "pdb_download" / "1MBN_density.bcif"),
+                "structure_file": "1MBN.cif",
+                "density_file": "1MBN_density_detail0.bcif",
+                "density_files": ["1MBN_density_detail0.bcif"],
+                "density_detail": 0,
                 "metadata": {
                     "rcsb_id": "1MBN",
                     "struct": {"title": "1MBN test structure"},
-                    "rcsb_entry_info": {"experimental_method": ["X-ray"]},
+                    "exptl": [{"method": "X-RAY DIFFRACTION"}],
                 },
             },
         ],
@@ -223,9 +232,15 @@ async def test_pdb_download_writes_structure_density_and_metadata(
     assert json_calls == ["entry/4HHB", "entry/1MBN"]
     assert download_calls == [
         ("https://files.rcsb.org/download/4HHB.cif", tmp_path / "pdb_download" / "4HHB.cif"),
-        ("https://maps.rcsb.org/x-ray/4hhb/cell/", tmp_path / "pdb_download" / "4HHB_density.bcif"),
+        (
+            "https://maps.rcsb.org/x-ray/4hhb/cell/?detail=0",
+            tmp_path / "pdb_download" / "4HHB_density_detail0.bcif",
+        ),
         ("https://files.rcsb.org/download/1MBN.cif", tmp_path / "pdb_download" / "1MBN.cif"),
-        ("https://maps.rcsb.org/x-ray/1mbn/cell/", tmp_path / "pdb_download" / "1MBN_density.bcif"),
+        (
+            "https://maps.rcsb.org/x-ray/1mbn/cell/?detail=0",
+            tmp_path / "pdb_download" / "1MBN_density_detail0.bcif",
+        ),
     ]
 
 
@@ -235,7 +250,7 @@ async def test_pdb_download_accepts_mmcif_format_alias(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("pdb_download")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     download_calls: list[tuple[str, Path]] = []
 
     async def fake_download(url: str, path: Path, **_: Any) -> None:
@@ -260,9 +275,7 @@ async def test_pdb_download_accepts_mmcif_format_alias(
 
     assert structure_path == tmp_path / "pdb_download" / "4HHB.cif"
     assert metadata["structures"][0]["format"] == "cif"
-    assert download_calls == [
-        ("https://files.rcsb.org/download/4HHB.cif", tmp_path / "pdb_download" / "4HHB.cif")
-    ]
+    assert download_calls == [("https://files.rcsb.org/download/4HHB.cif", tmp_path / "pdb_download" / "4HHB.cif")]
 
 
 @pytest.mark.asyncio
@@ -271,7 +284,7 @@ async def test_pdb_retrieve_accepts_singular_pdb_id_alias(
     tmp_path: Path,
 ) -> None:
     node_class = _node_class("pdb_retrieve")
-    module = importlib.import_module(node_class.__module__)
+    module = _adapter_module()
     download_calls: list[tuple[str, Path]] = []
 
     async def fake_download(url: str, path: Path, **_: Any) -> None:
@@ -300,15 +313,15 @@ async def test_pdb_retrieve_accepts_singular_pdb_id_alias(
             {
                 "pdb_id": "4HHB",
                 "format": "pdb",
-                "structure_file": str(tmp_path / "pdb_retrieve" / "4HHB.pdb"),
+                "structure_file": "4HHB.pdb",
                 "density_file": "",
+                "density_files": [],
+                "density_detail": None,
                 "metadata": {},
             }
         ],
     }
-    assert download_calls == [
-        ("https://files.rcsb.org/download/4HHB.pdb", tmp_path / "pdb_retrieve" / "4HHB.pdb")
-    ]
+    assert download_calls == [("https://files.rcsb.org/download/4HHB.pdb", tmp_path / "pdb_retrieve" / "4HHB.pdb")]
 
 
 @pytest.mark.asyncio

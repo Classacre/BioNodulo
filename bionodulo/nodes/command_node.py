@@ -72,9 +72,18 @@ class CommandNode(BaseNode):
     WORKING_DIR: ClassVar[Optional[str]] = None
     """Optional working directory for command execution."""
 
+    RUN_IN_NODE_OUTPUT_DIR: ClassVar[bool] = False
+    """Run commands in the node output directory when a tool writes cwd-relative files."""
+
     # Environment variable overrides
     ENV_VARS: ClassVar[dict[str, str]] = {}
     """Additional environment variables for the command."""
+
+    STDOUT_OUTPUT_INDEX: ClassVar[int | None] = None
+    """Optional planned-output index that receives the command's stdout."""
+
+    STDERR_OUTPUT_INDEX: ClassVar[int | None] = None
+    """Optional planned-output index that receives the command's stderr."""
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> str | list[str]:
@@ -239,6 +248,28 @@ class CommandNode(BaseNode):
             paths.append(node_out / f"{name}{ext}")
         return paths
 
+    @classmethod
+    def REQUIRED_OUTPUT_PATHS(
+        cls,
+        inputs: dict[str, Any],
+        outputs: list[Path],
+    ) -> list[Path]:
+        """Return the planned paths that must be created for success.
+
+        Most commands have a fixed artifact set, so every planned path is
+        required by default.  A source tool may, however, conditionally omit
+        an artifact after inspecting its inputs (for example, a plot emitted
+        only when enough usable samples remain).  Such a node can override
+        this hook while keeping the rest of the command execution and
+        fail-closed checks unchanged.
+        """
+        return outputs
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Prepare deterministic artifacts or inputs before command rendering."""
+        return None
+
     async def run(self, **kwargs: Any) -> Union[tuple[Any, ...], dict[str, Any]]:
         """Execute the command via the workflow context.
 
@@ -326,13 +357,60 @@ class CommandNode(BaseNode):
             if validation is not True:
                 raise ValueError(f"Input validation failed: {validation}")
 
-            # Render command
+            # Plan outputs using the REAL output dir so returned paths are stable.
+            # Preparation may use those paths and update inputs consumed by rendering.
+            outputs = self.__class__.PLAN_OUTPUTS(kwargs, real_output_dir)
+            stdout_output_index = self.__class__.STDOUT_OUTPUT_INDEX
+            stderr_output_index = self.__class__.STDERR_OUTPUT_INDEX
+            stdout_path: Path | None = None
+            stderr_path: Path | None = None
+            if stdout_output_index is not None:
+                if (
+                    isinstance(stdout_output_index, bool)
+                    or not isinstance(stdout_output_index, int)
+                    or not 0 <= stdout_output_index < len(outputs)
+                ):
+                    raise ValueError(
+                        f"{self.__class__.NODE_ID}.STDOUT_OUTPUT_INDEX "
+                        f"{stdout_output_index!r} is invalid for {len(outputs)} planned output(s)"
+                    )
+                stdout_path = outputs[stdout_output_index]
+            if stderr_output_index is not None:
+                if (
+                    isinstance(stderr_output_index, bool)
+                    or not isinstance(stderr_output_index, int)
+                    or not 0 <= stderr_output_index < len(outputs)
+                ):
+                    raise ValueError(
+                        f"{self.__class__.NODE_ID}.STDERR_OUTPUT_INDEX "
+                        f"{stderr_output_index!r} is invalid for {len(outputs)} planned output(s)"
+                    )
+                stderr_path = outputs[stderr_output_index]
+            if stdout_path is not None and stderr_path == stdout_path:
+                raise ValueError(
+                    f"{self.__class__.NODE_ID} cannot capture stdout and stderr "
+                    "to the same planned output"
+                )
+
+            prepare_outputs = outputs
+            if symlink is not None:
+                real_output_path = Path(real_output_dir)
+                execution_output_path = Path(output_dir)
+                prepare_outputs = []
+                for path in outputs:
+                    try:
+                        relative_path = path.relative_to(real_output_path)
+                    except ValueError:
+                        prepare_outputs.append(path)
+                    else:
+                        prepare_outputs.append(execution_output_path / relative_path)
+
+            self.__class__.PREPARE_EXECUTION(kwargs, prepare_outputs)
+
+            # Render command from the prepared inputs.
             cmd: str | list[str] = self.__class__.render_command(kwargs)
             if not cmd:
                 raise RuntimeError(f"No command rendered for {self.__class__.NODE_ID}")
-
-            # Plan outputs using the REAL output dir so returned paths are stable
-            outputs = self.__class__.PLAN_OUTPUTS(kwargs, real_output_dir)
 
             # When SHELL=True, join command list so shell operators (>, |) work.
             # Arguments with whitespace or special chars are safely quoted;
@@ -350,20 +428,38 @@ class CommandNode(BaseNode):
 
                 # Execute via context if available
                 if context is not None and hasattr(context, "run_command"):
-                    result = await context.run_command(
-                        cmd,
-                        env=self.__class__.ENV_VARS or None,
-                        cwd=self.__class__.WORKING_DIR or output_dir,
-                    )
+                    command_kwargs: dict[str, Any] = {
+                        "env": self.__class__.ENV_VARS or None,
+                        "cwd": (
+                            self.__class__.WORKING_DIR
+                            or (str(node_out) if self.__class__.RUN_IN_NODE_OUTPUT_DIR else output_dir)
+                        ),
+                    }
+                    if stdout_path is not None:
+                        command_kwargs["stdout_path"] = stdout_path
+                    if stderr_path is not None:
+                        command_kwargs["stderr_path"] = stderr_path
+                    result = await context.run_command(cmd, **command_kwargs)
                 else:
                     # Fallback: direct subprocess execution via run_subprocess
                     # for consistency and proper shell handling.
                     from bionodulo.execution.subprocess_runner import run_subprocess
                     result = await run_subprocess(
                         cmd,
-                        cwd=output_dir,
-                        stdout_path=Path(output_dir) / "stdout.log" if output_dir else None,
-                        stderr_path=Path(output_dir) / "stderr.log" if output_dir else None,
+                        cwd=(
+                            self.__class__.WORKING_DIR
+                            or (str(node_out) if self.__class__.RUN_IN_NODE_OUTPUT_DIR else output_dir)
+                        ),
+                        stdout_path=(
+                            stdout_path
+                            if stdout_path is not None
+                            else Path(output_dir) / "stdout.log" if output_dir else None
+                        ),
+                        stderr_path=(
+                            stderr_path
+                            if stderr_path is not None
+                            else Path(output_dir) / "stderr.log" if output_dir else None
+                        ),
                     )
 
             if result.get("returncode", 0) != 0:
@@ -384,7 +480,8 @@ class CommandNode(BaseNode):
                     logger.info("[%s] reference cache publish skipped: %s",
                                 self.__class__.NODE_ID, exc)
 
-            missing_outputs = [path for path in outputs if not path.exists()]
+            required_outputs = self.__class__.REQUIRED_OUTPUT_PATHS(kwargs, outputs)
+            missing_outputs = [path for path in required_outputs if not path.exists()]
             if missing_outputs:
                 missing = ", ".join(str(path) for path in missing_outputs)
                 raise RuntimeError(f"Command completed but did not create expected output(s): {missing}")

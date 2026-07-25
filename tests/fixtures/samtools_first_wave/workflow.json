@@ -1,0 +1,195 @@
+{
+  "version": "2.0",
+  "app": "bionodulo",
+  "name": "Samtools First-Wave Cloud Canary",
+  "description": "Normal cloud workflow for runtime installation and execution of seven Samtools nodes",
+  "nodes": [
+    {
+      "id": "input_001",
+      "type": "input_file",
+      "position": [
+        80,
+        120
+      ],
+      "params": {
+        "file": "https://raw.githubusercontent.com/Classacre/BioNodulo/2316c3ca54326229fe0aa236868369cfd442bfbd/tests/fixtures/samtools_first_wave/tiny.sam",
+        "source": "url"
+      },
+      "ui": {
+        "title": "Pinned tiny.sam"
+      }
+    },
+    {
+      "id": "view_001",
+      "type": "samtools_view",
+      "position": [
+        440,
+        120
+      ],
+      "params": {},
+      "ui": {
+        "title": "Samtools View"
+      }
+    },
+    {
+      "id": "collate_001",
+      "type": "samtools_collate",
+      "position": [
+        800,
+        120
+      ],
+      "params": {},
+      "ui": {
+        "title": "Samtools Collate"
+      }
+    },
+    {
+      "id": "fixmate_001",
+      "type": "samtools_fixmate",
+      "position": [
+        1160,
+        120
+      ],
+      "params": {
+        "add_markdup_tags": true
+      },
+      "ui": {
+        "title": "Samtools Fixmate"
+      }
+    },
+    {
+      "id": "sort_001",
+      "type": "samtools_sort",
+      "position": [
+        1520,
+        120
+      ],
+      "params": {},
+      "ui": {
+        "title": "Samtools Sort"
+      }
+    },
+    {
+      "id": "markdup_001",
+      "type": "samtools_markdup",
+      "position": [
+        1880,
+        120
+      ],
+      "params": {},
+      "ui": {
+        "title": "Samtools Markdup"
+      }
+    },
+    {
+      "id": "index_001",
+      "type": "samtools_index",
+      "position": [
+        2240,
+        120
+      ],
+      "params": {},
+      "ui": {
+        "title": "Samtools Index"
+      }
+    },
+    {
+      "id": "flagstat_001",
+      "type": "samtools_flagstat",
+      "position": [
+        2600,
+        120
+      ],
+      "params": {},
+      "ui": {
+        "title": "Samtools Flagstat"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "from": {
+        "node": "input_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "view_001",
+        "input": "alignment"
+      }
+    },
+    {
+      "id": "e1",
+      "from": {
+        "node": "view_001",
+        "output": "bam"
+      },
+      "to": {
+        "node": "collate_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "collate_001",
+        "output": "name_collated_bam"
+      },
+      "to": {
+        "node": "fixmate_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "fixmate_001",
+        "output": "fixmate_bam"
+      },
+      "to": {
+        "node": "sort_001",
+        "input": "alignment"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "sort_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "markdup_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "markdup_001",
+        "output": "marked_bam"
+      },
+      "to": {
+        "node": "index_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "index_001",
+        "output": "indexed_bam"
+      },
+      "to": {
+        "node": "flagstat_001",
+        "input": "bam"
+      }
+    }
+  ],
+  "groups": [],
+  "outputs": {
+    "indexed_bam": "index_001",
+    "bai": "index_001",
+    "flagstat": "flagstat_001",
+    "duplicate_stats": "markdup_001"
+  }
+}

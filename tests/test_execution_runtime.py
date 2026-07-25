@@ -163,6 +163,35 @@ def test_cache_store_redacts_secret_like_marker_inputs_and_params(tmp_path: Path
     assert "secret-token" not in json.dumps(marker)
 
 
+def test_executor_fans_in_multiple_edges_for_exact_typed_multiple_port(tmp_path: Path) -> None:
+    class MultiFileNode:
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+            return {"required": {"files": ("FILE", {"multiple": True})}}
+
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache")
+    node = {"id": "target", "type": "multi_file", "_node_class": MultiFileNode}
+    edges = [
+        {
+            "from": {"node": "sample_a", "output": "file"},
+            "to": {"node": "target", "input": "files"},
+        },
+        {
+            "from": {"node": "sample_b", "output": "file"},
+            "to": {"node": "target", "input": "files"},
+        },
+    ]
+
+    resolved = executor._resolve_inputs(
+        "target",
+        node,
+        {"target": edges},
+        {"sample_a": {"file": "a.mzML"}, "sample_b": {"file": "b.mzML"}},
+    )
+
+    assert resolved == {"files": ["a.mzML", "b.mzML"]}
+
+
 def test_cache_store_ttl_markers_expire_from_hits_and_reads(tmp_path: Path) -> None:
     store = CacheStore(tmp_path)
 
@@ -2262,3 +2291,62 @@ def test_env_prefix_skips_unready_env(tmp_path: Path) -> None:
     env_dir.mkdir(parents=True, exist_ok=True)
     (env_dir / "pixi.toml").write_text("[workspace]\n", encoding="utf-8")
     assert executor._env_prefix_for_node(node, workflow) == []
+
+
+def test_named_env_prefix_uses_the_ready_workflow_manifest_and_locked_manta_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from bionodulo.environments.manifest import (
+        get_env_dir,
+        get_environment_plan_id,
+        workflow_to_environment_plan,
+    )
+    from bionodulo.manager import runtime_installer
+
+    class DefaultNode:
+        REQUIRED_CONDA_PACKAGES = ["samtools"]
+        REQUIRED_EXECUTABLES: list[str] = []
+        REQUIRED_R_PACKAGES: list[str] = []
+        ENVIRONMENT: dict[str, str] = {}
+
+    class MantaNode:
+        REQUIRED_CONDA_PACKAGES = ["manta"]
+        REQUIRED_EXECUTABLES: list[str] = []
+        REQUIRED_R_PACKAGES: list[str] = []
+        ENVIRONMENT = {"type": "pixi", "name": "manta"}
+
+    class Registry:
+        @staticmethod
+        def get(node_type: str) -> type | None:
+            return {"default": DefaultNode, "manta": MantaNode}.get(node_type)
+
+    registry = Registry()
+    workflow = {
+        "nodes": [
+            {"id": "sort", "type": "default"},
+            {"id": "sv", "type": "manta"},
+        ],
+        "edges": [],
+    }
+    plan = workflow_to_environment_plan(workflow, registry)
+    env_dir = get_env_dir(get_environment_plan_id(plan), tmp_path)
+    (env_dir / ".pixi/envs/default/bin").mkdir(parents=True)
+    (env_dir / ".pixi/envs/manta/bin").mkdir(parents=True)
+    manifest_path = env_dir / "pixi.toml"
+    manifest_path.write_text("[workspace]\n", encoding="utf-8")
+    monkeypatch.setattr(runtime_installer, "get_pixi_path", lambda: Path("/opt/pixi"))
+
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=registry)
+    node = {"id": "sv", "type": "manta", "_node_class": MantaNode}
+
+    assert executor._env_prefix_for_node(node, workflow) == [
+        "/opt/pixi",
+        "run",
+        "--locked",
+        "--manifest-path",
+        str(manifest_path),
+        "-e",
+        "manta",
+        "--",
+    ]

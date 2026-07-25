@@ -20,9 +20,12 @@ _HPC_CMD_TIMEOUT_S = 30
 class PBSBackend(HPCBackend):
     """PBS/Torque HPC backend implementation."""
 
+    scheduler = "pbs"
+
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self.queue = self.config.get("queue", "")
+        self.account = self.config.get("account", "")
         self.default_walltime = self.config.get("default_walltime", "01:00:00")
         self.default_cpus = self.config.get("default_cpus", 1)
         self.default_memory_mb = self.config.get("default_memory_mb", 4096)
@@ -176,6 +179,8 @@ class PBSBackend(HPCBackend):
         email: str | None = None,
         env_setup: list[str] | None = None,
         modules: list[str] | None = None,
+        nodes: int | None = None,
+        account: str | None = None,
     ) -> str:
         """Generate a PBS batch job script."""
         return self.generate_job_script(
@@ -183,4 +188,5 @@ class PBSBackend(HPCBackend):
             walltime=walltime or self.default_walltime, cpus=cpus or self.default_cpus,
             memory_mb=memory_mb or self.default_memory_mb, queue=queue or self.queue,
             email=email, env_setup=env_setup, modules=modules, scheduler="pbs",
+            nodes=nodes, account=account or self.account,
         )

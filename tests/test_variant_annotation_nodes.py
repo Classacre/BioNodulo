@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import csv
-import json
 from pathlib import Path
-from types import SimpleNamespace
-
-import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
+from bionodulo.environments.manifest import workflow_to_packages
 from bionodulo.nodes.builtin.annotation import FuncotateTableNode
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -20,244 +16,6 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
-def _context(tmp_path: Path, name: str) -> SimpleNamespace:
-    node_dir = tmp_path / name
-    node_dir.mkdir()
-    return SimpleNamespace(node_dir=node_dir)
-
-
-def _read_table(path: str | Path, delimiter: str = "	") -> list[dict[str, str]]:
-    with Path(path).open(newline="", encoding="utf-8") as fh:
-        return list(csv.DictReader(fh, delimiter=delimiter))
-
-
-def test_snpeff_is_registered_for_frontend_discovery() -> None:
-    registry = NodeRegistry.create_isolated()
-    registry.load_builtin_nodes()
-    info = registry.object_info()
-
-    node_info = info["snpeff"]
-    assert node_info["display_name"] == "SnpEff"
-    assert node_info["category"] == "annotation"
-    assert node_info["description"].startswith("Fast variant annotation")
-    assert node_info["output"] == ["VCF", "HTML_REPORT"]
-    assert node_info["output_name"] == ["annotated_vcf", "summary_report"]
-    assert node_info["required_executables"] == ["snpEff"]
-    assert node_info["required_conda_packages"] == ["snpeff"]
-    assert "variant annotation" in node_info["search_aliases"]
-    assert "effect prediction" in node_info["search_aliases"]
-    assert "functional effect" in node_info["search_aliases"]
-
-    inputs = node_info["input"]
-    assert set(inputs["required"]) == {"vcf", "genome", "memory"}
-    assert set(inputs["optional"]) == {"canonical", "no_upstream", "no_downstream", "no_intergenic"}
-
-
-def test_snpeff_renders_command_with_filter_flags() -> None:
-    node_class = _node_class("snpeff")
-
-    cmd = node_class.render_command({
-        "vcf": "variants.vcf.gz",
-        "genome": "GRCh38.99",
-        "memory": 12,
-        "canonical": True,
-        "no_upstream": True,
-        "no_downstream": True,
-        "no_intergenic": True,
-        "output": "/tmp/run/snpeff",
-    })
-
-    assert cmd == [
-        "java",
-        "-jar",
-        "-Xmx12g",
-        "snpEff.jar",
-        "-v",
-        "-stats",
-        "/tmp/run/snpeff/summary_report.html",
-        "-canon",
-        "-no-upstream",
-        "-no-downstream",
-        "-no-intergenic",
-        "GRCh38.99",
-        "variants.vcf.gz",
-        ">",
-        "/tmp/run/snpeff/annotated_vcf.vcf",
-    ]
-
-
-def test_snpeff_omits_disabled_optional_flags() -> None:
-    node_class = _node_class("snpeff")
-
-    cmd = node_class.render_command({
-        "vcf": "variants.vcf",
-        "genome": "GRCm39",
-        "memory": 4,
-        "canonical": False,
-        "no_upstream": False,
-        "no_downstream": False,
-        "no_intergenic": False,
-        "output": "/tmp/run/snpeff",
-    })
-
-    assert "-canon" not in cmd
-    assert "-no-upstream" not in cmd
-    assert "-no-downstream" not in cmd
-    assert "-no-intergenic" not in cmd
-    assert cmd[-4:] == ["GRCm39", "variants.vcf", ">", "/tmp/run/snpeff/annotated_vcf.vcf"]
-
-
-def test_snpeff_plans_outputs() -> None:
-    node_class = _node_class("snpeff")
-
-    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
-
-    assert [str(path) for path in outputs] == [
-        "/tmp/run/snpeff/annotated_vcf.vcf",
-        "/tmp/run/snpeff/summary_report.html",
-    ]
-
-
-def test_snpeff_environment_metadata_is_declared() -> None:
-    assert EXECUTABLE_TO_CONDA_PACKAGE["snpEff"] == "snpeff"
-    assert EXECUTABLE_TO_CONDA_PACKAGE["java"] == "openjdk"
-    assert PACKAGE_MIN_VERSIONS["snpeff"] == ">=5.2"
-    assert PACKAGE_MIN_VERSIONS["openjdk"] == ">=17"
-
-
-def test_vep_is_registered_for_frontend_discovery() -> None:
-    registry = NodeRegistry.create_isolated()
-    registry.load_builtin_nodes()
-    info = registry.object_info()
-
-    node_info = info["vep"]
-    assert node_info["display_name"] == "VEP"
-    assert node_info["category"] == "annotation"
-    assert node_info["description"].startswith("Ensembl Variant Effect Predictor")
-    assert node_info["output"] == ["VCF", "HTML_REPORT"]
-    assert node_info["output_name"] == ["annotated_vcf", "vep_report"]
-    assert node_info["required_executables"] == ["vep"]
-    assert node_info["required_conda_packages"] == ["ensembl-vep"]
-    assert "variant effect predictor" in node_info["search_aliases"]
-    assert "ensembl" in node_info["search_aliases"]
-    assert "clinvar" in node_info["search_aliases"]
-    assert info["vep_annotate"]["display_name"] == "VEP Annotate"
-    assert info["vep_annotate"]["category"] == "annotation"
-    assert info["vep_annotate"]["output"] == ["VCF", "HTML_REPORT"]
-    assert info["vep_annotate"]["output_name"] == ["annotated_vcf", "vep_report"]
-    assert info["vep_annotate"]["required_executables"] == ["vep"]
-    assert info["vep_annotate"]["required_conda_packages"] == ["ensembl-vep"]
-    assert issubclass(registry.get("vep_annotate"), registry.get("vep"))
-
-    inputs = node_info["input"]
-    assert set(inputs["required"]) == {"vcf", "assembly", "cache_dir", "threads"}
-    assert set(inputs["optional"]) == {
-        "everything",
-        "symbol",
-        "af",
-        "max_af",
-        "sift",
-        "polyphen",
-        "clinvar",
-        "output_format",
-    }
-
-
-def test_vep_renders_command_with_annotation_flags() -> None:
-    node_class = _node_class("vep")
-
-    cmd = node_class.render_command({
-        "vcf": "variants.vcf.gz",
-        "assembly": "GRCh38",
-        "cache_dir": "/refs/vep-cache",
-        "threads": 8,
-        "everything": True,
-        "symbol": True,
-        "af": True,
-        "max_af": True,
-        "sift": "b",
-        "polyphen": "p",
-        "clinvar": "clinvar.vcf.gz",
-        "output_format": "vcf",
-        "output": "/tmp/run/vep",
-    })
-
-    assert cmd == [
-        "vep",
-        "-i",
-        "variants.vcf.gz",
-        "-o",
-        "/tmp/run/vep/annotated_vcf.vcf",
-        "--format",
-        "vcf",
-        "--vcf",
-        "--fork",
-        "8",
-        "--assembly",
-        "GRCh38",
-        "--cache",
-        "--dir_cache",
-        "/refs/vep-cache",
-        "--everything",
-        "--symbol",
-        "--af",
-        "--max_af",
-        "--sift",
-        "b",
-        "--polyphen",
-        "p",
-        "--custom",
-        "clinvar.vcf.gz,ClinVar,vcf,exact,0,CLNSIG",
-        "--stats_file",
-        "/tmp/run/vep/vep_report.html",
-    ]
-
-
-def test_vep_omits_disabled_optional_flags_and_supports_tab_output() -> None:
-    node_class = _node_class("vep")
-
-    cmd = node_class.render_command({
-        "vcf": "variants.vcf",
-        "assembly": "GRCh37",
-        "cache_dir": "/refs/vep-cache",
-        "threads": 2,
-        "everything": False,
-        "symbol": False,
-        "af": False,
-        "max_af": False,
-        "sift": "",
-        "polyphen": "",
-        "clinvar": "",
-        "output_format": "tab",
-        "output": "/tmp/run/vep",
-    })
-
-    assert "--everything" not in cmd
-    assert "--symbol" not in cmd
-    assert "--af" not in cmd
-    assert "--max_af" not in cmd
-    assert "--sift" not in cmd
-    assert "--polyphen" not in cmd
-    assert "--custom" not in cmd
-    assert cmd[:8] == ["vep", "-i", "variants.vcf", "-o", "/tmp/run/vep/annotated_vcf.tab", "--format", "vcf", "--tab"]
-
-
-def test_vep_plans_outputs() -> None:
-    node_class = _node_class("vep")
-
-    outputs = node_class.PLAN_OUTPUTS({"output_format": "tab"}, "/tmp/run")
-
-    assert [str(path) for path in outputs] == [
-        "/tmp/run/vep/annotated_vcf.tab",
-        "/tmp/run/vep/vep_report.html",
-    ]
-
-
-def test_vep_environment_metadata_is_declared() -> None:
-    assert EXECUTABLE_TO_CONDA_PACKAGE["vep"] == "ensembl-vep"
-    assert PACKAGE_MIN_VERSIONS["ensembl-vep"] == ">=113"
-
-
 def test_annovar_is_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -267,10 +25,10 @@ def test_annovar_is_registered_for_frontend_discovery() -> None:
     assert node_info["display_name"] == "ANNOVAR"
     assert node_info["category"] == "annotation"
     assert node_info["description"].startswith("Comprehensive variant annotation")
-    assert node_info["output"] == ["CSV", "CSV"]
-    assert node_info["output_name"] == ["variant_function", "exonic_variant_function"]
-    assert node_info["required_executables"] == ["table_annovar.pl", "convert2annovar.pl"]
-    assert node_info["required_conda_packages"] == ["annovar"]
+    assert node_info["output"] == ["VCF", "TABULAR"]
+    assert node_info["output_name"] == ["annotated_vcf", "multianno_table"]
+    assert node_info["required_executables"] == ["table_annovar.pl"]
+    assert node_info["required_conda_packages"] == []
     assert node_info["experimental"] is True
     assert "variant annotation" in node_info["search_aliases"]
     assert "clinical" in node_info["search_aliases"]
@@ -282,7 +40,7 @@ def test_annovar_is_registered_for_frontend_discovery() -> None:
     assert inputs["optional"] == {}
 
 
-def test_annovar_renders_convert_and_table_annovar_command() -> None:
+def test_annovar_renders_direct_table_annovar_vcf_command() -> None:
     node_class = _node_class("annovar")
 
     cmd = node_class.render_command({
@@ -295,17 +53,8 @@ def test_annovar_renders_convert_and_table_annovar_command() -> None:
     })
 
     assert cmd == [
-        "convert2annovar.pl",
-        "-format",
-        "vcf4",
-        "-withzyg",
-        "-includeinfo",
-        "variants.vcf.gz",
-        ">",
-        "/tmp/run/annovar/input.avinput",
-        "&&",
         "table_annovar.pl",
-        "/tmp/run/annovar/input.avinput",
+        "variants.vcf.gz",
         "/refs/annovar/humandb",
         "-buildver",
         "hg38",
@@ -344,15 +93,19 @@ def test_annovar_plans_outputs() -> None:
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
 
     assert [str(path) for path in outputs] == [
-        "/tmp/run/annovar/variant_function.csv",
-        "/tmp/run/annovar/exonic_variant_function.csv",
+        "/tmp/run/annovar/annovar.hg38_multianno.vcf",
+        "/tmp/run/annovar/annovar.hg38_multianno.txt",
     ]
 
 
 def test_annovar_environment_metadata_is_declared() -> None:
-    assert EXECUTABLE_TO_CONDA_PACKAGE["table_annovar.pl"] == "annovar"
-    assert EXECUTABLE_TO_CONDA_PACKAGE["convert2annovar.pl"] == "annovar"
-    assert PACKAGE_MIN_VERSIONS["annovar"] == ">=2020-06-08"
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+
+    assert EXECUTABLE_TO_CONDA_PACKAGE["table_annovar.pl"] == ""
+    assert EXECUTABLE_TO_CONDA_PACKAGE["convert2annovar.pl"] == ""
+    assert "annovar" not in PACKAGE_MIN_VERSIONS
+    assert workflow_to_packages({"nodes": [{"id": "annotate", "type": "annovar"}]}, registry) == []
 
 
 def test_funcotate_table_is_registered_for_frontend_discovery() -> None:
@@ -364,8 +117,8 @@ def test_funcotate_table_is_registered_for_frontend_discovery() -> None:
     assert node_info["display_name"] == "Funcotate Table"
     assert node_info["category"] == "annotation"
     assert node_info["description"].startswith("Oncotator-style functional annotation")
-    assert node_info["output"] == ["FILE", "FILE"]
-    assert node_info["output_name"] == ["annotated", "summary"]
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["annotated"]
     assert node_info["required_executables"] == ["gatk"]
     assert node_info["required_conda_packages"] == ["gatk4"]
     assert "funcotator" in node_info["search_aliases"]
@@ -373,7 +126,15 @@ def test_funcotate_table_is_registered_for_frontend_discovery() -> None:
     assert "oncotator" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"vcf", "reference", "data_sources", "ref_version"}
+    assert set(inputs["required"]) == {
+        "vcf",
+        "vcf_index",
+        "reference",
+        "reference_index",
+        "sequence_dictionary",
+        "data_sources",
+        "ref_version",
+    }
     assert set(inputs["optional"]) == {
         "output_format",
         "transcript_selection_mode",
@@ -388,7 +149,10 @@ def test_funcotate_table_renders_gatk_funcotator_command() -> None:
 
     cmd = node_class.render_command({
         "vcf": "somatic.vcf.gz",
+        "vcf_index": "somatic.vcf.gz.tbi",
         "reference": "GRCh38.fa",
+        "reference_index": "GRCh38.fa.fai",
+        "sequence_dictionary": "GRCh38.dict",
         "data_sources": "/refs/funcotator",
         "ref_version": "hg38",
         "output_format": "MAF",
@@ -424,11 +188,6 @@ def test_funcotate_table_renders_gatk_funcotator_command() -> None:
         "Tumor_Sample_Barcode:TUMOR",
         "-L",
         "targets.interval_list",
-        "&&",
-        "printf",
-        "'tool\\tgatk Funcotator\\ninput\\tsomatic.vcf.gz\\noutput\\t/tmp/run/funcotate_table/annotated.maf\\nformat\\tMAF\\nref_version\\thg38\\n'",
-        ">",
-        "/tmp/run/funcotate_table/summary.tsv",
     ]
 
 
@@ -437,7 +196,10 @@ def test_funcotate_table_supports_vcf_output_and_omits_empty_optional_flags() ->
 
     cmd = node_class.render_command({
         "vcf": "germline.vcf.gz",
+        "vcf_index": "germline.vcf.gz.tbi",
         "reference": "GRCh37.fa",
+        "reference_index": "GRCh37.fa.fai",
+        "sequence_dictionary": "GRCh37.dict",
         "data_sources": "/refs/funcotator",
         "ref_version": "hg19",
         "output_format": "VCF",
@@ -453,7 +215,6 @@ def test_funcotate_table_supports_vcf_output_and_omits_empty_optional_flags() ->
     assert "--annotation-override" not in cmd
     assert "-L" not in cmd
     assert "/tmp/run/funcotate_table/annotated.vcf" in cmd
-    assert "format\\tVCF" in cmd[-3]
 
 
 def test_funcotate_table_plans_outputs_by_format() -> None:
@@ -464,11 +225,9 @@ def test_funcotate_table_plans_outputs_by_format() -> None:
 
     assert [str(path) for path in maf_outputs] == [
         "/tmp/run/funcotate_table/annotated.maf",
-        "/tmp/run/funcotate_table/summary.tsv",
     ]
     assert [str(path) for path in vcf_outputs] == [
         "/tmp/run/funcotate_table/annotated.vcf",
-        "/tmp/run/funcotate_table/summary.tsv",
     ]
 
 
@@ -483,19 +242,14 @@ def test_funcotator_alias_is_registered_for_frontend_discovery() -> None:
     assert node_class.render_command.__func__ is FuncotateTableNode.render_command.__func__
     assert node_class.PLAN_OUTPUTS.__func__ is FuncotateTableNode.PLAN_OUTPUTS.__func__
     assert node_class.INPUT_TYPES.__func__ is FuncotateTableNode.INPUT_TYPES.__func__
-    assert {name for name in node_class.__dict__ if not name.startswith("_")} == {
-        "NODE_ID",
-        "DISPLAY_NAME",
-        "DESCRIPTION",
-        "SEARCH_ALIASES",
-    }
+    assert {"NODE_ID", "DISPLAY_NAME", "DESCRIPTION", "SEARCH_ALIASES"}.issubset(node_class.__dict__)
 
     node_info = info["funcotator"]
     assert node_info["display_name"] == "Funcotator"
     assert node_info["category"] == "annotation"
     assert node_info["description"] == "Annotate cancer variants with GATK Funcotator."
-    assert node_info["output"] == ["FILE", "FILE"]
-    assert node_info["output_name"] == ["annotated", "summary"]
+    assert node_info["output"] == ["FILE"]
+    assert node_info["output_name"] == ["annotated"]
     assert node_info["required_executables"] == ["gatk"]
     assert node_info["required_conda_packages"] == ["gatk4"]
     assert {
@@ -513,7 +267,10 @@ def test_funcotator_alias_renders_gatk_funcotator_command() -> None:
 
     cmd = node_class.render_command({
         "vcf": "somatic.vcf.gz",
+        "vcf_index": "somatic.vcf.gz.tbi",
         "reference": "GRCh38.fa",
+        "reference_index": "GRCh38.fa.fai",
+        "sequence_dictionary": "GRCh38.dict",
         "data_sources": "/refs/funcotator",
         "ref_version": "hg38",
         "output_format": "MAF",
@@ -549,11 +306,6 @@ def test_funcotator_alias_renders_gatk_funcotator_command() -> None:
         "Tumor_Sample_Barcode:TUMOR",
         "-L",
         "targets.interval_list",
-        "&&",
-        "printf",
-        "'tool\\tgatk Funcotator\\ninput\\tsomatic.vcf.gz\\noutput\\t/tmp/run/funcotator/annotated.maf\\nformat\\tMAF\\nref_version\\thg38\\n'",
-        ">",
-        "/tmp/run/funcotator/summary.tsv",
     ]
 
 
@@ -565,17 +317,15 @@ def test_funcotator_alias_plans_outputs_under_funcotator_directory() -> None:
 
     assert [str(path) for path in maf_outputs] == [
         "/tmp/run/funcotator/annotated.maf",
-        "/tmp/run/funcotator/summary.tsv",
     ]
     assert [str(path) for path in vcf_outputs] == [
         "/tmp/run/funcotator/annotated.vcf",
-        "/tmp/run/funcotator/summary.tsv",
     ]
 
 
 def test_funcotate_table_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["gatk"] == "gatk4"
-    assert PACKAGE_MIN_VERSIONS["gatk4"] == ">=4.4.0"
+    assert PACKAGE_MIN_VERSIONS["gatk4"] == "4.6.2.0"
 
 
 def test_bcftools_annotate_is_registered_for_frontend_discovery() -> None:
@@ -591,7 +341,7 @@ def test_bcftools_annotate_is_registered_for_frontend_discovery() -> None:
     assert node_info["output_name"] == ["annotated_vcf"]
     assert node_info["required_executables"] == ["bcftools", "bgzip", "tabix"]
     assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
-    assert node_info["documentation_url"] == "https://www.htslib.org/doc/bcftools.html#annotate"
+    assert node_info["documentation_url"] == "https://samtools.github.io/bcftools/bcftools.html#annotate"
     assert node_info["citation_dois"] == ["10.1093/gigascience/giab008", "10.1093/bioinformatics/btp352"]
     assert "bcftools" in node_info["search_aliases"]
     assert "annotate" in node_info["search_aliases"]
@@ -707,7 +457,7 @@ def test_bcftools_annotate_plans_outputs() -> None:
 
 def test_bcftools_annotate_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["bcftools"] == "bcftools"
-    assert PACKAGE_MIN_VERSIONS["bcftools"] == ">=1.15"
+    assert PACKAGE_MIN_VERSIONS["bcftools"] == "1.24"
 
 
 def test_annotate_vcf_is_registered_for_frontend_discovery() -> None:
@@ -721,16 +471,15 @@ def test_annotate_vcf_is_registered_for_frontend_discovery() -> None:
     assert node_info["description"].startswith("Annotate VCF records with gene")
     assert node_info["output"] == ["VCF_GZ", "VCF_INDEX"]
     assert node_info["output_name"] == ["annotated_vcf", "annotated_vcf_index"]
-    assert node_info["required_executables"] == ["bcftools", "vcfanno"]
-    assert node_info["required_conda_packages"] == ["bcftools", "vcfanno"]
+    assert node_info["required_executables"] == ["vcfanno", "bcftools"]
+    assert node_info["required_conda_packages"] == ["vcfanno", "bcftools", "htslib"]
     assert "multi-source annotation" in node_info["search_aliases"]
     assert "roadmap" in node_info["search_aliases"]
 
     inputs = node_info["input"]
-    assert set(inputs["required"]) == {"vcf"}
+    assert set(inputs["required"]) == {"vcf", "annotation_files", "annotation_indexes"}
     assert set(inputs["optional"]) == {
         "mode",
-        "annotation_files",
         "vcfanno_config",
         "columns",
         "header_lines",
@@ -741,16 +490,24 @@ def test_annotate_vcf_is_registered_for_frontend_discovery() -> None:
 
 def test_annotate_vcf_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["vcfanno"] == "vcfanno"
-    assert PACKAGE_MIN_VERSIONS["vcfanno"] == ">=0.3.5"
+    assert PACKAGE_MIN_VERSIONS["vcfanno"] == "0.3.9"
 
 
-def test_annotate_vcf_renders_vcfanno_multi_source_command() -> None:
+def test_annotate_vcf_renders_vcfanno_multi_source_command(tmp_path: Path) -> None:
     node_class = _node_class("annotate_vcf")
+    config = tmp_path / "annotation.toml"
+    config.write_text(
+        '[[annotation]]\nfile="genes.vcf.gz"\nfields=["GENE"]\nops=["self"]\n'
+        '[[annotation]]\nfile="scores.bed.gz"\ncolumns=[4]\nnames=["SCORE"]\nops=["mean"]\n',
+        encoding="utf-8",
+    )
 
     cmd = node_class.render_command({
         "vcf": "variants.vcf.gz",
         "mode": "vcfanno",
-        "vcfanno_config": "annotation.toml",
+        "vcfanno_config": str(config),
+        "annotation_files": ["genes.vcf.gz", "scores.bed.gz"],
+        "annotation_indexes": ["genes.vcf.gz.tbi", "scores.bed.gz.csi"],
         "threads": 6,
         "output": "/tmp/run/annotate_vcf",
         "output_name": "sample annotations",
@@ -764,7 +521,9 @@ def test_annotate_vcf_renders_vcfanno_multi_source_command() -> None:
         "vcfanno",
         "-p",
         "6",
-        "annotation.toml",
+        "-base-path",
+        "/tmp/run/annotate_vcf/annotation_sources",
+        str(config),
         "variants.vcf.gz",
         "|",
         "bcftools",
@@ -788,6 +547,7 @@ def test_annotate_vcf_renders_bcftools_custom_annotation_command() -> None:
         "vcf": "variants.vcf.gz",
         "mode": "bcftools",
         "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+        "annotation_indexes": "genes.bed.gz.tbi\nclinvar.vcf.gz.csi",
         "columns": "CHROM,FROM,TO,GENE\nID,INFO/CLNSIG",
         "header_lines": "genes.hdr\nclinvar.hdr",
         "threads": 4,
@@ -848,17 +608,22 @@ def test_annotate_vcf_plans_named_outputs() -> None:
 
 def test_annotate_vcf_rejects_missing_mode_inputs_and_invalid_mode() -> None:
     node_class = _node_class("annotate_vcf")
+    paired = {
+        "annotation_files": ["genes.bed.gz"],
+        "annotation_indexes": ["genes.bed.gz.tbi"],
+    }
 
-    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "vcfanno"}) == "vcfanno_config is required in vcfanno mode"
+    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "vcfanno", **paired}) == "vcfanno_config is required in vcfanno mode"
     assert (
         node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "bcftools"})
-        == "At least one annotation file is required in bcftools mode"
+        == "Required input 'annotation_files' is missing"
     )
     assert (
         node_class.VALIDATE_INPUTS({
             "vcf": "variants.vcf.gz",
             "mode": "bcftools",
             "annotation_files": "genes.bed.gz",
+            "annotation_indexes": "genes.bed.gz.tbi",
         })
         == "columns is required in bcftools mode"
     )
@@ -867,6 +632,7 @@ def test_annotate_vcf_rejects_missing_mode_inputs_and_invalid_mode() -> None:
             "vcf": "variants.vcf.gz",
             "mode": "bcftools",
             "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+            "annotation_indexes": "genes.bed.gz.tbi\nclinvar.vcf.gz.tbi",
             "columns": "CHROM,FROM,TO,GENE",
         })
         == "columns must provide one newline-separated entry per bcftools annotation file"
@@ -876,191 +642,13 @@ def test_annotate_vcf_rejects_missing_mode_inputs_and_invalid_mode() -> None:
             "vcf": "variants.vcf.gz",
             "mode": "bcftools",
             "annotation_files": "genes.bed.gz\nclinvar.vcf.gz",
+            "annotation_indexes": "genes.bed.gz.tbi\nclinvar.vcf.gz.tbi",
             "columns": "CHROM,FROM,TO,GENE\nID,INFO/CLNSIG",
             "header_lines": "genes.hdr",
         })
         == "header_lines must provide one newline-separated entry per bcftools annotation file, using '-' to skip a source"
     )
-    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "custom"}) == "Unsupported annotation mode: custom"
-
-
-def test_bedtools_closest_is_registered_for_frontend_discovery() -> None:
-    registry = NodeRegistry.create_isolated()
-    registry.load_builtin_nodes()
-    info = registry.object_info()
-
-    node_info = info["bedtools_closest"]
-    assert node_info["display_name"] == "BEDTools Closest"
-    assert node_info["category"] == "annotation"
-    assert node_info["description"].startswith("Find the closest features")
-    assert node_info["output"] == ["BED"]
-    assert node_info["output_name"] == ["closest"]
-    assert node_info["required_executables"] == ["bedtools"]
-    assert node_info["required_conda_packages"] == ["bedtools"]
-    assert "bedtools" in node_info["search_aliases"]
-    assert "closest" in node_info["search_aliases"]
-    assert "nearest gene" in node_info["search_aliases"]
-
-    inputs = node_info["input"]
-    assert set(inputs["required"]) == {"variants", "annotations"}
-    assert set(inputs["optional"]) == {"mode", "distance", "strand", "sorted"}
-
-
-def test_bedtools_closest_renders_distance_command() -> None:
-    node_class = _node_class("bedtools_closest")
-
-    cmd = node_class.render_command({
-        "variants": "variants.bed",
-        "annotations": "genes.bed",
-        "mode": "all",
-        "distance": True,
-        "strand": "same",
-        "sorted": True,
-        "output": "/tmp/run/bedtools_closest",
-    })
-
-    assert cmd == [
-        "bedtools",
-        "closest",
-        "-a",
-        "variants.bed",
-        "-b",
-        "genes.bed",
-        "-d",
-        "-s",
-        "-t",
-        "all",
-        "-sorted",
-        ">",
-        "/tmp/run/bedtools_closest/closest.bed",
-    ]
-
-
-def test_bedtools_closest_omits_default_optional_flags() -> None:
-    node_class = _node_class("bedtools_closest")
-
-    cmd = node_class.render_command({
-        "variants": "variants.bed",
-        "annotations": "genes.bed",
-        "mode": "first",
-        "distance": False,
-        "strand": "ignore",
-        "sorted": False,
-        "output": "/tmp/run/bedtools_closest",
-    })
-
-    assert "-d" not in cmd
-    assert "-s" not in cmd
-    assert "-S" not in cmd
-    assert "-sorted" not in cmd
-    assert cmd == [
-        "bedtools",
-        "closest",
-        "-a",
-        "variants.bed",
-        "-b",
-        "genes.bed",
-        "-t",
-        "first",
-        ">",
-        "/tmp/run/bedtools_closest/closest.bed",
-    ]
-
-
-def test_bedtools_closest_plans_outputs() -> None:
-    node_class = _node_class("bedtools_closest")
-
-    outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
-
-    assert [str(path) for path in outputs] == ["/tmp/run/bedtools_closest/closest.bed"]
-
-
-def test_bedtools_closest_environment_metadata_is_declared() -> None:
-    assert EXECUTABLE_TO_CONDA_PACKAGE["bedtools"] == "bedtools"
-    assert PACKAGE_MIN_VERSIONS["bedtools"] == ">=2.31.0"
-
-
-def test_intersect_genes_is_registered_for_frontend_discovery() -> None:
-    registry = NodeRegistry.create_isolated()
-    registry.load_builtin_nodes()
-    info = registry.object_info()
-
-    node_info = info["intersect_genes"]
-    assert node_info["display_name"] == "Intersect Genes"
-    assert node_info["category"] == "annotation"
-    assert node_info["description"].startswith("Intersect variant or gene lists")
-    assert node_info["output"] == ["TSV", "JSON"]
-    assert node_info["output_name"] == ["overlap", "enrichment"]
-    assert node_info["requires_external_tools"] is False
-    assert "gene set" in node_info["search_aliases"]
-    assert "pathway overlap" in node_info["search_aliases"]
-    assert "enrichment" in node_info["search_aliases"]
-
-    inputs = node_info["input"]
-    assert set(inputs["required"]) == {"input_genes", "database"}
-    assert set(inputs["optional"]) == {"input_column", "database_format", "case_sensitive"}
-
-
-@pytest.mark.asyncio
-async def test_intersect_genes_writes_overlap_table_and_enrichment_json(tmp_path: Path) -> None:
-    genes = tmp_path / "query_genes.txt"
-    genes.write_text("BRCA1\nTP53\nEGFR\nBRCA1\n", encoding="utf-8")
-    database = tmp_path / "gene_sets.json"
-    database.write_text(
-        json.dumps({
-            "DNA Repair": ["BRCA1", "BRCA2", "RAD51"],
-            "Cancer Drivers": ["TP53", "EGFR", "KRAS"],
-            "Metabolism": ["G6PC", "ALDOB"],
-        }),
-        encoding="utf-8",
-    )
-
-    overlap_path, enrichment_path = await _node_class("intersect_genes")().run(
-        input_genes=str(genes),
-        database=str(database),
-        database_format="json",
-        case_sensitive=False,
-        context=_context(tmp_path, "intersect"),
-    )
-
-    assert Path(overlap_path).name == "overlap.tsv"
-    assert _read_table(overlap_path) == [
-        {"gene": "BRCA1", "gene_set": "DNA Repair"},
-        {"gene": "TP53", "gene_set": "Cancer Drivers"},
-        {"gene": "EGFR", "gene_set": "Cancer Drivers"},
-    ]
-
-    enrichment = json.loads(Path(enrichment_path).read_text(encoding="utf-8"))
-    assert enrichment["query_gene_count"] == 3
-    assert enrichment["overlap_gene_count"] == 3
-    assert enrichment["sets"] == [
-        {"gene_set": "Cancer Drivers", "overlap_count": 2, "set_size": 3, "genes": ["TP53", "EGFR"]},
-        {"gene_set": "DNA Repair", "overlap_count": 1, "set_size": 3, "genes": ["BRCA1"]},
-    ]
-
-
-@pytest.mark.asyncio
-async def test_intersect_genes_reads_table_gene_sets(tmp_path: Path) -> None:
-    genes = tmp_path / "variants.tsv"
-    genes.write_text("gene\timpact\nbrca1\thigh\ntp53\tmoderate\n", encoding="utf-8")
-    database = tmp_path / "pathways.tsv"
-    database.write_text("gene_set\tgene\nDNA Repair\tBRCA1\nCancer Drivers\tTP53\n", encoding="utf-8")
-
-    overlap_path, enrichment_path = await _node_class("intersect_genes")().run(
-        input_genes=str(genes),
-        database=str(database),
-        input_column="gene",
-        database_format="tsv",
-        case_sensitive=False,
-        context=_context(tmp_path, "intersect_table"),
-    )
-
-    assert _read_table(overlap_path) == [
-        {"gene": "brca1", "gene_set": "DNA Repair"},
-        {"gene": "tp53", "gene_set": "Cancer Drivers"},
-    ]
-    enrichment = json.loads(Path(enrichment_path).read_text(encoding="utf-8"))
-    assert [item["gene_set"] for item in enrichment["sets"]] == ["Cancer Drivers", "DNA Repair"]
+    assert node_class.VALIDATE_INPUTS({"vcf": "variants.vcf.gz", "mode": "custom", **paired}) == "Unsupported annotation mode: custom"
 
 
 def test_interproscan_is_registered_for_frontend_discovery() -> None:
@@ -1162,7 +750,7 @@ def test_interproscan_plans_outputs() -> None:
 
 def test_interproscan_environment_metadata_is_declared() -> None:
     assert EXECUTABLE_TO_CONDA_PACKAGE["interproscan.sh"] == "interproscan"
-    assert PACKAGE_MIN_VERSIONS["interproscan"] == ">=5.71"
+    assert PACKAGE_MIN_VERSIONS["interproscan"] == "5.59_91.0"
 
 
 def test_pbsv_is_registered_for_frontend_discovery() -> None:

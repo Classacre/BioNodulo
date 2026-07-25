@@ -35,6 +35,7 @@ def test_s3_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["s3_download"]["display_name"] == "S3 Download"
     assert info["s3_download"]["category"] == "storage"
     assert info["s3_download"]["output_name"] == ["local_path", "metadata"]
+    assert info["s3_download"]["output"] == ["FILE", "JSON"]
     assert info["s3_download"]["required_executables"] == ["aws"]
     assert info["s3_download"]["required_conda_packages"] == ["awscli"]
     assert info["s3_download"]["requires_external_tools"] is True
@@ -134,6 +135,7 @@ async def test_s3_upload_executes_aws_cli_and_writes_metadata(tmp_path: Path) ->
     assert metadata_path == tmp_path / "s3_upload" / "upload_metadata.json"
     assert metadata == {
         "operation": "upload",
+        "aws_cli_version": "2.36.2",
         "bucket": "analysis-bucket",
         "key": "reports/summary.tsv",
         "s3_uri": "s3://analysis-bucket/reports/summary.tsv",
@@ -175,8 +177,9 @@ async def test_s3_download_executes_aws_cli_and_writes_metadata(tmp_path: Path) 
 
     async def fake_run_command(cmd: list[str], cwd: str) -> dict[str, Any]:
         commands.append({"cmd": list(cmd), "cwd": cwd})
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text("sample\treads\nS1\t10\n", encoding="utf-8")
+        transfer_path = Path(cmd[4])
+        transfer_path.parent.mkdir(parents=True, exist_ok=True)
+        transfer_path.write_text("sample\treads\nS1\t10\n", encoding="utf-8")
         return {"returncode": 0, "stdout": "download complete\n", "stderr": ""}
 
     context = SimpleNamespace(node_dir=tmp_path, run_command=fake_run_command)
@@ -195,19 +198,22 @@ async def test_s3_download_executes_aws_cli_and_writes_metadata(tmp_path: Path) 
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
 
     assert result["outputs"]["local_path"] == str(destination)
+    assert destination.read_text(encoding="utf-8") == "sample\treads\nS1\t10\n"
     assert metadata_path == tmp_path / "s3_download" / "download_metadata.json"
     assert metadata == {
         "operation": "download",
+        "aws_cli_version": "2.36.2",
         "bucket": "analysis-bucket",
         "key": "reports/summary.tsv",
         "s3_uri": "s3://analysis-bucket/reports/summary.tsv",
         "local_path": str(destination),
+        "size_bytes": 19,
         "command": [
             "aws",
             "s3",
             "cp",
             "s3://analysis-bucket/reports/summary.tsv",
-            str(destination),
+            str(destination.with_name(".summary.tsv.bionodulo-part")),
         ],
         "returncode": 0,
         "stdout": "download complete\n",
@@ -220,7 +226,7 @@ async def test_s3_download_executes_aws_cli_and_writes_metadata(tmp_path: Path) 
                 "s3",
                 "cp",
                 "s3://analysis-bucket/reports/summary.tsv",
-                str(destination),
+                str(destination.with_name(".summary.tsv.bionodulo-part")),
             ],
             "cwd": str(tmp_path / "s3_download"),
         }
@@ -261,11 +267,88 @@ def test_s3_download_validates_required_inputs() -> None:
     )
 
 
+@pytest.mark.parametrize("node_id", ["s3_upload", "s3_download"])
+def test_s3_nodes_reject_non_transfer_extra_args(node_id: str, tmp_path: Path) -> None:
+    node_class = _node_class(node_id)
+    local_path = tmp_path / "input.txt"
+    local_path.write_text("data", encoding="utf-8")
+    inputs = {
+        "bucket": "bucket",
+        "key": "key",
+        "local_path": str(local_path),
+        "extra_args": "--dryrun",
+    }
+
+    assert "requires one real object transfer" in str(node_class.VALIDATE_INPUTS(inputs))
+
+
+@pytest.mark.asyncio
+async def test_s3_download_never_accepts_a_stale_destination(tmp_path: Path) -> None:
+    node = _node_class("s3_download")()
+    destination = tmp_path / "result.txt"
+    destination.write_text("stale", encoding="utf-8")
+
+    async def fake_run_command(_cmd: list[str], cwd: str) -> dict[str, Any]:
+        assert cwd == str(tmp_path / "s3_download")
+        return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    with pytest.raises(RuntimeError, match="did not create"):
+        await node.run(
+            bucket="bucket",
+            key="result.txt",
+            local_path=str(destination),
+            context=SimpleNamespace(node_dir=tmp_path, run_command=fake_run_command),
+        )
+
+    assert destination.read_text(encoding="utf-8") == "stale"
+
+
+@pytest.mark.asyncio
+async def test_s3_upload_fails_closed_without_a_runner_returncode(tmp_path: Path) -> None:
+    local_path = tmp_path / "input.txt"
+    local_path.write_text("data", encoding="utf-8")
+
+    async def fake_run_command(_cmd: list[str], cwd: str) -> dict[str, Any]:
+        assert cwd == str(tmp_path / "s3_upload")
+        return {"stdout": "", "stderr": ""}
+
+    with pytest.raises(RuntimeError, match="did not report an integer return code"):
+        await _node_class("s3_upload")().run(
+            local_path=str(local_path),
+            bucket="bucket",
+            key="input.txt",
+            context=SimpleNamespace(node_dir=tmp_path, run_command=fake_run_command),
+        )
+
+
+@pytest.mark.asyncio
+async def test_s3_download_resolves_relative_paths_against_the_node_directory(tmp_path: Path) -> None:
+    commands: list[list[str]] = []
+
+    async def fake_run_command(cmd: list[str], cwd: str) -> dict[str, Any]:
+        assert cwd == str(tmp_path / "s3_download")
+        commands.append(list(cmd))
+        Path(cmd[4]).write_text("fresh", encoding="utf-8")
+        return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    result = await _node_class("s3_download")().run(
+        bucket="bucket",
+        key="result.txt",
+        local_path="downloads/result.txt",
+        context=SimpleNamespace(node_dir=tmp_path, run_command=fake_run_command),
+    )
+
+    expected = (tmp_path / "s3_download" / "downloads" / "result.txt").resolve()
+    assert result["outputs"]["local_path"] == str(expected)
+    assert expected.read_text(encoding="utf-8") == "fresh"
+    assert commands[0][4] == str(expected.with_name(".result.txt.bionodulo-part"))
+
+
 def test_s3_environment_metadata_is_declared() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
 
     assert EXECUTABLE_TO_CONDA_PACKAGE["aws"] == "awscli"
-    assert PACKAGE_MIN_VERSIONS["awscli"] == ">=2.0"
+    assert PACKAGE_MIN_VERSIONS["awscli"] == "2.36.2"
     assert workflow_to_packages({"nodes": [{"id": "upload", "type": "s3_upload"}]}, registry) == ["awscli"]
     assert workflow_to_packages({"nodes": [{"id": "download", "type": "s3_download"}]}, registry) == ["awscli"]

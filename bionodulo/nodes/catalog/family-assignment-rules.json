@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "confirmed_families": [
+    {
+      "family_id": "bismark",
+      "ownership": "external_tool",
+      "node_id_prefix": "bismark_",
+      "expected_count": 4,
+      "source_module": "bionodulo.nodes.builtin.epigenomics.bismark",
+      "source_path": "bionodulo/nodes/builtin/epigenomics/bismark.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/bismark",
+      "fixture_prefix": "bismark/",
+      "cloud_job_label": "catalog-bismark",
+      "r2_test_prefix": "catalog-tests/bismark/",
+      "upstream": {
+        "repository_url": "https://github.com/FelixKrueger/Bismark",
+        "release_tag": "bismark-rust-v3.1.0",
+        "tag_object": "e552b8f307a7041bcebed8f8e5a764ebcf7b046c",
+        "commit": "e552b8f307a7041bcebed8f8e5a764ebcf7b046c",
+        "documentation_url": "https://github.com/FelixKrueger/Bismark/blob/e552b8f307a7041bcebed8f8e5a764ebcf7b046c/README.md"
+      }
+    },
+    {
+      "family_id": "bowtie2",
+      "ownership": "external_tool",
+      "node_id_prefix": "bowtie2_",
+      "expected_count": 3,
+      "source_module": "bionodulo.nodes.builtin.alignment.bowtie2",
+      "source_path": "bionodulo/nodes/builtin/alignment/bowtie2.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/bowtie2",
+      "fixture_prefix": "bowtie2/",
+      "cloud_job_label": "catalog-bowtie2",
+      "r2_test_prefix": "catalog-tests/bowtie2/",
+      "upstream": {
+        "repository_url": "https://github.com/BenLangmead/bowtie2",
+        "release_tag": "v2.5.5",
+        "tag_object": "0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2",
+        "commit": "0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2",
+        "documentation_url": "https://github.com/BenLangmead/bowtie2/blob/0c6a1c75e047ad8bf70c178fa3cb1528fba6adc2/MANUAL.markdown"
+      }
+    },
+    {
+      "family_id": "dorado",
+      "ownership": "external_tool",
+      "node_id_prefix": "dorado_",
+      "expected_count": 4,
+      "source_module": "bionodulo.nodes.builtin.long_read.dorado",
+      "source_path": "bionodulo/nodes/builtin/long_read/dorado.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/dorado",
+      "fixture_prefix": "dorado/",
+      "cloud_job_label": "catalog-dorado",
+      "r2_test_prefix": "catalog-tests/dorado/",
+      "upstream": {
+        "repository_url": "https://github.com/nanoporetech/dorado",
+        "release_tag": "v0.9.6",
+        "tag_object": "0949eb8de80dce9a198c08c0e37e31ed1eb627fc",
+        "commit": "0949eb8de80dce9a198c08c0e37e31ed1eb627fc",
+        "documentation_url": "https://github.com/nanoporetech/dorado/tree/0949eb8de80dce9a198c08c0e37e31ed1eb627fc/documentation"
+      }
+    },
+    {
+      "family_id": "delly",
+      "ownership": "external_tool",
+      "node_ids": [
+        "delly",
+        "delly_call"
+      ],
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.variant.delly",
+      "source_path": "bionodulo/nodes/builtin/variant/delly.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/delly",
+      "fixture_prefix": "delly/",
+      "cloud_job_label": "catalog-delly",
+      "r2_test_prefix": "catalog-tests/delly/",
+      "upstream": {
+        "repository_url": "https://github.com/dellytools/delly",
+        "release_tag": "v1.2.6",
+        "tag_object": "e6246dbb18b7f6df2b7b381d542cdeaea6be8c82",
+        "commit": "e6246dbb18b7f6df2b7b381d542cdeaea6be8c82",
+        "documentation_url": "https://github.com/dellytools/delly/blob/e6246dbb18b7f6df2b7b381d542cdeaea6be8c82/README.md"
+      }
+    },
+    {
+      "family_id": "freebayes",
+      "ownership": "external_tool",
+      "node_ids": [
+        "freebayes"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.variant.freebayes",
+      "source_path": "bionodulo/nodes/builtin/variant/freebayes.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/freebayes",
+      "fixture_prefix": "freebayes/",
+      "cloud_job_label": "catalog-freebayes",
+      "r2_test_prefix": "catalog-tests/freebayes/",
+      "upstream": {
+        "repository_url": "https://github.com/freebayes/freebayes",
+        "release_tag": "v1.3.10",
+        "tag_object": "b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993",
+        "commit": "b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993",
+        "documentation_url": "https://github.com/freebayes/freebayes/blob/b0d8efd9fa7f6612c883ec5ff79e4d17a0c29993/README.md"
+      }
+    },
+    {
+      "family_id": "fastqc",
+      "ownership": "external_tool",
+      "node_ids": [
+        "fastqc"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.qc.fastqc",
+      "source_path": "bionodulo/nodes/builtin/qc/fastqc.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/fastqc",
+      "fixture_prefix": "fastqc/",
+      "cloud_job_label": "catalog-fastqc",
+      "r2_test_prefix": "catalog-tests/fastqc/",
+      "upstream": {
+        "repository_url": "https://github.com/s-andrews/FastQC",
+        "release_tag": "v0.12.1",
+        "tag_object": "e7ef390bf10382f60786bdd0cf28abd4f8683ffd",
+        "commit": "e7ef390bf10382f60786bdd0cf28abd4f8683ffd",
+        "documentation_url": "https://github.com/s-andrews/FastQC/blob/e7ef390bf10382f60786bdd0cf28abd4f8683ffd/README.md"
+      }
+    },
+    {
+      "family_id": "fastp",
+      "ownership": "external_tool",
+      "node_ids": [
+        "fastp"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.trimming.fastp",
+      "source_path": "bionodulo/nodes/builtin/trimming/fastp.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/fastp",
+      "fixture_prefix": "fastp/",
+      "cloud_job_label": "catalog-fastp",
+      "r2_test_prefix": "catalog-tests/fastp/",
+      "upstream": {
+        "repository_url": "https://github.com/OpenGene/fastp",
+        "release_tag": "v0.24.0",
+        "tag_object": "4f273f1d8afac977a82460e1de174daa3e66f3f5",
+        "commit": "4f273f1d8afac977a82460e1de174daa3e66f3f5",
+        "documentation_url": "https://github.com/OpenGene/fastp/blob/4f273f1d8afac977a82460e1de174daa3e66f3f5/README.md"
+      }
+    },
+    {
+      "family_id": "gatk_haplotype_caller",
+      "ownership": "external_tool",
+      "node_ids": [
+        "gatk_haplotype_caller"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.variant.gatk",
+      "source_path": "bionodulo/nodes/builtin/variant/gatk.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/gatk_haplotype_caller",
+      "fixture_prefix": "gatk_haplotype_caller/",
+      "cloud_job_label": "catalog-gatk-haplotype-caller",
+      "r2_test_prefix": "catalog-tests/gatk_haplotype_caller/",
+      "upstream": {
+        "repository_url": "https://github.com/broadinstitute/gatk",
+        "release_tag": "4.6.2.0",
+        "tag_object": "fa139825782647bff044f00cda70d8ffe11af8c8",
+        "commit": "76edc75c26504da94bbaee66584e107e76ee15de",
+        "documentation_url": "https://github.com/broadinstitute/gatk/blob/76edc75c26504da94bbaee66584e107e76ee15de/src/main/java/org/broadinstitute/hellbender/tools/walkers/haplotypecaller/HaplotypeCaller.java"
+      }
+    },
+    {
+      "family_id": "hisat2",
+      "ownership": "external_tool",
+      "node_id_prefix": "hisat2_",
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.alignment.hisat2",
+      "source_path": "bionodulo/nodes/builtin/alignment/hisat2.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/hisat2",
+      "fixture_prefix": "hisat2/",
+      "cloud_job_label": "catalog-hisat2",
+      "r2_test_prefix": "catalog-tests/hisat2/",
+      "upstream": {
+        "repository_url": "https://github.com/DaehwanKimLab/hisat2",
+        "release_tag": "v2.2.2",
+        "tag_object": "99583d7536b9ee017ac07de8834017a3bf99a2fe",
+        "commit": "99583d7536b9ee017ac07de8834017a3bf99a2fe",
+        "documentation_url": "https://github.com/DaehwanKimLab/hisat2/blob/99583d7536b9ee017ac07de8834017a3bf99a2fe/docs/_pages/manual.md"
+      }
+    },
+    {
+      "family_id": "kallisto",
+      "ownership": "external_tool",
+      "node_id_prefix": "kallisto_",
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.rna_seq.kallisto",
+      "source_path": "bionodulo/nodes/builtin/rna_seq/kallisto.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/kallisto",
+      "fixture_prefix": "kallisto/",
+      "cloud_job_label": "catalog-kallisto",
+      "r2_test_prefix": "catalog-tests/kallisto/",
+      "upstream": {
+        "repository_url": "https://github.com/pachterlab/kallisto",
+        "release_tag": "v0.52.0",
+        "tag_object": "4e9f29cf3b021260415430c057a22469ca081391",
+        "commit": "4e9f29cf3b021260415430c057a22469ca081391",
+        "documentation_url": "https://github.com/pachterlab/kallisto/blob/4e9f29cf3b021260415430c057a22469ca081391/README.md"
+      }
+    },
+    {
+      "family_id": "macs2",
+      "ownership": "external_tool",
+      "node_id_prefix": "macs2_",
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.chip_seq.macs2",
+      "source_path": "bionodulo/nodes/builtin/chip_seq/macs2.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/macs2",
+      "fixture_prefix": "macs2/",
+      "cloud_job_label": "catalog-macs2",
+      "r2_test_prefix": "catalog-tests/macs2/",
+      "upstream": {
+        "repository_url": "https://github.com/macs3-project/MACS",
+        "release_tag": "v2.2.9.1",
+        "tag_object": "1afcae6a09ced8cf9bb1e87c44dd58f7d7e4891c",
+        "commit": "1afcae6a09ced8cf9bb1e87c44dd58f7d7e4891c",
+        "documentation_url": "https://github.com/macs3-project/MACS/blob/1afcae6a09ced8cf9bb1e87c44dd58f7d7e4891c/README.md"
+      }
+    },
+    {
+      "family_id": "odgi",
+      "ownership": "external_tool",
+      "node_id_prefix": "odgi_",
+      "expected_count": 5,
+      "source_module": "bionodulo.nodes.builtin.pangenomics.odgi",
+      "source_path": "bionodulo/nodes/builtin/pangenomics/odgi.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/odgi",
+      "fixture_prefix": "odgi/",
+      "cloud_job_label": "catalog-odgi",
+      "r2_test_prefix": "catalog-tests/odgi/",
+      "upstream": {
+        "repository_url": "https://github.com/pangenome/odgi",
+        "release_tag": "v0.9.2",
+        "tag_object": "be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6",
+        "commit": "be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6",
+        "documentation_url": "https://github.com/pangenome/odgi/tree/be6a0202501d7ea2ac57f9ad89d4d10ed5dbd7c6/docs/rst/commands"
+      }
+    },
+    {
+      "family_id": "multiqc",
+      "ownership": "external_tool",
+      "node_ids": [
+        "multiqc"
+      ],
+      "expected_count": 1,
+      "source_module": "bionodulo.nodes.builtin.qc.multiqc",
+      "source_path": "bionodulo/nodes/builtin/qc/multiqc.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/multiqc",
+      "fixture_prefix": "multiqc/",
+      "cloud_job_label": "catalog-multiqc",
+      "r2_test_prefix": "catalog-tests/multiqc/",
+      "upstream": {
+        "repository_url": "https://github.com/MultiQC/MultiQC",
+        "release_tag": "v1.33",
+        "tag_object": "5953b5417ccb70bf4a2309562d43015fced8b585",
+        "commit": "5953b5417ccb70bf4a2309562d43015fced8b585",
+        "documentation_url": "https://github.com/MultiQC/MultiQC/blob/5953b5417ccb70bf4a2309562d43015fced8b585/docs/markdown/getting_started/running_multiqc.md"
+      }
+    },
+    {
+      "family_id": "samtools",
+      "ownership": "external_tool",
+      "node_id_prefix": "samtools_",
+      "expected_count": 27,
+      "source_module": "bionodulo.nodes.builtin.samtools.samtools",
+      "source_path": "bionodulo/nodes/builtin/samtools/samtools.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/samtools",
+      "fixture_prefix": "samtools/",
+      "cloud_job_label": "catalog-samtools",
+      "r2_test_prefix": "catalog-tests/samtools/",
+      "upstream": {
+        "repository_url": "https://github.com/samtools/samtools",
+        "release_tag": "1.23.1",
+        "tag_object": "4ac78a7e9938dbef3c6f97d549758feceb0252db",
+        "commit": "6efb9b6da35224cf804921dedecf9fb8f411365d",
+        "documentation_url": "https://www.htslib.org/doc/samtools.html"
+      }
+    },
+    {
+      "family_id": "salmon",
+      "ownership": "external_tool",
+      "node_id_prefix": "salmon_",
+      "expected_count": 2,
+      "source_module": "bionodulo.nodes.builtin.rna_seq.salmon",
+      "source_path": "bionodulo/nodes/builtin/rna_seq/salmon.py",
+      "exclusive_path": "bionodulo/nodes/catalog/tools/salmon",
+      "fixture_prefix": "salmon/",
+      "cloud_job_label": "catalog-salmon",
+      "r2_test_prefix": "catalog-tests/salmon/",
+      "upstream": {
+        "repository_url": "https://github.com/COMBINE-lab/salmon",
+        "release_tag": "v2.3.4",
+        "tag_object": "a218814bcdfafe0b6916ef6a186e95c82bd2d9e0",
+        "commit": "d53fed6f0af6966a40825558f0edf71b6df7cf52",
+        "documentation_url": "https://github.com/COMBINE-lab/salmon/tree/d53fed6f0af6966a40825558f0edf71b6df7cf52/website/src/content/docs"
+      }
+    }
+  ]
+}

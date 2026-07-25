@@ -64,6 +64,7 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
     }.issubset(set(workflow["tools"]))
 
     assert node_types["mzml_001"] == "input_file"
+    assert node_types["mzml_002"] == "input_file"
     assert "validate_mzml_001" not in node_types
     assert node_types["xcms_peak_detection_001"] == "xcms_peak_detection"
     assert "validate_feature_table_001" not in node_types
@@ -76,8 +77,12 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
 
     assert not _has_edge(workflow, "mzml_001", "file", "validate_mzml_001", "input")
     assert _has_edge(workflow, "mzml_001", "file", "xcms_peak_detection_001", "mzml_files")
-    assert not _has_edge(workflow, "xcms_peak_detection_001", "feature_table", "validate_feature_table_001", "input")
+    assert _has_edge(workflow, "mzml_002", "file", "xcms_peak_detection_001", "mzml_files")
+    assert _target_input_count(workflow, "xcms_peak_detection_001", "mzml_files") == 2
     assert _has_edge(workflow, "xcms_peak_detection_001", "xcms_object", "xcms_retention_correction_001", "xcms_object")
+    assert _has_edge(workflow, "mzml_001", "file", "xcms_retention_correction_001", "raw_files")
+    assert _has_edge(workflow, "mzml_002", "file", "xcms_retention_correction_001", "raw_files")
+    assert _target_input_count(workflow, "xcms_retention_correction_001", "raw_files") == 2
     assert not _has_edge(
         workflow,
         "xcms_retention_correction_001",
@@ -92,9 +97,11 @@ def test_metabolomics_lcms_template_covers_xcms_camera_workflow() -> None:
         "camera_annotation_001",
         "xcms_object",
     )
+    assert _has_edge(workflow, "mzml_001", "file", "camera_annotation_001", "raw_files")
+    assert _has_edge(workflow, "mzml_002", "file", "camera_annotation_001", "raw_files")
+    assert _target_input_count(workflow, "camera_annotation_001", "raw_files") == 2
     assert not _has_edge(workflow, "camera_annotation_001", "annotated_peaklist", "validate_camera_peaklist_001", "input")
 
-    assert _has_edge(workflow, "mzml_001", "file", "xcms_peak_detection_001", "mzml_files")
     assert not _has_edge(workflow, "xcms_peak_detection_001", "xcms_object", "camera_annotation_001", "xcms_object")
 
 
@@ -102,15 +109,17 @@ def test_metabolomics_lcms_template_validates_outputs_and_analysis_parameters() 
     workflow = _load_template("metabolomics_lcms_pipeline.json")
 
     mzml_input = _node_by_id(workflow, "mzml_001")
+    second_mzml_input = _node_by_id(workflow, "mzml_002")
     mzml_validator = _output_validation(workflow, "mzml_001", "file")
     xcms = _node_by_id(workflow, "xcms_peak_detection_001")
-    feature_validator = _output_validation(workflow, "xcms_peak_detection_001", "feature_table")
+    peak_validator = _output_validation(workflow, "xcms_peak_detection_001", "chrom_peaks")
     retention = _node_by_id(workflow, "xcms_retention_correction_001")
     aligned_validator = _output_validation(workflow, "xcms_retention_correction_001", "aligned_feature_table")
     camera = _node_by_id(workflow, "camera_annotation_001")
     camera_validator = _output_validation(workflow, "camera_annotation_001", "annotated_peaklist")
 
     assert mzml_input["params"]["file"] == "examples/data/metabolomics/sample.mzML"
+    assert second_mzml_input["params"]["file"] == "examples/data/metabolomics/sample_2.mzML"
     assert mzml_validator["expected_format"] == "auto"
     assert mzml_validator["min_size_bytes"] > 0
     assert mzml_validator["fail_on_error"] is True
@@ -121,25 +130,31 @@ def test_metabolomics_lcms_template_validates_outputs_and_analysis_parameters() 
     assert xcms["params"]["snthresh"] == 10.0
     assert xcms["params"]["threads"] >= 2
     assert xcms["params"]["output_name"] == "lcms"
-    assert feature_validator["expected_format"] == "tsv"
-    assert feature_validator["min_size_bytes"] > 0
+    assert peak_validator["expected_format"] == "tsv"
+    assert peak_validator["min_size_bytes"] > 0
+    assert peak_validator["min_records"] == 1
 
     assert retention["params"]["method"] == "obiwarp"
     assert retention["params"]["bin_size"] == 1.0
     assert retention["params"]["min_fraction"] == 0.5
+    assert retention["params"]["sample_groups"] == ["example", "example"]
     assert retention["params"]["output_name"] == "lcms_aligned"
     assert aligned_validator["expected_format"] == "tsv"
+    assert aligned_validator["min_records"] == 1
     assert aligned_validator["fail_on_error"] is True
 
     assert camera["params"]["polarity"] == "positive"
     assert camera["params"]["run_group_corr"] is True
+    assert camera["params"]["correlation_include_isotopes"] is False
     assert camera["params"]["run_adducts"] is True
     assert camera["params"]["output_name"] == "lcms_camera"
     assert camera_validator["expected_format"] == "tsv"
+    assert camera_validator["min_records"] == 1
     assert camera_validator["fail_on_error"] is True
 
-    assert workflow["outputs"]["validated_mzml"] == "mzml_001"
-    assert workflow["outputs"]["xcms_features"] == "xcms_peak_detection_001"
+    assert workflow["outputs"]["validated_mzml_a"] == "mzml_001"
+    assert workflow["outputs"]["validated_mzml_b"] == "mzml_002"
+    assert workflow["outputs"]["detected_chrom_peaks"] == "xcms_peak_detection_001"
     assert workflow["outputs"]["aligned_features"] == "xcms_retention_correction_001"
     assert workflow["outputs"]["camera_peaklist"] == "camera_annotation_001"
 

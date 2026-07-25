@@ -34,6 +34,7 @@ def test_metagenomics_template_retries_fragile_kraken2_and_humann_nodes_only() -
 
     assert node_types["kraken2_retry_001"] == "retry"
     assert node_types["humann_retry_001"] == "retry"
+    assert node_types["humann_reads_001"] == "input_file"
     assert node_types["kraken2_001"] == "kraken2"
     assert node_types["humann_001"] == "humann"
     assert node_types["metaphlan_001"] == "metaphlan"
@@ -56,12 +57,13 @@ def test_metagenomics_template_retries_fragile_kraken2_and_humann_nodes_only() -
 
     assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "kraken2_retry_001", "input")
     assert _has_edge(workflow, "kraken2_retry_001", "passthrough", "kraken2_001", "reads")
-    assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "humann_retry_001", "input")
-    assert _has_edge(workflow, "humann_retry_001", "passthrough", "humann_001", "reads")
+    assert _has_edge(workflow, "humann_reads_001", "file", "humann_retry_001", "input")
+    assert _has_edge(workflow, "humann_retry_001", "passthrough", "humann_001", "input")
     assert _has_edge(workflow, "gate_trimmed_reads_001", "output", "metaphlan_001", "reads")
 
     assert not _has_edge(workflow, "gate_trimmed_reads_001", "output", "kraken2_001", "reads")
     assert not _has_edge(workflow, "gate_trimmed_reads_001", "output", "humann_001", "reads")
+    assert not _has_edge(workflow, "gate_trimmed_reads_001", "output", "humann_retry_001", "input")
     assert not _has_edge(workflow, "gate_trimmed_reads_001", "output", "metaphlan_retry_001", "input")
 
     assert workflow["outputs"]["kraken2_retry_policy"] == "kraken2_retry_001"

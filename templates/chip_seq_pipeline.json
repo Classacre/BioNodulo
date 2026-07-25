@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "ChIP-Seq pipeline: aligns reads, calls peaks with MACS2, and generates enrichment profiles.\n\nData source: Zenodo record 1324070 (Galaxy Training Material).\nwt_Spt5_read1.fastq (8.5M), wt_Spt5_read2.fastq (8.5M).\nMouse Spt5 ChIP-seq from 'Formation of the Super-Structures on the Inactive X' tutorial.\nURL: https://zenodo.org/record/1324070\nNote: Bowtie2 index directory is a placeholder. Provide your own index."
+        "text": "ChIP-Seq pipeline: aligns paired-end reads, calls peaks with MACS2, and generates enrichment profiles.\n\nThe default smoke inputs are a deterministic 2 kb synthetic reference with distinct treatment and control fragments. Treatment fragments overlap one annotated locus while control fragments are distributed across the reference, providing a small but meaningful paired-end cloud canary. Replace these fixtures with experimental FASTQ, reference, and annotation files for real analyses."
       },
       "ui": {
         "title": "Notes",
@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "treatment",
         "reads": [
-          "examples/data/chip_seq/wt_Spt5_read1.fastq",
-          "examples/data/chip_seq/wt_Spt5_read2.fastq"
+          "templates/data/smoke/chip_treatment_R1.fastq",
+          "templates/data/smoke/chip_treatment_R2.fastq"
         ]
       },
       "ui": {
@@ -57,8 +57,8 @@
       "params": {
         "sample_name": "control",
         "reads": [
-          "examples/data/chip_seq/input_control_read1.fastq",
-          "examples/data/chip_seq/input_control_read2.fastq"
+          "templates/data/smoke/chip_control_R1.fastq",
+          "templates/data/smoke/chip_control_R2.fastq"
         ]
       },
       "ui": {
@@ -83,7 +83,7 @@
         611
       ],
       "params": {
-        "file": "examples/data/chip_seq/genes.bed"
+        "file": "templates/data/smoke/chip_genes.bed"
       },
       "ui": {
         "title": "Gene Annotation BED",
@@ -96,6 +96,34 @@
             }
           }
         }
+      }
+    },
+    {
+      "id": "sort_peaks_bed_001",
+      "type": "bedtools_sortbed",
+      "position": [
+        2600,
+        80
+      ],
+      "params": {
+        "sort_by": ""
+      },
+      "ui": {
+        "title": "Sort Called Peaks"
+      }
+    },
+    {
+      "id": "sort_peak_annotations_bed_001",
+      "type": "bedtools_sortbed",
+      "position": [
+        2600,
+        300
+      ],
+      "params": {
+        "sort_by": ""
+      },
+      "ui": {
+        "title": "Sort Gene Annotations"
       }
     },
     {
@@ -250,7 +278,10 @@
         80
       ],
       "params": {
-        "format": "AUTO"
+        "name": "chip_smoke",
+        "genome_size": "2000",
+        "format": "BAMPE",
+        "pvalue": 0.5
       },
       "ui": {
         "title": "MACS2 CallPeak",
@@ -263,6 +294,18 @@
             }
           }
         }
+      }
+    },
+    {
+      "id": "index_001",
+      "type": "samtools_index",
+      "position": [
+        2240,
+        300
+      ],
+      "params": {},
+      "ui": {
+        "title": "samtools index"
       }
     },
     {
@@ -286,7 +329,7 @@
       "id": "peak_annotation_001",
       "type": "bedtools_closest",
       "position": [
-        2600,
+        2960,
         80
       ],
       "params": {
@@ -301,11 +344,11 @@
       "id": "chip_signal_plot_001",
       "type": "coverage_plot",
       "position": [
-        2600,
+        2960,
         430
       ],
       "params": {
-        "region": "I:1-50000",
+        "region": "smoke_chr1:1-2000",
         "window_size": 100,
         "title": "ChIP-Seq Signal Coverage",
         "format": "html"
@@ -383,11 +426,11 @@
         340
       ],
       "params": {
-        "file": "examples/data/chip_seq/genome.fa",
-        "reference": "examples/data/chip_seq/genome.fa"
+        "file": "templates/data/smoke/chip_reference.fasta",
+        "reference": "templates/data/smoke/chip_reference.fasta"
       },
       "ui": {
-        "title": "Yeast Reference (SacCer)"
+        "title": "Synthetic ChIP Reference"
       }
     },
     {
@@ -447,7 +490,7 @@
       },
       "to": {
         "node": "view_001",
-        "input": "sam"
+        "input": "alignment"
       }
     },
     {
@@ -462,14 +505,36 @@
       }
     },
     {
-      "id": "e4a",
+      "id": "e4_index",
       "from": {
         "node": "sort_001",
         "output": "sorted_bam"
       },
       "to": {
+        "node": "index_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e4a",
+      "from": {
+        "node": "index_001",
+        "output": "indexed_bam"
+      },
+      "to": {
         "node": "coverage_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e4a_bai",
+      "from": {
+        "node": "index_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "coverage_001",
+        "input": "bam_index"
       }
     },
     {
@@ -502,7 +567,7 @@
       },
       "to": {
         "node": "sort_001",
-        "input": "bam"
+        "input": "alignment"
       }
     },
     {
@@ -512,8 +577,8 @@
         "output": "peaks"
       },
       "to": {
-        "node": "peak_annotation_001",
-        "input": "variants"
+        "node": "sort_peaks_bed_001",
+        "input": "input"
       }
     },
     {
@@ -521,6 +586,28 @@
       "from": {
         "node": "peak_annotation_bed_001",
         "output": "file"
+      },
+      "to": {
+        "node": "sort_peak_annotations_bed_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e8a_sorted",
+      "from": {
+        "node": "sort_peaks_bed_001",
+        "output": "sorted_intervals"
+      },
+      "to": {
+        "node": "peak_annotation_001",
+        "input": "variants"
+      }
+    },
+    {
+      "id": "e8b_sorted",
+      "from": {
+        "node": "sort_peak_annotations_bed_001",
+        "output": "sorted_intervals"
       },
       "to": {
         "node": "peak_annotation_001",
@@ -568,7 +655,7 @@
       },
       "to": {
         "node": "view_control_001",
-        "input": "sam"
+        "input": "alignment"
       }
     },
     {
@@ -579,7 +666,7 @@
       },
       "to": {
         "node": "sort_control_001",
-        "input": "bam"
+        "input": "alignment"
       }
     },
     {

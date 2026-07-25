@@ -1,6 +1,10 @@
 .venv/
+.pixi/
 __pycache__/
 *.py[cod]
+**/__pycache__/
+**/*.pyc
+**/*.pyo
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
@@ -15,6 +19,10 @@ cache/
 workspace/
 envs/
 environments/
+# The generic worker materializes workflow environments from committed locks.
+# Keep root runtime caches excluded while retaining those lock bundles.
+!bionodulo/environments/
+!bionodulo/environments/**
 SPEC.md
 examples/
 *.fq

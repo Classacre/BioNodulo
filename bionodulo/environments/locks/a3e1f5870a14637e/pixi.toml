@@ -1,0 +1,17 @@
+[workspace]
+name = "bionodulo-workflow"
+version = "0.1.0"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+fastp = "0.24.0"
+fastqc = "0.12.1"
+hisat2 = "2.2.2"
+multiqc = "1.33"
+openjdk = ">=17"
+qualimap = "2.3"
+r-base = "4.5.3"
+r-pheatmap = "1.0.13"
+samtools = "==1.23.1"
+subread = "2.1.1"

@@ -22,15 +22,10 @@ def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
-
 def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
     node = _node_by_id(workflow, node_id)
-    return (
-        node.get("ui", {})
-        .get("validation", {})
-        .get("outputs", {})
-        .get(output, {})
-    )
+    return node.get("ui", {}).get("validation", {}).get("outputs", {}).get(output, {})
+
 
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
@@ -41,10 +36,7 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
 
 
 def _target_input_count(workflow: dict[str, Any], target: str, target_input: str) -> int:
-    return sum(
-        edge.get("to") == {"node": target, "input": target_input}
-        for edge in workflow["edges"]
-    )
+    return sum(edge.get("to") == {"node": target, "input": target_input} for edge in workflow["edges"])
 
 
 def test_protein_structure_template_covers_uniprot_alphafold_and_rcsb_workflow() -> None:
@@ -68,6 +60,8 @@ def test_protein_structure_template_covers_uniprot_alphafold_and_rcsb_workflow()
         "uniprot_retrieve",
         "alphafold_db",
         "pdb_download",
+        "table_preview",
+        "text_preview",
     }.issubset(set(workflow["tools"]))
 
     assert node_types["uniprot_search_001"] == "uniprot_search"
@@ -79,9 +73,9 @@ def test_protein_structure_template_covers_uniprot_alphafold_and_rcsb_workflow()
     assert node_types["pdb_download_001"] == "pdb_download"
     assert "validate_pdb_structure_001" not in node_types
     assert node_types["render_uniprot_search_tab_0"] == "table_preview"
-    assert node_types["render_uniprot_seq_0"] == "table_preview"
-    assert node_types["render_alphafold_meta_0"] == "table_preview"
-    assert node_types["render_pdb_meta_0"] == "table_preview"
+    assert node_types["render_uniprot_seq_0"] == "text_preview"
+    assert node_types["render_alphafold_meta_0"] == "text_preview"
+    assert node_types["render_pdb_meta_0"] == "text_preview"
 
     assert not _has_edge(workflow, "uniprot_search_001", "results_table", "validate_uniprot_table_001", "input")
     assert not _has_edge(workflow, "uniprot_retrieve_001", "sequence", "validate_uniprot_fasta_001", "input")
@@ -107,8 +101,12 @@ def test_protein_structure_template_validates_outputs_and_database_parameters() 
     uniprot_fasta_validator = _output_validation(workflow, "uniprot_retrieve_001", "sequence")
     alphafold = _node_by_id(workflow, "alphafold_db_001")
     alphafold_validator = _output_validation(workflow, "alphafold_db_001", "structure_mmcif")
+    alphafold_metadata_validator = _output_validation(workflow, "alphafold_db_001", "structure_metadata")
+    alphafold_pae_validator = _output_validation(workflow, "alphafold_db_001", "pae_json")
+    alphafold_directory_validator = _output_validation(workflow, "alphafold_db_001", "artifacts_directory")
     pdb = _node_by_id(workflow, "pdb_download_001")
     pdb_validator = _output_validation(workflow, "pdb_download_001", "structure_file")
+    pdb_metadata_validator = _output_validation(workflow, "pdb_download_001", "pdb_metadata")
 
     assert uniprot_search["params"]["query"] == "gene:TP53 AND organism_id:9606"
     assert uniprot_search["params"]["max_results"] == 10
@@ -118,7 +116,8 @@ def test_protein_structure_template_validates_outputs_and_database_parameters() 
     assert uniprot_table_validator["min_size_bytes"] > 0
     assert uniprot_table_validator["fail_on_error"] is True
 
-    assert uniprot_retrieve["params"]["accession"] == "P04637"
+    assert uniprot_retrieve["params"]["uniprot_ids"] == "P04637"
+    assert "accession" not in uniprot_retrieve["params"]
     assert uniprot_retrieve["params"]["include_fasta"] is True
     assert uniprot_retrieve["params"]["output_name"] == "tp53"
     assert uniprot_fasta_validator["expected_format"] == "fasta"
@@ -126,10 +125,17 @@ def test_protein_structure_template_validates_outputs_and_database_parameters() 
 
     assert alphafold["params"]["uniprot_ids"] == "P04637"
     assert alphafold["params"]["structure_format"] == "mmcif"
-    assert alphafold["params"]["model_version"] == ""
+    assert "model_version" not in alphafold["params"]
+    assert alphafold["params"]["include_complexes"] is False
     assert alphafold["params"]["download_pae"] is True
     assert alphafold_validator["expected_format"] == "auto"
     assert alphafold_validator["fail_on_error"] is True
+    assert alphafold_metadata_validator["expected_format"] == "json"
+    assert alphafold_metadata_validator["fail_on_error"] is True
+    assert alphafold_pae_validator["expected_format"] == "json"
+    assert alphafold_pae_validator["fail_on_error"] is True
+    assert alphafold_directory_validator["expected_format"] == "directory"
+    assert alphafold_directory_validator["fail_on_error"] is True
 
     assert pdb["params"]["pdb_ids"] == "4HHB"
     assert pdb["params"]["format"] == "cif"
@@ -137,10 +143,13 @@ def test_protein_structure_template_validates_outputs_and_database_parameters() 
     assert pdb["params"]["download_density"] is False
     assert pdb_validator["expected_format"] == "auto"
     assert pdb_validator["fail_on_error"] is True
+    assert pdb_metadata_validator["expected_format"] == "json"
+    assert pdb_metadata_validator["fail_on_error"] is True
 
     assert workflow["outputs"]["uniprot_search_results"] == "uniprot_search_001"
     assert workflow["outputs"]["uniprot_sequence"] == "uniprot_retrieve_001"
     assert workflow["outputs"]["alphafold_structure"] == "alphafold_db_001"
+    assert workflow["outputs"]["alphafold_pae"] == "alphafold_db_001"
     assert workflow["outputs"]["pdb_structure"] == "pdb_download_001"
 
 

@@ -75,8 +75,23 @@ describe('workflow parameter run prompts', () => {
 
   it('serializes initial values for prompt defaults', () => {
     expect(workflowParameterInitialValue({ name: 'payload', type: 'JSON', value: { a: 1 } })).toBe('{"a":1}');
+    expect(workflowParameterInitialValue({ name: 'reads', type: 'FASTQ_LIST', value: ['R1.fq', 'R2.fq'] }))
+      .toBe('["R1.fq","R2.fq"]');
     expect(workflowParameterInitialValue({ name: 'enabled', type: 'BOOLEAN', default: true })).toBe('true');
     expect(workflowParameterInitialValue({ name: 'missing', type: 'STRING' })).toBe('');
+  });
+
+  it('coerces list parameters from JSON, comma-separated, or newline-separated input', () => {
+    const parameter = { name: 'reads', type: 'FASTQ_LIST', required: true } as const;
+
+    expect(coerceWorkflowParameterInput(parameter, '["R1.fq","R2.fq"]'))
+      .toEqual(['R1.fq', 'R2.fq']);
+    expect(coerceWorkflowParameterInput(parameter, 'R1.fq, R2.fq'))
+      .toEqual(['R1.fq', 'R2.fq']);
+    expect(coerceWorkflowParameterInput(parameter, 'R1.fq\nR2.fq'))
+      .toEqual(['R1.fq', 'R2.fq']);
+    expect(() => coerceWorkflowParameterInput(parameter, '["R1.fq"'))
+      .toThrow("Parameter 'reads' requires valid JSON");
   });
 
   it('uses locale copy for default prompts and validation errors', async () => {

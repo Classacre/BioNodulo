@@ -12,7 +12,9 @@ import logging
 import os
 import re
 import shutil
+import stat as stat_module
 import subprocess
+import tarfile
 import tempfile
 import uuid
 import time
@@ -274,6 +276,30 @@ def _require_execute_permission(request: Request, workflow_id: str | None) -> di
 
 def _safe_path(path_str: str, root: Path) -> Path:
     return ensure_within(Path(path_str), root)
+
+
+_BUNDLED_TEMPLATE_DATA_ROOT = (REPO_ROOT / "templates" / "data").resolve()
+
+
+def _safe_cloud_input_source(path_str: str, workspace_root: Path) -> Path:
+    """Resolve a workspace input or a read-only bundled template fixture.
+
+    Shared-editor Lambdas keep their writable workspace under ``/tmp`` while
+    official template fixtures are packaged under ``REPO_ROOT/templates/data``.
+    Only that public fixture subtree may fall back outside the workspace; all
+    other paths retain the normal workspace-containment contract.
+    """
+    workspace_target = _safe_path(path_str, workspace_root)
+    if workspace_target.exists():
+        return workspace_target
+
+    prefix = "templates/data/"
+    if "\\" in path_str or not path_str.startswith(prefix):
+        return workspace_target
+    relative = path_str[len(prefix):]
+    if not relative:
+        return workspace_target
+    return ensure_within(Path(relative), _BUNDLED_TEMPLATE_DATA_ROOT)
 
 
 # Run identifiers are server- or client-supplied but must always be a single
@@ -1347,6 +1373,7 @@ async def read_file(request: Request, path: str) -> Any:
     return PlainTextResponse(content)
 
 
+@router.head("/workspace/download", include_in_schema=False)
 @router.get("/workspace/download")
 async def download_file(request: Request, path: str) -> FileResponse:
     """Stream a workspace file's raw bytes (any size), path-validated.
@@ -1356,12 +1383,19 @@ async def download_file(request: Request, path: str) -> FileResponse:
     """
     settings = _get_settings(request)
     try:
-        target = _safe_path(path, settings.project_root)
+        target = _safe_cloud_input_source(path, settings.project_root)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail=f"File not found: '{path}'")
-    return FileResponse(target, filename=target.name)
+    return FileResponse(
+        target,
+        filename=target.name,
+        # Mangum/Lambda correctly emits a zero Content-Length for the empty HEAD
+        # body. Preserve the selected file representation's actual size in
+        # explicit metadata so the website proxy can forward it unchanged.
+        headers={"X-Bionodulo-File-Size": str(target.stat().st_size)},
+    )
 
 
 # --- Cloud transfer relay -----------------------------------------------------
@@ -1373,6 +1407,176 @@ async def download_file(request: Request, path: str) -> FileResponse:
 # turning this into an SSRF primitive.
 _CLOUD_TRANSFERS: dict[str, dict[str, Any]] = {}
 _CLOUD_TRANSFER_CHUNK = 1024 * 1024
+_CLOUD_MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024
+_CLOUD_DIRECTORY_MAX_ENTRIES = 10_000
+_CLOUD_DIRECTORY_MAX_DEPTH = 64
+_CLOUD_DIRECTORY_MAX_PATH_BYTES = 1024
+_CLOUD_DIRECTORY_ARCHIVE_TTL = 15 * 60
+_CLOUD_DIRECTORY_ARCHIVES: dict[str, dict[str, Any]] = {}
+
+
+def _safe_archive_relative_path(path: Path) -> str:
+    """Return one worker-safe POSIX archive member path."""
+    parts = path.parts
+    if (
+        not parts
+        or len(parts) > _CLOUD_DIRECTORY_MAX_DEPTH
+        or any(
+            part in {"", ".", ".."}
+            or "\\" in part
+            or "\x00" in part
+            or len(part.encode("utf-8")) > 255
+            for part in parts
+        )
+    ):
+        raise HTTPException(status_code=400, detail="Directory contains an unsafe path")
+    value = path.as_posix()
+    if len(value.encode("utf-8")) > _CLOUD_DIRECTORY_MAX_PATH_BYTES:
+        raise HTTPException(status_code=400, detail="Directory contains an overlong path")
+    return value
+
+
+def _scan_cloud_directory(target: Path) -> dict[str, Any]:
+    """Snapshot regular files/directories without following symbolic links."""
+    directories: list[tuple[str, Path, os.stat_result]] = []
+    files: list[tuple[str, Path, os.stat_result]] = []
+    total_bytes = 0
+    pending: list[tuple[Path, Path]] = [(target, Path())]
+
+    while pending:
+        current, relative_root = pending.pop()
+        try:
+            with os.scandir(current) as iterator:
+                entries = sorted(iterator, key=lambda entry: entry.name)
+        except OSError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not inspect directory input: {exc}",
+            ) from exc
+        for entry in entries:
+            relative = relative_root / entry.name
+            relative_name = _safe_archive_relative_path(relative)
+            try:
+                info = entry.stat(follow_symlinks=False)
+            except OSError as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not inspect directory entry: {relative_name}",
+                ) from exc
+            if stat_module.S_ISLNK(info.st_mode):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Directory inputs cannot contain symbolic links: {relative_name}",
+                )
+            if stat_module.S_ISDIR(info.st_mode):
+                directories.append((relative_name, Path(entry.path), info))
+                pending.append((Path(entry.path), relative))
+            elif stat_module.S_ISREG(info.st_mode):
+                total_bytes += info.st_size
+                if total_bytes > _CLOUD_MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Directory exceeds the 5 GB cloud upload limit",
+                    )
+                files.append((relative_name, Path(entry.path), info))
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Directory inputs may contain only regular files and directories: {relative_name}",
+                )
+            if len(directories) + len(files) > _CLOUD_DIRECTORY_MAX_ENTRIES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Directory exceeds {_CLOUD_DIRECTORY_MAX_ENTRIES} entries",
+                )
+
+    return {
+        "directories": sorted(directories, key=lambda item: item[0]),
+        "files": sorted(files, key=lambda item: item[0]),
+        "bytes": total_bytes,
+        "entries": len(directories) + len(files),
+    }
+
+
+def _same_file_snapshot(before: os.stat_result, after: os.stat_result) -> bool:
+    return (
+        stat_module.S_ISREG(after.st_mode)
+        and before.st_dev == after.st_dev
+        and before.st_ino == after.st_ino
+        and before.st_size == after.st_size
+        and before.st_mtime_ns == after.st_mtime_ns
+    )
+
+
+def _write_cloud_directory_archive(snapshot: dict[str, Any], destination: Path) -> int:
+    """Write a deterministic, link-free tar from a previously bounded snapshot."""
+    try:
+        with tarfile.open(destination, mode="w", format=tarfile.PAX_FORMAT) as archive:
+            for relative, path, before in snapshot["directories"]:
+                try:
+                    after = path.lstat()
+                except OSError as exc:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Directory changed while it was being staged: {relative}",
+                    ) from exc
+                if (
+                    not stat_module.S_ISDIR(after.st_mode)
+                    or before.st_dev != after.st_dev
+                    or before.st_ino != after.st_ino
+                ):
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Directory changed while it was being staged: {relative}",
+                    )
+                member = tarfile.TarInfo(f"{relative}/")
+                member.type = tarfile.DIRTYPE
+                member.mode = 0o755
+                member.mtime = 0
+                archive.addfile(member)
+
+            for relative, path, before in snapshot["files"]:
+                flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+                try:
+                    descriptor = os.open(path, flags)
+                except OSError as exc:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"File changed while it was being staged: {relative}",
+                    ) from exc
+                with os.fdopen(descriptor, "rb") as source:
+                    after = os.fstat(source.fileno())
+                    if not _same_file_snapshot(before, after):
+                        raise HTTPException(
+                            status_code=409,
+                            detail=f"File changed while it was being staged: {relative}",
+                        )
+                    member = tarfile.TarInfo(relative)
+                    member.size = after.st_size
+                    member.mode = 0o644
+                    member.mtime = 0
+                    archive.addfile(member, source)
+    except HTTPException:
+        destination.unlink(missing_ok=True)
+        raise
+    except (OSError, tarfile.TarError) as exc:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail="Could not prepare directory upload") from exc
+
+    size = destination.stat().st_size
+    if size > _CLOUD_MAX_UPLOAD_BYTES:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=413, detail="Directory archive exceeds the 5 GB upload limit")
+    return size
+
+
+def _prune_cloud_directory_archives() -> None:
+    cutoff = time.time() - _CLOUD_DIRECTORY_ARCHIVE_TTL
+    for archive_id, record in list(_CLOUD_DIRECTORY_ARCHIVES.items()):
+        if float(record.get("created_at", 0)) >= cutoff:
+            continue
+        _CLOUD_DIRECTORY_ARCHIVES.pop(archive_id, None)
+        Path(record["path"]).unlink(missing_ok=True)
 
 
 def _validate_s3_url(url: str) -> None:
@@ -1381,14 +1585,28 @@ def _validate_s3_url(url: str) -> None:
     if p.scheme != "https":
         raise HTTPException(status_code=400, detail="Only https S3 URLs are allowed")
     host = (p.hostname or "").lower()
-    # <bucket>.s3.amazonaws.com, <bucket>.s3.<region>.amazonaws.com, or the
-    # path-style s3.<region>.amazonaws.com host. Reject anything else (SSRF).
-    ok = host.endswith(".amazonaws.com") and (".s3." in host or host.startswith("s3.") or ".s3-" in host)
+    # AWS S3 plus the production Cloudflare R2 S3-compatible endpoint. Keep the
+    # allowlist structural and suffix-anchored so a caller cannot turn this
+    # relay into a generic SSRF primitive.
+    aws_s3 = host.endswith(".amazonaws.com") and (
+        ".s3." in host or host.startswith("s3.") or ".s3-" in host
+    )
+    cloudflare_r2 = re.fullmatch(
+        r"[0-9a-f]{32}\.r2\.cloudflarestorage\.com", host
+    ) is not None
+    ok = aws_s3 or cloudflare_r2
     if not ok:
         raise HTTPException(status_code=400, detail="URL is not an S3 endpoint")
 
 
-def _sync_s3_put(tid: str, local_path: Path, url: str, content_type: str) -> None:
+def _sync_s3_put(
+    tid: str,
+    local_path: Path,
+    url: str,
+    content_type: str,
+    *,
+    remove_after: bool = False,
+) -> None:
     import httpx
     info = _CLOUD_TRANSFERS[tid]
     try:
@@ -1419,6 +1637,9 @@ def _sync_s3_put(tid: str, local_path: Path, url: str, content_type: str) -> Non
     except Exception as exc:  # noqa: BLE001 - surfaced to the client via the registry
         info["status"] = "error"
         info["error"] = str(exc)
+    finally:
+        if remove_after:
+            local_path.unlink(missing_ok=True)
 
 
 def _sync_s3_get(tid: str, url: str, save_path: Path) -> None:
@@ -1456,23 +1677,174 @@ async def cloud_upload(request: Request) -> dict[str, Any]:
     path = str(body.get("path", ""))
     url = str(body.get("url", ""))
     content_type = str(body.get("content_type") or "application/octet-stream")
+    expected_size = body.get("expected_size")
     if not path or not url:
         raise HTTPException(status_code=400, detail="path and url are required")
+    if (
+        isinstance(expected_size, bool)
+        or not isinstance(expected_size, int)
+        or expected_size < 0
+        or expected_size > _CLOUD_MAX_UPLOAD_BYTES
+    ):
+        raise HTTPException(status_code=400, detail="expected_size is required and must be within the upload limit")
     _validate_s3_url(url)
     try:
-        target = _safe_path(path, settings.project_root)
+        target = _safe_cloud_input_source(path, settings.project_root)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail=f"File not found: '{path}'")
+    actual_size = target.stat().st_size
+    if actual_size != expected_size:
+        raise HTTPException(status_code=409, detail="File size changed after the upload was authorized")
 
     tid = uuid.uuid4().hex
     _CLOUD_TRANSFERS[tid] = {
         "direction": "upload", "name": target.name, "loaded": 0,
-        "total": target.stat().st_size, "status": "active", "error": None,
+        "total": actual_size, "status": "active", "error": None,
     }
-    asyncio.create_task(asyncio.to_thread(_sync_s3_put, tid, target, url, content_type))
-    return {"transfer_id": tid, "total": _CLOUD_TRANSFERS[tid]["total"]}
+    if request.app.state.cloud_settings.editor_mode:
+        # Lambda may freeze immediately after returning a response, so a shared
+        # editor must finish its tiny bundled-fixture upload in this invocation.
+        await asyncio.to_thread(_sync_s3_put, tid, target, url, content_type)
+    else:
+        task = asyncio.create_task(
+            asyncio.to_thread(_sync_s3_put, tid, target, url, content_type)
+        )
+        _track_background_task(task, f"cloud upload {tid}")
+    transfer = _CLOUD_TRANSFERS[tid]
+    return {
+        "transfer_id": tid,
+        "total": transfer["total"],
+        "status": transfer["status"],
+        "error": transfer["error"],
+    }
+
+
+@router.post("/workspace/cloud-directory-info")
+async def cloud_directory_info(request: Request) -> dict[str, Any]:
+    """Return bounded recursive size/count metadata for a local directory."""
+    settings = _get_settings(request)
+    body = await request.json()
+    path = str(body.get("path", ""))
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    try:
+        target = _safe_cloud_input_source(path, settings.project_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail=f"Directory not found: '{path}'")
+    snapshot = _scan_cloud_directory(target)
+    return {"bytes": snapshot["bytes"], "entries": snapshot["entries"]}
+
+
+@router.post("/workspace/cloud-directory-archive")
+async def cloud_directory_archive(request: Request) -> dict[str, Any]:
+    """Prepare one deterministic tar for a subsequent presigned directory upload."""
+    _prune_cloud_directory_archives()
+    settings = _get_settings(request)
+    body = await request.json()
+    path = str(body.get("path", ""))
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    try:
+        target = _safe_cloud_input_source(path, settings.project_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not target.exists() or not target.is_dir():
+        raise HTTPException(status_code=404, detail=f"Directory not found: '{path}'")
+
+    snapshot = _scan_cloud_directory(target)
+    descriptor, temporary_name = tempfile.mkstemp(prefix="bionodulo-cloud-input-", suffix=".tar")
+    os.close(descriptor)
+    temporary_path = Path(temporary_name)
+    size = _write_cloud_directory_archive(snapshot, temporary_path)
+    archive_id = uuid.uuid4().hex
+    _CLOUD_DIRECTORY_ARCHIVES[archive_id] = {
+        "path": str(temporary_path),
+        "size": size,
+        "entries": snapshot["entries"],
+        "created_at": time.time(),
+        "name": f"{target.name or 'directory'}.tar",
+    }
+    return {
+        "archive_id": archive_id,
+        "size": size,
+        "entries": snapshot["entries"],
+        "name": _CLOUD_DIRECTORY_ARCHIVES[archive_id]["name"],
+    }
+
+
+@router.post("/workspace/cloud-directory-archive/discard")
+async def discard_cloud_directory_archive(request: Request) -> dict[str, str]:
+    """Discard a prepared archive when presigning or user confirmation fails."""
+    _prune_cloud_directory_archives()
+    body = await request.json()
+    archive_id = str(body.get("archive_id", ""))
+    record = _CLOUD_DIRECTORY_ARCHIVES.pop(archive_id, None)
+    if record:
+        Path(record["path"]).unlink(missing_ok=True)
+    return {"status": "discarded"}
+
+
+@router.post("/workspace/cloud-upload-directory")
+async def cloud_upload_directory(request: Request) -> dict[str, Any]:
+    """Upload one prepared directory tar and remove the temporary archive."""
+    _prune_cloud_directory_archives()
+    body = await request.json()
+    archive_id = str(body.get("archive_id", ""))
+    url = str(body.get("url", ""))
+    expected_size = body.get("expected_size")
+    content_type = str(body.get("content_type") or "application/x-tar")
+    if not archive_id or not url:
+        raise HTTPException(status_code=400, detail="archive_id and url are required")
+    _validate_s3_url(url)
+    record = _CLOUD_DIRECTORY_ARCHIVES.get(archive_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Prepared directory archive was not found or expired")
+    if (
+        isinstance(expected_size, bool)
+        or not isinstance(expected_size, int)
+        or expected_size != record["size"]
+    ):
+        raise HTTPException(status_code=409, detail="Directory archive size does not match its authorization")
+    archive_path = Path(record["path"])
+    if not archive_path.is_file() or archive_path.stat().st_size != expected_size:
+        _CLOUD_DIRECTORY_ARCHIVES.pop(archive_id, None)
+        archive_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=409, detail="Prepared directory archive changed before upload")
+
+    _CLOUD_DIRECTORY_ARCHIVES.pop(archive_id, None)
+    tid = uuid.uuid4().hex
+    _CLOUD_TRANSFERS[tid] = {
+        "direction": "upload",
+        "name": record["name"],
+        "loaded": 0,
+        "total": expected_size,
+        "status": "active",
+        "error": None,
+    }
+    upload = asyncio.to_thread(
+        _sync_s3_put,
+        tid,
+        archive_path,
+        url,
+        content_type,
+        remove_after=True,
+    )
+    if request.app.state.cloud_settings.editor_mode:
+        await upload
+    else:
+        task = asyncio.create_task(upload)
+        _track_background_task(task, f"cloud directory upload {tid}")
+    transfer = _CLOUD_TRANSFERS[tid]
+    return {
+        "transfer_id": tid,
+        "total": transfer["total"],
+        "status": transfer["status"],
+        "error": transfer["error"],
+    }
 
 
 @router.post("/workspace/cloud-download")
@@ -2411,6 +2783,18 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
 # HPC
 # ---------------------------------------------------------------------------
 
+_HPC_MEMORY_SIZE = re.compile(r"([1-9]\d*(?:\.\d+)?)([KMGT])(?:i?B)?", re.IGNORECASE)
+
+
+def _hpc_memory_mb(value: str) -> int:
+    match = _HPC_MEMORY_SIZE.fullmatch(str(value or "").strip())
+    if match is None:
+        raise ValueError("HPC default_memory must be a positive size such as 4096M or 32G")
+    factor = {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1024 * 1024}[
+        match.group(2).upper()
+    ]
+    return max(1, int(float(match.group(1)) * factor))
+
 @router.get("/hpc/status")
 async def hpc_status(request: Request) -> dict[str, Any]:
     """Get HPC connection and job status.
@@ -2486,10 +2870,24 @@ async def hpc_configure(
             backend_class = LocalBackend
 
         if backend_class:
-            backend = backend_class(**{k: v for k, v in config_data.items() if v is not None})
+            backend_config = {k: v for k, v in config_data.items() if v is not None}
+            backend_config["default_memory_mb"] = _hpc_memory_mb(body.default_memory)
+            backend_config.pop("default_memory", None)
+            if body.backend in {"pbs", "sge"} and body.partition:
+                backend_config["queue"] = body.partition
+            backend = backend_class(backend_config)
             if hasattr(backend, "connect"):
                 await backend.connect()
             request.app.state.hpc_backend = backend
+            queue = getattr(request.app.state, "run_queue", None)
+            executor = getattr(queue, "executor", None)
+            if executor is not None and hasattr(executor, "hpc_backend"):
+                executor.hpc_backend = backend
+            elif executor is not None:
+                logger.warning(
+                    "Configured HPC backend is unavailable to run-queue executor %s",
+                    type(executor).__name__,
+                )
             return {"configured": True, "backend": body.backend, "connected": True}
 
     except ImportError as exc:

@@ -1,153 +1,203 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from bionodulo.nodes.registry import NodeRegistry
+import pytest
 
-
-def _node_class(node_id: str) -> type:
-    registry = NodeRegistry.create_isolated()
-    registry.load_builtin_nodes()
-    node_class = registry.get(node_id)
-    assert node_class is not None, f"{node_id} is not registered"
-    return node_class
+from bionodulo.nodes.builtin.mosdepth import MosdepthNode
 
 
-def test_mosdepth_exposes_bionodulo_builtin_metadata() -> None:
-    registry = NodeRegistry.create_isolated()
-    registry.load_builtin_nodes()
-    info = registry.object_info()
-
-    node_info = info["mosdepth"]
-    assert node_info["display_name"] == "mosdepth"
-    assert node_info["category"] == "qc"
-    assert node_info["output"] == ["TSV", "TSV", "TSV", "BEDGRAPH", "BED", "BED", "BED"]
-    assert node_info["output_name"] == [
-        "global_distribution",
-        "summary",
-        "region_distribution",
-        "per_base_depth",
-        "regions_bed",
-        "quantized_bed",
-        "thresholds_bed",
-    ]
-    assert node_info["required_executables"] == ["mosdepth", "gunzip"]
-    assert node_info["required_conda_packages"] == ["mosdepth", "gzip"]
-    assert node_info["documentation_url"] == "https://github.com/brentp/mosdepth"
-    assert "10.1093/bioinformatics/btx699" in node_info["citation_dois"]
-    assert "https://doi.org/10.1093/bioinformatics/btx699" in node_info["citation_urls"]
-    assert "quick coverage calculation" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "BAM CRAM depth" in node_info["search_aliases"]
+def test_mosdepth_is_source_pinned_and_requires_an_alignment_index() -> None:
+    assert MosdepthNode.VERSION == "0.3.14"
+    assert MosdepthNode.GIT_COMMIT == "821fddb12860d024fef4cf0bfe86918f2413d4e4"
+    assert MosdepthNode.REQUIRED_EXECUTABLES == ["mosdepth"]
+    assert MosdepthNode.REQUIRED_CONDA_PACKAGES == ["mosdepth"]
+    assert MosdepthNode.PACKAGE_CONSTRAINTS == ("mosdepth==0.3.14",)
+    assert MosdepthNode.UPSTREAM_SOURCE_SHA256 == (
+        "48ff35449367c03b9abbaf20ae4d01ba891c449d29516d0bca27182dfa1e0899"
+    )
+    assert MosdepthNode.DEFAULT_EXCLUDE_FLAG == 1796
+    required = MosdepthNode.INPUT_TYPES()["required"]
+    assert set(required) == {"input_alignment", "alignment_index"}
+    validation = str(MosdepthNode.VALIDATE_INPUTS({"input_alignment": "/data/a.bam"}))
+    assert "alignment_index" in validation
+    assert "missing" in validation
+    assert MosdepthNode.VALIDATE_INPUTS(
+        {"input_alignment": "/data/a.bam", "alignment_index": "/data/a.bam.bai"}
+    ) is True
 
 
-def test_mosdepth_renders_default_summary_only_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("mosdepth")
-
-    assert node_class.render_command(
-        {
-            "input_alignment": "sample.bam",
-            "threads": 4,
-            "per_base_coverage": False,
-            "window_mode": "no",
-            "output": "/work/mosdepth",
-        }
-    ) == [
+def test_mosdepth_default_command_preserves_native_summary_outputs(tmp_path: Path) -> None:
+    inputs = {
+        "input_alignment": "sample.bam",
+        "alignment_index": "sample.bam.bai",
+        "threads": 4,
+        "per_base_coverage": False,
+        "window_mode": "no",
+        "output": tmp_path / "mosdepth",
+    }
+    assert MosdepthNode.render_command(inputs) == [
         "mosdepth",
-        "-t",
+        "--threads",
         "4",
         "--no-per-base",
-        "/work/mosdepth/output",
+        "--flag",
+        "1796",
+        str(tmp_path / "mosdepth" / "output"),
         "sample.bam",
     ]
-
-    assert node_class.PLAN_OUTPUTS({"per_base_coverage": False, "window_mode": "no"}, tmp_path) == [
+    assert MosdepthNode.PLAN_OUTPUTS(inputs, tmp_path) == [
         tmp_path / "mosdepth" / "output.mosdepth.global.dist.txt",
         tmp_path / "mosdepth" / "output.mosdepth.summary.txt",
     ]
 
 
-def test_mosdepth_renders_regions_thresholds_quantize_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("mosdepth")
+def test_mosdepth_conditional_tracks_keep_bgzf_and_csi_pairs(tmp_path: Path) -> None:
     inputs = {
-        "input_alignment": "sample.cram",
-        "threads": 8,
+        "input_alignment": "sample.bam",
+        "alignment_index": "sample.bam.bai",
         "per_base_coverage": True,
         "window_mode": "bed",
         "region_file": "targets.bed",
-        "chrom": "chr1",
-        "exclude_flag": 1796,
-        "include_flag": 2,
-        "mapq": 20,
-        "fast_mode": True,
-        "fragment_mode": False,
         "thresholds": "10,20",
-        "use_median": True,
-        "read_groups": "tumor,normal",
         "quantize_depths": "0:1:20:",
-        "quantize_labels": "NO_COVERAGE,LOW_COVERAGE,CALLABLE",
-        "min_frag_len": 100,
-        "max_frag_len": 500,
-        "output": "/work/mosdepth",
+    }
+    planned = MosdepthNode.PLAN_OUTPUTS(inputs, tmp_path)
+    assert [path.name for path in planned] == [
+        "output.mosdepth.global.dist.txt",
+        "output.mosdepth.summary.txt",
+        "output.mosdepth.region.dist.txt",
+        "output.per-base.bed.gz",
+        "output.per-base.bed.gz.csi",
+        "output.regions.bed.gz",
+        "output.regions.bed.gz.csi",
+        "output.quantized.bed.gz",
+        "output.quantized.bed.gz.csi",
+        "output.thresholds.bed.gz",
+        "output.thresholds.bed.gz.csi",
+    ]
+    assert MosdepthNode.MAP_PLANNED_OUTPUTS(planned) == {
+        "global_distribution": planned[0],
+        "summary": planned[1],
+        "region_distribution": planned[2],
+        "per_base_depth": planned[3],
+        "per_base_depth_index": planned[4],
+        "regions_bed": planned[5],
+        "regions_bed_index": planned[6],
+        "quantized_bed": planned[7],
+        "quantized_bed_index": planned[8],
+        "thresholds_bed": planned[9],
+        "thresholds_bed_index": planned[10],
     }
 
-    assert node_class.render_command(inputs) == [
-        "export",
-        "MOSDEPTH_Q0=NO_COVERAGE",
-        "&&",
-        "export",
-        "MOSDEPTH_Q1=LOW_COVERAGE",
-        "&&",
-        "export",
-        "MOSDEPTH_Q2=CALLABLE",
-        "&&",
-        "mosdepth",
-        "-t",
-        "8",
-        "--by",
-        "targets.bed",
-        "--chrom",
-        "chr1",
-        "--flag",
-        "1796",
-        "--include-flag",
-        "2",
-        "--mapq",
-        "20",
-        "--fast-mode",
-        "--thresholds",
-        "10,20",
-        "--use-median",
-        "--read-groups",
-        "tumor,normal",
-        "--quantize",
-        "0:1:20:",
-        "--min-frag-len",
-        "100",
-        "--max-frag-len",
-        "500",
-        "/work/mosdepth/output",
-        "sample.cram",
-        "&&",
-        "gunzip",
-        "/work/mosdepth/output.per-base.bed.gz",
-        "&&",
-        "gunzip",
-        "/work/mosdepth/output.regions.bed.gz",
-        "&&",
-        "gunzip",
-        "/work/mosdepth/output.thresholds.bed.gz",
-        "&&",
-        "gunzip",
-        "/work/mosdepth/output.quantized.bed.gz",
-    ]
 
-    assert node_class.PLAN_OUTPUTS(inputs, tmp_path) == [
-        tmp_path / "mosdepth" / "output.mosdepth.global.dist.txt",
-        tmp_path / "mosdepth" / "output.mosdepth.summary.txt",
-        tmp_path / "mosdepth" / "output.mosdepth.region.dist.txt",
-        tmp_path / "mosdepth" / "output.per-base.bed",
-        tmp_path / "mosdepth" / "output.regions.bed",
-        tmp_path / "mosdepth" / "output.quantized.bed",
-        tmp_path / "mosdepth" / "output.thresholds.bed",
-    ]
+def test_mosdepth_can_explicitly_disable_default_exclude_mask() -> None:
+    command = MosdepthNode.render_command(
+        {
+            "input_alignment": "sample.bam",
+            "alignment_index": "sample.bam.bai",
+            "exclude_flag": 0,
+        }
+    )
+    assert ["--flag", "0"] == command[command.index("--flag") : command.index("--flag") + 2]
+
+
+def test_cram_requires_and_stages_reference_fai_and_crai(tmp_path: Path) -> None:
+    cram = tmp_path / "source" / "sample.cram"
+    cram.parent.mkdir()
+    cram.write_bytes(b"cram")
+    crai = Path(f"{cram}.crai")
+    crai.write_bytes(b"crai")
+    reference = tmp_path / "source" / "reference.fa"
+    reference.write_text(">chr1\nACGT\n", encoding="ascii")
+    fai = Path(f"{reference}.fai")
+    fai.write_text("chr1\t4\t6\t4\t5\n", encoding="ascii")
+    inputs: dict[str, Any] = {
+        "input_alignment": cram,
+        "alignment_index": crai,
+        "reference": reference,
+        "reference_index": fai,
+    }
+    assert MosdepthNode.VALIDATE_INPUTS(inputs) is True
+    outputs = MosdepthNode.PLAN_OUTPUTS(inputs, tmp_path / "run")
+    MosdepthNode.PREPARE_EXECUTION(inputs, outputs)
+
+    staged_cram = tmp_path / "run" / "mosdepth" / "input" / "alignment.cram"
+    staged_reference = tmp_path / "run" / "mosdepth" / "reference" / "reference.fa"
+    assert inputs["input_alignment"] == str(staged_cram)
+    assert inputs["alignment_index"] == f"{staged_cram}.crai"
+    assert inputs["reference"] == str(staged_reference)
+    assert inputs["reference_index"] == f"{staged_reference}.fai"
+    command = MosdepthNode.render_command({**inputs, "output": outputs[0].parent})
+    assert ["--fasta", str(staged_reference)] == command[command.index("--fasta") : command.index("--fasta") + 2]
+
+
+@pytest.mark.parametrize(
+    ("inputs", "message"),
+    [
+        ({"input_alignment": "/data/a.bam", "alignment_index": "/other/a.bam.bai"}, "colocated"),
+        ({"input_alignment": "/data/a.cram", "alignment_index": "/data/a.cram.crai"}, "reference"),
+        (
+            {"input_alignment": "/data/a.bam", "alignment_index": "/data/a.bam.bai", "thresholds": "10"},
+            "thresholds require",
+        ),
+        (
+            {"input_alignment": "/data/a.bam", "alignment_index": "/data/a.bam.bai", "window_mode": "bed"},
+            "region_file",
+        ),
+        (
+            {
+                "input_alignment": "/data/a.bam",
+                "alignment_index": "/data/a.bam.bai",
+                "fast_mode": True,
+                "fragment_mode": True,
+            },
+            "cannot both",
+        ),
+        (
+            {
+                "input_alignment": "/data/a.bam",
+                "alignment_index": "/data/a.bam.bai",
+                "min_frag_len": 500,
+                "max_frag_len": 100,
+            },
+            "max_frag_len",
+        ),
+    ],
+)
+def test_mosdepth_invalid_contracts_fail_closed(inputs: dict[str, Any], message: str) -> None:
+    validation = MosdepthNode.VALIDATE_INPUTS(inputs)
+    assert validation is not True
+    assert message in str(validation)
+
+
+@pytest.mark.asyncio
+async def test_mosdepth_fake_execution_returns_explicit_output_mapping(tmp_path: Path) -> None:
+    alignment = tmp_path / "source" / "a.bam"
+    alignment.parent.mkdir()
+    alignment.write_bytes(b"bam")
+    alignment_index = Path(f"{alignment}.bai")
+    alignment_index.write_bytes(b"bai")
+    inputs = {
+        "input_alignment": alignment,
+        "alignment_index": alignment_index,
+        "per_base_coverage": True,
+        "window_mode": "window",
+        "window_size": 500,
+    }
+
+    class Context:
+        node_dir = tmp_path / "run"
+
+        async def run_command(self, _command: str, **_kwargs: Any) -> dict[str, Any]:
+            for path in MosdepthNode.PLAN_OUTPUTS(inputs, self.node_dir):
+                path.write_bytes(b"synthetic")
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    result = await MosdepthNode().run(context=Context(), **inputs)
+    outputs = result["outputs"]
+    assert outputs["global_distribution"].endswith("output.mosdepth.global.dist.txt")
+    assert outputs["per_base_depth"].endswith("output.per-base.bed.gz")
+    assert outputs["per_base_depth_index"].endswith("output.per-base.bed.gz.csi")
+    assert outputs["regions_bed_index"].endswith("output.regions.bed.gz.csi")

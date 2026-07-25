@@ -43,7 +43,7 @@ def test_ucsc_genome_browser_is_registered_for_frontend_discovery() -> None:
     )
     assert info["ucsc_genome_browser"]["input"]["optional"]["track"] == (
         "STRING",
-        {"default": "", "options": ["", "refGene", "knownGene", "ensGene", "ucscGenes", "snp"]},
+        {"default": "", "options": ["", "refGene", "knownGene", "snp151"]},
     )
 
 
@@ -235,11 +235,11 @@ async def test_ucsc_genes_in_region_query_writes_annotation_json(
         context=SimpleNamespace(node_dir=tmp_path),
     )
 
-    fasta_path = Path(result["outputs"]["sequence_fasta"])
     json_path = Path(result["outputs"]["annotations_json"])
     annotations = json.loads(json_path.read_text(encoding="utf-8"))
 
-    assert fasta_path.read_text(encoding="utf-8") == ">hg38:chr17:43044295-43125364\n\n"
+    assert "sequence_fasta" not in result["outputs"]
+    assert result["inactive_outputs"] == ["sequence_fasta"]
     assert json_path.name == "annotations.json"
     assert annotations["query_type"] == "genes_in_region"
     assert annotations["track"] == "knownGene"
@@ -260,7 +260,7 @@ async def test_ucsc_genes_in_region_query_writes_annotation_json(
 
 
 @pytest.mark.asyncio
-async def test_ucsc_genes_in_region_accepts_ucscgenes_track(
+async def test_ucsc_genes_in_region_accepts_current_snp_track(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -270,7 +270,7 @@ async def test_ucsc_genes_in_region_accepts_ucscgenes_track(
 
     async def fake_json(endpoint: str, params: dict[str, Any], **_: Any) -> dict[str, Any]:
         calls.append({"endpoint": endpoint, "params": dict(params)})
-        return {"ucscGenes": {"chr17": []}, "itemsReturned": 0}
+        return {"snp151": [], "itemsReturned": 0}
 
     monkeypatch.setattr(module, "_request_json", fake_json)
 
@@ -278,19 +278,19 @@ async def test_ucsc_genes_in_region_accepts_ucscgenes_track(
         coordinates="chr17:43044295-43125364",
         genome="hg38",
         query_type="genes_in_region",
-        track="ucscGenes",
+        track="snp151",
         max_items=50,
         context=SimpleNamespace(node_dir=tmp_path),
     )
 
     annotations = json.loads(Path(result["outputs"]["annotations_json"]).read_text(encoding="utf-8"))
-    assert annotations["track"] == "ucscGenes"
+    assert annotations["track"] == "snp151"
     assert calls == [
         {
             "endpoint": "getData/track",
             "params": {
                 "genome": "hg38",
-                "track": "ucscGenes",
+                "track": "snp151",
                 "chrom": "chr17",
                 "start": 43044295,
                 "end": 43125364,
@@ -322,11 +322,11 @@ async def test_ucsc_tracks_query_does_not_require_coordinates(
         context=SimpleNamespace(node_dir=tmp_path),
     )
 
-    fasta_path = Path(result["outputs"]["sequence_fasta"])
     json_path = Path(result["outputs"]["annotations_json"])
     metadata = json.loads(json_path.read_text(encoding="utf-8"))
 
-    assert fasta_path.read_text(encoding="utf-8") == ">hg38:tracks\n\n"
+    assert "sequence_fasta" not in result["outputs"]
+    assert result["inactive_outputs"] == ["sequence_fasta"]
     assert json_path.name == "tracks.json"
     assert metadata["query_type"] == "tracks"
     assert metadata["coordinates"] == ""
@@ -348,3 +348,11 @@ async def test_ucsc_genome_browser_rejects_invalid_inputs() -> None:
 
     with pytest.raises(ValueError, match="coordinates must look like"):
         await node_class().run(coordinates="not coordinates", genome="hg38", query_type="sequence")
+
+    with pytest.raises(ValueError, match="Unsupported UCSC track: ucscGenes"):
+        await node_class().run(
+            coordinates="chr1:1-10",
+            genome="hg38",
+            query_type="genes_in_region",
+            track="ucscGenes",
+        )

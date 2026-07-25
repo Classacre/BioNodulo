@@ -31,4 +31,17 @@ describe('App queue and history API validation', () => {
       expect(appSource).toContain(`logError('${scope}', err);`);
     }
   });
+
+  it('cancels cloud runs through the website while preserving local queue cancellation', () => {
+    const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(appSource).toContain(
+      "import { cancelCloudRun, getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';",
+    );
+    expect(appSource).toContain('if (run.options?.cloud === true)');
+    expect(appSource).toContain('await cancelCloudRun(run.run_id);');
+    expect(appSource).toContain(
+      'await apiPost(`/api/queue/${encodeURIComponent(run.run_id)}/cancel`);',
+    );
+  });
 });

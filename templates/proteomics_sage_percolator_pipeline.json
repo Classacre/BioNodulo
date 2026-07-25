@@ -27,7 +27,7 @@
         80
       ],
       "params": {
-        "text": "Proteomics DDA search workflow: validate spectra and a target-decoy FASTA, run Sage with PIN output enabled, validate the PIN file, then run Percolator for PSM and protein-level FDR estimates.\n\nInputs are placeholders. Provide mzML/mzXML/MGF spectra and a target-decoy protein FASTA before execution."
+        "text": "Proteomics DDA search workflow: validate spectra and a target-decoy FASTA, run Sage with PIN output enabled, then stage Sage 0.14.7's full-digest PIN dialect for Percolator PSM and picked-protein FDR estimates. The staging step adds the flanking syntax required by Percolator protein inference and expands Sage's semicolon-joined protein identifiers.\n\nInputs are placeholders. Provide mzML, gzipped mzML, or MGF spectra and a target-decoy protein FASTA with DECOY_-prefixed decoy accessions before execution."
       },
       "ui": {
         "title": "Notes",
@@ -65,7 +65,7 @@
         231
       ],
       "params": {
-        "reference": "examples/data/proteomics/target_decoy.fasta"
+        "reference": "templates/data/smoke/target_decoy.fasta"
       },
       "ui": {
         "title": "Protein FASTA",
@@ -89,15 +89,14 @@
         80
       ],
       "params": {
-        "threads": 8,
+        "batch_size": 1,
         "precursor_tol_ppm": 20.0,
         "fragment_tol_da": 0.05,
-        "enzyme": "trypsin",
         "missed_cleavages": 2,
         "min_peptide_length": 7,
         "max_peptide_length": 40,
-        "write_pin": true,
-        "parquet": false
+        "decoy_tag": "DECOY_",
+        "generate_decoys": false
       },
       "ui": {
         "title": "Sage Search",
@@ -120,10 +119,12 @@
         80
       ],
       "params": {
+        "pin_dialect": "sage_0_14_7_full_digest",
+        "search_input": "concatenated",
         "decoy_prefix": "DECOY_",
-        "fdr_psm": 0.01,
-        "fdr_protein": 0.01,
-        "enzyme": "trypsin"
+        "test_fdr": 0.01,
+        "train_fdr": 0.01,
+        "protein_enzyme": "trypsin"
       },
       "ui": {
         "title": "Percolator FDR",

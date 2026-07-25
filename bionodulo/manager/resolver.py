@@ -17,9 +17,9 @@ from bionodulo.environments.constants import (
 )
 from bionodulo.environments.manifest import (
     get_env_dir,
-    get_env_id,
+    get_environment_plan_id,
     is_env_ready,
-    workflow_to_packages,
+    workflow_to_environment_plan,
 )
 
 logger = logging.getLogger(__name__)
@@ -399,10 +399,11 @@ async def _resolve_workflow_async(
         report.installable = False
 
     # Build required packages list and env status
-    report.required_packages = workflow_to_packages(workflow, registry)
-    report.env_id = get_env_id(report.required_packages)
+    environment_plan = workflow_to_environment_plan(workflow, registry)
+    report.required_packages = list(environment_plan.all_packages)
+    report.env_id = get_environment_plan_id(environment_plan)
     env_dir = get_env_dir(report.env_id, workspace_dir)
-    report.env_ready = is_env_ready(env_dir)
+    report.env_ready = is_env_ready(env_dir, environment_plan.environment_names)
 
     # Filter executables: available if on PATH or in ready env
     deduped_exes: dict[str, MissingExecutable] = {}
@@ -418,8 +419,11 @@ async def _resolve_workflow_async(
             continue  # Available on system PATH
         if report.env_ready:
             # Env is installed — check if binary exists inside it
-            env_bin = env_dir / ".pixi" / "envs" / "default" / "bin" / exe.name
-            if env_bin.exists():
+            env_bins = (
+                env_dir / ".pixi" / "envs" / env_name / "bin" / exe.name
+                for env_name in environment_plan.environment_names
+            )
+            if any(env_bin.exists() for env_bin in env_bins):
                 continue
         report.missing_executables.append(exe)
 

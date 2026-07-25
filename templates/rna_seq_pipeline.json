@@ -29,8 +29,8 @@
       "params": {
         "sample_name": "sample1",
         "reads": [
-          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/000/SRR6357070/SRR6357070_1.fastq.gz",
-          "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR635/000/SRR6357070/SRR6357070_2.fastq.gz"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ]
       },
       "ui": {
@@ -189,7 +189,8 @@
       ],
       "params": {
         "gff_feature_type": "gene",
-        "gff_feature_attribute": "gene_id"
+        "gff_feature_attribute": "ID",
+        "paired_end_status": "PE_fragments"
       },
       "ui": {
         "title": "featureCounts"
@@ -279,7 +280,21 @@
         "paint_chromosome_limits": true
       },
       "ui": {
-        "title": "QualiMap BAM QC"
+        "title": "QualiMap BAM QC",
+        "validation": {
+          "outputs": {
+            "report": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            },
+            "report_dir": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -344,18 +359,6 @@
       "params": {},
       "ui": {
         "title": "View Table: normalize_counts"
-      }
-    },
-    {
-      "id": "render_qualimap_tab_0",
-      "type": "table_preview",
-      "position": [
-        2960,
-        1292
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Table: qualimap"
       }
     },
     {
@@ -435,7 +438,7 @@
       },
       "to": {
         "node": "view_001",
-        "input": "sam"
+        "input": "alignment"
       }
     },
     {
@@ -512,7 +515,7 @@
       },
       "to": {
         "node": "sort_001",
-        "input": "bam"
+        "input": "alignment"
       }
     },
     {
@@ -609,16 +612,6 @@
       },
       "to": {
         "node": "render_normalize_counts_tab_1",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "qualimap_001",
-        "output": "report"
-      },
-      "to": {
-        "node": "render_qualimap_tab_0",
         "input": "file"
       }
     },

@@ -4,6 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from bionodulo.execution.executor import WorkflowExecutor
+from bionodulo.nodes.registry import NodeRegistry
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,12 +33,52 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
     )
 
 
+@pytest.mark.asyncio
+async def test_variant_template_dry_run_preserves_retry_bam_sidecar_pair(tmp_path: Path) -> None:
+    """The retry policy must not invent a new BAM basename in the plan.
+
+    GATK receives the BAM through ``retry.passthrough`` while its BAI is wired
+    directly from ``samtools_index``.  The retry node returns its input
+    unchanged at runtime, so a dry run must model that same identity or GATK's
+    explicit colocated-index validation rejects an otherwise valid template.
+    """
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    executor = WorkflowExecutor(
+        workspace_dir=tmp_path,
+        cache_dir=tmp_path / "cache",
+        registry=registry,
+    )
+
+    preview = await executor.dry_run(
+        "variant-template",
+        _load_template("variant_calling_pipeline.json"),
+        options={
+            "parameters": {
+                "snpeff_genome": "stub",
+                "snpeff_database": "/inputs/snpEffectPredictor.bin",
+            }
+        },
+    )
+
+    assert preview["status"] == "dry_run"
+    plans = {node["node_id"]: node for node in preview["nodes"]}
+    retry = plans["gatk_retry_001"]
+    gatk = plans["gatk_001"]
+
+    assert retry["planned_outputs"]["passthrough"] == retry["inputs"]["input"]
+    bam = Path(gatk["inputs"]["bam"])
+    bam_index = Path(gatk["inputs"]["bam_index"])
+    assert bam_index == Path(f"{bam}.bai")
+
+
 def test_variant_template_retries_gatk_haplotype_caller() -> None:
     workflow = _load_template("variant_calling_pipeline.json")
     node_types = _node_types(workflow)
 
     assert node_types["gatk_retry_001"] == "retry"
     assert node_types["gatk_001"] == "gatk_haplotype_caller"
+    assert node_types["index_001"] == "samtools_index"
 
     retry = _node_by_id(workflow, "gatk_retry_001")
     assert retry["params"]["max_retries"] == 2
@@ -42,8 +87,19 @@ def test_variant_template_retries_gatk_haplotype_caller() -> None:
     assert retry["params"]["retry_on"] == "all"
     assert retry["params"]["only_retry_specific_nodes"] == "gatk_001"
 
-    assert _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
+    assert _has_edge(workflow, "markdup_001", "marked_bam", "index_001", "bam")
+    assert _has_edge(workflow, "index_001", "indexed_bam", "gatk_retry_001", "input")
     assert _has_edge(workflow, "gatk_retry_001", "passthrough", "gatk_001", "bam")
-    assert _has_edge(workflow, "ref_001", "reference", "gatk_001", "reference")
+    assert _has_edge(workflow, "index_001", "bai", "gatk_001", "bam_index")
+    assert _has_edge(workflow, "ref_sidecars_001", "reference", "gatk_001", "reference")
+    assert _has_edge(workflow, "ref_sidecars_001", "fai_index", "gatk_001", "reference_index")
+    assert _has_edge(
+        workflow,
+        "ref_sidecars_001",
+        "sequence_dictionary",
+        "gatk_001",
+        "sequence_dictionary",
+    )
+    assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_retry_001", "input")
     assert not _has_edge(workflow, "markdup_001", "marked_bam", "gatk_001", "bam")
     assert workflow["outputs"]["gatk_retry_policy"] == "gatk_retry_001"

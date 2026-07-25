@@ -1,0 +1,99 @@
+"""Build a complete HISAT2 index bundle from one FASTA reference."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Optional
+
+from .fm_index_bundle import find_index_bundle, path_value
+from .hisat2_adapter import HISAT2_SUFFIX_FAMILIES, HISAT2CommandNode, hisat2_source_urls
+
+
+class HISAT2BuildNode(HISAT2CommandNode):
+    """Build HISAT2's eight-file small or large index sibling set."""
+
+    NODE_ID = "hisat2_build"
+    DISPLAY_NAME = "HISAT2 Build"
+    DESCRIPTION = "Build a complete HISAT2 spliced-alignment index bundle"
+    SEARCH_ALIASES = ["hisat2", "build", "index", "spliced", "rna"]
+    RETURN_TYPES = ("INDEX_DIR",)
+    RETURN_NAMES = ("index",)
+    REQUIRED_EXECUTABLES = ["hisat2-build"]
+    UPSTREAM_WRAPPER = "hisat2-build"
+    UPSTREAM_SOURCE = "hisat2_build.cpp"
+    SOURCE_PATHS = ("docs/_pages/manual.md", "hisat2-build", "hisat2_build.cpp")
+    SOURCE_URLS = hisat2_source_urls(*SOURCE_PATHS)
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "reference": ("FASTA", {"description": "Reference FASTA to index"}),
+                "threads": ("INT", {"default": 1, "min": 1}),
+            },
+            "optional": {},
+            "hidden": {"output": ("STRING", {})},
+        }
+
+    @classmethod
+    def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        index_dir = Path(output_dir) / cls.NODE_ID / "index"
+        index_dir.mkdir(parents=True, exist_ok=True)
+        return [index_dir]
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+
+        reference = path_value(inputs.get("reference"))
+        if reference is None:
+            return "Input 'reference' must be a non-empty path-like value"
+        if not Path(reference).is_file():
+            return f"Reference FASTA not found: {reference}"
+
+        threads = inputs.get("threads", 1)
+        if isinstance(threads, bool) or not isinstance(threads, int):
+            return "threads must be an integer"
+        if threads < 1:
+            return "threads must be a positive integer"
+        return True
+
+    @classmethod
+    def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        outputs[0].mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def render_command(cls, inputs: dict[str, Any]) -> list[str]:
+        output = Path(str(inputs.get("output", inputs.get("output_dir", "."))))
+        prefix = output / "index" / "index"
+        return [
+            "hisat2-build",
+            "-p",
+            str(inputs.get("threads", 1)),
+            str(inputs.get("reference", "")),
+            str(prefix),
+        ]
+
+    async def run(self, **kwargs: Any) -> Any:
+        result = await super().run(**kwargs)
+        if isinstance(result, tuple) and result:
+            find_index_bundle(
+                result[0],
+                label="HISAT2",
+                suffix_families=HISAT2_SUFFIX_FAMILIES,
+            )
+        return result
+
+    @classmethod
+    def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
+        from bionodulo.execution import reference_cache as _rc
+
+        return _rc.compute_ref_id(
+            "hisat2",
+            [
+                _rc.file_identity(inputs.get("reference", "")),
+                f"hisat2-{cls.VERSION}",
+            ],
+        )

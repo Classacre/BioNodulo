@@ -27,7 +27,7 @@
         80
       ],
       "params": {
-        "file": "examples/data/biopython/deseq2_counts.csv"
+        "file": "templates/data/smoke/counts.csv"
       },
       "ui": {
         "title": "Count Matrix",
@@ -51,7 +51,7 @@
         231
       ],
       "params": {
-        "file": "examples/data/biopython/deseq2_sample_info.csv"
+        "file": "templates/data/smoke/sample_info.csv"
       },
       "ui": {
         "title": "Sample Info",
@@ -62,6 +62,30 @@
               "min_records": 2,
               "min_size_bytes": 1,
               "required_fields": "sample,condition",
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "heatmap_annotation_001",
+      "type": "input_file",
+      "position": [
+        80,
+        533
+      ],
+      "params": {
+        "file": "templates/data/smoke/heatmap_annotation.csv"
+      },
+      "ui": {
+        "title": "Heatmap Annotation",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "csv",
+              "min_records": 1,
+              "min_size_bytes": 1,
               "fail_on_error": true
             }
           }
@@ -95,7 +119,6 @@
       ],
       "params": {
         "scale": "row",
-        "annotation_csv": "examples/data/biopython/heatmap_annotation.csv",
         "cluster_rows": true,
         "cluster_cols": true,
         "show_rownames": true,
@@ -238,7 +261,6 @@
       ],
       "params": {
         "protein_ids": "",
-        "protein_table": "",
         "id_column": "gene",
         "species": 4932,
         "query_type": "enrichment"
@@ -344,6 +366,17 @@
       }
     },
     {
+      "id": "e2c",
+      "from": {
+        "node": "heatmap_annotation_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "heatmap_001",
+        "input": "annotation_csv"
+      }
+    },
+    {
       "id": "e3",
       "from": {
         "node": "deseq2_001",
@@ -434,8 +467,8 @@
     {
       "id": "e7j",
       "from": {
-        "node": "significant_genes_001",
-        "output": "filtered_table"
+        "node": "deseq2_001",
+        "output": "results_csv"
       },
       "to": {
         "node": "string_enrichment_001",

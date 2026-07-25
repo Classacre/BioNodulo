@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "Metabolomics LC-MS Workflow",
-  "description": "LC-MS metabolomics workflow that validates mzML input, detects chromatographic peaks with XCMS, performs retention-time correction, annotates peak groups with CAMERA, validates exported tables, and assembles an HTML report.",
+  "description": "Multi-sample LC-MS metabolomics workflow with explicit raw-file dependencies, XCMS centWave detection and obiwarp alignment, and CAMERA isotope/adduct annotation.",
   "category": "Metabolomics",
   "tags": [
     "metabolomics",
@@ -28,7 +28,7 @@
         80
       ],
       "params": {
-        "text": "Metabolomics LC-MS workflow: validate mzML input, detect chromatographic peaks with XCMS centWave, align features with XCMS retention-time correction, annotate isotope/adduct groups with CAMERA, then collect aligned features and annotations into an HTML report.\n\nInputs are placeholders. Replace the mzML file with local centroided LC-MS data before execution and tune ppm/peak width parameters for the instrument method."
+        "text": "Metabolomics LC-MS workflow: stage two or more ordered centroided raw files, detect chromatographic peaks with XCMS centWave, rebind the same raw files before obiwarp alignment and gap filling, then rebind them again for CAMERA correlation and isotope/adduct annotation.\n\nInputs are placeholders. Replace both mzML paths with samples from the same acquisition and keep their edge order identical at all three analysis nodes. Add further Input File nodes for larger cohorts and provide one sample_groups value per file."
       },
       "ui": {
         "title": "Notes",
@@ -46,7 +46,30 @@
         "file": "examples/data/metabolomics/sample.mzML"
       },
       "ui": {
-        "title": "mzML Input",
+        "title": "LC-MS Sample A",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "mzml_002",
+      "type": "input_file",
+      "position": [
+        80,
+        240
+      ],
+      "params": {
+        "file": "examples/data/metabolomics/sample_2.mzML"
+      },
+      "ui": {
+        "title": "LC-MS Sample B",
         "validation": {
           "outputs": {
             "file": {
@@ -80,9 +103,10 @@
         "title": "XCMS Peak Detection",
         "validation": {
           "outputs": {
-            "feature_table": {
+            "chrom_peaks": {
               "expected_format": "tsv",
               "min_size_bytes": 1,
+              "min_records": 1,
               "fail_on_error": true
             }
           }
@@ -100,6 +124,10 @@
         "method": "obiwarp",
         "bin_size": 1.0,
         "min_fraction": 0.5,
+        "sample_groups": [
+          "example",
+          "example"
+        ],
         "threads": 4,
         "output_name": "lcms_aligned"
       },
@@ -110,6 +138,7 @@
             "aligned_feature_table": {
               "expected_format": "tsv",
               "min_size_bytes": 1,
+              "min_records": 1,
               "fail_on_error": true
             }
           }
@@ -126,6 +155,7 @@
       "params": {
         "polarity": "positive",
         "run_group_corr": true,
+        "correlation_include_isotopes": false,
         "run_adducts": true,
         "output_name": "lcms_camera"
       },
@@ -136,6 +166,7 @@
             "annotated_peaklist": {
               "expected_format": "tsv",
               "min_size_bytes": 1,
+              "min_records": 1,
               "fail_on_error": true
             }
           }
@@ -145,7 +176,7 @@
   ],
   "edges": [
     {
-      "id": "e2",
+      "id": "e1",
       "from": {
         "node": "mzml_001",
         "output": "file"
@@ -156,7 +187,18 @@
       }
     },
     {
-      "id": "e4",
+      "id": "e2",
+      "from": {
+        "node": "mzml_002",
+        "output": "file"
+      },
+      "to": {
+        "node": "xcms_peak_detection_001",
+        "input": "mzml_files"
+      }
+    },
+    {
+      "id": "e3",
       "from": {
         "node": "xcms_peak_detection_001",
         "output": "xcms_object"
@@ -164,6 +206,28 @@
       "to": {
         "node": "xcms_retention_correction_001",
         "input": "xcms_object"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "mzml_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "xcms_retention_correction_001",
+        "input": "raw_files"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "mzml_002",
+        "output": "file"
+      },
+      "to": {
+        "node": "xcms_retention_correction_001",
+        "input": "raw_files"
       }
     },
     {
@@ -176,12 +240,35 @@
         "node": "camera_annotation_001",
         "input": "xcms_object"
       }
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "mzml_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "camera_annotation_001",
+        "input": "raw_files"
+      }
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "mzml_002",
+        "output": "file"
+      },
+      "to": {
+        "node": "camera_annotation_001",
+        "input": "raw_files"
+      }
     }
   ],
   "groups": [],
   "outputs": {
-    "validated_mzml": "mzml_001",
-    "xcms_features": "xcms_peak_detection_001",
+    "validated_mzml_a": "mzml_001",
+    "validated_mzml_b": "mzml_002",
+    "detected_chrom_peaks": "xcms_peak_detection_001",
     "aligned_features": "xcms_retention_correction_001",
     "camera_peaklist": "camera_annotation_001"
   }

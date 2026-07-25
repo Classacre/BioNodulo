@@ -79,6 +79,25 @@ export function coerceWorkflowParameterInput(parameter: WorkflowParameter, rawVa
       throw new Error(parameterError(parameter, 'validJsonRequired'));
     }
   }
+  if (type.includes('LIST')) {
+    if (value === '') {
+      throw new Error(parameterError(parameter, 'parameterRequired'));
+    }
+    if (value.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        if (!Array.isArray(parsed)) throw new Error('not a list');
+        return parsed;
+      } catch (err) {
+        void err;
+        throw new Error(parameterError(parameter, 'validJsonRequired'));
+      }
+    }
+    return rawValue
+      .split(/\r?\n|,/)
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
   if (value === '' && parameter.required) {
     throw new Error(parameterError(parameter, 'parameterRequired'));
   }

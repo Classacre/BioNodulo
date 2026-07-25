@@ -17,6 +17,8 @@ from bionodulo.hpc.base import HPCBackend, HPCJob
 class SLURMBackend(HPCBackend):
     """SLURM HPC backend implementation."""
 
+    scheduler = "slurm"
+
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self.partition = self.config.get("partition", "")
@@ -207,6 +209,8 @@ class SLURMBackend(HPCBackend):
         email: str | None = None,
         env_setup: list[str] | None = None,
         modules: list[str] | None = None,
+        nodes: int | None = None,
+        account: str | None = None,
     ) -> str:
         """Generate a SLURM batch job script."""
         return self.generate_job_script(
@@ -221,4 +225,6 @@ class SLURMBackend(HPCBackend):
             env_setup=env_setup,
             modules=modules,
             scheduler="slurm",
+            nodes=nodes,
+            account=account or self.account,
         )

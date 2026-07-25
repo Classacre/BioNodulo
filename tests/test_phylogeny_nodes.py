@@ -220,7 +220,7 @@ def test_raxml_ng_renders_tree_search_with_bootstrap_command() -> None:
     ]
 
 
-def test_raxml_ng_supports_evaluate_mode_and_plans_outputs() -> None:
+def test_raxml_ng_uses_search_without_bootstraps_and_plans_outputs() -> None:
     node_class = _node_class("raxml_ng")
 
     cmd = node_class.render_command({
@@ -230,7 +230,7 @@ def test_raxml_ng_supports_evaluate_mode_and_plans_outputs() -> None:
         "seed": 0,
         "bootstrap_replicates": 0,
         "outgroup": "",
-        "tree_search": False,
+        "tree_search": True,
         "output": "/tmp/run/raxml_ng",
     })
     outputs = node_class.PLAN_OUTPUTS({}, "/tmp/run")
@@ -245,11 +245,13 @@ def test_raxml_ng_supports_evaluate_mode_and_plans_outputs() -> None:
         "/tmp/run/raxml_ng/raxml_ng",
         "--threads",
         "2",
-        "--evaluate",
+        "--seed",
+        "0",
+        "--search",
     ]
+    outputs = node_class.PLAN_OUTPUTS({"bootstrap_replicates": 0}, "/tmp/run")
     assert [str(path) for path in outputs] == [
         "/tmp/run/raxml_ng/raxml_ng.raxml.bestTree",
-        "/tmp/run/raxml_ng/raxml_ng.raxml.bootstraps",
     ]
 
 
@@ -267,8 +269,8 @@ def test_modeltest_ng_is_registered_for_frontend_discovery() -> None:
     assert node_info["display_name"] == "ModelTest-NG"
     assert node_info["category"] == "phylogeny"
     assert node_info["description"].startswith("Select best-fit substitution model")
-    assert node_info["output"] == ["STRING", "JSON"]
-    assert node_info["output_name"] == ["best_model", "model_stats"]
+    assert node_info["output"] == ["TEXT", "TEXT"]
+    assert node_info["output_name"] == ["results", "log"]
     assert node_info["required_executables"] == ["modeltest-ng"]
     assert node_info["required_conda_packages"] == ["modeltest-ng"]
     assert "modeltest-ng" in node_info["search_aliases"]
@@ -287,10 +289,10 @@ def test_modeltest_ng_renders_model_selection_command() -> None:
         "alignment": "alignment.fasta",
         "datatype": "nt",
         "threads": 8,
-        "template": "raxml",
+        "template": "",
         "models": "GTR,HKY,JC",
-        "schemes": 5,
-        "ascertainment_bias": True,
+        "schemes": 0,
+        "ascertainment_bias": False,
         "output": "/tmp/run/modeltest_ng",
     })
 
@@ -304,23 +306,8 @@ def test_modeltest_ng_renders_model_selection_command() -> None:
         "8",
         "-o",
         "/tmp/run/modeltest_ng/modeltest",
-        "-T",
-        "raxml",
         "-m",
         "GTR,HKY,JC",
-        "-s",
-        "5",
-        "--asc-bias",
-        "&&",
-        "printf",
-        "'best_model\\tSee /tmp/run/modeltest_ng/modeltest.out\\n'",
-        ">",
-        "/tmp/run/modeltest_ng/best_model.txt",
-        "&&",
-        "printf",
-        "'{\\n  \"modeltest_output\": \"/tmp/run/modeltest_ng/modeltest.out\",\\n  \"ranking\": \"/tmp/run/modeltest_ng/modeltest.ranking\"\\n}\\n'",
-        ">",
-        "/tmp/run/modeltest_ng/model_stats.json",
     ]
 
 
@@ -355,8 +342,8 @@ def test_modeltest_ng_omits_empty_optional_flags_and_plans_outputs() -> None:
         "/tmp/run/modeltest_ng/modeltest",
     ]
     assert [str(path) for path in outputs] == [
-        "/tmp/run/modeltest_ng/best_model.txt",
-        "/tmp/run/modeltest_ng/model_stats.json",
+        "/tmp/run/modeltest_ng/modeltest.out",
+        "/tmp/run/modeltest_ng/modeltest.log",
     ]
 
 

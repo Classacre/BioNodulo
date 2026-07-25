@@ -26,6 +26,7 @@ class BioType(str, Enum):
     FASTQ_LIST = "FASTQ_LIST"
     FASTA = "FASTA"
     FASTA_INDEX = "FASTA_INDEX"
+    SEQUENCE_DICTIONARY = "SEQUENCE_DICTIONARY"
 
     # Alignment
     SAM = "SAM"
@@ -121,6 +122,7 @@ _COMPATIBILITY: dict[BioType, set[BioType]] = {
     BioType.FASTQ_LIST: {BioType.FILE, BioType.STRING},
     BioType.FASTA: {BioType.FILE, BioType.STRING, BioType.ASSEMBLY, BioType.CONTIGS, BioType.TRANSCRIPTS},
     BioType.FASTA_INDEX: {BioType.FILE, BioType.STRING},
+    BioType.SEQUENCE_DICTIONARY: {BioType.FILE, BioType.STRING},
     BioType.SAM: {BioType.FILE, BioType.STRING},
     BioType.BAM: {BioType.FILE, BioType.STRING, BioType.SAM},
     BioType.BAI: {BioType.FILE, BioType.STRING},
@@ -249,6 +251,7 @@ def file_extension_for(biotype: str | BioType) -> str:
         BioType.FASTQ_LIST: ".fastq.gz",
         BioType.FASTA: ".fasta",
         BioType.FASTA_INDEX: ".fai",
+        BioType.SEQUENCE_DICTIONARY: ".dict",
         BioType.SAM: ".sam",
         BioType.BAM: ".bam",
         BioType.BAI: ".bam.bai",

@@ -28,7 +28,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from bionodulo.core.credentials import merge_api_secrets, redact_tree
-from bionodulo.environments.manifest import get_env_dir, get_env_id, is_env_ready, workflow_to_packages
+from bionodulo.environments.manifest import (
+    get_env_dir,
+    get_environment_plan_id,
+    is_env_ready,
+    workflow_to_environment_plan,
+)
 from bionodulo.execution import head_preview as head_preview_mod
 from bionodulo.execution.cache import CacheStore
 from bionodulo.execution.subprocess_runner import CommandCancelledError, run_subprocess
@@ -78,6 +83,7 @@ class ExecutionContext:
     run_metadata: dict[str, Any] = field(default_factory=dict)
     executor: Any | None = None
     registry: Any | None = field(default=None, repr=False)
+    hpc_backend: Any | None = field(default=None, repr=False)
 
     # Mutable state set during execution
     _previews: list[dict[str, Any]] = field(default_factory=list, repr=False)
@@ -120,13 +126,19 @@ class ExecutionContext:
         cwd: str | Path | None = None,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        stdout_path: str | Path | None = None,
+        stderr_path: str | Path | None = None,
     ) -> dict[str, Any]:
         """Run a subprocess command within this execution context.
 
         If ``env_prefix`` is set, commands are wrapped for isolated execution.
+        Stream paths default to the node's existing ``stdout.log`` and
+        ``stderr.log`` files.
         """
-        stdout_path = self.node_dir / "stdout.log"
-        stderr_path = self.node_dir / "stderr.log"
+        if stdout_path is None:
+            stdout_path = self.node_dir / "stdout.log"
+        if stderr_path is None:
+            stderr_path = self.node_dir / "stderr.log"
 
         # Wrap command with environment prefix if isolated execution is configured
         wrapped_cmd: str | list[str] = cmd
@@ -168,12 +180,14 @@ class WorkflowExecutor:
         workspace_dir: str | Path = "./workspace",
         registry: Any | None = None,
         settings: Any | None = None,
+        hpc_backend: Any | None = None,
     ) -> None:
         self.workspace_dir = Path(workspace_dir)
         self.cache = CacheStore(cache_dir or self.workspace_dir / "cache")
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
         self.registry = registry
         self.settings = settings
+        self.hpc_backend = hpc_backend
 
     def _api_secrets_for_options(self, options: dict[str, Any]) -> dict[str, str]:
         configured = getattr(self.settings, "api_secrets", {}) if self.settings is not None else {}
@@ -454,7 +468,6 @@ class WorkflowExecutor:
         }
         if resume_checkpoint:
             run_metadata["resume_checkpoint"] = resume_checkpoint
-
         stop_on_error = options.get("stop_on_error", True)
 
         cancelled_holder: dict[str, str | None] = {}
@@ -587,9 +600,7 @@ class WorkflowExecutor:
                     continue
 
                 # ---- Fill parameter defaults ----
-                _node_class = node.get("_node_class")
-                if _node_class is None and self.registry is not None and hasattr(self.registry, "get"):
-                    _node_class = self.registry.get(str(node.get("type", "unknown")))
+                _node_class = self._node_class_for(node)
                 resolved_params = self._with_defaults(node, resolved_inputs, _node_class, workflow_parameters)
                 executes_loop_body = self._executes_loop_body(_node_class)
                 executes_try_catch_branches = self._executes_try_catch_branches(_node_class)
@@ -656,6 +667,7 @@ class WorkflowExecutor:
                         run_metadata=run_metadata,
                         executor=self,
                         registry=self.registry,
+                        hpc_backend=self.hpc_backend,
                     )
                     cached_outputs = await self._apply_inline_output_validations(
                         ctx=ctx,
@@ -694,21 +706,23 @@ class WorkflowExecutor:
                         "outputs": cached_outputs,
                     }
                     node_outputs[node_id] = cached_outputs
-                    # Collect previews from cached outputs too
-                    for port, path in cached_outputs.items():
-                        paths = path if isinstance(path, (list, tuple)) else [path]
-                        for p_str in paths:
-                            if not isinstance(p_str, (str, Path)):
-                                continue
-                            p = Path(p_str)
-                            if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
-                                previews.append(
-                                    {
-                                        "path": str(p),
-                                        "label": f"{node_id}/{port}",
-                                        "node_id": node_id,
-                                    }
-                                )
+                    # Some HTML reports are directory bundles whose relative
+                    # assets cannot be served by the single-file preview route.
+                    if self._automatic_previews_enabled(_node_class):
+                        for port, path in cached_outputs.items():
+                            paths = path if isinstance(path, (list, tuple)) else [path]
+                            for p_str in paths:
+                                if not isinstance(p_str, (str, Path)):
+                                    continue
+                                p = Path(p_str)
+                                if p.exists() and p.suffix.lower() in PREVIEWABLE_EXTENSIONS:
+                                    previews.append(
+                                        {
+                                            "path": str(p),
+                                            "label": f"{node_id}/{port}",
+                                            "node_id": node_id,
+                                        }
+                                    )
                     continue
 
                 # ---- Build execution context ----
@@ -726,6 +740,7 @@ class WorkflowExecutor:
                     run_metadata=run_metadata,
                     executor=self,
                     registry=self.registry,
+                    hpc_backend=self.hpc_backend,
                 )
 
                 # ---- Execute the node ----
@@ -808,7 +823,7 @@ class WorkflowExecutor:
                         )
 
                     # Collect previews
-                    node_previews = self._collect_previews(ctx, result)
+                    node_previews = self._collect_previews(ctx, result, _node_class)
                     previews.extend(node_previews)
 
                     emit(
@@ -1451,6 +1466,34 @@ class WorkflowExecutor:
         node_class: Any,
         planned_paths: list[Path] | tuple[Any, ...] | dict[str, Any],
     ) -> dict[str, Any]:
+        custom_mapper = getattr(node_class, "MAP_PLANNED_OUTPUTS", None)
+        if callable(custom_mapper):
+            mapped = custom_mapper(planned_paths)
+            if not isinstance(mapped, dict):
+                raise TypeError(
+                    f"{getattr(node_class, 'NODE_ID', node_class)!r} "
+                    "MAP_PLANNED_OUTPUTS must return a mapping"
+                )
+
+            def normalize(value: Any) -> Any:
+                if isinstance(value, Path):
+                    return str(value)
+                if isinstance(value, list):
+                    return [normalize(item) for item in value]
+                if isinstance(value, tuple):
+                    return tuple(normalize(item) for item in value)
+                if isinstance(value, dict):
+                    return {
+                        str(name): normalize(item)
+                        for name, item in value.items()
+                    }
+                return value
+
+            return {
+                str(name): normalize(value)
+                for name, value in mapped.items()
+            }
+
         if isinstance(planned_paths, dict):
             return {
                 str(name): str(path) if isinstance(path, Path) else path
@@ -2000,6 +2043,7 @@ class WorkflowExecutor:
                         run_metadata=ctx.run_metadata,
                         executor=ctx.executor or self,
                         registry=ctx.registry if ctx.registry is not None else self.registry,
+                        hpc_backend=ctx.hpc_backend,
                     )
                     body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                     outputs = body_result.get("outputs", {})
@@ -2182,6 +2226,7 @@ class WorkflowExecutor:
                     run_metadata=ctx.run_metadata,
                     executor=ctx.executor or self,
                     registry=ctx.registry if ctx.registry is not None else self.registry,
+                    hpc_backend=ctx.hpc_backend,
                 )
                 body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                 outputs = body_result.get("outputs", {})
@@ -2393,6 +2438,7 @@ class WorkflowExecutor:
                             run_metadata=ctx.run_metadata,
                             executor=ctx.executor or self,
                             registry=ctx.registry if ctx.registry is not None else self.registry,
+                            hpc_backend=ctx.hpc_backend,
                         )
                         body_result = await self._execute_node(body_ctx, body_node, body_inputs)
                         outputs = body_result.get("outputs", {})
@@ -2810,6 +2856,7 @@ class WorkflowExecutor:
                 run_metadata=ctx.run_metadata,
                 executor=ctx.executor or self,
                 registry=ctx.registry if ctx.registry is not None else self.registry,
+                hpc_backend=ctx.hpc_backend,
             )
             body_result = await self._execute_node(body_ctx, body_node, body_inputs)
             outputs = body_result.get("outputs", {})
@@ -3111,7 +3158,7 @@ class WorkflowExecutor:
             validator_kwargs.pop("enabled", None)
             validator_kwargs["input"] = outputs[output_name]
             validator_kwargs.setdefault("fail_on_error", True)
-            _, passed, report, report_file = await validator.run(context=ctx, **validator_kwargs)
+            _, passed, report, report_file, _ = await validator.run(context=ctx, **validator_kwargs)
             validation_records.append(
                 {
                     "node_id": ctx.node_id,
@@ -3220,12 +3267,13 @@ class WorkflowExecutor:
 
         Read from the node class's INPUT_TYPES via the registry; a port counts
         as a list when its type token contains 'LIST' (e.g. FILE_LIST,
-        FASTQ_LIST). Returns an empty set when the class/registry is unavailable
-        so behaviour is unchanged for unknown nodes.
+        FASTQ_LIST) or its input metadata declares ``multiple=True``. The latter
+        keeps the artifact type exact (for example FILE -> FILE) while still
+        preserving all fan-in values. Returns an empty set when the
+        class/registry is unavailable so behaviour is unchanged for unknown
+        nodes.
         """
-        node_class = node.get("_node_class")
-        if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
-            node_class = self.registry.get(str(node.get("type", "")))
+        node_class = self._node_class_for(node)
         if node_class is None or not hasattr(node_class, "INPUT_TYPES"):
             return set()
         try:
@@ -3236,7 +3284,17 @@ class WorkflowExecutor:
         for section in ("required", "optional"):
             for name, decl in (spec.get(section, {}) or {}).items():
                 type_token = decl[0] if isinstance(decl, (list, tuple)) and decl else decl
-                if isinstance(type_token, str) and "LIST" in type_token.upper():
+                config = (
+                    decl[1]
+                    if isinstance(decl, (list, tuple))
+                    and len(decl) > 1
+                    and isinstance(decl[1], dict)
+                    else {}
+                )
+                if (
+                    isinstance(type_token, str)
+                    and "LIST" in type_token.upper()
+                ) or config.get("multiple") is True:
                     ports.add(name)
         return ports
 
@@ -3384,6 +3442,7 @@ class WorkflowExecutor:
         self,
         ctx: ExecutionContext,
         result: dict[str, Any],
+        node_class: type[Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Collect previewable output files (HTML, images, JSON, etc.).
 
@@ -3392,6 +3451,9 @@ class WorkflowExecutor:
         node's primary output when it has no visual preview yet — so every
         node (FASTA, VCF, GFF, logs, BAM, …) shows something on the canvas.
         """
+        if not self._automatic_previews_enabled(node_class):
+            return list(ctx._previews)
+
         previews: list[dict[str, Any]] = []
 
         for port, path in result.get("outputs", {}).items():
@@ -3414,6 +3476,15 @@ class WorkflowExecutor:
         if head_preview is not None:
             all_previews.append(head_preview)
         return all_previews
+
+    @staticmethod
+    def _automatic_previews_enabled(node_class: type[Any] | None) -> bool:
+        """Return whether outputs may use automatic single-file previews.
+
+        Nodes with bundle-aware outputs can set ``AUTO_PREVIEW = False``.
+        Explicit previews registered through the execution context survive.
+        """
+        return getattr(node_class, "AUTO_PREVIEW", True) is not False
 
     def _maybe_head_preview(
         self,
@@ -3533,13 +3604,14 @@ class WorkflowExecutor:
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
             node_class = self.registry.get(node_type)
 
-        # Use the node's own ENVIRONMENT if explicitly set
+        # A named Pixi environment is resolved inside the same committed
+        # workflow bundle.  Never fall back to ``pixi run -e`` from an ambient
+        # cwd: that would permit a fresh solve and could select a different
+        # lock than the one provisioned for this run.
         env_spec = getattr(node_class, "ENVIRONMENT", {}) if node_class else {}
-        if env_spec and isinstance(env_spec, dict):
-            env_type = env_spec.get("type", "pixi")
-            env_name = env_spec.get("name", "")
-            if env_name:
-                return self._command_prefix_list(env_type, env_name)
+        named_environment = None
+        if isinstance(env_spec, dict) and env_spec.get("type") == "pixi":
+            named_environment = str(env_spec.get("name", "")).strip() or None
 
         # Default: workflow-scoped manifest. Only use the pixi env when it is
         # actually installed — a failed/partial install leaves a pixi.toml behind,
@@ -3547,12 +3619,19 @@ class WorkflowExecutor:
         # node re-trigger a doomed solve (which hangs or fails the whole run).
         # Falling back to system PATH lets a missing tool fail fast instead.
         if workflow is not None:
-            packages = workflow_to_packages(workflow, self.registry)
-            env_id = get_env_id(packages)
+            environment_plan = workflow_to_environment_plan(workflow, self.registry)
+            env_id = get_environment_plan_id(environment_plan)
             env_dir = get_env_dir(env_id, self.workspace_dir)
             manifest_path = env_dir / "pixi.toml"
-            if manifest_path.exists() and is_env_ready(env_dir):
-                return self._command_prefix_list("pixi", None, manifest_path=manifest_path)
+            if manifest_path.exists() and is_env_ready(
+                env_dir,
+                environment_plan.environment_names,
+            ):
+                return self._command_prefix_list(
+                    "pixi",
+                    named_environment,
+                    manifest_path=manifest_path,
+                )
 
         # Fallback: system PATH
         return []
@@ -3575,7 +3654,11 @@ class WorkflowExecutor:
                 exe = "pixi"
 
         if env_type == "pixi" and manifest_path is not None:
-            return [exe, "run", "--manifest-path", str(manifest_path), "--"]
+            command = [exe, "run", "--locked", "--manifest-path", str(manifest_path)]
+            if env_name:
+                command.extend(["-e", env_name])
+            command.append("--")
+            return command
         if env_type == "pixi" and env_name:
-            return [exe, "run", "-e", env_name, "--"]
+            return [exe, "run", "--locked", "-e", env_name, "--"]
         return []

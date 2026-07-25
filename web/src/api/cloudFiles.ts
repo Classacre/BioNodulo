@@ -22,6 +22,14 @@ interface BackendTransfer {
   error?: string | null;
 }
 
+interface BackendTransferStart {
+  transfer_id: string;
+  total: number;
+  /** Shared-editor Lambdas complete uploads before returning. */
+  status?: BackendTransfer['status'];
+  error?: string | null;
+}
+
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -64,17 +72,49 @@ async function pollBackendTransfer(backendId: string, storeId: string, fallbackT
   }
 }
 
+/** Handle a relay that already finished inside a serverless invocation. */
+function completedBackendTransfer(
+  start: BackendTransferStart,
+  storeId: string,
+  fallbackTotal: number,
+): boolean | null {
+  const total = start.total || fallbackTotal;
+  if (start.status === 'done') {
+    updateTransfer(storeId, { status: 'done', loaded: total, total });
+    return true;
+  }
+  if (start.status === 'error') {
+    updateTransfer(storeId, { status: 'error', error: start.error || 'Transfer failed' });
+    return false;
+  }
+  return null;
+}
+
 /**
  * HEAD a local workspace file to get its size (for the presign size check and
  * the Run-on-Cloud >50 MB prompt) without downloading it.
  */
 export async function localFileSize(path: string): Promise<number> {
-  try {
-    const res = await apiRequest(`/workspace/download?path=${encodeURIComponent(path)}`, { method: 'HEAD' });
-    return Number(res.headers.get('content-length') || 0);
-  } catch {
-    return 0;
+  const res = await apiRequest(`/workspace/download?path=${encodeURIComponent(path)}`, { method: 'HEAD' });
+  // The shared Next.js editor proxy cannot safely forward Content-Length after
+  // response transformations, so it preserves Lambda's validated HEAD size in
+  // a dedicated metadata header. Direct/local backends still use the standard
+  // header.
+  const raw = res.headers.get('x-bionodulo-file-size') ?? res.headers.get('content-length');
+  const size = raw === null ? Number.NaN : Number(raw);
+  if (!Number.isSafeInteger(size) || size < 0) {
+    throw new Error(`Could not determine a trustworthy size for ${path}`);
   }
+  return size;
+}
+
+/** Recursively inspect one local directory using the backend's bounded scanner. */
+export async function localDirectorySize(path: string): Promise<number> {
+  const result = await apiPost<{ bytes: number; entries: number }>('/workspace/cloud-directory-info', { path });
+  if (!Number.isSafeInteger(result.bytes) || result.bytes < 0) {
+    throw new Error(`Could not determine a trustworthy size for ${path}`);
+  }
+  return result.bytes;
 }
 
 /**
@@ -90,14 +130,75 @@ export async function uploadWorkspaceFileToCloud(path: string, name: string): Pr
     const size = await localFileSize(path);
     updateTransfer(id, { total: size });
     const { url, key } = await presignCloudUpload(name, 'application/octet-stream', size);
-    const start = await apiPost<{ transfer_id: string; total: number }>('/workspace/cloud-upload', {
-      path, url, content_type: 'application/octet-stream',
+    const start = await apiPost<BackendTransferStart>('/workspace/cloud-upload', {
+      path, url, content_type: 'application/octet-stream', expected_size: size,
     });
+    const completed = completedBackendTransfer(start, id, size);
+    if (completed !== null) return completed ? key : null;
     const ok = await pollBackendTransfer(start.transfer_id, id, start.total || size);
     return ok ? key : null;
   } catch (e) {
     updateTransfer(id, { status: 'error', error: errMsg(e) });
     return null;
+  }
+}
+
+interface PreparedDirectoryArchive {
+  archive_id: string;
+  size: number;
+  entries: number;
+  name: string;
+}
+
+/**
+ * Archive a LOCAL workspace directory deterministically, then relay that tar to
+ * cloud storage. The worker expands it only after validating every member.
+ */
+export async function uploadWorkspaceDirectoryToCloud(
+  path: string,
+  name: string,
+): Promise<string | null> {
+  const id = newTransferId();
+  const t: Transfer = {
+    id,
+    name,
+    direction: 'upload',
+    status: 'active',
+    loaded: 0,
+    total: 0,
+    speedBps: 0,
+  };
+  addTransfer(t);
+  let prepared: PreparedDirectoryArchive | null = null;
+  let uploadStarted = false;
+  try {
+    prepared = await apiPost<PreparedDirectoryArchive>('/workspace/cloud-directory-archive', { path });
+    updateTransfer(id, { total: prepared.size });
+    const { url, key } = await presignCloudUpload(
+      prepared.name || `${name}.tar`,
+      'application/x-tar',
+      prepared.size,
+    );
+    const start = await apiPost<BackendTransferStart>('/workspace/cloud-upload-directory', {
+      archive_id: prepared.archive_id,
+      url,
+      content_type: 'application/x-tar',
+      expected_size: prepared.size,
+    });
+    uploadStarted = true;
+    const completed = completedBackendTransfer(start, id, prepared.size);
+    if (completed !== null) return completed ? key : null;
+    const ok = await pollBackendTransfer(start.transfer_id, id, start.total || prepared.size);
+    return ok ? key : null;
+  } catch (e) {
+    updateTransfer(id, { status: 'error', error: errMsg(e) });
+    return null;
+  } finally {
+    if (prepared && !uploadStarted) {
+      await apiPost('/workspace/cloud-directory-archive/discard', {
+        archive_id: prepared.archive_id,
+      }).catch(() => undefined);
+    }
   }
 }
 

@@ -1,0 +1,4 @@
+sgRNA	sequence	gene
+smoke_guide_1	ACGTTGCAACGTTGCAACGT	gene_1
+smoke_guide_2	TGCACGATTGCACGATTGCA	gene_2
+smoke_guide_3	GATTACAGGATTACAGGATT	gene_3

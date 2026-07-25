@@ -1,0 +1,4 @@
+smoke_chr1	0	600	background_left	0	+
+smoke_chr1	680	980	enriched_locus	0	+
+smoke_chr1	1100	1400	background_mid	0	-
+smoke_chr1	1600	1950	background_right	0	+

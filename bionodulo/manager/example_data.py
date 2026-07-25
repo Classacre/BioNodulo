@@ -185,7 +185,7 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("biopython", "heatmap_annotation.csv", "https://raw.githubusercontent.com/bioconnector/workshops/master/data/airway_metadata.csv", description="airway sample annotations"),
 
     # pangenomics — pggb HLA-DRB1 tutorial haplotypes
-    DataFile("pangenomics", "haplotypes.fa", "https://raw.githubusercontent.com/pangenome/pggb/master/data/HLA/DRB1-3123.fa.gz", gunzip=True, description="pggb HLA-DRB1 haplotypes"),
+    DataFile("pangenomics", "haplotypes.fa", "https://raw.githubusercontent.com/pangenome/pggb/e25486b9b219877eca82631a13953129386c8b09/data/HLA/DRB1-3123.fa.gz", gunzip=True, description="pggb v0.7.4 HLA-DRB1 12-haplotype fixture"),
 
     # metagenomics — nf-core mag minigut shotgun reads
     DataFile("metagenomics", "reads_forward.fastq", f"{_NFCORE}/mag/test_data/test_minigut_R1.fastq.gz", gunzip=True, description="Shotgun metagenome R1 (nf-core mag)"),
@@ -228,16 +228,19 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
 
     # metabolomics — ProteoWizard mzML
     DataFile("metabolomics", "sample.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="ProteoWizard tiny mzML"),
+    DataFile("metabolomics", "sample_2.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="Second local copy of the ProteoWizard tiny mzML for multi-file workflow wiring"),
 
     # long_read — nf-core nanoseq reference + a real tiny ONT pod5
     DataFile("long_read", "reference.fasta", f"{_NFCORE}/nanoseq/reference/chr22_23800000-23980000.fa", description="Nanopore reference (nf-core nanoseq)"),
     DataFile("long_read", "pod5/example.pod5", "https://media.githubusercontent.com/media/nanoporetech/pod5-file-format/master/test_data/multi_fast5_zip_v4.pod5", description="Real tiny ONT pod5"),
+    DataFile("long_read", "demux/barcode01.fastq", "https://raw.githubusercontent.com/nanoporetech/dorado/0949eb8de80dce9a198c08c0e37e31ed1eb627fc/tests/data/barcode_demux/single_end/SQK-RBK114-96_BC01.fastq", description="Dorado 0.9.6 barcode-demultiplexing FASTQ fixture"),
 
     # spatial_transcriptomics — real Visium outs (scanpy_spatial derives the
     # count/coordinate CSVs from this .h5 at run time; squidpy reads it directly)
     DataFile("spatial_transcriptomics", "visium_outs/filtered_feature_bc_matrix.h5", f"{_VISIUM}/filtered_feature_bc_matrix.h5", description="Visium matrix (nf-core spatialvi)"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/scalefactors_json.json", f"{_VISIUM}/spatial/scalefactors_json.json", description="Visium scalefactors"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_positions.csv", f"{_VISIUM}/spatial/tissue_positions.csv", description="Visium tissue positions"),
+    DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_hires_image.png", f"{_VISIUM}/spatial/tissue_hires_image.png", description="Visium hires image"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_lowres_image.png", f"{_VISIUM}/spatial/tissue_lowres_image.png", description="Visium lowres image"),
 
     # synthetic_biology — Cello (UCF/options/netlist) + COPASI + BioModels toggle switch

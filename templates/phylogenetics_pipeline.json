@@ -27,7 +27,7 @@
         231
       ],
       "params": {
-        "id_list": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
+        "accessions": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
         "database": "nuccore",
         "rettype": "fasta",
         "retmode": "text",
@@ -45,7 +45,7 @@
         80
       ],
       "params": {
-        "threads": 4,
+        "threads": 0,
         "strategy": "auto"
       },
       "ui": {
@@ -95,7 +95,9 @@
       "params": {
         "threads": 4,
         "model": "MFP",
-        "bootstrap": 1000
+        "ufboot_replicates": 1000,
+        "alrt_replicates": 1000,
+        "seed": 1
       },
       "ui": {
         "title": "IQ-TREE"

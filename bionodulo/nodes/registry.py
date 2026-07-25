@@ -2,6 +2,7 @@
 
 Supports built-in nodes and custom nodes from external directories.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -10,6 +11,7 @@ import inspect
 import json
 import logging
 import pkgutil
+import re
 import sys
 from pathlib import Path
 from typing import Any, ClassVar, Iterator, Optional, Type
@@ -123,9 +125,7 @@ class NodeRegistry:
         """
         node_id = node_class.NODE_ID
         if not node_id:
-            raise ValueError(
-                f"Node class {node_class.__name__} missing NODE_ID"
-            )
+            raise ValueError(f"Node class {node_class.__name__} missing NODE_ID")
         validate_metadata_contract = getattr(node_class, "validate_metadata_contract", None)
         if callable(validate_metadata_contract):
             validate_metadata_contract()
@@ -133,11 +133,7 @@ class NodeRegistry:
             logger.warning("Overwriting registered node: %s", node_id)
         previous_node = self._nodes.get(node_id)
         previous_source = self._custom_node_sources.get(node_id)
-        if (
-            custom_node_source is not None
-            and previous_node is not None
-            and previous_source != custom_node_source
-        ):
+        if custom_node_source is not None and previous_node is not None and previous_source != custom_node_source:
             previous_package = self._custom_node_packages.get(node_id)
             self._custom_node_shadows.setdefault(node_id, []).append(
                 (
@@ -274,6 +270,7 @@ class NodeRegistry:
             Number of node classes registered.
         """
         import bionodulo.nodes.builtin as builtin_pkg
+
         pkg_path = Path(builtin_pkg.__file__).parent
         count = 0
 
@@ -323,17 +320,13 @@ class NodeRegistry:
 
             try:
                 if entry.is_file() and entry.suffix == ".py":
-                    module = self._load_module_from_path(
-                        entry.stem, entry
-                    )
+                    module = self._load_module_from_path(entry.stem, entry)
                     if module:
                         count += self.register_from_module(module, custom_node_source=custom_root)
                 elif entry.is_dir() and (entry / "bionodulo.toml").exists():
                     count += self._load_manifest_package(entry, custom_node_source=custom_root)
                 elif entry.is_dir() and (entry / "__init__.py").exists():
-                    module = self._load_module_from_path(
-                        entry.name, entry / "__init__.py"
-                    )
+                    module = self._load_module_from_path(entry.name, entry / "__init__.py")
                     if module:
                         count += self.register_from_module(module, custom_node_source=custom_root)
             except Exception as exc:
@@ -347,7 +340,8 @@ class NodeRegistry:
                 logger.warning(
                     "Custom node '%s' (%s) is missing GIT_URL. "
                     "All custom nodes should declare a git repository for dependency resolution.",
-                    node_id, node_class.__name__
+                    node_id,
+                    node_class.__name__,
                 )
 
         logger.info("Loaded %d nodes from custom_nodes", count)
@@ -533,19 +527,37 @@ class NodeRegistry:
 # their preview inline (a collapsible body on the node) instead of requiring a
 # separate image_preview/html_preview sink. Custom nodes can opt in with a
 # class attribute ``INLINE_PREVIEW = True``.
-INLINE_PREVIEW_NODE_IDS: frozenset[str] = frozenset({
-    # Generic charts (visualization.py)
-    "bar_chart", "line_chart", "scatter_plot", "volcano_plot", "ma_plot",
-    "heatmap", "manhattan_plot", "coverage_plot", "vcf_stats_chart",
-    "forest_plot", "circos_plot", "phylo_tree_viewer",
-    # R / ggplot2
-    "r_plot", "r_pheatmap",
-    # Domain-standard tools that emit a single figure or HTML report.
-    # (Multi-figure producers like ``scanpy_umap`` keep explicit preview nodes,
-    # one per output, since an inline body can only surface one figure.)
-    "quast", "krona", "nanoplot", "multiqc", "fastqc",
-    "deeptools_plot_heatmap", "deeptools_plot_profile", "cnvkit_plot",
-})
+INLINE_PREVIEW_NODE_IDS: frozenset[str] = frozenset(
+    {
+        # Generic charts (visualization.py)
+        "bar_chart",
+        "line_chart",
+        "scatter_plot",
+        "volcano_plot",
+        "ma_plot",
+        "heatmap",
+        "manhattan_plot",
+        "coverage_plot",
+        "vcf_stats_chart",
+        "forest_plot",
+        "circos_plot",
+        "phylo_tree_viewer",
+        # R / ggplot2
+        "r_plot",
+        "r_pheatmap",
+        # Domain-standard tools that emit a single figure or HTML report.
+        # (Multi-figure producers like ``scanpy_umap`` keep explicit preview nodes,
+        # one per output, since an inline body can only surface one figure.)
+        "quast",
+        "krona",
+        "nanoplot",
+        "multiqc",
+        "fastqc",
+        "deeptools_plot_heatmap",
+        "deeptools_plot_profile",
+        "cnvkit_plot",
+    }
+)
 
 
 def _is_inline_preview(node_class: Type[BaseNode]) -> bool:
@@ -624,8 +636,14 @@ def _to_frontend_input_spec(spec: Any) -> tuple[str, dict[str, Any]]:
     type_name = spec[0] if isinstance(spec, (list, tuple)) else spec
     raw_config = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else {}
     config = dict(raw_config) if isinstance(raw_config, dict) else {}
-    if isinstance(type_name, (list, tuple)):
+    # Node contracts use lists for selectable values and tuples for accepted
+    # socket-type unions. Treating both as a combo made tuple-backed data ports
+    # (for example SAM|BAM) render as widgets, so persisted template edges had
+    # no React Flow handle to attach to.
+    if isinstance(type_name, list):
         config.setdefault("options", list(type_name))
+    elif isinstance(type_name, tuple):
+        type_name = "|".join(str(member) for member in type_name)
     return (_node_type(type_name), config)
 
 
@@ -638,57 +656,24 @@ def _node_type(bionodulo_type: str | list | tuple) -> str:
     Returns:
         Frontend socket type string.
     """
-    while isinstance(bionodulo_type, (list, tuple)):
+    if isinstance(bionodulo_type, tuple):
+        bionodulo_type = "|".join(str(member) for member in bionodulo_type)
+    while isinstance(bionodulo_type, list):
         bionodulo_type = bionodulo_type[0] if len(bionodulo_type) > 0 else "STRING"
     if not isinstance(bionodulo_type, str):
         bionodulo_type = str(bionodulo_type)
-    passthrough_types = {
-        "STRING",
-        "INT",
-        "FLOAT",
-        "BOOLEAN",
-        "FILE",
-        "DIRECTORY",
-        "FASTQ",
-        "FASTQ_LIST",
-        "FASTA",
-        "FASTA_INDEX",
-        "SAM",
-        "BAM",
-        "BAI",
-        "CRAM",
-        "VCF",
-        "VCF_GZ",
-        "BCF",
-        "BWA_MEM2_INDEX",
-        "BOWTIE2_INDEX",
-        "VCF_INDEX",
-        "GFF",
-        "GTF",
-        "GFF_GTF",
-        "BED",
-        "BIGWIG",
-        "ASSEMBLY",
-        "CONTIGS",
-        "SCAFFOLDS",
-        "HAL",
-        "MAF",
-        "VG",
-        "TAR",
-        "GFA",
-        "ODGI",
-        "GBZ",
-        "PHYLOGENY_TREE",
-        "IMAGE",
-        "H5AD",
-        "LOOM",
-        "JSON",
-        "CSV",
-        "TSV",
-        "EMBEDDING",
-    }
-    if bionodulo_type in passthrough_types:
-        return bionodulo_type
+    if "," in bionodulo_type or "|" in bionodulo_type:
+        members = [member.strip() for member in bionodulo_type.replace(",", "|").split("|")]
+        if not members or any(not member for member in members):
+            return "STRING"
+        if any(member != "ANY" and re.fullmatch(r"[A-Z][A-Z0-9_]*", member) is None for member in members):
+            return "STRING"
+        # The editor treats ``|`` as a socket union. Preserve semantic types
+        # from builtin and custom nodes instead of maintaining a fragile list
+        # that silently demotes new artifact types to editable strings.
+        return "|".join(dict.fromkeys("*" if member == "ANY" else member for member in members))
     if bionodulo_type == "ANY":
         return "*"
+    if re.fullmatch(r"[A-Z][A-Z0-9_]*", bionodulo_type):
+        return bionodulo_type
     return "STRING"

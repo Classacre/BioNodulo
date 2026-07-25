@@ -69,7 +69,6 @@ export function logError(scope: string, err: unknown): void {
   ringBuffer.push(entry);
   if (ringBuffer.length > RING_CAPACITY) ringBuffer.shift();
   // Always show in DevTools — silent failures hide real bugs.
-  // eslint-disable-next-line no-console
   console.error(`[${scope}]`, err);
   for (const listener of listeners) {
     try {

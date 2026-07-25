@@ -3,6 +3,21 @@
   "app": "bionodulo",
   "name": "WGS Variant Pipeline",
   "description": "Whole genome sequencing variant calling with BWA and FreeBayes",
+  "parameters": [
+    {
+      "name": "snpeff_genome",
+      "type": "STRING",
+      "required": true,
+      "default": "Escherichia_coli_str_k_12_substr_mg1655_gca_000005845",
+      "description": "Pinned SnpEff 5.2 genome identifier for the E. coli K-12 MG1655 GCA_000005845 reference; it must match snpeff_database"
+    },
+    {
+      "name": "snpeff_database",
+      "type": "FILE",
+      "required": true,
+      "description": "snpEffectPredictor.bin for the pinned Escherichia_coli_str_k_12_substr_mg1655_gca_000005845 SnpEff 5.2 database"
+    }
+  ],
   "nodes": [
     {
       "id": "note_wgs_variant_pipeline",
@@ -29,8 +44,8 @@
       "params": {
         "sample_name": "wgs1",
         "reads": [
-          "https://github.com/tseemann/shovill/raw/master/test/R1.fq",
-          "https://github.com/tseemann/shovill/raw/master/test/R2.fq"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ]
       },
       "ui": {
@@ -69,6 +84,20 @@
             }
           }
         }
+      }
+    },
+    {
+      "id": "ref_sidecars_001",
+      "type": "samtools_faidx",
+      "position": [
+        440,
+        270
+      ],
+      "params": {
+        "threads": 1
+      },
+      "ui": {
+        "title": "Reference FAI + Dictionary"
       }
     },
     {
@@ -148,7 +177,9 @@
         80
       ],
       "params": {
-        "threads": 16
+        "threads": 16,
+        "read_group": "@RG\\tID:wgs1\\tSM:wgs1\\tPL:ILLUMINA",
+        "mark_shorter_splits": true
       },
       "ui": {
         "title": "BWA-MEM"
@@ -224,6 +255,21 @@
       }
     },
     {
+      "id": "snpeff_database_001",
+      "type": "input_file",
+      "position": [
+        3320,
+        700
+      ],
+      "params": {
+        "file": "{{snpeff_database}}",
+        "source": "local"
+      },
+      "ui": {
+        "title": "SnpEff Database Artifact"
+      }
+    },
+    {
       "id": "snpeff_001",
       "type": "snpeff",
       "position": [
@@ -231,28 +277,11 @@
         80
       ],
       "params": {
-        "genome": "Escherichia_coli_K12",
+        "genome": "{{snpeff_genome}}",
         "memory": 4
       },
       "ui": {
         "title": "SnpEff annotation"
-      }
-    },
-    {
-      "id": "vep_001",
-      "type": "vep",
-      "position": [
-        3680,
-        500
-      ],
-      "params": {
-        "assembly": "GRCh38",
-        "cache_dir": "~/.vep",
-        "threads": 4,
-        "output_format": "vcf"
-      },
-      "ui": {
-        "title": "VEP annotation"
       }
     },
     {
@@ -264,8 +293,7 @@
       ],
       "params": {
         "custom_filter": "INFO/ANN ~ 'HIGH|MODERATE'",
-        "pass_only": true,
-        "output_type": "VCF_GZ"
+        "pass_only": true
       },
       "ui": {
         "title": "Prioritize variants"
@@ -389,50 +417,47 @@
     },
     {
       "id": "render_gate_prioritized_vcf_tab_0",
-      "type": "table_preview",
+      "type": "vcf_stats_chart",
       "position": [
         5120,
         80
       ],
-      "params": {},
+      "params": {
+        "title": "Prioritized Variant Statistics",
+        "format": "html"
+      },
       "ui": {
-        "title": "View Table: gate_prioritized_vcf"
-      }
-    },
-    {
-      "id": "render_vep_tab_1",
-      "type": "table_preview",
-      "position": [
-        5120,
-        300
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Table: vep"
+        "title": "Prioritized Variant Statistics"
       }
     },
     {
       "id": "render_manta_sv_tab_0",
-      "type": "table_preview",
+      "type": "vcf_stats_chart",
       "position": [
         3680,
         316
       ],
-      "params": {},
+      "params": {
+        "title": "Manta Structural Variant Statistics",
+        "format": "html"
+      },
       "ui": {
-        "title": "View Table: manta_sv"
+        "title": "Manta Structural Variant Statistics"
       }
     },
     {
       "id": "render_delly_sv_tab_1",
-      "type": "table_preview",
+      "type": "vcf_stats_chart",
       "position": [
         3680,
         661
       ],
-      "params": {},
+      "params": {
+        "title": "DELLY Structural Variant Statistics",
+        "format": "html"
+      },
       "ui": {
-        "title": "View Table: delly_sv"
+        "title": "DELLY Structural Variant Statistics"
       }
     }
   ],
@@ -466,6 +491,17 @@
         "output": "reference"
       },
       "to": {
+        "node": "ref_sidecars_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e3a_reference",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "reference"
+      },
+      "to": {
         "node": "bwa_idx_001",
         "input": "reference"
       }
@@ -489,7 +525,7 @@
       },
       "to": {
         "node": "view_001",
-        "input": "sam"
+        "input": "alignment"
       }
     },
     {
@@ -500,7 +536,7 @@
       },
       "to": {
         "node": "sort_001",
-        "input": "bam"
+        "input": "alignment"
       }
     },
     {
@@ -528,8 +564,8 @@
     {
       "id": "e8",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "idx_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "fb_001",
@@ -537,14 +573,36 @@
       }
     },
     {
+      "id": "e8_bai",
+      "from": {
+        "node": "idx_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "fb_001",
+        "input": "bam_index"
+      }
+    },
+    {
       "id": "e9",
       "from": {
-        "node": "ref_001",
+        "node": "ref_sidecars_001",
         "output": "reference"
       },
       "to": {
         "node": "fb_001",
         "input": "reference"
+      }
+    },
+    {
+      "id": "e9_fai",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "fb_001",
+        "input": "reference_index"
       }
     },
     {
@@ -614,14 +672,14 @@
       }
     },
     {
-      "id": "e14_vep",
+      "id": "e14_snpeff_database",
       "from": {
-        "node": "filter_001",
-        "output": "filtered_vcf"
+        "node": "snpeff_database_001",
+        "output": "file"
       },
       "to": {
-        "node": "vep_001",
-        "input": "vcf"
+        "node": "snpeff_001",
+        "input": "database"
       }
     },
     {
@@ -660,8 +718,8 @@
     {
       "id": "e18",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "idx_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "coverage_plot_001",
@@ -669,20 +727,42 @@
       }
     },
     {
+      "id": "e18_bai",
+      "from": {
+        "node": "idx_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "coverage_plot_001",
+        "input": "alignment_index"
+      }
+    },
+    {
       "id": "e19a",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "idx_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "manta_sv_001",
         "input": "bam"
+      }
+    },
+    {
+      "id": "e19a_bai",
+      "from": {
+        "node": "idx_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "bam_index"
       }
     },
     {
       "id": "e19b",
       "from": {
-        "node": "ref_001",
+        "node": "ref_sidecars_001",
         "output": "reference"
       },
       "to": {
@@ -691,10 +771,21 @@
       }
     },
     {
+      "id": "e19b_fai",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "manta_sv_001",
+        "input": "reference_index"
+      }
+    },
+    {
       "id": "e19c",
       "from": {
-        "node": "markdup_001",
-        "output": "marked_bam"
+        "node": "idx_001",
+        "output": "indexed_bam"
       },
       "to": {
         "node": "delly_sv_001",
@@ -702,14 +793,36 @@
       }
     },
     {
+      "id": "e19c_bai",
+      "from": {
+        "node": "idx_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "bam_index"
+      }
+    },
+    {
       "id": "e19d",
       "from": {
-        "node": "ref_001",
+        "node": "ref_sidecars_001",
         "output": "reference"
       },
       "to": {
         "node": "delly_sv_001",
         "input": "reference"
+      }
+    },
+    {
+      "id": "e19d_fai",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "delly_sv_001",
+        "input": "reference_index"
       }
     },
     {
@@ -719,17 +832,7 @@
       },
       "to": {
         "node": "render_gate_prioritized_vcf_tab_0",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "vep_001",
-        "output": "annotated_vcf"
-      },
-      "to": {
-        "node": "render_vep_tab_1",
-        "input": "file"
+        "input": "vcf"
       }
     },
     {
@@ -739,7 +842,7 @@
       },
       "to": {
         "node": "render_manta_sv_tab_0",
-        "input": "file"
+        "input": "vcf"
       }
     },
     {
@@ -749,7 +852,7 @@
       },
       "to": {
         "node": "render_delly_sv_tab_1",
-        "input": "file"
+        "input": "vcf"
       }
     }
   ],
@@ -758,7 +861,6 @@
     "vcf": "prioritize_vcf_001",
     "prioritized_vcf": "prioritize_vcf_001",
     "prioritized_vcf_quality_gate": "gate_prioritized_vcf_001",
-    "vep_annotation": "vep_001",
     "variant_stats": "vcf_stats_001",
     "coverage_plot": "coverage_plot_001",
     "manta_sv": "manta_sv_001",

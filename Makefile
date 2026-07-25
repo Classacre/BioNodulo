@@ -10,8 +10,8 @@ WEB := web
 
 .DEFAULT_GOAL := help
 
-.PHONY: help test test-py test-web lint lint-py lint-web build build-web \
-        typecheck e2e verify install
+.PHONY: help dev dev-backend dev-web test test-py test-web lint lint-py \
+        lint-web build build-web typecheck e2e verify install
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -20,6 +20,18 @@ help: ## List available targets
 install: ## Install python (dev) + web dependencies
 	$(PY) -m pip install -e ".[dev]"
 	cd $(WEB) && npm ci
+
+dev: ## Run the backend on 8765 and Vite on 5173
+	@set -eu; \
+	  trap 'kill "$$backend" 2>/dev/null || true' EXIT INT TERM; \
+	  $(PY) main.py --dev --port 8765 --project-root workspace & backend=$$!; \
+	  cd $(WEB) && npm run dev
+
+dev-backend: ## Run the reloadable backend used by Vite's proxy
+	$(PY) main.py --dev --port 8765 --project-root workspace
+
+dev-web: ## Run Vite on 5173 (expects the backend on 8765)
+	cd $(WEB) && npm run dev
 
 test: test-py test-web ## Run backend + frontend test suites
 

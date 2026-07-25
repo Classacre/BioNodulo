@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 class LocalBackend(HPCBackend):
     """Local execution backend that runs jobs via subprocess."""
 
+    scheduler = "local"
+
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self.max_parallel = self.config.get("max_parallel", 4)

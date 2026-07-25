@@ -87,7 +87,7 @@ def test_metagenomics_template_reports_humann_pathway_profiles() -> None:
     assert coverage_validator["fail_on_error"] is True
     assert coverage_chart["params"]["title"] == "HUMAnN Pathway Coverage"
     assert coverage_chart["params"]["x_column"] == "# Pathway"
-    assert coverage_chart["params"]["y_column"] == "trimmed_reads_Coverage"
+    assert coverage_chart["params"]["y_column"] == "humann_Coverage"
     assert coverage_chart["params"]["orientation"] == "horizontal"
     assert coverage_chart["params"]["format"] == "svg"
 
@@ -102,20 +102,11 @@ def test_metagenomics_template_reports_humann_pathway_profiles() -> None:
     assert workflow["outputs"]["functional_pathcoverage_chart"] == "humann_pathcoverage_bar_001"
 
 
-def test_metagenomics_template_adds_bracken_abundance_heatmap_to_taxonomy_report() -> None:
+def test_metagenomics_template_uses_bracken_abundance_for_taxonomy_chart() -> None:
     workflow = _load_template("metagenomics_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert node_types["bracken_heatmap_001"] == "heatmap"
-    # The taxonomy_report_001 html_report was removed by design; the heatmap renders
-    # into a dedicated image_preview node.
-    assert "taxonomy_report_001" not in node_types
-    assert "render_bracken_heatmap_ima_2" not in node_types
-    heatmap = next(node for node in workflow["nodes"] if node["id"] == "bracken_heatmap_001")
-
-    assert heatmap["params"]["title"] == "Bracken Abundance Heatmap"
-    assert heatmap["params"]["scale"] == "column"
-    assert heatmap["params"]["format"] == "html"
-
-    assert _has_edge(workflow, "bracken_001", "report", "bracken_heatmap_001", "matrix")
-    assert workflow["outputs"]["taxonomy_heatmap"] == "bracken_heatmap_001"
+    assert "bracken_heatmap_001" not in node_types
+    assert "taxonomy_heatmap" not in workflow["outputs"]
+    assert _has_edge(workflow, "bracken_001", "abundance", "bracken_bar_001", "table")
+    assert _has_edge(workflow, "bracken_001", "report", "render_bracken_tab_0", "file")

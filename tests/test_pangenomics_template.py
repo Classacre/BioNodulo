@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,7 +9,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from bionodulo.manager.example_data import EXAMPLE_DATA_MANIFEST
 from bionodulo.nodes.builtin.inputs import InputFASTANode
+from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.workflow.validation import validate_workflow
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,15 +30,10 @@ def _node_by_id(workflow: dict[str, Any], node_id: str) -> dict[str, Any]:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
 
 
-
 def _output_validation(workflow: dict[str, Any], node_id: str, output: str) -> dict[str, Any]:
     node = _node_by_id(workflow, node_id)
-    return (
-        node.get("ui", {})
-        .get("validation", {})
-        .get("outputs", {})
-        .get(output, {})
-    )
+    return node.get("ui", {}).get("validation", {}).get("outputs", {}).get(output, {})
+
 
 def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target: str, target_input: str) -> bool:
     return any(
@@ -45,10 +44,7 @@ def _has_edge(workflow: dict[str, Any], source: str, source_output: str, target:
 
 
 def _target_input_count(workflow: dict[str, Any], target: str, target_input: str) -> int:
-    return sum(
-        edge.get("to") == {"node": target, "input": target_input}
-        for edge in workflow["edges"]
-    )
+    return sum(edge.get("to") == {"node": target, "input": target_input} for edge in workflow["edges"])
 
 
 def test_pangenomics_template_covers_pggb_odgi_qc_and_visualization() -> None:
@@ -82,16 +78,17 @@ def test_pangenomics_template_covers_pggb_odgi_qc_and_visualization() -> None:
     assert _has_edge(workflow, "haplotypes_001", "reference", "pggb_001", "input_fasta")
     assert not _has_edge(workflow, "pggb_001", "smooth_gfa", "validate_pggb_gfa_001", "input")
     assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_build_001", "gfa_graph")
-    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_viz_001", "gfa_graph")
-    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_stats_001", "gfa_graph")
+    assert _has_edge(workflow, "odgi_build_001", "graph_odgi", "odgi_viz_001", "gfa_graph")
+    assert _has_edge(workflow, "odgi_build_001", "graph_odgi", "odgi_stats_001", "gfa_graph")
     assert not _has_edge(workflow, "odgi_build_001", "stats", "validate_odgi_stats_001", "input")
     assert not _has_edge(workflow, "odgi_stats_001", "stats_json", "validate_odgi_stats_json_001", "input")
     assert _has_edge(workflow, "odgi_viz_001", "viz_image", "graph_image_preview_001", "file")
 
-    assert _has_edge(workflow, "haplotypes_001", "reference", "pggb_001", "input_fasta")
-    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_build_001", "gfa_graph")
-    assert _has_edge(workflow, "pggb_001", "smooth_gfa", "odgi_viz_001", "gfa_graph")
+    assert _target_input_count(workflow, "odgi_viz_001", "gfa_graph") == 1
+    assert _target_input_count(workflow, "odgi_stats_001", "gfa_graph") == 1
     assert _target_input_count(workflow, "graph_image_preview_001", "file") == 1
+    validation = validate_workflow(workflow, NodeRegistry.create_isolated())
+    assert validation.valid, validation.errors
 
 
 def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() -> None:
@@ -105,16 +102,23 @@ def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() ->
     odgi_viz = _node_by_id(workflow, "odgi_viz_001")
     odgi_stats = _node_by_id(workflow, "odgi_stats_001")
 
-    assert _node_by_id(workflow, "haplotypes_001")["params"]["reference"] == "examples/data/pangenomics/haplotypes.fa"
+    assert _node_by_id(workflow, "haplotypes_001")["params"]["reference"] == (
+        "templates/data/smoke/haplotypes.fasta"
+    )
     assert haplotype_validator["expected_format"] == "fasta"
-    assert haplotype_validator["min_records"] >= 2
+    assert haplotype_validator["min_records"] == 12
     assert haplotype_validator["min_size_bytes"] > 0
     assert haplotype_validator["fail_on_error"] is True
-    assert pggb["params"]["num_haplotypes"] == 2
+    assert pggb["params"]["num_haplotypes"] == 12
     assert pggb["params"]["threads"] >= 8
     assert pggb["params"]["map_pct_id"] == 90
     assert pggb["params"]["segment_length"] == 5000
-    assert pggb["params"]["graph_poas"] == 2
+    assert pggb["params"]["min_match_length"] == 23
+    assert pggb["params"]["poa_length_target"] == "700,1100"
+    assert pggb["params"]["do_viz"] is False
+    assert "graph_poas" not in pggb["params"]
+    assert "consensus_spec" not in pggb["params"]
+    assert "do_layout" not in pggb["params"]
     assert gfa_validator["expected_format"] == "text"
     assert gfa_validator["fail_on_error"] is True
     assert odgi_build["params"]["output_name"] == "pangenome_graph"
@@ -126,6 +130,26 @@ def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() ->
     assert odgi_viz["params"]["show_paths"] is True
     assert odgi_viz["params"]["viz_mode"] == "gradient"
     assert odgi_stats["params"]["threads"] >= 4
+
+    fixture_path = ROOT / _node_by_id(workflow, "haplotypes_001")["params"]["reference"]
+    fixture_text = fixture_path.read_text(encoding="utf-8")
+    sequence_lengths: list[int] = []
+    current_length = 0
+    for line in fixture_text.splitlines():
+        if line.startswith(">"):
+            if current_length:
+                sequence_lengths.append(current_length)
+            current_length = 0
+        else:
+            current_length += len(line.strip())
+    if current_length:
+        sequence_lengths.append(current_length)
+
+    assert len(sequence_lengths) == pggb["params"]["num_haplotypes"]
+    assert min(sequence_lengths) >= pggb["params"]["segment_length"]
+    assert hashlib.sha256(fixture_path.read_bytes()).hexdigest() == (
+        "44d138b568b3eb5b588f3aaaaf6f5895c32ec5f7f2178a89c40b953fb7977943"
+    )
 
     assert workflow["outputs"]["validated_haplotypes"] == "haplotypes_001"
     assert workflow["outputs"]["pggb_graph"] == "pggb_001"
@@ -162,6 +186,15 @@ def test_pangenomics_template_is_discoverable_from_workflow_templates_api() -> N
 
 @pytest.mark.asyncio
 async def test_pangenomics_example_haplotypes_are_materialized_from_manifest(tmp_path: Path) -> None:
+    fixture = next(
+        spec for spec in EXAMPLE_DATA_MANIFEST if spec.category == "pangenomics" and spec.filename == "haplotypes.fa"
+    )
+    assert fixture.url == (
+        "https://raw.githubusercontent.com/pangenome/pggb/"
+        "e25486b9b219877eca82631a13953129386c8b09/data/HLA/DRB1-3123.fa.gz"
+    )
+    assert fixture.gunzip is True
+
     node = InputFASTANode()
     previews: list[tuple[str, str]] = []
     context = SimpleNamespace(
@@ -179,4 +212,7 @@ async def test_pangenomics_example_haplotypes_are_materialized_from_manifest(tmp
     fasta_path = Path(result["outputs"]["reference"])
     assert fasta_path.exists()
     assert fasta_path.name == "haplotypes.fa"
-    assert fasta_path.read_text(encoding="utf-8").count(">") >= 2
+    assert sum(line.startswith(">") for line in fasta_path.read_text(encoding="utf-8").splitlines()) == 12
+    assert hashlib.sha256(fasta_path.read_bytes()).hexdigest() == (
+        "ec471ac09235e0f9214eb46ebf2c0108cecdea52eca609de9e52ad51a6bf7a91"
+    )

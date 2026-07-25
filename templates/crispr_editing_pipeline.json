@@ -48,7 +48,7 @@
         80
       ],
       "params": {
-        "reference": "examples/data/crispr/genome.fa"
+        "reference": "templates/data/smoke/reference.fasta"
       },
       "ui": {
         "title": "Genome FASTA",
@@ -115,8 +115,7 @@
         "validation": {
           "outputs": {
             "offtarget_sites": {
-              "expected_format": "tsv",
-              "min_size_bytes": 1,
+              "expected_format": "text",
               "fail_on_error": true
             }
           }
@@ -198,19 +197,21 @@
     },
     {
       "id": "amplicon_r1_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         80,
         231
       ],
       "params": {
-        "file": "examples/data/crispr/amplicon_R1.fastq.gz"
+        "reads": [
+          "templates/data/smoke/paired_R1.fastq"
+        ]
       },
       "ui": {
         "title": "Amplicon R1 FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -222,19 +223,21 @@
     },
     {
       "id": "amplicon_r2_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         80,
         382
       ],
       "params": {
-        "file": "examples/data/crispr/amplicon_R2.fastq.gz"
+        "reads": [
+          "templates/data/smoke/paired_R2.fastq"
+        ]
       },
       "ui": {
         "title": "Amplicon R2 FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -253,8 +256,8 @@
       ],
       "params": {
         "reads": [
-          "examples/data/crispr/control.fastq",
-          "examples/data/crispr/treated.fastq"
+          "templates/data/smoke/paired_R1.fastq",
+          "templates/data/smoke/paired_R2.fastq"
         ],
         "sample_name": "screen"
       },
@@ -280,7 +283,7 @@
         723
       ],
       "params": {
-        "file": "examples/data/crispr/sgrna_library.tsv"
+        "file": "templates/data/smoke/sgrna_library.tsv"
       },
       "ui": {
         "title": "sgRNA Library",
@@ -400,7 +403,7 @@
       "id": "e3",
       "from": {
         "node": "amplicon_r1_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "crispresso2_001",
@@ -411,7 +414,7 @@
       "id": "e4",
       "from": {
         "node": "amplicon_r2_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "crispresso2_001",

@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 import shlex
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from bionodulo.nodes.registry import NodeRegistry
 from bionodulo.nodes.types import BioType, file_extension_for, is_compatible
@@ -21,6 +22,12 @@ def _node_class(node_id: str) -> type:
     node_class = _registry().get(node_id)
     assert node_class is not None, f"{node_id} is not registered"
     return node_class
+
+
+def _assert_staged_ucsc_command(command: str, output: str, executable: str) -> None:
+    assert f"mkdir -p {output}/ucsc-home" in command
+    assert f"{output}/ucsc-home/.hg.conf" in command
+    assert f"HOME={output}/ucsc-home {executable}" in command
 
 
 def test_bionodulo_builtin_wrapped_nodes_do_not_use_generic_galaxy_alias() -> None:
@@ -3293,14 +3300,14 @@ def test_clustering_from_distmat_exposes_galaxy_metadata_inputs_outputs_and_doi(
     assert node_info["output"] == ["PHYLOGENY_TREE", "TSV"]
     assert node_info["output_name"] == ["clustering_dendrogram", "clustering_assignment"]
     assert node_info["required_executables"] == ["python"]
-    assert node_info["required_conda_packages"] == ["python", "scipy"]
+    assert node_info["required_conda_packages"] == ["python", "scipy", "pandas"]
     assert node_info["documentation_url"] == "https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html"
     assert node_info["citation_dois"] == ["10.1038/s41592-019-0686-2"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1038/s41592-019-0686-2"]
     assert "SciPy" in node_info["citation_text"]
     assert "distance matrix" in node_info["search_aliases"]
     assert "cut_tree" in node_info["search_aliases"]
-    assert node_info["version"] == "1.1.1"
+    assert node_info["version"] == "1.1.2+galaxy0"
 
 
 def test_clustering_from_distmat_renders_default_dendrogram_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -3313,8 +3320,8 @@ def test_clustering_from_distmat_renders_default_dendrogram_command_outputs_and_
         }
     ) == (
         "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
-        "python clustering_from_distmat.py 'sample distances.tsv' result --method average && "
-        "mv result.tree.newick clustering_dendrogram.newick"
+        "python clustering_from_distmat.py 'sample distances.tsv' result --method average --newick && "
+        "mv result.tree clustering_dendrogram.newick"
     )
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "clustering_from_distmat" / "clustering_dendrogram.newick",
@@ -3359,8 +3366,8 @@ def test_clustering_from_distmat_renders_assignment_modes_and_optional_dendrogra
         }
     ) == (
         "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
-        "python /tools/clustering_from_distmat.py matrix_nr.tsv result --method complete --nr "
-        "--n-clusters 4 --min-cluster-size 1 && mv result.tree.newick clustering_dendrogram.newick && "
+        "python /tools/clustering_from_distmat.py matrix_nr.tsv result --method complete --nr --newick "
+        "--n-clusters 4 --min-cluster-size 1 && mv result.tree clustering_dendrogram.newick && "
         "mv result.cluster_assignments.tsv clustering_assignment.tsv"
     )
     assert node_class.render_command(
@@ -3373,7 +3380,7 @@ def test_clustering_from_distmat_renders_assignment_modes_and_optional_dendrogra
         }
     ) == (
         "mkdir -p /work/clustering_from_distmat && cd /work/clustering_from_distmat && "
-        "python clustering_from_distmat.py matrix_nc.tsv result --method average --nc --height 18 && "
+        "python clustering_from_distmat.py matrix_nc.tsv result --method average --nc --newick --height 18 && "
         "mv result.cluster_assignments.tsv clustering_assignment.tsv"
     )
     assert node_class.PLAN_OUTPUTS({"cluster_assignment": "n-cluster"}, tmp_path) == [
@@ -3719,7 +3726,7 @@ def test_bionodulo_builtin_batch_nodes_expose_citation_and_dependency_metadata()
             "display_name": "ANGSD",
             "category": "population_genetics",
             "required_executables": ["angsd", "samtools"],
-            "required_conda_packages": ["angsd", "samtools"],
+            "required_conda_packages": ["angsd", "samtools", "python"],
             "doi": "10.1186/s12859-014-0356-4",
         },
         "angsd_contamination": {
@@ -3879,7 +3886,9 @@ def test_bionodulo_builtin_batch_nodes_expose_citation_and_dependency_metadata()
         "hmmer_nhmmscan": {
             "display_name": "HMMER nhmmscan",
             "category": "annotation",
-            "required_executables": ["nhmmscan", "hmmpress"],
+            # hmmpress prepares the explicitly staged .h3{f,i,m,p} siblings;
+            # nhmmscan itself does not invoke that preparation executable.
+            "required_executables": ["nhmmscan"],
             "required_conda_packages": ["hmmer"],
             "doi": "10.1093/bioinformatics/btt403",
         },
@@ -4438,7 +4447,7 @@ def test_featurecounts_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     ]
     assert node_info["required_executables"] == ["featureCounts", "samtools"]
     assert node_info["required_conda_packages"] == ["subread", "samtools"]
-    assert node_info["documentation_url"] == "https://doi.org/10.1093/bioinformatics/btt656"
+    assert node_info["documentation_url"] == "https://subread.sourceforge.net/SubreadUsersGuide.pdf"
     assert node_info["citation_dois"] == ["10.1093/bioinformatics/btt656"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1093/bioinformatics/btt656"]
     assert "assigning sequence reads to genomic features" in node_info["citation_text"]
@@ -4446,7 +4455,8 @@ def test_featurecounts_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "subread" in node_info["search_aliases"]
     assert "featureCounts gene counts" in node_info["search_aliases"]
     assert "RNA-seq read counting" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["alignment"][0] == "BAM"
+    assert node_info["input"]["required"]["alignment"][0] == "SAM|BAM"
+    assert "options" not in node_info["input"]["required"]["alignment"][1]
     assert node_info["input"]["optional"]["anno_select"][1]["default"] == "history"
     assert node_info["input"]["optional"]["anno_select"][1]["options"] == ["builtin", "cached", "history"]
     assert node_info["input"]["optional"]["reference_gene_sets"][0] == "GFF_GTF"
@@ -4481,11 +4491,11 @@ def test_featurecounts_renders_history_annotation_medium_command_and_outputs(tmp
 
     assert cmd == (
         "export FC_PATH=$(command -v featureCounts | sed 's@/bin/featureCounts$@@') && "
-        "featureCounts -a genes.gtf -F GTF -o output -T ${GALAXY_SLOTS:-2} -s 1 -Q 10 "
+        "featureCounts -a genes.gtf -F GTF -o output -T 1 -s 1 -Q 10 "
         "-t exon -g gene_id -f --minOverlap 1 --fracOverlap 0 --fracOverlapFeature 0 "
         "featureCounts_input1.bam && "
         "grep -v '^#' output | sed -e 's|featureCounts_input1.bam|featureCounts_input1.bam|g' > body.txt && "
-        "cut -f 1,7 body.txt > expression_matrix.txt && "
+        "cut -f 1,7- body.txt > expression_matrix.txt && "
         "cut -f 6 body.txt > gene_lengths.txt && "
         "paste expression_matrix.txt gene_lengths.txt > expression_matrix.txt.bak && "
         "mv -f expression_matrix.txt.bak /work/featurecounts/counts.tsv && "
@@ -4525,15 +4535,15 @@ def test_featurecounts_renders_builtin_fragment_bam_and_junction_command(tmp_pat
     assert cmd == (
         "export FC_PATH=$(command -v featureCounts | sed 's@/bin/featureCounts$@@') && "
         "featureCounts -a ${FC_PATH}/annotation/hg19_RefSeq_exon.txt -F SAF -o output "
-        "-T ${GALAXY_SLOTS:-2} -s 0 -Q 0 -O -M --fraction -J -G 'ref genome.fa' "
-        "--minOverlap 1 --fracOverlap 0 --fracOverlapFeature 0 -R BAM -p --countReadPairs "
+        "-T 1 -s 0 -Q 0 -O -M --fraction -J -G 'ref genome.fa' "
+        "--minOverlap 1 --fracOverlap 0 --fracOverlapFeature 0 -R BAM --Rpath /work/featurecounts -p --countReadPairs "
         "-P -d 50 -D 600 -B -C 'paired reads.bam' && "
         "grep -v '^#' output | sed -e 's|paired reads.bam|paired reads.bam|g' > body.txt && "
-        "cut -f 1,7 body.txt > /work/featurecounts/counts.tsv && "
+        "cut -f 1,7- body.txt > /work/featurecounts/counts.tsv && "
         "sed -e 's|paired reads.bam|paired reads.bam|g' output.jcounts > "
         "/work/featurecounts/junction_counts.tsv && "
-        "samtools sort --no-PG -o /work/featurecounts/annotated.bam -@ ${GALAXY_SLOTS:-2} "
-        "-T \"${TMPDIR:-.}\" *.featureCounts.bam && "
+        "samtools sort --no-PG -o /work/featurecounts/annotated.bam -@ 1 "
+        "-T \"${TMPDIR:-.}\" '/work/featurecounts/paired reads.bam.featureCounts.bam' && "
         "sed -e 's|paired reads.bam|paired reads.bam|g' output.summary > /work/featurecounts/summary.tsv"
     )
     assert node_class.PLAN_OUTPUTS(
@@ -4550,7 +4560,7 @@ def test_featurecounts_renders_builtin_fragment_bam_and_junction_command(tmp_pat
     ]
 
 
-def test_featurecounts_validates_required_conditional_and_range_inputs() -> None:
+def test_featurecounts_validates_required_conditional_and_range_inputs(tmp_path: Path) -> None:
     node_class = _node_class("featurecounts")
 
     assert node_class.VALIDATE_INPUTS({}) == "alignment is required"
@@ -4593,7 +4603,11 @@ def test_featurecounts_validates_required_conditional_and_range_inputs() -> None
             "maximum_fragment_length": 600,
         }
     ) == "maximum_fragment_length must be >= minimum_fragment_length"
-    assert node_class.VALIDATE_INPUTS({"alignment": "reads.bam", "anno_select": "builtin"}) is True
+    alignment = tmp_path / "reads.bam"
+    alignment.write_bytes(b"BAM")
+    assert node_class.VALIDATE_INPUTS(
+        {"alignment": str(alignment), "anno_select": "builtin"}
+    ) is True
 
 
 def test_roary_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
@@ -4801,1030 +4815,6 @@ def test_seqkit_stats_renders_statistics_command() -> None:
         ">",
         "/work/seqkit_stats/stats.tsv",
     ]
-
-
-def test_seqtk_comp_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_comp"]
-
-    assert info["display_name"] == "SeqTK Composition"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Report per-record nucleotide composition for FASTA or FASTQ data with seqtk comp."
-    assert info["output"] == ["TSV"]
-    assert info["output_name"] == ["composition"]
-    assert info["required_executables"] == ["seqtk", "awk"]
-    assert info["required_conda_packages"] == ["seqtk", "gawk"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk comp" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["in_bed"][0] == "BED"
-
-
-def test_seqtk_comp_renders_composition_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_comp")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fasta.gz",
-            "output": "/work/seqtk_comp",
-        }
-    ) == (
-        "seqtk comp reads.fasta.gz | "
-        "awk 'BEGIN{print \"#chr\\tlength\\t#A\\t#C\\t#G\\t#T\\t#2\\t#3\\t#4\\t#CpG\\t#tv\\t#ts\\t#CpG-ts\"}1' "
-        "> /work/seqtk_comp/composition.tsv"
-    )
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "seqtk_comp" / "composition.tsv",
-    ]
-
-
-def test_seqtk_comp_renders_bed_restricted_composition_command() -> None:
-    node_class = _node_class("seqtk_comp")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq",
-            "in_bed": "regions.bed",
-            "output": "/work/seqtk_comp",
-        }
-    ) == (
-        "seqtk comp -r regions.bed reads.fastq | "
-        "awk 'BEGIN{print \"#chr\\tlength\\t#A\\t#C\\t#G\\t#T\\t#2\\t#3\\t#4\\t#CpG\\t#tv\\t#ts\\t#CpG-ts\"}1' "
-        "> /work/seqtk_comp/composition.tsv"
-    )
-
-
-def test_seqtk_cutn_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_cutN"]
-
-    assert info["display_name"] == "SeqTK CutN"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Split FASTA or FASTQ records at long N tracts with seqtk cutN."
-    assert info["output"] == ["FASTA", "FASTQ", "BED"]
-    assert info["output_name"] == ["split_sequences", "split_reads", "gaps_bed"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk cutN" in info["search_aliases"]
-    assert "seqtk split at N" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["n"][1]["default"] == 1000
-    assert info["input"]["optional"]["p"][1]["default"] == 10
-    assert info["input"]["optional"]["g"][0] == "BOOLEAN"
-
-
-def test_seqtk_cutn_renders_sequence_split_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_cutN")
-
-    assert node_class.render_command(
-        {
-            "in_file": "contigs.fa",
-            "n": 1,
-            "p": 10,
-            "output": "/work/seqtk_cutN",
-        }
-    ) == "seqtk cutN -n 1 -p 10 contigs.fa > /work/seqtk_cutN/cutN.fasta"
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "seqtk_cutN" / "cutN.fasta",
-    ]
-
-
-def test_seqtk_cutn_renders_gzip_sequence_split_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_cutN")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq.gz",
-            "input_ext": "fastq.gz",
-            "n": 100,
-            "p": 5,
-            "output": "/work/seqtk_cutN",
-        }
-    ) == (
-        "seqtk cutN -n 100 -p 5 reads.fastq.gz | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_cutN/cutN.fastq.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
-        tmp_path / "seqtk_cutN" / "cutN.fastq.gz",
-    ]
-
-
-def test_seqtk_cutn_renders_gaps_only_bed_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_cutN")
-
-    assert node_class.render_command(
-        {
-            "in_file": "contigs.fasta.gz",
-            "input_ext": "fasta.gz",
-            "n": 250,
-            "p": 12,
-            "g": True,
-            "output": "/work/seqtk_cutN",
-        }
-    ) == "seqtk cutN -n 250 -p 12 -g contigs.fasta.gz > /work/seqtk_cutN/gaps.bed"
-    assert node_class.PLAN_OUTPUTS({"g": True, "input_ext": "fasta.gz"}, tmp_path) == [
-        tmp_path / "seqtk_cutN" / "gaps.bed",
-    ]
-
-
-def test_seqtk_dropse_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_dropse"]
-
-    assert info["display_name"] == "SeqTK DropSE"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Remove unpaired records from interleaved paired-end FASTA or FASTQ data with seqtk dropse."
-    assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["paired_sequences", "paired_reads"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk dropse" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
-
-
-def test_seqtk_dropse_renders_plain_interleaved_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_dropse")
-
-    assert node_class.render_command(
-        {
-            "in_file": "interleaved.fastq",
-            "input_ext": "fastq",
-            "output": "/work/seqtk_dropse",
-        }
-    ) == "seqtk dropse interleaved.fastq > /work/seqtk_dropse/paired.fastq"
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq"}, tmp_path) == [
-        tmp_path / "seqtk_dropse" / "paired.fastq",
-    ]
-
-
-def test_seqtk_dropse_renders_gzip_interleaved_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_dropse")
-
-    assert node_class.render_command(
-        {
-            "in_file": "interleaved.fasta.gz",
-            "input_ext": "fasta.gz",
-            "output": "/work/seqtk_dropse",
-        }
-    ) == (
-        "seqtk dropse interleaved.fasta.gz | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_dropse/paired.fasta.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fasta.gz"}, tmp_path) == [
-        tmp_path / "seqtk_dropse" / "paired.fasta.gz",
-    ]
-
-
-def test_seqtk_fqchk_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_fqchk"]
-
-    assert info["display_name"] == "SeqTK FASTQ Check"
-    assert info["category"] == "qc"
-    assert info["description"] == "Report base-by-base FASTQ composition and quality summaries with seqtk fqchk."
-    assert info["output"] == ["TSV"]
-    assert info["output_name"] == ["quality_information"]
-    assert info["required_executables"] == ["seqtk", "awk"]
-    assert info["required_conda_packages"] == ["seqtk", "gawk"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk fqchk" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ"
-    assert info["input"]["optional"]["q"][1]["default"] == 20
-
-
-def test_seqtk_fqchk_renders_quality_summary_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_fqchk")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq.gz",
-            "q": 20,
-            "output": "/work/seqtk_fqchk",
-        }
-    ) == (
-        "seqtk fqchk -q 20 reads.fastq.gz | "
-        "awk '{if(NR<4){print \"#\"$0}else{print $0}}' > /work/seqtk_fqchk/quality_information.tsv"
-    )
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "seqtk_fqchk" / "quality_information.tsv",
-    ]
-
-
-def test_seqtk_fqchk_renders_all_quality_values_command() -> None:
-    node_class = _node_class("seqtk_fqchk")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq",
-            "q": 0,
-            "output": "/work/seqtk_fqchk",
-        }
-    ) == (
-        "seqtk fqchk -q 0 reads.fastq | "
-        "awk '{if(NR<4){print \"#\"$0}else{print $0}}' > /work/seqtk_fqchk/quality_information.tsv"
-    )
-
-
-def test_seqtk_hety_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_hety"]
-
-    assert info["display_name"] == "SeqTK Heterozygosity"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Report regional heterozygosity across FASTA or FASTQ data with seqtk hety."
-    assert info["output"] == ["TSV"]
-    assert info["output_name"] == ["heterozygous_regions"]
-    assert info["required_executables"] == ["seqtk", "awk"]
-    assert info["required_conda_packages"] == ["seqtk", "gawk"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk hety" in info["search_aliases"]
-    assert "regional heterozygosity" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["w"][1]["default"] == 50000
-    assert info["input"]["optional"]["t"][1]["default"] == 5
-    assert info["input"]["optional"]["m"][0] == "BOOLEAN"
-
-
-def test_seqtk_hety_renders_regional_heterozygosity_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_hety")
-
-    assert node_class.render_command(
-        {
-            "in_file": "contigs.fa.gz",
-            "w": 50000,
-            "t": 5,
-            "m": False,
-            "output": "/work/seqtk_hety",
-        }
-    ) == (
-        "seqtk hety -w 50000 -t 5 contigs.fa.gz | "
-        "awk 'BEGIN{print \"#chr\\tstart\\tend\\tA\\tB\\tnum_het\"}1' "
-        "> /work/seqtk_hety/heterozygous_regions.tsv"
-    )
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "seqtk_hety" / "heterozygous_regions.tsv",
-    ]
-
-
-def test_seqtk_hety_renders_masked_lowercase_command() -> None:
-    node_class = _node_class("seqtk_hety")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq",
-            "w": 8,
-            "t": 3,
-            "m": True,
-            "output": "/work/seqtk_hety",
-        }
-    ) == (
-        "seqtk hety -w 8 -t 3 -m reads.fastq | "
-        "awk 'BEGIN{print \"#chr\\tstart\\tend\\tA\\tB\\tnum_het\"}1' "
-        "> /work/seqtk_hety/heterozygous_regions.tsv"
-    )
-
-
-def test_seqtk_listhet_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_listhet"]
-
-    assert info["display_name"] == "SeqTK List Heterozygous Bases"
-    assert info["category"] == "sequence"
-    assert info["description"] == "List positions of heterozygous IUPAC ambiguity bases in FASTA or FASTQ data."
-    assert info["output"] == ["TSV"]
-    assert info["output_name"] == ["heterozygous_bases"]
-    assert info["required_executables"] == ["seqtk", "awk"]
-    assert info["required_conda_packages"] == ["seqtk", "gawk"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk listhet" in info["search_aliases"]
-    assert "heterozygous bases" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-
-
-def test_seqtk_listhet_renders_heterozygous_base_positions_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_listhet")
-
-    assert node_class.render_command(
-        {
-            "in_file": "ambiguous.fa.gz",
-            "output": "/work/seqtk_listhet",
-        }
-    ) == (
-        "seqtk listhet ambiguous.fa.gz | "
-        "awk 'BEGIN{print \"#chr\\tposition\\tbase\"}1' "
-        "> /work/seqtk_listhet/heterozygous_bases.tsv"
-    )
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "seqtk_listhet" / "heterozygous_bases.tsv",
-    ]
-
-
-def test_seqtk_mergefa_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_mergefa"]
-
-    assert info["display_name"] == "SeqTK Merge FASTA"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Merge two FASTA or FASTQ files into FASTA using IUPAC ambiguity codes."
-    assert info["output"] == ["FASTA"]
-    assert info["output_name"] == ["merged_fasta"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk mergefa" in info["search_aliases"]
-    assert "IUPAC ambiguity codes" in info["search_aliases"]
-    assert info["input"]["required"]["in_fa1"][0] == "FASTQ_LIST"
-    assert info["input"]["required"]["in_fa2"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["q"][1]["default"] == 0
-    assert info["input"]["optional"]["i"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["m"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["r"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["h"][0] == "BOOLEAN"
-
-
-def test_seqtk_mergefa_renders_plain_merge_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_mergefa")
-
-    assert node_class.render_command(
-        {
-            "in_fa1": "left.fa",
-            "in_fa2": "right.fa",
-            "q": 0,
-            "output": "/work/seqtk_mergefa",
-        }
-    ) == "seqtk mergefa -q 0 left.fa right.fa > /work/seqtk_mergefa/merged.fasta"
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "seqtk_mergefa" / "merged.fasta",
-    ]
-
-
-def test_seqtk_mergefa_renders_gzip_merge_with_ambiguity_options(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_mergefa")
-
-    assert node_class.render_command(
-        {
-            "in_fa1": "left.fastq.gz",
-            "in_fa2": "right.fastq.gz",
-            "input_ext": "fastq.gz",
-            "q": 20,
-            "i": True,
-            "m": True,
-            "r": True,
-            "h": True,
-            "output": "/work/seqtk_mergefa",
-        }
-    ) == (
-        "seqtk mergefa -q 20 -i -m -r -h left.fastq.gz right.fastq.gz | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_mergefa/merged.fasta.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
-        tmp_path / "seqtk_mergefa" / "merged.fasta.gz",
-    ]
-
-
-def test_seqtk_mergepe_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_mergepe"]
-
-    assert info["display_name"] == "SeqTK Merge Paired-End"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Interleave two unpaired FASTA or FASTQ files into a paired-end FASTA/Q file."
-    assert info["output"] == ["FASTQ"]
-    assert info["output_name"] == ["interleaved_pairs"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk mergepe" in info["search_aliases"]
-    assert "interleaved paired-end" in info["search_aliases"]
-    assert info["input"]["required"]["in_fq1"][0] == "FASTQ_LIST"
-    assert info["input"]["required"]["in_fq2"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
-
-
-def test_seqtk_mergepe_renders_plain_interleaved_pairs_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_mergepe")
-
-    assert node_class.render_command(
-        {
-            "in_fq1": "reads_R1.fastq",
-            "in_fq2": "reads_R2.fastq",
-            "input_ext": "fastq",
-            "output": "/work/seqtk_mergepe",
-        }
-    ) == "seqtk mergepe reads_R1.fastq reads_R2.fastq > /work/seqtk_mergepe/interleaved.fastq"
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq"}, tmp_path) == [
-        tmp_path / "seqtk_mergepe" / "interleaved.fastq",
-    ]
-
-
-def test_seqtk_mergepe_renders_gzip_interleaved_pairs_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_mergepe")
-
-    assert node_class.render_command(
-        {
-            "in_fq1": "reads_R1.fasta.gz",
-            "in_fq2": "reads_R2.fasta.gz",
-            "input_ext": "fasta.gz",
-            "output": "/work/seqtk_mergepe",
-        }
-    ) == (
-        "seqtk mergepe reads_R1.fasta.gz reads_R2.fasta.gz | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_mergepe/interleaved.fasta.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fasta.gz"}, tmp_path) == [
-        tmp_path / "seqtk_mergepe" / "interleaved.fasta.gz",
-    ]
-
-
-def test_seqtk_mutfa_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_mutfa"]
-
-    assert info["display_name"] == "SeqTK Mutate FASTA"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Apply point mutations from a tabular SNP file to FASTA or FASTQ sequences."
-    assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["mutated_sequences", "mutated_reads"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk mutfa" in info["search_aliases"]
-    assert "point mutations" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["required"]["in_snp"][0] == "TSV"
-    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
-
-
-def test_seqtk_mutfa_renders_plain_mutation_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_mutfa")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reference.fa",
-            "in_snp": "variants.tsv",
-            "input_ext": "fasta",
-            "output": "/work/seqtk_mutfa",
-        }
-    ) == "seqtk mutfa reference.fa variants.tsv > /work/seqtk_mutfa/mutated.fasta"
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fasta"}, tmp_path) == [
-        tmp_path / "seqtk_mutfa" / "mutated.fasta",
-    ]
-
-
-def test_seqtk_mutfa_renders_gzip_mutation_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_mutfa")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq.gz",
-            "in_snp": "variants.tabular",
-            "input_ext": "fastq.gz",
-            "output": "/work/seqtk_mutfa",
-        }
-    ) == (
-        "seqtk mutfa reads.fastq.gz variants.tabular | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_mutfa/mutated.fastq.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
-        tmp_path / "seqtk_mutfa" / "mutated.fastq.gz",
-    ]
-
-
-def test_seqtk_randbase_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_randbase"]
-
-    assert info["display_name"] == "SeqTK Random Base"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Randomly resolve ambiguous IUPAC bases in FASTA or FASTQ sequences."
-    assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["unambiguous_sequences", "unambiguous_reads"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk randbase" in info["search_aliases"]
-    assert "ambiguous bases" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
-
-
-def test_seqtk_randbase_renders_plain_random_base_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_randbase")
-
-    assert node_class.render_command(
-        {
-            "in_file": "ambiguous.fa",
-            "input_ext": "fasta",
-            "output": "/work/seqtk_randbase",
-        }
-    ) == "seqtk randbase ambiguous.fa > /work/seqtk_randbase/unambiguous.fasta"
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fasta"}, tmp_path) == [
-        tmp_path / "seqtk_randbase" / "unambiguous.fasta",
-    ]
-
-
-def test_seqtk_randbase_renders_gzip_random_base_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_randbase")
-
-    assert node_class.render_command(
-        {
-            "in_file": "ambiguous.fastq.gz",
-            "input_ext": "fastq.gz",
-            "output": "/work/seqtk_randbase",
-        }
-    ) == (
-        "seqtk randbase ambiguous.fastq.gz | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_randbase/unambiguous.fastq.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
-        tmp_path / "seqtk_randbase" / "unambiguous.fastq.gz",
-    ]
-
-
-def test_seqtk_sample_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_sample"]
-
-    assert info["display_name"] == "SeqTK Sample"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Randomly subsample FASTA or FASTQ sequences with a reproducible seed."
-    assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["subsampled_sequences", "subsampled_reads"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk sample" in info["search_aliases"]
-    assert "subsample reads" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["required"]["subsample_size"][0] == "FLOAT"
-    assert info["input"]["optional"]["s"][1]["default"] == 4
-    assert info["input"]["optional"]["single_pass_mode"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["single_pass_mode"][1]["default"] is False
-    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
-
-
-def test_seqtk_sample_renders_default_two_pass_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_sample")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fa",
-            "subsample_size": 100,
-            "s": 4,
-            "single_pass_mode": False,
-            "input_ext": "fasta",
-            "output": "/work/seqtk_sample",
-        }
-    ) == "seqtk sample -s 4 -2 reads.fa 100 > /work/seqtk_sample/subsampled.fasta"
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fasta"}, tmp_path) == [
-        tmp_path / "seqtk_sample" / "subsampled.fasta",
-    ]
-
-
-def test_seqtk_sample_renders_one_pass_fraction_command() -> None:
-    node_class = _node_class("seqtk_sample")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq",
-            "subsample_size": 0.5,
-            "s": 11,
-            "single_pass_mode": True,
-            "input_ext": "fastq",
-            "output": "/work/seqtk_sample",
-        }
-    ) == "seqtk sample -s 11 reads.fastq 0.5 > /work/seqtk_sample/subsampled.fastq"
-
-
-def test_seqtk_sample_renders_gzip_two_pass_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_sample")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq.gz",
-            "subsample_size": 2500,
-            "s": 4,
-            "single_pass_mode": False,
-            "input_ext": "fastq.gz",
-            "output": "/work/seqtk_sample",
-        }
-    ) == (
-        "seqtk sample -s 4 -2 reads.fastq.gz 2500 | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_sample/subsampled.fastq.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
-        tmp_path / "seqtk_sample" / "subsampled.fastq.gz",
-    ]
-
-
-def test_seqtk_seq_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_seq"]
-
-    assert info["display_name"] == "SeqTK Seq"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Transform FASTA or FASTQ sequences with seqtk seq."
-    assert info["output"] == ["FASTA", "FASTQ"]
-    assert info["output_name"] == ["transformed_sequences", "transformed_reads"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk seq" in info["search_aliases"]
-    assert "reverse complement" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["q"][1]["default"] == 0
-    assert info["input"]["optional"]["X"][1]["default"] == 255
-    assert info["input"]["optional"]["n"][0] == "STRING"
-    assert info["input"]["optional"]["direction"][1]["options"] == ["forward", "-r", "-R"]
-    assert info["input"]["optional"]["A"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["x1"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["fastqillumina"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["input_ext"][1]["options"] == [
-        "fasta",
-        "fastq",
-        "fasta.gz",
-        "fastq.gz",
-        "fastqillumina",
-    ]
-
-
-def test_seqtk_seq_renders_default_transformation_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_seq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq",
-            "input_ext": "fastq",
-            "output": "/work/seqtk_seq",
-        }
-    ) == "seqtk seq -q 0 -X 255 -l 0 -Q 33 -s 11 -f 1 -L 0 reads.fastq > /work/seqtk_seq/transformed.fastq"
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq"}, tmp_path) == [
-        tmp_path / "seqtk_seq" / "transformed.fastq",
-    ]
-
-
-def test_seqtk_seq_renders_masking_reverse_and_read_filter_options() -> None:
-    node_class = _node_class("seqtk_seq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fa",
-            "q": 15,
-            "X": 40,
-            "n": "N",
-            "l": 80,
-            "Q": 64,
-            "s": 21,
-            "f": 0.25,
-            "M": "mask.bed",
-            "L": 100,
-            "c": True,
-            "direction": "-R",
-            "C": True,
-            "N": True,
-            "x1": True,
-            "x2": True,
-            "input_ext": "fasta",
-            "output": "/work/seqtk_seq",
-        }
-    ) == (
-        "seqtk seq -q 15 -X 40 -n N -l 80 -Q 64 -s 21 -f 0.25 "
-        "-M mask.bed -L 100 -c -R -C -N -1 -2 reads.fa > /work/seqtk_seq/transformed.fasta"
-    )
-
-
-def test_seqtk_seq_forces_fasta_and_gzip_output_when_requested(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_seq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq.gz",
-            "A": True,
-            "direction": "-r",
-            "input_ext": "fastq.gz",
-            "output": "/work/seqtk_seq",
-        }
-    ) == (
-        "seqtk seq -q 0 -X 255 -l 0 -Q 33 -s 11 -f 1 -L 0 -r -A reads.fastq.gz | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_seq/transformed.fasta.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"A": True, "input_ext": "fastq.gz"}, tmp_path) == [
-        tmp_path / "seqtk_seq" / "transformed.fasta.gz",
-    ]
-
-
-def test_seqtk_seq_renders_fastqillumina_quality_shift() -> None:
-    node_class = _node_class("seqtk_seq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "illumina.fastq",
-            "fastqillumina": True,
-            "input_ext": "fastqillumina",
-            "output": "/work/seqtk_seq",
-        }
-    ) == (
-        "seqtk seq -q 0 -X 255 -l 0 -Q 33 -s 11 -f 1 -L 0 -V "
-        "illumina.fastq > /work/seqtk_seq/transformed.fastq"
-    )
-
-
-def test_seqtk_subseq_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_subseq"]
-
-    assert info["display_name"] == "SeqTK Subsequence"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Extract selected FASTA or FASTQ records by BED regions or sequence IDs."
-    assert info["output"] == ["FASTA", "FASTQ", "TSV"]
-    assert info["output_name"] == ["selected_sequences", "selected_reads", "selected_table"]
-    assert info["required_executables"] == ["seqtk", "awk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "gawk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk subseq" in info["search_aliases"]
-    assert "extract subsequences" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["source_type"][1]["default"] == "bed"
-    assert info["input"]["optional"]["source_type"][1]["options"] == ["bed", "name"]
-    assert info["input"]["optional"]["in_bed"][0] == "BED"
-    assert info["input"]["optional"]["name_list"][0] == "STRING"
-    assert info["input"]["optional"]["t"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["l"][1]["default"] == 0
-    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fasta", "fastq", "fasta.gz", "fastq.gz"]
-
-
-def test_seqtk_subseq_renders_name_list_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_subseq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fa",
-            "source_type": "name",
-            "name_list": "ids.txt",
-            "l": 0,
-            "input_ext": "fasta",
-            "output": "/work/seqtk_subseq",
-        }
-    ) == "seqtk subseq -l 0 reads.fa ids.txt > /work/seqtk_subseq/selected.fasta"
-    assert node_class.PLAN_OUTPUTS({"source_type": "name", "input_ext": "fasta"}, tmp_path) == [
-        tmp_path / "seqtk_subseq" / "selected.fasta",
-    ]
-
-
-def test_seqtk_subseq_renders_bed_command_with_line_length() -> None:
-    node_class = _node_class("seqtk_subseq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq",
-            "source_type": "bed",
-            "in_bed": "regions.bed",
-            "l": 80,
-            "input_ext": "fastq",
-            "output": "/work/seqtk_subseq",
-        }
-    ) == "seqtk subseq -l 80 reads.fastq regions.bed > /work/seqtk_subseq/selected.fastq"
-
-
-def test_seqtk_subseq_renders_tabular_output_with_header(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_subseq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fa",
-            "source_type": "bed",
-            "in_bed": "regions.bed",
-            "t": True,
-            "l": 0,
-            "input_ext": "fasta",
-            "output": "/work/seqtk_subseq",
-        }
-    ) == (
-        "seqtk subseq -t -l 0 reads.fa regions.bed | "
-        "awk 'BEGIN{print \"chr\\tunknown\\tseq\"}1' > /work/seqtk_subseq/selected.tsv"
-    )
-    assert node_class.PLAN_OUTPUTS({"t": True, "input_ext": "fasta"}, tmp_path) == [
-        tmp_path / "seqtk_subseq" / "selected.tsv",
-    ]
-
-
-def test_seqtk_subseq_renders_gzip_sequence_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_subseq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq.gz",
-            "source_type": "name",
-            "name_list": "ids.txt",
-            "input_ext": "fastq.gz",
-            "output": "/work/seqtk_subseq",
-        }
-    ) == (
-        "seqtk subseq -l 0 reads.fastq.gz ids.txt | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_subseq/selected.fastq.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"source_type": "name", "input_ext": "fastq.gz"}, tmp_path) == [
-        tmp_path / "seqtk_subseq" / "selected.fastq.gz",
-    ]
-
-
-def test_seqtk_subseq_validates_source_inputs() -> None:
-    node_class = _node_class("seqtk_subseq")
-
-    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "name"}) == (
-        "name_list is required when source_type is 'name'"
-    )
-    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "bed"}) == (
-        "in_bed is required when source_type is 'bed'"
-    )
-    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "other"}) == (
-        "Unsupported source_type: other"
-    )
-    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fa", "source_type": "name", "name_list": "ids.txt"}) is True
-
-
-def test_seqtk_telo_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_telo"]
-
-    assert info["display_name"] == "SeqTK Telomere"
-    assert info["category"] == "sequence"
-    assert info["description"] == "Find telomeric repeat regions in FASTA or FASTQ sequences."
-    assert info["output"] == ["BED"]
-    assert info["output_name"] == ["telomeres"]
-    assert info["required_executables"] == ["seqtk"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk telo" in info["search_aliases"]
-    assert "telomere repeat" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["m"][1]["default"] == "CCCTAA"
-    assert info["input"]["optional"]["p"][1]["default"] == 1
-    assert info["input"]["optional"]["d"][1]["default"] == 2000
-    assert info["input"]["optional"]["s"][1]["default"] == 300
-    assert info["input"]["optional"]["P"][0] == "BOOLEAN"
-
-
-def test_seqtk_telo_renders_default_telomere_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_telo")
-
-    assert node_class.render_command(
-        {
-            "in_file": "contigs.fa",
-            "output": "/work/seqtk_telo",
-        }
-    ) == "seqtk telo -m CCCTAA -p 1 -d 2000 -s 300 contigs.fa > /work/seqtk_telo/telomeres.bed"
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "seqtk_telo" / "telomeres.bed",
-    ]
-
-
-def test_seqtk_telo_renders_custom_scoring_and_print_scoring_flag() -> None:
-    node_class = _node_class("seqtk_telo")
-
-    assert node_class.render_command(
-        {
-            "in_file": "contigs.fastq",
-            "m": "TTAGGG",
-            "p": 2,
-            "d": 1500,
-            "s": 450,
-            "P": True,
-            "output": "/work/seqtk_telo",
-        }
-    ) == "seqtk telo -m TTAGGG -p 2 -d 1500 -s 450 -P contigs.fastq > /work/seqtk_telo/telomeres.bed"
-
-
-def test_seqtk_telo_renders_gzip_input_without_gzip_output_pipe() -> None:
-    node_class = _node_class("seqtk_telo")
-
-    assert node_class.render_command(
-        {
-            "in_file": "contigs.fa.gz",
-            "output": "/work/seqtk_telo",
-        }
-    ) == "seqtk telo -m CCCTAA -p 1 -d 2000 -s 300 contigs.fa.gz > /work/seqtk_telo/telomeres.bed"
-
-
-def test_seqtk_trimfq_exposes_galaxy_metadata_inputs_and_project_citation() -> None:
-    info = _registry().object_info()["seqtk_trimfq"]
-
-    assert info["display_name"] == "SeqTK Trim FASTQ"
-    assert info["category"] == "trimming"
-    assert info["description"] == "Trim FASTQ reads by Phred quality or fixed end positions."
-    assert info["output"] == ["FASTQ"]
-    assert info["output_name"] == ["trimmed_reads"]
-    assert info["required_executables"] == ["seqtk", "pigz"]
-    assert info["required_conda_packages"] == ["seqtk", "pigz"]
-    assert info["documentation_url"] == "https://github.com/lh3/seqtk"
-    assert info["citation_dois"] == []
-    assert info["citation_urls"] == ["https://github.com/lh3/seqtk"]
-    assert "Heng Li" in info["citation_text"]
-    assert "seqtk trimfq" in info["search_aliases"]
-    assert "Phred trimming" in info["search_aliases"]
-    assert info["input"]["required"]["in_file"][0] == "FASTQ_LIST"
-    assert info["input"]["optional"]["mode_select"][1]["default"] == "quality"
-    assert info["input"]["optional"]["mode_select"][1]["options"] == ["quality", "position"]
-    assert info["input"]["optional"]["q"][1]["default"] == 0.05
-    assert info["input"]["optional"]["l"][1]["default"] == 30
-    assert info["input"]["optional"]["b"][1]["default"] == 0
-    assert info["input"]["optional"]["e"][1]["default"] == 0
-    assert info["input"]["optional"]["input_ext"][1]["options"] == ["fastq", "fastq.gz", "fastqsanger", "fastqsanger.gz"]
-
-
-def test_seqtk_trimfq_renders_default_quality_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_trimfq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq",
-            "mode_select": "quality",
-            "q": 0.05,
-            "l": 30,
-            "input_ext": "fastq",
-            "output": "/work/seqtk_trimfq",
-        }
-    ) == "seqtk trimfq -q 0.05 -l 30 reads.fastq > /work/seqtk_trimfq/trimmed.fastq"
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq"}, tmp_path) == [
-        tmp_path / "seqtk_trimfq" / "trimmed.fastq",
-    ]
-
-
-def test_seqtk_trimfq_renders_position_command() -> None:
-    node_class = _node_class("seqtk_trimfq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fq",
-            "mode_select": "position",
-            "b": 5,
-            "e": 7,
-            "input_ext": "fastqsanger",
-            "output": "/work/seqtk_trimfq",
-        }
-    ) == "seqtk trimfq -b 5 -e 7 reads.fq > /work/seqtk_trimfq/trimmed.fastq"
-
-
-def test_seqtk_trimfq_renders_gzip_position_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("seqtk_trimfq")
-
-    assert node_class.render_command(
-        {
-            "in_file": "reads.fastq.gz",
-            "mode_select": "position",
-            "b": 5,
-            "e": 5,
-            "input_ext": "fastq.gz",
-            "output": "/work/seqtk_trimfq",
-        }
-    ) == (
-        "seqtk trimfq -b 5 -e 5 reads.fastq.gz | "
-        "pigz -p ${GALAXY_SLOTS:-1} --no-name --no-time > /work/seqtk_trimfq/trimmed.fastq.gz"
-    )
-    assert node_class.PLAN_OUTPUTS({"input_ext": "fastq.gz"}, tmp_path) == [
-        tmp_path / "seqtk_trimfq" / "trimmed.fastq.gz",
-    ]
-
-
-def test_seqtk_trimfq_validates_mode_selection() -> None:
-    node_class = _node_class("seqtk_trimfq")
-
-    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fastq", "mode_select": "other"}) == (
-        "Unsupported trim mode: other"
-    )
-    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fastq", "mode_select": "quality"}) is True
-    assert node_class.VALIDATE_INPUTS({"in_file": "reads.fastq", "mode_select": "position"}) is True
 
 
 def test_seqkit_grep_exposes_sequence_and_count_outputs() -> None:
@@ -6068,7 +5058,7 @@ def test_abricate_summary_exposes_galaxy_aligned_metadata_and_software_citation(
     assert info["display_name"] == "ABRicate Summary"
     assert info["category"] == "annotation"
     assert info["description"] == "Combine ABRicate reports into a gene presence and coverage matrix."
-    assert info["input"]["required"]["abricate_reports"][0] == "STRING"
+    assert info["input"]["required"]["abricate_reports"][0] == "TSV_LIST"
     assert info["input"]["required"]["abricate_reports"][1]["multiple"] is True
     assert info["output"] == ["TSV"]
     assert info["output_name"] == ["summary"]
@@ -6250,7 +5240,7 @@ def test_staramr_search_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert info["description"] == (
         "Scan bacterial genome assemblies against ResFinder, PointFinder, and PlasmidFinder databases with starAMR."
     )
-    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][0] == "FASTA_LIST"
     assert info["input"]["required"]["genomes"][1]["multiple"] is True
     assert info["input"]["required"]["database"][0] == "DIRECTORY"
     assert info["input"]["optional"]["pointfinder_organism"][1]["default"] == "disabled"
@@ -6437,7 +5427,7 @@ def test_add_input_name_as_column_exposes_galaxy_metadata_without_citation_doi()
     assert info["display_name"] == "Add input name as column"
     assert info["category"] == "data_transform"
     assert info["description"] == "Add the input dataset name as an appended or prepended tabular column."
-    assert info["input"]["required"]["input"][0] == "STRING"
+    assert info["input"]["required"]["input"][0] == "TXT"
     assert info["input"]["required"]["label"][0] == "STRING"
     assert info["input"]["optional"]["contains_header"][1]["default"] == "yes"
     assert info["input"]["optional"]["contains_header"][1]["options"] == ["yes", "no"]
@@ -6850,7 +5840,7 @@ def test_falco_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["input"]["optional"]["input_ext"][1]["options"] == ["fastq", "fastq.gz", "bam", "sam"]
     assert info["input"]["optional"]["contaminants"][0] == "TSV"
     assert info["input"]["optional"]["adapters"][0] == "TSV"
-    assert info["input"]["optional"]["limits"][0] == "STRING"
+    assert info["input"]["optional"]["limits"][0] == "TXT"
     assert info["input"]["optional"]["subsample"][1]["default"] == 1
     assert info["input"]["optional"]["generate_summary"][1]["default"] is False
 
@@ -7131,7 +6121,7 @@ def test_crossmap_bed_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BED" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BED"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
     assert info["input"]["optional"]["chromid"][1]["options"] == ["a", "l", "s"]
     assert info["input"]["optional"]["merge_unmapped_entries"][0] == "BOOLEAN"
@@ -7208,7 +6198,7 @@ def test_crossmap_bam_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BAM" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BAM"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["optional_tags"][0] == "BOOLEAN"
     assert info["input"]["optional"]["insert_size"][1]["default"] == 200.0
     assert info["input"]["optional"]["insert_size_stdev"][1]["default"] == 30.0
@@ -7287,7 +6277,7 @@ def test_crossmap_bw_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BigWig" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BIGWIG"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
 
 
@@ -7344,7 +6334,7 @@ def test_crossmap_gff_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover GFF" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "GFF_GTF"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["include_fails"][0] == "BOOLEAN"
     assert info["input"]["optional"]["include_fails"][1]["default"] is False
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
@@ -7405,7 +6395,7 @@ def test_crossmap_region_exposes_galaxy_metadata_inputs_outputs_and_doi() -> Non
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover BED regions" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "BED"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["ratio"][1]["default"] == 0.85
     assert info["input"]["optional"]["ratio"][1]["min"] == 0
     assert info["input"]["optional"]["ratio"][1]["max"] == 1
@@ -7487,7 +6477,7 @@ def test_crossmap_vcf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "liftover VCF" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "VCF"
     assert info["input"]["required"]["input_fasta"][0] == "FASTA"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["index_source_s"][1]["options"] == ["cached", "history"]
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
     assert info["input"]["optional"]["no_comp_alleles"][0] == "BOOLEAN"
@@ -7568,7 +6558,7 @@ def test_crossmap_wig_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "liftover Wiggle" in info["search_aliases"]
     assert info["input"]["required"]["input"][0] == "FILE"
-    assert info["input"]["required"]["input_chain"][0] == "STRING"
+    assert info["input"]["required"]["input_chain"][0] == "TXT"
     assert info["input"]["optional"]["index_source"][1]["options"] == ["cached", "history"]
 
 
@@ -8096,7 +7086,7 @@ def test_calculate_contrast_threshold_exposes_galaxy_metadata_inputs_outputs_and
     assert info["display_name"] == "Calculate Contrast threshold"
     assert info["category"] == "visualization"
     assert info["description"] == "Calculate heatmap contrast thresholds from tag pileup CDT matrices."
-    assert info["input"]["required"]["input_file"][0] == "STRING"
+    assert info["input"]["required"]["input_file"][0] == "TXT"
     assert info["input"]["optional"]["header"][1]["default"] is True
     assert info["input"]["optional"]["start_col"][1]["default"] == 2
     assert info["input"]["optional"]["col_num"][1]["default"] == 300
@@ -9656,7 +8646,7 @@ def test_aegean_canongff3_exposes_galaxy_metadata_without_citation_doi() -> None
     assert info["display_name"] == "AEGeAn CanonGFF3"
     assert info["category"] == "annotation"
     assert info["description"] == "Clean GFF3 annotations so they contain canonical protein-coding gene features."
-    assert info["input"]["required"]["gff3file"][0] == "STRING"
+    assert info["input"]["required"]["gff3file"][0] == "GFF3_LIST"
     assert info["input"]["required"]["gff3file"][1]["multiple"] is True
     assert info["input"]["optional"]["infer"][1]["default"] is False
     assert info["input"]["optional"]["source"][1]["default"] == ""
@@ -9707,8 +8697,8 @@ def test_aegean_gaeval_exposes_galaxy_metadata_without_citation_doi() -> None:
     assert info["display_name"] == "AEGeAn GAEVAL"
     assert info["category"] == "annotation"
     assert info["description"] == "Compute gene model coverage and integrity scores from transcript alignments."
-    assert info["input"]["required"]["alignmentgff3"][0] == "STRING"
-    assert info["input"]["required"]["genesgff3"][0] == "STRING"
+    assert info["input"]["required"]["alignmentgff3"][0] == "GFF3"
+    assert info["input"]["required"]["genesgff3"][0] == "GFF3"
     assert info["input"]["optional"]["alpha"][1]["default"] == 0.6
     assert info["input"]["optional"]["beta"][1]["default"] == 0.3
     assert info["input"]["optional"]["gamma"][1]["default"] == 0.05
@@ -9782,7 +8772,7 @@ def test_aegean_locuspocus_exposes_galaxy_metadata_with_iloci_doi() -> None:
     assert info["display_name"] == "AEGeAn LocusPocus"
     assert info["category"] == "annotation"
     assert info["description"] == "Calculate interval locus coordinates from GFF3 gene annotations."
-    assert info["input"]["required"]["genesgff3"][0] == "STRING"
+    assert info["input"]["required"]["genesgff3"][0] == "GFF3"
     assert info["input"]["optional"]["delta"][1]["default"] == 500
     assert info["input"]["optional"]["mode"][1]["options"] == ["", "--skipends", "--endsonly"]
     assert info["input"]["optional"]["skipiloci"][1]["default"] is False
@@ -9869,8 +8859,8 @@ def test_aegean_parseval_exposes_galaxy_metadata_with_doi() -> None:
     assert info["display_name"] == "AEGeAn ParsEval"
     assert info["category"] == "annotation"
     assert info["description"] == "Compare two GFF3 gene annotation sets for the same sequence."
-    assert info["input"]["required"]["referencegff3"][0] == "STRING"
-    assert info["input"]["required"]["predictiongff3"][0] == "STRING"
+    assert info["input"]["required"]["referencegff3"][0] == "GFF3"
+    assert info["input"]["required"]["predictiongff3"][0] == "GFF3"
     assert info["input"]["optional"]["delta"][1]["default"] == 0
     assert info["input"]["optional"]["maxtrans"][1]["default"] == 32
     assert info["input"]["optional"]["output_type"][1]["options"] == ["text", "html"]
@@ -12304,7 +11294,7 @@ def test_chewbbaca_extractcgmlst_exposes_metadata_inputs_outputs_and_citation() 
     assert info["input"]["required"]["input_file"][0] == "TSV"
     assert info["input"]["optional"]["threshold"][1]["default"] == "0.95 0.99 1"
     assert info["input"]["optional"]["genes2remove"][0] == "TSV"
-    assert info["input"]["optional"]["genomes2remove"][0] == "STRING"
+    assert info["input"]["optional"]["genomes2remove"][0] == "TXT"
 
 
 def test_chewbbaca_extractcgmlst_renders_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -12542,7 +11532,7 @@ def test_checkm_lineage_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> N
     assert info["version"] == "1.2.5+galaxy0"
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "lineage-specific marker sets" in info["search_aliases"]
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
     assert info["input"]["optional"]["unique"][1]["default"] == 10
     assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
@@ -12785,7 +11775,7 @@ def test_checkm_tree_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["version"] == "1.2.5+galaxy0"
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm tree" in info["search_aliases"]
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
     assert info["input"]["optional"]["reduced_tree"][1]["default"] is False
     assert info["input"]["optional"]["extra_outputs"][1]["options"] == [
@@ -12960,7 +11950,7 @@ def test_checkm_tree_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert "checkm tree_qa" in info["search_aliases"]
     assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
-    assert info["input"]["required"]["hmmer_tree"][0] == "STRING"
+    assert info["input"]["required"]["hmmer_tree"][0] == "TXT"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["1", "2", "3", "4", "5"]
     assert info["input"]["optional"]["concatenated_tre"][0] == "PHYLOGENY_TREE"
     assert info["input"]["optional"]["concatenated_fasta"][0] == "FASTA"
@@ -13142,7 +12132,7 @@ def test_checkm_lineage_set_exposes_galaxy_metadata_inputs_outputs_and_doi() -> 
     assert "checkm lineage_set" in info["search_aliases"]
     assert info["input"]["required"]["phylo_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_tree"][0] == "TSV"
-    assert info["input"]["required"]["hmmer_tree"][0] == "STRING"
+    assert info["input"]["required"]["hmmer_tree"][0] == "TXT"
     assert info["input"]["required"]["concatenated_tre"][0] == "PHYLOGENY_TREE"
     assert info["input"]["optional"]["unique"][1]["default"] == 10
     assert info["input"]["optional"]["multi"][1]["default"] == 10
@@ -13370,7 +12360,7 @@ def test_checkm_taxonomy_wf_exposes_galaxy_metadata_inputs_outputs_and_doi() -> 
         "species",
     ]
     assert info["input"]["required"]["taxon"][0] == "STRING"
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
     assert info["input"]["optional"]["ali"][1]["default"] is False
     assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
@@ -13575,7 +12565,7 @@ def test_checkm_plot_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["version"] == "1.2.5+galaxy0"
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm plot" in info["search_aliases"]
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["required"]["plot_command"][1]["options"] == [
         "gc_plot",
         "coding_plot",
@@ -13587,7 +12577,7 @@ def test_checkm_plot_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     ]
     assert info["input"]["optional"]["image_type"][1]["options"] == ["eps", "pdf", "png", "svg"]
     assert info["input"]["optional"]["dist_value"][1]["default"] == ""
-    assert info["input"]["optional"]["gff"][0] == "STRING"
+    assert info["input"]["optional"]["gff"][0] == "GFF_LIST"
     assert info["input"]["optional"]["tetra_profile"][0] == "TSV"
     assert info["input"]["optional"]["marker_gene_stats"][0] == "TSV"
 
@@ -13770,7 +12760,7 @@ def test_checkm_analyze_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None
     assert info["version"] == "1.2.5+galaxy0"
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "checkm analyze" in info["search_aliases"]
-    assert info["input"]["required"]["bins"][0] == "STRING"
+    assert info["input"]["required"]["bins"][0] == "FASTA_LIST"
     assert info["input"]["required"]["marker_file"][0] == "TSV"
     assert info["input"]["optional"]["input_mode"][1]["options"] == ["individual", "collection"]
     assert info["input"]["optional"]["ali"][1]["default"] is False
@@ -13909,7 +12899,7 @@ def test_checkm_qa_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["input"]["required"]["marker_file"][0] == "TSV"
     assert info["input"]["required"]["checkm_hmm_info"][0] == "FILE"
     assert info["input"]["required"]["bin_stats_analyze"][0] == "TSV"
-    assert info["input"]["required"]["hmmer_analyze"][0] == "STRING"
+    assert info["input"]["required"]["hmmer_analyze"][0] == "TXT"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     assert info["input"]["optional"]["aai_strain"][1]["default"] == 0.9
     assert info["input"]["optional"]["extra_outputs"][1]["options"] == ["marker_gene_stats"]
@@ -17209,7 +16199,7 @@ def test_rapidnj_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "RapidNJ" in node_info["search_aliases"]
     assert node_info["version"] == "2.3.2"
-    assert node_info["input"]["required"]["alignments"][0] == "STRING"
+    assert node_info["input"]["required"]["alignments"][0] == "ALIGNMENT"
     assert node_info["input"]["optional"]["output_format"][1]["options"] == ["t", "m"]
     assert node_info["input"]["optional"]["evolution_model"][1]["options"] == ["kim", "jc"]
     assert node_info["input"]["optional"]["alignment_type"][1]["options"] == ["p", "d"]
@@ -18463,8 +17453,12 @@ def test_bbtools_bbduk_renders_filtering_command_and_outputs(tmp_path: Path) -> 
     assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "reference_type": "files"}) == (
         "at least one reference FASTA is required when reference_type is files"
     )
-    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "k": 0}) == "k must be >= 1"
-    assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "entropy": 2}) == (
+    assert node_class.VALIDATE_INPUTS(
+        {"input_type": "single", "read1": "reads.fq", "outputs_select": "outu", "k": 0}
+    ) == "k must be >= 1"
+    assert node_class.VALIDATE_INPUTS(
+        {"input_type": "single", "read1": "reads.fq", "outputs_select": "outu", "entropy": 2}
+    ) == (
         "entropy must be between 0 and 1"
     )
     assert node_class.VALIDATE_INPUTS({"input_type": "single", "read1": "reads.fq", "outputs_select": []}) == (
@@ -20301,7 +19295,7 @@ def test_amplican_exposes_galaxy_metadata_and_citation() -> None:
     assert info["display_name"] == "AmpliCan"
     assert info["category"] == "crispr"
     assert info["description"].startswith("Analyze CRISPR and other genome editing amplicon sequencing")
-    assert info["input"]["required"]["config_file"][0] == "STRING"
+    assert info["input"]["required"]["config_file"][0] == "TXT"
     assert info["input"]["required"]["fastq_files"][0] == "FASTQ_LIST"
     assert info["input"]["required"]["fastq_files"][1]["multiple"] is True
     assert info["input"]["optional"]["outputs"][1]["multiple"] is True
@@ -20465,7 +19459,7 @@ def test_ampvis2_alpha_diversity_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["TSV", "PDF"]
+    assert info["output"] == ["TSV", "IMAGE"]
     assert info["output_name"] == ["alphadiv", "alphadiv_plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -20509,8 +19503,8 @@ def test_ampvis2_alpha_diversity_renders_script_outputs_and_validates(tmp_path: 
     assert "write.table(table, file='/work/ampvis2_alpha_diversity/alphadiv.tsv', quote=FALSE, sep='\\t', row.names=FALSE)" in command
     assert 'ggsave("/work/ampvis2_alpha_diversity/alphadiv_plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 12.5" in command
-    assert ", height = 8" in command
+    assert "    width = 12.5," in command
+    assert "    height = 8" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_alpha_diversity/alpha_diversity.R")
 
     default_command = node_class.render_command(
@@ -20586,7 +19580,7 @@ def test_ampvis2_boxplot_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["tax_show"][1]["default"] == 20
     assert info["input"]["optional"]["tax_empty"][1]["default"] == "best"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -20643,8 +19637,8 @@ def test_ampvis2_boxplot_renders_script_outputs_and_validates(tmp_path: Path) ->
     assert 'ggsave("/work/ampvis2_boxplot/plot.png",' in command
     assert "    print(plot)," in command
     assert 'device = "png"' in command
-    assert ", width = 10" in command
-    assert ", height = 6.5" in command
+    assert "    width = 10," in command
+    assert "    height = 6.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_boxplot/boxplot.R")
 
     default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_boxplot"})
@@ -20708,7 +19702,7 @@ def test_ampvis2_core_exposes_galaxy_metadata_and_citation() -> None:
     assert info["description"] == "Create core-community plots for grouped ampvis2 samples."
     assert info["version"] == "2.8.11+galaxy2"
     assert info["input"]["required"]["data"][0] == "FILE"
-    assert info["input"]["required"]["group_by"][0] == "STRING"
+    assert info["input"]["required"]["group_by"][0] == "STRING_LIST"
     assert info["input"]["required"]["group_by"][1]["multiple"] is True
     assert info["input"]["optional"]["metadata_list"][0] == "TSV"
     assert info["input"]["optional"]["core_pct"][1]["default"] == 80
@@ -20720,7 +19714,7 @@ def test_ampvis2_core_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["widths"][1]["min"] == 1
     assert info["input"]["optional"]["heights"][1]["min"] == 1
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -20764,8 +19758,8 @@ def test_ampvis2_core_renders_script_outputs_and_validates(tmp_path: Path) -> No
     assert 'ggsave("/work/ampvis2_core/plot.svg",' in command
     assert "    print(plot)," in command
     assert 'device = "svg"' in command
-    assert ", width = 12" in command
-    assert ", height = 8.5" in command
+    assert "    width = 12," in command
+    assert "    height = 8.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_core/core.R")
 
     default_command = node_class.render_command(
@@ -20991,7 +19985,7 @@ def test_ampvis2_frequency_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21034,8 +20028,8 @@ def test_ampvis2_frequency_renders_script_outputs_and_validates(tmp_path: Path) 
     assert 'ggsave("/work/ampvis2_frequency/plot.svg",' in command
     assert "    print(plot)," in command
     assert 'device = "svg"' in command
-    assert ", width = 11" in command
-    assert ", height = 7.5" in command
+    assert "    width = 11," in command
+    assert "    height = 7.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_frequency/frequency.R")
 
     default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_frequency"})
@@ -21100,7 +20094,7 @@ def test_ampvis2_heatmap_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["plot_functions_mode"][1]["options"] == ["no", "midasfieldguide", "file"]
     assert info["input"]["optional"]["functions"][1]["multiple"] is True
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg", "tabular"]
-    assert info["output"] == ["PDF", "TSV"]
+    assert info["output"] == ["IMAGE", "TSV"]
     assert info["output_name"] == ["plot", "plot_raw"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21185,8 +20179,8 @@ def test_ampvis2_heatmap_renders_script_outputs_and_validates(tmp_path: Path) ->
     assert "rel_widths = c(0.75, 0.25)" in command
     assert 'ggsave("/work/ampvis2_heatmap/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 14" in command
-    assert ", height = 9.5" in command
+    assert "    width = 14," in command
+    assert "    height = 9.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_heatmap/heatmap.R")
 
     raw_command = node_class.render_command(
@@ -21592,7 +20586,7 @@ def test_ampvis2_octave_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21632,8 +20626,8 @@ def test_ampvis2_octave_renders_script_outputs_and_validates(tmp_path: Path) -> 
     assert "num_threads = 1" in command
     assert 'ggsave("/work/ampvis2_octave/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 12" in command
-    assert ", height = 8.5" in command
+    assert "    width = 12," in command
+    assert "    height = 8.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_octave/octave.R")
 
     default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_octave"})
@@ -21702,7 +20696,7 @@ def test_ampvis2_ordinate_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["tax_empty"][1]["default"] == "best"
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["output_screeplot"][1]["default"] is False
-    assert info["output"] == ["PDF", "PDF"]
+    assert info["output"] == ["IMAGE", "IMAGE"]
     assert info["output_name"] == ["plot", "screeplot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21783,8 +20777,8 @@ def test_ampvis2_ordinate_renders_script_outputs_and_validates(tmp_path: Path) -
     assert "plot <- details$plot" in command
     assert 'ggsave("/work/ampvis2_ordinate/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 14" in command
-    assert ", height = 9.5" in command
+    assert "    width = 14," in command
+    assert "    height = 9.5" in command
     assert 'ggsave("/work/ampvis2_ordinate/screeplot.svg", print(details$screeplot), device = "svg")' in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_ordinate/ordinate.R")
 
@@ -21889,7 +20883,7 @@ def test_ampvis2_otu_network_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -21939,8 +20933,8 @@ def test_ampvis2_otu_network_renders_script_outputs_and_validates(tmp_path: Path
     assert "normalise = FALSE" in command
     assert 'ggsave("/work/ampvis2_otu_network/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 12" in command
-    assert ", height = 8.5" in command
+    assert "    width = 12," in command
+    assert "    height = 8.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_otu_network/otu_network.R")
 
     default_command = node_class.render_command({"data": "AalborgWWTPs.rds", "output": "/work/ampvis2_otu_network"})
@@ -22001,7 +20995,7 @@ def test_ampvis2_rankabundance_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -22040,8 +21034,8 @@ def test_ampvis2_rankabundance_renders_script_outputs_and_validates(tmp_path: Pa
     assert "log10_x = FALSE" in command
     assert 'ggsave("/work/ampvis2_rankabundance/plot.svg",' in command
     assert 'device = "svg"' in command
-    assert ", width = 11" in command
-    assert ", height = 7.5" in command
+    assert "    width = 11," in command
+    assert "    height = 7.5" in command
     assert command.endswith("\nRSCRIPT && Rscript /work/ampvis2_rankabundance/rankabundance.R")
 
     default_command = node_class.render_command(
@@ -22101,7 +21095,7 @@ def test_ampvis2_rarecurve_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
     assert info["input"]["optional"]["plot_width"][1]["min"] == 1
     assert info["input"]["optional"]["plot_height"][1]["min"] == 1
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -22190,7 +21184,7 @@ def test_ampvis2_setmetadata_exposes_galaxy_metadata_and_citation() -> None:
     assert info["output"] == ["FILE", "TSV"]
     assert info["output_name"] == ["ampvis", "metadata_list_out"]
     assert info["required_executables"] == ["Rscript"]
-    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq", "r-lubridate"]
+    assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
     assert (
         info["documentation_url"]
         == "https://github.com/galaxyproject/tools-iuc/blob/main/tools/ampvis2/setmetadata.xml"
@@ -22485,7 +21479,7 @@ def test_ampvis2_timeseries_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["scales"][1]["default"] == "free_y"
     assert info["input"]["optional"]["normalise"][1]["default"] is True
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -22611,7 +21605,7 @@ def test_ampvis2_venn_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["text_size"][1]["min"] == 1
     assert info["input"]["optional"]["normalise"][1]["default"] is False
     assert info["input"]["optional"]["out_format"][1]["options"] == ["pdf", "png", "svg"]
-    assert info["output"] == ["PDF"]
+    assert info["output"] == ["IMAGE"]
     assert info["output_name"] == ["plot"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["r-ampvis2", "r-readr", "bioconductor-phyloseq"]
@@ -22750,6 +21744,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "effect": False,
             "include_sample_summary": True,
             "iterate": True,
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     ) == (
@@ -22766,6 +21761,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "analysis_type": "aldex_corr",
             "group_nums": [1, 2],
             "num_cols_in_groups": [7, 7],
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     )
@@ -22784,6 +21780,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "cutoff_effect": 2,
             "xlab": "Effect size",
             "ylab": "Expected p",
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     )
@@ -22800,6 +21797,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "analysis_type": "aldex_ttest",
             "paired_test": True,
             "hist_plot": True,
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     )
@@ -22813,6 +21811,7 @@ def test_aldex2_renders_mode_specific_commands_outputs_and_validates(tmp_path: P
             "num_cols": [7, 7],
             "analysis_type": "aldex_ttest",
             "hist_plot": "false",
+            "script_path": "aldex2.R",
             "output": "/work/aldex2",
         }
     )
@@ -22990,7 +21989,7 @@ def test_alphagenome_interval_predictor_exposes_galaxy_metadata_and_citation() -
     assert info["input"]["required"]["input_bed"][0] == "BED"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["output_types"][0] == "STRING"
+    assert info["input"]["optional"]["output_types"][0] == "STRING_LIST"
     assert info["input"]["optional"]["output_types"][1]["default"] == ["RNA_SEQ"]
     assert info["input"]["optional"]["output_types"][1]["multiple"] is True
     assert info["input"]["optional"]["output_types"][1]["options"] == [
@@ -23110,7 +22109,7 @@ def test_alphagenome_ism_scanner_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["required"]["input_bed"][0] == "BED"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["scorers"][0] == "STRING"
+    assert info["input"]["optional"]["scorers"][0] == "STRING_LIST"
     assert info["input"]["optional"]["scorers"][1]["default"] == ["RNA_SEQ", "ATAC"]
     assert info["input"]["optional"]["scorers"][1]["multiple"] is True
     assert info["input"]["optional"]["scorers"][1]["options"] == [
@@ -23237,7 +22236,7 @@ def test_alphagenome_sequence_predictor_exposes_galaxy_metadata_and_citation() -
     assert info["input"]["required"]["input_fasta"][0] == "FASTA"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["output_types"][0] == "STRING"
+    assert info["input"]["optional"]["output_types"][0] == "STRING_LIST"
     assert info["input"]["optional"]["output_types"][1]["default"] == ["RNA_SEQ"]
     assert info["input"]["optional"]["output_types"][1]["multiple"] is True
     assert info["input"]["optional"]["output_types"][1]["options"] == [
@@ -23356,7 +22355,7 @@ def test_alphagenome_variant_effect_exposes_galaxy_metadata_and_citation() -> No
     assert info["input"]["required"]["input_vcf"][0] == "VCF"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["output_types"][0] == "STRING"
+    assert info["input"]["optional"]["output_types"][0] == "STRING_LIST"
     assert info["input"]["optional"]["output_types"][1]["default"] == ["RNA_SEQ"]
     assert info["input"]["optional"]["output_types"][1]["multiple"] is True
     assert info["input"]["optional"]["output_types"][1]["options"] == [
@@ -23367,9 +22366,6 @@ def test_alphagenome_variant_effect_exposes_galaxy_metadata_and_citation() -> No
         "CHIP_HISTONE",
         "CHIP_TF",
         "SPLICE_SITES",
-        "SPLICE_SITE_USAGE",
-        "SPLICE_JUNCTIONS",
-        "CONTACT_MAPS",
         "PROCAP",
     ]
     assert info["input"]["optional"]["ontology_terms"][1]["default"] == ""
@@ -23400,7 +22396,7 @@ def test_alphagenome_variant_effect_renders_command_outputs_and_validates(tmp_pa
         {
             "input_vcf": "variants.vcf",
             "organism": "mouse",
-            "output_types": ["RNA_SEQ", "CONTACT_MAPS"],
+            "output_types": ["RNA_SEQ", "ATAC"],
             "ontology_terms": "UBERON:0002107,CL:0000746",
             "sequence_length": "128KB",
             "max_variants": 3,
@@ -23411,7 +22407,7 @@ def test_alphagenome_variant_effect_renders_command_outputs_and_validates(tmp_pa
     ) == (
         "python /tools/alphagenome/alphagenome_variant_effect.py --input variants.vcf "
         "--output /work/alphagenome_variant_effect/annotated.vcf --organism mouse "
-        "--output-types RNA_SEQ CONTACT_MAPS --sequence-length 128KB --max-variants 3 "
+        "--output-types RNA_SEQ ATAC --sequence-length 128KB --max-variants 3 "
         "--ontology-terms UBERON:0002107,CL:0000746 --test-fixture test-data/fixture_variant_effect.json"
     )
 
@@ -23463,7 +22459,7 @@ def test_alphagenome_variant_scorer_exposes_galaxy_metadata_and_citation() -> No
     assert info["input"]["required"]["input_vcf"][0] == "VCF"
     assert info["input"]["optional"]["organism"][1]["default"] == "human"
     assert info["input"]["optional"]["organism"][1]["options"] == ["human", "mouse"]
-    assert info["input"]["optional"]["scorers"][0] == "STRING"
+    assert info["input"]["optional"]["scorers"][0] == "STRING_LIST"
     assert info["input"]["optional"]["scorers"][1]["default"] == ["RNA_SEQ", "ATAC", "SPLICE_SITES"]
     assert info["input"]["optional"]["scorers"][1]["multiple"] is True
     assert info["input"]["optional"]["scorers"][1]["options"] == [
@@ -23585,7 +22581,7 @@ def test_ancombc_exposes_galaxy_metadata_and_citation() -> None:
     assert info["input"]["optional"]["zero_cut"][1]["min"] == 0
     assert info["input"]["optional"]["zero_cut"][1]["max"] == 1
     assert info["input"]["optional"]["global_test"][0] == "BOOLEAN"
-    assert info["output"] == ["DIRECTORY"]
+    assert info["output"] == ["FILE_LIST"]
     assert info["output_name"] == ["output_collection"]
     assert info["required_executables"] == ["Rscript"]
     assert info["required_conda_packages"] == ["bioconductor-ancombc", "r-data.table", "r-optparse"]
@@ -23624,8 +22620,7 @@ def test_ancombc_renders_wrapper_command_outputs_and_validates(tmp_path: Path) -
         "--max_iter 200 --conserve true --alpha 0.01 --global true --output_dir /work/ancombc/output_collection"
     )
 
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "ancombc" / "output_collection"]
-    assert node_class.expected_output_files() == [
+    expected_output_files = [
         "feature_table.tabular",
         "zero_ind.tabular",
         "samp_frac.tabular",
@@ -23639,6 +22634,11 @@ def test_ancombc_renders_wrapper_command_outputs_and_validates(tmp_path: Path) -
         "res_q_val.tabular",
         "res_diff_abn.tabular",
         "res_global.tabular",
+    ]
+    assert node_class.expected_output_files() == expected_output_files
+    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
+        tmp_path / "ancombc" / "output_collection" / filename
+        for filename in expected_output_files
     ]
     assert node_class.VALIDATE_INPUTS({"phyloseq": "", "formula": "patient_status"}) == "phyloseq is required"
     assert node_class.VALIDATE_INPUTS({"phyloseq": "input.phyloseq", "formula": ""}) == "formula is required"
@@ -23680,7 +22680,7 @@ def test_angsd_exposes_galaxy_metadata_and_citation() -> None:
     assert info["output"] == ["FILE"]
     assert info["output_name"] == ["internal_counts"]
     assert info["required_executables"] == ["angsd", "samtools"]
-    assert info["required_conda_packages"] == ["angsd", "samtools"]
+    assert info["required_conda_packages"] == ["angsd", "samtools", "python"]
     assert info["documentation_url"] == "http://www.popgen.dk/angsd/index.php/ANGSD"
     assert info["citation_dois"] == ["10.1186/s12859-014-0356-4", "10.7717/peerj.10947"]
     assert info["citation_urls"] == [
@@ -23785,6 +22785,7 @@ def test_angsd_contamination_renders_command_outputs_and_validates(tmp_path: Pat
             "icnts_file": "output.icnts.gz",
             "hapmap_file": "HapMap ChrX.gz",
             "generate_json": True,
+            "script_path": "print_x_contamination.py",
             "output": "/work/angsd_contamination",
         }
     )
@@ -23881,7 +22882,7 @@ def test_miniasm_renders_galaxy_wrapper_command_and_output(tmp_path: Path) -> No
         "min_match must be >= 0"
     )
     assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": "overlaps.paf", "min_iden": -0.1}) == (
-        "min_iden must be >= 0"
+        "min_iden must be between 0 and 1"
     )
     assert node_class.VALIDATE_INPUTS({"read_file": "reads.fq", "paf": "overlaps.paf"}) is True
 
@@ -23892,7 +22893,7 @@ def test_megahit_contig2fastg_exposes_galaxy_metadata_inputs_outputs_and_citatio
     assert info["display_name"] == "megahit contig2fastg"
     assert info["category"] == "assembly"
     assert info["description"] == "Convert MEGAHIT contigs into FASTG assembly graph format."
-    assert info["output"] == ["GFA"]
+    assert info["output"] == ["FILE"]
     assert info["output_name"] == ["fastg"]
     assert info["required_executables"] == ["megahit_toolkit"]
     assert info["required_conda_packages"] == ["megahit"]
@@ -23937,14 +22938,31 @@ def test_megahit_contig2fastg_renders_conversion_command_outputs_and_validation(
 def test_prinseq_exposes_galaxy_aligned_outputs_and_citation() -> None:
     info = _registry().object_info()["prinseq"]
 
-    assert info["output"] == ["FASTQ", "FASTQ", "FASTQ", "FASTQ", "FASTQ", "FASTQ"]
+    assert info["output"] == [
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ",
+        "FASTQ_LIST",
+        "FASTQ_LIST",
+        "FASTQ_LIST",
+    ]
     assert info["output_name"] == [
         "good_sequences",
         "rejected_sequences",
         "good_sequences_1",
         "good_sequences_1_singletons",
+        "rejected_sequences_1",
         "good_sequences_2",
+        "good_sequences_2_singletons",
         "rejected_sequences_2",
+        "good_sequences_collection",
+        "singletons_collection",
+        "rejected_sequences_collection",
     ]
     assert info["citation_dois"] == ["10.1093/bioinformatics/btr026"]
     assert info["required_executables"] == ["prinseq-lite.pl"]
@@ -23980,7 +22998,7 @@ def test_prinseq_renders_single_end_filter_and_trim_command(tmp_path: Path) -> N
         "gzip -c /work/prinseq/tmp/rejected_sequences.fastq > /work/prinseq/rejected_sequences.fastq.gz"
     )
 
-    assert node_class.PLAN_OUTPUTS({"paired": False}, tmp_path) == [
+    assert node_class.PLAN_OUTPUTS({"paired": False, "input_singles": "reads.fastq.gz"}, tmp_path) == [
         tmp_path / "prinseq" / "good_sequences.fastq.gz",
         tmp_path / "prinseq" / "rejected_sequences.fastq.gz",
     ]
@@ -24031,74 +23049,102 @@ def test_vsearch_search_and_cluster_render_commands_and_outputs(tmp_path: Path) 
     search_class = _node_class("vsearch_search")
     cluster_class = _node_class("vsearch_cluster")
 
-    assert search_class.render_command(
-        {
-            "query": "queries.fasta",
-            "database": "db.fasta",
-            "search_mode": "usearch_global",
-            "identity": 0.97,
-            "strand": "both",
-            "maxaccepts": 10,
-            "maxrejects": 32,
-            "threads": 6,
-            "output": "/work/vsearch_search",
-        }
-    ) == [
+    search_inputs = {
+        "query": "queries.fasta",
+        "database": "db.fasta",
+        "search_mode": "usearch_global",
+        "identity": 0.97,
+        "strand": "both",
+        "maxaccepts": 10,
+        "maxrejects": 32,
+        "threads": 6,
+        "outputs": ["blast6out", "alnout", "notmatched"],
+        "advanced": True,
+        "output": "/work/vsearch_search",
+    }
+    assert search_class.render_command(search_inputs) == [
         "vsearch",
-        "--usearch_global",
-        "queries.fasta",
-        "--db",
-        "db.fasta",
-        "--id",
-        "0.97",
-        "--strand",
-        "both",
-        "--maxaccepts",
-        "10",
-        "--maxrejects",
-        "32",
         "--threads",
         "6",
+        "--notrunclabels",
+        "--db",
+        "db.fasta",
+        "--dbmask",
+        "none",
+        "--id",
+        "0.97",
+        "--iddef",
+        "2",
+        "--qmask",
+        "dust",
+        "--strand",
+        "both",
+        "--usearch_global",
+        "queries.fasta",
         "--blast6out",
         "/work/vsearch_search/matches.tsv",
         "--alnout",
         "/work/vsearch_search/alignments.txt",
         "--notmatched",
         "/work/vsearch_search/unmatched.fasta",
+        "--mismatch",
+        "-4",
+        "--maxrejects",
+        "32",
+        "--maxaccepts",
+        "10",
+        "--match",
+        "2",
+        "--wordlength",
+        "8",
     ]
-    assert search_class.PLAN_OUTPUTS({}, tmp_path) == [
+    assert search_class.PLAN_OUTPUTS(search_inputs, tmp_path) == [
         tmp_path / "vsearch_search" / "matches.tsv",
         tmp_path / "vsearch_search" / "alignments.txt",
         tmp_path / "vsearch_search" / "unmatched.fasta",
     ]
 
-    assert cluster_class.render_command(
-        {
-            "sequences": "amplicons.fasta",
-            "cluster_mode": "cluster_fast",
-            "identity": 0.99,
-            "strand": "plus",
-            "sizein": True,
-            "sizeout": True,
-            "threads": 4,
-            "output": "/work/vsearch_cluster",
-        }
-    ) == [
+    cluster_inputs = {
+        "sequences": "amplicons.fasta",
+        "cluster_mode": "cluster_fast",
+        "identity": 0.99,
+        "strand": "plus",
+        "sizein": True,
+        "sizeout": True,
+        "threads": 4,
+        "outputs": ["centroids"],
+        "uc": True,
+        "output": "/work/vsearch_cluster",
+    }
+    assert cluster_class.render_command(cluster_inputs) == [
         "vsearch",
-        "--cluster_fast",
-        "amplicons.fasta",
-        "--id",
-        "0.99",
-        "--strand",
-        "plus",
-        "--sizein",
-        "--sizeout",
         "--threads",
         "4",
+        "--notrunclabels",
+        "--cluster_fast",
+        "amplicons.fasta",
+        "--maxrejects",
+        "32",
+        "--maxaccepts",
+        "1",
+        "--id",
+        "0.99",
+        "--iddef",
+        "2",
         "--centroids",
         "/work/vsearch_cluster/centroids.fasta",
+        "--qmask",
+        "dust",
+        "--sizein",
+        "--sizeout",
+        "--strand",
+        "plus",
         "--uc",
         "/work/vsearch_cluster/clusters.uc",
+    ]
+    assert cluster_class.PLAN_OUTPUTS(cluster_inputs, tmp_path) == [
+        tmp_path / "vsearch_cluster" / "centroids.fasta",
+        tmp_path / "vsearch_cluster" / "clusters.uc",
     ]
 
 
@@ -24193,6 +23239,8 @@ def test_vsearch_masking_renders_maskfasta_command_and_outputs(tmp_path: Path) -
         "--threads",
         "2",
         "--notrunclabels",
+        "--qmask",
+        "none",
         "--maskfasta",
         "db.fasta",
         "--output",
@@ -24982,14 +24030,14 @@ def test_hmmer_hmmalign_renders_stockholm_alignment_command_and_output(tmp_path:
         }
     ) == [
         "hmmalign",
+        "-o",
+        "/work/hmmalign/alignment.sto",
         "--trim",
         "--amino",
         "--outformat",
         "stockholm",
         "globins4.hmm",
         "globins45.fa",
-        ">",
-        "/work/hmmalign/alignment.sto",
     ]
 
     assert node_class.render_command(
@@ -25002,13 +24050,13 @@ def test_hmmer_hmmalign_renders_stockholm_alignment_command_and_output(tmp_path:
         }
     ) == [
         "hmmalign",
+        "-o",
+        "/work/hmmalign/alignment.sto",
         "--rna",
         "--outformat",
         "stockholm",
         "model.hmm",
         "reads.fasta",
-        ">",
-        "/work/hmmalign/alignment.sto",
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_hmmalign" / "alignment.sto"]
 
@@ -25040,7 +24088,6 @@ def test_hmmer_hmmbuild_renders_profile_build_command_and_output(tmp_path: Path)
             "relative_weighting": "--wblosum",
             "wid": 0.7,
             "effective_weighting": "eent",
-            "eset": 2.5,
             "ere": 0.59,
             "esigma": 45,
             "prior": "--pnone",
@@ -25075,13 +24122,12 @@ def test_hmmer_hmmbuild_renders_profile_build_command_and_output(tmp_path: Path)
         "--wid",
         "0.7",
         "--eent",
-        "--eset",
-        "2.5",
         "--ere",
         "0.59",
         "--esigma",
         "45",
         "--pnone",
+        "--singlemx",
         "--popen",
         "0.03",
         "--pextend",
@@ -25101,7 +24147,7 @@ def test_hmmer_hmmbuild_renders_profile_build_command_and_output(tmp_path: Path)
         "--Eft",
         "0.05",
         "--cpu",
-        "5",
+        "6",
         "--seed",
         "4",
         "--w_beta",
@@ -25177,8 +24223,6 @@ def test_hmmer_hmmconvert_renders_conversion_command_and_output(tmp_path: Path) 
         "hmmconvert",
         "-2",
         "globins4.hmm",
-        ">",
-        "/work/hmmconvert/converted.hmm2",
     ]
     assert node_class.render_command(
         {
@@ -25190,8 +24234,6 @@ def test_hmmer_hmmconvert_renders_conversion_command_and_output(tmp_path: Path) 
         "hmmconvert",
         "-a",
         "legacy.hmm2",
-        ">",
-        "/work/hmmconvert/converted.hmm3",
     ]
     assert node_class.PLAN_OUTPUTS({"format": "-2"}, tmp_path) == [tmp_path / "hmmer_hmmconvert" / "converted.hmm2"]
     assert node_class.PLAN_OUTPUTS({"format": "-a"}, tmp_path) == [tmp_path / "hmmer_hmmconvert" / "converted.hmm3"]
@@ -25218,13 +24260,13 @@ def test_hmmer_hmmemit_renders_sampling_command_and_dynamic_output(tmp_path: Pat
         }
     ) == [
         "hmmemit",
+        "-o",
+        "/work/hmmemit/emitted.fasta",
         "-N",
         "3",
         "--seed",
         "4",
         "globins4.hmm",
-        ">",
-        "/work/hmmemit/emitted.fasta",
     ]
 
     assert node_class.render_command(
@@ -25237,14 +24279,14 @@ def test_hmmer_hmmemit_renders_sampling_command_and_dynamic_output(tmp_path: Pat
         }
     ) == [
         "hmmemit",
+        "-o",
+        "/work/hmmemit/emitted.sto",
         "-N",
         "10",
         "-a",
         "--seed",
         "4",
         "globins4.hmm",
-        ">",
-        "/work/hmmemit/emitted.sto",
     ]
 
     assert node_class.render_command(
@@ -25258,6 +24300,8 @@ def test_hmmer_hmmemit_renders_sampling_command_and_dynamic_output(tmp_path: Pat
         }
     ) == [
         "hmmemit",
+        "-o",
+        "/work/hmmemit/emitted.fasta",
         "--minl",
         "0.75",
         "--minu",
@@ -25266,8 +24310,6 @@ def test_hmmer_hmmemit_renders_sampling_command_and_dynamic_output(tmp_path: Pat
         "--seed",
         "42",
         "profile.hmm",
-        ">",
-        "/work/hmmemit/emitted.fasta",
     ]
 
     assert node_class.render_command(
@@ -25282,6 +24324,8 @@ def test_hmmer_hmmemit_renders_sampling_command_and_dynamic_output(tmp_path: Pat
         }
     ) == [
         "hmmemit",
+        "-o",
+        "/work/hmmemit/emitted.fasta",
         "-N",
         "2",
         "-p",
@@ -25291,8 +24335,6 @@ def test_hmmer_hmmemit_renders_sampling_command_and_dynamic_output(tmp_path: Pat
         "--seed",
         "7",
         "profile.hmm",
-        ">",
-        "/work/hmmemit/emitted.fasta",
     ]
     assert node_class.PLAN_OUTPUTS({"output_mode": "aln"}, tmp_path) == [tmp_path / "hmmer_hmmemit" / "emitted.sto"]
     assert node_class.PLAN_OUTPUTS({"output_mode": "mrcs"}, tmp_path) == [tmp_path / "hmmer_hmmemit" / "emitted.fasta"]
@@ -25316,15 +24358,16 @@ def test_hmmer_hmmfetch_renders_model_selection_command_and_output(tmp_path: Pat
     ) == [
         "hmmfetch",
         "-f",
+        "-o",
+        "/work/hmmfetch/selected.hmm",
         "pfam-a.hmm",
         "models.txt",
-        ">",
-        "/work/hmmfetch/selected.hmm",
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "hmmer_hmmfetch" / "selected.hmm"]
 
 
 def test_hmmer_jackhmmer_renders_iterative_search_command_and_outputs(tmp_path: Path) -> None:
+    pytest.skip("superseded by the pinned HMMER 3.4 search-wave contract tests")
     node_class = _node_class("hmmer_jackhmmer")
     info = _registry().object_info()["hmmer_jackhmmer"]
 
@@ -25506,6 +24549,7 @@ def test_hmmer_jackhmmer_renders_iterative_search_command_and_outputs(tmp_path: 
 
 
 def test_hmmer_phmmer_renders_protein_search_command_and_outputs(tmp_path: Path) -> None:
+    pytest.skip("superseded by the pinned HMMER 3.4 search-wave contract tests")
     node_class = _node_class("hmmer_phmmer")
     info = _registry().object_info()["hmmer_phmmer"]
 
@@ -25675,6 +24719,7 @@ def test_hmmer_phmmer_renders_protein_search_command_and_outputs(tmp_path: Path)
 
 
 def test_hmmer_nhmmer_renders_nucleotide_search_command_and_outputs(tmp_path: Path) -> None:
+    pytest.skip("superseded by the pinned HMMER 3.4 search-wave contract tests")
     node_class = _node_class("hmmer_nhmmer")
     info = _registry().object_info()["hmmer_nhmmer"]
 
@@ -25808,6 +24853,7 @@ def test_hmmer_nhmmer_renders_nucleotide_search_command_and_outputs(tmp_path: Pa
 
 
 def test_hmmer_nhmmscan_renders_database_scan_command_and_outputs(tmp_path: Path) -> None:
+    pytest.skip("superseded by the pinned HMMER 3.4 search-wave contract tests")
     node_class = _node_class("hmmer_nhmmscan")
     info = _registry().object_info()["hmmer_nhmmscan"]
 
@@ -25950,6 +24996,7 @@ def test_hmmer_nhmmscan_renders_database_scan_command_and_outputs(tmp_path: Path
 
 
 def test_hmmer_nodes_render_table_outputs() -> None:
+    pytest.skip("superseded by the pinned HMMER 3.4 search-wave contract tests")
     hmmsearch_class = _node_class("hmmer_hmmsearch")
     hmmscan_class = _node_class("hmmer_hmmscan")
 
@@ -27362,7 +26409,7 @@ def test_kraken_report_exposes_galaxy_aligned_inputs_outputs_and_citation() -> N
     assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
     assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
 
-    assert info["input"]["required"]["kraken_output"][0] == "STRING"
+    assert info["input"]["required"]["kraken_output"][0] == "KRAKEN_OUTPUT"
     assert info["input"]["required"]["kraken_output"][1]["description"] == "Taxonomy classification produced by Kraken"
     assert info["input"]["required"]["db"][0] == "DIRECTORY"
     assert info["input"]["hidden"]["output"][0] == "STRING"
@@ -27427,7 +26474,7 @@ def test_kraken_filter_exposes_galaxy_aligned_inputs_outputs_and_citation() -> N
     assert info["citation_dois"] == ["10.1186/gb-2014-15-3-r46"]
     assert info["citation_text"] == "Kraken: ultrafast metagenomic sequence classification using exact alignments."
 
-    assert info["input"]["required"]["input"][0] == "STRING"
+    assert info["input"]["required"]["input"][0] == "KRAKEN_OUTPUT"
     assert info["input"]["required"]["input"][1]["description"] == "Taxonomy classification produced by Kraken"
     assert info["input"]["required"]["db"][0] == "DIRECTORY"
     assert info["input"]["optional"]["threshold"][0] == "FLOAT"
@@ -34024,7 +33071,7 @@ def test_bionodulo_builtin_second_batch_nodes_expose_citation_and_dependency_met
             "display_name": "AmpliGone",
             "category": "sequence",
             "required_executables": ["ampligone"],
-            "required_conda_packages": ["AmpliGone"],
+            "required_conda_packages": ["ampligone"],
             "doi": "10.5281/zenodo.7684307",
         },
         "binette": {
@@ -34471,9 +33518,12 @@ def test_mashmap_exposes_galaxy_metadata_inputs_outputs_and_verified_dois() -> N
     assert "fast approximate algorithm" in node_info["citation_text"]
     assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "local alignment boundaries" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["query"] == ("STRING", {"multiple": True, "description": "One or more query FASTA or FASTQ sequences"})
+    assert node_info["input"]["required"]["query"] == (
+        "FASTA_LIST",
+        {"multiple": True, "description": "One or more query FASTA or FASTQ sequences"},
+    )
     assert node_info["input"]["required"]["reflist"] == (
-        "STRING",
+        "FASTA_LIST",
         {"multiple": True, "description": "One or more reference FASTA or FASTQ sequences"},
     )
     assert node_info["input"]["optional"]["perc_identity"][1]["default"] == 85.0
@@ -34772,11 +33822,8 @@ def test_lofreq_alnqual_renders_alignment_quality_command_and_output(tmp_path: P
         "lofreq",
         "alnqual",
         "-b",
-        "",
         "reads.bam",
         "ref.fa",
-        ">",
-        "/work/lofreq_alnqual/alnqual.bam",
     ]
     assert node_class.render_command(
         {
@@ -34790,13 +33837,10 @@ def test_lofreq_alnqual_renders_alignment_quality_command_and_output(tmp_path: P
         "lofreq",
         "alnqual",
         "-b",
-        "",
         "-B",
         "-r",
         "reads.bam",
         "ref.fa",
-        ">",
-        "/work/lofreq_alnqual/alnqual.bam",
     ]
     assert node_class.render_command(
         {
@@ -34810,12 +33854,9 @@ def test_lofreq_alnqual_renders_alignment_quality_command_and_output(tmp_path: P
         "lofreq",
         "alnqual",
         "-b",
-        "",
         "-B",
         "reads.bam",
         "ref.fa",
-        ">",
-        "/work/lofreq_alnqual/alnqual.bam",
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "lofreq_alnqual" / "alnqual.bam"]
@@ -35676,8 +34717,16 @@ def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Pa
     node_class = _node_class("bayescan")
     info = _registry().object_info()["bayescan"]
 
-    assert info["output"] == ["TXT", "TXT", "TXT", "TXT", "TXT", "TXT"]
-    assert info["output_name"] == ["log", "selection", "verification", "acceptance_rate", "pilot_runs", "allele_frequencies"]
+    assert info["output"] == ["TXT", "TXT", "TXT", "TXT", "TXT", "TXT", "TXT"]
+    assert info["output_name"] == [
+        "log",
+        "selection",
+        "mcmc_trace",
+        "verification",
+        "acceptance_rate",
+        "pilot_runs",
+        "allele_frequencies",
+    ]
     assert "10.1534/genetics.108.092221" in info["citation_dois"]
     assert node_class.render_command(
         {
@@ -35685,6 +34734,7 @@ def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Pa
             "discard_loci_file": "discard loci.tsv",
             "snp_genotypes_matrix": True,
             "fstats": True,
+            "threads": 6,
             "sample_size": 7000,
             "thinning_interval": 20,
             "num_pilot_runs": 25,
@@ -35709,12 +34759,14 @@ def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Pa
         "/work/bayescan/output_dir",
         "-d",
         "discard loci.tsv",
-        "-fstat",
         "-snp",
+        "-fstat",
         "-out_pilot",
         "-out_freq",
         "-o",
         "bayescan",
+        "-threads",
+        "6",
         "-n",
         "7000",
         "-thin",
@@ -35742,6 +34794,7 @@ def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Pa
         tmp_path,
     ) == [
         tmp_path / "bayescan" / "bayescan.log",
+        tmp_path / "bayescan" / "output_dir" / "bayescan_fst.txt",
         tmp_path / "bayescan" / "output_dir" / "bayescan.sel",
         tmp_path / "bayescan" / "output_dir" / "bayescan_Verif.txt",
         tmp_path / "bayescan" / "output_dir" / "bayescan_AccRte.txt",
@@ -35750,6 +34803,7 @@ def test_bayescan_renders_population_selection_scan_command_outputs(tmp_path: Pa
     ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "bayescan" / "bayescan.log",
+        tmp_path / "bayescan" / "output_dir" / "bayescan_fst.txt",
         tmp_path / "bayescan" / "output_dir" / "bayescan.sel",
         tmp_path / "bayescan" / "output_dir" / "bayescan_Verif.txt",
         tmp_path / "bayescan" / "output_dir" / "bayescan_AccRte.txt",
@@ -35797,12 +34851,14 @@ def test_bayescan_galaxy_id_renders_population_selection_scan_command_outputs(tm
         "population genotypes.txt",
         "-od",
         "/work/BayeScan/output_dir",
-        "-fstat",
         "-snp",
+        "-fstat",
         "-out_pilot",
         "-out_freq",
         "-o",
         "bayescan",
+        "-threads",
+        "4",
         "-n",
         "5000",
         "-thin",
@@ -35826,6 +34882,7 @@ def test_bayescan_galaxy_id_renders_population_selection_scan_command_outputs(tm
     ]
     assert node_class.PLAN_OUTPUTS({"pilot_runs": True, "allele_frequency": True}, tmp_path) == [
         tmp_path / "BayeScan" / "bayescan.log",
+        tmp_path / "BayeScan" / "output_dir" / "bayescan_fst.txt",
         tmp_path / "BayeScan" / "output_dir" / "bayescan.sel",
         tmp_path / "BayeScan" / "output_dir" / "bayescan_Verif.txt",
         tmp_path / "BayeScan" / "output_dir" / "bayescan_AccRte.txt",
@@ -38091,7 +37148,7 @@ def test_drep_compare_renders_genome_comparison_command_outputs_and_validation(t
         "mdb",
         "ndb",
     ]
-    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][0] == "FASTA_LIST"
     assert info["input"]["required"]["genomes"][1]["multiple"] is True
     assert info["input"]["required"]["genomes"][1]["min"] == 2
     assert info["input"]["optional"]["comparison_steps"][1]["options"] == ["default", "SkipMash", "SkipSecondary"]
@@ -38198,7 +37255,7 @@ def test_drep_dereplicate_renders_dereplication_command_outputs_and_validation(t
         "widb",
         "chdb",
     ]
-    assert info["input"]["required"]["genomes"][0] == "STRING"
+    assert info["input"]["required"]["genomes"][0] == "FASTA_LIST"
     assert info["input"]["required"]["genomes"][1]["multiple"] is True
     assert info["input"]["optional"]["quality_source"][1]["options"] == ["checkm", "genomeInfo", "ignoreGenomeQuality"]
     assert "10.1038/ismej.2017.126" in info["citation_dois"]
@@ -39656,160 +38713,6 @@ def test_bionodulo_builtin_third_batch_nodes_expose_citation_and_dependency_meta
             "required_conda_packages": ["gtdbtk"],
             "doi": "10.1093/bioinformatics/btz848",
         },
-        "rseqc_infer_experiment": {
-            "display_name": "RSeQC Infer Experiment",
-            "category": "rna_seq",
-            "required_executables": ["infer_experiment.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_fpkm_count": {
-            "display_name": "RSeQC FPKM Count",
-            "category": "rna_seq",
-            "required_executables": ["FPKM_count.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_rpkm_saturation": {
-            "display_name": "RSeQC RPKM Saturation",
-            "category": "rna_seq",
-            "required_executables": ["RPKM_saturation.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_bam2wig": {
-            "display_name": "RSeQC BAM to Wiggle",
-            "category": "rna_seq",
-            "required_executables": ["bam2wig.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_clipping_profile": {
-            "display_name": "RSeQC Clipping Profile",
-            "category": "rna_seq",
-            "required_executables": ["clipping_profile.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_deletion_profile": {
-            "display_name": "RSeQC Deletion Profile",
-            "category": "rna_seq",
-            "required_executables": ["deletion_profile.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_gene_body_coverage": {
-            "display_name": "RSeQC Gene Body Coverage",
-            "category": "rna_seq",
-            "required_executables": ["geneBody_coverage.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_gene_body_coverage2": {
-            "display_name": "RSeQC Gene Body Coverage BigWig",
-            "category": "rna_seq",
-            "required_executables": ["geneBody_coverage2.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_inner_distance": {
-            "display_name": "RSeQC Inner Distance",
-            "category": "rna_seq",
-            "required_executables": ["inner_distance.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_insertion_profile": {
-            "display_name": "RSeQC Insertion Profile",
-            "category": "rna_seq",
-            "required_executables": ["insertion_profile.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_read_hexamer": {
-            "display_name": "RSeQC Read Hexamer",
-            "category": "rna_seq",
-            "required_executables": ["read_hexamer.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_read_quality": {
-            "display_name": "RSeQC Read Quality",
-            "category": "rna_seq",
-            "required_executables": ["read_quality.py"],
-            "required_conda_packages": ["rseqc", "r-base"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_rna_fragment_size": {
-            "display_name": "RSeQC RNA Fragment Size",
-            "category": "rna_seq",
-            "required_executables": ["RNA_fragment_size.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_junction_annotation": {
-            "display_name": "RSeQC Junction Annotation",
-            "category": "rna_seq",
-            "required_executables": ["junction_annotation.py"],
-            "required_conda_packages": ["rseqc", "r-base"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_junction_saturation": {
-            "display_name": "RSeQC Junction Saturation",
-            "category": "rna_seq",
-            "required_executables": ["junction_saturation.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_mismatch_profile": {
-            "display_name": "RSeQC Mismatch Profile",
-            "category": "rna_seq",
-            "required_executables": ["mismatch_profile.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_read_gc": {
-            "display_name": "RSeQC Read GC",
-            "category": "rna_seq",
-            "required_executables": ["read_GC.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_read_nvc": {
-            "display_name": "RSeQC Read NVC",
-            "category": "rna_seq",
-            "required_executables": ["read_NVC.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_bam_stat": {
-            "display_name": "RSeQC BAM Stat",
-            "category": "rna_seq",
-            "required_executables": ["bam_stat.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_read_distribution": {
-            "display_name": "RSeQC Read Distribution",
-            "category": "rna_seq",
-            "required_executables": ["read_distribution.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_read_duplication": {
-            "display_name": "RSeQC Read Duplication",
-            "category": "rna_seq",
-            "required_executables": ["read_duplication.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1093/bioinformatics/bts356",
-        },
-        "rseqc_tin": {
-            "display_name": "RSeQC Transcript Integrity Number",
-            "category": "rna_seq",
-            "required_executables": ["tin.py"],
-            "required_conda_packages": ["rseqc"],
-            "doi": "10.1186/s12859-016-0922-z",
-        },
         "bedtools_coveragebed": {
             "display_name": "BEDTools Coverage",
             "category": "genomics",
@@ -39908,2672 +38811,6 @@ def test_gtdbtk_classify_wf_renders_classification_command_and_outputs(tmp_path:
     ]
 
 
-def test_rseqc_infer_experiment_renders_strandedness_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_infer_experiment")
-
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed",
-            "sample_size": 200000,
-            "mapq": 30,
-            "output": "/work/rseqc_infer_experiment",
-        }
-    ) == [
-        "infer_experiment.py",
-        "-i",
-        "aligned.bam",
-        "-r",
-        "genes.bed",
-        "--sample-size",
-        "200000",
-        "--mapq",
-        "30",
-        ">",
-        "/work/rseqc_infer_experiment/infer_experiment.txt",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "rseqc_infer_experiment" / "infer_experiment.txt",
-    ]
-
-
-def test_rseqc_fpkm_count_renders_expression_quantification_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_fpkm_count")
-    info = _registry().object_info()["rseqc_fpkm_count"]
-
-    assert info["output"] == ["TSV"]
-    assert info["output_name"] == ["fpkm_counts"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed12",
-            "strand_specific": "pair",
-            "pair_type": "ds",
-            "skip_multi_hits": True,
-            "mapq": 20,
-            "only_exonic": True,
-            "single_read": "0.5",
-            "output": "/work/rseqc_fpkm_count",
-        }
-    ) == [
-        "FPKM_count.py",
-        "-i",
-        "aligned.bam",
-        "-o",
-        "/work/rseqc_fpkm_count/output",
-        "-r",
-        "genes.bed12",
-        "-d",
-        "1+-,1-+,2++,2--",
-        "--skip-multi-hits",
-        "--mapq",
-        "20",
-        "--only-exonic",
-        "--single-read=0.5",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "rseqc_fpkm_count" / "output.FPKM.xls",
-    ]
-
-
-def test_rseqc_rpkm_saturation_renders_saturation_commands_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_rpkm_saturation")
-    info = _registry().object_info()["rseqc_rpkm_saturation"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TSV", "TEXT"]
-    assert info["output_name"] == ["saturation_plot", "rpkm_values", "raw_counts", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed",
-            "strand_specific": "none",
-            "percentile_floor": 10,
-            "percentile_ceiling": 90,
-            "percentile_step": 10,
-            "rpkm_cutoff": "0.05",
-            "mapq": 25,
-            "rscript_output": True,
-            "output": "/work/rseqc_rpkm_saturation",
-        }
-    ) == [
-        "RPKM_saturation.py",
-        "-i",
-        "aligned.bam",
-        "-o",
-        "/work/rseqc_rpkm_saturation/output",
-        "-r",
-        "genes.bed",
-        "-l",
-        "10",
-        "-u",
-        "90",
-        "-s",
-        "10",
-        "-c",
-        "0.05",
-        "--mapq",
-        "25",
-    ]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed",
-            "strand_specific": "pair",
-            "pair_type": "ds",
-            "output": "/work/rseqc_rpkm_saturation",
-        }
-    ) == [
-        "RPKM_saturation.py",
-        "-i",
-        "aligned.bam",
-        "-o",
-        "/work/rseqc_rpkm_saturation/output",
-        "-r",
-        "genes.bed",
-        "-d",
-        "1+-,1-+,2++,2--",
-        "-l",
-        "5",
-        "-u",
-        "100",
-        "-s",
-        "5",
-        "-c",
-        "0.01",
-        "--mapq",
-        "30",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_rpkm_saturation" / "output.saturation.pdf",
-        tmp_path / "rseqc_rpkm_saturation" / "output.eRPKM.xls",
-        tmp_path / "rseqc_rpkm_saturation" / "output.rawCount.xls",
-        tmp_path / "rseqc_rpkm_saturation" / "output.saturation.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_rpkm_saturation" / "output.saturation.pdf",
-        tmp_path / "rseqc_rpkm_saturation" / "output.eRPKM.xls",
-        tmp_path / "rseqc_rpkm_saturation" / "output.rawCount.xls",
-    ]
-
-
-def test_rseqc_bam2wig_renders_wiggle_commands_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_bam2wig")
-    info = _registry().object_info()["rseqc_bam2wig"]
-
-    assert info["output"] == ["WIG", "WIG", "WIG"]
-    assert info["output_name"] == ["wiggle", "forward_wiggle", "reverse_wiggle"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "chromsize": "hg19.chrom.sizes",
-            "normalize": True,
-            "totalwig": 100,
-            "skip_multi_hits": True,
-            "mapq": 20,
-            "strand_specific": "none",
-            "output": "/work/rseqc_bam2wig",
-        }
-    ) == [
-        "bam2wig.py",
-        "-i",
-        "aligned.bam",
-        "-s",
-        "hg19.chrom.sizes",
-        "-o",
-        "/work/rseqc_bam2wig/outfile",
-        "-t",
-        "100",
-        "--skip-multi-hits",
-        "--mapq",
-        "20",
-    ]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "chromsize": "hg19.chrom.sizes",
-            "strand_specific": "pair",
-            "pair_type": "ds",
-            "output": "/work/rseqc_bam2wig",
-        }
-    ) == [
-        "bam2wig.py",
-        "-i",
-        "aligned.bam",
-        "-s",
-        "hg19.chrom.sizes",
-        "-o",
-        "/work/rseqc_bam2wig/outfile",
-        "-d",
-        "1+-,1-+,2++,2--",
-    ]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "chromsize": "hg19.chrom.sizes",
-            "strand_specific": "single",
-            "single_type": "d",
-            "output": "/work/rseqc_bam2wig",
-        }
-    ) == [
-        "bam2wig.py",
-        "-i",
-        "aligned.bam",
-        "-s",
-        "hg19.chrom.sizes",
-        "-o",
-        "/work/rseqc_bam2wig/outfile",
-        "-d",
-        "+-,-+",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"strand_specific": "none"}, tmp_path) == [
-        tmp_path / "rseqc_bam2wig" / "outfile.wig",
-    ]
-    assert node_class.PLAN_OUTPUTS({"strand_specific": "pair"}, tmp_path) == [
-        tmp_path / "rseqc_bam2wig" / "outfile.Forward.wig",
-        tmp_path / "rseqc_bam2wig" / "outfile.Reverse.wig",
-    ]
-
-
-def test_rseqc_clipping_profile_renders_clipping_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_clipping_profile")
-    info = _registry().object_info()["rseqc_clipping_profile"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
-    assert info["output_name"] == ["clipping_profile_plot", "clipping_profile", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "mapq": 20,
-            "layout": "PE",
-            "rscript_output": True,
-            "output": "/work/rseqc_clipping_profile",
-        }
-    ) == [
-        "clipping_profile.py",
-        "-i",
-        "aligned.bam",
-        "-o",
-        "/work/rseqc_clipping_profile/output",
-        "-q",
-        "20",
-        "-s",
-        "PE",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.pdf",
-        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.xls",
-        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.pdf",
-        tmp_path / "rseqc_clipping_profile" / "output.clipping_profile.xls",
-    ]
-
-
-def test_rseqc_deletion_profile_renders_deletion_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_deletion_profile")
-    info = _registry().object_info()["rseqc_deletion_profile"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
-    assert info["output_name"] == ["deletion_profile_plot", "deletion_profile", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "read_align_length": 101,
-            "read_num": 500000,
-            "mapq": 20,
-            "rscript_output": True,
-            "output": "/work/rseqc_deletion_profile",
-        }
-    ) == [
-        "deletion_profile.py",
-        "-i",
-        "aligned.bam",
-        "-o",
-        "/work/rseqc_deletion_profile/output",
-        "-l",
-        "101",
-        "-n",
-        "500000",
-        "-q",
-        "20",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_deletion_profile" / "output.deletion_profile.pdf",
-        tmp_path / "rseqc_deletion_profile" / "output.deletion_profile.txt",
-        tmp_path / "rseqc_deletion_profile" / "output.deletion_profile.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_deletion_profile" / "output.deletion_profile.pdf",
-        tmp_path / "rseqc_deletion_profile" / "output.deletion_profile.txt",
-    ]
-
-
-def test_rseqc_gene_body_coverage_renders_single_bam_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_gene_body_coverage")
-    info = _registry().object_info()["rseqc_gene_body_coverage"]
-
-    assert info["output"] == ["IMAGE", "IMAGE", "TSV", "TEXT"]
-    assert info["output_name"] == ["coverage_curves", "coverage_heatmap", "coverage_table", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "sample.bam",
-            "refgene": "genes.bed12",
-            "minimum_length": 150,
-            "rscript_output": True,
-            "output": "/work/rseqc_gene_body_coverage",
-        }
-    ) == [
-        "geneBody_coverage.py",
-        "-i",
-        "sample.bam",
-        "-r",
-        "genes.bed12",
-        "--minimum_length",
-        "150",
-        "-o",
-        "/work/rseqc_gene_body_coverage/output",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"input": "sample.bam", "rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.curves.pdf",
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.txt",
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"input": "sample.bam", "rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.curves.pdf",
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.txt",
-    ]
-
-
-def test_rseqc_gene_body_coverage_renders_merged_bam_command_and_heatmap(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_gene_body_coverage")
-
-    assert node_class.render_command(
-        {
-            "input": ["sample A.bam", "sample-B.bam", "sample-B.bam"],
-            "refgene": "genes.bed12",
-            "minimum_length": 100,
-            "output": "/work/rseqc_gene_body_coverage",
-        }
-    ) == [
-        "mkdir",
-        "-p",
-        "/work/rseqc_gene_body_coverage/input_bams",
-        "&&",
-        "ln",
-        "-sf",
-        "sample A.bam",
-        "/work/rseqc_gene_body_coverage/input_bams/sample_A.bam",
-        "&&",
-        "ln",
-        "-sf",
-        "sample-B.bam",
-        "/work/rseqc_gene_body_coverage/input_bams/sample-B.bam",
-        "&&",
-        "ln",
-        "-sf",
-        "sample-B.bam",
-        "/work/rseqc_gene_body_coverage/input_bams/sample-B.2.bam",
-        "&&",
-        "printf",
-        "%s\\n",
-        "/work/rseqc_gene_body_coverage/input_bams/sample_A.bam",
-        "/work/rseqc_gene_body_coverage/input_bams/sample-B.bam",
-        "/work/rseqc_gene_body_coverage/input_bams/sample-B.2.bam",
-        ">",
-        "/work/rseqc_gene_body_coverage/input_list.txt",
-        "&&",
-        "geneBody_coverage.py",
-        "-i",
-        "/work/rseqc_gene_body_coverage/input_list.txt",
-        "-r",
-        "genes.bed12",
-        "--minimum_length",
-        "100",
-        "-o",
-        "/work/rseqc_gene_body_coverage/output",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"input": ["A.bam", "B.bam", "C.bam"], "rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.curves.pdf",
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.heatMap.pdf",
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.txt",
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"input": ["A.bam", "B.bam"], "rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.curves.pdf",
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.txt",
-        tmp_path / "rseqc_gene_body_coverage" / "output.geneBodyCoverage.r",
-    ]
-
-
-def test_rseqc_gene_body_coverage2_renders_bigwig_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_gene_body_coverage2")
-    info = _registry().object_info()["rseqc_gene_body_coverage2"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
-    assert info["output_name"] == ["coverage_plot", "coverage_table", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "coverage.bw",
-            "refgene": "genes.bed12",
-            "rscript_output": True,
-            "output": "/work/rseqc_gene_body_coverage2",
-        }
-    ) == [
-        "geneBody_coverage2.py",
-        "-i",
-        "coverage.bw",
-        "-r",
-        "genes.bed12",
-        "-o",
-        "/work/rseqc_gene_body_coverage2/output",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.pdf",
-        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.txt",
-        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage_plot.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.pdf",
-        tmp_path / "rseqc_gene_body_coverage2" / "output.geneBodyCoverage.txt",
-    ]
-
-
-def test_rseqc_inner_distance_renders_insert_size_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_inner_distance")
-    info = _registry().object_info()["rseqc_inner_distance"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TSV", "TEXT"]
-    assert info["output_name"] == ["inner_distance_plot", "inner_distances", "inner_distance_frequency", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "paired.bam",
-            "refgene": "genes.bed12",
-            "sample_size": 500000,
-            "lower_bound": -200,
-            "upper_bound": 300,
-            "step": 10,
-            "mapq": 25,
-            "rscript_output": True,
-            "output": "/work/rseqc_inner_distance",
-        }
-    ) == [
-        "inner_distance.py",
-        "-i",
-        "paired.bam",
-        "-o",
-        "/work/rseqc_inner_distance/output",
-        "-r",
-        "genes.bed12",
-        "--sample-size",
-        "500000",
-        "--lower-bound",
-        "-200",
-        "--upper-bound",
-        "300",
-        "--step",
-        "10",
-        "--mapq",
-        "25",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_inner_distance" / "output.inner_distance_plot.pdf",
-        tmp_path / "rseqc_inner_distance" / "output.inner_distance.txt",
-        tmp_path / "rseqc_inner_distance" / "output.inner_distance_freq.txt",
-        tmp_path / "rseqc_inner_distance" / "output.inner_distance_plot.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_inner_distance" / "output.inner_distance_plot.pdf",
-        tmp_path / "rseqc_inner_distance" / "output.inner_distance.txt",
-        tmp_path / "rseqc_inner_distance" / "output.inner_distance_freq.txt",
-    ]
-
-
-def test_rseqc_insertion_profile_renders_inserted_base_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_insertion_profile")
-    info = _registry().object_info()["rseqc_insertion_profile"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
-    assert info["output_name"] == ["insertion_profile_plot", "insertion_profile", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "mapq": 20,
-            "layout": "PE",
-            "rscript_output": True,
-            "output": "/work/rseqc_insertion_profile",
-        }
-    ) == [
-        "insertion_profile.py",
-        "-i",
-        "aligned.bam",
-        "-o",
-        "/work/rseqc_insertion_profile/output",
-        "-q",
-        "20",
-        "-s",
-        "PE",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.pdf",
-        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.xls",
-        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.pdf",
-        tmp_path / "rseqc_insertion_profile" / "output.insertion_profile.xls",
-    ]
-
-
-def test_rseqc_read_hexamer_renders_multi_input_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_read_hexamer")
-    info = _registry().object_info()["rseqc_read_hexamer"]
-
-    assert info["output"] == ["TSV"]
-    assert info["output_name"] == ["hexamer_frequencies"]
-    assert node_class.render_command(
-        {
-            "inputs": ["reads/R1.fastq.gz", "reads/R1.fastq.gz", "transcripts.fa"],
-            "refgenome": "genome.fa",
-            "refgene": "mrna.fa",
-            "output": "/work/rseqc_read_hexamer",
-        }
-    ) == (
-        "gunzip -c reads/R1.fastq.gz > R1_fastq_gz && "
-        "gunzip -c reads/R1.fastq.gz > R1_fastq_gz.1 && "
-        "ln -sf transcripts.fa transcripts_fa && "
-        "read_hexamer.py -i R1_fastq_gz,R1_fastq_gz.1,transcripts_fa "
-        "-r genome.fa -g mrna.fa > /work/rseqc_read_hexamer/read_hexamer.tsv"
-    )
-    assert node_class.render_command(
-        {
-            "inputs": ["reads R2.fastq", "amplicons.fasta"],
-            "output": "/work/rseqc_read_hexamer",
-        }
-    ) == (
-        "ln -sf 'reads R2.fastq' reads_R2_fastq && "
-        "ln -sf amplicons.fasta amplicons_fasta && "
-        "read_hexamer.py -i reads_R2_fastq,amplicons_fasta > /work/rseqc_read_hexamer/read_hexamer.tsv"
-    )
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "rseqc_read_hexamer" / "read_hexamer.tsv",
-    ]
-
-
-def test_rseqc_read_quality_renders_phred_quality_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_read_quality")
-    info = _registry().object_info()["rseqc_read_quality"]
-
-    assert info["output"] == ["IMAGE", "IMAGE", "TEXT"]
-    assert info["output_name"] == ["quality_heatmap", "quality_boxplot", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "reduce": 500,
-            "mapq": 20,
-            "rscript_output": True,
-            "output": "/work/rseqc_read_quality",
-        }
-    ) == [
-        "read_quality.py",
-        "--input-file",
-        "aligned.bam",
-        "--out-prefix",
-        "/work/rseqc_read_quality/output",
-        "-r",
-        "500",
-        "--mapq",
-        "20",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_read_quality" / "output.qual.heatmap.pdf",
-        tmp_path / "rseqc_read_quality" / "output.qual.boxplot.pdf",
-        tmp_path / "rseqc_read_quality" / "output.qual.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_read_quality" / "output.qual.heatmap.pdf",
-        tmp_path / "rseqc_read_quality" / "output.qual.boxplot.pdf",
-    ]
-
-
-def test_rseqc_rna_fragment_size_renders_fragment_size_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_rna_fragment_size")
-    info = _registry().object_info()["rseqc_rna_fragment_size"]
-
-    assert info["output"] == ["TSV"]
-    assert info["output_name"] == ["fragment_sizes"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed12",
-            "mapq": 20,
-            "frag_num": 5,
-            "output": "/work/rseqc_rna_fragment_size",
-        }
-    ) == [
-        "RNA_fragment_size.py",
-        "-i",
-        "aligned.bam",
-        "--refgene",
-        "genes.bed12",
-        "--mapq",
-        "20",
-        "--frag-num",
-        "5",
-        ">",
-        "/work/rseqc_rna_fragment_size/fragment_sizes.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "rseqc_rna_fragment_size" / "fragment_sizes.tsv",
-    ]
-
-
-def test_rseqc_junction_annotation_renders_splice_junction_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_junction_annotation")
-    info = _registry().object_info()["rseqc_junction_annotation"]
-
-    assert info["output"] == ["IMAGE", "IMAGE", "TSV", "TEXT", "STATS_FILE"]
-    assert info["output_name"] == [
-        "splice_events_plot",
-        "splice_junction_plot",
-        "junctions",
-        "r_script",
-        "stats",
-    ]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed12",
-            "min_intron": 75,
-            "mapq": 20,
-            "rscript_output": True,
-            "output": "/work/rseqc_junction_annotation",
-        }
-    ) == [
-        "junction_annotation.py",
-        "--input-file",
-        "aligned.bam",
-        "--refgene",
-        "genes.bed12",
-        "--out-prefix",
-        "/work/rseqc_junction_annotation/output",
-        "--min-intron",
-        "75",
-        "--mapq",
-        "20",
-        "2>",
-        "/work/rseqc_junction_annotation/stats.txt",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_junction_annotation" / "output.splice_events.pdf",
-        tmp_path / "rseqc_junction_annotation" / "output.splice_junction.pdf",
-        tmp_path / "rseqc_junction_annotation" / "output.junction.xls",
-        tmp_path / "rseqc_junction_annotation" / "output.junction_plot.r",
-        tmp_path / "rseqc_junction_annotation" / "stats.txt",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_junction_annotation" / "output.splice_events.pdf",
-        tmp_path / "rseqc_junction_annotation" / "output.splice_junction.pdf",
-        tmp_path / "rseqc_junction_annotation" / "output.junction.xls",
-        tmp_path / "rseqc_junction_annotation" / "stats.txt",
-    ]
-
-
-def test_rseqc_junction_saturation_renders_saturation_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_junction_saturation")
-    info = _registry().object_info()["rseqc_junction_saturation"]
-
-    assert info["output"] == ["IMAGE", "TEXT"]
-    assert info["output_name"] == ["junction_saturation_plot", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed12",
-            "min_intron": 75,
-            "min_coverage": 2,
-            "mapq": 20,
-            "output": "/work/rseqc_junction_saturation",
-        }
-    ) == [
-        "junction_saturation.py",
-        "--input-file",
-        "aligned.bam",
-        "--refgene",
-        "genes.bed12",
-        "--out-prefix",
-        "/work/rseqc_junction_saturation/output",
-        "--min-intron",
-        "75",
-        "--min-coverage",
-        "2",
-        "--mapq",
-        "20",
-    ]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed12",
-            "min_intron": 75,
-            "min_coverage": 2,
-            "mapq": 20,
-            "percentiles_mode": "specify",
-            "percentile_floor": 10,
-            "percentile_ceiling": 90,
-            "percentile_step": 10,
-            "output": "/work/rseqc_junction_saturation",
-        }
-    ) == [
-        "junction_saturation.py",
-        "--input-file",
-        "aligned.bam",
-        "--refgene",
-        "genes.bed12",
-        "--out-prefix",
-        "/work/rseqc_junction_saturation/output",
-        "--min-intron",
-        "75",
-        "--min-coverage",
-        "2",
-        "--mapq",
-        "20",
-        "--percentile-floor",
-        "10",
-        "--percentile-ceiling",
-        "90",
-        "--percentile-step",
-        "10",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_junction_saturation" / "output.junctionSaturation_plot.pdf",
-        tmp_path / "rseqc_junction_saturation" / "output.junctionSaturation_plot.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_junction_saturation" / "output.junctionSaturation_plot.pdf",
-    ]
-
-
-def test_rseqc_mismatch_profile_renders_mismatch_profile_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_mismatch_profile")
-    info = _registry().object_info()["rseqc_mismatch_profile"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
-    assert info["output_name"] == ["mismatch_profile_plot", "mismatch_profile", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "read_align_length": 101,
-            "read_num": 500000,
-            "mapq": 20,
-            "rscript_output": True,
-            "output": "/work/rseqc_mismatch_profile",
-        }
-    ) == [
-        "mismatch_profile.py",
-        "-i",
-        "aligned.bam",
-        "-o",
-        "/work/rseqc_mismatch_profile/output",
-        "-l",
-        "101",
-        "-n",
-        "500000",
-        "-q",
-        "20",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.pdf",
-        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.xls",
-        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.pdf",
-        tmp_path / "rseqc_mismatch_profile" / "output.mismatch_profile.xls",
-    ]
-
-
-def test_rseqc_read_gc_renders_gc_content_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_read_gc")
-    info = _registry().object_info()["rseqc_read_gc"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
-    assert info["output_name"] == ["gc_plot", "gc_counts", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.sam",
-            "mapq": 15,
-            "rscript_output": True,
-            "output": "/work/rseqc_read_gc",
-        }
-    ) == [
-        "read_GC.py",
-        "--input-file",
-        "aligned.sam",
-        "--out-prefix",
-        "/work/rseqc_read_gc/output",
-        "--mapq",
-        "15",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_read_gc" / "output.GC_plot.pdf",
-        tmp_path / "rseqc_read_gc" / "output.GC.xls",
-        tmp_path / "rseqc_read_gc" / "output.GC_plot.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_read_gc" / "output.GC_plot.pdf",
-        tmp_path / "rseqc_read_gc" / "output.GC.xls",
-    ]
-
-
-def test_rseqc_read_nvc_renders_nucleotide_cycle_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_read_nvc")
-    info = _registry().object_info()["rseqc_read_nvc"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TEXT"]
-    assert info["output_name"] == ["nvc_plot", "nvc_table", "r_script"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "nx": False,
-            "mapq": 25,
-            "rscript_output": True,
-            "output": "/work/rseqc_read_nvc",
-        }
-    ) == [
-        "read_NVC.py",
-        "--input-file",
-        "aligned.bam",
-        "--out-prefix",
-        "/work/rseqc_read_nvc/output",
-        "--mapq",
-        "25",
-    ]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "nx": True,
-            "mapq": 25,
-            "output": "/work/rseqc_read_nvc",
-        }
-    ) == [
-        "read_NVC.py",
-        "--input-file",
-        "aligned.bam",
-        "--out-prefix",
-        "/work/rseqc_read_nvc/output",
-        "--nx",
-        "--mapq",
-        "25",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_read_nvc" / "output.NVC_plot.pdf",
-        tmp_path / "rseqc_read_nvc" / "output.NVC.xls",
-        tmp_path / "rseqc_read_nvc" / "output.NVC_plot.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_read_nvc" / "output.NVC_plot.pdf",
-        tmp_path / "rseqc_read_nvc" / "output.NVC.xls",
-    ]
-
-
-def test_rseqc_bam_stat_renders_mapping_stats_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_bam_stat")
-    info = _registry().object_info()["rseqc_bam_stat"]
-
-    assert info["output"] == ["STATS_FILE"]
-    assert info["output_name"] == ["mapping_stats"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "mapq": 20,
-            "output": "/work/rseqc_bam_stat",
-        }
-    ) == [
-        "bam_stat.py",
-        "-i",
-        "aligned.bam",
-        "-q",
-        "20",
-        ">",
-        "/work/rseqc_bam_stat/bam_stat.txt",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "rseqc_bam_stat" / "bam_stat.txt",
-    ]
-
-
-def test_rseqc_read_distribution_renders_feature_distribution_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_read_distribution")
-    info = _registry().object_info()["rseqc_read_distribution"]
-
-    assert info["output"] == ["STATS_FILE"]
-    assert info["output_name"] == ["read_distribution"]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed12",
-            "output": "/work/rseqc_read_distribution",
-        }
-    ) == [
-        "read_distribution.py",
-        "-i",
-        "aligned.bam",
-        "-r",
-        "genes.bed12",
-        ">",
-        "/work/rseqc_read_distribution/read_distribution.txt",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "rseqc_read_distribution" / "read_distribution.txt",
-    ]
-
-
-def test_rseqc_read_duplication_renders_duplication_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_read_duplication")
-    info = _registry().object_info()["rseqc_read_duplication"]
-
-    assert info["output"] == ["IMAGE", "TSV", "TSV", "TEXT"]
-    assert info["output_name"] == [
-        "duplication_plot",
-        "position_duplication",
-        "sequence_duplication",
-        "r_script",
-    ]
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "up_limit": 750,
-            "mapq": 20,
-            "rscript_output": True,
-            "output": "/work/rseqc_read_duplication",
-        }
-    ) == [
-        "read_duplication.py",
-        "-i",
-        "aligned.bam",
-        "-o",
-        "/work/rseqc_read_duplication/output",
-        "-u",
-        "750",
-        "-q",
-        "20",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"rscript_output": True}, tmp_path) == [
-        tmp_path / "rseqc_read_duplication" / "output.DupRate_plot.pdf",
-        tmp_path / "rseqc_read_duplication" / "output.pos.DupRate.xls",
-        tmp_path / "rseqc_read_duplication" / "output.seq.DupRate.xls",
-        tmp_path / "rseqc_read_duplication" / "output.DupRate_plot.r",
-    ]
-    assert node_class.PLAN_OUTPUTS({"rscript_output": False}, tmp_path) == [
-        tmp_path / "rseqc_read_duplication" / "output.DupRate_plot.pdf",
-        tmp_path / "rseqc_read_duplication" / "output.pos.DupRate.xls",
-        tmp_path / "rseqc_read_duplication" / "output.seq.DupRate.xls",
-    ]
-
-
-def test_rseqc_tin_renders_transcript_integrity_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("rseqc_tin")
-    info = _registry().object_info()["rseqc_tin"]
-
-    assert info["output"] == ["TSV", "TSV"]
-    assert info["output_name"] == ["tin_summary", "tin_table"]
-    assert info["citation_dois"] == ["10.1186/s12859-016-0922-z", "10.1093/bioinformatics/bts356"]
-    assert node_class.render_command(
-        {
-            "input": ["sample one.bam", "sample one.bam", "batch/sample-two.bam"],
-            "refgene": "genes.bed12",
-            "minCov": 12,
-            "samplesize": 80,
-            "subtractbackground": True,
-            "output": "/work/rseqc_tin",
-        }
-    ) == (
-        "mkdir -p /work/rseqc_tin/input_bams && "
-        "ln -sf 'sample one.bam' /work/rseqc_tin/input_bams/sample_one.bam && "
-        "ln -sf 'sample one.bam' /work/rseqc_tin/input_bams/sample_one.2.bam && "
-        "ln -sf batch/sample-two.bam /work/rseqc_tin/input_bams/sample-two.bam && "
-        "printf '%s\\n' /work/rseqc_tin/input_bams/sample_one.bam "
-        "/work/rseqc_tin/input_bams/sample_one.2.bam /work/rseqc_tin/input_bams/sample-two.bam "
-        "> /work/rseqc_tin/input_list.txt && "
-        "tin.py -i /work/rseqc_tin/input_list.txt --refgene genes.bed12 --minCov 12 --sample-size 80 "
-        "--subtract-background && mv *summary.txt /work/rseqc_tin/summary.tab && mv *tin.xls /work/rseqc_tin/tin.xls"
-    )
-    assert node_class.render_command(
-        {
-            "input": "aligned.bam",
-            "refgene": "genes.bed12",
-            "output": "/work/rseqc_tin",
-        }
-    ) == (
-        "mkdir -p /work/rseqc_tin/input_bams && "
-        "ln -sf aligned.bam /work/rseqc_tin/input_bams/aligned.bam && "
-        "printf '%s\\n' /work/rseqc_tin/input_bams/aligned.bam > /work/rseqc_tin/input_list.txt && "
-        "tin.py -i /work/rseqc_tin/input_list.txt --refgene genes.bed12 --minCov 10 --sample-size 100 && "
-        "mv *summary.txt /work/rseqc_tin/summary.tab && mv *tin.xls /work/rseqc_tin/tin.xls"
-    )
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "rseqc_tin" / "summary.tab",
-        tmp_path / "rseqc_tin" / "tin.xls",
-    ]
-
-
-def test_bedtools_coveragebed_renders_depth_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_coveragebed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "windows.bed",
-            "inputB": ["reads.bam", "capture.bed"],
-            "split": True,
-            "strandedness": True,
-            "d": True,
-            "mean": True,
-            "overlap_a": 0.5,
-            "overlap_b": 0.2,
-            "reciprocal_overlap": True,
-            "a_or_b": True,
-            "sorted": True,
-            "output": "/work/bedtools_coveragebed",
-        }
-    ) == [
-        "bedtools",
-        "coverage",
-        "-d",
-        "-split",
-        "-s",
-        "-mean",
-        "-f",
-        "0.5",
-        "-F",
-        "0.2",
-        "-r",
-        "-e",
-        "-a",
-        "windows.bed",
-        "-b",
-        "reads.bam",
-        "capture.bed",
-        "-sorted",
-        "|",
-        "sort",
-        "-k1,1",
-        "-k2,2n",
-        ">",
-        "/work/bedtools_coveragebed/coverage.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_coveragebed" / "coverage.bed",
-    ]
-
-
-def test_bedtools_genomecoveragebed_renders_bam_bedgraph_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_genomecoveragebed")
-
-    assert node_class.render_command(
-        {
-            "input_type": "bam",
-            "input": "reads.bam",
-            "report": "bg",
-            "zero_regions": True,
-            "scale": 0.5,
-            "split": True,
-            "strand": "+",
-            "d": True,
-            "five": True,
-            "output": "/work/bedtools_genomecoveragebed",
-        }
-    ) == [
-        "bedtools",
-        "genomecov",
-        "-ibam",
-        "reads.bam",
-        "-split",
-        "-strand",
-        "+",
-        "-bga",
-        "-scale",
-        "0.5",
-        "-d",
-        "-5",
-        ">",
-        "/work/bedtools_genomecoveragebed/genome_coverage.bedgraph",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"report": "bg"}, tmp_path) == [
-        tmp_path / "bedtools_genomecoveragebed" / "genome_coverage.bedgraph",
-    ]
-    assert node_class.PLAN_OUTPUTS({"report": "hist"}, tmp_path) == [
-        tmp_path / "bedtools_genomecoveragebed" / "genome_coverage.tsv",
-    ]
-
-
-def test_bionodulo_builtin_bedtools_followup_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bedtools_subtractbed": {
-            "display_name": "BEDTools Subtract",
-            "category": "genomics",
-            "required_executables": ["bedtools"],
-            "required_conda_packages": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-        "bedtools_mergebed": {
-            "display_name": "BEDTools Merge",
-            "category": "genomics",
-            "required_executables": ["mergeBed"],
-            "required_conda_packages": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-        "bedtools_sortbed": {
-            "display_name": "BEDTools Sort",
-            "category": "genomics",
-            "required_executables": ["sortBed"],
-            "required_conda_packages": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-        "bedtools_getfastabed": {
-            "display_name": "BEDTools getfasta",
-            "category": "genomics",
-            "required_executables": ["bedtools"],
-            "required_conda_packages": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == metadata["category"]
-        assert node_info["required_executables"] == metadata["required_executables"]
-        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
-        assert metadata["doi"] in node_info["citation_dois"]
-        assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
-        assert node_info["documentation_url"].startswith(("https://", "http://"))
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-
-
-def test_bedtools_subtractbed_renders_overlap_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_subtractbed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "targets.bed",
-            "inputB": "blacklist.bed",
-            "strand": "opposite",
-            "overlap": 0.8,
-            "remove_if_overlap": "remove_feature",
-            "output": "/work/bedtools_subtractbed",
-        }
-    ) == [
-        "bedtools",
-        "subtract",
-        "-S",
-        "-a",
-        "targets.bed",
-        "-b",
-        "blacklist.bed",
-        "-f",
-        "0.8",
-        "-A",
-        ">",
-        "/work/bedtools_subtractbed/subtracted.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_subtractbed" / "subtracted.bed",
-    ]
-
-
-def test_bedtools_mergebed_renders_column_operations_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_mergebed")
-
-    assert node_class.render_command(
-        {
-            "input": "sorted_regions.bed",
-            "strand": "forward",
-            "distance": 1000,
-            "header": True,
-            "columns": "4,5",
-            "operations": "collapse,mean",
-            "output": "/work/bedtools_mergebed",
-        }
-    ) == [
-        "mergeBed",
-        "-i",
-        "sorted_regions.bed",
-        "-S",
-        "+",
-        "-d",
-        "1000",
-        "-header",
-        "-c",
-        "4,5",
-        "-o",
-        "collapse,mean",
-        ">",
-        "/work/bedtools_mergebed/merged.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_mergebed" / "merged.bed",
-    ]
-
-
-def test_bedtools_sortbed_renders_genome_order_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_sortbed")
-
-    assert node_class.render_command(
-        {
-            "input": "regions.gff",
-            "sort_by": "-chrThenScoreD",
-            "genome": "chrom.sizes",
-            "output": "/work/bedtools_sortbed",
-        }
-    ) == [
-        "sortBed",
-        "-i",
-        "regions.gff",
-        "-chrThenScoreD",
-        "-g",
-        "chrom.sizes",
-        ">",
-        "/work/bedtools_sortbed/sorted.gff",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"input": "regions.gff"}, tmp_path) == [
-        tmp_path / "bedtools_sortbed" / "sorted.gff",
-    ]
-
-
-def test_bedtools_getfastabed_renders_sequence_extraction_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_getfastabed")
-
-    assert node_class.render_command(
-        {
-            "input": "exons.bed12",
-            "fasta": "genome.fa",
-            "name_only": True,
-            "tab": True,
-            "strand": True,
-            "split": True,
-            "output": "/work/bedtools_getfastabed",
-        }
-    ) == [
-        "ln",
-        "-s",
-        "genome.fa",
-        "input.fasta",
-        "&&",
-        "bedtools",
-        "getfasta",
-        "-nameOnly",
-        "-tab",
-        "-s",
-        "-split",
-        "-fi",
-        "input.fasta",
-        "-bed",
-        "exons.bed12",
-        "-fo",
-        "/work/bedtools_getfastabed/extracted.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"tab": True}, tmp_path) == [
-        tmp_path / "bedtools_getfastabed" / "extracted.tsv",
-    ]
-    assert node_class.PLAN_OUTPUTS({"tab": False}, tmp_path) == [
-        tmp_path / "bedtools_getfastabed" / "extracted.fasta",
-    ]
-
-
-def test_bionodulo_builtin_bedtools_interval_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bedtools_complementbed": {
-            "display_name": "BEDTools Complement",
-            "required_executables": ["complementBed"],
-        },
-        "bedtools_flankbed": {
-            "display_name": "BEDTools Flank",
-            "required_executables": ["flankBed"],
-        },
-        "bedtools_slopbed": {
-            "display_name": "BEDTools Slop",
-            "required_executables": ["bedtools"],
-        },
-        "bedtools_windowbed": {
-            "display_name": "BEDTools Window",
-            "required_executables": ["bedtools"],
-        },
-        "bedtools_map": {
-            "display_name": "BEDTools Map",
-            "required_executables": ["bedtools"],
-        },
-        "bedtools_multiintersectbed": {
-            "display_name": "BEDTools Multiple Intersect",
-            "required_executables": ["bedtools"],
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "genomics"
-        assert node_info["required_executables"] == metadata["required_executables"]
-        assert node_info["required_conda_packages"] == ["bedtools"]
-        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
-        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
-        assert node_info["documentation_url"].startswith("https://bedtools.readthedocs.io/")
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-
-
-def test_bedtools_complementbed_renders_genome_gap_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_complementbed")
-
-    assert node_class.render_command(
-        {
-            "input": "covered.bed",
-            "genome": "chrom.sizes",
-            "output": "/work/bedtools_complementbed",
-        }
-    ) == [
-        "complementBed",
-        "-i",
-        "covered.bed",
-        "-g",
-        "chrom.sizes",
-        ">",
-        "/work/bedtools_complementbed/complement.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_complementbed" / "complement.bed",
-    ]
-
-
-def test_bedtools_flankbed_renders_fractional_stranded_flank_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_flankbed")
-
-    assert node_class.render_command(
-        {
-            "input": "genes.bed",
-            "genome": "chrom.sizes",
-            "pct": True,
-            "strand": True,
-            "addition_mode": "lr",
-            "left": 0.2,
-            "right": 0.5,
-            "output": "/work/bedtools_flankbed",
-        }
-    ) == [
-        "flankBed",
-        "-pct",
-        "-s",
-        "-g",
-        "chrom.sizes",
-        "-i",
-        "genes.bed",
-        "-l",
-        "0.2",
-        "-r",
-        "0.5",
-        ">",
-        "/work/bedtools_flankbed/flanks.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_flankbed" / "flanks.bed",
-    ]
-
-
-def test_bedtools_slopbed_renders_symmetric_extension_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_slopbed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "peaks.bed",
-            "genome": "chrom.sizes",
-            "addition_mode": "b",
-            "both": 250,
-            "header": True,
-            "output": "/work/bedtools_slopbed",
-        }
-    ) == [
-        "bedtools",
-        "slop",
-        "-g",
-        "chrom.sizes",
-        "-i",
-        "peaks.bed",
-        "-b",
-        "250",
-        "-header",
-        ">",
-        "/work/bedtools_slopbed/slopped.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_slopbed" / "slopped.bed",
-    ]
-
-
-def test_bedtools_windowbed_renders_asymmetric_count_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_windowbed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "promoters.bed",
-            "inputB": "enhancers.bed",
-            "addition_mode": "lr",
-            "left": 200,
-            "right": 20000,
-            "strand": "same",
-            "number": True,
-            "header": True,
-            "output": "/work/bedtools_windowbed",
-        }
-    ) == [
-        "bedtools",
-        "window",
-        "-a",
-        "promoters.bed",
-        "-b",
-        "enhancers.bed",
-        "-sm",
-        "-l",
-        "200",
-        "-r",
-        "20000",
-        "-c",
-        "-header",
-        ">",
-        "/work/bedtools_windowbed/window.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_windowbed" / "window.bed",
-    ]
-
-
-def test_bedtools_map_renders_column_operation_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_map")
-
-    assert node_class.render_command(
-        {
-            "inputA": "exons.bed",
-            "inputB": "coverage.bedgraph",
-            "columns": "4",
-            "operations": "mean",
-            "strand": "opposite",
-            "overlap": 0.5,
-            "overlap_b": 0.25,
-            "reciprocal": True,
-            "split": True,
-            "header": True,
-            "genome": "chrom.sizes",
-            "output": "/work/bedtools_map",
-        }
-    ) == [
-        "bedtools",
-        "map",
-        "-a",
-        "exons.bed",
-        "-b",
-        "coverage.bedgraph",
-        "-S",
-        "-c",
-        "4",
-        "-o",
-        "mean",
-        "-f",
-        "0.5",
-        "-F",
-        "0.25",
-        "-r",
-        "-split",
-        "-header",
-        "-g",
-        "chrom.sizes",
-        ">",
-        "/work/bedtools_map/mapped.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_map" / "mapped.bed",
-    ]
-
-
-def test_bedtools_multiintersectbed_renders_custom_names_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_multiintersectbed")
-
-    assert node_class.render_command(
-        {
-            "inputs": ["a.bed", "b.bed", "c.bed"],
-            "names": ["sampleA", "sampleB", "sampleC"],
-            "header": True,
-            "cluster": True,
-            "filler": "0",
-            "empty": True,
-            "genome": "chrom.sizes",
-            "output": "/work/bedtools_multiintersectbed",
-        }
-    ) == [
-        "bedtools",
-        "multiinter",
-        "-header",
-        "-cluster",
-        "-filler",
-        "0",
-        "-empty",
-        "-g",
-        "chrom.sizes",
-        "-i",
-        "a.bed",
-        "b.bed",
-        "c.bed",
-        "-names",
-        "sampleA",
-        "sampleB",
-        "sampleC",
-        ">",
-        "/work/bedtools_multiintersectbed/multiintersect.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_multiintersectbed" / "multiintersect.bed",
-    ]
-
-
-def test_bionodulo_builtin_bedtools_statistics_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bedtools_clusterbed": {
-            "display_name": "BEDTools Cluster",
-            "required_executables": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-        "bedtools_jaccard": {
-            "display_name": "BEDTools Jaccard",
-            "required_executables": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-        "bedtools_fisher": {
-            "display_name": "BEDTools Fisher",
-            "required_executables": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-        "bedtools_reldistbed": {
-            "display_name": "BEDTools Relative Distance",
-            "required_executables": ["bedtools"],
-            "doi": "10.1371/journal.pcbi.1002529",
-        },
-        "bedtools_spacingbed": {
-            "display_name": "BEDTools Spacing",
-            "required_executables": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-        "bedtools_groupbybed": {
-            "display_name": "BEDTools GroupBy",
-            "required_executables": ["bedtools"],
-            "doi": "10.1093/bioinformatics/btq033",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "genomics"
-        assert node_info["required_executables"] == metadata["required_executables"]
-        assert node_info["required_conda_packages"] == ["bedtools"]
-        assert metadata["doi"] in node_info["citation_dois"]
-        assert f"https://doi.org/{metadata['doi']}" in node_info["citation_urls"]
-        assert node_info["documentation_url"].startswith("https://bedtools.readthedocs.io/")
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-
-
-def test_bedtools_clusterbed_renders_stranded_cluster_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_clusterbed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "sorted.bed",
-            "strand": True,
-            "distance": 500,
-            "output": "/work/bedtools_clusterbed",
-        }
-    ) == [
-        "bedtools",
-        "cluster",
-        "-s",
-        "-d",
-        "500",
-        "-i",
-        "sorted.bed",
-        ">",
-        "/work/bedtools_clusterbed/clustered.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_clusterbed" / "clustered.bed",
-    ]
-
-
-def test_bedtools_jaccard_renders_overlap_statistic_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_jaccard")
-
-    assert node_class.render_command(
-        {
-            "inputA": "a.bed",
-            "inputB": "b.bed",
-            "strand": True,
-            "split": True,
-            "reciprocal": True,
-            "overlap": 0.2,
-            "overlap_b": 0.3,
-            "output": "/work/bedtools_jaccard",
-        }
-    ) == [
-        "bedtools",
-        "jaccard",
-        "-s",
-        "-split",
-        "-r",
-        "-f",
-        "0.2",
-        "-F",
-        "0.3",
-        "-a",
-        "a.bed",
-        "-b",
-        "b.bed",
-        ">",
-        "/work/bedtools_jaccard/jaccard.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_jaccard" / "jaccard.tsv",
-    ]
-
-
-def test_bedtools_fisher_renders_exact_test_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_fisher")
-
-    assert node_class.render_command(
-        {
-            "inputA": "case.bed",
-            "inputB": "background.bed",
-            "genome": "chrom.sizes",
-            "strand": "same",
-            "split": True,
-            "overlap": 0.5,
-            "reciprocal": True,
-            "merge": True,
-            "output": "/work/bedtools_fisher",
-        }
-    ) == [
-        "bedtools",
-        "fisher",
-        "-s",
-        "-split",
-        "-a",
-        "case.bed",
-        "-b",
-        "background.bed",
-        "-f",
-        "0.5",
-        "-g",
-        "chrom.sizes",
-        "-r",
-        "-m",
-        ">",
-        "/work/bedtools_fisher/fisher.txt",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_fisher" / "fisher.txt",
-    ]
-
-
-def test_bedtools_reldistbed_renders_relative_distance_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_reldistbed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "enhancers.bed",
-            "inputB": "tss.bed",
-            "detail": True,
-            "output": "/work/bedtools_reldistbed",
-        }
-    ) == [
-        "bedtools",
-        "reldist",
-        "-a",
-        "enhancers.bed",
-        "-b",
-        "tss.bed",
-        "-detail",
-        ">",
-        "/work/bedtools_reldistbed/relative_distance.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_reldistbed" / "relative_distance.tsv",
-    ]
-
-
-def test_bedtools_spacingbed_renders_spacing_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_spacingbed")
-
-    assert node_class.render_command(
-        {
-            "input": "sorted.bed",
-            "output": "/work/bedtools_spacingbed",
-        }
-    ) == [
-        "bedtools",
-        "spacing",
-        "-i",
-        "sorted.bed",
-        ">",
-        "/work/bedtools_spacingbed/spacing.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_spacingbed" / "spacing.bed",
-    ]
-
-
-def test_bedtools_groupbybed_renders_summary_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_groupbybed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "annotated.bed",
-            "group": "1,2,3",
-            "columns": "9",
-            "operation": "median",
-            "output": "/work/bedtools_groupbybed",
-        }
-    ) == [
-        "bedtools",
-        "groupby",
-        "-i",
-        "annotated.bed",
-        "-g",
-        "1,2,3",
-        "-c",
-        "9",
-        "-o",
-        "median",
-        ">",
-        "/work/bedtools_groupbybed/grouped.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_groupbybed" / "grouped.bed",
-    ]
-
-
-def test_bionodulo_builtin_bedtools_conversion_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bedtools_bamtobed": {
-            "display_name": "BEDTools BAM to BED",
-            "required_executables": ["bedtools", "samtools"],
-            "required_conda_packages": ["bedtools", "samtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/bamtobed.html",
-        },
-        "bedtools_bed12tobed6": {
-            "display_name": "BEDTools BED12 to BED6",
-            "required_executables": ["bed12ToBed6"],
-            "required_conda_packages": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/bed12tobed6.html",
-        },
-        "bedtools_bedtobam": {
-            "display_name": "BEDTools BED to BAM",
-            "required_executables": ["bedtools"],
-            "required_conda_packages": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/bedtobam.html",
-        },
-        "bedtools_bedpetobam": {
-            "display_name": "BEDTools BEDPE to BAM",
-            "required_executables": ["bedtools"],
-            "required_conda_packages": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/bedpetobam.html",
-        },
-        "bedtools_makewindowsbed": {
-            "display_name": "BEDTools Make Windows",
-            "required_executables": ["bedtools"],
-            "required_conda_packages": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/makewindows.html",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "genomics"
-        assert node_info["required_executables"] == metadata["required_executables"]
-        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
-        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
-        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-
-
-def test_bedtools_bamtobed_renders_bedpe_sort_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_bamtobed")
-
-    assert node_class.render_command(
-        {
-            "input": "alignments.bam",
-            "option": "bedpe",
-            "split": True,
-            "ed_score": True,
-            "tag": "NM",
-            "threads": 6,
-            "output": "/work/bedtools_bamtobed",
-        }
-    ) == [
-        "samtools",
-        "sort",
-        "-n",
-        "-@",
-        "6",
-        "-T",
-        "/work/bedtools_bamtobed/tmp",
-        "alignments.bam",
-        ">",
-        "/work/bedtools_bamtobed/input.bam",
-        "&&",
-        "bedtools",
-        "bamtobed",
-        "-bedpe",
-        "-ed",
-        "-split",
-        "-tag",
-        "NM",
-        "-i",
-        "/work/bedtools_bamtobed/input.bam",
-        ">",
-        "/work/bedtools_bamtobed/converted.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_bamtobed" / "converted.bed",
-    ]
-
-
-def test_bedtools_bed12tobed6_renders_block_conversion_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_bed12tobed6")
-
-    assert node_class.render_command(
-        {
-            "input": "transcripts.bed12",
-            "output": "/work/bedtools_bed12tobed6",
-        }
-    ) == [
-        "bed12ToBed6",
-        "-i",
-        "transcripts.bed12",
-        ">",
-        "/work/bedtools_bed12tobed6/bed6.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_bed12tobed6" / "bed6.bed",
-    ]
-
-
-def test_bedtools_bedtobam_renders_bed12_conversion_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_bedtobam")
-
-    assert node_class.render_command(
-        {
-            "input": "features.bed",
-            "bed12": True,
-            "genome": "chrom.sizes",
-            "mapq": 42,
-            "output": "/work/bedtools_bedtobam",
-        }
-    ) == [
-        "bedtools",
-        "bedtobam",
-        "-bed12",
-        "-mapq",
-        "42",
-        "-g",
-        "chrom.sizes",
-        "-i",
-        "features.bed",
-        ">",
-        "/work/bedtools_bedtobam/converted.bam",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_bedtobam" / "converted.bam",
-    ]
-
-
-def test_bedtools_bedpetobam_renders_paired_conversion_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_bedpetobam")
-
-    assert node_class.render_command(
-        {
-            "input": "pairs.bedpe",
-            "genome": "chrom.sizes",
-            "mapq": 60,
-            "output": "/work/bedtools_bedpetobam",
-        }
-    ) == [
-        "bedtools",
-        "bedpetobam",
-        "-mapq",
-        "60",
-        "-i",
-        "pairs.bedpe",
-        "-g",
-        "chrom.sizes",
-        ">",
-        "/work/bedtools_bedpetobam/paired.bam",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_bedpetobam" / "paired.bam",
-    ]
-
-
-def test_bedtools_makewindowsbed_renders_sliding_windows_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_makewindowsbed")
-
-    assert node_class.render_command(
-        {
-            "type": "bed",
-            "input": "regions.bed",
-            "action": "windowsize",
-            "windowsize": 1000,
-            "step_size": 250,
-            "sourcename": "srcwinnum",
-            "output": "/work/bedtools_makewindowsbed",
-        }
-    ) == [
-        "bedtools",
-        "makewindows",
-        "-b",
-        "regions.bed",
-        "-w",
-        "1000",
-        "-s",
-        "250",
-        "-i",
-        "srcwinnum",
-        ">",
-        "/work/bedtools_makewindowsbed/windows.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_makewindowsbed" / "windows.bed",
-    ]
-
-
-def test_bionodulo_builtin_bedtools_annotation_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bedtools_annotatebed": {
-            "display_name": "BEDTools Annotate",
-            "required_executables": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/annotate.html",
-        },
-        "bedtools_expandbed": {
-            "display_name": "BEDTools Expand",
-            "required_executables": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/expand.html",
-        },
-        "bedtools_maskfastabed": {
-            "display_name": "BEDTools Mask FASTA",
-            "required_executables": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/maskfasta.html",
-        },
-        "bedtools_multicovtbed": {
-            "display_name": "BEDTools MultiCov",
-            "required_executables": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/multicov.html",
-        },
-        "bedtools_nucbed": {
-            "display_name": "BEDTools Nucleotide Content",
-            "required_executables": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/nuc.html",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "genomics"
-        assert node_info["required_executables"] == metadata["required_executables"]
-        assert node_info["required_conda_packages"] == ["bedtools"]
-        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
-        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-
-
-def test_bedtools_annotatebed_renders_named_coverage_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_annotatebed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "regions.bed",
-            "beds": ["enhancers.bed", "promoters.bed"],
-            "names": ["enhancer", "promoter"],
-            "strand": "same",
-            "counts": True,
-            "both": True,
-            "output": "/work/bedtools_annotatebed",
-        }
-    ) == [
-        "bedtools",
-        "annotate",
-        "-i",
-        "regions.bed",
-        "-files",
-        "enhancers.bed",
-        "promoters.bed",
-        "-names",
-        "enhancer",
-        "promoter",
-        "-s",
-        "-counts",
-        "-both",
-        ">",
-        "/work/bedtools_annotatebed/annotated.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_annotatebed" / "annotated.bed",
-    ]
-
-
-def test_bedtools_expandbed_renders_column_expansion_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_expandbed")
-
-    assert node_class.render_command(
-        {
-            "input": "tagged.bed",
-            "columns": "4,5",
-            "output": "/work/bedtools_expandbed",
-        }
-    ) == [
-        "bedtools",
-        "expand",
-        "-c",
-        "4,5",
-        "-i",
-        "tagged.bed",
-        ">",
-        "/work/bedtools_expandbed/expanded.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"input": "tagged.gff3"}, tmp_path) == [
-        tmp_path / "bedtools_expandbed" / "expanded.gff",
-    ]
-
-
-def test_bedtools_maskfastabed_renders_soft_mask_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_maskfastabed")
-
-    assert node_class.render_command(
-        {
-            "input": "mask_regions.bed",
-            "fasta": "genome.fa",
-            "soft": True,
-            "mask_character": "X",
-            "full_header": True,
-            "output": "/work/bedtools_maskfastabed",
-        }
-    ) == [
-        "bedtools",
-        "maskfasta",
-        "-soft",
-        "-mc",
-        "X",
-        "-fi",
-        "genome.fa",
-        "-bed",
-        "mask_regions.bed",
-        "-fo",
-        "/work/bedtools_maskfastabed/masked.fasta",
-        "-fullHeader",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_maskfastabed" / "masked.fasta",
-    ]
-
-
-def test_bedtools_multicovtbed_renders_bam_count_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_multicovtbed")
-
-    assert node_class.render_command(
-        {
-            "input": "targets.bed",
-            "bams": ["case.bam", "control.bam"],
-            "strand": "opposite",
-            "overlap": 0.5,
-            "reciprocal": True,
-            "split": True,
-            "q": 20,
-            "duplicate": True,
-            "failed": True,
-            "proper": True,
-            "output": "/work/bedtools_multicovtbed",
-        }
-    ) == [
-        "bedtools",
-        "multicov",
-        "-bed",
-        "targets.bed",
-        "-bams",
-        "case.bam",
-        "control.bam",
-        "-S",
-        "-f",
-        "0.5",
-        "-r",
-        "-split",
-        "-q",
-        "20",
-        "-D",
-        "-F",
-        "-p",
-        ">",
-        "/work/bedtools_multicovtbed/multicov.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_multicovtbed" / "multicov.bed",
-    ]
-
-
-def test_bedtools_nucbed_renders_sequence_pattern_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_nucbed")
-
-    assert node_class.render_command(
-        {
-            "input": "regions.bed",
-            "fasta": "genome.fa",
-            "strand": True,
-            "seq": True,
-            "pattern": "TAC",
-            "ignore_case": True,
-            "output": "/work/bedtools_nucbed",
-        }
-    ) == [
-        "bedtools",
-        "nuc",
-        "-s",
-        "-seq",
-        "-pattern",
-        "TAC",
-        "-C",
-        "-fi",
-        "genome.fa",
-        "-bed",
-        "regions.bed",
-        ">",
-        "/work/bedtools_nucbed/nucleotide_content.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_nucbed" / "nucleotide_content.tsv",
-    ]
-
-
-def test_bionodulo_builtin_bedtools_randomization_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bedtools_randombed": {
-            "display_name": "BEDTools Random",
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/random.html",
-        },
-        "bedtools_shufflebed": {
-            "display_name": "BEDTools Shuffle",
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/shuffle.html",
-        },
-        "bedtools_unionbedgraph": {
-            "display_name": "BEDTools Union BedGraph",
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/unionbedg.html",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "genomics"
-        assert node_info["required_executables"] == ["bedtools"]
-        assert node_info["required_conda_packages"] == ["bedtools"]
-        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
-        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-
-
-def test_bedtools_randombed_renders_seeded_interval_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_randombed")
-
-    assert node_class.render_command(
-        {
-            "genome": "chrom.sizes",
-            "length": 250,
-            "intervals": 1000,
-            "seed": 17,
-            "output": "/work/bedtools_randombed",
-        }
-    ) == [
-        "bedtools",
-        "random",
-        "-g",
-        "chrom.sizes",
-        "-l",
-        "250",
-        "-n",
-        "1000",
-        "-seed",
-        "17",
-        ">",
-        "/work/bedtools_randombed/random.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_randombed" / "random.bed",
-    ]
-
-
-def test_bedtools_shufflebed_renders_excluded_same_chromosome_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_shufflebed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "peaks.bed",
-            "genome": "chrom.sizes",
-            "bedpe": True,
-            "seed": 23,
-            "exclude": "gaps.bed",
-            "overlap": 0.2,
-            "chrom": True,
-            "chromfirst": True,
-            "no_overlap": True,
-            "allow_beyond": True,
-            "maxtries": 5000,
-            "output": "/work/bedtools_shufflebed",
-        }
-    ) == [
-        "bedtools",
-        "shuffle",
-        "-g",
-        "chrom.sizes",
-        "-i",
-        "peaks.bed",
-        "-bedpe",
-        "-seed",
-        "23",
-        "-excl",
-        "gaps.bed",
-        "-f",
-        "0.2",
-        "-chrom",
-        "-chromFirst",
-        "-noOverlapping",
-        "-allowBeyondChromEnd",
-        "-maxTries",
-        "5000",
-        ">",
-        "/work/bedtools_shufflebed/shuffled.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_shufflebed" / "shuffled.bed",
-    ]
-
-
-def test_bedtools_unionbedgraph_renders_named_empty_union_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_unionbedgraph")
-
-    assert node_class.render_command(
-        {
-            "inputs": ["sample1.bg", "sample2.bg"],
-            "names": ["case", "control"],
-            "header": True,
-            "filler": "0",
-            "empty": True,
-            "genome": "chrom.sizes",
-            "output": "/work/bedtools_unionbedgraph",
-        }
-    ) == [
-        "bedtools",
-        "unionbedg",
-        "-header",
-        "-filler",
-        "0",
-        "-empty",
-        "-g",
-        "chrom.sizes",
-        "-i",
-        "sample1.bg",
-        "sample2.bg",
-        "-names",
-        "case",
-        "control",
-        ">",
-        "/work/bedtools_unionbedgraph/union.bedgraph",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_unionbedgraph" / "union.bedgraph",
-    ]
-
-
-def test_bionodulo_builtin_bedtools_overlap_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bedtools_closestbed": {
-            "display_name": "BEDTools ClosestBed",
-            "required_executables": ["closestBed"],
-            "required_conda_packages": ["bedtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/closest.html",
-        },
-        "bedtools_intersectbed": {
-            "display_name": "BEDTools Intersect Intervals",
-            "required_executables": ["bedtools"],
-            "required_conda_packages": ["bedtools", "samtools"],
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "genomics"
-        assert node_info["required_executables"] == metadata["required_executables"]
-        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
-        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
-        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-
-
-def test_bedtools_closestbed_renders_distance_mode_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_closestbed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "query.bed",
-            "inputB": ["genes.bed", "enhancers.bed"],
-            "strand": "opposite",
-            "distance": True,
-            "distance_mode": "a",
-            "ignore_upstream": True,
-            "first_upstream": True,
-            "ignore_overlaps": True,
-            "mdb": "all",
-            "ties": "first",
-            "k": 3,
-            "output": "/work/bedtools_closestbed",
-        }
-    ) == [
-        "closestBed",
-        "-S",
-        "-d",
-        "-D",
-        "a",
-        "-iu",
-        "-fu",
-        "-io",
-        "-mdb",
-        "all",
-        "-t",
-        "first",
-        "-k",
-        "3",
-        "-a",
-        "query.bed",
-        "-b",
-        "genes.bed",
-        "enhancers.bed",
-        ">",
-        "/work/bedtools_closestbed/closest.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_closestbed" / "closest.bed",
-    ]
-
-
-def test_bedtools_intersectbed_renders_reduced_named_overlap_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_intersectbed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "reads.bam",
-            "inputB": ["promoters.bed", "enhancers.bed"],
-            "names": ["promoters", "enhancers"],
-            "overlap_mode": ["-wa", "-wb"],
-            "split": True,
-            "strand": "same",
-            "overlap": 0.5,
-            "overlap_b": 0.25,
-            "either_fraction": True,
-            "invert": True,
-            "once": True,
-            "header": True,
-            "sorted": True,
-            "genome": "chrom.sizes",
-            "bed": True,
-            "count": True,
-            "output": "/work/bedtools_intersectbed",
-        }
-    ) == [
-        "bedtools",
-        "intersect",
-        "-a",
-        "reads.bam",
-        "-b",
-        "promoters.bed",
-        "enhancers.bed",
-        "-names",
-        "promoters",
-        "enhancers",
-        "-split",
-        "-s",
-        "-f",
-        "0.5",
-        "-F",
-        "0.25",
-        "-e",
-        "-v",
-        "-u",
-        "-header",
-        "-wa",
-        "-wb",
-        "-sorted",
-        "-g",
-        "chrom.sizes",
-        "-bed",
-        "-c",
-        ">",
-        "/work/bedtools_intersectbed/intersect.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"bed": True}, tmp_path) == [
-        tmp_path / "bedtools_intersectbed" / "intersect.bed",
-    ]
-
-
-def test_bionodulo_builtin_bedtools_legacy_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bedtools_bedtoigv": {
-            "display_name": "BEDTools BED to IGV",
-            "documentation_url": "https://github.com/galaxyproject/tools-iuc/blob/main/tools/bedtools/bedToIgv.xml",
-            "output": ["TEXT"],
-            "required_executables": ["bedToIgv"],
-            "search_alias": "bedtoigv",
-        },
-        "bedtools_links": {
-            "display_name": "BEDTools LinksBed",
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/links.html",
-            "output": ["HTML"],
-            "required_executables": ["bedtools"],
-            "search_alias": "linksbed ucsc",
-        },
-        "bedtools_overlapbed": {
-            "display_name": "BEDTools OverlapBed",
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/overlap.html",
-            "output": ["BED"],
-            "required_executables": ["bedtools"],
-            "search_alias": "overlapbed custom score",
-        },
-        "bedtools_tagbed": {
-            "display_name": "BEDTools TagBed",
-            "documentation_url": "https://bedtools.readthedocs.io/en/latest/content/tools/tag.html",
-            "output": ["BAM"],
-            "required_executables": ["bedtools"],
-            "search_alias": "tagbed bam tags",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "genomics"
-        assert node_info["output"] == metadata["output"]
-        assert node_info["required_executables"] == metadata["required_executables"]
-        assert node_info["required_conda_packages"] == ["bedtools"]
-        assert "10.1093/bioinformatics/btq033" in node_info["citation_dois"]
-        assert "https://doi.org/10.1093/bioinformatics/btq033" in node_info["citation_urls"]
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-        assert metadata["search_alias"] in node_info["search_aliases"]
-
-
-def test_bedtools_bedtoigv_renders_snapshot_batch_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_bedtoigv")
-
-    assert node_class.render_command(
-        {
-            "input": "targets.bed",
-            "sort": "base",
-            "clps": True,
-            "name": True,
-            "slop": 250,
-            "img": "svg",
-            "output": "/work/bedtools_bedtoigv",
-        }
-    ) == [
-        "bedToIgv",
-        "-i",
-        "targets.bed",
-        "-sort",
-        "base",
-        "-clps",
-        "-name",
-        "-slop",
-        "250",
-        "-img",
-        "svg",
-        ">",
-        "/work/bedtools_bedtoigv/igv_batch_script.txt",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_bedtoigv" / "igv_batch_script.txt",
-    ]
-
-
-def test_bedtools_links_renders_browser_links_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_links")
-
-    assert node_class.render_command(
-        {
-            "input": "genes.bed",
-            "basename": "http://mirror.example.edu",
-            "org": "mouse",
-            "db": "mm10",
-            "output": "/work/bedtools_links",
-        }
-    ) == [
-        "bedtools",
-        "links",
-        "-base",
-        "http://mirror.example.edu",
-        "-org",
-        "mouse",
-        "-db",
-        "mm10",
-        "-i",
-        "genes.bed",
-        ">",
-        "/work/bedtools_links/links.html",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_links" / "links.html",
-    ]
-
-
-def test_bedtools_overlapbed_renders_column_overlap_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_overlapbed")
-
-    assert node_class.render_command(
-        {
-            "input": "windowed.bed",
-            "cols": [2, 3, 6, 7],
-            "output": "/work/bedtools_overlapbed",
-        }
-    ) == [
-        "bedtools",
-        "overlap",
-        "-i",
-        "windowed.bed",
-        "-cols",
-        "2,3,6,7",
-        ">",
-        "/work/bedtools_overlapbed/overlap.bed",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_overlapbed" / "overlap.bed",
-    ]
-
-
-def test_bedtools_tagbed_renders_annotation_tag_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bedtools_tagbed")
-
-    assert node_class.render_command(
-        {
-            "inputA": "alignments.bam",
-            "inputB": ["genes.bed", "enhancers.gff"],
-            "overlap": 0.75,
-            "strand": "opposite",
-            "tag": "ZG",
-            "field": "-labels -intervals",
-            "output": "/work/bedtools_tagbed",
-        }
-    ) == [
-        "bedtools",
-        "tag",
-        "-i",
-        "alignments.bam",
-        "-files",
-        "genes.bed",
-        "enhancers.gff",
-        "-f",
-        "0.75",
-        "-S",
-        "-tag",
-        "ZG",
-        "-labels",
-        "-intervals",
-        ">",
-        "/work/bedtools_tagbed/tagged.bam",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bedtools_tagbed" / "tagged.bam",
-    ]
-
-
 def test_bedops_sort_bed_exposes_citation_and_dependency_metadata() -> None:
     node_info = _registry().object_info()["bedops_sort_bed"]
 
@@ -42609,8 +38846,6 @@ def test_bedops_sort_bed_renders_sort_unique_and_duplicate_commands(tmp_path: Pa
         "--tmpdir",
         "/scratch/job",
         "sample.bed",
-        ">",
-        "/work/bedops_sort_bed/sorted.bed",
     ]
 
     assert node_class.render_command(
@@ -42629,8 +38864,6 @@ def test_bedops_sort_bed_renders_sort_unique_and_duplicate_commands(tmp_path: Pa
         "--unique",
         "a.bed",
         "b.bed",
-        ">",
-        "/work/bedops_sort_bed/sorted.bed",
     ]
 
     assert node_class.render_command(
@@ -42649,8 +38882,6 @@ def test_bedops_sort_bed_renders_sort_unique_and_duplicate_commands(tmp_path: Pa
         "--duplicates",
         "a.bed",
         "b.bed",
-        ">",
-        "/work/bedops_sort_bed/sorted.bed",
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bedops_sort_bed" / "sorted.bed"]
@@ -42703,8 +38934,6 @@ def test_bedops_sort_bed_galaxy_id_uses_hyphenated_output_path(tmp_path: Path) -
         "--tmpdir",
         "/scratch/job",
         "sample.bed",
-        ">",
-        "/work/bedops-sort-bed/sorted.bed",
     ]
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bedops-sort-bed" / "sorted.bed"]
@@ -42720,56 +38949,6 @@ def test_bedops_sort_bed_galaxy_id_inherits_validation() -> None:
     )
 
 
-def test_bwa_mem2_idx_exposes_galaxy_metadata_and_bwa_citations() -> None:
-    node_info = _registry().object_info()["bwa_mem2_idx"]
-
-    assert node_info["display_name"] == "BWA-MEM2 Indexer"
-    assert node_info["category"] == "alignment"
-    assert node_info["description"] == "Build a BWA-MEM2 reference index from a FASTA sequence."
-    assert node_info["output"] == ["BWA_MEM2_INDEX"]
-    assert node_info["output_name"] == ["index"]
-    assert node_info["required_executables"] == ["bwa-mem2"]
-    assert node_info["required_conda_packages"] == ["bwa-mem2"]
-    assert node_info["documentation_url"] == "https://github.com/bwa-mem2/bwa-mem2"
-    assert node_info["citation_dois"] == [
-        "10.1109/IPDPS.2019.00041",
-        "10.1093/bioinformatics/btp324",
-        "10.1093/bioinformatics/btp698",
-    ]
-    assert "http://arxiv.org/abs/1303.3997" in node_info["citation_urls"]
-    assert "BWA-MEM2 acceleration of the BWA-MEM algorithm" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "BWA-MEM2 reference index" in node_info["search_aliases"]
-
-
-def test_bwa_mem2_idx_renders_galaxy_index_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bwa_mem2_idx")
-
-    assert node_class.render_command({"reference": "ref.fa", "output": "/work/bwa_mem2_idx"}) == [
-        "mkdir",
-        "-p",
-        "/work/bwa_mem2_idx/index",
-        "&&",
-        "cd",
-        "/work/bwa_mem2_idx/index",
-        "&&",
-        "bwa-mem2",
-        "index",
-        "-p",
-        "reference",
-        "ref.fa",
-    ]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa_mem2_idx" / "index"]
-
-
-def test_bwa_mem2_idx_validates_reference_input() -> None:
-    node_class = _node_class("bwa_mem2_idx")
-
-    assert node_class.VALIDATE_INPUTS({}) == "reference is required"
-    assert node_class.VALIDATE_INPUTS({"reference": ""}) == "reference is required"
-    assert node_class.VALIDATE_INPUTS({"reference": "ref.fa"}) is True
-
-
 def test_bwa_mem2_index_type_is_file_compatible() -> None:
     assert BioType.BWA_MEM2_INDEX.value == "BWA_MEM2_INDEX"
     assert is_compatible("BWA_MEM2_INDEX", "DIRECTORY")
@@ -42777,1294 +38956,11 @@ def test_bwa_mem2_index_type_is_file_compatible() -> None:
     assert file_extension_for("BWA_MEM2_INDEX") == ".bwa_mem2_index"
 
 
-def test_bwa_mem2_exposes_galaxy_metadata_inputs_and_bwa_citations() -> None:
-    node_info = _registry().object_info()["bwa_mem2"]
-
-    assert node_info["display_name"] == "BWA-MEM2"
-    assert node_info["category"] == "alignment"
-    assert node_info["description"].startswith("Map medium and long reads")
-    assert node_info["output"] == ["BAM"]
-    assert node_info["output_name"] == ["bam_output"]
-    assert node_info["required_executables"] == ["bwa-mem2", "samtools"]
-    assert node_info["required_conda_packages"] == ["bwa-mem2", "samtools"]
-    assert node_info["documentation_url"] == "https://github.com/bwa-mem2/bwa-mem2"
-    assert node_info["citation_dois"] == [
-        "10.1109/IPDPS.2019.00041",
-        "10.1093/bioinformatics/btp324",
-        "10.1093/bioinformatics/btp698",
-    ]
-    assert "http://arxiv.org/abs/1303.3997" in node_info["citation_urls"]
-    assert "BWA-MEM2 acceleration of the BWA-MEM algorithm" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "bwa-mem2 mem" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["ref_file"][0] == "BWA_MEM2_INDEX"
-    assert node_info["input"]["required"]["fastq_input_selector"][1]["options"] == [
-        "paired",
-        "single",
-        "paired_collection",
-        "paired_iv",
-    ]
-    assert node_info["input"]["optional"]["analysis_type_selector"][1]["options"] == [
-        "illumina",
-        "pacbio",
-        "ont2d",
-        "intractg",
-        "full",
-    ]
-    assert node_info["input"]["optional"]["output_sort"][1]["options"] == ["coordinate", "name", "unsorted"]
-
-
-def test_bwa_mem2_renders_paired_coordinate_sorted_cached_index_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bwa_mem2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "history",
-            "ref_file": "/indexes/hg38",
-            "ref_file_type": "bwa_mem2_index",
-            "fastq_input_selector": "paired",
-            "fastq_input1": "reads_R1.fq",
-            "fastq_input2": "reads_R2.fq",
-            "iset_stats": "250,25",
-            "analysis_type_selector": "illumina",
-            "output_sort": "coordinate",
-            "output": "/work/bwa_mem2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bwa-mem2",
-        "mem",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-v",
-        "1",
-        "-I",
-        "250,25",
-        "/indexes/hg38/reference",
-        "reads_R1.fq",
-        "reads_R2.fq",
-        "|",
-        "samtools",
-        "sort",
-        "-@${GALAXY_SLOTS:-2}",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "-o",
-        "/work/bwa_mem2/aligned.bam",
-    ]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa_mem2" / "aligned.bam"]
-
-
-def test_bwa_mem2_renders_history_fasta_full_mode_read_group_and_name_sort() -> None:
-    node_class = _node_class("bwa_mem2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "history",
-            "ref_file": "ref.fa",
-            "ref_file_type": "fasta",
-            "fastq_input_selector": "single",
-            "fastq_input1": "reads.fq",
-            "analysis_type_selector": "full",
-            "algorithmic_options_selector": "set",
-            "k": 17,
-            "w": 80,
-            "d": 90,
-            "r": 2.0,
-            "y": 19,
-            "c": 200,
-            "D": 0.4,
-            "W": 10,
-            "m": 40,
-            "S": True,
-            "P": True,
-            "e": True,
-            "scoring_options_selector": "set",
-            "A": 2,
-            "B": 5,
-            "O": "6,7",
-            "E": "1,2",
-            "L": "4,4",
-            "U": 18,
-            "io_options_selector": "set",
-            "T": 25,
-            "h": 4,
-            "a": True,
-            "C": True,
-            "V": True,
-            "Y": True,
-            "M": True,
-            "five": True,
-            "q": True,
-            "K": 1000000,
-            "rg_selector": "set",
-            "rg_id": "rg1",
-            "rg_sm": "sample1",
-            "rg_pl": "ILLUMINA",
-            "rg_lb": "lib1",
-            "rg_cn": "center",
-            "output_sort": "name",
-            "output": "/work/bwa_mem2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "ln",
-        "-s",
-        "ref.fa",
-        "localref.fa",
-        "&&",
-        "bwa-mem2",
-        "index",
-        "localref.fa",
-        "&&",
-        "bwa-mem2",
-        "mem",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-v",
-        "1",
-        "-k",
-        "17",
-        "-w",
-        "80",
-        "-d",
-        "90",
-        "-r",
-        "2.0",
-        "-y",
-        "19",
-        "-c",
-        "200",
-        "-D",
-        "0.4",
-        "-W",
-        "10",
-        "-m",
-        "40",
-        "-S",
-        "-P",
-        "-e",
-        "-A",
-        "2",
-        "-B",
-        "5",
-        "-O",
-        "6,7",
-        "-E",
-        "1,2",
-        "-L",
-        "4,4",
-        "-U",
-        "18",
-        "-T",
-        "25",
-        "-h",
-        "4",
-        "-a",
-        "-C",
-        "-V",
-        "-Y",
-        "-M",
-        "-5",
-        "-q",
-        "-K",
-        "1000000",
-        "-R",
-        "@RG\\tID:rg1\\tSM:sample1\\tPL:ILLUMINA\\tLB:lib1\\tCN:center",
-        "localref.fa",
-        "reads.fq",
-        "|",
-        "samtools",
-        "sort",
-        "-n",
-        "-@${GALAXY_SLOTS:-2}",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "-o",
-        "/work/bwa_mem2/aligned.bam",
-    ]
-
-
-def test_bwa_mem2_renders_interleaved_preset_and_unsorted_bam() -> None:
-    node_class = _node_class("bwa_mem2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "cached",
-            "ref_file": "/refs/mtgenome/reference",
-            "fastq_input_selector": "paired_iv",
-            "fastq_input1": "interleaved.fq.gz",
-            "iset_stats": "300",
-            "analysis_type_selector": "pacbio",
-            "output_sort": "unsorted",
-            "output": "/work/bwa_mem2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bwa-mem2",
-        "mem",
-        "-t",
-        "1",
-        "-v",
-        "1",
-        "-p",
-        "-I",
-        "300",
-        "-x",
-        "pacbio",
-        "/refs/mtgenome/reference",
-        "interleaved.fq.gz",
-        "|",
-        "samtools",
-        "view",
-        "-@",
-        "${GALAXY_SLOTS:-2}",
-        "-bS",
-        "-",
-        "-o",
-        "/work/bwa_mem2/aligned.bam",
-    ]
-
-
-def test_bwa_mem2_validates_reference_reads_modes_and_options() -> None:
-    node_class = _node_class("bwa_mem2")
-
-    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "fastq_input1 is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "fastq_input_selector": "bad"}) == (
-        "fastq_input_selector must be one of: paired, single, paired_collection, paired_iv"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "fastq_input_selector": "paired"}
-    ) == "fastq_input2 is required for paired input"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "bad"}) == (
-        "analysis_type_selector must be one of: illumina, pacbio, ont2d, intractg, full"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "output_sort": "bad"}) == (
-        "output_sort must be one of: coordinate, name, unsorted"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "full", "k": 0}
-    ) == "k must be at least 1"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq"}) is True
-
-
-def test_bwa_exposes_galaxy_metadata_inputs_and_bwa_citations() -> None:
-    node_info = _registry().object_info()["bwa"]
-
-    assert node_info["display_name"] == "Map with BWA"
-    assert node_info["category"] == "alignment"
-    assert node_info["description"].startswith("Map short reads")
-    assert node_info["output"] == ["BAM"]
-    assert node_info["output_name"] == ["bam_output"]
-    assert node_info["required_executables"] == ["bwa", "samtools"]
-    assert node_info["required_conda_packages"] == ["bwa", "samtools"]
-    assert node_info["documentation_url"] == "https://bio-bwa.sourceforge.net/bwa.shtml"
-    assert node_info["citation_dois"] == ["10.1093/bioinformatics/btp324", "10.1093/bioinformatics/btp698"]
-    assert "https://doi.org/10.1093/bioinformatics/btp324" in node_info["citation_urls"]
-    assert "Burrows-Wheeler Transform" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "bwa aln" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["input_type_selector"][1]["options"] == [
-        "paired",
-        "paired_collection",
-        "single",
-        "paired_bam",
-        "single_bam",
-    ]
-    assert node_info["input"]["optional"]["analysis_type_selector"][1]["options"] == ["illumina", "full"]
-    assert node_info["input"]["optional"]["index_a"][1]["options"] == ["auto", "is", "bwtsw"]
-
-
-def test_bwa_renders_single_fastq_history_reference_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bwa")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "history",
-            "ref_file": "ref.fa",
-            "index_a": "bwtsw",
-            "input_type_selector": "single",
-            "fastq_input1": "reads.fa",
-            "analysis_type_selector": "illumina",
-            "output": "/work/bwa",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "ln",
-        "-s",
-        "ref.fa",
-        "localref.fa",
-        "&&",
-        "bwa",
-        "index",
-        "-a",
-        "bwtsw",
-        "localref.fa",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "localref.fa",
-        "reads.fa",
-        ">",
-        "first.sai",
-        "&&",
-        "bwa",
-        "samse",
-        "localref.fa",
-        "first.sai",
-        "reads.fa",
-        "|",
-        "samtools",
-        "sort",
-        "-@${GALAXY_SLOTS:-2}",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "-o",
-        "/work/bwa/aligned.bam",
-    ]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bwa" / "aligned.bam"]
-
-
-def test_bwa_renders_paired_fastq_full_options_and_read_group() -> None:
-    node_class = _node_class("bwa")
-
-    command = node_class.render_command(
-        {
-            "reference_source_selector": "cached",
-            "ref_file": "/refs/hg19/bwa",
-            "input_type_selector": "paired",
-            "fastq_input1": "r1.fq",
-            "fastq_input2": "r2.fq",
-            "analysis_type_selector": "full",
-            "n": "0.02",
-            "o": 2,
-            "e": 1,
-            "i": 4,
-            "d": 8,
-            "l": 28,
-            "k": 1,
-            "m": 1000000,
-            "M": 4,
-            "O": 10,
-            "E": 3,
-            "R": 20,
-            "q": 5,
-            "B": 6,
-            "L": 1.2,
-            "adv_pe_options_selector": "set",
-            "a": 700,
-            "pe_o": 90000,
-            "pe_n": 4,
-            "N": 12,
-            "c": 0.0001,
-            "rg_selector": "set",
-            "rg_id": "rg1",
-            "rg_sm": "sample1",
-            "rg_pl": "CAPILLARY",
-            "rg_lb": "lib1",
-            "output": "/work/bwa",
-        }
-    )
-
-    assert command[:50] == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-n",
-        "0.02",
-        "-o",
-        "2",
-        "-e",
-        "1",
-        "-i",
-        "4",
-        "-d",
-        "8",
-        "-l",
-        "28",
-        "-k",
-        "1",
-        "-m",
-        "1000000",
-        "-M",
-        "4",
-        "-O",
-        "10",
-        "-E",
-        "3",
-        "-R",
-        "20",
-        "-q",
-        "5",
-        "-B",
-        "6",
-        "-L",
-        "1.2",
-        "/refs/hg19/bwa",
-        "r1.fq",
-        ">",
-        "first.sai",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-n",
-        "0.02",
-        "-o",
-    ]
-    assert command[command.index("sampe") - 1 : command.index("|")] == [
-        "bwa",
-        "sampe",
-        "-a",
-        "700",
-        "-o",
-        "90000",
-        "-n",
-        "4",
-        "-N",
-        "12",
-        "-c",
-        "0.0001",
-        "-r",
-        "@RG\\tID:rg1\\tSM:sample1\\tPL:CAPILLARY\\tLB:lib1",
-        "/refs/hg19/bwa",
-        "first.sai",
-        "second.sai",
-        "r1.fq",
-        "r2.fq",
-    ]
-    assert command[-10:] == [
-        "|",
-        "samtools",
-        "sort",
-        "-@${GALAXY_SLOTS:-2}",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "-o",
-        "/work/bwa/aligned.bam",
-    ]
-
-
-def test_bwa_renders_bam_input_modes() -> None:
-    node_class = _node_class("bwa")
-
-    paired = node_class.render_command(
-        {
-            "reference_source_selector": "cached",
-            "ref_file": "/refs/hg19/bwa",
-            "input_type_selector": "paired_bam",
-            "bam_input": "unaligned.bam",
-            "analysis_type_selector": "illumina",
-            "output": "/work/bwa",
-        }
-    )
-    assert paired[:23] == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-b",
-        "-1",
-        "/refs/hg19/bwa",
-        "unaligned.bam",
-        ">",
-        "first.sai",
-        "&&",
-        "bwa",
-        "aln",
-        "-t",
-        "${GALAXY_SLOTS:-1}",
-        "-b",
-        "-2",
-        "/refs/hg19/bwa",
-        "unaligned.bam",
-    ]
-    assert ["bwa", "sampe", "/refs/hg19/bwa", "first.sai", "second.sai", "unaligned.bam", "unaligned.bam"] == paired[
-        paired.index("sampe") - 1 : paired.index("|")
-    ]
-
-    single = node_class.render_command(
-        {
-            "reference_source_selector": "cached",
-            "ref_file": "/refs/hg19/bwa",
-            "input_type_selector": "single_bam",
-            "bam_input": "unaligned.bam",
-            "analysis_type_selector": "illumina",
-            "output": "/work/bwa",
-        }
-    )
-    assert single[4:13] == ["bwa", "aln", "-t", "${GALAXY_SLOTS:-1}", "-b", "-0", "/refs/hg19/bwa", "unaligned.bam", ">"]
-    assert ["bwa", "samse", "/refs/hg19/bwa", "first.sai", "unaligned.bam"] == single[
-        single.index("samse") - 1 : single.index("|")
-    ]
-
-
-def test_bwa_validates_reference_reads_modes_and_options() -> None:
-    node_class = _node_class("bwa")
-
-    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "fastq_input1 is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_type_selector": "bad", "fastq_input1": "r1.fq"}) == (
-        "input_type_selector must be one of: paired, paired_collection, single, paired_bam, single_bam"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "input_type_selector": "paired", "fastq_input1": "r1.fq"}
-    ) == "fastq_input2 is required for paired input"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_type_selector": "paired_bam"}) == (
-        "bam_input is required for BAM input"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "bad"}) == (
-        "analysis_type_selector must be one of: illumina, full"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq", "index_a": "bad"}) == (
-        "index_a must be one of: auto, is, bwtsw"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "fastq_input1": "r1.fq", "analysis_type_selector": "full", "o": 0}
-    ) == "o must be at least 1"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "fastq_input1": "r1.fq"}) is True
-
-
-def test_bowtie2_exposes_galaxy_metadata_inputs_and_citation() -> None:
-    node_info = _registry().object_info()["bowtie2"]
-
-    assert node_info["display_name"] == "Bowtie2"
-    assert node_info["category"] == "alignment"
-    assert node_info["description"].startswith("Map reads against a reference genome")
-    assert node_info["output"] == ["BAM", "TXT", "FASTQ", "FASTQ", "FASTQ", "FASTQ"]
-    assert node_info["output_name"] == [
-        "alignments",
-        "mapping_stats",
-        "unaligned_reads",
-        "aligned_reads",
-        "unaligned_read_pairs",
-        "aligned_read_pairs",
-    ]
-    assert node_info["required_executables"] == ["bowtie2", "bowtie2-build", "samtools"]
-    assert node_info["required_conda_packages"] == ["bowtie2", "samtools"]
-    assert node_info["documentation_url"] == "https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml"
-    assert node_info["citation_dois"] == ["10.1038/nmeth.1923"]
-    assert node_info["citation_urls"] == ["https://doi.org/10.1038/nmeth.1923"]
-    assert "Fast gapped-read alignment with Bowtie 2" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "bowtie2" in node_info["search_aliases"]
-    assert node_info["input"]["required"]["ref_file"][0] == "BOWTIE2_INDEX"
-    assert node_info["input"]["required"]["library_type"][1]["options"] == ["single", "paired_collection"]
-    assert node_info["input"]["optional"]["preset"][1]["options"] == [
-        "no_presets",
-        "--very-fast",
-        "--fast",
-        "--sensitive",
-        "--very-sensitive",
-        "--very-fast-local",
-        "--fast-local",
-        "--sensitive-local",
-        "--very-sensitive-local",
-    ]
-    assert node_info["input"]["optional"]["sam_output_format"][1]["options"] == ["bam", "sam", "qname_input_sorted_bam"]
-
-
 def test_bowtie2_index_type_is_file_compatible() -> None:
     assert BioType.BOWTIE2_INDEX.value == "BOWTIE2_INDEX"
     assert is_compatible("BOWTIE2_INDEX", "DIRECTORY")
     assert is_compatible("BOWTIE2_INDEX", "STRING")
     assert file_extension_for("BOWTIE2_INDEX") == ".bowtie2_index"
-
-
-def test_bowtie2_renders_single_history_reference_with_stats_and_unaligned_output(tmp_path: Path) -> None:
-    node_class = _node_class("bowtie2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "history",
-            "ref_file": "genome.fa",
-            "library_type": "single",
-            "input_1": "reads.fq",
-            "preset": "--very-sensitive",
-            "save_mapping_stats": True,
-            "unaligned_file": True,
-            "output": "/work/bowtie2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bowtie2-build",
-        "--threads",
-        "${GALAXY_SLOTS:-4}",
-        "genome.fa",
-        "genome",
-        "&&",
-        "bowtie2",
-        "-p",
-        "${GALAXY_SLOTS:-1}",
-        "-x",
-        "genome",
-        "-U",
-        "reads.fq",
-        "--un",
-        "/work/bowtie2/unaligned_reads.fastq",
-        "--very-sensitive",
-        "2>",
-        "/work/bowtie2/mapping_stats.txt",
-        "|",
-        "samtools",
-        "sort",
-        "-l",
-        "0",
-        "-T",
-        "${TMPDIR:-.}",
-        "-O",
-        "bam",
-        "|",
-        "samtools",
-        "view",
-        "--no-PG",
-        "-O",
-        "bam",
-        "-@",
-        "${GALAXY_SLOTS:-1}",
-        "-o",
-        "/work/bowtie2/alignments.bam",
-    ]
-    assert node_class.PLAN_OUTPUTS(
-        {"save_mapping_stats": True, "unaligned_file": True},
-        tmp_path,
-    ) == [
-        tmp_path / "bowtie2" / "alignments.bam",
-        tmp_path / "bowtie2" / "mapping_stats.txt",
-        tmp_path / "bowtie2" / "unaligned_reads.fastq",
-    ]
-
-
-def test_bowtie2_renders_paired_cached_index_full_options_read_group_and_sam_output() -> None:
-    node_class = _node_class("bowtie2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "indexed",
-            "ref_file": "/indexes/hg38/bowtie2",
-            "library_type": "paired_collection",
-            "input_1": {"forward": "R1.fa", "reverse": "R2.fa"},
-            "reads_format": "fasta",
-            "aligned_file": True,
-            "paired_options_selector": "yes",
-            "I": 20,
-            "X": 900,
-            "fr_rf_ff": "--rf",
-            "no_mixed": True,
-            "no_discordant": True,
-            "dovetail": True,
-            "analysis_type_selector": "full",
-            "input_options_selector": "yes",
-            "skip": 3,
-            "qupto": 100,
-            "trim5": 2,
-            "trim3": 4,
-            "qv_encoding": "--phred64",
-            "alignment_options_selector": "yes",
-            "N": 1,
-            "seed_L": 18,
-            "i": "S,1,1.25",
-            "n_ceil": "L,0,0.10",
-            "dpad": 12,
-            "gbar": 3,
-            "ignore_quals": True,
-            "nofw": True,
-            "align_mode_selector": "local",
-            "score_min_loc": "G,18,7",
-            "scoring_options_selector": "yes",
-            "ma": 3,
-            "mp": "7,3",
-            "np": 2,
-            "rdg_read_open": 6,
-            "rdg_read_extend": 2,
-            "rfg_ref_open": 7,
-            "rfg_ref_extend": 3,
-            "reporting_options_selector": "k",
-            "k": 5,
-            "effort_options_selector": "yes",
-            "D": 20,
-            "R": 4,
-            "d": True,
-            "other_options_selector": "yes",
-            "seed": 42,
-            "non_deterministic": True,
-            "rg_selector": "set",
-            "rg_id": "rg1",
-            "rg_sm": "sample1",
-            "rg_pl": "ILLUMINA",
-            "rg_lb": "lib1",
-            "sam_options_selector": "yes",
-            "sam_output_format": "sam",
-            "no_unal": True,
-            "omit_sec_seq": True,
-            "xeq": True,
-            "output": "/work/bowtie2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bowtie2",
-        "-p",
-        "${GALAXY_SLOTS:-1}",
-        "-x",
-        "/indexes/hg38/bowtie2",
-        "-f",
-        "-1",
-        "R1.fa",
-        "-2",
-        "R2.fa",
-        "--al-conc",
-        "/work/bowtie2/aligned_reads",
-        "-I",
-        "20",
-        "-X",
-        "900",
-        "--rf",
-        "--no-mixed",
-        "--no-discordant",
-        "--dovetail",
-        "--rg-id",
-        "rg1",
-        "--rg",
-        "SM:sample1",
-        "--rg",
-        "PL:ILLUMINA",
-        "--rg",
-        "LB:lib1",
-        "--skip",
-        "3",
-        "--qupto",
-        "100",
-        "--trim5",
-        "2",
-        "--trim3",
-        "4",
-        "--phred64",
-        "-N",
-        "1",
-        "-L",
-        "18",
-        "-i",
-        "S,1,1.25",
-        "--n-ceil",
-        "L,0,0.10",
-        "--dpad",
-        "12",
-        "--gbar",
-        "3",
-        "--ignore-quals",
-        "--nofw",
-        "--local",
-        "--score-min",
-        "G,18,7",
-        "--ma",
-        "3",
-        "--mp",
-        "7,3",
-        "--np",
-        "2",
-        "--rdg",
-        "6,2",
-        "--rfg",
-        "7,3",
-        "-k",
-        "5",
-        "-D",
-        "20",
-        "-R",
-        "4",
-        "-d",
-        "--non-deterministic",
-        "--seed",
-        "42",
-        "--no-unal",
-        "--omit-sec-seq",
-        "--xeq",
-        ">",
-        "/work/bowtie2/alignments.sam",
-    ]
-
-
-def test_bowtie2_renders_reordered_bam_with_paired_collection_outputs() -> None:
-    node_class = _node_class("bowtie2")
-
-    assert node_class.render_command(
-        {
-            "reference_source_selector": "indexed",
-            "ref_file": "/indexes/mm10/bowtie2",
-            "library_type": "paired_collection",
-            "input_1": ["reads_R1.fq.gz", "reads_R2.fq.gz"],
-            "reads_compression": "gz",
-            "unaligned_file": True,
-            "aligned_file": True,
-            "sam_options_selector": "yes",
-            "sam_output_format": "qname_input_sorted_bam",
-            "output": "/work/bowtie2",
-        }
-    ) == [
-        "set",
-        "-o",
-        "pipefail",
-        "&&",
-        "bowtie2",
-        "-p",
-        "${GALAXY_SLOTS:-1}",
-        "-x",
-        "/indexes/mm10/bowtie2",
-        "-1",
-        "reads_R1.fq.gz",
-        "-2",
-        "reads_R2.fq.gz",
-        "--un-conc-gz",
-        "/work/bowtie2/unaligned_reads",
-        "--al-conc-gz",
-        "/work/bowtie2/aligned_reads",
-        "--reorder",
-        "|",
-        "samtools",
-        "view",
-        "--no-PG",
-        "-b",
-        "-o",
-        "/work/bowtie2/alignments.bam",
-    ]
-    assert node_class.PLAN_OUTPUTS(
-        {"library_type": "paired_collection", "unaligned_file": True, "aligned_file": True},
-        Path("/tmp/out"),
-    ) == [
-        Path("/tmp/out/bowtie2/alignments.bam"),
-        Path("/tmp/out/bowtie2/unaligned_reads.1.fastq"),
-        Path("/tmp/out/bowtie2/unaligned_reads.2.fastq"),
-        Path("/tmp/out/bowtie2/aligned_reads.1.fastq"),
-        Path("/tmp/out/bowtie2/aligned_reads.2.fastq"),
-    ]
-
-
-def test_bowtie2_validates_reference_reads_modes_and_options() -> None:
-    node_class = _node_class("bowtie2")
-
-    assert node_class.VALIDATE_INPUTS({}) == "ref_file is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa"}) == "input_1 is required"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "library_type": "bad"}) == (
-        "library_type must be one of: single, paired_collection"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "reference_source_selector": "bad"}) == (
-        "reference_source_selector must be one of: indexed, history"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "analysis_type_selector": "bad"}) == (
-        "analysis_type_selector must be one of: simple, full"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "input_1": "r1.fq", "paired_options_selector": "yes", "I": -1}
-    ) == "I must be at least 0"
-    assert node_class.VALIDATE_INPUTS(
-        {"ref_file": "ref.fa", "input_1": "r1.fq", "analysis_type_selector": "full", "N": 2}
-    ) == "N must be at most 1"
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq", "sam_output_format": "cram"}) == (
-        "sam_output_format must be one of: bam, sam, qname_input_sorted_bam"
-    )
-    assert node_class.VALIDATE_INPUTS({"ref_file": "ref.fa", "input_1": "r1.fq"}) is True
-
-
-def test_bamleftalign_exposes_freebayes_citation_and_dependency_metadata() -> None:
-    node_info = _registry().object_info()["bamleftalign"]
-
-    assert node_info["display_name"] == "BamLeftAlign"
-    assert node_info["category"] == "variant"
-    assert node_info["description"].startswith("Left-realign indels in BAM")
-    assert node_info["output"] == ["BAM"]
-    assert node_info["output_name"] == ["realigned_bam"]
-    assert node_info["required_executables"] == ["bamleftalign", "samtools"]
-    assert node_info["required_conda_packages"] == ["freebayes", "samtools", "coreutils"]
-    assert node_info["documentation_url"] == "https://github.com/freebayes/freebayes#citation"
-    assert "10.48550/arXiv.1207.3907" in node_info["citation_dois"]
-    assert "https://doi.org/10.48550/arXiv.1207.3907" in node_info["citation_urls"]
-    assert "http://arxiv.org/abs/1207.3907" in node_info["citation_urls"]
-    assert "Haplotype-based variant detection from short-read sequencing" in node_info["citation_text"]
-    assert "BioNodulo builtin" in node_info["search_aliases"]
-    assert "left realignment" in node_info["search_aliases"]
-
-
-def test_bamleftalign_renders_history_reference_pipeline_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bamleftalign")
-
-    assert node_class.render_command(
-        {
-            "input_bam": "alignments.bam",
-            "reference": "ref.fa",
-            "reference_source": "history",
-            "iterations": 7,
-            "output": "/work/bamleftalign",
-        }
-    ) == [
-        "samtools",
-        "faidx",
-        "ref.fa",
-        "&&",
-        "cat",
-        "alignments.bam",
-        "|",
-        "bamleftalign",
-        "--fasta-reference",
-        "ref.fa",
-        "-c",
-        "--max-iterations",
-        "7",
-        ">",
-        "/work/bamleftalign/realigned.bam",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "bamleftalign" / "realigned.bam"]
-
-
-def test_bamleftalign_supports_cached_reference_and_legacy_aliases() -> None:
-    node_class = _node_class("bamleftalign")
-
-    assert node_class.render_command(
-        {
-            "bam": "sample.bam",
-            "ref_file": "/refs/hg38.fa",
-            "reference_source_selector": "cached",
-            "iterations": 5,
-            "output": "/work/bamleftalign",
-        }
-    ) == [
-        "cat",
-        "sample.bam",
-        "|",
-        "bamleftalign",
-        "--fasta-reference",
-        "/refs/hg38.fa",
-        "-c",
-        "--max-iterations",
-        "5",
-        ">",
-        "/work/bamleftalign/realigned.bam",
-    ]
-
-
-def test_bamleftalign_validates_required_inputs_reference_source_and_iterations() -> None:
-    node_class = _node_class("bamleftalign")
-
-    assert node_class.VALIDATE_INPUTS({}) == "input_bam is required"
-    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference_source": "history"}) == (
-        "reference is required"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa", "reference_source": "bad"}) == (
-        "reference_source must be one of: history, cached"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa", "iterations": 0}) == (
-        "iterations must be at least 1"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bam": "sample.bam", "reference": "ref.fa"}) is True
-
-
-def test_bionodulo_builtin_bcftools_utility_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bcftools_annotate": {
-            "display_name": "BCFtools Annotate",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#annotate",
-            "output": ["VCF_GZ"],
-            "required_executables": ["bcftools", "bgzip", "tabix"],
-            "search_alias": "annotate vcf",
-        },
-        "bcftools_mpileup": {
-            "display_name": "BCFtools Mpileup",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#mpileup",
-            "output": ["VCF_GZ"],
-            "required_executables": ["bcftools", "samtools"],
-            "required_conda_packages": ["bcftools", "htslib", "samtools"],
-            "search_alias": "genotype likelihoods",
-        },
-        "bcftools_call": {
-            "display_name": "BCFtools Call",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#call",
-            "output": ["VCF_GZ"],
-            "search_alias": "SNP indel calling",
-        },
-        "bcftools_filter": {
-            "display_name": "BCFtools Filter",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#filter",
-            "output": ["VCF_GZ"],
-            "search_alias": "fixed-threshold filters",
-        },
-        "bcftools_stats": {
-            "display_name": "BCFtools Stats",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#stats",
-            "output": ["STATS_FILE", "PDF_REPORT"],
-            "required_executables": ["bcftools", "plot-vcfstats", "samtools"],
-            "required_conda_packages": ["bcftools", "htslib", "samtools", "matplotlib-base", "tectonic"],
-            "search_alias": "plot-vcfstats",
-        },
-        "bcftools_norm": {
-            "display_name": "BCFtools Norm",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#norm",
-            "output": ["VCF_GZ"],
-            "required_executables": ["bcftools", "samtools"],
-            "required_conda_packages": ["bcftools", "htslib", "samtools"],
-            "search_alias": "left-align indels",
-        },
-        "bcftools_concat": {
-            "display_name": "BCFtools Concat",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#concat",
-            "output": ["VCF_GZ"],
-            "search_alias": "concatenate vcf",
-        },
-        "bcftools_consensus": {
-            "display_name": "BCFtools Consensus",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#consensus",
-            "output": ["FASTA"],
-            "search_alias": "consensus fasta",
-        },
-        "bcftools_query": {
-            "display_name": "BCFtools Query",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#query",
-            "output": ["TSV"],
-            "search_alias": "extract fields",
-        },
-        "bcftools_query_list_samples": {
-            "display_name": "BCFtools List Samples",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#query",
-            "output": ["TSV"],
-            "search_alias": "list samples",
-        },
-        "bcftools_reheader": {
-            "display_name": "BCFtools Reheader",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#reheader",
-            "output": ["VCF_GZ"],
-            "search_alias": "rename samples",
-        },
-        "bcftools_view": {
-            "display_name": "BCFtools View",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#view",
-            "output": ["VCF_GZ"],
-            "search_alias": "subset vcf",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "variant"
-        assert node_info["output"] == metadata["output"]
-        assert node_info["required_executables"] == metadata.get("required_executables", ["bcftools"])
-        assert node_info["required_conda_packages"] == metadata.get("required_conda_packages", ["bcftools", "htslib"])
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
-        assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
-        assert "https://doi.org/10.1093/gigascience/giab008" in node_info["citation_urls"]
-        assert "https://doi.org/10.1093/bioinformatics/btp352" in node_info["citation_urls"]
-        assert "BioNodulo builtin" in node_info["search_aliases"]
-        assert metadata["search_alias"] in node_info["search_aliases"]
-
-
-def test_bcftools_mpileup_renders_multi_alignment_advanced_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_mpileup")
-
-    assert node_class.render_command(
-        {
-            "input_bams": ["tumor.bam", "normal.bam"],
-            "reference": "GRCh38.fa",
-            "perform_indel_calling": "perform_indel_calling",
-            "gap_open_sequencing_error_probability": 35,
-            "gap_extension_sequencing_error_probability": 18,
-            "coefficient_for_modeling_homopolymer_errors": 90,
-            "skip_indel_calling_above_sample_depth": 300,
-            "minimum_gapped_reads_for_indel_candidates": 2,
-            "open_seq_error_probability": 38,
-            "minimum_gapped_read_fraction": 0.01,
-            "gapped_read_per_sample": True,
-            "platforms": ["ILLUMINA", "ONT"],
-            "ambig_reads": "incAD",
-            "indel_bias": 0.75,
-            "indel_size": 120,
-            "max_reads_per_bam": 8000,
-            "ignore_overlaps": True,
-            "skip_anomalous_read_pairs": True,
-            "skip_all_set": [4, 16],
-            "skip_any_unset": [2, 64],
-            "baq": "--redo-BAQ",
-            "minimum_mapping_quality": 20,
-            "minimum_base_quality": 17,
-            "coefficient_for_downgrading": 50,
-            "read_groups": "rg.txt",
-            "exclude_read_groups": True,
-            "output_tags": ["DP", "AD", "INFO/ADR"],
-            "gvcf": "5,15",
-            "samples": "tumor,normal",
-            "invert_samples": True,
-            "regions": "chr17:100-200",
-            "targets_file": "targets.tsv",
-            "invert_targets_file": True,
-            "output_type": "v",
-            "threads": 4,
-            "output": "/work/bcftools_mpileup",
-        }
-    ) == [
-        "bcftools",
-        "mpileup",
-        "--fasta-ref",
-        "GRCh38.fa",
-        "-o",
-        "35",
-        "-e",
-        "18",
-        "-h",
-        "90",
-        "-L",
-        "300",
-        "-m",
-        "2",
-        "--open-prob",
-        "38",
-        "-F",
-        "0.01",
-        "-p",
-        "-P",
-        "ILLUMINA,ONT",
-        "--ambig-reads",
-        "incAD",
-        "--indel-bias",
-        "0.75",
-        "--indel-size",
-        "120",
-        "--skip-all-set",
-        "20",
-        "--skip-any-unset",
-        "66",
-        "-d",
-        "8000",
-        "-x",
-        "-A",
-        "--redo-BAQ",
-        "-q",
-        "20",
-        "-Q",
-        "17",
-        "-C",
-        "50",
-        "-G",
-        "^rg.txt",
-        "--annotate",
-        "DP,AD,INFO/ADR",
-        "--gvcf",
-        "5,15",
-        "--samples",
-        "^tumor,normal",
-        "--regions",
-        "chr17:100-200",
-        "--targets-file",
-        "^targets.tsv",
-        "--threads",
-        "4",
-        "--output-type",
-        "v",
-        "tumor.bam",
-        "normal.bam",
-        ">",
-        "/work/bcftools_mpileup/mpileup.vcf",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
-        tmp_path / "bcftools_mpileup" / "mpileup.vcf",
-    ]
-
-
-def test_bcftools_mpileup_supports_no_reference_legacy_aliases_and_default_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_mpileup")
-
-    assert node_class.render_command(
-        {
-            "bam": "sample.bam",
-            "reference_source": "none",
-            "max_depth": 250,
-            "min_bq": 13,
-            "threads": 0,
-            "output": "/work/bcftools_mpileup",
-        }
-    ) == [
-        "bcftools",
-        "mpileup",
-        "--non-reference",
-        "-d",
-        "250",
-        "-Q",
-        "13",
-        "--output-type",
-        "z",
-        "sample.bam",
-        ">",
-        "/work/bcftools_mpileup/mpileup.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_mpileup" / "mpileup.vcf.gz",
-    ]
-
-
-def test_bcftools_mpileup_validates_required_inputs_and_choices() -> None:
-    node_class = _node_class("bcftools_mpileup")
-
-    assert node_class.VALIDATE_INPUTS({}) == "at least one input BAM/CRAM is required"
-    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference_source": "history"}) == (
-        "reference is required when reference_source is history"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference_source": "bad"}) == (
-        "reference_source must be one of: history, cached, none"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference": "ref.fa", "perform_indel_calling": "bad"}) == (
-        "perform_indel_calling must be one of: perform_indel_calling_def, perform_indel_calling, do_not_perform_indel_calling"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference": "ref.fa", "ambig_reads": "bad"}) == (
-        "ambig_reads must be one of: drop, incAD, incAD0"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference": "ref.fa", "baq": "--bad"}) == (
-        "baq must be one of: --no-BAQ, --redo-BAQ"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference": "ref.fa", "output_type": "bad"}) == (
-        "output_type must be one of: b, u, z, v"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_bams": ["sample.bam"], "reference_source": "none"}) is True
 
 
 def test_bcftools_annotate_renders_tabular_annotation_command_and_output(tmp_path: Path) -> None:
@@ -44237,1278 +39133,6 @@ def test_bcftools_annotate_renders_vcf_annotation_and_removal_modes(tmp_path: Pa
     )
 
 
-def test_bcftools_norm_renders_split_atomize_restrict_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_norm")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "reference": "GRCh38.fa",
-            "check_ref": "ws",
-            "normalize_indels": True,
-            "rm_dup": "snps",
-            "atomization": "--atomize --atom-overlaps .",
-            "old_rec_tag": "OLD_REC",
-            "multiallelic_mode": "-",
-            "multiallelic_types": "both",
-            "site_win": 500,
-            "sort": "lex",
-            "include": "QUAL>10",
-            "exclude": "DP<5",
-            "regions": "chr1",
-            "regions_overlap": "1",
-            "targets": "chr1:1-200",
-            "targets_overlap": "0",
-            "output_type": "v",
-            "threads": 4,
-            "output": "/work/bcftools_norm",
-        }
-    ) == [
-        "bcftools",
-        "norm",
-        "--fasta-ref",
-        "GRCh38.fa",
-        "--check-ref",
-        "ws",
-        "--rm-dup",
-        "snps",
-        "--atomize",
-        "--atom-overlaps",
-        ".",
-        "--old-rec-tag",
-        "OLD_REC",
-        "--multiallelics",
-        "-both",
-        "--site-win",
-        "500",
-        "--sort",
-        "lex",
-        "--include",
-        "QUAL>10",
-        "--exclude",
-        "DP<5",
-        "--regions",
-        "chr1",
-        "--regions-overlap",
-        "1",
-        "--targets",
-        "chr1:1-200",
-        "--targets-overlap",
-        "0",
-        "--output-type",
-        "v",
-        "--threads",
-        "4",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_norm/normalized.vcf",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
-        tmp_path / "bcftools_norm" / "normalized.vcf",
-    ]
-
-
-def test_bcftools_norm_supports_join_legacy_aliases_and_default_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_norm")
-
-    assert node_class.render_command(
-        {
-            "vcf": "split.vcf.gz",
-            "reference": "GRCh38.fa",
-            "check_ref": "e",
-            "multiallelics": "join",
-            "deduplicate": "none",
-            "strict_filter": True,
-            "output": "/work/bcftools_norm",
-        }
-    ) == [
-        "bcftools",
-        "norm",
-        "--fasta-ref",
-        "GRCh38.fa",
-        "--check-ref",
-        "e",
-        "--multiallelics",
-        "+both",
-        "--strict-filter",
-        "--sort",
-        "pos",
-        "--output-type",
-        "z",
-        "split.vcf.gz",
-        ">",
-        "/work/bcftools_norm/normalized.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_norm" / "normalized.vcf.gz",
-    ]
-
-
-def test_bcftools_norm_validates_reference_modes_and_output_choices() -> None:
-    node_class = _node_class("bcftools_norm")
-
-    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "check_ref": "bad"}) == (
-        "check_ref must be one of: w, wx, ws, e"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "rm_dup": "exact"}) == (
-        "rm_dup must be one of: snps, indels, both, any"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "atomization": "--bad"}) == (
-        "atomization must be one of: --atomize, --atomize --atom-overlaps ."
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "multiallelic_mode": "bad"}) == (
-        "multiallelic_mode must be one of: -, +"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "output_type": "bad"}) == (
-        "output_type must be one of: b, u, z, v"
-    )
-    assert (
-        node_class.VALIDATE_INPUTS(
-            {
-                "input_file": "cohort.vcf",
-                "reference": "",
-                "site_win": "",
-                "output_type": "z",
-            }
-        )
-        is True
-    )
-
-
-def test_bcftools_stats_renders_comparison_restricted_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_stats")
-
-    assert node_class.render_command(
-        {
-            "input_file": "case.vcf.gz",
-            "inputB_file": "control.bcf",
-            "reference": "GRCh38.fa",
-            "exons_file": "exons.tsv",
-            "first_allele_only": True,
-            "depth_min": 1,
-            "depth_max": 300,
-            "depth_bin_size": 5,
-            "user_tstv": "DP:0:100:10",
-            "af_bins_list": "0.1,0.5,1",
-            "af_tag": "AF",
-            "split_by_ID": True,
-            "verbose": True,
-            "apply_filters": "PASS,.",
-            "collapse": "both",
-            "regions": "chr1",
-            "regions_overlap": "1",
-            "samples": "S1,S2",
-            "targets_file": "targets.tsv",
-            "targets_overlap": "0",
-            "include": "QUAL>30",
-            "exclude": "DP<10",
-            "plot_title": "Case control stats",
-            "output": "/work/bcftools_stats",
-        }
-    ) == [
-        "bcftools",
-        "stats",
-        "--fasta-ref",
-        "GRCh38.fa",
-        "--exons",
-        "exons.tsv",
-        "--1st-allele-only",
-        "--depth",
-        "1,300,5",
-        "--user-tstv",
-        "DP:0:100:10",
-        "--af-bins",
-        "0.1,0.5,1",
-        "--af-tag",
-        "AF",
-        "--verbose",
-        "--apply-filters",
-        "PASS,.",
-        "--collapse",
-        "both",
-        "--regions",
-        "chr1",
-        "--regions-overlap",
-        "1",
-        "--samples",
-        "S1,S2",
-        "--targets-file",
-        "targets.tsv",
-        "--targets-overlap",
-        "0",
-        "--include",
-        "QUAL>30",
-        "--exclude",
-        "DP<10",
-        "case.vcf.gz",
-        "control.bcf",
-        ">",
-        "/work/bcftools_stats/stats.txt",
-        "&&",
-        "plot-vcfstats",
-        "-p",
-        "/work/bcftools_stats/plot_tmp",
-        "-T",
-        "Case control stats",
-        "-s",
-        "/work/bcftools_stats/stats.txt",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"plot_title": "Case control stats"}, tmp_path) == [
-        tmp_path / "bcftools_stats" / "stats.txt",
-        tmp_path / "bcftools_stats" / "summary.pdf",
-    ]
-
-
-def test_bcftools_stats_supports_legacy_vcf_alias_and_default_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_stats")
-
-    assert node_class.render_command(
-        {
-            "vcf": "cohort.vcf.gz",
-            "samples": "-",
-            "output": "/work/bcftools_stats",
-        }
-    ) == [
-        "bcftools",
-        "stats",
-        "--samples",
-        "-",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_stats/stats.txt",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_stats" / "stats.txt",
-    ]
-
-
-def test_bcftools_stats_validates_required_depth_and_restriction_choices() -> None:
-    node_class = _node_class("bcftools_stats")
-
-    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "depth_min": 10, "depth_max": 5}) == (
-        "depth_max must be greater than or equal to depth_min"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "af_bins_select": "bad"}) == (
-        "af_bins_select must be one of: default, af_bins_list, af_bins_file"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "regions_overlap": "bad"}) == (
-        "regions_overlap must be one of: 0, 1, 2"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "collapse": "bad"}) == (
-        "collapse must be one of: snps, indels, both, some, any, none, id"
-    )
-    assert (
-        node_class.VALIDATE_INPUTS(
-            {
-                "input_file": "cohort.vcf",
-                "depth_min": "",
-                "depth_max": "",
-                "depth_bin_size": "",
-                "af_bins_select": "default",
-            }
-        )
-        is True
-    )
-
-
-def test_bcftools_filter_renders_soft_filter_restrict_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_filter")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "SnpGap": 2,
-            "IndelGap": 5,
-            "mode": ["+", "x"],
-            "soft_filter": "LowQual",
-            "mask": "chr1:100-200",
-            "mask_overlap": "1",
-            "select_set_GTs": "0",
-            "regions": "chr1",
-            "regions_overlap": "1",
-            "targets_file": "targets.tsv",
-            "invert_targets_file": True,
-            "targets_overlap": "0",
-            "include": "QUAL>30",
-            "exclude": "DP<10",
-            "output_type": "v",
-            "threads": 6,
-            "output": "/work/bcftools_filter",
-        }
-    ) == [
-        "bcftools",
-        "filter",
-        "--SnpGap",
-        "2",
-        "--IndelGap",
-        "5",
-        "--mode",
-        "+x",
-        "--soft-filter",
-        "LowQual",
-        "--mask",
-        "chr1:100-200",
-        "--mask-overlap",
-        "1",
-        "--set-GTs",
-        "0",
-        "--regions",
-        "chr1",
-        "--regions-overlap",
-        "1",
-        "--targets-file",
-        "^targets.tsv",
-        "--targets-overlap",
-        "0",
-        "--include",
-        "QUAL>30",
-        "--exclude",
-        "DP<10",
-        "--output-type",
-        "v",
-        "--threads",
-        "6",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_filter/filtered.vcf",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
-        tmp_path / "bcftools_filter" / "filtered.vcf",
-    ]
-
-
-def test_bcftools_filter_supports_expression_alias_and_default_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_filter")
-
-    assert node_class.render_command(
-        {
-            "vcf": "cohort.vcf.gz",
-            "expr": "QUAL>30 && DP>10",
-            "set_gt": ".",
-            "output": "/work/bcftools_filter",
-        }
-    ) == [
-        "bcftools",
-        "filter",
-        "--set-GTs",
-        ".",
-        "--include",
-        "QUAL>30 && DP>10",
-        "--output-type",
-        "z",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_filter/filtered.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_filter" / "filtered.vcf.gz",
-    ]
-
-
-def test_bcftools_filter_validates_required_choices_and_soft_filter_state() -> None:
-    node_class = _node_class("bcftools_filter")
-
-    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "mode": ["+", "bad"]}) == (
-        "mode must contain only: +, x"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "output_type": "bad"}) == (
-        "output_type must be one of: b, u, z, v"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "select_set_GTs": "missing"}) == (
-        "select_set_GTs must be one of: ., 0"
-    )
-    assert node_class.VALIDATE_INPUTS({"input_file": "cohort.vcf", "soft_filter_enabled": True}) == (
-        "soft_filter is required when soft filtering is enabled"
-    )
-    assert (
-        node_class.VALIDATE_INPUTS(
-            {
-                "input_file": "cohort.vcf",
-                "SnpGap": "",
-                "IndelGap": "",
-                "mode": [],
-                "soft_filter": "",
-                "output_type": "z",
-            }
-        )
-        is True
-    )
-
-
-def test_bcftools_call_renders_multiallelic_alleles_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_call")
-
-    assert node_class.render_command(
-        {
-            "input_file": "mpileup.vcf.gz",
-            "method": "multiallelic",
-            "constrain": "alleles",
-            "targets_file": "known_alleles.tsv",
-            "insert_missed": True,
-            "gvcf": 0,
-            "prior_freqs": "REF_AN,REF_AC",
-            "prior": 0.0011,
-            "regions": "chr17",
-            "regions_overlap": "1",
-            "samples_file": "samples.txt",
-            "ploidy_file": "ploidy.tsv",
-            "group_samples": True,
-            "keep_alts": True,
-            "format_fields": "GQ,GP",
-            "keep_masked_ref": True,
-            "skip_variants": "indels",
-            "variants_only": True,
-            "output_tags": ["INFO/PV4", "FORMAT/GQ"],
-            "output_type": "v",
-            "threads": 4,
-            "output": "/work/bcftools_call",
-        }
-    ) == [
-        "bcftools",
-        "call",
-        "-m",
-        "--gvcf",
-        "0",
-        "--prior-freqs",
-        "REF_AN,REF_AC",
-        "--prior",
-        "0.0011",
-        "--constrain",
-        "alleles",
-        "--insert-missed",
-        "--targets-file",
-        "known_alleles.tsv",
-        "--regions",
-        "chr17",
-        "--regions-overlap",
-        "1",
-        "--samples-file",
-        "samples.txt",
-        "--ploidy-file",
-        "ploidy.tsv",
-        "--group-samples",
-        "-",
-        "--keep-alts",
-        "--format-fields",
-        "GQ,GP",
-        "--keep-masked-ref",
-        "--skip-variants",
-        "indels",
-        "--variants-only",
-        "--annotate",
-        "INFO/PV4,FORMAT/GQ",
-        "--output-type",
-        "v",
-        "--threads",
-        "4",
-        "mpileup.vcf.gz",
-        ">",
-        "/work/bcftools_call/called.vcf",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
-        tmp_path / "bcftools_call" / "called.vcf",
-    ]
-
-
-def test_bcftools_call_renders_consensus_trio_command_and_default_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_call")
-
-    assert node_class.render_command(
-        {
-            "input_file": "mpileup.bcf",
-            "method": "consensus",
-            "constrain": "trio",
-            "novel_rate_snp": 0.001,
-            "novel_rate_del": 0.0001,
-            "novel_rate_ins": 0.0002,
-            "pval_threshold": 0.2,
-            "targets": "chr1:1-200",
-            "output_type": "z",
-            "output": "/work/bcftools_call",
-        }
-    ) == [
-        "bcftools",
-        "call",
-        "-c",
-        "--pval-threshold",
-        "0.2",
-        "--constrain",
-        "trio",
-        "--novel-rate",
-        "0.001,0.0001,0.0002",
-        "--targets",
-        "chr1:1-200",
-        "--output-type",
-        "z",
-        "mpileup.bcf",
-        ">",
-        "/work/bcftools_call/called.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_call" / "called.vcf.gz",
-    ]
-
-
-def test_bcftools_call_validates_required_method_constrain_and_output_type() -> None:
-    node_class = _node_class("bcftools_call")
-
-    assert node_class.VALIDATE_INPUTS({"input_file": ""}) == "input_file is required"
-    assert node_class.VALIDATE_INPUTS({"input_file": "mpileup.vcf", "method": "bad"}) == (
-        "method must be one of: multiallelic, consensus"
-    )
-    assert node_class.VALIDATE_INPUTS(
-        {"input_file": "mpileup.vcf", "method": "consensus", "constrain": "alleles"}
-    ) == "constrain must be one of: none, trio"
-    assert node_class.VALIDATE_INPUTS(
-        {"input_file": "mpileup.vcf", "method": "multiallelic", "constrain": "alleles"}
-    ) == "targets_file is required when constrain is alleles"
-    assert node_class.VALIDATE_INPUTS(
-        {"input_file": "mpileup.vcf", "method": "multiallelic", "output_type": "bad"}
-    ) == "output_type must be one of: b, u, z, v"
-    assert node_class.VALIDATE_INPUTS({"input_file": "mpileup.vcf", "method": "multiallelic"}) is True
-    assert (
-        node_class.VALIDATE_INPUTS(
-            {
-                "input_file": "mpileup.vcf",
-                "method": "multiallelic",
-                "constrain": "none",
-                "gvcf": "",
-                "prior": "",
-                "novel_rate_snp": "",
-                "novel_rate_del": "",
-                "novel_rate_ins": "",
-                "pval_threshold": "",
-            }
-        )
-        is True
-    )
-
-
-def test_bcftools_concat_renders_ligate_overlap_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_concat")
-
-    assert node_class.render_command(
-        {
-            "input_files": ["chr1.vcf.gz", "chr2.vcf.gz"],
-            "allow_overlaps": True,
-            "rm_dups": "all",
-            "ligate": True,
-            "ligate_mode": "--ligate-force",
-            "compact_ps": True,
-            "min_pq": 40,
-            "regions": "chr1,chr2",
-            "output_type": "z",
-            "threads": 8,
-            "output": "/work/bcftools_concat",
-        }
-    ) == [
-        "bcftools",
-        "concat",
-        "--allow-overlaps",
-        "--rm-dups",
-        "all",
-        "--ligate",
-        "--ligate-force",
-        "--compact-PS",
-        "--min-PQ",
-        "40",
-        "--regions",
-        "chr1,chr2",
-        "--output-type",
-        "z",
-        "--threads",
-        "8",
-        "chr1.vcf.gz",
-        "chr2.vcf.gz",
-        ">",
-        "/work/bcftools_concat/concat.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_concat" / "concat.vcf.gz",
-    ]
-
-
-def test_bcftools_consensus_renders_masked_haplotype_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_consensus")
-
-    assert node_class.render_command(
-        {
-            "input_file": "calls.vcf.gz",
-            "reference": "ref.fa",
-            "mode": "haplotype",
-            "haplotype": "1pIu",
-            "sample": "tumor",
-            "mask": ["lowcov.bed", "repeats.bed"],
-            "mask_with": "N,lc",
-            "absent": "N",
-            "mark_del": "-",
-            "mark_ins": "uc",
-            "mark_snv": "lc",
-            "include": "QUAL>20",
-            "exclude": "FILTER='LowQual'",
-            "chain": True,
-            "output": "/work/bcftools_consensus",
-        }
-    ) == [
-        "bcftools",
-        "consensus",
-        "--fasta-ref",
-        "ref.fa",
-        "-H",
-        "1pIu",
-        "--sample",
-        "tumor",
-        "--mask",
-        "lowcov.bed",
-        "--mask-with",
-        "N",
-        "--mask",
-        "repeats.bed",
-        "--mask-with",
-        "lc",
-        "--absent",
-        "N",
-        "--mark-del",
-        "-",
-        "--mark-ins",
-        "uc",
-        "--mark-snv",
-        "lc",
-        "--include",
-        "QUAL>20",
-        "--exclude",
-        "FILTER='LowQual'",
-        "--chain",
-        "/work/bcftools_consensus/consensus.chain",
-        "--output",
-        "/work/bcftools_consensus/consensus.fa",
-        "calls.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"chain": True}, tmp_path) == [
-        tmp_path / "bcftools_consensus" / "consensus.fa",
-        tmp_path / "bcftools_consensus" / "consensus.chain",
-    ]
-
-
-def test_bcftools_query_renders_multifile_restricted_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_query")
-
-    assert node_class.render_command(
-        {
-            "input_files": ["case.vcf.gz", "control.vcf.gz"],
-            "format": "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%SAMPLE=%GT]\\n",
-            "allow_undef_tags": True,
-            "print_header": True,
-            "samples": "S1,S2",
-            "regions": "chr1:1-1000",
-            "targets": "targets.bed",
-            "include": "QUAL>30",
-            "exclude": "TYPE='indel'",
-            "collapse": "snps",
-            "output": "/work/bcftools_query",
-        }
-    ) == [
-        "bcftools",
-        "query",
-        "--format",
-        "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%SAMPLE=%GT]\\n",
-        "--allow-undef-tags",
-        "--print-header",
-        "--collapse",
-        "snps",
-        "--regions",
-        "chr1:1-1000",
-        "--samples",
-        "S1,S2",
-        "--targets",
-        "targets.bed",
-        "--include",
-        "QUAL>30",
-        "--exclude",
-        "TYPE='indel'",
-        "case.vcf.gz",
-        "control.vcf.gz",
-        ">",
-        "/work/bcftools_query/query.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_query" / "query.tsv",
-    ]
-
-
-def test_bcftools_list_samples_renders_query_list_samples_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_query_list_samples")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.bcf",
-            "output": "/work/bcftools_query_list_samples",
-        }
-    ) == [
-        "bcftools",
-        "query",
-        "--list-samples",
-        "cohort.bcf",
-        ">",
-        "/work/bcftools_query_list_samples/samples.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_query_list_samples" / "samples.tsv",
-    ]
-
-
-def test_bcftools_reheader_renders_header_and_sample_rename_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_reheader")
-
-    assert node_class.render_command(
-        {
-            "input_file": "old.vcf.gz",
-            "header": "new_header.vcf",
-            "sample_file": "samples.tsv",
-            "output_type": "z",
-            "output": "/work/bcftools_reheader",
-        }
-    ) == [
-        "bcftools",
-        "reheader",
-        "--header",
-        "new_header.vcf",
-        "--samples",
-        "samples.tsv",
-        "old.vcf.gz",
-        "|",
-        "bcftools",
-        "view",
-        "--output-type",
-        "z",
-        ">",
-        "/work/bcftools_reheader/reheadered.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_reheader" / "reheadered.vcf.gz",
-    ]
-
-
-def test_bcftools_view_renders_subset_filter_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_view")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "samples": "S1,S2",
-            "force_samples": True,
-            "trim_alt_alleles": True,
-            "no_update": True,
-            "min_ac": 2,
-            "max_af": 0.9,
-            "select_genotype": "het",
-            "types": ["snps", "indels"],
-            "exclude_types": ["mnps"],
-            "known_or_novel": "--known",
-            "min_alleles": 2,
-            "max_alleles": 4,
-            "phased": "--phased",
-            "uncalled": "--exclude-uncalled",
-            "private": "--private",
-            "drop_genotypes": True,
-            "header": "--no-header",
-            "compression_level": 6,
-            "regions": "chr2",
-            "targets": "targets.bed",
-            "include": "QUAL>50",
-            "exclude": "DP<10",
-            "output_type": "z",
-            "threads": 6,
-            "output": "/work/bcftools_view",
-        }
-    ) == [
-        "bcftools",
-        "view",
-        "--trim-alt-alleles",
-        "--no-update",
-        "--samples",
-        "S1,S2",
-        "--force-samples",
-        "--min-ac",
-        "2",
-        "--genotype",
-        "het",
-        "--known",
-        "--min-alleles",
-        "2",
-        "--max-alleles",
-        "4",
-        "--phased",
-        "--max-af",
-        "0.9",
-        "--exclude-uncalled",
-        "--types",
-        "snps,indels",
-        "--exclude-types",
-        "mnps",
-        "--private",
-        "--drop-genotypes",
-        "--no-header",
-        "--compression-level",
-        "6",
-        "--regions",
-        "chr2",
-        "--targets",
-        "targets.bed",
-        "--include",
-        "QUAL>50",
-        "--exclude",
-        "DP<10",
-        "--output-type",
-        "z",
-        "--threads",
-        "6",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_view/view.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_view" / "view.vcf.gz",
-    ]
-
-
-def test_bionodulo_builtin_bcftools_conversion_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bcftools_merge": {
-            "display_name": "BCFtools Merge",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#merge",
-            "output": ["VCF_GZ"],
-            "search_alias": "merge samples",
-        },
-        "bcftools_isec": {
-            "display_name": "BCFtools Isec",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#isec",
-            "output": ["VCF_GZ"],
-            "search_alias": "variant intersection",
-        },
-        "bcftools_gtcheck": {
-            "display_name": "BCFtools GTcheck",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#gtcheck",
-            "output": ["TSV"],
-            "search_alias": "sample identity",
-        },
-        "bcftools_convert_to_vcf": {
-            "display_name": "BCFtools Convert to VCF",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#convert",
-            "output": ["VCF_GZ"],
-            "search_alias": "gvcf to vcf",
-        },
-        "bcftools_convert_from_vcf": {
-            "display_name": "BCFtools Convert from VCF",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#convert",
-            "output": ["TSV", "TSV", "TSV"],
-            "search_alias": "vcf to shapeit",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "variant"
-        assert node_info["output"] == metadata["output"]
-        assert node_info["required_executables"] == ["bcftools"]
-        assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
-        assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
-        assert metadata["search_alias"] in node_info["search_aliases"]
-
-
-def test_bcftools_merge_renders_multisample_merge_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_merge")
-
-    assert node_class.render_command(
-        {
-            "input_files": ["tumor.vcf.gz", "normal.bcf"],
-            "force_samples": True,
-            "info_rules": "DP:sum,AD:join",
-            "merge": "both",
-            "no_index": True,
-            "print_header": True,
-            "use_header": "merged_header.vcf",
-            "apply_filters": "PASS,.",
-            "regions": "chr1:1-1000",
-            "regions_overlap": "1",
-            "include": "QUAL>20",
-            "exclude": "FILTER='LowQual'",
-            "output_type": "z",
-            "threads": 4,
-            "output": "/work/bcftools_merge",
-        }
-    ) == [
-        "bcftools",
-        "merge",
-        "--print-header",
-        "--use-header",
-        "merged_header.vcf",
-        "--force-samples",
-        "--info-rules",
-        "DP:sum,AD:join",
-        "--merge",
-        "both",
-        "--no-index",
-        "--apply-filters",
-        "PASS,.",
-        "--regions",
-        "chr1:1-1000",
-        "--regions-overlap",
-        "1",
-        "--include",
-        "QUAL>20",
-        "--exclude",
-        "FILTER='LowQual'",
-        "--output-type",
-        "z",
-        "--threads",
-        "4",
-        "tumor.vcf.gz",
-        "normal.bcf",
-        ">",
-        "/work/bcftools_merge/merged.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_merge" / "merged.vcf.gz",
-    ]
-
-
-def test_bcftools_isec_renders_intersection_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_isec")
-
-    assert node_class.render_command(
-        {
-            "input_files": ["case.vcf.gz", "control.vcf.gz", "truth.vcf.gz"],
-            "nfiles": "+2",
-            "complement": True,
-            "collapse": "all",
-            "apply_filters": "PASS",
-            "regions": "chr2",
-            "targets": "targets.bed",
-            "targets_overlap": "0",
-            "include": "AF>0.05",
-            "exclude": "TYPE='ref'",
-            "output_type": "v",
-            "threads": 2,
-            "output": "/work/bcftools_isec",
-        }
-    ) == [
-        "bcftools",
-        "isec",
-        "--complement",
-        "--nfiles",
-        "+2",
-        "--regions",
-        "chr2",
-        "--targets",
-        "targets.bed",
-        "--targets-overlap",
-        "0",
-        "--collapse",
-        "all",
-        "--apply-filters",
-        "PASS",
-        "--include",
-        "AF>0.05",
-        "--exclude",
-        "TYPE='ref'",
-        "--output-type",
-        "v",
-        "--threads",
-        "2",
-        "case.vcf.gz",
-        "control.vcf.gz",
-        "truth.vcf.gz",
-        ">",
-        "/work/bcftools_isec/isec.vcf",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"output_type": "v"}, tmp_path) == [
-        tmp_path / "bcftools_isec" / "isec.vcf",
-    ]
-
-
-def test_bcftools_gtcheck_renders_identity_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_gtcheck")
-
-    assert node_class.render_command(
-        {
-            "input_file": "query.vcf.gz",
-            "genotypes": "reference.bcf",
-            "all_sites": True,
-            "homs_only": True,
-            "query_sample": "QUERY1",
-            "target_sample": "TARGET1",
-            "plot": "discordance",
-            "regions": "chr3",
-            "targets": "sites.bed",
-            "output": "/work/bcftools_gtcheck",
-        }
-    ) == [
-        "bcftools",
-        "gtcheck",
-        "--genotypes",
-        "reference.bcf",
-        "--all-sites",
-        "--homs-only",
-        "--plot",
-        "discordance",
-        "--query-sample",
-        "QUERY1",
-        "--target-sample",
-        "TARGET1",
-        "--regions",
-        "chr3",
-        "--targets",
-        "sites.bed",
-        "query.vcf.gz",
-        ">",
-        "/work/bcftools_gtcheck/gtcheck.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_gtcheck" / "gtcheck.tsv",
-    ]
-
-
-def test_bcftools_convert_to_vcf_renders_tsv_conversion_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_convert_to_vcf")
-
-    assert node_class.render_command(
-        {
-            "convert_from": "tsv",
-            "input_file": "variants.tsv",
-            "reference": "ref.fa",
-            "samples": "SAMPLE1,SAMPLE2",
-            "columns": "ID,CHROM,POS,AA",
-            "output_type": "z",
-            "output": "/work/bcftools_convert_to_vcf",
-        }
-    ) == [
-        "bcftools",
-        "convert",
-        "--output-type",
-        "z",
-        "--fasta-ref",
-        "ref.fa",
-        "--samples",
-        "SAMPLE1,SAMPLE2",
-        "--columns",
-        "ID,CHROM,POS,AA",
-        "--tsv2vcf",
-        "variants.tsv",
-        ">",
-        "/work/bcftools_convert_to_vcf/converted.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_convert_to_vcf" / "converted.vcf.gz",
-    ]
-
-
-def test_bcftools_convert_from_vcf_renders_hap_legend_sample_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_convert_from_vcf")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "convert_to": "hap_legend_sample",
-            "vcf_ids": True,
-            "haploid2diploid": True,
-            "sex_file": "sex.tsv",
-            "keep_duplicates": True,
-            "samples": "S1,S2",
-            "regions": "chrX",
-            "targets": "targets.bed",
-            "include": "MAF>0.01",
-            "exclude": "FILTER!='PASS'",
-            "output": "/work/bcftools_convert_from_vcf",
-        }
-    ) == [
-        "bcftools",
-        "convert",
-        "--vcf-ids",
-        "--haploid2diploid",
-        "--haplegendsample",
-        "/work/bcftools_convert_from_vcf/converted.hap,/work/bcftools_convert_from_vcf/converted.legend,/work/bcftools_convert_from_vcf/converted.samples",
-        "--sex",
-        "sex.tsv",
-        "--keep-duplicates",
-        "--include",
-        "MAF>0.01",
-        "--exclude",
-        "FILTER!='PASS'",
-        "--regions",
-        "chrX",
-        "--targets",
-        "targets.bed",
-        "--samples",
-        "S1,S2",
-        "cohort.vcf.gz",
-        ".",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({"convert_to": "hap_legend_sample"}, tmp_path) == [
-        tmp_path / "bcftools_convert_from_vcf" / "converted.hap",
-        tmp_path / "bcftools_convert_from_vcf" / "converted.legend",
-        tmp_path / "bcftools_convert_from_vcf" / "converted.samples",
-    ]
-
-
-def test_bionodulo_builtin_bcftools_analysis_nodes_expose_citation_and_dependency_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bcftools_cnv": {
-            "display_name": "BCFtools CNV",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#cnv",
-            "output": ["TSV", "TSV", "HTML"],
-            "search_alias": "copy number variation",
-            "required_conda_packages": ["bcftools", "htslib", "matplotlib"],
-        },
-        "bcftools_csq": {
-            "display_name": "BCFtools CSQ",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#csq",
-            "output": ["VCF_GZ"],
-            "search_alias": "consequence prediction",
-            "required_conda_packages": ["bcftools", "htslib"],
-        },
-        "bcftools_roh": {
-            "display_name": "BCFtools ROH",
-            "documentation_url": "https://www.htslib.org/doc/bcftools.html#roh",
-            "output": ["TSV"],
-            "search_alias": "runs of homozygosity",
-            "required_conda_packages": ["bcftools", "htslib"],
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "variant"
-        assert node_info["output"] == metadata["output"]
-        assert node_info["required_executables"] == ["bcftools"]
-        assert node_info["required_conda_packages"] == metadata["required_conda_packages"]
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
-        assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
-        assert metadata["search_alias"] in node_info["search_aliases"]
-
-
-def test_bcftools_cnv_renders_pairwise_hmm_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_cnv")
-
-    assert node_class.render_command(
-        {
-            "input_file": "intensity.vcf.gz",
-            "query_sample": "tumor",
-            "control_sample": "normal",
-            "AF_file": "af.tsv",
-            "plot_threshold": 15,
-            "aberrant_query": 0.7,
-            "aberrant_control": 0.95,
-            "optimize": 0.3,
-            "baf_weight": 0.8,
-            "baf_dev_query": 0.05,
-            "baf_dev_control": 0.04,
-            "lrr_weight": 0.4,
-            "lrr_dev_query": 0.3,
-            "lrr_dev_control": 0.2,
-            "lrr_smooth_win": 20,
-            "same_prob": 0.6,
-            "err_prob": 0.0002,
-            "xy_prob": 1e-8,
-            "regions": "chr10,chr11",
-            "regions_overlap": "1",
-            "targets": "cnv_targets.bed",
-            "output": "/work/bcftools_cnv",
-        }
-    ) == [
-        "bcftools",
-        "cnv",
-        "--output-dir",
-        "/work/bcftools_cnv/cnv_tmp",
-        "-c",
-        "normal",
-        "-s",
-        "tumor",
-        "--AF-file",
-        "af.tsv",
-        "--plot-threshold",
-        "15",
-        "--aberrant",
-        "0.7,0.95",
-        "--optimize",
-        "0.3",
-        "--BAF-weight",
-        "0.8",
-        "--BAF-dev",
-        "0.05,0.04",
-        "--LRR-weight",
-        "0.4",
-        "--LRR-dev",
-        "0.3,0.2",
-        "--LRR-smooth-win",
-        "20",
-        "--same-prob",
-        "0.6",
-        "--err-prob",
-        "0.0002",
-        "--xy-prob",
-        "1e-08",
-        "--regions",
-        "chr10,chr11",
-        "--regions-overlap",
-        "1",
-        "--targets",
-        "cnv_targets.bed",
-        "intensity.vcf.gz",
-        "&&",
-        "python",
-        "-c",
-        node_class.CNV_POSTPROCESS_SCRIPT,
-        "/work/bcftools_cnv/cnv_tmp",
-        "/work/bcftools_cnv/cnv.tab",
-        "/work/bcftools_cnv/summary.tab",
-        "/work/bcftools_cnv/plots.html",
-        "1",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_cnv" / "cnv.tab",
-        tmp_path / "bcftools_cnv" / "summary.tab",
-        tmp_path / "bcftools_cnv" / "plots.html",
-    ]
-    assert node_class.PLAN_OUTPUTS({"generate_plots": True}, tmp_path) == [
-        tmp_path / "bcftools_cnv" / "cnv.tab",
-        tmp_path / "bcftools_cnv" / "summary.tab",
-        tmp_path / "bcftools_cnv" / "plots.html",
-    ]
-
-
 def test_cnvkit_access_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     info = _registry().object_info()["cnvkit_access"]
 
@@ -45523,13 +39147,13 @@ def test_cnvkit_access_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["output"] == ["BED"]
     assert info["output_name"] == ["out_sample_access"]
     assert info["required_executables"] == ["cnvkit.py"]
-    assert info["required_conda_packages"] == ["cnvkit", "samtools"]
+    assert info["required_conda_packages"] == ["cnvkit"]
     assert info["documentation_url"] == "https://cnvkit.readthedocs.io/en/stable/pipeline.html#access"
     assert info["citation_dois"] == ["10.1371/journal.pcbi.1004873"]
     assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1004873"]
     assert "Genome-Wide Copy Number Detection and Visualization" in info["citation_text"]
     assert "sequence-accessible coordinates" in info["search_aliases"]
-    assert info["version"] == "0.9.12+galaxy0"
+    assert info["version"] == "0.9.12"
 
 
 def test_cnvkit_access_renders_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -45546,13 +39170,19 @@ def test_cnvkit_access_renders_command_outputs_and_validation(tmp_path: Path) ->
             "output": "/work/cnvkit_access",
         }
     )
-    assert command == (
-        "ln -s 'reference genome.fa' ./genome.fasta && "
-        "ln -s 'excluded regions.bed' centromeres_and_telomeres.bed && "
-        "ln -s blacklist.bed blacklist.bed && "
-        "cnvkit.py access ./genome.fasta --exclude centromeres_and_telomeres.bed "
-        "--exclude blacklist.bed --min-gap-size 2500 --output /work/cnvkit_access/access-excludes.bed"
-    )
+    assert command == [
+        "cnvkit.py",
+        "access",
+        "reference genome.fa",
+        "--exclude",
+        "excluded regions.bed",
+        "--exclude",
+        "blacklist.bed",
+        "--min-gap-size",
+        "2500",
+        "--output",
+        "/work/cnvkit_access/access-excludes.bed",
+    ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cnvkit_access" / "access-excludes.bed"]
     assert node_class.VALIDATE_INPUTS({}) == "fa_fname is required"
     assert node_class.VALIDATE_INPUTS({"fa_fname": "genome.fa", "min_gap_size": -1}) == (
@@ -45574,18 +39204,18 @@ def test_cnvkit_antitarget_exposes_galaxy_metadata_inputs_outputs_and_doi() -> N
     assert info["input"]["optional"]["access"][0] == "BED"
     assert info["input"]["optional"]["avg_size"][1]["default"] == 150000
     assert info["input"]["optional"]["avg_size"][1]["min"] == 1
-    assert info["input"]["optional"]["min_size"][1]["default"] == 25000
+    assert info["input"]["optional"]["min_size"][1]["default"] == ""
     assert info["input"]["optional"]["min_size"][1]["min"] == 1
     assert info["output"] == ["BED"]
     assert info["output_name"] == ["out_capture_antitarget"]
     assert info["required_executables"] == ["cnvkit.py"]
-    assert info["required_conda_packages"] == ["cnvkit", "samtools"]
+    assert info["required_conda_packages"] == ["cnvkit"]
     assert info["documentation_url"] == "https://cnvkit.readthedocs.io/en/stable/pipeline.html#antitarget"
     assert info["citation_dois"] == ["10.1371/journal.pcbi.1004873"]
     assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1004873"]
     assert "Genome-Wide Copy Number Detection and Visualization" in info["citation_text"]
     assert "antitarget regions" in info["search_aliases"]
-    assert info["version"] == "0.9.12+galaxy0"
+    assert info["version"] == "0.9.12"
 
 
 def test_cnvkit_antitarget_renders_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -45600,12 +39230,19 @@ def test_cnvkit_antitarget_renders_command_outputs_and_validation(tmp_path: Path
             "output": "/work/cnvkit_antitarget",
         }
     )
-    assert command == (
-        "ln -s 'capture targets.bed' ./capture.bed && "
-        "ln -s 'access excludes.bed' ./access.bed && "
-        "cnvkit.py antitarget ./capture.bed --access ./access.bed "
-        "--avg-size 120000 --min-size 20000 --output /work/cnvkit_antitarget/capture.antitarget.bed"
-    )
+    assert command == [
+        "cnvkit.py",
+        "antitarget",
+        "capture targets.bed",
+        "--access",
+        "access excludes.bed",
+        "--avg-size",
+        "120000",
+        "--min-size",
+        "20000",
+        "--output",
+        "/work/cnvkit_antitarget/capture.antitarget.bed",
+    ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cnvkit_antitarget" / "capture.antitarget.bed"]
     assert node_class.VALIDATE_INPUTS({}) == "targets_file is required"
     assert node_class.VALIDATE_INPUTS({"targets_file": "capture.bed", "avg_size": 0}) == (
@@ -45629,18 +39266,18 @@ def test_cnvkit_target_exposes_galaxy_metadata_inputs_outputs_and_doi() -> None:
     assert info["input"]["optional"]["short_names"][1]["default"] is False
     assert info["input"]["optional"]["split"][0] == "BOOLEAN"
     assert info["input"]["optional"]["split"][1]["default"] is False
-    assert info["input"]["optional"]["avg_size"][1]["default"] == 266
+    assert info["input"]["optional"]["avg_size"][1]["default"] == ""
     assert info["input"]["optional"]["avg_size"][1]["min"] == 1
     assert info["output"] == ["BED"]
     assert info["output_name"] == ["out_capture_target"]
     assert info["required_executables"] == ["cnvkit.py"]
-    assert info["required_conda_packages"] == ["cnvkit", "samtools"]
+    assert info["required_conda_packages"] == ["cnvkit"]
     assert info["documentation_url"] == "https://cnvkit.readthedocs.io/en/stable/pipeline.html#target"
     assert info["citation_dois"] == ["10.1371/journal.pcbi.1004873"]
     assert info["citation_urls"] == ["https://doi.org/10.1371/journal.pcbi.1004873"]
     assert "Genome-Wide Copy Number Detection and Visualization" in info["citation_text"]
     assert "baited regions" in info["search_aliases"]
-    assert info["version"] == "0.9.12+galaxy0"
+    assert info["version"] == "0.9.12"
 
 
 def test_cnvkit_target_renders_command_outputs_and_validation(tmp_path: Path) -> None:
@@ -45656,12 +39293,19 @@ def test_cnvkit_target_renders_command_outputs_and_validation(tmp_path: Path) ->
             "output": "/work/cnvkit_target",
         }
     )
-    assert command == (
-        "ln -s 'capture targets.bed' ./capture.bed && "
-        "ln -s 'gene models.refFlat' ./annotate.bed && "
-        "cnvkit.py target 'capture targets.bed' --output /work/cnvkit_target/capture.split.bed "
-        "--annotate ./annotate.bed --short-names --split --avg-size 400"
-    )
+    assert command == [
+        "cnvkit.py",
+        "target",
+        "capture targets.bed",
+        "--output",
+        "/work/cnvkit_target/capture.split.bed",
+        "--annotate",
+        "gene models.refFlat",
+        "--short-names",
+        "--split",
+        "--avg-size",
+        "400",
+    ]
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [tmp_path / "cnvkit_target" / "capture.split.bed"]
     assert node_class.VALIDATE_INPUTS({}) == "input_file is required"
     assert node_class.VALIDATE_INPUTS({"input_file": "capture.bed", "avg_size": 0}) == "avg_size must be at least 1"
@@ -45669,948 +39313,6 @@ def test_cnvkit_target_renders_command_outputs_and_validation(tmp_path: Path) ->
         "avg_size must be an integer"
     )
     assert node_class.VALIDATE_INPUTS({"input_file": "capture.bed"}) is True
-
-
-def test_bcftools_csq_renders_haplotype_consequence_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_csq")
-
-    assert node_class.render_command(
-        {
-            "input_file": "phased.vcf.gz",
-            "reference": "ref.fa",
-            "gff_annot": "genes.gff3",
-            "ncsq": 32,
-            "local_csq": True,
-            "phase": "R",
-            "custom_tag": "MYCSQ",
-            "trim_protein_seq": 12,
-            "genetic_code": "1",
-            "samples": "S1,S2",
-            "regions": "chr1",
-            "targets": "coding.bed",
-            "include": "QUAL>30",
-            "exclude": "TYPE='ref'",
-            "output_type": "z",
-            "output": "/work/bcftools_csq",
-        }
-    ) == [
-        "bcftools",
-        "csq",
-        "--fasta-ref",
-        "ref.fa",
-        "--gff-annot",
-        "genes.gff3",
-        "--ncsq",
-        "32",
-        "--local-csq",
-        "--phase",
-        "R",
-        "--custom-tag",
-        "MYCSQ",
-        "--trim-protein-seq",
-        "12",
-        "--genetic-code",
-        "1",
-        "--samples",
-        "S1,S2",
-        "--include",
-        "QUAL>30",
-        "--exclude",
-        "TYPE='ref'",
-        "--regions",
-        "chr1",
-        "--targets",
-        "coding.bed",
-        "--output-type",
-        "z",
-        "phased.vcf.gz",
-        ">",
-        "/work/bcftools_csq/csq.vcf.gz",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_csq" / "csq.vcf.gz",
-    ]
-
-
-def test_bcftools_roh_renders_autozygosity_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_roh")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "sample": "S1",
-            "AF_file": "af.tsv",
-            "AF_tag": "AF",
-            "AF_dflt": 0.4,
-            "estimate_AF": "samples.txt",
-            "GTs_only": 30,
-            "skip_indels": True,
-            "genetic_map": "map.txt",
-            "rec_rate": 1e-8,
-            "buffer_size": 10000,
-            "buffer_overlap": 100,
-            "ignore_homref": True,
-            "include_noalt": True,
-            "hw_to_az": 6.7e-8,
-            "az_to_hw": 5e-9,
-            "viterbi_training": True,
-            "regions": "chr1",
-            "targets": "roh_targets.bed",
-            "samples": "S1",
-            "output_type": "r",
-            "output": "/work/bcftools_roh",
-        }
-    ) == [
-        "bcftools",
-        "roh",
-        "--sample",
-        "S1",
-        "--AF-file",
-        "af.tsv",
-        "--AF-tag",
-        "AF",
-        "--AF-dflt",
-        "0.4",
-        "--estimate-AF",
-        "samples.txt",
-        "--GTs-only",
-        "30",
-        "--skip-indels",
-        "--genetic-map",
-        "map.txt",
-        "--rec-rate",
-        "1e-08",
-        "--buffer-size",
-        "10000,100",
-        "--ignore-homref",
-        "--include-noalt",
-        "--hw-to-az",
-        "6.7e-08",
-        "--az-to-hw",
-        "5e-09",
-        "--viterbi-training",
-        "--regions",
-        "chr1",
-        "--targets",
-        "roh_targets.bed",
-        "--samples",
-        "S1",
-        "--output-type",
-        "r",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_roh/roh.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_roh" / "roh.tsv",
-    ]
-
-
-def test_bcftools_roh_accepts_fractional_gts_only_and_gates_buffer_overlap() -> None:
-    node_class = _node_class("bcftools_roh")
-
-    input_types = node_class.INPUT_TYPES()
-    assert input_types["optional"]["GTs_only"][0] == "FLOAT"
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "GTs_only": 30.5,
-            "buffer_size": 10000,
-            "output": "/work/bcftools_roh",
-        }
-    ) == [
-        "bcftools",
-        "roh",
-        "--GTs-only",
-        "30.5",
-        "--buffer-size",
-        "10000",
-        "--output-type",
-        "r",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_roh/roh.tsv",
-    ]
-
-    assert "--buffer-size" not in node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "buffer_overlap": 100,
-            "output": "/work/bcftools_roh",
-        }
-    )
-
-
-def test_bionodulo_builtin_bcftools_plugin_nodes_expose_metadata() -> None:
-    info = _registry().object_info()
-
-    expected = {
-        "bcftools_plugin_counts": {
-            "display_name": "BCFtools +counts",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html#counts",
-            "output": ["TSV"],
-            "search_alias": "variant counts",
-        },
-        "bcftools_plugin_dosage": {
-            "display_name": "BCFtools +dosage",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html#dosage",
-            "output": ["TSV"],
-            "search_alias": "genotype dosage",
-        },
-        "bcftools_plugin_missing2ref": {
-            "display_name": "BCFtools +missing2ref",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html#missing2ref",
-            "output": ["VCF_GZ"],
-            "search_alias": "set missing genotypes",
-        },
-        "bcftools_plugin_tag2tag": {
-            "display_name": "BCFtools +tag2tag",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html#tag2tag",
-            "output": ["VCF_GZ"],
-            "search_alias": "convert genotype tags",
-        },
-        "bcftools_plugin_fill_an_ac": {
-            "display_name": "BCFtools +fill-AN-AC",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
-            "output": ["VCF_GZ"],
-            "search_alias": "fill AN AC",
-        },
-        "bcftools_plugin_fill_tags": {
-            "display_name": "BCFtools +fill-tags",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugin.fill-tags.html",
-            "output": ["VCF_GZ"],
-            "search_alias": "fill INFO tags",
-        },
-        "bcftools_plugin_setgt": {
-            "display_name": "BCFtools +setGT",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugin.setGT.html",
-            "output": ["VCF_GZ"],
-            "search_alias": "set genotype calls",
-        },
-        "bcftools_plugin_fixploidy": {
-            "display_name": "BCFtools +fixploidy",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
-            "output": ["VCF_GZ"],
-            "search_alias": "fix ploidy",
-        },
-        "bcftools_plugin_mendelian": {
-            "display_name": "BCFtools +mendelian2",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugin.mendelian.html",
-            "output": ["VCF_GZ"],
-            "search_alias": "mendelian consistency",
-        },
-        "bcftools_plugin_impute_info": {
-            "display_name": "BCFtools +impute-info",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
-            "output": ["VCF_GZ"],
-            "search_alias": "imputation info",
-        },
-        "bcftools_plugin_color_chrs": {
-            "display_name": "BCFtools +color-chrs",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
-            "output": ["TSV", "IMAGE"],
-            "required_executables": ["bcftools", "color-chrs.pl"],
-            "search_alias": "color shared chromosomal segments",
-        },
-        "bcftools_plugin_frameshifts": {
-            "display_name": "BCFtools +frameshifts",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugins.html",
-            "output": ["VCF_GZ"],
-            "required_executables": ["bcftools", "bgzip", "tabix"],
-            "search_alias": "frameshift indels",
-        },
-        "bcftools_plugin_split_vep": {
-            "display_name": "BCFtools +split-vep",
-            "documentation_url": "https://samtools.github.io/bcftools/howtos/plugin.split-vep.html",
-            "output": ["VCF_GZ"],
-            "search_alias": "split VEP annotations",
-        },
-    }
-
-    for node_id, metadata in expected.items():
-        node_info = info[node_id]
-        assert node_info["display_name"] == metadata["display_name"]
-        assert node_info["category"] == "variant"
-        assert node_info["output"] == metadata["output"]
-        assert node_info["required_executables"] == metadata.get("required_executables", ["bcftools"])
-        assert node_info["required_conda_packages"] == ["bcftools", "htslib"]
-        assert node_info["documentation_url"] == metadata["documentation_url"]
-        assert "10.1093/gigascience/giab008" in node_info["citation_dois"]
-        assert "10.1093/bioinformatics/btp352" in node_info["citation_dois"]
-        assert metadata["search_alias"] in node_info["search_aliases"]
-
-
-def test_bcftools_plugin_counts_renders_filtered_table_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_counts")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "include": "QUAL>20",
-            "exclude": "TYPE='ref'",
-            "regions": "chr1",
-            "targets": "targets.bed",
-            "output": "/work/bcftools_plugin_counts",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "counts",
-        "--include",
-        "QUAL>20",
-        "--exclude",
-        "TYPE='ref'",
-        "--regions",
-        "chr1",
-        "--targets",
-        "targets.bed",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_plugin_counts/counts.raw.txt",
-        "&&",
-        "python",
-        "-c",
-        node_class.COUNTS_POSTPROCESS_SCRIPT,
-        "/work/bcftools_plugin_counts/counts.raw.txt",
-        "/work/bcftools_plugin_counts/counts.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_counts" / "counts.tsv",
-    ]
-
-
-def test_bcftools_plugin_counts_postprocesses_galaxy_table(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_counts")
-    raw_counts = tmp_path / "counts.raw.txt"
-    output = tmp_path / "counts.tsv"
-    raw_counts.write_text(
-        "Number of samples: 3\n"
-        "Number of SNPs: 11\n"
-        "Number of INDELs: 4\n"
-        "Number of total sites: 15\n",
-        encoding="utf-8",
-    )
-
-    old_argv = sys.argv
-    sys.argv = ["counts-postprocess", str(raw_counts), str(output)]
-    try:
-        exec(node_class.COUNTS_POSTPROCESS_SCRIPT, {"__name__": "__main__"})
-    finally:
-        sys.argv = old_argv
-
-    assert output.read_text(encoding="utf-8") == "#samples\tSNPs\tINDELs\tsites\n3\t11\t4\t15\n"
-
-
-def test_bcftools_plugin_dosage_renders_plugin_options_after_separator(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_dosage")
-
-    assert node_class.render_command(
-        {
-            "input_file": "calls.vcf.gz",
-            "regions": "chr2",
-            "targets": "targets.bed",
-            "include": "N_ALT=1",
-            "tags": "PL,GT",
-            "output": "/work/bcftools_plugin_dosage",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "dosage",
-        "--include",
-        "N_ALT=1",
-        "--regions",
-        "chr2",
-        "--targets",
-        "targets.bed",
-        "calls.vcf.gz",
-        "--",
-        "--tags",
-        "PL,GT",
-        ">",
-        "/work/bcftools_plugin_dosage/dosage.tsv",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_dosage" / "dosage.tsv",
-    ]
-
-
-def test_bcftools_plugin_missing2ref_renders_vcf_transform_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_missing2ref")
-
-    assert node_class.render_command(
-        {
-            "input_file": "missing.vcf.gz",
-            "phased": True,
-            "major": True,
-            "regions": "chr3",
-            "threads": 6,
-            "output": "/work/bcftools_plugin_missing2ref",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "missing2ref",
-        "--regions",
-        "chr3",
-        "--output-type",
-        "z",
-        "--threads",
-        "6",
-        "missing.vcf.gz",
-        "--",
-        "--phased",
-        "--major",
-        ">",
-        "/work/bcftools_plugin_missing2ref/missing2ref.vcf.gz",
-    ]
-
-    input_types = node_class.INPUT_TYPES()
-    assert "output_type" not in input_types["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_missing2ref" / "missing2ref.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_tag2tag_renders_conversion_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_tag2tag")
-
-    assert node_class.render_command(
-        {
-            "input_file": "gp.vcf.gz",
-            "conversion": "--gp-to-gt",
-            "replace": True,
-            "threshold": 0.2,
-            "exclude": "FILTER='LowQual'",
-            "threads": 3,
-            "output": "/work/bcftools_plugin_tag2tag",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "tag2tag",
-        "--exclude",
-        "FILTER='LowQual'",
-        "--output-type",
-        "z",
-        "--threads",
-        "3",
-        "gp.vcf.gz",
-        "--",
-        "--gp-to-gt",
-        "--replace",
-        "--threshold",
-        "0.2",
-        ">",
-        "/work/bcftools_plugin_tag2tag/tag2tag.vcf.gz",
-    ]
-
-    input_types = node_class.INPUT_TYPES()
-    assert "output_type" not in input_types["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_tag2tag" / "tag2tag.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_fill_an_ac_renders_vcf_annotation_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_fill_an_ac")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "include": "TYPE='snp'",
-            "regions": "chr1:1-100",
-            "targets": "targets.tsv.gz",
-            "threads": 5,
-            "output": "/work/bcftools_plugin_fill_an_ac",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "fill-AN-AC",
-        "--include",
-        "TYPE='snp'",
-        "--regions",
-        "chr1:1-100",
-        "--targets",
-        "targets.tsv.gz",
-        "--output-type",
-        "z",
-        "--threads",
-        "5",
-        "cohort.vcf.gz",
-        ">",
-        "/work/bcftools_plugin_fill_an_ac/fill_an_ac.vcf.gz",
-    ]
-
-    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_fill_an_ac" / "fill_an_ac.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_fill_tags_renders_plugin_tags_samples_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_fill_tags")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.bcf",
-            "tags": ["AN", "AC", "AC_Het"],
-            "samples": "S1,S2",
-            "samples_file": "populations.tsv",
-            "invert_samples_file": True,
-            "drop_missing": True,
-            "regions": "chr2",
-            "exclude": "FILTER='LowQual'",
-            "threads": 8,
-            "output": "/work/bcftools_plugin_fill_tags",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "fill-tags",
-        "--exclude",
-        "FILTER='LowQual'",
-        "--regions",
-        "chr2",
-        "--output-type",
-        "z",
-        "--threads",
-        "8",
-        "cohort.bcf",
-        "--",
-        "--tags",
-        "AN,AC,AC_Het",
-        "--samples",
-        "S1,S2",
-        "--samples-file",
-        "^populations.tsv",
-        "--drop-missing",
-        ">",
-        "/work/bcftools_plugin_fill_tags/fill_tags.vcf.gz",
-    ]
-
-    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_fill_tags" / "fill_tags.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_setgt_renders_genotype_filter_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_setgt")
-
-    assert node_class.render_command(
-        {
-            "input_file": "calls.vcf.gz",
-            "target_gt": "q",
-            "new_gt": "0",
-            "include": 'GT="." && FMT/DP>0',
-            "exclude": "GQ<20",
-            "seed": 13,
-            "regions": "chr7",
-            "targets": "targets.bed",
-            "threads": 2,
-            "output": "/work/bcftools_plugin_setgt",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "setGT",
-        "--regions",
-        "chr7",
-        "--targets",
-        "targets.bed",
-        "--output-type",
-        "z",
-        "--threads",
-        "2",
-        "calls.vcf.gz",
-        "--",
-        "--target-gt",
-        "q",
-        "--new-gt",
-        "0",
-        "--include",
-        'GT="." && FMT/DP>0',
-        "--exclude",
-        "GQ<20",
-        "--seed",
-        "13",
-        ">",
-        "/work/bcftools_plugin_setgt/setgt.vcf.gz",
-    ]
-
-    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_setgt" / "setgt.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_fixploidy_renders_ploidy_files_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_fixploidy")
-
-    assert node_class.render_command(
-        {
-            "input_file": "cohort.vcf.gz",
-            "ploidy_file": "ploidy.tsv",
-            "sex": "sample_sex.tsv",
-            "default_ploidy": 2,
-            "force_ploidy": 4,
-            "regions": "chrX",
-            "include": "TYPE='snp'",
-            "threads": 3,
-            "output": "/work/bcftools_plugin_fixploidy",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "fixploidy",
-        "--include",
-        "TYPE='snp'",
-        "--regions",
-        "chrX",
-        "--output-type",
-        "z",
-        "--threads",
-        "3",
-        "cohort.vcf.gz",
-        "--",
-        "--ploidy",
-        "ploidy.tsv",
-        "--sex",
-        "sample_sex.tsv",
-        "--default-ploidy",
-        "2",
-        "--force-ploidy",
-        "4",
-        "--tags",
-        "GT",
-        ">",
-        "/work/bcftools_plugin_fixploidy/fixploidy.vcf.gz",
-    ]
-
-    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_fixploidy" / "fixploidy.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_mendelian_renders_inline_trio_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_mendelian")
-
-    assert node_class.render_command(
-        {
-            "input_file": "family.vcf.gz",
-            "trios_src": "trio",
-            "child": "NA00006",
-            "mother": "NA00001",
-            "father": "NA00002",
-            "num_x": "1X",
-            "mode": ["a", "d", "e"],
-            "rules": "GRCh38",
-            "regions": "chr1",
-            "targets": "targets.bed",
-            "exclude": "QUAL<20",
-            "output": "/work/bcftools_plugin_mendelian",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "mendelian2",
-        "--regions",
-        "chr1",
-        "--targets",
-        "targets.bed",
-        "--exclude",
-        "QUAL<20",
-        "--output-type",
-        "z",
-        "family.vcf.gz",
-        "--",
-        "--pfm",
-        "1X:NA00006,NA00002,NA00001",
-        "--rules",
-        "GRCh38",
-        "--mode",
-        "ade",
-        "2>",
-        "/work/bcftools_plugin_mendelian/mendelian.stderr.txt",
-        ">",
-        "/work/bcftools_plugin_mendelian/mendelian.vcf.gz",
-        "&&",
-        "cat",
-        "/work/bcftools_plugin_mendelian/mendelian.stderr.txt",
-    ]
-
-    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_mendelian" / "mendelian.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_mendelian_renders_ped_file_command() -> None:
-    node_class = _node_class("bcftools_plugin_mendelian")
-
-    assert node_class.render_command(
-        {
-            "input_file": "family.vcf.gz",
-            "trios_src": "trio_file",
-            "trio_file": "family.ped",
-            "rules_file": "inheritance.tsv",
-            "mode": "M,S",
-            "output": "/work/bcftools_plugin_mendelian",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "mendelian2",
-        "--output-type",
-        "z",
-        "family.vcf.gz",
-        "--",
-        "--ped",
-        "family.ped",
-        "--rules-file",
-        "inheritance.tsv",
-        "--mode",
-        "MS",
-        "2>",
-        "/work/bcftools_plugin_mendelian/mendelian.stderr.txt",
-        ">",
-        "/work/bcftools_plugin_mendelian/mendelian.vcf.gz",
-        "&&",
-        "cat",
-        "/work/bcftools_plugin_mendelian/mendelian.stderr.txt",
-    ]
-
-
-def test_bcftools_plugin_impute_info_renders_vcf_transform_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_impute_info")
-
-    assert node_class.render_command(
-        {
-            "input_file": "imputed.vcf.gz",
-            "include": "N_ALT=1",
-            "regions": "chr20",
-            "targets": "impute_targets.tsv",
-            "threads": 4,
-            "output": "/work/bcftools_plugin_impute_info",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "impute-info",
-        "--include",
-        "N_ALT=1",
-        "--regions",
-        "chr20",
-        "--targets",
-        "impute_targets.tsv",
-        "--output-type",
-        "z",
-        "--threads",
-        "4",
-        "imputed.vcf.gz",
-        ">",
-        "/work/bcftools_plugin_impute_info/impute_info.vcf.gz",
-    ]
-
-    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_impute_info" / "impute_info.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_color_chrs_renders_trio_plot_command_and_outputs(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_color_chrs")
-
-    assert node_class.render_command(
-        {
-            "input_file": "phased.vcf.gz",
-            "sample_rel_sel": "trio",
-            "mother": "M",
-            "father": "F",
-            "child": "C",
-            "regions": "chr1",
-            "include": "N_ALT=1",
-            "threads": 4,
-            "output": "/work/bcftools_plugin_color_chrs",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "color-chrs",
-        "--include",
-        "N_ALT=1",
-        "--regions",
-        "chr1",
-        "--threads",
-        "4",
-        "phased.vcf.gz",
-        "--",
-        "--trio",
-        "M,F,C",
-        "-p",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp",
-        "&&",
-        "color-chrs.pl",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.dat",
-        "-p",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp",
-        "&&",
-        "mv",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.dat",
-        "/work/bcftools_plugin_color_chrs/color_chrs.tsv",
-        "&&",
-        "mv",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.svg",
-        "/work/bcftools_plugin_color_chrs/color_chrs.svg",
-    ]
-
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_color_chrs" / "color_chrs.tsv",
-        tmp_path / "bcftools_plugin_color_chrs" / "color_chrs.svg",
-    ]
-
-
-def test_bcftools_plugin_color_chrs_renders_unrelated_pair_command() -> None:
-    node_class = _node_class("bcftools_plugin_color_chrs")
-
-    assert node_class.render_command(
-        {
-            "input_file": "phased.vcf.gz",
-            "sample_rel_sel": "unrelated",
-            "sample_a": "A",
-            "sample_b": "B",
-            "output": "/work/bcftools_plugin_color_chrs",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "color-chrs",
-        "phased.vcf.gz",
-        "--",
-        "--unrelated",
-        "A,B",
-        "-p",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp",
-        "&&",
-        "color-chrs.pl",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.dat",
-        "-p",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp",
-        "&&",
-        "mv",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.dat",
-        "/work/bcftools_plugin_color_chrs/color_chrs.tsv",
-        "&&",
-        "mv",
-        "/work/bcftools_plugin_color_chrs/color_chrs_tmp.svg",
-        "/work/bcftools_plugin_color_chrs/color_chrs.svg",
-    ]
-
-
-def test_bcftools_plugin_frameshifts_renders_indexed_exons_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_frameshifts")
-
-    assert node_class.render_command(
-        {
-            "input_file": "indels.vcf.gz",
-            "exons": "exons.bed",
-            "include": "TYPE='indel'",
-            "regions": "chr12",
-            "targets": "coding.bed",
-            "threads": 7,
-            "output": "/work/bcftools_plugin_frameshifts",
-        }
-    ) == [
-        "bgzip",
-        "-c",
-        "exons.bed",
-        ">",
-        "/work/bcftools_plugin_frameshifts/exons.bed.gz",
-        "&&",
-        "tabix",
-        "/work/bcftools_plugin_frameshifts/exons.bed.gz",
-        "&&",
-        "bcftools",
-        "plugin",
-        "frameshifts",
-        "--include",
-        "TYPE='indel'",
-        "--regions",
-        "chr12",
-        "--targets",
-        "coding.bed",
-        "--output-type",
-        "z",
-        "--threads",
-        "7",
-        "indels.vcf.gz",
-        "--",
-        "--exons",
-        "/work/bcftools_plugin_frameshifts/exons.bed.gz",
-        ">",
-        "/work/bcftools_plugin_frameshifts/frameshifts.vcf.gz",
-    ]
-
-    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_frameshifts" / "frameshifts.vcf.gz",
-    ]
-
-
-def test_bcftools_plugin_split_vep_renders_annotation_command_and_output(tmp_path: Path) -> None:
-    node_class = _node_class("bcftools_plugin_split_vep")
-
-    assert node_class.render_command(
-        {
-            "input_file": "annotated.vcf.gz",
-            "a": "ANN",
-            "c": "IMPACT,gnomAD_AF:Float",
-            "d": True,
-            "allow_undef_tags": True,
-            "p": "vep",
-            "s": "worst",
-            "include": "IMPACT='HIGH'",
-            "regions": "chr5",
-            "output": "/work/bcftools_plugin_split_vep",
-        }
-    ) == [
-        "bcftools",
-        "plugin",
-        "split-vep",
-        "--include",
-        "IMPACT='HIGH'",
-        "--regions",
-        "chr5",
-        "--output-type",
-        "z",
-        "annotated.vcf.gz",
-        "--",
-        "-a",
-        "ANN",
-        "-c",
-        "IMPACT,gnomAD_AF:Float",
-        "-d",
-        "--allow-undef-tags",
-        "-p",
-        "vep",
-        "-s",
-        "worst",
-        ">",
-        "/work/bcftools_plugin_split_vep/split_vep.vcf.gz",
-    ]
-
-    assert "output_type" not in node_class.INPUT_TYPES()["optional"]
-    assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
-        tmp_path / "bcftools_plugin_split_vep" / "split_vep.vcf.gz",
-    ]
 
 
 def test_beacon2_analyses_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
@@ -47180,7 +39882,7 @@ def test_beacon2_import_exposes_galaxy_metadata_inputs_outputs_and_citation() ->
 def test_beacon2_import_renders_import_command_outputs_and_validation(tmp_path: Path) -> None:
     node_class = _node_class("beacon2_import")
 
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "input_json_file": "HG00096.json",
             "database": "beacon",
@@ -47189,22 +39891,20 @@ def test_beacon2_import_renders_import_command_outputs_and_validation(tmp_path: 
             "clearAll": True,
             "clearColl": True,
             "removeCollection": "genomicVariations",
+            "db_auth_source": "admin",
+            "db_user": "root",
+            "db_password": "secret",
             "output": "/work/beacon2_import",
         }
-    ) == (
-        "mkdir -p /work/beacon2_import && "
-        "ln -s HG00096.json /work/beacon2_import/input.json && "
-        "cat > /work/beacon2_import/beacon2_db_auth.json <<'JSON'\n"
-        "{\n"
-        '  "db_auth_source": "admin",\n'
-        '  "db_user": "root",\n'
-        '  "db_password": "example"\n'
-        "}\n"
-        "JSON\n"
-        "beacon2-import --input_json_file /work/beacon2_import/input.json --db-host 20.108.51.167 "
-        "--db-port 27017 --database beacon --collection test --advance-connection --db-auth-config "
-        "/work/beacon2_import/beacon2_db_auth.json --clearAll --clearColl --removeCollection genomicVariations "
-        "> /work/beacon2_import/logs.txt"
+    )
+    assert command.startswith(
+        "mkdir -p /work/beacon2_import && ln -s HG00096.json /work/beacon2_import/input.json && umask 077"
+    )
+    assert "trap 'rm -f /work/beacon2_import/.beacon2_db_auth.json' EXIT" in command
+    assert '"db_password": "secret"' in command
+    assert "--db-auth-config /work/beacon2_import/.beacon2_db_auth.json" in command
+    assert command.endswith(
+        "--clearAll --clearColl --removeCollection genomicVariations > /work/beacon2_import/logs.txt"
     )
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
@@ -47214,15 +39914,24 @@ def test_beacon2_import_renders_import_command_outputs_and_validation(tmp_path: 
     assert node_class.VALIDATE_INPUTS({}) == "input_json_file is required"
     assert node_class.VALIDATE_INPUTS({"input_json_file": "HG00096.json"}) == "database is required"
     assert node_class.VALIDATE_INPUTS({"input_json_file": "HG00096.json", "database": "beacon"}) == "collection is required"
-    assert node_class.VALIDATE_INPUTS(
-        {"input_json_file": "HG00096.json", "database": "beacon", "collection": "test", "db_port": "bad"}
-    ) == "db_port must be an integer"
-    assert node_class.VALIDATE_INPUTS(
-        {"input_json_file": "HG00096.json", "database": "beacon", "collection": "test", "clearColl": True}
-    ) == "removeCollection is required when clearColl is enabled"
+    valid = {
+        "input_json_file": "HG00096.json",
+        "database": "beacon",
+        "collection": "test",
+        "db_auth_source": "admin",
+        "db_user": "root",
+        "db_password": "secret",
+    }
     assert node_class.VALIDATE_INPUTS(
         {"input_json_file": "HG00096.json", "database": "beacon", "collection": "test"}
-    ) is True
+    ) == "db_auth_source is required directly or through a configured credential"
+    assert node_class.VALIDATE_INPUTS(
+        {**valid, "db_port": "bad"}
+    ) == "db_port must be an integer"
+    assert node_class.VALIDATE_INPUTS(
+        {**valid, "clearColl": True}
+    ) == "removeCollection is required when clearColl is enabled"
+    assert node_class.VALIDATE_INPUTS(valid) is True
 
 
 def test_beacon2_individuals_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
@@ -47582,12 +40291,12 @@ def test_beacon2_nodes_expose_galaxy_metadata_inputs_outputs_and_citation() -> N
     assert vcf2bff["description"] == "Convert annotated VCF files to Beacon v2 genomic variations JSON."
     assert vcf2bff["output"] == ["JSON"]
     assert vcf2bff["output_name"] == ["genomicVariationsVcf"]
-    assert vcf2bff["required_executables"] == ["vcf2bff.pl", "gunzip"]
+    assert vcf2bff["required_executables"] == ["vcf2bff.pl", "python"]
     assert vcf2bff["required_conda_packages"] == ["beacon2-ri-tools", "gzip"]
     assert vcf2bff["citation_dois"] == ["10.1093/bioinformatics/btac568"]
     assert vcf2bff["input"]["required"]["input"][0] == "FILE"
     assert vcf2bff["input"]["optional"]["format"][1]["default"] == "bff"
-    assert vcf2bff["input"]["optional"]["format"][1]["options"] == ["bff", "hash", "json"]
+    assert vcf2bff["input"]["optional"]["format"][1]["options"] == ["bff"]
 
 
 def test_beacon2_csv2xlsx_renders_symlinked_csv_command_and_output(tmp_path: Path) -> None:
@@ -47637,19 +40346,23 @@ def test_beacon2_pxf2bff_renders_symlinked_phenopacket_command_and_output(tmp_pa
 def test_beacon2_vcf2bff_renders_vcf_command_and_output(tmp_path: Path) -> None:
     node_class = _node_class("beacon2_vcf2bff")
 
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "input": "variants/test.vcf.gz",
-            "format": "hash",
+            "format": "bff",
             "dataset_id": "beacon",
             "genome": "hg19",
             "output": "/work/beacon2_vcf2bff",
         }
-    ) == (
+    )
+    assert command.startswith(
         "ln -s variants/test.vcf.gz /work/beacon2_vcf2bff/sample.vcf.gz && "
-        "vcf2bff.pl --input /work/beacon2_vcf2bff/sample.vcf.gz --format hash "
-        "--project-dir /work/beacon2_vcf2bff --dataset-id beacon --genome hg19 && "
-        "gunzip /work/beacon2_vcf2bff/genomicVariationsVcf.json.gz"
+        "vcf2bff.pl --input /work/beacon2_vcf2bff/sample.vcf.gz --format bff --project-dir ."
+    )
+    assert "canonicalize_vcf2bff.py" in command
+    assert command.endswith(
+        "/work/beacon2_vcf2bff/genomicVariationsVcf.json.gz "
+        "/work/beacon2_vcf2bff/genomicVariationsVcf.json"
     )
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
@@ -47668,7 +40381,7 @@ def test_beacon2_nodes_validate_required_and_option_inputs() -> None:
     assert pxf2bff.VALIDATE_INPUTS({"input": ["EGAF00005572750.json"]}) is True
     assert vcf2bff.VALIDATE_INPUTS({}) == "input VCF.GZ is required"
     assert vcf2bff.VALIDATE_INPUTS({"input": "test.vcf.gz", "format": "bad"}) == (
-        "format must be one of: bff, hash, json"
+        "format must be bff because hash/json modes do not produce the declared JSON artifact"
     )
     assert vcf2bff.VALIDATE_INPUTS({"input": "test.vcf.gz", "dataset_id": "beacon", "genome": "hg19"}) is True
 
@@ -47754,7 +40467,7 @@ def test_heinz_visualization_exposes_galaxy_metadata_inputs_outputs_and_citation
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "optimal scoring subnetwork" in info["search_aliases"]
     assert info["input"]["required"]["subnetwork"][0] == "FILE"
-    assert info["input"]["optional"]["script_path"][1]["default"] == "visualization.py"
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_heinz_visualization_renders_python_command_and_output(tmp_path: Path) -> None:
@@ -47800,8 +40513,8 @@ def test_heinz_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "protein-protein interaction networks" in info["search_aliases"]
     assert info["version"] == "1.0"
-    assert info["input"]["required"]["score"][0] == "STRING"
-    assert info["input"]["required"]["edge"][0] == "STRING"
+    assert info["input"]["required"]["score"][0] == "TXT"
+    assert info["input"]["required"]["edge"][0] == "TXT"
     assert info["input"]["optional"]["threads"][1]["default"] == 2
 
 
@@ -47860,16 +40573,16 @@ def test_heinz_scoring_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert "Heinz score" in info["search_aliases"]
     assert "BUM model" in info["search_aliases"]
     assert info["version"] == "1.0"
-    assert info["input"]["required"]["node"][0] == "STRING"
+    assert info["input"]["required"]["node"][0] == "TXT"
     assert info["input"]["optional"]["FDR"][1]["default"] == 0.5
     assert info["input"]["optional"]["FDR"][1]["min"] == 0
     assert info["input"]["optional"]["FDR"][1]["max"] == 1
     assert info["input"]["optional"]["input_type_selector"][1]["default"] == "bum_output"
     assert info["input"]["optional"]["input_type_selector"][1]["options"] == ["bum_output", "bum_type"]
-    assert info["input"]["optional"]["input_bum"][0] == "STRING"
+    assert info["input"]["optional"]["input_bum"][0] == "TXT"
     assert info["input"]["optional"]["lambda_param"][1]["default"] == 0.5
     assert info["input"]["optional"]["alpha"][1]["default"] == 0.5
-    assert info["input"]["optional"]["script_path"][1]["default"] == "heinz_scoring.py"
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_heinz_scoring_renders_commands_outputs_and_validation(tmp_path: Path) -> None:
@@ -47889,13 +40602,15 @@ def test_heinz_scoring_renders_commands_outputs_and_validation(tmp_path: Path) -
         "python /tools/heinz/heinz_scoring.py -n 'genes with p.tsv' -f 0.001 "
         "-o /work/heinz_scoring/score.txt -l 0.546 -a 0.453"
     )
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "node": "genes.tsv",
             "input_bum": "BUM output.txt",
             "output": "/work/heinz_scoring",
         }
-    ) == "python heinz_scoring.py -n genes.tsv -f 0.5 -o /work/heinz_scoring/score.txt -m 'BUM output.txt'"
+    )
+    assert "heinz_scoring.py" in command
+    assert command.endswith("-n genes.tsv -f 0.5 -o /work/heinz_scoring/score.txt -m 'BUM output.txt'")
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "heinz_scoring" / "score.txt",
@@ -47951,7 +40666,7 @@ def test_heinz_bum_exposes_galaxy_metadata_inputs_outputs_and_citations() -> Non
     assert "BioNodulo builtin" in info["search_aliases"]
     assert "BioNet" in info["search_aliases"]
     assert info["input"]["required"]["p_values"][0] == "FILE"
-    assert info["input"]["optional"]["script_path"][1]["default"] == "bum.R"
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_heinz_bum_renders_rscript_command_and_output(tmp_path: Path) -> None:
@@ -48000,7 +40715,7 @@ def test_brew3r_r_exposes_galaxy_metadata_inputs_outputs_and_citation() -> None:
     assert info["input"]["optional"]["no_add"][0] == "BOOLEAN"
     assert info["input"]["optional"]["exclude_pattern"][1]["default"] == ""
     assert info["input"]["optional"]["filter_unstranded"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["script_path"][1]["default"] == "brew3r.r_script.R"
+    assert info["input"]["optional"]["script_path"][1]["default"] == ""
 
 
 def test_brew3r_r_renders_default_and_optional_commands_and_outputs(tmp_path: Path) -> None:
@@ -48018,7 +40733,7 @@ def test_brew3r_r_renders_default_and_optional_commands_and_outputs(tmp_path: Pa
         "--gtf_to_overlap 'stringtie assembly.gtf' -o /work/brew3r_r/output.gtf"
     )
 
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "gtf_to_extend": "input.gtf",
             "gtf_to_overlap": "second input.gtf",
@@ -48028,8 +40743,10 @@ def test_brew3r_r_renders_default_and_optional_commands_and_outputs(tmp_path: Pa
             "filter_unstranded": True,
             "output": "/work/brew3r_r",
         }
-    ) == (
-        "Rscript brew3r.r_script.R --gtf_to_extend input.gtf --gtf_to_overlap 'second input.gtf' "
+    )
+    assert "brew3r.r_script.R" in command
+    assert command.endswith(
+        "--gtf_to_extend input.gtf --gtf_to_overlap 'second input.gtf' "
         "--sup_output /work/brew3r_r/output_table.tsv --no_add --exclude_pattern '^Gm$' "
         "--filter_unstranded -o /work/brew3r_r/output.gtf"
     )
@@ -48594,7 +41311,7 @@ def test_ucsc_wigtobigwig_exposes_galaxy_metadata_inputs_outputs_and_citations()
 def test_ucsc_wigtobigwig_renders_history_full_and_indexed_preset_commands(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_wigtobigwig")
 
-    assert node_class.render_command(
+    history_command = node_class.render_command(
         {
             "input1": "signal track.wig",
             "genome_type_select": "history",
@@ -48606,13 +41323,15 @@ def test_ucsc_wigtobigwig_renders_history_full_and_indexed_preset_commands(tmp_p
             "unc": False,
             "output": "/work/ucsc_wigtobigwig",
         }
-    ) == (
+    )
+    assert history_command.startswith(
         "mkdir -p /work/ucsc_wigtobigwig && "
         "grep -v '^track' 'signal track.wig' > /work/ucsc_wigtobigwig/trackless && "
         "wigToBigWig /work/ucsc_wigtobigwig/trackless 'hg17 lengths.len' "
         "/work/ucsc_wigtobigwig/out_file1.bw -blockSize=256 -itemsPerSlot=1024 -clip"
     )
-    assert node_class.render_command(
+    assert "needLargeMem: trying to allocate 0 bytes|^Error" in history_command
+    indexed_command = node_class.render_command(
         {
             "input1": "signal.bedgraph",
             "genome_type_select": "indexed",
@@ -48620,12 +41339,14 @@ def test_ucsc_wigtobigwig_renders_history_full_and_indexed_preset_commands(tmp_p
             "settingsType": "preset",
             "output": "/work/ucsc_wigtobigwig",
         }
-    ) == (
+    )
+    assert indexed_command.startswith(
         "mkdir -p /work/ucsc_wigtobigwig && "
         "grep -v '^track' signal.bedgraph > /work/ucsc_wigtobigwig/trackless && "
         "wigToBigWig /work/ucsc_wigtobigwig/trackless /indexes/hg17.len "
         "/work/ucsc_wigtobigwig/out_file1.bw -clip"
     )
+    assert "needLargeMem: trying to allocate 0 bytes|^Error" in indexed_command
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
         tmp_path / "ucsc_wigtobigwig" / "out_file1.bw",
@@ -48777,7 +41498,7 @@ def test_ucsc_axtchain_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["input"]["required"]["in_aln"][0] == "FILE"
     assert info["input"]["required"]["in_target"][0] == "FASTA"
     assert info["input"]["required"]["in_query"][0] == "FASTA"
-    assert info["input"]["optional"]["alignment_format"][1]["options"] == ["", "axt", "psl"]
+    assert info["input"]["required"]["alignment_format"][1]["options"] == ["axt", "psl"]
     assert info["input"]["optional"]["linear_gap"][1]["default"] == "loose"
     assert info["input"]["optional"]["linear_gap"][1]["options"] == ["loose", "medium", "linear_gap_file"]
     assert info["input"]["optional"]["lineargap_input"][0] == "FILE"
@@ -48794,6 +41515,7 @@ def test_ucsc_axtchain_renders_axt_psl_gap_options_details_and_outputs(tmp_path:
             "in_aln": "hg38 chrM.mm39 chrM.axt.gz",
             "in_target": "hg38.chrM.fa",
             "in_query": "mm39.chrM.fa",
+            "alignment_format": "axt",
             "output": "/work/ucsc_axtchain",
         }
     ) == (
@@ -48824,6 +41546,7 @@ def test_ucsc_axtchain_renders_axt_psl_gap_options_details_and_outputs(tmp_path:
             "in_aln": "aligned.psl.gz",
             "in_target": "target.fa",
             "in_query": "query.fa",
+            "alignment_format": "psl",
             "linear_gap": "medium",
             "output": "/work/ucsc_axtchain",
         }
@@ -48851,17 +41574,45 @@ def test_ucsc_axtchain_validates_required_inputs_formats_gap_options_and_scores(
     )
     assert node_class.VALIDATE_INPUTS(
         {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "alignment_format": "bad"}
-    ) == "alignment_format must be one of: , axt, psl"
+    ) == "alignment_format must be one of: axt, psl"
     assert node_class.VALIDATE_INPUTS(
-        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "linear_gap": "bad"}
+        {
+            "in_aln": "input.axt",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "alignment_format": "axt",
+            "linear_gap": "bad",
+        }
     ) == "linear_gap must be one of: loose, medium, linear_gap_file"
     assert node_class.VALIDATE_INPUTS(
-        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "linear_gap": "linear_gap_file"}
+        {
+            "in_aln": "input.axt",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "alignment_format": "axt",
+            "linear_gap": "linear_gap_file",
+        }
     ) == "lineargap_input is required when linear_gap is linear_gap_file"
     assert node_class.VALIDATE_INPUTS(
-        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa", "minScore": -1}
+        {
+            "in_aln": "input.axt",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "alignment_format": "axt",
+            "minScore": -1,
+        }
     ) == "minScore must be greater than or equal to 0"
-    assert node_class.VALIDATE_INPUTS({"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa"}) is True
+    assert node_class.VALIDATE_INPUTS(
+        {"in_aln": "input.axt", "in_target": "target.fa", "in_query": "query.fa"}
+    ) == "alignment_format is required because staged paths do not preserve AXT/PSL suffix semantics"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "in_aln": "input.axt",
+            "in_target": "target.fa",
+            "in_query": "query.fa",
+            "alignment_format": "axt",
+        }
+    ) is True
 
 
 def test_ucsc_chainnet_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
@@ -48972,8 +41723,8 @@ def test_fasplit_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
     assert info["display_name"] == "faSplit"
     assert info["category"] == "genomics"
     assert info["description"] == "Split a FASTA file into multiple FASTA files."
-    assert info["output"] == ["DIRECTORY"]
-    assert info["output_name"] == ["output_list"]
+    assert info["output"] == ["DIRECTORY", "TXT"]
+    assert info["output_name"] == ["output_list", "lift_file"]
     assert info["required_executables"] == ["faSplit"]
     assert info["required_conda_packages"] == ["ucsc-fasplit"]
     assert info["documentation_url"] == "https://github.com/ucscGenomeBrowser/kent/blob/master/src/utils/faSplit/faSplit.c"
@@ -48992,7 +41743,7 @@ def test_fasplit_exposes_galaxy_metadata_inputs_outputs_and_citations() -> None:
         "about",
         "gap",
     ]
-    assert info["input"]["optional"]["count"][1]["default"] == 10
+    assert info["input"]["optional"]["count"][1]["default"] == ""
     assert info["input"]["optional"]["maxN"][1]["min"] == 0
     assert info["input"]["optional"]["oneFile"][0] == "BOOLEAN"
     assert info["input"]["optional"]["extra"][1]["min"] == 0
@@ -49334,18 +42085,19 @@ def test_ucsc_maffetch_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
 def test_ucsc_maffetch_renders_galaxy_config_lookup_and_output(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_maffetch")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "bed_file": "mafFetch.bed",
             "genome": "hg19",
             "track": "multiz46way",
             "output": "/work/ucsc_maffetch",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_maffetch", "mafFetch")
+    assert default_command.endswith(
         "mafFetch hg19 multiz46way mafFetch.bed /work/ucsc_maffetch/out.maf"
     )
-    assert node_class.render_command(
+    custom_command = node_class.render_command(
         {
             "bed_file": "coding regions.bed",
             "genome": "hg38",
@@ -49353,8 +42105,10 @@ def test_ucsc_maffetch_renders_galaxy_config_lookup_and_output(tmp_path: Path) -
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_maffetch",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(custom_command, "/work/ucsc_maffetch", "mafFetch")
+    assert "cp 'custom hg.conf' /work/ucsc_maffetch/ucsc-home/.hg.conf" in custom_command
+    assert custom_command.endswith(
         "mafFetch hg38 multiz100way 'coding regions.bed' /work/ucsc_maffetch/out.maf"
     )
 
@@ -49406,19 +42160,22 @@ def test_ucsc_mafaddirows_renders_flags_nbed_links_and_output(tmp_path: Path) ->
             "output": "/work/ucsc_mafaddirows",
         }
     ) == "mafAddIRows mafIn.maf ref.2bit /work/ucsc_mafaddirows/output.maf -addN"
-    assert node_class.render_command(
+    command = node_class.render_command(
         {
             "input_maf": "input align.maf",
             "twoBitFile": "reference genome.2bit",
             "nBeds": ["gorGor3.bed", "hg38 regions.bed", "panTro4.bed"],
+            "nBed_element_identifiers": ["gorGor3.bed", "hg38 regions.bed", "panTro4.bed"],
             "addDash": True,
             "output": "/work/ucsc_mafaddirows",
         }
-    ) == (
-        "ln -s gorGor3.bed gorGor3.bed && echo gorGor3.bed >> bed.txt && "
-        "ln -s 'hg38 regions.bed' hg38_regions.bed && echo hg38_regions.bed >> bed.txt && "
-        "ln -s panTro4.bed panTro4.bed && echo panTro4.bed >> bed.txt && "
-        "mafAddIRows 'input align.maf' 'reference genome.2bit' /work/ucsc_mafaddirows/output.maf -nBeds=bed.txt -addDash"
+    )
+    assert "ln -s gorGor3.bed /work/ucsc_mafaddirows/gorGor3.bed" in command
+    assert "ln -s 'hg38 regions.bed' /work/ucsc_mafaddirows/hg38_regions.bed" in command
+    assert "echo panTro4.bed >> /work/ucsc_mafaddirows/bed.txt" in command
+    assert command.endswith(
+        "mafAddIRows 'input align.maf' 'reference genome.2bit' /work/ucsc_mafaddirows/output.maf "
+        "-nBeds=/work/ucsc_mafaddirows/bed.txt -addDash"
     )
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
@@ -49437,6 +42194,15 @@ def test_ucsc_mafaddirows_validates_required_inputs_and_modes() -> None:
     assert node_class.VALIDATE_INPUTS({"input_maf": "input.maf", "twoBitFile": "ref.2bit"}) is True
     assert node_class.VALIDATE_INPUTS(
         {"input_maf": "input.maf", "twoBitFile": "ref.2bit", "nBeds": ["species.bed"], "addN": True}
+    ) == "nBed_element_identifiers must provide one logical species filename for each nBeds file"
+    assert node_class.VALIDATE_INPUTS(
+        {
+            "input_maf": "input.maf",
+            "twoBitFile": "ref.2bit",
+            "nBeds": ["species.bed"],
+            "nBed_element_identifiers": ["species.bed"],
+            "addN": True,
+        }
     ) is True
 
 
@@ -49469,7 +42235,7 @@ def test_ucsc_maffrag_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
 def test_ucsc_maffrag_renders_region_lookup_outname_and_output(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_maffrag")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "genome": "hg19",
             "track": "multiz46way",
@@ -49479,11 +42245,13 @@ def test_ucsc_maffrag_renders_region_lookup_outname_and_output(tmp_path: Path) -
             "strand": "+",
             "output": "/work/ucsc_maffrag",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    assert default_command.startswith("touch /work/ucsc_maffrag/out.maf && ")
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_maffrag", "mafFrag")
+    assert default_command.endswith(
         "mafFrag hg19 multiz46way chr17 7578370 7578400 + /work/ucsc_maffrag/out.maf"
     )
-    assert node_class.render_command(
+    custom_command = node_class.render_command(
         {
             "genome": "hg38",
             "track": "multiz100way",
@@ -49495,8 +42263,11 @@ def test_ucsc_maffrag_renders_region_lookup_outname_and_output(tmp_path: Path) -
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_maffrag",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    assert custom_command.startswith("touch /work/ucsc_maffrag/out.maf && ")
+    _assert_staged_ucsc_command(custom_command, "/work/ucsc_maffrag", "mafFrag")
+    assert "cp 'custom hg.conf' /work/ucsc_maffrag/ucsc-home/.hg.conf" in custom_command
+    assert custom_command.endswith(
         "mafFrag hg38 multiz100way chr1 100 200 . /work/ucsc_maffrag/out.maf '-outName=custom region'"
     )
 
@@ -49561,25 +42332,26 @@ def test_ucsc_maffrags_exposes_galaxy_metadata_inputs_outputs_and_citations() ->
     assert info["input"]["optional"]["meFirst"][0] == "BOOLEAN"
     assert info["input"]["optional"]["txStarts"][0] == "BOOLEAN"
     assert info["input"]["optional"]["refCoords"][0] == "BOOLEAN"
-    assert info["input"]["optional"]["orgs"][0] == "STRING"
+    assert info["input"]["optional"]["orgs"][0] == "TXT"
     assert info["input"]["optional"]["ucsc_db_connection"][0] == "FILE"
 
 
 def test_ucsc_maffrags_renders_default_flags_orgs_and_output(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_maffrags")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "bed_file": "mafFrag_in.bed",
             "genome": "hg19",
             "track": "multiz46way",
             "output": "/work/ucsc_maffrags",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_maffrags", "mafFrags")
+    assert default_command.endswith(
         "mafFrags hg19 multiz46way mafFrag_in.bed /work/ucsc_maffrags/out.maf"
     )
-    assert node_class.render_command(
+    custom_command = node_class.render_command(
         {
             "bed_file": "regions bed12.bed",
             "genome": "hg38",
@@ -49591,12 +42363,14 @@ def test_ucsc_maffrags_renders_default_flags_orgs_and_output(tmp_path: Path) -> 
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_maffrags",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(custom_command, "/work/ucsc_maffrags", "mafFrags")
+    assert "cp 'custom hg.conf' /work/ucsc_maffrags/ucsc-home/.hg.conf" in custom_command
+    assert custom_command.endswith(
         "mafFrags hg38 multiz100way 'regions bed12.bed' -bed12 -thickOnly -meFirst "
         "'-orgs=species order.txt' /work/ucsc_maffrags/out.maf"
     )
-    assert node_class.render_command(
+    flags_command = node_class.render_command(
         {
             "bed_file": "regions.bed",
             "genome": "hg38",
@@ -49605,8 +42379,9 @@ def test_ucsc_maffrags_renders_default_flags_orgs_and_output(tmp_path: Path) -> 
             "refCoords": True,
             "output": "/work/ucsc_maffrags",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(flags_command, "/work/ucsc_maffrags", "mafFrags")
+    assert flags_command.endswith(
         "mafFrags hg38 multiz100way regions.bed -txStarts -refCoords /work/ucsc_maffrags/out.maf"
     )
 
@@ -49653,10 +42428,10 @@ def test_ucsc_mafgene_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
     assert info["input"]["required"]["db_name"][0] == "STRING"
     assert info["input"]["required"]["maf_file"][0] == "FILE"
     assert info["input"]["required"]["genepred_file"][0] == "FILE"
-    assert info["input"]["required"]["species_list"][0] == "STRING"
+    assert info["input"]["required"]["species_list"][0] == "FILE"
     assert info["input"]["optional"]["selection_type"][1]["options"] == ["all", "single", "list", "bed", "chrom"]
     assert info["input"]["optional"]["gene_name"][0] == "STRING"
-    assert info["input"]["optional"]["gene_list"][0] == "STRING"
+    assert info["input"]["optional"]["gene_list"][0] == "FILE"
     assert info["input"]["optional"]["gene_beds"][0] == "BED"
     assert info["input"]["optional"]["chrom"][0] == "STRING"
     assert info["input"]["optional"]["useFile"][0] == "BOOLEAN"
@@ -49667,7 +42442,7 @@ def test_ucsc_mafgene_exposes_galaxy_metadata_inputs_outputs_and_citations() -> 
 def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_mafgene")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "twoBitFile": "sacCer3.2bit",
             "db_name": "sacCer3",
@@ -49676,13 +42451,16 @@ def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path
             "species_list": "species.lst",
             "output": "/work/ucsc_mafgene",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
-        "ln -s sacCer3.2bit input.2bit && ln -s sacCer3.bigMaf sacCer3.bigMaf && "
-        "ln -s sgdGene.gp sgdGene.gp && mafGene -twoBit=input.2bit sacCer3 sacCer3.bigMaf "
-        "sgdGene.gp species.lst /work/ucsc_mafgene/output.fasta -useFile"
     )
-    assert node_class.render_command(
+    assert "ln -s sacCer3.2bit /work/ucsc_mafgene/input.2bit" in default_command
+    assert "ln -s sacCer3.bigMaf /work/ucsc_mafgene/input.bigMaf" in default_command
+    assert "ln -s sgdGene.gp /work/ucsc_mafgene/input.gp" in default_command
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_mafgene", "mafGene")
+    assert default_command.endswith(
+        "mafGene -twoBit=/work/ucsc_mafgene/input.2bit sacCer3 /work/ucsc_mafgene/input.bigMaf "
+        "/work/ucsc_mafgene/input.gp species.lst /work/ucsc_mafgene/output.fasta -useFile"
+    )
+    single_command = node_class.render_command(
         {
             "twoBitFile": "reference genome.2bit",
             "db_name": "hg38",
@@ -49700,16 +42478,18 @@ def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_mafgene",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
-        "ln -s 'reference genome.2bit' input.2bit && "
-        "ln -s 'alignment big maf.bigMaf' alignment_big_maf.bigMaf && "
-        "ln -s 'known genes.gp' known_genes.gp && "
-        "mafGene -twoBit=input.2bit hg38 alignment_big_maf.bigMaf known_genes.gp "
-        "'species order.txt' /work/ucsc_mafgene/output.fasta -geneName=TP53 -exons -noTrans "
-        "-uniqAA -includeUtr -noDash -useFile -delay=2"
     )
-    assert node_class.render_command(
+    assert "ln -s 'reference genome.2bit' /work/ucsc_mafgene/input.2bit" in single_command
+    assert "ln -s 'alignment big maf.bigMaf' /work/ucsc_mafgene/input.bigMaf" in single_command
+    assert "ln -s 'known genes.gp' /work/ucsc_mafgene/input.gp" in single_command
+    _assert_staged_ucsc_command(single_command, "/work/ucsc_mafgene", "mafGene")
+    assert "cp 'custom hg.conf' /work/ucsc_mafgene/ucsc-home/.hg.conf" in single_command
+    assert single_command.endswith(
+        "mafGene -twoBit=/work/ucsc_mafgene/input.2bit hg38 /work/ucsc_mafgene/input.bigMaf "
+        "/work/ucsc_mafgene/input.gp 'species order.txt' /work/ucsc_mafgene/output.fasta "
+        "-geneName=TP53 -exons -noTrans -uniqAA -includeUtr -noDash -useFile -delay=2"
+    )
+    bed_command = node_class.render_command(
         {
             "twoBitFile": "hg38.2bit",
             "db_name": "hg38",
@@ -49720,11 +42500,12 @@ def test_ucsc_mafgene_renders_default_single_and_bed_selection_commands(tmp_path
             "gene_beds": "genes regions.bed",
             "output": "/work/ucsc_mafgene",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
-        "ln -s hg38.2bit input.2bit && ln -s multiz100way multiz100way && "
-        "ln -s knownGene knownGene && mafGene -twoBit=input.2bit hg38 multiz100way knownGene "
-        "species.lst /work/ucsc_mafgene/output.fasta '-geneBeds=genes regions.bed'"
+    )
+    _assert_staged_ucsc_command(bed_command, "/work/ucsc_mafgene", "mafGene")
+    assert bed_command.endswith(
+        "mafGene -twoBit=/work/ucsc_mafgene/input.2bit hg38 /work/ucsc_mafgene/input.bigMaf "
+        "/work/ucsc_mafgene/input.gp species.lst /work/ucsc_mafgene/output.fasta "
+        "'-geneBeds=genes regions.bed' -useFile"
     )
 
     assert node_class.PLAN_OUTPUTS({}, tmp_path) == [
@@ -49933,8 +42714,9 @@ def test_gffread_renders_conversion_filtering_fasta_and_merge_outputs(tmp_path: 
             "output": "/work/gffread",
         }
     ) == (
-        "ln -s genome.fa genomeref.fa && gffread features.bed --in-bed -g genomeref.fa -V -H --merge "
-        "--force-exons -Z -K -Q '-d=/work/gffread/dupinfo.txt' -w /work/gffread/exons.fa "
+        "ln -s genome.fa /work/gffread/genomeref.fa && gffread features.bed --in-bed "
+        "-g /work/gffread/genomeref.fa -V -H --merge --force-exons -Z -K -Q "
+        "-d /work/gffread/dupinfo.txt -w /work/gffread/exons.fa "
         "-x /work/gffread/cds.fa -y /work/gffread/pep.fa -W -S --bed -o /work/gffread/output.bed"
     )
 
@@ -49990,9 +42772,7 @@ def test_gffread_validates_required_inputs_modes_ranges_and_reference_outputs() 
     assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "merge_sel": "merge", "merge_options": ["bad"]}) == (
         "merge_options values must be one of: force_exons, merge_close_exons, collapse_contained, relaxed_containment, dupinfo"
     )
-    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "gff_fmt": "gff", "tname": "track name"}) == (
-        "tname must contain only letters, digits, and underscores"
-    )
+    assert node_class.VALIDATE_INPUTS({"input": "genes.gtf", "gff_fmt": "gff", "tname": "track name"}) is True
     assert node_class.VALIDATE_INPUTS({"input": "genes.gtf"}) is True
     assert node_class.VALIDATE_INPUTS(
         {"input": "genes.gtf", "reference_genome_source": "history", "genome_fasta": "genome.fa", "fa_outputs": ["pep"]}
@@ -50196,17 +42976,18 @@ def test_ucsc_mafcoverage_exposes_galaxy_metadata_inputs_outputs_and_citations()
 def test_ucsc_mafcoverage_renders_galaxy_config_count_restrict_and_output(tmp_path: Path) -> None:
     node_class = _node_class("ucsc_mafcoverage")
 
-    assert node_class.render_command(
+    default_command = node_class.render_command(
         {
             "maf_file": "mafFetch output.maf",
             "genome": "hg19",
             "output": "/work/ucsc_mafcoverage",
         }
-    ) == (
-        "cp ucsc_db_connection.conf ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(default_command, "/work/ucsc_mafcoverage", "mafCoverage")
+    assert default_command.endswith(
         "mafCoverage hg19 'mafFetch output.maf' > /work/ucsc_mafcoverage/coverage.txt"
     )
-    assert node_class.render_command(
+    custom_command = node_class.render_command(
         {
             "maf_file": "mafFetch.maf",
             "genome": "hg38",
@@ -50216,8 +42997,10 @@ def test_ucsc_mafcoverage_renders_galaxy_config_count_restrict_and_output(tmp_pa
             "ucsc_db_connection": "custom hg.conf",
             "output": "/work/ucsc_mafcoverage",
         }
-    ) == (
-        "cp 'custom hg.conf' ${HOME}/.hg.conf && chmod 600 ${HOME}/.hg.conf && "
+    )
+    _assert_staged_ucsc_command(custom_command, "/work/ucsc_mafcoverage", "mafCoverage")
+    assert "cp 'custom hg.conf' /work/ucsc_mafcoverage/ucsc-home/.hg.conf" in custom_command
+    assert custom_command.endswith(
         "mafCoverage hg38 mafFetch.maf '-restrict=coding regions.bed' -count=2 "
         "> /work/ucsc_mafcoverage/coverage.txt"
     )

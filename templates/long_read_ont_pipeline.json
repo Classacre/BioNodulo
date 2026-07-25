@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "ONT Long-Read Sequencing",
-  "description": "Oxford Nanopore basecalling, barcode demultiplexing, read filtering, QC, and modified-base methylation pileup.",
+  "description": "Oxford Nanopore basecalling with staged local models, explicit reference and BAM sidecars, barcode demultiplexing, source-native selected-barcode conversion, filtering, QC, and modified-base methylation pileup.",
   "category": "Long Read",
   "tags": [
     "long-read",
@@ -16,12 +16,16 @@
   "tools": [
     "input_directory",
     "input_fasta",
+    "samtools_faidx",
+    "samtools_fastx",
     "dorado_basecaller",
     "gate",
     "dorado_demux",
+    "data_validator",
     "chopper_filter",
     "nanoplot",
-    "modkit_pileup"
+    "modkit_pileup",
+    "table_preview"
   ],
   "nodes": [
     {
@@ -32,7 +36,7 @@
         80
       ],
       "params": {
-        "text": "ONT long-read workflow: validates POD5 and reference inputs, basecalls with Dorado, gates the basecalled BAM before demultiplexing, filters reads with Chopper, gates filtered reads before NanoPlot QC, and generates Modkit bedMethyl output for modified-base analysis.\n\nInputs are placeholders. Point POD5 Directory and Reference FASTA at local run data before execution."
+        "text": "ONT long-read workflow: stages explicit local Dorado simplex and modified-base model directories, prepares colocated FASTA sidecars, basecalls to a sorted BAM/BAI pair, splits existing barcode classifications with Dorado demux in BAM mode, selects exactly one source-native barcode BAM, converts it to FASTQ with Samtools Fastx, validates that FASTQ, filters it with Chopper, runs NanoPlot QC, and generates a CpG-aware Modkit bedMethyl pileup.\n\nInputs are placeholders. Point the POD5, model, and reference inputs at staged local artifacts before execution. The selected_barcode value must equal the Dorado BC tag (or sample-sheet alias) to process; the default follows the configured SQK-NBD114-24 kit."
       },
       "ui": {
         "title": "Notes",
@@ -70,7 +74,7 @@
         231
       ],
       "params": {
-        "reference": "examples/data/long_read/reference.fasta"
+        "reference": "templates/data/smoke/reference.fasta"
       },
       "ui": {
         "title": "Reference FASTA",
@@ -87,18 +91,77 @@
       }
     },
     {
+      "id": "basecaller_model_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        382
+      ],
+      "params": {
+        "directory": "external/dorado/models/simplex"
+      },
+      "ui": {
+        "title": "Dorado Simplex Model",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "modified_model_001",
+      "type": "input_directory",
+      "position": [
+        80,
+        533
+      ],
+      "params": {
+        "directory": "external/dorado/models/modified_bases"
+      },
+      "ui": {
+        "title": "Dorado Modified-Base Model",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ref_sidecars_001",
+      "type": "samtools_faidx",
+      "position": [
+        440,
+        231
+      ],
+      "params": {
+        "threads": 1
+      },
+      "ui": {
+        "title": "Reference FAI + Dictionary"
+      }
+    },
+    {
       "id": "dorado_basecaller_001",
       "type": "dorado_basecaller",
       "position": [
-        440,
+        800,
         80
       ],
       "params": {
-        "model": "sup@latest",
-        "modified_bases": "5mC 6mA",
         "kit_name": "SQK-NBD114-24",
         "trim": "all",
-        "min_qscore": 9
+        "min_qscore": 9,
+        "device": "auto"
       },
       "ui": {
         "title": "Dorado Basecaller"
@@ -108,7 +171,7 @@
       "id": "gate_basecalled_bam_001",
       "type": "gate",
       "position": [
-        800,
+        1160,
         80
       ],
       "params": {
@@ -124,46 +187,87 @@
       "id": "dorado_demux_001",
       "type": "dorado_demux",
       "position": [
-        1160,
+        1520,
         80
       ],
       "params": {
-        "mode": "classify",
-        "kit_name": "SQK-NBD114-24",
-        "emit_fastq": true,
-        "emit_summary": true,
-        "threads": 8,
-        "output_name": "sample_demux_fastq"
+        "no_classify": true,
+        "selected_barcode": "SQK-NBD114-24_barcode01",
+        "threads": 8
       },
       "ui": {
         "title": "Dorado Demux"
       }
     },
     {
+      "id": "samtools_fastx_001",
+      "type": "samtools_fastx",
+      "position": [
+        1880,
+        382
+      ],
+      "params": {
+        "threads": 8,
+        "output_format": "fastq",
+        "outputs": [
+          "other"
+        ]
+      },
+      "ui": {
+        "title": "Selected BAM to FASTQ"
+      }
+    },
+    {
+      "id": "validate_selected_fastq_001",
+      "type": "data_validator",
+      "position": [
+        2240,
+        382
+      ],
+      "params": {
+        "expected_format": "fastq",
+        "min_records": 1,
+        "min_size_bytes": 1,
+        "fail_on_error": true
+      },
+      "ui": {
+        "title": "Validate Selected FASTQ"
+      }
+    },
+    {
       "id": "chopper_001",
       "type": "chopper_filter",
       "position": [
-        1520,
-        80
+        2600,
+        382
       ],
       "params": {
         "min_quality": 10,
         "min_length": 1000,
-        "max_length": 0,
         "headcrop": 0,
         "tailcrop": 0,
         "threads": 8
       },
       "ui": {
-        "title": "Chopper Filter"
+        "title": "Chopper Filter",
+        "validation": {
+          "outputs": {
+            "filtered_reads": {
+              "expected_format": "fastq",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
       "id": "gate_filtered_reads_001",
       "type": "gate",
       "position": [
-        1880,
-        80
+        2960,
+        382
       ],
       "params": {
         "condition_mode": "is_not_empty",
@@ -178,15 +282,15 @@
       "id": "nanoplot_001",
       "type": "nanoplot",
       "position": [
-        2240,
-        80
+        3320,
+        382
       ],
       "params": {
         "threads": 8,
         "plot_format": "png",
-        "max_length": 0,
-        "min_length": 0,
-        "loglength": false
+        "loglength": false,
+        "show_n50": true,
+        "tsv_stats": true
       },
       "ui": {
         "title": "NanoPlot QC",
@@ -205,14 +309,15 @@
       "id": "modkit_001",
       "type": "modkit_pileup",
       "position": [
-        800,
-        430
+        1520,
+        650
       ],
       "params": {
         "threads": 8,
+        "cpg": true,
         "combine_strands": true,
-        "region": "",
-        "bedgraph": false
+        "with_header": true,
+        "region": ""
       },
       "ui": {
         "title": "Modkit Pileup"
@@ -222,8 +327,8 @@
       "id": "render_nanoplot_tab_0",
       "type": "table_preview",
       "position": [
-        2960,
-        80
+        4040,
+        160
       ],
       "params": {},
       "ui": {
@@ -234,8 +339,8 @@
       "id": "render_modkit_tab_1",
       "type": "table_preview",
       "position": [
-        2960,
-        300
+        4040,
+        380
       ],
       "params": {},
       "ui": {
@@ -246,8 +351,8 @@
       "id": "render_dorado_demux_tab_2",
       "type": "table_preview",
       "position": [
-        2960,
-        520
+        4040,
+        600
       ],
       "params": {},
       "ui": {
@@ -257,7 +362,18 @@
   ],
   "edges": [
     {
-      "id": "e3",
+      "id": "e1",
+      "from": {
+        "node": "reference_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "ref_sidecars_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e2",
       "from": {
         "node": "pod5_001",
         "output": "directory"
@@ -268,9 +384,31 @@
       }
     },
     {
+      "id": "e3",
+      "from": {
+        "node": "basecaller_model_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "dorado_basecaller_001",
+        "input": "model"
+      }
+    },
+    {
       "id": "e4",
       "from": {
-        "node": "reference_001",
+        "node": "modified_model_001",
+        "output": "directory"
+      },
+      "to": {
+        "node": "dorado_basecaller_001",
+        "input": "modified_bases_models"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "ref_sidecars_001",
         "output": "reference"
       },
       "to": {
@@ -279,7 +417,7 @@
       }
     },
     {
-      "id": "e5",
+      "id": "e6",
       "from": {
         "node": "dorado_basecaller_001",
         "output": "basecalled_bam"
@@ -290,7 +428,7 @@
       }
     },
     {
-      "id": "e6",
+      "id": "e7",
       "from": {
         "node": "gate_basecalled_bam_001",
         "output": "output"
@@ -301,10 +439,32 @@
       }
     },
     {
-      "id": "e7",
+      "id": "e8",
       "from": {
         "node": "dorado_demux_001",
-        "output": "demux_dir"
+        "output": "selected_bam"
+      },
+      "to": {
+        "node": "samtools_fastx_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "samtools_fastx_001",
+        "output": "reads"
+      },
+      "to": {
+        "node": "validate_selected_fastq_001",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "validate_selected_fastq_001",
+        "output": "validated_fastq"
       },
       "to": {
         "node": "chopper_001",
@@ -312,7 +472,7 @@
       }
     },
     {
-      "id": "e8",
+      "id": "e11",
       "from": {
         "node": "chopper_001",
         "output": "filtered_reads"
@@ -323,7 +483,7 @@
       }
     },
     {
-      "id": "e9",
+      "id": "e12",
       "from": {
         "node": "gate_filtered_reads_001",
         "output": "output"
@@ -334,7 +494,7 @@
       }
     },
     {
-      "id": "e10",
+      "id": "e13",
       "from": {
         "node": "dorado_basecaller_001",
         "output": "basecalled_bam"
@@ -345,9 +505,20 @@
       }
     },
     {
-      "id": "e11",
+      "id": "e14",
       "from": {
-        "node": "reference_001",
+        "node": "dorado_basecaller_001",
+        "output": "basecalled_bam_index"
+      },
+      "to": {
+        "node": "modkit_001",
+        "input": "bam_index"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "ref_sidecars_001",
         "output": "reference"
       },
       "to": {
@@ -356,9 +527,21 @@
       }
     },
     {
+      "id": "e16",
+      "from": {
+        "node": "ref_sidecars_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "modkit_001",
+        "input": "reference_index"
+      }
+    },
+    {
+      "id": "e17",
       "from": {
         "node": "nanoplot_001",
-        "output": "qc_report"
+        "output": "qc_stats"
       },
       "to": {
         "node": "render_nanoplot_tab_0",
@@ -366,6 +549,7 @@
       }
     },
     {
+      "id": "e18",
       "from": {
         "node": "modkit_001",
         "output": "bedmethyl"
@@ -376,6 +560,7 @@
       }
     },
     {
+      "id": "e19",
       "from": {
         "node": "dorado_demux_001",
         "output": "barcode_summary"
@@ -390,11 +575,20 @@
   "outputs": {
     "validated_pod5_dir": "pod5_001",
     "validated_reference": "reference_001",
+    "prepared_reference": "ref_sidecars_001",
+    "reference_fai": "ref_sidecars_001",
+    "sequence_dictionary": "ref_sidecars_001",
+    "basecaller_model": "basecaller_model_001",
+    "modified_base_model": "modified_model_001",
     "basecalled_bam_quality_gate": "gate_basecalled_bam_001",
     "filtered_reads_quality_gate": "gate_filtered_reads_001",
     "basecalled_bam": "dorado_basecaller_001",
+    "basecalled_bam_index": "dorado_basecaller_001",
     "demux_dir": "dorado_demux_001",
     "barcode_summary": "dorado_demux_001",
+    "selected_demux_bam": "dorado_demux_001",
+    "selected_demux_fastq": "samtools_fastx_001",
+    "validated_selected_demux_fastq": "validate_selected_fastq_001",
     "filtered_reads": "chopper_001",
     "qc_report": "nanoplot_001",
     "qc_stats": "nanoplot_001",

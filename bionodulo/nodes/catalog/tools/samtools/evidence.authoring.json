@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "tool_id": "samtools",
+  "tool_version": "1.23.1",
+  "nodes": {
+    "collate": {
+      "title": "Samtools Collate",
+      "description": "Name-collate a BAM before samtools fixmate."
+    },
+    "fixmate": {
+      "title": "Samtools Fixmate",
+      "description": "Add mate coordinates and optional duplicate-marking tags."
+    },
+    "flagstat": {
+      "title": "Samtools Flagstat",
+      "description": "Generate alignment flag statistics as a text report."
+    },
+    "index": {
+      "title": "Samtools Index",
+      "description": "Create a BAI index for a coordinate-sorted BAM."
+    },
+    "markdup": {
+      "title": "Samtools Markdup",
+      "description": "Mark or remove duplicate alignments from a prepared BAM."
+    },
+    "sort": {
+      "title": "Samtools Sort",
+      "description": "Sort a SAM or BAM alignment by genomic coordinate."
+    },
+    "view": {
+      "title": "Samtools View",
+      "description": "Convert SAM or BAM alignments to BAM with optional filters."
+    }
+  }
+}

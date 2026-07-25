@@ -59,13 +59,13 @@ def test_bakta_exposes_bionodulo_builtin_metadata_inputs_outputs_and_doi() -> No
         "annotation_plot",
         "logfile",
     ]
-    assert node_info["required_executables"] == ["bakta", "ln", "mkdir", "cp"]
-    assert node_info["required_conda_packages"] == ["bakta"]
-    assert node_info["documentation_url"] == "https://github.com/oschwengers/bakta"
+    assert node_info["required_executables"] == ["bakta", "ln", "mkdir", "cp", "tee"]
+    assert node_info["required_conda_packages"] == ["bakta", "coreutils"]
+    assert node_info["documentation_url"] == "https://github.com/oschwengers/bakta/blob/v1.9.4/README.md"
     assert node_info["citation_dois"] == ["10.1099/mgen.0.000685"]
     assert node_info["citation_urls"] == ["https://doi.org/10.1099/mgen.0.000685"]
     assert "Bakta" in node_info["citation_text"]
-    assert node_info["version"] == "1.9.4+galaxy1"
+    assert node_info["version"] == "1.9.4"
     assert "BioNodulo builtin" in node_info["search_aliases"]
     assert "MAGs" in node_info["search_aliases"]
 
@@ -208,10 +208,8 @@ def test_bakta_environment_metadata_is_declared() -> None:
     registry = _registry()
 
     assert EXECUTABLE_TO_CONDA_PACKAGE["bakta"] == "bakta"
-    assert PACKAGE_MIN_VERSIONS["bakta"] == ">=1.9.0"
+    assert PACKAGE_MIN_VERSIONS["bakta"] == "1.9.4"
     assert workflow_to_packages({"nodes": [{"id": "annotate", "type": "bakta"}]}, registry) == [
         "bakta",
-        "cp",
-        "ln",
-        "mkdir",
+        "coreutils",
     ]

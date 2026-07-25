@@ -475,56 +475,116 @@ git commit -m "feat(catalog): add reproducible execution plans"
 
 - [ ] **Step 1: Write failing evidence/maturity tests**
 
-```python
-from datetime import date
+Write schema-v2 tests before implementation. Cover strict frozen round trips and
+canonical digests; checked-in `RetainedText` provenance by path, catalog-content
+SHA-256, and pointer; structured byte-range, JSON-pointer, and symbol locators;
+exact documentation proof bindings; code-and-digest-only verification; and
+computed maturity progression. Demonstrate that arbitrary authored technical
+prose is accepted while no runtime/captured text origin exists. Demonstrate
+that version-looking URL segments have no ownership semantics and that legacy
+free-text locators, version locators, summaries, and reasons are rejected.
+Authoring input is strict duplicate-free UTF-8 `*.authoring.json`; add failures
+for duplicate keys, YAML aliases/merges/tags, and provenance outside the
+checked-in catalog authoring namespace. The compiler supplies the expected
+field pointer, resolves it from reopened bytes, and revalidates even
+`model_construct` inputs. Documentation proof and claim verification recompute
+source and selected-content digests from byte-range or strict-JSON-pointer
+locators. Add locator/content-format compatibility tests: byte ranges work for
+`text`, `json`, and `source_code`; JSON pointers require `json`; symbols require
+an upstream `source_code` capture with the exact source symbol and a trusted
+language-aware selector. Documentation proofs never accept symbols, and their
+JSON pointers require a JSON source.
 
-from bionodulo.nodes.contract.evidence import EvidenceClaim, EvidenceRecord, EvidenceSource, SourceKind
-from bionodulo.nodes.contract.maturity import AccessClass, Gate, MaturityRecord
-
-
-def evidence() -> EvidenceRecord:
-    return EvidenceRecord(
-        tool="samtools",
-        version="1.23.1",
-        sources=(
-            EvidenceSource(
-                source_id="samtools-index-manual",
-                kind=SourceKind.OFFICIAL_MANUAL,
-                url="https://www.htslib.org/doc/samtools-index.html",
-                retrieved_at=date(2026, 7, 15),
-            ),
-        ),
-        claims=(
-            EvidenceClaim(
-                field="outputs.index.collector",
-                source_id="samtools-index-manual",
-                locator="OUTPUT FILES",
-                statement="Default BAM index naming is derived from the input name.",
-            ),
-        ),
-    )
-
-
-def test_released_is_computed_from_all_required_gates() -> None:
-    record = MaturityRecord(access=AccessClass.PUBLIC, passed=frozenset(Gate))
-    assert record.released is True
-
-
-def test_byol_never_auto_releases() -> None:
-    record = MaturityRecord(access=AccessClass.BYOL, passed=frozenset(Gate))
-    assert record.released is False
-```
+Add adversarial strict-JSON tests for an 8 MiB input limit, 64 structural levels,
+controlled decoder recursion failures, and a 1 MiB canonical selected-value
+limit through retained-text, documentation-proof, and claim paths. Numbers use
+at most 256 coefficient digits and explicit and adjusted exponents from -4096
+through 4096. Prove adjacent large decimals do not collide, `1`, `1.0`, and
+`1e0` canonicalize identically, and results do not depend on
+`PYTHONINTMAXSTRDIGITS` or ambient decimal context. Authoring files reject the
+reserved compiler fields `provenance`, `catalog_path`,
+`catalog_content_sha256`, and `field_pointer` at every depth while allowing
+those words inside prose. Claim verification must also require the compiler's
+exact expected contract pointer and resolved contract JSON value, recompute
+`contract_value_sha256`, and reject missing arguments, pointer mismatch, wrong
+digests, and constructed forgeries.
 
 - [ ] **Step 2: Implement evidence models and maturity derivation**
 
-Evidence source kinds are `official_manual`, `official_api_schema`, `upstream_source`, `installed_help`, and `package_recipe`. Claims reference a known source and nonempty field path/locator/statement. Maturity gates are inventoried, evidence, contract, command, environment, tool smoke, cloud, and workflow. `released` is computed and cannot be supplied by callers. Access classes include public, rate-limited, secret-required, large-reference, GPU, BYOL, and service-license.
+Evidence source kinds are `official_manual`, `official_api_schema`,
+`upstream_source`, `installed_help`, and `package_recipe`. Official documentation
+must carry an exact `DocumentationVersionProof`; its URL is never parsed to
+infer tool ownership or version. Claims reference a known source, canonical
+contract pointer, structured content locator, authored statement provenance,
+and content/value digests. Captured runtime data is represented only by closed
+codes and SHA-256 digests, never retained stdout, stderr, environment values, or
+host paths. Every source declares `content_format` as `text`, `json`, or
+`source_code`, and model validation rejects locator combinations that cannot be
+resolved under that format.
+
+Strict JSON is parsed without binary floating-point conversion or Python's
+process-wide integer digit policy. The bounded number parser retains exact
+decimal coefficients and exponents. Its canonical form removes insignificant
+zeros, maps negative zero to zero, and emits one lowercase scientific token
+with no plus sign or exponent-leading zeros; numerically equal `1`, `1.0`, and
+`1e0` therefore hash as `1`. It never expands a large exponent. One shared,
+depth- and output-bounded serializer hashes JSON-pointer selections and
+compiler-resolved contract values so the two paths cannot drift.
+
+The evidence and maturity roots require `schema_version: 2`. Maturity stores a
+unique, canonically ordered `access_classes` tuple so access, credentials,
+licensing, GPU, and large-reference requirements may overlap. `public` cannot
+coexist with credential or license classes; BYOL and service-license members
+block automatic release. Task 8 must require an allowed credential-bearing
+class for every secret, require a required-secret-capable class for required
+secrets, and require a required secret when `secret_required` is present.
+
+Maturity gates are inventoried, evidence, contract, command, environment, tool
+smoke, cloud, and workflow. Every assessment, including failure, references
+one or more sorted `verification_digests`; human-readable labels and reasons
+are computed from enums and are not serialized. Each gate maps to one
+verification kind. Task 8 resolves every digest to a same-tool retained report
+whose exact tool/version and verifier identity are retained, with that kind and
+an agreeing outcome/failure code; multiple same-kind reports may cover
+platforms. `released` is computed and cannot be supplied by callers.
+BYOL and service-license records remain quarantined because schema v2 has no
+auditable manual-approval artifact or override.
+
+Verification context is closed by kind. Inventory, evidence-coverage, and
+contract-compile reports require only the catalog digest. Command fixtures
+require fixture ID/digest plus environment and catalog digests and may add a
+platform digest. Environment probes require environment, catalog, and platform
+digests. Tool smoke adds fixture ID/digest. Cloud and workflow runs additionally
+require the release digest. Any other context field is rejected, and fixture ID
+and digest are inseparable.
+
+The contract model does not prove authorship by inspecting prose. It retains
+immutable author provenance. Checked-in authoring blobs are strict
+duplicate-free UTF-8 JSON containing plain text and never embed their own
+digest. The trusted Task 9 catalog loader reopens every Git-tracked authoring
+path without escaping the catalog tree through a symlink, computes the digest
+from exact source bytes, resolves the JSON pointer itself, compares the selected
+value, and only then injects provenance into the compiled model. It must repeat
+this verification for values returned by arbitrary `get_node_specs()` factories
+rather than trust their self-asserted provenance. For every evidence source it
+also reopens the compiler-owned captured bytes, verifies every documentation
+proof, and recomputes every claim's source, excerpt, and contract-value digests.
+For each claim, Task 9 resolves `contract_pointer` against Task 8's authoritative
+contract JSON projection and passes both the exact expected pointer and selected
+JSON value to `verify_evidence_claim_content()`. Byte-range and JSON-pointer
+evidence selections are resolved in the contract verifier. Symbol claims require
+a compiler-owned language-aware selector; unsupported languages and missing or
+ambiguous symbols quarantine the node and prevent release.
+Schema-v1 data receives no permissive compatibility parser. A one-shot offline
+migration must construct these facts and quarantine records whose documentation
+binding cannot be proved.
 
 - [ ] **Step 3: Run tests and commit**
 
 ```bash
 .venv/bin/python -m pytest -q tests/catalog/test_evidence_maturity.py
 git add bionodulo/nodes/contract/evidence.py bionodulo/nodes/contract/maturity.py tests/catalog/test_evidence_maturity.py
-git commit -m "feat(catalog): add evidence-backed maturity gates"
+git commit -m "refactor(catalog): replace evidence text heuristics"
 ```
 
 ### Task 8: Compose NodeSpec and enforce cross-field invariants
@@ -586,9 +646,35 @@ def test_node_id_is_stable_machine_identifier() -> None:
         NodeIdentity(node_id="Samtools Sort", contract_version="2.0.0", implementation_version="1.0.0")
 ```
 
+Add RED tests for `NodeSpec.contract_projection()`. Its top-level object contains
+exactly `identity`, `presentation`, `artifact_inputs`, `value_inputs`,
+`parameters`, `secrets`, `outputs`, `environment`, `execution_kind`,
+`execution_factory`, and `runtime_binding`; it contains neither evidence nor
+maturity. Artifact inputs, value inputs, parameters, secrets, and outputs are
+objects keyed by their canonical port/parameter/secret/output IDs and retain
+each complete item, rather than positional arrays. Prove a pointer such as
+`/outputs/index/collector` resolves the output keyed `index`, insertion order
+does not affect bytes or digest, any retained item-field change does, and
+`contract_digest()` hashes the exact bounded canonical bytes defined by Task 7.
+
 - [ ] **Step 2: Implement NodeSpec composition**
 
-`NodeSpec` composes identity, presentation, artifact/value inputs, parameters, secrets, outputs, environment, execution factory, evidence, and maturity. Validate unique IDs across all input kinds, valid import-path syntax, output artifact types, environment/runtime agreement, evidence source references, and explicit port aliases for migrations. Tool version and environment are optional only for BioNodulo-owned in-process core nodes.
+`NodeSpec` composes identity, presentation, artifact/value inputs, parameters,
+secrets, outputs, environment, execution factory, evidence, and maturity.
+Validate unique IDs across all input kinds, valid import-path syntax, output
+artifact types, environment/runtime agreement, evidence source references, and
+explicit port aliases for migrations. Tool version and environment are optional
+only for BioNodulo-owned in-process core nodes. Task 8 defines the authoritative
+evidence-free pure-JSON contract projection. It contains exactly `identity`,
+`presentation`, `artifact_inputs`, `value_inputs`, `parameters`, `secrets`,
+`outputs`, `environment`, `execution_kind`, `execution_factory`, and
+`runtime_binding`. Artifact/value inputs, parameters, secrets, and outputs are
+objects keyed by canonical ID, retain every item field, and are emitted with
+canonical key/item ordering, so `/outputs/index/collector` never depends on tuple
+position. `contract_digest()` hashes the exact Task-7 bounded canonical bytes.
+`NodeSpec` remains a pure value model: it does not open files, resolve evidence
+locators, or attest claim digests. Those compiler-owned operations remain in
+Task 9.
 
 - [ ] **Step 3: Run tests and commit**
 
@@ -632,9 +718,34 @@ def test_projection_digest_is_deterministic(sample_spec) -> None:
     assert first.catalog_digest == second.catalog_digest
 ```
 
+Add adversarial loader tests showing that each retained-text selection,
+documentation proof, and evidence claim is recomputed from reopened
+compiler-owned bytes even when a factory used `model_construct()` or supplied a
+self-consistent forged digest. Cover byte-range and strict-JSON-pointer claims,
+plus upstream symbol claims resolved by a trusted language-aware selector.
+For every claim, resolve its pointer from the authoritative contract projection
+and test missing compiler arguments, a different expected pointer, a forged
+contract-value digest, and a constructed claim. Unsupported source languages
+and missing or ambiguous symbols must quarantine the node and prevent release.
+
 - [ ] **Step 2: Implement discovery, validation, and projections**
 
-The compiler takes an explicit module list; it does not walk with `pkgutil` and does not read prior generated JSON. It imports each declared module, calls `get_node_specs()`, validates every spec against the artifact registry and baseline ledger, and fails on any exception. Sort all projections by stable IDs and use canonical JSON (`sort_keys=True`, compact separators, UTF-8) for SHA-256.
+The compiler takes an explicit module list; it does not walk with `pkgutil` and
+does not read prior generated JSON. It imports each declared module, calls
+`get_node_specs()`, validates every spec against the artifact registry and
+baseline ledger, and fails on any exception. Before a spec can satisfy evidence
+maturity, the loader reopens every authoring and captured source, invokes
+`verify_retained_text_selection()` for every retained string and
+`verify_documentation_proof_content()` for every documentation proof, resolves
+every claim's canonical pointer from Task 8's authoritative contract JSON
+projection, and passes that exact pointer and selected JSON value to
+`verify_evidence_claim_content()`. It never trusts a factory's contract-value
+digest. Symbol selection comes only from a compiler-owned registry of supported
+language-aware selectors; an unsupported language or unresolved/ambiguous
+symbol quarantines the node and excludes it from release. Sort all projections
+by stable IDs and use canonical JSON (`sort_keys=True`, compact separators,
+UTF-8) for SHA-256; evidence selections and contract values use Task 7's
+bounded lossless serializer.
 
 Emit runtime, UI, compatibility, node-index, and catalog-lock projections. The UI projection preserves artifact ports as ports and parameters as widgets; no fallback-to-string conversion exists.
 

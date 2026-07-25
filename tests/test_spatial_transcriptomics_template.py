@@ -6,6 +6,8 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from bionodulo.manager.example_data import EXAMPLE_DATA_MANIFEST
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,8 +71,8 @@ def test_spatial_transcriptomics_template_covers_visium_qc_and_scanpy_clustering
         "image_preview",
     }.issubset(set(workflow["tools"]))
 
-    # The synthetic count/coordinate CSV inputs were removed: scanpy_spatial now
-    # reads the real Visium .h5 directly (and derives the CSVs from it at run time).
+    # Both stages now consume explicit native artifacts: Squidpy reads the full
+    # Visium directory, then Scanpy consumes the resulting H5AD.
     assert node_types["visium_outs_001"] == "input_directory"
     assert node_types["squidpy_qc_001"] == "squidpy_qc"
     assert node_types["spatial_plot_preview_001"] == "image_preview"
@@ -81,7 +83,7 @@ def test_spatial_transcriptomics_template_covers_visium_qc_and_scanpy_clustering
 
     assert _has_edge(workflow, "visium_outs_001", "directory", "squidpy_qc_001", "visium_path")
     assert _has_edge(workflow, "squidpy_qc_001", "spatial_plot", "spatial_plot_preview_001", "file")
-    assert _has_edge(workflow, "visium_outs_001", "directory", "scanpy_spatial_001", "visium_path")
+    assert _has_edge(workflow, "squidpy_qc_001", "adata", "scanpy_spatial_001", "adata")
     assert _has_edge(workflow, "scanpy_spatial_001", "umap", "scanpy_umap_preview_001", "file")
 
 
@@ -109,10 +111,9 @@ def test_spatial_transcriptomics_template_validates_outputs_and_analysis_paramet
     assert squidpy_validator["expected_format"] == "auto"
     assert squidpy_validator["fail_on_error"] is True
 
-    # scanpy_spatial reads the real Visium directory (no CSV inputs).
-    assert _has_edge(workflow, "visium_outs_001", "directory", "scanpy_spatial_001", "visium_path")
+    assert _has_edge(workflow, "squidpy_qc_001", "adata", "scanpy_spatial_001", "adata")
     assert scanpy["params"]["sample_name"] == "visium_sample"
-    assert scanpy["params"]["delimiter"] == "comma"
+    assert "delimiter" not in scanpy["params"]
     assert scanpy["params"]["min_cells"] == 3
     assert scanpy["params"]["min_genes"] == 200
     assert scanpy["params"]["n_hvg"] == 2000
@@ -126,6 +127,32 @@ def test_spatial_transcriptomics_template_validates_outputs_and_analysis_paramet
     assert workflow["outputs"]["spatial_plot_preview"] == "spatial_plot_preview_001"
     assert workflow["outputs"]["scanpy_clusters"] == "scanpy_spatial_001"
     assert workflow["outputs"]["scanpy_umap_preview"] == "scanpy_umap_preview_001"
+
+
+def test_spatial_example_stages_complete_matching_visium_image_pair() -> None:
+    workflow = _load_template("spatial_transcriptomics_qc_clustering.json")
+    note = _node_by_id(workflow, "note_spatial_transcriptomics_pipeline")["params"]["text"]
+    spatial_files = {
+        item.filename: item.url
+        for item in EXAMPLE_DATA_MANIFEST
+        if item.category == "spatial_transcriptomics"
+    }
+
+    image_names = {
+        "visium_outs/spatial/tissue_hires_image.png",
+        "visium_outs/spatial/tissue_lowres_image.png",
+    }
+    assert image_names <= spatial_files.keys()
+    assert {
+        str(spatial_files[name]).rsplit("/spatial/", 1)[0]
+        for name in image_names
+    } == {
+        "https://raw.githubusercontent.com/nf-core/test-datasets/spatialvi/testdata/"
+        "human-brain-cancer-11-mm-capture-area-ffpe-2-standard_v2_ffpe_cytassist/outs"
+    }
+    assert "both hires and lowres tissue images" in note
+    assert "count matrix plus spot coordinates" not in note
+    assert "coordinates CSV" not in note
 
 
 def test_spatial_transcriptomics_template_is_discoverable_from_workflow_templates_api() -> None:

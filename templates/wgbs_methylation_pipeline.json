@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "WGBS Methylation Profiling",
-  "description": "Whole-genome bisulfite sequencing workflow that validates paired FASTQ, Bismark genome, and reference FASTA inputs, aligns reads with Bismark, gates the aligned BAM, extracts methylation calls with Bismark and MethylDackel, and generates an HTML methylation report.",
+  "description": "Whole-genome bisulfite sequencing workflow that validates paired FASTQ, Bismark genome, and reference FASTA inputs, aligns reads with Bismark, explicitly sorts and indexes the MethylDackel BAM, prepares the reference FAI, and extracts methylation calls with Bismark and MethylDackel.",
   "category": "Epigenomics",
   "tags": [
     "epigenomics",
@@ -18,6 +18,9 @@
     "input_fasta",
     "bismark_align",
     "gate",
+    "samtools_sort",
+    "samtools_index",
+    "samtools_faidx",
     "bismark_methylation_extractor",
     "methyldackel"
   ],
@@ -30,7 +33,7 @@
         80
       ],
       "params": {
-        "text": "WGBS methylation workflow: validate paired FASTQ reads, Bismark-prepared genome folder, and reference FASTA; align with Bismark; gate the aligned BAM before methylation extraction; run both Bismark methylation extractor and MethylDackel; then generate an HTML report.\n\nInputs are placeholders. Point R1/R2 FASTQ, genome folder, and reference FASTA at local WGBS data before execution."
+        "text": "WGBS methylation workflow: validate paired FASTQ reads, Bismark-prepared genome folder, and reference FASTA; align with Bismark; gate the aligned BAM; coordinate-sort and index the MethylDackel branch; build the reference FAI; then run Bismark methylation extractor and MethylDackel.\n\nInputs are placeholders. Point R1/R2 FASTQ, genome folder, and reference FASTA at local WGBS data before execution."
       },
       "ui": {
         "title": "Notes",
@@ -39,19 +42,21 @@
     },
     {
       "id": "r1_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         80,
         80
       ],
       "params": {
-        "file": "examples/data/epigenomics/sample_R1.fastq.gz"
+        "reads": [
+          "templates/data/smoke/paired_R1.fastq"
+        ]
       },
       "ui": {
         "title": "R1 FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -63,19 +68,21 @@
     },
     {
       "id": "r2_001",
-      "type": "input_file",
+      "type": "input_fastq",
       "position": [
         80,
         231
       ],
       "params": {
-        "file": "examples/data/epigenomics/sample_R2.fastq.gz"
+        "reads": [
+          "templates/data/smoke/paired_R2.fastq"
+        ]
       },
       "ui": {
         "title": "R2 FASTQ",
         "validation": {
           "outputs": {
-            "file": {
+            "read1": {
               "expected_format": "fastq",
               "min_records": 1,
               "min_size_bytes": 1,
@@ -116,7 +123,7 @@
         533
       ],
       "params": {
-        "reference": "examples/data/epigenomics/reference.fasta"
+        "reference": "templates/data/smoke/reference.fasta"
       },
       "ui": {
         "title": "Reference FASTA",
@@ -190,14 +197,58 @@
       }
     },
     {
-      "id": "methyldackel_001",
-      "type": "methyldackel",
+      "id": "samtools_sort_methyldackel_001",
+      "type": "samtools_sort",
+      "position": [
+        920,
+        430
+      ],
+      "params": {
+        "threads": 4,
+        "memory_per_thread": "768M"
+      },
+      "ui": {
+        "title": "Sort MethylDackel BAM"
+      }
+    },
+    {
+      "id": "samtools_index_methyldackel_001",
+      "type": "samtools_index",
       "position": [
         1160,
         430
       ],
       "params": {
+        "threads": 2
+      },
+      "ui": {
+        "title": "Index MethylDackel BAM"
+      }
+    },
+    {
+      "id": "samtools_faidx_methyldackel_001",
+      "type": "samtools_faidx",
+      "position": [
+        800,
+        600
+      ],
+      "params": {
+        "threads": 1
+      },
+      "ui": {
+        "title": "Index MethylDackel Reference"
+      }
+    },
+    {
+      "id": "methyldackel_001",
+      "type": "methyldackel",
+      "position": [
+        1520,
+        430
+      ],
+      "params": {
         "output_prefix": "wgbs_methyldackel",
+        "threads": 4,
         "merge_context": true,
         "min_depth": 1
       },
@@ -245,9 +296,7 @@
         300,
         382
       ],
-      "params": {
-        "aligner": "bowtie2"
-      },
+      "params": {},
       "ui": {
         "title": "Bismark Genome Preparation"
       }
@@ -258,7 +307,7 @@
       "id": "e5",
       "from": {
         "node": "r1_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "bismark_align_001",
@@ -269,7 +318,7 @@
       "id": "e6",
       "from": {
         "node": "r2_001",
-        "output": "file"
+        "output": "read1"
       },
       "to": {
         "node": "bismark_align_001",
@@ -327,8 +376,8 @@
         "output": "output"
       },
       "to": {
-        "node": "methyldackel_001",
-        "input": "bam"
+        "node": "samtools_sort_methyldackel_001",
+        "input": "alignment"
       }
     },
     {
@@ -338,14 +387,69 @@
         "output": "reference"
       },
       "to": {
+        "node": "samtools_faidx_methyldackel_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e13",
+      "from": {
+        "node": "samtools_sort_methyldackel_001",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "samtools_index_methyldackel_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e14",
+      "from": {
+        "node": "samtools_index_methyldackel_001",
+        "output": "indexed_bam"
+      },
+      "to": {
+        "node": "methyldackel_001",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e15",
+      "from": {
+        "node": "samtools_index_methyldackel_001",
+        "output": "bai"
+      },
+      "to": {
+        "node": "methyldackel_001",
+        "input": "bam_index"
+      }
+    },
+    {
+      "id": "e16",
+      "from": {
+        "node": "samtools_faidx_methyldackel_001",
+        "output": "reference"
+      },
+      "to": {
         "node": "methyldackel_001",
         "input": "reference"
       }
     },
     {
+      "id": "e17",
+      "from": {
+        "node": "samtools_faidx_methyldackel_001",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "methyldackel_001",
+        "input": "reference_index"
+      }
+    },
+    {
       "from": {
         "node": "bismark_methylation_001",
-        "output": "methylation_output"
+        "output": "mbias_report"
       },
       "to": {
         "node": "render_bismark_methylation_tab_0",
@@ -381,6 +485,8 @@
     "validated_reference": "reference_001",
     "aligned_bam_quality_gate": "gate_bismark_bam_001",
     "aligned_bam": "bismark_align_001",
+    "methyldackel_indexed_bam": "samtools_index_methyldackel_001",
+    "methyldackel_indexed_reference": "samtools_faidx_methyldackel_001",
     "bismark_methylation": "bismark_methylation_001",
     "methyldackel_bedgraph": "methyldackel_001",
     "methyldackel_mbias": "methyldackel_001"

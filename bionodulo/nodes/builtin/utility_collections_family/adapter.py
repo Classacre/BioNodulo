@@ -1,0 +1,703 @@
+"""Shared contracts for focused string and collection utility nodes."""
+from __future__ import annotations
+
+import json
+import math
+import random
+import re
+import string
+from typing import Any
+
+from bionodulo.nodes.base import BaseNode
+
+
+BIO_NODULO_BASELINE_COMMIT = "a32a426c03ce4c925bf7dcdbd2cf08fbdedd55e9"
+CPYTHON_VERSION = "3.12.3"
+CPYTHON_GIT_COMMIT = "f6650f9ad73359051f3e558c2431a109bc016664"
+CPYTHON_JSON_SOURCE_URL = f"https://github.com/python/cpython/blob/{CPYTHON_GIT_COMMIT}/Lib/json/__init__.py"
+CPYTHON_RANDOM_SOURCE_URL = f"https://github.com/python/cpython/blob/{CPYTHON_GIT_COMMIT}/Lib/random.py"
+CPYTHON_RE_SOURCE_URL = f"https://github.com/python/cpython/blob/{CPYTHON_GIT_COMMIT}/Lib/re/__init__.py"
+CPYTHON_STRING_SOURCE_URL = f"https://github.com/python/cpython/blob/{CPYTHON_GIT_COMMIT}/Lib/string.py"
+
+
+class UtilityCollectionsNode(BaseNode):
+    """Pinned Python semantics shared by native collection utility nodes."""
+
+    CATEGORY = "utils"
+    REQUIRES_EXTERNAL_TOOLS = False
+    VERSION = "1.0.0"
+    GIT_URL = "https://github.com/Classacre/BioNodulo.git"
+    GIT_COMMIT = BIO_NODULO_BASELINE_COMMIT
+    DOCUMENTATION_URL = (
+        "https://github.com/Classacre/BioNodulo/blob/"
+        f"{BIO_NODULO_BASELINE_COMMIT}/bionodulo/nodes/builtin/utility_collections.py"
+    )
+    SOURCE_URL = DOCUMENTATION_URL
+    UPSTREAM_SOURCE = "bionodulo/nodes/builtin/utility_collections.py"
+    RUNTIME_VERSION = CPYTHON_VERSION
+    RUNTIME_GIT_COMMIT = CPYTHON_GIT_COMMIT
+    RUNTIME_SOURCE_URLS = (
+        CPYTHON_JSON_SOURCE_URL,
+        CPYTHON_RANDOM_SOURCE_URL,
+        CPYTHON_RE_SOURCE_URL,
+        CPYTHON_STRING_SOURCE_URL,
+    )
+    EXIT_SEMANTICS = "Malformed inputs, invalid modes, and out-of-range selections raise before success."
+
+    @classmethod
+    def _validate_inputs(
+        cls,
+        inputs: dict[str, Any],
+        *,
+        skip_choices: frozenset[str] = frozenset(),
+        allow_missing_required: bool = False,
+    ) -> bool | str:
+        for section in ("required", "optional"):
+            for name, spec in cls.INPUT_TYPES().get(section, {}).items():
+                config = spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {}
+                if name not in inputs or inputs[name] is None:
+                    if section == "required" and "default" not in config and not allow_missing_required:
+                        return f"Required input '{name}' is missing"
+                    continue
+
+                value = inputs[name]
+                type_spec = spec[0]
+                if isinstance(type_spec, list):
+                    if name not in skip_choices and str(value) not in type_spec:
+                        return f"Input '{name}' must be one of: {', '.join(type_spec)}"
+                elif type_spec == "STRING" and not isinstance(value, str):
+                    return f"Input '{name}' must be a string"
+                elif type_spec == "BOOLEAN" and not isinstance(value, bool):
+                    return f"Input '{name}' must be a boolean"
+                elif type_spec == "INT":
+                    if isinstance(value, bool):
+                        return f"Input '{name}' must be an integer"
+                    try:
+                        value = int(value)
+                    except (TypeError, ValueError):
+                        return f"Input '{name}' must be an integer"
+                    if isinstance(inputs[name], float) and not inputs[name].is_integer():
+                        return f"Input '{name}' must be an integer"
+                elif type_spec == "FLOAT":
+                    if isinstance(value, bool):
+                        return f"Input '{name}' must be a number"
+                    try:
+                        value = float(value)
+                    except (TypeError, ValueError):
+                        return f"Input '{name}' must be a number"
+                    if not math.isfinite(value):
+                        return f"Input '{name}' must be finite"
+
+                choices = config.get("options")
+                if choices and name not in skip_choices and str(value) not in choices:
+                    return f"Input '{name}' must be one of: {', '.join(str(choice) for choice in choices)}"
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    if "min" in config and value < config["min"]:
+                        return f"Input '{name}' must be at least {config['min']}"
+                    if "max" in config and value > config["max"]:
+                        return f"Input '{name}' must be at most {config['max']}"
+        return True
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
+        return cls._validate_inputs(inputs)
+
+    @classmethod
+    def require_valid_inputs(
+        cls,
+        inputs: dict[str, Any],
+        *,
+        skip_choices: frozenset[str] = frozenset(),
+    ) -> None:
+        validation = cls._validate_inputs(
+            inputs,
+            skip_choices=skip_choices,
+            allow_missing_required=True,
+        )
+        if validation is not True:
+            raise ValueError(str(validation))
+
+
+def _decode_delimiter(delimiter: Any, default: str = "\n") -> str:
+    text = str(delimiter if delimiter is not None else default)
+    return {"\\n": "\n", "\\t": "\t", "\\r": "\r"}.get(text, text)
+
+
+def _parse_items(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value]
+
+    text = str(value if value is not None else "").strip()
+    if not text:
+        return []
+
+    if text[0] in "[{":
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"items must be valid JSON or comma/newline text: {exc.msg}") from exc
+        if not isinstance(parsed, list):
+            raise ValueError("items JSON must be a list")
+        return [str(item) for item in parsed]
+
+    separator = "\n" if "\n" in text else ","
+    return [item.strip() for item in text.split(separator) if item.strip()]
+
+
+def _to_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _parse_json_object(value: Any, field_name: str = "dictionary") -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+
+    text = str(value if value is not None else "").strip()
+    if not text:
+        return {}
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{field_name} must be valid JSON object: {exc.msg}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{field_name} must be a JSON object")
+    return dict(parsed)
+
+
+def _parse_json_value(value: Any, field_name: str) -> Any:
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            raise ValueError(f"{field_name} must be valid JSON")
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{field_name} must be valid JSON: {exc.msg}") from exc
+    return value
+
+
+class _StringOperationsContract(UtilityCollectionsNode):
+    """Multi-mode string manipulation node."""
+
+    LEGACY_NODE_ID = "string_operations"
+    DISPLAY_NAME = "String Operations"
+    CATEGORY = "utils"
+    DESCRIPTION = "String manipulation: concat, replace, trim, case conversion, regex, split, length, contains"
+    SEARCH_ALIASES = [
+        "string",
+        "text",
+        "concat",
+        "concatenate",
+        "uppercase",
+        "lowercase",
+        "regex",
+        "replace",
+        "trim",
+        "split",
+        "length",
+        "contains",
+        "startswith",
+        "endswith",
+    ]
+    RETURN_TYPES = ("STRING", "INT", "BOOLEAN")
+    RETURN_NAMES = ("result", "length", "matched")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        operations = [
+            "concat",
+            "concatenate",
+            "upper",
+            "uppercase",
+            "lower",
+            "lowercase",
+            "regex_replace",
+            "regex_match",
+            "split",
+            "replace",
+            "trim",
+            "length",
+            "substring",
+            "contains",
+            "startswith",
+            "endswith",
+        ]
+        return {
+            "required": {
+                "operation": (
+                    operations,
+                    {"default": "concat", "description": "String operation"},
+                ),
+                "string": ("STRING", {"default": "", "multiline": True, "description": "Primary string"}),
+            },
+            "optional": {
+                "string_b": ("STRING", {"default": "", "description": "Secondary string"}),
+                "delimiter": ("STRING", {"default": "", "description": "Delimiter for concat or split"}),
+                "old": ("STRING", {"default": "", "description": "Text to replace"}),
+                "new": ("STRING", {"default": "", "description": "Replacement text"}),
+                "start": ("INT", {"default": 0, "description": "Start index for substring"}),
+                "end": ("INT", {"default": -1, "description": "End index for substring; -1 means end"}),
+                "pattern": ("STRING", {"default": "", "description": "Regex pattern"}),
+                "replacement": ("STRING", {"default": "", "description": "Regex replacement"}),
+                "index": ("INT", {"default": 0, "description": "Split item index"}),
+                "group": ("INT", {"default": 0, "min": 0, "description": "Regex match capture group"}),
+                "count": ("INT", {"default": -1, "description": "Maximum replacements; -1 replaces all"}),
+                "substring": ("STRING", {"default": "", "description": "Substring to search for"}),
+                "prefix": ("STRING", {"default": "", "description": "Prefix to test for startswith"}),
+                "suffix": ("STRING", {"default": "", "description": "Suffix to test for endswith"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, int, bool]:
+        self.require_valid_inputs(kwargs, skip_choices=frozenset({"operation"}))
+        operation = str(kwargs.get("operation", "concat"))
+        text = str(kwargs.get("string", ""))
+
+        if operation in {"concat", "concatenate"}:
+            delimiter = _decode_delimiter(kwargs.get("delimiter", ""), default="")
+            result = f"{text}{delimiter}{kwargs.get('string_b', '')}"
+            return (result, len(result), False)
+
+        if operation in {"upper", "uppercase"}:
+            result = text.upper()
+            return (result, len(result), False)
+
+        if operation in {"lower", "lowercase"}:
+            result = text.lower()
+            return (result, len(result), False)
+
+        if operation == "regex_replace":
+            pattern = str(kwargs.get("pattern", ""))
+            if not pattern:
+                raise ValueError("regex_replace requires a non-empty pattern")
+            try:
+                result, count = re.subn(pattern, str(kwargs.get("replacement", "")), text)
+            except re.error as exc:
+                raise ValueError(f"Invalid regex pattern: {exc}") from exc
+            return (result, len(result), count > 0)
+
+        if operation == "regex_match":
+            pattern = str(kwargs.get("pattern", ""))
+            if not pattern:
+                raise ValueError("regex_match requires a non-empty pattern")
+            group = int(kwargs.get("group", 0))
+            try:
+                match = re.search(pattern, text)
+            except re.error as exc:
+                raise ValueError(f"Invalid regex pattern: {exc}") from exc
+            if match is None:
+                return ("", 0, False)
+            if group > len(match.groups()):
+                raise ValueError(f"group {group} is out of range for {len(match.groups())} capture groups")
+            return (match.group(group), len(match.groups()), True)
+
+        if operation == "split":
+            delimiter = _decode_delimiter(kwargs.get("delimiter", ","))
+            if delimiter == "":
+                raise ValueError("split requires a non-empty delimiter")
+            parts = text.split(delimiter)
+            index = int(kwargs.get("index", 0))
+            if not -len(parts) <= index < len(parts):
+                raise ValueError(f"split index {index} is out of range for {len(parts)} items")
+            return (parts[index], len(parts), True)
+
+        if operation == "replace":
+            old = str(kwargs.get("old", ""))
+            if old == "":
+                raise ValueError("replace requires non-empty old text")
+            new = str(kwargs.get("new", ""))
+            count = int(kwargs.get("count", -1))
+            result = text.replace(old, new, count if count >= 0 else -1)
+            return (result, len(result), False)
+
+        if operation == "trim":
+            result = text.strip()
+            return (result, len(result), False)
+
+        if operation == "length":
+            return (text, len(text), False)
+
+        if operation == "substring":
+            start = int(kwargs.get("start", 0))
+            end = int(kwargs.get("end", -1))
+            result = text[start:] if end < 0 else text[start:end]
+            return (result, len(result), False)
+
+        if operation == "contains":
+            substring = str(kwargs.get("substring", kwargs.get("string_b", "")))
+            return ("", 0, substring in text)
+
+        if operation == "startswith":
+            prefix = str(kwargs.get("prefix", kwargs.get("string_b", "")))
+            return ("", 0, text.startswith(prefix))
+
+        if operation == "endswith":
+            suffix = str(kwargs.get("suffix", kwargs.get("string_b", "")))
+            return ("", 0, text.endswith(suffix))
+
+        raise ValueError(f"Unsupported string operation: {operation}")
+
+
+class _RegexExtractContract(UtilityCollectionsNode):
+    """Extract regex matches from text."""
+
+    LEGACY_NODE_ID = "regex_extract"
+    DISPLAY_NAME = "Regex Extract"
+    CATEGORY = "utils"
+    DESCRIPTION = "Extract text using regular expressions with capture group selection"
+    SEARCH_ALIASES = ["regex", "extract", "capture", "pattern", "match", "text parse"]
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("matches_json", "count")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "text": ("STRING", {"default": "", "multiline": True, "description": "Text to search"}),
+                "pattern": ("STRING", {"default": "", "description": "Regular expression pattern"}),
+            },
+            "optional": {
+                "group": ("INT", {"default": 0, "min": 0, "description": "Capture group to return; 0 returns full match"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, int]:
+        self.require_valid_inputs(kwargs)
+        text = str(kwargs.get("text", ""))
+        pattern = str(kwargs.get("pattern", "") or "")
+        if not pattern:
+            raise ValueError("pattern is required")
+        group = int(kwargs.get("group", 0))
+
+        try:
+            compiled = re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"Invalid regex pattern: {exc}") from exc
+
+        matches: list[str] = []
+        for match in compiled.finditer(text):
+            if group > len(match.groups()):
+                raise ValueError(f"group {group} is out of range for {len(match.groups())} capture groups")
+            matches.append(match.group(group))
+
+        return (_to_json(matches), len(matches))
+
+
+class _TextTemplateContract(UtilityCollectionsNode):
+    """Render text from a template and JSON variables."""
+
+    LEGACY_NODE_ID = "text_template"
+    DISPLAY_NAME = "Text Template"
+    CATEGORY = "utils"
+    DESCRIPTION = "Fill a text template with variables from a JSON object"
+    SEARCH_ALIASES = ["template", "text template", "format text", "variables", "render"]
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("output",)
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "template": (
+                    "STRING",
+                    {"default": "", "multiline": True, "description": "Template using $name or ${name} placeholders"},
+                ),
+                "variables": (
+                    "STRING",
+                    {"default": "{}", "multiline": True, "description": "JSON object with template variables"},
+                ),
+            },
+            "optional": {},
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str]:
+        self.require_valid_inputs(kwargs)
+        template_text = str(kwargs.get("template", ""))
+        variables = _parse_json_object(kwargs.get("variables", "{}"), "variables")
+        try:
+            rendered = string.Template(template_text).substitute({key: str(value) for key, value in variables.items()})
+        except KeyError as exc:
+            raise ValueError(f"Missing template variable: {exc.args[0]}") from exc
+        except ValueError as exc:
+            raise ValueError(f"Invalid template: {exc}") from exc
+        return (rendered,)
+
+
+class _ListOperationsContract(UtilityCollectionsNode):
+    """Multi-mode list manipulation node."""
+
+    LEGACY_NODE_ID = "list_operations"
+    DISPLAY_NAME = "List Operations"
+    CATEGORY = "utils"
+    DESCRIPTION = "List manipulation: join, append, prepend, get, slice, reverse, unique, sort, length, contains"
+    SEARCH_ALIASES = ["list", "array", "collection", "join", "append", "prepend", "get", "slice", "reverse", "unique", "sort", "length", "contains"]
+    RETURN_TYPES = ("STRING", "INT", "BOOLEAN")
+    RETURN_NAMES = ("result", "length", "contains")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "operation": (
+                    ["join", "append", "prepend", "get", "slice", "reverse", "unique", "sort", "length", "contains"],
+                    {"default": "length", "description": "List operation"},
+                ),
+                "items": (
+                    "STRING",
+                    {"default": "", "multiline": True, "description": "JSON list, comma text, or newline text"},
+                ),
+            },
+            "optional": {
+                "item": ("STRING", {"default": "", "description": "Item for append/prepend/contains"}),
+                "index": ("INT", {"default": 0, "description": "Index for get"}),
+                "start": ("INT", {"default": 0, "description": "Start index for slice"}),
+                "end": ("INT", {"default": -1, "description": "End index for slice; negative means through the end"}),
+                "delimiter": ("STRING", {"default": ",", "description": "Delimiter for join"}),
+                "reverse": ("BOOLEAN", {"default": False, "description": "Reverse sort order"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, int, bool]:
+        self.require_valid_inputs(kwargs, skip_choices=frozenset({"operation"}))
+        operation = str(kwargs.get("operation", "length"))
+        items = _parse_items(kwargs.get("items", ""))
+
+        if operation == "join":
+            delimiter = _decode_delimiter(kwargs.get("delimiter", ","))
+            return (delimiter.join(items), len(items), False)
+
+        if operation == "append":
+            result = [*items, str(kwargs.get("item", ""))]
+            return (_to_json(result), len(result), False)
+
+        if operation == "prepend":
+            result = [str(kwargs.get("item", "")), *items]
+            return (_to_json(result), len(result), False)
+
+        if operation == "get":
+            index = int(kwargs.get("index", 0) or 0)
+            if -len(items) <= index < len(items):
+                return (items[index], len(items), True)
+            return ("", len(items), False)
+
+        if operation == "slice":
+            start = int(kwargs.get("start", 0) or 0)
+            end = int(kwargs.get("end", -1) or -1)
+            result = items[start:end] if end >= 0 else items[start:]
+            return (_to_json(result), len(result), False)
+
+        if operation == "reverse":
+            result = list(reversed(items))
+            return (_to_json(result), len(result), False)
+
+        if operation == "unique":
+            result = list(dict.fromkeys(items))
+            return (_to_json(result), len(result), False)
+
+        if operation == "sort":
+            reverse = bool(kwargs.get("reverse", False))
+            result = sorted(items, key=_sort_key, reverse=reverse)
+            return (_to_json(result), len(result), False)
+
+        if operation == "length":
+            return ("", len(items), False)
+
+        if operation == "contains":
+            return ("", len(items), str(kwargs.get("item", "")) in items)
+
+        raise ValueError(f"Unsupported list operation: {operation}")
+
+
+def _sort_key(item: str) -> tuple[int, float | str]:
+    try:
+        return (0, float(item))
+    except ValueError:
+        return (1, item)
+
+
+class _SelectFromListContract(UtilityCollectionsNode):
+    """Select a single item from a list."""
+
+    LEGACY_NODE_ID = "select_from_list"
+    DISPLAY_NAME = "Select From List"
+    CATEGORY = "utils"
+    DESCRIPTION = "Select one item from a list by index, first, last, or random mode"
+    SEARCH_ALIASES = ["select", "pick", "choose", "list", "index", "first", "last", "random"]
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("item", "index")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "mode": (["index", "first", "last", "random"], {"default": "index", "description": "Selection mode"}),
+                "items": (
+                    "STRING",
+                    {"default": "", "multiline": True, "description": "JSON list, comma text, or newline text"},
+                ),
+            },
+            "optional": {
+                "index": ("INT", {"default": 0, "description": "Index for index mode"}),
+                "seed": ("INT", {"default": 0, "description": "Optional seed for random mode; 0 uses system randomness"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, int]:
+        self.require_valid_inputs(kwargs, skip_choices=frozenset({"mode"}))
+        mode = str(kwargs.get("mode", "index"))
+        items = _parse_items(kwargs.get("items", ""))
+        if not items:
+            raise ValueError("Cannot select from an empty list")
+
+        if mode == "index":
+            index = int(kwargs.get("index", 0))
+        elif mode == "first":
+            index = 0
+        elif mode == "last":
+            index = len(items) - 1
+        elif mode == "random":
+            seed = int(kwargs.get("seed", 0))
+            rng = random.Random(seed) if seed else random
+            index = rng.randrange(len(items))
+        else:
+            raise ValueError(f"Unsupported select mode: {mode}")
+
+        if not -len(items) <= index < len(items):
+            raise ValueError(f"index {index} is out of range for {len(items)} items")
+        if index < 0:
+            index += len(items)
+        return (items[index], index)
+
+
+class _FlattenNestedContract(UtilityCollectionsNode):
+    """Flatten nested JSON lists and object values."""
+
+    LEGACY_NODE_ID = "flatten_nested"
+    DISPLAY_NAME = "Flatten Nested"
+    CATEGORY = "utils"
+    DESCRIPTION = "Flatten nested lists or JSON object values into a single JSON list"
+    SEARCH_ALIASES = ["flatten", "nested", "list", "json", "array", "unnest"]
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("flattened_json", "count")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "data": (
+                    "STRING",
+                    {"default": "[]", "multiline": True, "description": "JSON list, object, or scalar to flatten"},
+                ),
+            },
+            "optional": {
+                "max_depth": (
+                    "INT",
+                    {"default": -1, "description": "Maximum nested levels to flatten; negative flattens all levels"},
+                ),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, int]:
+        self.require_valid_inputs(kwargs)
+        data = _parse_json_value(kwargs.get("data", "[]"), "data")
+        max_depth = int(kwargs.get("max_depth", -1))
+        flattened = _flatten_value(data, max_depth=max_depth)
+        return (_to_json(flattened), len(flattened))
+
+
+def _flatten_value(value: Any, max_depth: int, depth: int = 0) -> list[Any]:
+    should_descend = max_depth < 0 or depth <= max_depth
+    if isinstance(value, list) and should_descend:
+        result: list[Any] = []
+        for item in value:
+            result.extend(_flatten_value(item, max_depth=max_depth, depth=depth + 1))
+        return result
+    if isinstance(value, dict) and should_descend:
+        result = []
+        for item in value.values():
+            result.extend(_flatten_value(item, max_depth=max_depth, depth=depth + 1))
+        return result
+    return [value]
+
+
+class _DictionaryContract(UtilityCollectionsNode):
+    """JSON object dictionary operations."""
+
+    LEGACY_NODE_ID = "dictionary"
+    DISPLAY_NAME = "Dictionary"
+    CATEGORY = "utils"
+    DESCRIPTION = "JSON object operations: get, set, keys, values, merge, remove, has_key"
+    SEARCH_ALIASES = ["dict", "map", "dictionary", "key-value", "json", "object", "properties"]
+    RETURN_TYPES = ("STRING", "STRING", "INT")
+    RETURN_NAMES = ("result_json", "value", "count")
+    REQUIRES_EXTERNAL_TOOLS = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
+        return {
+            "required": {
+                "operation": (
+                    ["get", "set", "keys", "values", "merge", "remove", "has_key"],
+                    {"default": "get", "description": "Dictionary operation"},
+                ),
+                "dictionary": ("STRING", {"default": "{}", "multiline": True, "description": "Dictionary as JSON object"}),
+            },
+            "optional": {
+                "key": ("STRING", {"default": "", "description": "Key"}),
+                "value": ("STRING", {"default": "", "description": "Value for set"}),
+                "dictionary_b": ("STRING", {"default": "{}", "multiline": True, "description": "Second JSON object for merge"}),
+            },
+            "hidden": {},
+        }
+
+    async def run(self, **kwargs: Any) -> tuple[str, str, int]:
+        self.require_valid_inputs(kwargs, skip_choices=frozenset({"operation"}))
+        operation = str(kwargs.get("operation", "get"))
+        data = _parse_json_object(kwargs.get("dictionary", "{}"))
+        key = str(kwargs.get("key", ""))
+        result_json = _to_json(data)
+
+        if operation == "get":
+            return (result_json, _json_value(data.get(key, "")), len(data))
+
+        if operation == "set":
+            data[key] = str(kwargs.get("value", ""))
+            return (_to_json(data), _json_value(data[key]), len(data))
+
+        if operation == "keys":
+            return (result_json, _to_json(list(data.keys())), len(data))
+
+        if operation == "values":
+            return (result_json, _to_json(list(data.values())), len(data))
+
+        if operation == "merge":
+            data.update(_parse_json_object(kwargs.get("dictionary_b", "{}"), field_name="dictionary_b"))
+            return (_to_json(data), "", len(data))
+
+        if operation == "remove":
+            data.pop(key, None)
+            return (_to_json(data), "", len(data))
+
+        if operation == "has_key":
+            return (result_json, "true" if key in data else "false", len(data))
+
+        raise ValueError(f"Unsupported dictionary operation: {operation}")
+
+
+def _json_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return _to_json(value)

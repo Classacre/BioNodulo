@@ -73,8 +73,12 @@
         80
       ],
       "params": {
+        "run_id": "tinygex",
         "sample": "tinygex",
-        "expect_cells": 100
+        "expect_cells": 100,
+        "threads": 16,
+        "memory": 64,
+        "create_bam": false
       },
       "ui": {
         "title": "Cell Ranger Count",
@@ -171,24 +175,6 @@
       }
     },
     {
-      "id": "metrics_summary_chart_001",
-      "type": "bar_chart",
-      "position": [
-        1160,
-        430
-      ],
-      "params": {
-        "title": "Cell Ranger Metrics Summary",
-        "x_column": "Metric Name",
-        "y_column": "Metric Value",
-        "orientation": "horizontal",
-        "format": "svg"
-      },
-      "ui": {
-        "title": "Metrics Summary Chart"
-      }
-    },
-    {
       "id": "render_cr_count_tab_0",
       "type": "table_preview",
       "position": [
@@ -264,17 +250,6 @@
       "to": {
         "node": "html_preview_001",
         "input": "file"
-      }
-    },
-    {
-      "id": "e3e",
-      "from": {
-        "node": "cr_count_001",
-        "output": "metrics_summary"
-      },
-      "to": {
-        "node": "metrics_summary_chart_001",
-        "input": "table"
       }
     },
     {
@@ -372,7 +347,6 @@
     "validated_reference_dir": "ref_001",
     "validated_web_summary": "cr_count_001",
     "validated_metrics_summary": "cr_count_001",
-    "metrics_summary_chart": "metrics_summary_chart_001",
     "web_summary_quality_gate": "gate_web_summary_001",
     "qc_dashboard": "qc_dashboard_001",
     "qc_dashboard_preview": "qc_dashboard_preview_001",
