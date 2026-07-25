@@ -14,10 +14,24 @@ same contract — the whole point of the standard.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+NODE_METADATA = ROOT / "bionodulo" / "nodes" / "node_metadata.json"
+
+
+def unswept_node_ids(advertised: Iterable[str], loaded: Iterable[str]) -> tuple[str, ...]:
+    """Node IDs the palette advertises that the conformance sweep never sees.
+
+    The sweep below iterates the nodes that successfully *loaded*, so a module
+    that fails to import silently drops out of it — the gate passes while the
+    node is unusable. Comparing against the advertised manifest is what makes
+    that failure visible.
+    """
+    return tuple(sorted(set(advertised) - set(loaded)))
 
 
 def _load_linter():
@@ -51,6 +65,35 @@ def test_all_builtin_nodes_pass_static_conformance() -> None:
         "Node standard violations (ERROR level) — fix the node or update the "
         "standard in scripts/node_linter.py:\n  " + "\n  ".join(errors)
     )
+
+
+def test_conformance_sweep_covers_every_advertised_node() -> None:
+    """Every node the palette offers must actually reach the linter.
+
+    Without this, a module that fails to import vanishes from the sweep and the
+    gate reports success on a catalog it never inspected.
+    """
+    from bionodulo.nodes.registry import NodeRegistry
+
+    registry = NodeRegistry()
+    registry.load_builtin_nodes()
+
+    advertised = json.loads(NODE_METADATA.read_text(encoding="utf-8"))
+    # Non-vacuity: an empty manifest would make this assertion meaningless.
+    assert len(advertised) > 900, "node metadata manifest looks truncated"
+    missing = unswept_node_ids(advertised, registry._nodes)
+
+    assert not missing, (
+        f"{len(missing)} advertised node(s) never reached the conformance sweep — "
+        "they are offered in the palette but cannot be imported:\n  "
+        + "\n  ".join(missing)
+    )
+
+
+def test_coverage_check_detects_an_unloadable_node() -> None:
+    """Guard the guard: the coverage check must notice a node that never loads."""
+    assert unswept_node_ids(["a", "b"], ["a", "b"]) == ()
+    assert unswept_node_ids(["a", "b"], ["a"]) == ("b",)
 
 
 def test_linter_detects_known_bad_patterns() -> None:
