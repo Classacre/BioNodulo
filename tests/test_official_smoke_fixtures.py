@@ -31,6 +31,7 @@ TEMPLATES = ROOT / "templates"
 # upstream sources; these do not.
 ALLOWED_LOCAL_INPUTS = {
     "templates/data/deseq2_gene_sets.json",
+    "templates/data/smoke/coding_sequences.fasta",
     "templates/data/smoke/counts.csv",
     "templates/data/smoke/heatmap_annotation.csv",
     "templates/data/smoke/heatmap_data.csv",

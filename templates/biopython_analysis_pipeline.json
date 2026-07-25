@@ -120,8 +120,8 @@
         427
       ],
       "params": {
-        "file_path": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/genome/transcriptome.fasta",
-        "reference": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/genome/transcriptome.fasta"
+        "file_path": "templates/data/smoke/coding_sequences.fasta",
+        "reference": "templates/data/smoke/coding_sequences.fasta"
       },
       "ui": {
         "title": "Coding DNA FASTA",
