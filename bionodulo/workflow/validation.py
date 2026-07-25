@@ -77,7 +77,7 @@ def validate_workflow(
         return ValidationResult(valid=False, errors=errors, warnings=warnings)
 
     edges = workflow.get("edges", [])
-    parameter_names = _validate_workflow_parameters(workflow.get("parameters", []), errors)
+    parameter_names = _validate_workflow_parameters(workflow.get("parameters", []), errors, warnings)
 
     def registry_lookup(node_type: str) -> Any:
         if registry is None:
@@ -275,7 +275,9 @@ def _version_matches(saved_version: str, pattern: str) -> bool:
     return saved_version == pattern or fnmatch.fnmatch(saved_version, pattern)
 
 
-def _validate_workflow_parameters(raw_parameters: Any, errors: list[str]) -> set[str]:
+def _validate_workflow_parameters(
+    raw_parameters: Any, errors: list[str], warnings: list[str]
+) -> set[str]:
     """Validate workflow-level parameter definitions."""
     if raw_parameters in (None, {}):
         return set()
@@ -301,6 +303,20 @@ def _validate_workflow_parameters(raw_parameters: Any, errors: list[str]) -> set
         param_type = raw_type.strip() if isinstance(raw_type, str) else ""
         if not param_type:
             errors.append(f"Workflow parameter '{name}' must have a non-empty type")
+
+        # A required parameter with neither value nor default cannot resolve
+        # from the definition alone. It is NOT an error: the run may supply it
+        # (the executor accepts runtime overrides), and some templates require a
+        # user-provided file by design — a custom SnpEff predictor, say. But it
+        # is worth surfacing, because if the submission also omits it the run
+        # dies on the worker after a VM has booted and a credit is spent, which
+        # is how two official templates failed at ~41s into a paid run.
+        if bool(parameter.get("required", False)):
+            if parameter.get("value") is None and parameter.get("default") is None:
+                warnings.append(
+                    f"Required workflow parameter '{name}' has no value or default; "
+                    "the run must supply it"
+                )
     return seen
 
 

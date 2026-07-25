@@ -248,3 +248,54 @@ def test_validation_rejects_explicit_unknown_source_output_ports() -> None:
     assert result.errors == [
         "Edge from node 'source' (versioned_validation) references unknown output port 'removed_output'"
     ]
+
+
+def test_validation_warns_on_required_parameter_without_a_value() -> None:
+    """A required parameter with no value must fail before provisioning.
+
+    The executor already refuses to run these, but that happens on the worker —
+    after a spot VM has booted and a credit has been spent. Two official
+    templates failed exactly this way (snpeff_genome / snpeff_database) at ~41s
+    into a paid run, so the same check belongs in validation, which preflight
+    calls before anything is provisioned.
+    """
+    workflow = {
+        "nodes": [{"id": "input", "type": "input_file", "params": {}}],
+        "edges": [],
+        "parameters": [
+            {"name": "snpeff_database", "type": "STRING", "required": True},
+        ],
+    }
+
+    result = validate_workflow(workflow, registry=None)
+
+    # A warning, not an error: the run may still supply the value, and some
+    # templates require a user-provided file by design. Surfacing it is what
+    # stops it being discovered on a paid worker instead.
+    assert result.valid is True
+    assert any("snpeff_database" in w for w in result.warnings), result.warnings
+
+
+def test_required_parameter_satisfied_by_default_or_value_is_valid() -> None:
+    for filled in ({"default": "GRCh38.99"}, {"value": "GRCh38.99"}):
+        workflow = {
+            "nodes": [{"id": "input", "type": "input_file", "params": {}}],
+            "edges": [],
+            "parameters": [
+                {"name": "snpeff_database", "type": "STRING", "required": True, **filled},
+            ],
+        }
+        result = validate_workflow(workflow, registry=None)
+        assert result.valid is True, (filled, result.errors)
+        assert not any("snpeff_database" in w for w in result.warnings), result.warnings
+
+
+def test_optional_parameter_without_a_value_is_fine() -> None:
+    workflow = {
+        "nodes": [{"id": "input", "type": "input_file", "params": {}}],
+        "edges": [],
+        "parameters": [{"name": "optional_thing", "type": "STRING"}],
+    }
+    r = validate_workflow(workflow, registry=None)
+    assert r.valid is True
+    assert not any("optional_thing" in w for w in r.warnings)
