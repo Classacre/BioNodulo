@@ -606,6 +606,44 @@ async def get_object_info(request: Request, node_id: str) -> dict[str, Any]:
 # Workflow Validation
 # ---------------------------------------------------------------------------
 
+def _environment_readiness(workflow: dict[str, Any], registry: Any) -> dict[str, Any]:
+    """Report whether this workflow's Pixi environment can actually be installed.
+
+    Cloud workers refuse to solve at run time, so a package set with neither a
+    committed bundle nor a cached lock dies *after* a VM is provisioned and a
+    credit is spent — which is every workflow a user edits into a new shape.
+    Reporting it here lets the caller reject the run for free.
+
+    Never raises: a readiness check must not be able to fail validation.
+    ``lock_available: None`` means "could not determine".
+    """
+    import tempfile
+
+    from bionodulo.environments.manifest import (
+        get_environment_plan_id,
+        materialize_committed_environment,
+        workflow_to_environment_plan,
+    )
+    from bionodulo.execution import env_lock_cache
+
+    try:
+        plan = workflow_to_environment_plan(workflow, registry)
+        packages = list(plan.all_packages)
+        if not packages:
+            return {"id": "base", "packages": [], "lock_available": True}
+        env_lock_cache.install()
+        with tempfile.TemporaryDirectory() as probe:
+            available = materialize_committed_environment(probe, plan) is not None
+        return {
+            "id": get_environment_plan_id(plan),
+            "packages": packages,
+            "lock_available": available,
+        }
+    except Exception as error:  # noqa: BLE001
+        logger.warning("environment readiness check failed: %s", error)
+        return {"id": None, "packages": [], "lock_available": None}
+
+
 @router.post("/workflow/validate")
 async def workflow_validate(request: Request, body: ValidationRequest) -> dict[str, Any]:
     """Validate a workflow for structural correctness."""
@@ -616,6 +654,7 @@ async def workflow_validate(request: Request, body: ValidationRequest) -> dict[s
         "errors": result.errors,
         "warnings": result.warnings,
         "sorted_node_order": result.sorted_node_order,
+        "environment": _environment_readiness(body.workflow, registry),
     }
 
 
