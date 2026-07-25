@@ -32,6 +32,7 @@ def test_macs2_nodes_pin_source_and_environment_identity(node_class: type) -> No
     assert node_class.SOURCE_REF == f"tag v2.2.9.1 at {MACS2_GIT_COMMIT}"
     assert node_class.REQUIRED_EXECUTABLES == ["macs2"]
     assert node_class.REQUIRED_CONDA_PACKAGES == ["macs2"]
+    assert node_class.ENVIRONMENT == {"type": "pixi", "name": "macs2"}
     assert node_class.CONDA_PACKAGE_CONSTRAINTS == {"macs2": "2.2.9.1"}
     assert node_class.PACKAGE_CONSTRAINTS == (MACS2_PACKAGE_CONSTRAINT,)
     assert node_class.PACKAGE_CONSTRAINT == "macs2==2.2.9.1"

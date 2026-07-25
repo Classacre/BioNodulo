@@ -27,6 +27,11 @@ class MACS2CommandNode(CommandNode):
     CATEGORY = "chip_seq"
     REQUIRED_EXECUTABLES = ["macs2"]
     REQUIRED_CONDA_PACKAGES = ["macs2"]
+    # The known-good Bioconda MACS2 build requires NumPy 1.x, while the pinned
+    # deepTools runtime requires NumPy 2.x.  Keep MACS2 in a named environment
+    # within the same committed workflow lock so both exact runtimes remain
+    # reproducible without weakening either tool's package contract.
+    ENVIRONMENT = {"type": "pixi", "name": "macs2"}
     CONDA_PACKAGE_CONSTRAINTS = {"macs2": MACS2_VERSION}
     PACKAGE_CONSTRAINTS = (MACS2_PACKAGE_CONSTRAINT,)
     PACKAGE_CONSTRAINT = MACS2_PACKAGE_CONSTRAINT

@@ -21,6 +21,7 @@ from typing import Any, Callable, Iterable
 
 from bionodulo.environments.constants import (
     EXECUTABLE_TO_CONDA_PACKAGE,
+    PACKAGE_BUILD_CONSTRAINTS,
     R_PACKAGE_TO_CONDA_PACKAGE,
     PACKAGE_MIN_VERSIONS,
     normalize_conda_package,
@@ -79,6 +80,24 @@ def _version_spec(pkg: str) -> str:
     return PACKAGE_MIN_VERSIONS.get(pkg, "*")
 
 
+def _constraint_identity(pkg: str) -> str | dict[str, str]:
+    """Return the complete package constraint used for environment identity."""
+    version = _version_spec(pkg)
+    build = PACKAGE_BUILD_CONSTRAINTS.get(pkg)
+    if build is None:
+        return version
+    return {"version": version, "build": build}
+
+
+def _dependency_line(pkg: str) -> str:
+    """Render one canonical Pixi dependency, including an exact build if set."""
+    version = _version_spec(pkg)
+    build = PACKAGE_BUILD_CONSTRAINTS.get(pkg)
+    if build is None:
+        return f'{pkg} = "{version}"'
+    return f'{pkg} = {{ version = "{version}", build = "{build}" }}'
+
+
 def get_env_id(packages: list[str]) -> str:
     """Compute a content hash for a set of packages.
 
@@ -87,7 +106,7 @@ def get_env_id(packages: list[str]) -> str:
     """
     normalized = sorted({_norm_pkg(package) for package in packages})
     canonical = json.dumps(
-        {package: _version_spec(package) for package in normalized},
+        {package: _constraint_identity(package) for package in normalized},
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -108,12 +127,12 @@ def get_environment_plan_id(plan: WorkflowEnvironmentPlan) -> str:
     canonical = json.dumps(
         {
             "default": {
-                package: _version_spec(package)
+                package: _constraint_identity(package)
                 for package in plan.default_packages
             },
             "named": {
                 name: {
-                    package: _version_spec(package)
+                    package: _constraint_identity(package)
                     for package in packages
                 }
                 for name, packages in plan.named_environments
@@ -238,7 +257,7 @@ def _manifest_text(packages: list[str]) -> str:
     ]
 
     for pkg in sorted(packages):
-        toml_lines.append(f'{pkg} = "{_version_spec(pkg)}"')
+        toml_lines.append(_dependency_line(pkg))
 
     toml_lines.append("")
     return "\n".join(toml_lines)
@@ -259,11 +278,11 @@ def _manifest_text_for_plan(plan: WorkflowEnvironmentPlan) -> str:
         "[dependencies]",
     ]
     for package in plan.default_packages:
-        toml_lines.append(f'{package} = "{_version_spec(package)}"')
+        toml_lines.append(_dependency_line(package))
     for name, packages in plan.named_environments:
         toml_lines.extend(("", f"[feature.{name}.dependencies]"))
         for package in packages:
-            toml_lines.append(f'{package} = "{_version_spec(package)}"')
+            toml_lines.append(_dependency_line(package))
     toml_lines.extend(("", "[environments]"))
     for name, _packages in plan.named_environments:
         toml_lines.append(

@@ -483,3 +483,13 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "bioconductor-summarizedexperiment": ">=1.30.0",
     "bioconductor-tximport": ">=1.28.0",
 }
+
+
+# Exact package builds required for runtime compatibility.  MACS2's newer
+# Bioconda py311 builds (_4/_5) import a ScoreTrack extension that references
+# the unavailable ``__log_finite`` symbol.  Bioconda issue #59362 records the
+# broken build, and Galaxy confirmed py311hdad781d_1 as the working 2.2.9.1
+# build: https://github.com/usegalaxy-it/usegalaxy-it-tools/issues/2
+PACKAGE_BUILD_CONSTRAINTS: dict[str, str] = {
+    "macs2": "py311hdad781d_1",
+}

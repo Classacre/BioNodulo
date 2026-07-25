@@ -6,9 +6,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from bionodulo.environments.constants import (
     EXECUTABLE_TO_CONDA_PACKAGE,
+    PACKAGE_BUILD_CONSTRAINTS,
     PACKAGE_MIN_VERSIONS,
 )
 from bionodulo.environments import manifest as environment_manifest
@@ -71,6 +73,7 @@ def test_wave_three_environment_contracts_are_exact() -> None:
         "odgi": "0.9.2",
         "pggb": "0.7.4",
     }
+    assert PACKAGE_BUILD_CONSTRAINTS["macs2"] == "py311hdad781d_1"
 
 
 def test_current_family_environment_contracts_are_exact() -> None:
@@ -146,6 +149,23 @@ def test_environment_id_changes_with_effective_package_constraint(monkeypatch) -
     assert get_env_id(["samtools"]) != old_id
 
 
+def test_environment_id_changes_with_effective_package_build(monkeypatch) -> None:
+    old_id = get_env_id(["macs2"])
+
+    monkeypatch.setitem(PACKAGE_BUILD_CONSTRAINTS, "macs2", "py311haab0aaa_5")
+
+    assert get_env_id(["macs2"]) != old_id
+
+
+def test_manifest_renders_exact_macs2_build_constraint() -> None:
+    manifest = tomllib.loads(environment_manifest._manifest_text(["macs2"]))
+
+    assert manifest["dependencies"]["macs2"] == {
+        "version": "2.2.9.1",
+        "build": "py311hdad781d_1",
+    }
+
+
 def test_environment_id_still_normalizes_order_case_and_duplicates() -> None:
     assert get_env_id(["samtools", "bcftools"]) == get_env_id(
         [" BCFTOOLS ", "samtools", "SAMTOOLS"]
@@ -160,7 +180,7 @@ def test_committed_samtools_manifests_use_explicit_exact_constraint() -> None:
         / "locks"
     )
     expected_environment_ids = {
-        "0afc7b58f0758f5f",
+        "49242a6d8b2706ab",
         "4997531d441c35bf",
         "5789cfdfd03011a4",
         "5f56c77e87adf0dc",
@@ -179,6 +199,56 @@ def test_committed_samtools_manifests_use_explicit_exact_constraint() -> None:
         actual_environment_ids.add(manifest_path.parent.name)
 
     assert actual_environment_ids == expected_environment_ids
+
+
+def test_committed_macs2_manifest_pins_known_good_bioconda_build() -> None:
+    locks_root = (
+        Path(__file__).resolve().parents[1]
+        / "bionodulo"
+        / "environments"
+        / "locks"
+    )
+    manifest = tomllib.loads(
+        (locks_root / "49242a6d8b2706ab/pixi.toml").read_text(encoding="utf-8")
+    )
+
+    assert "macs2" not in manifest["dependencies"]
+    assert manifest["feature"]["macs2"]["dependencies"]["macs2"] == {
+        "version": "2.2.9.1",
+        "build": "py311hdad781d_1",
+    }
+    assert manifest["environments"]["macs2"] == {
+        "features": ["macs2"],
+        "no-default-feature": True,
+    }
+
+
+def test_committed_chip_lock_isolates_macs2_from_deeptools_numpy() -> None:
+    lock_path = (
+        Path(__file__).resolve().parents[1]
+        / "bionodulo/environments/locks/49242a6d8b2706ab/pixi.lock"
+    )
+    lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+
+    def conda_urls(environment_name: str) -> set[str]:
+        return {
+            package["conda"]
+            for package in lock["environments"][environment_name]["packages"]["linux-64"]
+            if "conda" in package
+        }
+
+    default_urls = conda_urls("default")
+    macs2_urls = conda_urls("macs2")
+
+    assert any("/deeptools-3.5.6-" in url for url in default_urls)
+    assert any("/numpy-2.4.6-" in url for url in default_urls)
+    assert not any("/macs2-" in url for url in default_urls)
+    assert any(
+        url.endswith("/macs2-2.2.9.1-py311hdad781d_1.tar.bz2")
+        for url in macs2_urls
+    )
+    assert any("/numpy-1.26.4-" in url for url in macs2_urls)
+    assert not any("/deeptools-" in url for url in macs2_urls)
 
 
 def test_named_environment_plan_partitions_manta_without_changing_flat_requirements() -> None:
