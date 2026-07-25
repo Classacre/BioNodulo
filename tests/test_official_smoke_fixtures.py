@@ -1,13 +1,41 @@
+"""Official templates must default to real, pinned, public input data.
+
+Templates previously shipped synthetic fixtures under ``templates/data/smoke/``.
+That broke in the cloud — the worker image never copies ``templates/`` — and it
+taught users nothing about where real data comes from. Inputs now point at
+upstream public files, which the input nodes fetch at run time (see
+``bionodulo/nodes/builtin/input_family/adapter.py``: "templates ship URLs
+directly in their node params and download on run").
+
+The remaining local paths are genuinely synthetic artefacts with no upstream
+counterpart. They are listed explicitly so the list cannot grow silently.
+"""
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "templates"
-SMOKE = TEMPLATES / "data" / "smoke"
+
+# Synthetic inputs with no public upstream equivalent. Additions need a
+# deliberate decision, not a silent commit.
+ALLOWED_LOCAL_INPUTS = {
+    "templates/data/deseq2_gene_sets.json",
+    "templates/data/smoke/heatmap_annotation.csv",
+    "templates/data/smoke/sgrna_library.tsv",
+}
+
+# Sources that were tried and abandoned because they rot or are unreasonably
+# large. Kept as a regression guard.
+RETIRED_SOURCES = (
+    "OpenGene/fastp/raw/master/testdata/R1.fq",
+    "tseemann/shovill/raw/master/test/R1.fq",
+    "SRR6357070_1.fastq.gz",
+    "SRR6357071_1.fastq.gz",
+)
 
 
 def _strings(value: Any):
@@ -21,101 +49,70 @@ def _strings(value: Any):
             yield from _strings(item)
 
 
-def test_official_template_smoke_defaults_are_local_small_and_well_formed() -> None:
-    templates = [json.loads(path.read_text(encoding="utf-8")) for path in TEMPLATES.glob("*.json")]
-    assert len(templates) == 22
+def _templates() -> list[dict[str, Any]]:
+    return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(TEMPLATES.glob("*.json"))]
 
-    defaults = {
+
+def _input_values() -> set[str]:
+    return {
         value
-        for template in templates
+        for template in _templates()
         for node in template["nodes"]
         if node["type"].startswith("input_")
         for value in _strings(node.get("params", {}))
-        if value.startswith("templates/data/smoke/")
     }
-    fixtures = {path.relative_to(ROOT).as_posix() for path in SMOKE.iterdir() if path.is_file()}
-    assert defaults == fixtures
-    size_limits = {
-        # PGGB's documented 5 kb segment size requires real sequences longer
-        # than the previous 56 bp synthetic records. This is the pinned
-        # upstream HLA-DRB1 example from PGGB v0.7.4 (EOF-normalized).
-        "templates/data/smoke/haplotypes.fasta": 200_000,
-    }
-    assert all(
-        0 < (ROOT / path).stat().st_size <= size_limits.get(path, 4_096)
-        for path in defaults
+
+
+def test_no_unexpected_local_input_paths() -> None:
+    """A local path in a template is invisible to the cloud worker."""
+    local = {value for value in _input_values() if value.startswith("templates/data/")}
+    assert local <= ALLOWED_LOCAL_INPUTS, (
+        "template inputs reference local files the worker image does not ship: "
+        f"{sorted(local - ALLOWED_LOCAL_INPUTS)}"
     )
-    assert sum((ROOT / path).stat().st_size for path in defaults) <= 200_000
-
-    serialized = "\n".join(json.dumps(template) for template in templates)
-    for retired in (
-        "OpenGene/fastp/raw/master/testdata/R1.fq",
-        "tseemann/shovill/raw/master/test/R1.fq",
-        "SRR6357070_1.fastq.gz",
-        "SRR6357071_1.fastq.gz",
-    ):
-        assert retired not in serialized
-
-    paired_records: list[list[tuple[str, str, str]]] = []
-    for path in (SMOKE / "paired_R1.fastq", SMOKE / "paired_R2.fastq"):
-        lines = path.read_text(encoding="utf-8").splitlines()
-        assert len(lines) % 4 == 0
-        records = [(lines[i], lines[i + 1], lines[i + 3]) for i in range(0, len(lines), 4)]
-        assert len(records) == 8
-        assert all(header.startswith("@smoke_pair_") for header, _, _ in records)
-        assert all(sequence and set(sequence) <= set("ACGTN") for _, sequence, _ in records)
-        assert all(len(sequence) == len(quality) for _, sequence, quality in records)
-        paired_records.append(records)
-    assert [record[0].removesuffix("/1") for record in paired_records[0]] == [
-        record[0].removesuffix("/2") for record in paired_records[1]
-    ]
-
-    haplotype_path = SMOKE / "haplotypes.fasta"
-    haplotypes = haplotype_path.read_text(encoding="utf-8").splitlines()
-    assert sum(line.startswith(">") for line in haplotypes) == 12
 
 
-def test_chip_seq_smoke_fixture_encodes_distinct_paired_end_enrichment() -> None:
-    reference_lines = (SMOKE / "chip_reference.fasta").read_text(encoding="utf-8").splitlines()
-    assert reference_lines[0] == ">smoke_chr1"
-    reference = "".join(reference_lines[1:])
-    assert len(reference) == 2_000
-    assert set(reference) <= set("ACGT")
+def test_allowed_local_inputs_actually_exist() -> None:
+    """Don't let the allow-list outlive the files it excuses."""
+    for rel in sorted(ALLOWED_LOCAL_INPUTS):
+        assert (ROOT / rel).is_file(), f"allow-listed input is missing: {rel}"
 
-    complement = str.maketrans("ACGT", "TGCA")
 
-    def read_pair(prefix: str) -> list[int]:
-        mates: list[list[tuple[str, str, str]]] = []
-        for mate in ("R1", "R2"):
-            lines = (SMOKE / f"{prefix}_{mate}.fastq").read_text(encoding="utf-8").splitlines()
-            assert len(lines) % 4 == 0
-            records = [(lines[i], lines[i + 1], lines[i + 3]) for i in range(0, len(lines), 4)]
-            assert all(len(sequence) == len(quality) == 50 for _, sequence, quality in records)
-            mates.append(records)
+def test_remote_inputs_are_pinned_to_an_immutable_ref() -> None:
+    """A branch URL can change under us; a commit SHA cannot."""
+    unpinned: list[str] = []
+    for value in sorted(_input_values()):
+        if not value.startswith(("http://", "https://")):
+            continue
+        if "raw.githubusercontent.com" in value:
+            # .../<org>/<repo>/<ref>/<path> — ref must be a 40-char commit SHA.
+            match = re.search(r"raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/", value)
+            if not match or not re.fullmatch(r"[0-9a-f]{40}", match.group(1)):
+                unpinned.append(value)
+    assert not unpinned, "GitHub raw inputs must pin a commit SHA:\n  " + "\n  ".join(unpinned)
 
-        assert [record[0].removesuffix("/1") for record in mates[0]] == [
-            record[0].removesuffix("/2") for record in mates[1]
-        ]
-        starts: list[int] = []
-        for read1, read2 in zip(*mates, strict=True):
-            start = int(read1[0].split("_start_", 1)[1].split("/", 1)[0])
-            assert read1[1] == reference[start : start + 50]
-            read2_forward = read2[1].translate(complement)[::-1]
-            assert read2_forward == reference[start + 130 : start + 180]
-            positions = range(len(reference) - 49)
-            assert sum(reference[i : i + 50] == read1[1] for i in positions) == 1
-            assert sum(reference[i : i + 50] == read2_forward for i in positions) == 1
-            starts.append(start)
-        assert len(starts) == len(set(starts))
-        return starts
 
-    treatment_starts = read_pair("chip_treatment")
-    control_starts = read_pair("chip_control")
-    assert treatment_starts == list(range(700, 780, 5))
-    assert len(control_starts) == 8
-    assert set(treatment_starts).isdisjoint(control_starts)
-    assert max(treatment_starts) - min(treatment_starts) < 180
+def test_template_count_is_pinned() -> None:
+    assert len(_templates()) == 22
 
-    annotations = (SMOKE / "chip_genes.bed").read_text(encoding="utf-8").splitlines()
-    assert any(line.split("\t")[3] == "enriched_locus" for line in annotations)
-    assert all(line.startswith("smoke_chr1\t") for line in annotations)
+
+def test_bundled_template_data_is_not_used_beyond_the_allow_list() -> None:
+    """Only ``templates/data/`` is in scope here.
+
+    Two other local conventions exist and are deliberately left alone:
+      * ``external/…``  — BYOL vendor assets the user must supply (the Cello
+        compiler jar, Dorado basecalling models). These are placeholders by
+        design; the node fails with a clear "provide your own" error.
+      * ``examples/data/…`` — example inputs resolved outside the template
+        bundle.
+    Neither is shipped in the repo, so neither is affected by moving the
+    template fixtures to public URLs.
+    """
+    bundled = {v for v in _input_values() if v.startswith("templates/")}
+    assert bundled <= ALLOWED_LOCAL_INPUTS
+
+
+def test_retired_sources_are_not_reintroduced() -> None:
+    serialized = "\n".join(json.dumps(template) for template in _templates())
+    for retired in RETIRED_SOURCES:
+        assert retired not in serialized, f"retired input source is back: {retired}"

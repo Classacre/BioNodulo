@@ -49,7 +49,7 @@
       ],
       "params": {
         "reads": [
-          "templates/data/smoke/paired_R1.fastq"
+          "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz"
         ]
       },
       "ui": {
@@ -75,7 +75,7 @@
       ],
       "params": {
         "reads": [
-          "templates/data/smoke/paired_R2.fastq"
+          "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_2.fastq.gz"
         ]
       },
       "ui": {
@@ -123,7 +123,7 @@
         533
       ],
       "params": {
-        "reference": "templates/data/smoke/reference.fasta"
+        "reference": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/genome/genome.fasta"
       },
       "ui": {
         "title": "Reference FASTA",

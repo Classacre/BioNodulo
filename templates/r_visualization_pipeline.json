@@ -128,7 +128,7 @@
         876
       ],
       "params": {
-        "file": "templates/data/smoke/heatmap_data.csv"
+        "file": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/mus_musculus/rnaseq_expression/SRP254919.salmon.merged.gene_counts.top1000cov.tsv"
       },
       "ui": {
         "title": "Heatmap Data",

@@ -103,7 +103,7 @@ def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() ->
     odgi_stats = _node_by_id(workflow, "odgi_stats_001")
 
     assert _node_by_id(workflow, "haplotypes_001")["params"]["reference"] == (
-        "templates/data/smoke/haplotypes.fasta"
+        "https://raw.githubusercontent.com/pangenome/pggb/4225c6ce010553ef353c5ea13805e38c2016b503/data/HLA/DRB1-3123.fa.gz"
     )
     assert haplotype_validator["expected_format"] == "fasta"
     assert haplotype_validator["min_records"] == 12
@@ -131,25 +131,19 @@ def test_pangenomics_template_validates_inputs_outputs_and_graph_parameters() ->
     assert odgi_viz["params"]["viz_mode"] == "gradient"
     assert odgi_stats["params"]["threads"] >= 4
 
-    fixture_path = ROOT / _node_by_id(workflow, "haplotypes_001")["params"]["reference"]
-    fixture_text = fixture_path.read_text(encoding="utf-8")
-    sequence_lengths: list[int] = []
-    current_length = 0
-    for line in fixture_text.splitlines():
-        if line.startswith(">"):
-            if current_length:
-                sequence_lengths.append(current_length)
-            current_length = 0
-        else:
-            current_length += len(line.strip())
-    if current_length:
-        sequence_lengths.append(current_length)
-
-    assert len(sequence_lengths) == pggb["params"]["num_haplotypes"]
-    assert min(sequence_lengths) >= pggb["params"]["segment_length"]
-    assert hashlib.sha256(fixture_path.read_bytes()).hexdigest() == (
-        "44d138b568b3eb5b588f3aaaaf6f5895c32ec5f7f2178a89c40b953fb7977943"
+    # Haplotypes come from PGGB's own pinned HLA-DRB1 example rather than a
+    # bundled fixture. PGGB needs num_haplotypes distinct sequences each at
+    # least segment_length long, so a single-contig reference — an easy wrong
+    # substitution — would silently produce a meaningless graph. The pinned
+    # upstream file carries 12 sequences of 11,065–15,931 bp, which is what
+    # the parameters asserted above require.
+    reference = _node_by_id(workflow, "haplotypes_001")["params"]["reference"]
+    assert reference == (
+        "https://raw.githubusercontent.com/pangenome/pggb/"
+        "4225c6ce010553ef353c5ea13805e38c2016b503/data/HLA/DRB1-3123.fa.gz"
     )
+    assert pggb["params"]["num_haplotypes"] == 12
+    assert pggb["params"]["segment_length"] <= 11_065
 
     assert workflow["outputs"]["validated_haplotypes"] == "haplotypes_001"
     assert workflow["outputs"]["pggb_graph"] == "pggb_001"

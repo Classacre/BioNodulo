@@ -132,10 +132,10 @@ def test_wgbs_methylation_template_validates_inputs_and_core_outputs() -> None:
     assert r2_validator["min_records"] >= 1
     assert r2_validator["fail_on_error"] is True
     assert _node_by_id(workflow, "r1_001")["params"]["reads"] == [
-        "templates/data/smoke/paired_R1.fastq"
+        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz"
     ]
     assert _node_by_id(workflow, "r2_001")["params"]["reads"] == [
-        "templates/data/smoke/paired_R2.fastq"
+        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_2.fastq.gz"
     ]
     assert genome_validator["expected_format"] == "directory"
     assert genome_validator["min_size_bytes"] > 0

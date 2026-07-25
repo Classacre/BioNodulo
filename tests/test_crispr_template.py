@@ -102,10 +102,10 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert _output_validation(workflow, "amplicon_r1_001", "read1")["expected_format"] == "fastq"
     assert _output_validation(workflow, "amplicon_r2_001", "read1")["expected_format"] == "fastq"
     assert _node_by_id(workflow, "amplicon_r1_001")["params"]["reads"] == [
-        "templates/data/smoke/paired_R1.fastq"
+        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz"
     ]
     assert _node_by_id(workflow, "amplicon_r2_001")["params"]["reads"] == [
-        "templates/data/smoke/paired_R2.fastq"
+        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_2.fastq.gz"
     ]
     assert _output_validation(workflow, "screen_reads_001", "reads")["expected_format"] == "fastq"
     assert _output_validation(workflow, "library_001", "file")["expected_format"] == "tsv"

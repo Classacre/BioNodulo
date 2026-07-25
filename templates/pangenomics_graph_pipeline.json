@@ -45,7 +45,7 @@
         80
       ],
       "params": {
-        "reference": "templates/data/smoke/haplotypes.fasta"
+        "reference": "https://raw.githubusercontent.com/pangenome/pggb/4225c6ce010553ef353c5ea13805e38c2016b503/data/HLA/DRB1-3123.fa.gz"
       },
       "ui": {
         "title": "Haplotype FASTA",

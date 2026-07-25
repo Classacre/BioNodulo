@@ -25,6 +25,9 @@ def test_editor_serves_only_packaged_template_data_for_cloud_staging(
     from server import create_app
 
     _editor_env(monkeypatch, tmp_path)
+    # Deliberately a packaged local file. This route exists to serve bundled
+    # data and to reject traversal; template *inputs* moved to public URLs, but
+    # that is a separate concern from what this endpoint may serve.
     path = "templates/data/smoke/paired_R1.fastq"
     with TestClient(create_app()) as client:
         response = client.get(

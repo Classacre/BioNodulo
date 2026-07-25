@@ -65,7 +65,7 @@
         231
       ],
       "params": {
-        "reference": "templates/data/smoke/target_decoy.fasta"
+        "reference": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/genome/proteome.fasta"
       },
       "ui": {
         "title": "Protein FASTA",
