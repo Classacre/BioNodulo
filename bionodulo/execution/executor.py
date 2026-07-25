@@ -20,6 +20,7 @@ import gzip
 import json
 import logging
 import re
+import shlex
 import tempfile
 import traceback
 from collections import deque
@@ -120,6 +121,34 @@ class ExecutionContext:
         self._previews.append(preview)
         self.emit("preview", preview)
 
+    @staticmethod
+    def _wrap_with_env_prefix(
+        cmd: str | list[str],
+        env_prefix: list[str],
+    ) -> str | list[str]:
+        """Run ``cmd`` under ``env_prefix`` without letting it escape.
+
+        ``env_prefix`` is an argv prefix ending in ``--`` (``pixi run ... --``).
+        A SHELL=True node returns its command as a *string* that may contain
+        shell operators. Concatenating that string after the prefix lets the
+        OUTER shell split on those operators, so only the first segment runs
+        inside the environment and everything after ``&&``/``|``/``;`` runs
+        outside it — where the tools do not exist. In production that turned
+
+            export FC_PATH=$(command -v featureCounts) && featureCounts ...
+
+        into ``pixi run -- export ...`` (exit 127, no such binary) followed by a
+        featureCounts call outside the environment.
+
+        Pass the whole shell command as ONE argument to a shell that itself runs
+        inside the prefix, so the operators are interpreted in there.
+        """
+        if not env_prefix:
+            return cmd
+        if isinstance(cmd, str):
+            return " ".join(shlex.quote(part) for part in [*env_prefix, "bash", "-c", cmd])
+        return env_prefix + list(cmd)
+
     async def run_command(
         self,
         cmd: str | list[str],
@@ -140,15 +169,7 @@ class ExecutionContext:
         if stderr_path is None:
             stderr_path = self.node_dir / "stderr.log"
 
-        # Wrap command with environment prefix if isolated execution is configured
-        wrapped_cmd: str | list[str] = cmd
-        if self.env_prefix:
-            if isinstance(cmd, str):
-                import shlex
-
-                wrapped_cmd = " ".join(shlex.quote(part) for part in self.env_prefix) + " " + cmd
-            else:
-                wrapped_cmd = self.env_prefix + list(cmd)
+        wrapped_cmd: str | list[str] = self._wrap_with_env_prefix(cmd, self.env_prefix)
 
         return await run_subprocess(
             cmd=wrapped_cmd,
