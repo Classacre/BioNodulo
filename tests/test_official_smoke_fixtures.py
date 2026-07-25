@@ -73,3 +73,49 @@ def test_official_template_smoke_defaults_are_local_small_and_well_formed() -> N
     haplotype_path = SMOKE / "haplotypes.fasta"
     haplotypes = haplotype_path.read_text(encoding="utf-8").splitlines()
     assert sum(line.startswith(">") for line in haplotypes) == 12
+
+
+def test_chip_seq_smoke_fixture_encodes_distinct_paired_end_enrichment() -> None:
+    reference_lines = (SMOKE / "chip_reference.fasta").read_text(encoding="utf-8").splitlines()
+    assert reference_lines[0] == ">smoke_chr1"
+    reference = "".join(reference_lines[1:])
+    assert len(reference) == 2_000
+    assert set(reference) <= set("ACGT")
+
+    complement = str.maketrans("ACGT", "TGCA")
+
+    def read_pair(prefix: str) -> list[int]:
+        mates: list[list[tuple[str, str, str]]] = []
+        for mate in ("R1", "R2"):
+            lines = (SMOKE / f"{prefix}_{mate}.fastq").read_text(encoding="utf-8").splitlines()
+            assert len(lines) % 4 == 0
+            records = [(lines[i], lines[i + 1], lines[i + 3]) for i in range(0, len(lines), 4)]
+            assert all(len(sequence) == len(quality) == 50 for _, sequence, quality in records)
+            mates.append(records)
+
+        assert [record[0].removesuffix("/1") for record in mates[0]] == [
+            record[0].removesuffix("/2") for record in mates[1]
+        ]
+        starts: list[int] = []
+        for read1, read2 in zip(*mates, strict=True):
+            start = int(read1[0].split("_start_", 1)[1].split("/", 1)[0])
+            assert read1[1] == reference[start : start + 50]
+            read2_forward = read2[1].translate(complement)[::-1]
+            assert read2_forward == reference[start + 130 : start + 180]
+            positions = range(len(reference) - 49)
+            assert sum(reference[i : i + 50] == read1[1] for i in positions) == 1
+            assert sum(reference[i : i + 50] == read2_forward for i in positions) == 1
+            starts.append(start)
+        assert len(starts) == len(set(starts))
+        return starts
+
+    treatment_starts = read_pair("chip_treatment")
+    control_starts = read_pair("chip_control")
+    assert treatment_starts == list(range(700, 780, 5))
+    assert len(control_starts) == 8
+    assert set(treatment_starts).isdisjoint(control_starts)
+    assert max(treatment_starts) - min(treatment_starts) < 180
+
+    annotations = (SMOKE / "chip_genes.bed").read_text(encoding="utf-8").splitlines()
+    assert any(line.split("\t")[3] == "enriched_locus" for line in annotations)
+    assert all(line.startswith("smoke_chr1\t") for line in annotations)

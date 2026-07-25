@@ -1278,6 +1278,11 @@ def test_chip_seq_template_validates_input_reads_before_trimming() -> None:
     assert validator["min_records"] >= 1
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True
+    treatment = next(node for node in workflow["nodes"] if node["id"] == "treat_001")
+    assert treatment["params"]["reads"] == [
+        "templates/data/smoke/chip_treatment_R1.fastq",
+        "templates/data/smoke/chip_treatment_R2.fastq",
+    ]
     assert not _has_edge(workflow, "treat_001", "reads", "validate_reads_001", "input")
     assert _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
     assert _has_edge(workflow, "treat_001", "reads", "fastp_001", "reads")
@@ -1300,6 +1305,10 @@ def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
     validator = _output_validation(workflow, "control_001", "reads")
     gate = next(node for node in workflow["nodes"] if node["id"] == "gate_control_reads_001")
     assert control["params"]["sample_name"] == "control"
+    assert control["params"]["reads"] == [
+        "templates/data/smoke/chip_control_R1.fastq",
+        "templates/data/smoke/chip_control_R2.fastq",
+    ]
     assert validator["expected_format"] == "fastq"
     assert validator["fail_on_error"] is True
     assert gate["params"]["condition_mode"] == "is_not_empty"
@@ -1318,8 +1327,8 @@ def test_chip_seq_template_adds_control_sample_for_macs2() -> None:
 
 
 def test_chip_seq_template_builds_index_from_real_reference_before_alignment() -> None:
-    # The placeholder bowtie2_index dir was replaced with the real yeast reference
-    # (nf-core chipseq) + a bowtie2_build step feeding both alignments.
+    # Build one index from the same bounded synthetic reference used to derive
+    # both paired-end FASTQ fixtures, then feed it to both alignments.
     workflow = _load_template("chip_seq_pipeline.json")
     node_types = _node_types(workflow)
 
@@ -1327,7 +1336,7 @@ def test_chip_seq_template_builds_index_from_real_reference_before_alignment() -
     assert node_types["genome_001"] == "input_fasta"
     assert node_types["bt2build_001"] == "bowtie2_build"
     genome = next(n for n in workflow["nodes"] if n["id"] == "genome_001")
-    assert genome["params"]["reference"] == "templates/data/smoke/reference.fasta"
+    assert genome["params"]["reference"] == "templates/data/smoke/chip_reference.fasta"
     assert _has_edge(workflow, "genome_001", "reference", "bt2build_001", "reference")
     assert _has_edge(workflow, "bt2build_001", "index", "bt2_001", "index")
     assert _has_edge(workflow, "bt2build_001", "index", "bt2_control_001", "index")
@@ -1357,6 +1366,13 @@ def test_chip_seq_template_validates_macs2_peak_output() -> None:
     node_types = _node_types(workflow)
 
     assert "validate_peaks_001" not in node_types
+    macs2 = next(node for node in workflow["nodes"] if node["id"] == "macs2_001")
+    assert macs2["params"] == {
+        "name": "chip_smoke",
+        "genome_size": "2000",
+        "format": "BAMPE",
+        "pvalue": 0.5,
+    }
     validator = _output_validation(workflow, "macs2_001", "peaks")
     assert validator["expected_format"] == "text"
     assert validator["min_size_bytes"] > 0
@@ -1378,7 +1394,7 @@ def test_chip_seq_template_annotates_validated_peaks_to_nearest_features() -> No
     annotation_input = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_bed_001")
     validator = _output_validation(workflow, "peak_annotation_bed_001", "file")
     annotator = next(node for node in workflow["nodes"] if node["id"] == "peak_annotation_001")
-    assert annotation_input["params"]["file"].endswith("genes.bed")
+    assert annotation_input["params"]["file"] == "templates/data/smoke/chip_genes.bed"
     assert validator["expected_format"] == "text"
     assert validator["min_size_bytes"] > 0
     assert validator["fail_on_error"] is True

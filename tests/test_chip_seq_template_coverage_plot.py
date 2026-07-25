@@ -38,7 +38,7 @@ def test_chip_seq_template_plots_bigwig_signal_in_final_report() -> None:
     assert "render_chip_signal_plot_ima_2" not in node_types
 
     plot = _node_by_id(workflow, "chip_signal_plot_001")
-    assert plot["params"]["region"] == "I:1-50000"
+    assert plot["params"]["region"] == "smoke_chr1:1-2000"
     assert plot["params"]["window_size"] == 100
     assert plot["params"]["title"] == "ChIP-Seq Signal Coverage"
     assert plot["params"]["format"] == "html"
