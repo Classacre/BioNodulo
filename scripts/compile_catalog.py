@@ -19,13 +19,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import os
 import stat
 import sys
 import tempfile
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -141,9 +142,37 @@ def _legacy_factory(
     return class_module, symbol, f"{class_module}:{symbol}"
 
 
-def _build_operational_document(compiled: Any) -> dict[str, Any]:
+def _blocked_reason(
+    module_name: str,
+    symbol: str,
+    importer: Callable[[str], Any],
+) -> str | None:
+    """Resolve a legacy execution factory; return ``None`` when it is usable.
+
+    The legacy lane is derived from the AST baseline ledger, which proves a
+    class was *written*, not that it can be *imported*.  Resolving the factory
+    here is what turns ``availability`` from an assertion into a proof and
+    keeps unloadable nodes out of the palette.
+    """
+    try:
+        module = importer(module_name)
+    except Exception as error:  # noqa: BLE001 - any import failure blocks the node
+        return f"{type(error).__name__}: {error}"
+    if module is None:
+        raise CatalogBuildError(f"legacy importer returned None for module {module_name!r}")
+    if not hasattr(module, symbol):
+        return f"module {module_name} does not define {symbol}"
+    return None
+
+
+def _build_operational_document(
+    compiled: Any,
+    *,
+    legacy_importer: Callable[[str], Any] | None = None,
+) -> dict[str, Any]:
     """Project all focused legacy classes without manufacturing typed evidence."""
 
+    importer = legacy_importer or importlib.import_module
     baseline, baseline_bytes_digest = _read_baseline()
     legacy_index, legacy_index_digest = _read_json_mapping(
         LEGACY_NODE_INDEX,
@@ -181,6 +210,7 @@ def _build_operational_document(compiled: Any) -> dict[str, Any]:
     operational_nodes: dict[str, dict[str, Any]] = {}
     qualified_classes: dict[str, str] = {}
     verification_counts: Counter[str] = Counter()
+    availability_counts: Counter[str] = Counter()
 
     for node_id in sorted(expected_ids):
         metadata = legacy_metadata[node_id]
@@ -210,12 +240,16 @@ def _build_operational_document(compiled: Any) -> dict[str, Any]:
             verification_status = str(typed_entry["status"])
         verification_counts[verification_status] += 1
 
+        blocked_reason = _blocked_reason(module_name, symbol, importer)
+        availability = "blocked" if blocked_reason is not None else "active"
+        availability_counts[availability] += 1
+
         node_metadata_digest = _sha256(_canonical_json_bytes(metadata))
         baseline_entry = baseline_by_id[node_id]
         legacy_alias_of = baseline_entry.get("alias_of")
         common: dict[str, Any] = {
             "aliases": aliases,
-            "availability": "active",
+            "availability": availability,
             "execution_factory": execution_factory,
             "implementation_status": LEGACY_STATUS,
             "legacy_execution_factory": execution_factory,
@@ -228,6 +262,8 @@ def _build_operational_document(compiled: Any) -> dict[str, Any]:
             "symbol": symbol,
             "verification_status": verification_status,
         }
+        if blocked_reason is not None:
+            common["blocked_reason"] = blocked_reason
         if isinstance(legacy_alias_of, str):
             common["legacy_alias_of"] = legacy_alias_of
         if typed_spec is not None and typed_entry is not None:
@@ -243,13 +279,18 @@ def _build_operational_document(compiled: Any) -> dict[str, Any]:
 
     typed_status_counts = Counter(entry["status"] for entry in compiled.nodes.values())
     released_typed_nodes = typed_status_counts.get("released", 0)
+    active_nodes = availability_counts.get("active", 0)
+    blocked_nodes = availability_counts.get("blocked", 0)
     summary = {
-        "active_nodes": len(operational_nodes),
-        "all_nodes_active": len(operational_nodes) == BASELINE_NODE_COUNT,
+        "active_nodes": active_nodes,
+        "all_nodes_active": blocked_nodes == 0 and len(operational_nodes) == BASELINE_NODE_COUNT,
         "all_nodes_released": released_typed_nodes == BASELINE_NODE_COUNT,
+        "availability_counts": {"active": active_nodes, "blocked": blocked_nodes},
         "baseline_nodes": BASELINE_NODE_COUNT,
+        "blocked_nodes": blocked_nodes,
         "evidence_pending_nodes": verification_counts.get(LEGACY_PENDING_STATUS, 0),
-        "legacy_compatible_nodes": len(operational_nodes),
+        "importability_verified": blocked_nodes == 0,
+        "legacy_compatible_nodes": active_nodes,
         "operational_nodes": len(operational_nodes),
         "released_typed_nodes": released_typed_nodes,
         "remaining_operational_nodes": BASELINE_NODE_COUNT - len(operational_nodes),
@@ -341,11 +382,18 @@ def _compile() -> tuple[Any, dict[str, Any]]:
     return compiled, promotion
 
 
-def expected_documents() -> dict[Path, bytes]:
-    """Build every typed and operational generated document without writing."""
+def expected_documents(
+    *,
+    legacy_importer: Callable[[str], Any] | None = None,
+) -> dict[Path, bytes]:
+    """Build every typed and operational generated document without writing.
+
+    ``legacy_importer`` exists so tests can prove the importability gate
+    actually blocks a node; production always uses ``importlib.import_module``.
+    """
 
     compiled, promotion = _compile()
-    operational = _build_operational_document(compiled)
+    operational = _build_operational_document(compiled, legacy_importer=legacy_importer)
     promotion = {
         **promotion,
         "availability_status": "active",
