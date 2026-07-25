@@ -33,6 +33,62 @@ _COMMITTED_LOCKS_ROOT = Path(__file__).with_name("locks")
 _LOCK_DIGEST_MARKER = ".bionodulo-lock-sha256"
 _PIXI_ENVIRONMENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
+# Every rendered manifest pins this today; named explicitly so the lock cache is
+# keyed by it instead of assuming it.
+DEFAULT_LOCK_PLATFORM = "linux-64"
+
+# Optional second source of locks, consulted only when the repo has no committed
+# bundle. Returns (manifest_text, lock_bytes), or None on a miss.
+#
+# One committed bundle per environment only covers the curated templates: a user
+# who edits a workflow into a different package set produces an unknown
+# environment ID, and the run dies *after* a VM is already provisioned. A cache
+# populated by solving once at submit time closes that gap without relaxing the
+# worker's rule — it still never solves, it only installs a lock it was handed.
+LockCache = Callable[[str, str], "tuple[str, bytes] | None"]
+_LOCK_CACHE: LockCache | None = None
+
+
+def set_lock_cache(cache: LockCache | None) -> None:
+    """Install (or clear) the fallback lock source.
+
+    ``cache`` takes ``(environment_id, platform)``. Platform is passed
+    explicitly because the environment ID deliberately does not hash it — an
+    aarch64-solved lock must never be served to a linux-64 run.
+    """
+    global _LOCK_CACHE
+    _LOCK_CACHE = cache
+
+
+def _lock_from_cache(
+    env_id: str,
+    platform: str,
+    expected_manifest: str,
+) -> tuple[str, bytes] | None:
+    """Fetch and validate a cached bundle, or return None on a miss."""
+    if _LOCK_CACHE is None:
+        return None
+    bundle = _LOCK_CACHE(env_id, platform)
+    if bundle is None:
+        return None
+    manifest_text, lock_bytes = bundle
+    if manifest_text != expected_manifest:
+        # The same guard the committed path applies: a lock must belong to the
+        # exact environment we asked for, or it is not usable.
+        raise RuntimeError(f"Cached environment manifest is stale for {env_id} ({platform})")
+    if not lock_bytes:
+        raise RuntimeError(f"Cached environment lock is empty for {env_id} ({platform})")
+    return manifest_text, lock_bytes
+
+
+def _write_lock_bundle(env_dir: str | Path, manifest_text: str, lock_bytes: bytes) -> str:
+    """Write a validated bundle into ``env_dir``; return its lock digest."""
+    env_path = Path(env_dir)
+    env_path.mkdir(parents=True, exist_ok=True)
+    (env_path / "pixi.toml").write_text(manifest_text, encoding="utf-8")
+    (env_path / "pixi.lock").write_bytes(lock_bytes)
+    return hashlib.sha256(lock_bytes).hexdigest()
+
 
 @dataclass(frozen=True)
 class WorkflowEnvironmentPlan:
@@ -324,21 +380,32 @@ def generate_environment_manifest(
     return manifest_path
 
 
-def materialize_committed_lock(env_dir: str | Path, packages: list[str]) -> str | None:
-    """Copy a repository-owned manifest/lock pair into ``env_dir``.
+def materialize_committed_lock(
+    env_dir: str | Path,
+    packages: list[str],
+    *,
+    platform: str = DEFAULT_LOCK_PLATFORM,
+) -> str | None:
+    """Copy a manifest/lock pair into ``env_dir``.
 
-    Committed bundles are keyed by the same environment ID used at runtime. A
-    partial or stale bundle is an error; returning ``None`` means this package
-    set has no committed lock and may use the legacy solve path.
+    Prefers the repository-owned bundle — the repo is the source of truth for
+    curated environments — and falls back to the lock cache. A partial or stale
+    bundle is an error; ``None`` means this package set has no lock from any
+    source.
     """
-    source_dir = _COMMITTED_LOCKS_ROOT / get_env_id(packages)
+    env_id = get_env_id(packages)
+    expected_manifest = _manifest_text(packages)
+    source_dir = _COMMITTED_LOCKS_ROOT / env_id
     source_manifest = source_dir / "pixi.toml"
     source_lock = source_dir / "pixi.lock"
     if not source_manifest.exists() and not source_lock.exists():
-        return None
+        cached = _lock_from_cache(env_id, platform, expected_manifest)
+        if cached is None:
+            return None
+        return _write_lock_bundle(env_dir, *cached)
     if not source_manifest.is_file() or not source_lock.is_file():
         raise RuntimeError(f"Committed environment bundle is incomplete: {source_dir}")
-    if source_manifest.read_text(encoding="utf-8") != _manifest_text(packages):
+    if source_manifest.read_text(encoding="utf-8") != expected_manifest:
         raise RuntimeError(f"Committed environment manifest is stale: {source_manifest}")
 
     env_path = Path(env_dir)
@@ -351,19 +418,30 @@ def materialize_committed_lock(env_dir: str | Path, packages: list[str]) -> str 
 def materialize_committed_environment(
     env_dir: str | Path,
     plan: WorkflowEnvironmentPlan,
+    *,
+    platform: str = DEFAULT_LOCK_PLATFORM,
 ) -> str | None:
-    """Copy a committed manifest/lock pair for a possibly named plan."""
-    if not plan.named_environments:
-        return materialize_committed_lock(env_dir, list(plan.default_packages))
+    """Copy a manifest/lock pair for a possibly named plan.
 
-    source_dir = _COMMITTED_LOCKS_ROOT / get_environment_plan_id(plan)
+    Committed bundle first, then the lock cache. See ``set_lock_cache``.
+    """
+    if not plan.named_environments:
+        return materialize_committed_lock(
+            env_dir, list(plan.default_packages), platform=platform
+        )
+
+    plan_id = get_environment_plan_id(plan)
+    expected_manifest = _manifest_text_for_plan(plan)
+    source_dir = _COMMITTED_LOCKS_ROOT / plan_id
     source_manifest = source_dir / "pixi.toml"
     source_lock = source_dir / "pixi.lock"
     if not source_manifest.exists() and not source_lock.exists():
-        return None
+        cached = _lock_from_cache(plan_id, platform, expected_manifest)
+        if cached is None:
+            return None
+        return _write_lock_bundle(env_dir, *cached)
     if not source_manifest.is_file() or not source_lock.is_file():
         raise RuntimeError(f"Committed environment bundle is incomplete: {source_dir}")
-    expected_manifest = _manifest_text_for_plan(plan)
     if source_manifest.read_text(encoding="utf-8") != expected_manifest:
         raise RuntimeError(f"Committed environment manifest is stale: {source_manifest}")
 
