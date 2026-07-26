@@ -634,11 +634,19 @@ def _environment_readiness(workflow: dict[str, Any], registry: Any) -> dict[str,
         env_lock_cache.install()
         with tempfile.TemporaryDirectory() as probe:
             available = materialize_committed_environment(probe, plan) is not None
-        return {
+        readiness = {
             "id": get_environment_plan_id(plan),
             "packages": packages,
             "lock_available": available,
         }
+        if not available:
+            # Hand back the manifest so the caller can have it solved without
+            # reimplementing plan rendering. Only on a miss — it is useless
+            # otherwise and just inflates every validate response.
+            from bionodulo.environments.manifest import _manifest_text_for_plan
+
+            readiness["manifest"] = _manifest_text_for_plan(plan)
+        return readiness
     except Exception as error:  # noqa: BLE001
         logger.warning("environment readiness check failed: %s", error)
         return {"id": None, "packages": [], "lock_available": None}
