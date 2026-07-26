@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import io
 import json
@@ -114,6 +115,64 @@ def repository_reconciliation() -> Reconciliation:
         behavior_ref=BEHAVIOR_REF,
         comparison_ref=COMPARISON_REF,
     )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param("class A:\n    x = 1\n", id="plain"),
+        pytest.param("class A:\n    x = 1", id="no-trailing-newline"),
+        pytest.param("class A:\r\n    x = 1\r\n", id="crlf"),
+        pytest.param("class A:\r    x = 1\r", id="cr-only"),
+        pytest.param("# \x0c form feed\nclass A:\n    x = 1\n", id="form-feed"),
+        pytest.param("class A:\n    s = 'héllo wörld'\n", id="non-ascii-byte-offsets"),
+        pytest.param("class A:\n    class B:\n        x = 1\n", id="nested"),
+        pytest.param("@deco\nclass A:\n    x = 1\n", id="decorated"),
+        pytest.param("if True:\n    class A:\n        x = 1\n", id="indented"),
+        pytest.param("class A: x = 1\n", id="single-line"),
+    ],
+)
+def test_class_source_segment_matches_stdlib_on_edge_cases(source: str) -> None:
+    """The fast path must be byte-identical to ast.get_source_segment.
+
+    These segments are hashed into raw_class_sha256, so any divergence would
+    silently invalidate every stored fingerprint. Form feed and bare \\r matter
+    because `str.splitlines` breaks on characters the Python parser does not.
+    """
+    tree = ast.parse(source)
+    classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+    assert classes, "fixture must contain at least one class"
+    for node in classes:
+        assert ledger_builder._class_source_segment(source, node) == ast.get_source_segment(
+            source, node
+        )
+
+
+def test_class_source_segment_matches_stdlib_across_the_repository() -> None:
+    """Sweep every real class in the package, not just contrived fixtures.
+
+    Guards the optimisation that took reconciliation from 200s to 16s on 3.11:
+    `ast.get_source_segment` re-splits the whole file per call, so the split is
+    now hoisted to once per file. Correctness is defined by the public stdlib
+    function — deliberately not by `ast._splitlines_no_ff`, which is private and
+    whose return value differs between 3.11 and 3.13.
+    """
+    compared = 0
+    for path in sorted((REPO_ROOT / "bionodulo").rglob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        lines = ledger_builder._parser_splitlines(source)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            assert ledger_builder._class_source_segment(
+                source, node, lines
+            ) == ast.get_source_segment(source, node), f"{path}:{node.lineno} {node.name}"
+            compared += 1
+    assert compared > 500, f"expected a broad sweep, only compared {compared} classes"
 
 
 def test_extract_nodes_uses_class_level_literal_and_annotated_node_ids() -> None:

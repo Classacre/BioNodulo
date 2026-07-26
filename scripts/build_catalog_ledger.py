@@ -648,12 +648,61 @@ def _is_metadata_only(class_node: ast.ClassDef) -> bool:
     return True
 
 
-def _class_source_segment(source: str, class_node: ast.ClassDef) -> str:
-    segment = ast.get_source_segment(source, class_node)
-    if segment is not None:
-        return segment
-    lines = source.splitlines(keepends=True)
-    return "".join(lines[class_node.lineno - 1 : class_node.end_lineno])
+# Matches exactly what CPython's private `ast._splitlines_no_ff` produces: a
+# split on \r, \n and \r\n only, keeping the terminators and treating form feed
+# (and the other characters `str.splitlines` breaks on) as ordinary text. The
+# first branch takes lines that end in a terminator, the second the final line
+# when the source does not end in one.
+_PARSER_LINE_RE = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+")
+
+
+def _parser_splitlines(source: str) -> list[str]:
+    """Line-split `source` the way the Python parser does.
+
+    `ast.get_source_segment` calls the stdlib equivalent of this on every
+    invocation, so extracting N classes from one file re-split that whole file
+    N times. On 3.11 the stdlib version also builds each line by single-char
+    string concatenation, which is what made this the dominant cost of the
+    whole reconciliation: 94% of the runtime and 2.2 billion `len()` calls.
+    Python 3.12 rewrote that helper, which is the entire reason the same work
+    took 200s on 3.11 and 40s on 3.13.
+    """
+
+    return _PARSER_LINE_RE.findall(source)
+
+
+def _class_source_segment(
+    source: str,
+    class_node: ast.ClassDef,
+    lines: list[str] | None = None,
+) -> str:
+    """Return the exact source text of `class_node`.
+
+    Equivalent to `ast.get_source_segment(source, class_node)`, but accepts the
+    line split precomputed once per file. `test_class_source_segment_matches_stdlib`
+    pins the equivalence against every class in the repository.
+    """
+
+    if lines is None:
+        lines = _parser_splitlines(source)
+
+    lineno = class_node.lineno - 1
+    end_lineno = getattr(class_node, "end_lineno", None)
+    if end_lineno is None or getattr(class_node, "end_col_offset", None) is None:
+        return "".join(lines[lineno : class_node.end_lineno])
+
+    end_lineno -= 1
+    col_offset = class_node.col_offset
+    end_col_offset = class_node.end_col_offset
+
+    # Column offsets are byte offsets into the UTF-8 encoding of the line, not
+    # character indices, so slicing has to happen on the encoded bytes.
+    if end_lineno == lineno:
+        return lines[lineno].encode()[col_offset:end_col_offset].decode()
+
+    first = lines[lineno].encode()[col_offset:].decode()
+    last = lines[end_lineno].encode()[:end_col_offset].decode()
+    return "".join([first, *lines[lineno + 1 : end_lineno], last])
 
 
 def _canonical_ast_value(value: Any) -> Any:
@@ -709,6 +758,8 @@ def extract_nodes(
     tree = ast.parse(source, filename=source_path or module)
     found: list[SourceNode] = []
     anomalies: list[Mapping[str, Any]] = []
+    # Split once per file, not once per class. See _parser_splitlines.
+    source_lines = _parser_splitlines(source)
 
     def visit_classes(body: Sequence[ast.stmt], parents: tuple[str, ...] = ()) -> None:
         for statement in body:
@@ -730,7 +781,7 @@ def extract_nodes(
             node_id, node_id_line = _literal_node_id(statement, f"{module}.{qualified_name}")
             if node_id is not None:
                 if node_id:
-                    raw_segment = _class_source_segment(source, statement)
+                    raw_segment = _class_source_segment(source, statement, source_lines)
                     found.append(
                         SourceNode(
                             node_id=node_id,
