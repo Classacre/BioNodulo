@@ -31,12 +31,10 @@ def main(write):
         wf = raw.get('workflow', raw)
         nodes = wf['nodes']
         edges = wf['edges']
-        by_id = {n['id']: n for n in nodes}
         reports = [n for n in nodes if n['type'] == 'html_report']
         if not reports:
             continue
 
-        report_ids = {n['id'] for n in reports}
         remove_ids = set()
         new_nodes = []
         new_edges = []

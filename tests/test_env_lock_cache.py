@@ -1,8 +1,6 @@
 """The lock cache must never break a run, and never serve the wrong lock."""
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from bionodulo.environments import manifest as environment_manifest

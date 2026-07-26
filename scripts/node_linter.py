@@ -168,9 +168,8 @@ def lint_node(node_id: str, node_cls: Any) -> list[Finding]:
                     f"'{tok}' but SHELL is False — it becomes a literal argv token, "
                     f"not a redirect. Return a shell STRING or set SHELL=True."))
 
-    # L5: known-bad flags
-    tool = str(cmd_str.split()[0]) if cmd_str.split() else ""
-    # also scan the whole command for tool tokens (bash -c wrapped)
+    # L5: known-bad flags. Scan the WHOLE command for tool tokens rather than
+    # only the first one, so a bash -c wrapped invocation is still checked.
     for t, flags in BAD_FLAGS.items():
         if t in cmd_str:
             for flag, reason in flags.items():
@@ -186,8 +185,8 @@ def lint_node(node_id: str, node_cls: Any) -> list[Finding]:
     hashnamed_tool = bool(tool_tokens & HASHNAMED_TOOLS)
     if (stdout_tool or writes_redirect) and not has_plan and not writes_redirect:
         findings.append(("ERROR", node_id,
-            f"uses a stdout-writing tool but has no PLAN_OUTPUTS override and no "
-            f"redirect — default PLAN_OUTPUTS will assert files the tool won't create"))
+            "uses a stdout-writing tool but has no PLAN_OUTPUTS override and no "
+            "redirect — default PLAN_OUTPUTS will assert files the tool won't create"))
     if hashnamed_tool and not has_plan:
         findings.append(("WARN", node_id,
             f"uses a hash/timestamp-naming tool ({tool_tokens & HASHNAMED_TOOLS}) "
@@ -216,7 +215,7 @@ def main() -> int:
     warns = [f for f in all_findings if f[0] == "WARN"]
 
     if as_json:
-        print(json.dumps([{"level": l, "node": n, "message": m} for l, n, m in all_findings], indent=2))
+        print(json.dumps([{"level": lvl, "node": n, "message": m} for lvl, n, m in all_findings], indent=2))
     else:
         for level, nid, msg in all_findings:
             print(f"[{level}] {nid}: {msg}")
