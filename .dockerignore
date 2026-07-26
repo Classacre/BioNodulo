@@ -52,3 +52,15 @@ uv.lock
 # fails with "Source not found: /tmp/workspace/templates/data/...".
 !templates/data/
 !templates/data/**
+
+# The root Dockerfile needs these, and the broad `web/` and `*.md` exclusions
+# above would starve it: stage 1 copies web/ to build the frontend, and
+# `pip install .` reads README.md + LICENSE for the wheel metadata. Last match
+# wins, so re-exclude the heavy web subdirectories AFTER re-including web/.
+!README.md
+!LICENSE
+!web/
+!web/**
+web/node_modules/
+web/dist/
+web/.next/
