@@ -54,7 +54,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.2.0", "mypy>=1.8.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    # Parallel test execution. The suite is 7000+ tests and CI's slowest leg
+    # spent ~15 min in `pytest` alone. Verified parallel-safe: two `-n auto`
+    # runs and one serial run all report exactly 7070 passed / 5 skipped.
+    "pytest-xdist>=3.5",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+]
 collab = []
 
 [project.scripts]

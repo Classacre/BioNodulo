@@ -52,7 +52,15 @@ jobs:
         # -q not -v: this suite is 7000+ tests, and printing every name
         # buries real failures and slows log ingestion. --tb=short still
         # gives a full traceback for anything that fails.
-        run: python -m pytest tests/ -q --tb=short
+        #
+        # -n auto: run across the runner's cores. Measured locally, same
+        # machine, same suite: 5m16s serial vs 3m01s parallel, with all three
+        # runs (one serial, two parallel) reporting exactly 7070 passed and
+        # 5 skipped — so this is a scheduling change, not a coverage change.
+        # If a future test proves order-dependent, prefer fixing its shared
+        # state over dropping back to serial; `--dist loadfile` is the milder
+        # fallback if that is ever not practical.
+        run: python -m pytest tests/ -q --tb=short -n auto
 
   python-quality:
     name: Python quality
@@ -125,9 +133,13 @@ jobs:
     name: Docker image
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs:
-      - python
-      - frontend
+    # Deliberately NOT `needs: [python, frontend]`. This job builds from
+    # `context: .` and consumes no artifact from either, so the dependency was
+    # pure serialisation: it waited out the slowest test leg (~15 min) before
+    # starting a ~3 min build. Worse, `needs` also means "skip when they fail" —
+    # which is how an unbuildable image went unnoticed for weeks while the suite
+    # was red. Running it independently surfaces image breakage on its own
+    # merits and takes it off the critical path.
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
