@@ -202,6 +202,11 @@ def test_snpeff_captures_stdout_without_shell_redirection(tmp_path: Path) -> Non
         "-noLog",
         "-noDownload",
         "-v",
+        # SnpEff resolves a genome through its config; without -c it falls back
+        # to the bundled one and dies with "Property: '<genome>.genome' not
+        # found" for any custom database.
+        "-c",
+        str(prepared_root / "snpEff.config"),
         "-dataDir",
         str(prepared_root),
         "-stats",

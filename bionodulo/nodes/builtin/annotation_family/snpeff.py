@@ -190,9 +190,19 @@ class SnpEffNode(AnnotationCommandNode):
             source_database,
             prepared_database,
         )
+        # SnpEff resolves a genome through its CONFIG. Without an entry the run
+        # dies with "Property: '<genome>.genome' not found", because the bundled
+        # snpEff.config only knows SnpEff's own published genomes -- which is
+        # every custom or workflow-built database. Declare this one explicitly.
+        config_path = prepared_root / "snpEff.config"
+        config_path.write_text(
+            f"data.dir = {prepared_root}\n{genome}.genome : {genome}\n",
+            encoding="utf-8",
+        )
         source_vcf = Path(path_value(inputs["vcf"]))
         staged_vcf_name = "variants.vcf.gz" if source_vcf.name.lower().endswith(".vcf.gz") else "variants.vcf"
         staged_vcf = stage_file(source_vcf, outputs[0].parent / "inputs" / staged_vcf_name)
+        inputs["config"] = str(config_path)
         inputs["data_dir"] = str(prepared_root)
         inputs["database"] = str(staged_database)
         inputs["vcf"] = str(staged_vcf)
@@ -202,12 +212,15 @@ class SnpEffNode(AnnotationCommandNode):
         cls.require_valid_inputs(inputs)
         output = Path(path_value(inputs.get("output", inputs.get("output_dir", "."))))
         data_dir = path_value(inputs.get("data_dir")) or str(output / "snpeff_data")
+        config = path_value(inputs.get("config")) or str(Path(data_dir) / "snpEff.config")
         command = [
             "snpEff",
             f"-Xmx{inputs.get('memory', 8)}g",
             "-noLog",
             "-noDownload",
             "-v",
+            "-c",
+            config,
             "-dataDir",
             data_dir,
             "-stats",

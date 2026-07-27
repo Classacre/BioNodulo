@@ -133,3 +133,49 @@ def test_build_output_feeds_the_snpeff_annotation_node(tmp_path: Path) -> None:
     # graph can wire the whole genome directory rather than just the .bin.
     assert "data_dir" in SnpEffNode.INPUT_TYPES()["optional"]
     assert SnpEffBuildNode.RETURN_NAMES[1] == "data_dir"
+
+
+def test_config_declares_the_genome_so_snpeff_can_resolve_it(tmp_path: Path) -> None:
+    """Staging files on disk is not enough: SnpEff looks the genome up in config.
+
+    Without this the cloud run failed with
+        java.lang.RuntimeException: Property: 'Wildtype.genome' not found
+    because SnpEff fell back to its bundled snpEff.config, which lists only
+    SnpEff's own published genomes -- i.e. never a workflow-built one.
+    """
+    inputs = _inputs(tmp_path)
+    outputs = SnpEffBuildNode.PLAN_OUTPUTS(inputs, tmp_path / "runs")
+    SnpEffBuildNode.PREPARE_EXECUTION(inputs, outputs)
+
+    data_root = outputs[0].parent.parent
+    config = data_root / "snpEff.config"
+    text = config.read_text(encoding="utf-8")
+    assert "Wildtype.genome" in text
+    assert f"data.dir = {data_root}" in text
+
+    command = SnpEffBuildNode.render_command(inputs)
+    assert "-c" in command
+    assert command[command.index("-c") + 1] == str(config)
+
+
+def test_snpeff_annotation_also_declares_a_custom_genome(tmp_path: Path) -> None:
+    """The annotator has the same requirement as the builder."""
+    from bionodulo.nodes.builtin.annotation_family import SnpEffNode
+
+    database = tmp_path / "snpEffectPredictor.bin"
+    database.write_bytes(b"predictor")
+    vcf = tmp_path / "variants.vcf"
+    vcf.write_text("##fileformat=VCFv4.2\n", encoding="ascii")
+    inputs = {
+        "vcf": str(vcf),
+        "genome": "Wildtype",
+        "database": str(database),
+        "output": str(tmp_path / "runs" / "snpeff"),
+    }
+    outputs = SnpEffNode.PLAN_OUTPUTS(inputs, tmp_path / "runs")
+    SnpEffNode.PREPARE_EXECUTION(inputs, outputs)
+
+    config = Path(inputs["config"])
+    assert "Wildtype.genome" in config.read_text(encoding="utf-8")
+    command = SnpEffNode.render_command(inputs)
+    assert command[command.index("-c") + 1] == str(config)

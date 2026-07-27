@@ -57,6 +57,7 @@ class SnpEffBuildNode(AnnotationCommandNode):
     RETURN_TYPES = ("FILE", "DIRECTORY", "STRING")
     RETURN_NAMES = ("predictor_database", "data_dir", "genome")
     OUTPUT_FILENAMES = ("snpEffectPredictor.bin",)
+    CONFIG_FILENAME = "snpEff.config"
     REQUIRED_EXECUTABLES = ["snpEff", "java"]
     REQUIRED_CONDA_PACKAGES = ["snpeff", "openjdk"]
     CONDA_PACKAGE_CONSTRAINTS = {"snpeff": "5.2", "openjdk": "17.*"}
@@ -164,13 +165,27 @@ class SnpEffBuildNode(AnnotationCommandNode):
             Path(path_value(inputs["annotation"])),
             genome_dir / cls._ANNOTATION_FORMATS[annotation_format],
         )
-        inputs["data_dir"] = str(genome_dir.parent)
+
+        # SnpEff resolves a genome through its CONFIG, not by looking on disk:
+        # staging the files alone fails with "Property: '<genome>.genome' not
+        # found" because it falls back to the bundled snpEff.config, which knows
+        # only published genomes. Write a minimal config declaring this one.
+        data_root = genome_dir.parent
+        config_path = data_root / cls.CONFIG_FILENAME
+        genome = str(inputs["genome"])
+        config_path.write_text(
+            f"data.dir = {data_root}\n{genome}.genome : {genome}\n",
+            encoding="utf-8",
+        )
+        inputs["config"] = str(config_path)
+        inputs["data_dir"] = str(data_root)
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:
         cls.require_valid_inputs(inputs)
         output = Path(path_value(inputs.get("output", inputs.get("output_dir", "."))))
         data_dir = path_value(inputs.get("data_dir")) or str(output / "snpeff_data")
+        config = path_value(inputs.get("config")) or str(Path(data_dir) / cls.CONFIG_FILENAME)
         annotation_format = str(inputs.get("annotation_format", "gff3"))
         return [
             "snpEff",
@@ -181,6 +196,8 @@ class SnpEffBuildNode(AnnotationCommandNode):
             "-noCheckCds",
             "-noCheckProtein",
             "-v",
+            "-c",
+            config,
             "-dataDir",
             data_dir,
             str(inputs["genome"]),
