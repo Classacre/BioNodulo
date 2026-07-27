@@ -231,7 +231,12 @@ def test_squidpy_qc_loads_complete_visium_spatial_data_and_new_grid_api(tmp_path
         "sq.gr.spatial_neighbors_grid(adata, n_neighs=grid_n_neighs, n_rings=1)"
         in script
     )
-    assert "sq.gr.nhood_enrichment(adata, cluster_key=\"leiden\", seed=0)" in script
+    # Squidpy's default 1000 permutations fan across forkserver workers that
+    # die with ConnectionResetError on a modest box; run single-process.
+    assert "sq.gr.nhood_enrichment(" in script
+    assert 'cluster_key="leiden"' in script
+    assert "n_jobs=1" in script
+    assert "n_perms=100" in script
     assert "scanpy_n_neighbors = min(15, adata.n_obs)" in script
     assert "n_neighbors=scanpy_n_neighbors" in script
     assert "adata.raw = adata.copy()" in script

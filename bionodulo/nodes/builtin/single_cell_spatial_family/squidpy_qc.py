@@ -67,6 +67,19 @@ class SquidpyQCNode(PythonScriptNode):
                 "n_hvg": ("INT", {"default": 2000, "min": 100}),
                 "n_pcs": ("INT", {"default": 15, "min": 2, "max": 50}),
                 "resolution": ("FLOAT", {"default": 0.8, "min": 0.1, "max": 2.0}),
+                "n_perms": (
+                    "INT",
+                    {
+                        "default": 100,
+                        "min": 10,
+                        "max": 1000,
+                        "description": (
+                            "Neighborhood-enrichment permutations. Squidpy's own default of "
+                            "1000 fans across forkserver workers, which die with "
+                            "ConnectionResetError on a modest box."
+                        ),
+                    },
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -81,6 +94,7 @@ class SquidpyQCNode(PythonScriptNode):
             ("min_cells", 3, 1, None),
             ("n_hvg", 2000, 100, None),
             ("n_pcs", 15, 2, 50),
+            ("n_perms", 100, 10, 1000),
         ):
             validation = validate_int(inputs.get(key, default), key, minimum=minimum, maximum=maximum)
             if validation is not True:
@@ -161,7 +175,14 @@ class SquidpyQCNode(PythonScriptNode):
             )
             grid_n_neighs = min(6, adata.n_obs - 1)
             sq.gr.spatial_neighbors_grid(adata, n_neighs=grid_n_neighs, n_rings=1)
-            sq.gr.nhood_enrichment(adata, cluster_key="leiden", seed=0)
+            sq.gr.nhood_enrichment(
+                adata,
+                cluster_key="leiden",
+                seed=0,
+                n_perms={int(inputs.get('n_perms', 100))},
+                n_jobs=1,
+                show_progress_bar=False,
+            )
             adata.write_h5ad({str(outputs[0])!r})
 
             fig, axes = plt.subplots(1, 2, figsize=(14, 6))
