@@ -95,7 +95,7 @@
       ],
       "params": {
         "file": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz",
-        "source": "local"
+        "source": "url"
       },
       "ui": {
         "title": "HUMAnN Reads"
@@ -109,7 +109,8 @@
         750
       ],
       "params": {
-        "directory": "chocophlan_db"
+        "directory": "http://huttenhower.sph.harvard.edu/humann_data/chocophlan/DEMO_chocophlan.v201901_v31.tar.gz",
+        "source": "url"
       },
       "ui": {
         "title": "ChocoPhlAn DB"
@@ -123,7 +124,8 @@
         910
       ],
       "params": {
-        "directory": "uniref_db"
+        "directory": "http://huttenhower.sph.harvard.edu/humann_data/uniprot/uniref_annotated/uniref90_DEMO_diamond_v201901b.tar.gz",
+        "source": "url"
       },
       "ui": {
         "title": "UniRef DB"

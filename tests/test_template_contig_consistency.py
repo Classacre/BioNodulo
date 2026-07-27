@@ -103,3 +103,26 @@ def test_heatmaps_do_not_cluster_columns_a_template_cannot_produce(name: str, wo
         assert params.get("scale") != "row", (
             f"{name}: {node['id']} uses scale='row' on a single-column matrix (all NaN)"
         )
+
+
+@pytest.mark.parametrize("name,workflow", _templates(), ids=lambda value: value if isinstance(value, str) else "")
+def test_url_inputs_are_not_marked_local(name: str, workflow: dict) -> None:
+    """source="local" on a URL makes the resolver treat it as a filesystem path.
+
+    Observed in production as:
+        Source not found: /tmp/workspace/https:/raw.githubusercontent.com/...
+    which reads like a missing file rather than a mis-tagged input.
+    """
+    for node in workflow.get("nodes", []):
+        params = node.get("params")
+        if not isinstance(params, dict):
+            continue
+        if str(params.get("source", "")).lower() != "local":
+            continue
+        for key in ("file", "directory", "reference"):
+            value = params.get(key)
+            if isinstance(value, str) and value.startswith(("http://", "https://")):
+                raise AssertionError(
+                    f"{name}: node {node['id']} has a URL in {key!r} but source='local'; "
+                    "use source='url' or the path is resolved against the workspace"
+                )
