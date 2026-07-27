@@ -79,7 +79,8 @@
         430
       ],
       "params": {
-        "directory": "metaphlan_db"
+        "directory": "http://cmprod1.cibio.unitn.it/biobakery4/metaphlan_databases/mpa_vJan21_TOY_CHOCOPhlAnSGB_202103.tar",
+        "source": "url"
       },
       "ui": {
         "title": "MetaPhlAn DB"
@@ -255,7 +256,7 @@
       ],
       "params": {
         "threads": 8,
-        "index": "mpa_vJun23_CHOCOPhlAnSGB_202403"
+        "index": "mpa_vJan21_TOY_CHOCOPhlAnSGB_202103"
       },
       "ui": {
         "title": "MetaPhlAn",

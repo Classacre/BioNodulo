@@ -67,8 +67,11 @@ def test_proteomics_sage_percolator_template_wires_search_to_fdr_validation() ->
     pin_validator = _output_validation(workflow, "sage_search_001", "pin_file")
 
     assert sage["params"]["batch_size"] == 1
-    assert sage["params"]["decoy_tag"] == "DECOY_"
-    assert sage["params"]["generate_decoys"] is False
+    # The BSA-matched database is TARGET-ONLY (18,878 entries, 0 decoys), so
+    # Sage reverses its own using its default rev_ prefix. Searching those
+    # spectra against the old phospho-pool FASTA found 0 PSMs and wrote no .pin.
+    assert sage["params"]["decoy_tag"] == "rev_"
+    assert sage["params"]["generate_decoys"] is True
     assert "mzXML" not in note["params"]["text"]
     assert "flanking syntax" in note["params"]["text"]
     assert percolator["params"]["pin_dialect"] == "sage_0_14_7_full_digest"

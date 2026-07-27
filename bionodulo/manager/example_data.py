@@ -255,7 +255,11 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     # to centroid"). This BSA run is centroided (verified: 767 centroid spectra,
     # 0 profile) and is a real search rather than a parser fixture.
     DataFile("proteomics", "sample.mzML", f"{_NFCORE}/quantms/testdata/lfq_ci/BSA/BSA1_F1.mzML", description="Centroided BSA DDA run (nf-core quantms)"),
-    DataFile("proteomics", "target_decoy.fasta", f"{_NFCORE}/quantms/testdata/lfq_ci_phospho/pools_crap_targetdecoy.fasta", description="Target+decoy protein FASTA (DECOY_ prefix)"),
+    # Must be the database for the BSA run above: searching those spectra
+    # against the unrelated phospho-pool FASTA found 0 PSMs, so Sage wrote no
+    # .pin at all. This one is TARGET-ONLY (18,878 entries, 0 decoys despite
+    # upstream naming), so the template has Sage reverse its own decoys.
+    DataFile("proteomics", "target_decoy.fasta", f"{_NFCORE}/quantms/testdata/lfq_ci/BSA/18Protein_SoCe_Tr_detergents_trace.fasta", description="BSA-matched protein FASTA (target-only; Sage generates decoys)"),
 
     # metabolomics — ProteoWizard mzML
     DataFile("metabolomics", "sample.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="ProteoWizard tiny mzML"),

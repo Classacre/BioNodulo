@@ -95,8 +95,8 @@
         "missed_cleavages": 2,
         "min_peptide_length": 7,
         "max_peptide_length": 40,
-        "decoy_tag": "DECOY_",
-        "generate_decoys": false
+        "decoy_tag": "rev_",
+        "generate_decoys": true
       },
       "ui": {
         "title": "Sage Search",
@@ -121,7 +121,7 @@
       "params": {
         "pin_dialect": "sage_0_14_7_full_digest",
         "search_input": "concatenated",
-        "decoy_prefix": "DECOY_",
+        "decoy_prefix": "rev_",
         "test_fdr": 0.01,
         "train_fdr": 0.01,
         "protein_enzyme": "trypsin"
