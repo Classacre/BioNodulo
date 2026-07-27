@@ -24,6 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 KNOWN_GENOME_CONTIGS = {
     "sarscov2/genome/genome.fasta": {"MT192765.1"},
     "CRISPResso2/master/tests/smallGenome/smallGenome.fa": {"chr9", "chr11"},
+    # nf-core methylseq lambda reference: single contig literally named "chr".
+    "test-datasets/e7e1fb8940fc14e2336101147a31ce8e0eda6264/reference/genome.fa": {"chr"},
     "zenodo.org/record/582600/files/wildtype.fna": {"Wildtype"},
 }
 

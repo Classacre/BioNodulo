@@ -131,11 +131,15 @@ def test_wgbs_methylation_template_validates_inputs_and_core_outputs() -> None:
     assert r2_validator["expected_format"] == "fastq"
     assert r2_validator["min_records"] >= 1
     assert r2_validator["fail_on_error"] is True
+    # Real bisulfite-converted reads matched to the reference they were built
+    # on. sarscov2 WGS is not methylation data, and its FASTA header did not
+    # match the contig Bismark emitted -- MethylDackel segfaulted with
+    # 'The sequence "chr" was not found'.
     assert _node_by_id(workflow, "r1_001")["params"]["reads"] == [
-        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz"
+        "https://raw.githubusercontent.com/nf-core/test-datasets/e7e1fb8940fc14e2336101147a31ce8e0eda6264/testdata/Ecoli_10K_methylated_R1.fastq.gz"
     ]
     assert _node_by_id(workflow, "r2_001")["params"]["reads"] == [
-        "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_2.fastq.gz"
+        "https://raw.githubusercontent.com/nf-core/test-datasets/e7e1fb8940fc14e2336101147a31ce8e0eda6264/testdata/Ecoli_10K_methylated_R2.fastq.gz"
     ]
     assert genome_validator["expected_format"] == "directory"
     assert genome_validator["min_size_bytes"] > 0
