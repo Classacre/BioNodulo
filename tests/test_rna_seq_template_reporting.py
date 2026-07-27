@@ -51,7 +51,9 @@ def test_rna_seq_template_adds_counts_html_report_from_raw_and_normalized_tables
     assert node_types["render_normalize_counts_tab_1"] == "table_preview"
 
     heatmap = _node(workflow, "counts_heatmap_001")
-    assert heatmap["params"]["scale"] == "row"
+    # Single-sample pipeline: one count column, so scale="row" is all-NaN and
+    # column clustering is undefined. See test_template_contig_consistency.
+    assert heatmap["params"]["scale"] == "none"
     assert heatmap["params"]["cluster_rows"] is True
 
     assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "data_csv")

@@ -118,7 +118,13 @@ class MethylDackelNode(EpigenomicsCommandNode):
         stage_file(str(inputs["reference"]), staged_reference)
         stage_file(str(inputs["reference_index"]), Path(f"{staged_reference}.fai"))
         inputs["bam"] = str(staged_bam)
+        # Repoint the sidecars too. Rewriting only bam/reference left the index
+        # inputs naming their ORIGINAL locations, so the colocation check
+        # compared a staged BAM against an unstaged index and always failed with
+        # "must be the exact colocated index".
+        inputs["bam_index"] = f"{staged_bam}.bai"
         inputs["reference"] = str(staged_reference)
+        inputs["reference_index"] = f"{staged_reference}.fai"
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> list[str]:

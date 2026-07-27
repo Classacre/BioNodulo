@@ -779,7 +779,9 @@ def test_rna_seq_template_normalizes_featurecounts_output() -> None:
     assert normalizer["params"]["id_columns"] == "Geneid"
     assert normalizer["params"]["axis"] == "rows"
     assert normalizer["params"]["output_type"] == "CSV"
-    assert heatmap["params"]["scale"] == "row"
+    # Single-sample pipeline: one count column, so scale="row" is all-NaN and
+    # column clustering is undefined. See test_template_contig_consistency.
+    assert heatmap["params"]["scale"] == "none"
     assert heatmap["params"]["cluster_rows"] is True
     assert _has_edge(workflow, "counts_001", "counts", "normalize_counts_001", "table")
     assert _has_edge(workflow, "normalize_counts_001", "normalized_table", "counts_heatmap_001", "data_csv")

@@ -221,9 +221,9 @@
         80
       ],
       "params": {
-        "scale": "row",
+        "scale": "none",
         "cluster_rows": true,
-        "cluster_cols": true,
+        "cluster_cols": false,
         "show_rownames": false,
         "show_colnames": true
       },

@@ -570,3 +570,46 @@ def test_cooltools_insulation_preserves_empty_weight_for_raw_data() -> None:
 )
 def test_epigenomics_validation_fails_closed(node_id: str, inputs: dict[str, object], message: str) -> None:
     assert _node_class(node_id).VALIDATE_INPUTS(inputs) == message
+
+
+def test_methyldackel_repoints_sidecars_to_the_staged_copies(tmp_path: Path) -> None:
+    """Staging must rewrite the INDEX inputs, not just the bam/reference.
+
+    PREPARE_EXECUTION copies the BAM to <node>/inputs/alignment.bam and its
+    index to alignment.bam.bai, but originally rewrote only inputs["bam"].
+    VALIDATE_INPUTS then compared the staged BAM against the ORIGINAL index
+    path, so every cloud run died with "Input 'bam_index' must be the exact
+    colocated index for input 'bam'".
+    """
+    source = tmp_path / "src"
+    source.mkdir()
+    bam = source / "aln.bam"
+    bam.write_bytes(b"BAM\x01")
+    bai = source / "aln.bam.bai"
+    bai.write_bytes(b"BAI\x01")
+    reference = source / "ref.fa"
+    reference.write_text(">chr1\nACGT\n", encoding="ascii")
+    fai = source / "ref.fa.fai"
+    fai.write_text("chr1\t4\t6\t4\t5\n", encoding="ascii")
+
+    inputs = {
+        "bam": str(bam),
+        "bam_index": str(bai),
+        "reference": str(reference),
+        "reference_index": str(fai),
+        "output_prefix": "methyldackel",
+        "output": str(tmp_path / "runs" / "methyldackel"),
+    }
+    node = epigenomics.MethylDackelNode
+    outputs = node.PLAN_OUTPUTS(inputs, tmp_path / "runs")
+    node.PREPARE_EXECUTION(inputs, outputs)
+
+    staged_bam = Path(inputs["bam"])
+    assert inputs["bam_index"] == f"{staged_bam}.bai"
+    assert Path(inputs["bam_index"]).is_file()
+    staged_reference = Path(inputs["reference"])
+    assert inputs["reference_index"] == f"{staged_reference}.fai"
+    assert Path(inputs["reference_index"]).is_file()
+
+    # The colocation contract must now hold against the staged paths.
+    assert node.VALIDATE_INPUTS(inputs) is True

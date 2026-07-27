@@ -140,7 +140,7 @@ def _download_url(url: str, dest: Path, gunzip: bool = False) -> None:
 # ---------------------------------------------------------------------------
 
 _NFCORE = "https://raw.githubusercontent.com/nf-core/test-datasets"
-_MAGECK = "https://raw.githubusercontent.com/davidliwei/mageck/master/demo/demo2"
+_MAGECK = "https://raw.githubusercontent.com/davidliwei/mageck/8ac6eea1d4bdb0d6e12b6124f8ab77254eaf6efe/demo/demo2"
 # 10x tinygex (cellranger-tiny-fastq) — Git-LFS, must use the media host.
 _TINYGEX = "https://media.githubusercontent.com/media/minoda-lab/universc/master/test/shared/cellranger-tiny-fastq/3.0.0"
 _TINYREF_PATH = "minoda-lab/universc/7cbd039613b45c64f4b6d8219906aafda28dd5f9/test/cellranger_reference/cellranger-tiny-ref/1.2.0"
@@ -235,7 +235,7 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("chip_seq", "genes.bed", f"{_NFCORE}/chipseq/reference/genes.bed", description="Gene annotations BED (nf-core chipseq)"),
 
     # crispr — CRISPResso2 reference + MAGeCK demo screen + nf-core amplicon edits
-    DataFile("crispr", "genome.fa", "https://raw.githubusercontent.com/pinellolab/CRISPResso2/master/tests/smallGenome/smallGenome.fa", description="CRISPResso2 small test genome"),
+    DataFile("crispr", "genome.fa", "https://raw.githubusercontent.com/pinellolab/CRISPResso2/2b4430da9d14adb1a2d1205f7cb6c1ba6ce8f5d9/tests/smallGenome/smallGenome.fa", description="CRISPResso2 small test genome"),
     DataFile("crispr", "sgrna_library.tsv", f"{_MAGECK}/library.txt", description="MAGeCK demo sgRNA library (sgRNA/sequence/gene)"),
     DataFile("crispr", "control.fastq", f"{_MAGECK}/test1.fastq", description="MAGeCK demo control reads"),
     DataFile("crispr", "treated.fastq", f"{_MAGECK}/test2.fastq", description="MAGeCK demo treated reads"),
@@ -250,7 +250,11 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("epigenomics", "bismark_genome/genome.fa", f"{_NFCORE}/methylseq/reference/genome.fa", description="Bismark genome folder reference"),
 
     # proteomics — ProteoWizard mzML + nf-core quantms target-decoy FASTA
-    DataFile("proteomics", "sample.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="ProteoWizard tiny mzML (MS1+MS2)"),
+    # ProteoWizard's tiny.pwiz is a FORMAT demo containing PROFILE spectra, and
+    # Sage aborts on those ("Scan scan=20 contains profile data! Please convert
+    # to centroid"). This BSA run is centroided (verified: 767 centroid spectra,
+    # 0 profile) and is a real search rather than a parser fixture.
+    DataFile("proteomics", "sample.mzML", f"{_NFCORE}/quantms/testdata/lfq_ci/BSA/BSA1_F1.mzML", description="Centroided BSA DDA run (nf-core quantms)"),
     DataFile("proteomics", "target_decoy.fasta", f"{_NFCORE}/quantms/testdata/lfq_ci_phospho/pools_crap_targetdecoy.fasta", description="Target+decoy protein FASTA (DECOY_ prefix)"),
 
     # metabolomics — ProteoWizard mzML

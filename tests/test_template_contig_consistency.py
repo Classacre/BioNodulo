@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Verified by downloading each and reading its headers.
 KNOWN_GENOME_CONTIGS = {
     "sarscov2/genome/genome.fasta": {"MT192765.1"},
+    "CRISPResso2/master/tests/smallGenome/smallGenome.fa": {"chr9", "chr11"},
     "zenodo.org/record/582600/files/wildtype.fna": {"Wildtype"},
 }
 
@@ -67,3 +68,38 @@ def test_region_contigs_exist_in_the_referenced_genome(name: str, workflow: dict
                 f"but this workflow's genome contains {sorted(contigs)}. "
                 "A reference was probably swapped without updating the region."
             )
+
+
+def _sample_count(workflow: dict) -> int:
+    """How many samples this workflow actually produces columns for."""
+    return sum(
+        1
+        for node in workflow.get("nodes", [])
+        if node.get("type") == "input_fastq"
+    )
+
+
+@pytest.mark.parametrize("name,workflow", _templates(), ids=lambda value: value if isinstance(value, str) else "")
+def test_heatmaps_do_not_cluster_columns_a_template_cannot_produce(name: str, workflow: dict) -> None:
+    """A single-sample pipeline yields one matrix column.
+
+    pheatmap stops with "Column clustering requires at least two matrix
+    columns", and scale="row" over a single column is all-NaN (zero variance).
+    Both are only discoverable after the whole pipeline has run, so pin the
+    template-level invariant instead.
+    """
+    # Only meaningful for pipelines whose matrix columns come from sequencing
+    # inputs. A CSV-driven heatmap (DESeq2, R Visualization) carries its own
+    # multi-sample matrix and legitimately clusters columns.
+    if _sample_count(workflow) != 1:
+        return
+    for node in workflow.get("nodes", []):
+        if node.get("type") != "r_pheatmap":
+            continue
+        params = node.get("params", {})
+        assert params.get("cluster_cols") is not True, (
+            f"{name}: {node['id']} clusters columns, but this workflow has a single sample"
+        )
+        assert params.get("scale") != "row", (
+            f"{name}: {node['id']} uses scale='row' on a single-column matrix (all NaN)"
+        )
