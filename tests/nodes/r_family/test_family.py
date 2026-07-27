@@ -205,6 +205,13 @@ def test_biostrings_contract_translates_all_six_frames_without_false_start_codon
     assert 'strsplit(amino_text, "*", fixed = TRUE)' in script
     assert "readr" not in script
 
+    # dna[[i]] yields a single DNAString (an XString). width() is defined only
+    # for XStringSet/Views, so calling it here aborted every run with
+    # "unable to find an inherited method for function 'width' for signature
+    # 'x = \"DNAString\"'". length() is the XString accessor.
+    assert "length(strand_sequence)" in script
+    assert "width(strand_sequence)" not in script
+
 
 @pytest.mark.asyncio
 async def test_dataframe_builder_writes_rectangular_csv_and_rejects_truncation(tmp_path) -> None:

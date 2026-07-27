@@ -61,7 +61,11 @@ def test_peak_detection_stops_before_alignment_and_exports_chrom_peaks(tmp_path:
     script = (output / "xcms_peak_detection.R").read_text(encoding="utf-8")
     assert 'files <- c("/inputs/z-sample.mzML", "/inputs/a-sample.mzML")' in script
     assert "sampleData(raw_data)$bionodulo_input_index <- seq_along(files)" in script
-    assert "order(dataOrigin(sp)" not in script
+    # centWave aborts with "Spectra are not ordered by retention time" unless
+    # spectra are RT-sorted within each file. Order by dataOrigin FIRST so files
+    # stay contiguous; a bare rtime sort would interleave samples.
+    assert "order(dataOrigin(spectra_set), rtime(spectra_set))" in script
+    assert "spectra(raw_data) <- spectra_set[spectra_order]" in script
     assert "xdata <- findChromPeaks(" in script
     assert "peak_table <- as.data.frame(chromPeaks(xdata))" in script
     assert "groupChromPeaks(" not in script

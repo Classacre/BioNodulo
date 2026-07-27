@@ -162,6 +162,16 @@ class XCMSPeakDetectionNode(MetabolomicsCommandNode):
                 stop("MsExperiment sample count does not match the ordered input files.")
             }}
             sampleData(raw_data)$bionodulo_input_index <- seq_along(files)
+            # centWave requires spectra sorted by retention time WITHIN each
+            # file; an mzML that stores them in another order aborts the run with
+            # "Spectra are not ordered by retention time". Order by dataOrigin
+            # first so files stay contiguous — a global rtime sort would
+            # interleave samples and silently corrupt per-sample peak tables.
+            spectra_set <- spectra(raw_data)
+            spectra_order <- order(dataOrigin(spectra_set), rtime(spectra_set))
+            if (is.unsorted(spectra_order)) {{
+                spectra(raw_data) <- spectra_set[spectra_order]
+            }}
             param <- CentWaveParam(
                 ppm = {inputs.get('ppm', 25.0)},
                 peakwidth = c({inputs.get('peakwidth_min', 20.0)}, {inputs.get('peakwidth_max', 50.0)}),

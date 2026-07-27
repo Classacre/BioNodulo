@@ -102,11 +102,13 @@ def test_spatial_transcriptomics_template_validates_outputs_and_analysis_paramet
     assert visium_validator["min_size_bytes"] > 0
     assert visium_validator["fail_on_error"] is True
 
-    assert squidpy["params"]["min_counts"] == 500
-    assert squidpy["params"]["min_cells"] == 3
-    assert squidpy["params"]["max_mt_pct"] == 20.0
-    assert squidpy["params"]["n_hvg"] == 2000
-    assert squidpy["params"]["n_pcs"] == 15
+    # Thresholds are sized for the downsampled nf-core fixture, not production.
+    # See test_spatial_template_thresholds_match_the_downsampled_visium_fixture.
+    assert squidpy["params"]["min_counts"] == 3
+    assert squidpy["params"]["min_cells"] == 1
+    assert squidpy["params"]["max_mt_pct"] == 100.0
+    assert squidpy["params"]["n_hvg"] == 500
+    assert squidpy["params"]["n_pcs"] == 10
     assert squidpy["params"]["resolution"] == 0.8
     assert squidpy_validator["expected_format"] == "auto"
     assert squidpy_validator["fail_on_error"] is True
@@ -114,10 +116,10 @@ def test_spatial_transcriptomics_template_validates_outputs_and_analysis_paramet
     assert _has_edge(workflow, "squidpy_qc_001", "adata", "scanpy_spatial_001", "adata")
     assert scanpy["params"]["sample_name"] == "visium_sample"
     assert "delimiter" not in scanpy["params"]
-    assert scanpy["params"]["min_cells"] == 3
-    assert scanpy["params"]["min_genes"] == 200
-    assert scanpy["params"]["n_hvg"] == 2000
-    assert scanpy["params"]["n_pcs"] == 15
+    assert scanpy["params"]["min_cells"] == 1
+    assert scanpy["params"]["min_genes"] == 3
+    assert scanpy["params"]["n_hvg"] == 500
+    assert scanpy["params"]["n_pcs"] == 10
     assert scanpy["params"]["resolution"] == 0.8
     assert clusters_validator["expected_format"] == "csv"
     assert clusters_validator["fail_on_error"] is True
@@ -177,3 +179,35 @@ def test_spatial_transcriptomics_template_is_discoverable_from_workflow_template
 
     assert template_response.status_code == 200
     assert template_response.json()["name"] == "Spatial Transcriptomics QC and Clustering"
+
+
+def test_spatial_template_thresholds_match_the_downsampled_visium_fixture() -> None:
+    """The nf-core spatialvi fixture is tiny; QC thresholds must stay reachable.
+
+    Measured against the staged matrix (raw_feature_bc_matrix.h5): 19023 genes
+    x 11397 spots, 7089 non-empty, and the busiest spot carries only ~22
+    counts. Production-style values (min_counts=500, min_genes=200) filter
+    every spot away and squidpy_qc exits 1 with "Too few spots or genes after
+    filtering". Keep these thresholds small or swap in a deeper dataset.
+    """
+    workflow = _load_template("spatial_transcriptomics_qc_clustering.json")
+    params = {str(node["id"]): node.get("params", {}) for node in workflow["nodes"]}
+
+    max_counts_per_spot = 22
+    assert params["squidpy_qc_001"]["min_counts"] <= max_counts_per_spot
+    assert params["scanpy_spatial_001"]["min_genes"] <= max_counts_per_spot
+
+
+def test_spatial_manifest_stages_the_matrix_that_actually_has_counts() -> None:
+    """filtered_feature_bc_matrix.h5 upstream is a 1-gene all-zero stub.
+
+    The readers look for that filename, so the manifest deliberately stages
+    the raw matrix under it. Reverting the URL silently empties the pipeline.
+    """
+    entry = next(
+        item
+        for item in EXAMPLE_DATA_MANIFEST
+        if item.category == "spatial_transcriptomics"
+        and item.filename.endswith("filtered_feature_bc_matrix.h5")
+    )
+    assert entry.url.endswith("raw_feature_bc_matrix.h5")

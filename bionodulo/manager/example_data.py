@@ -237,7 +237,14 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
 
     # spatial_transcriptomics — real Visium outs (scanpy_spatial derives the
     # count/coordinate CSVs from this .h5 at run time; squidpy reads it directly)
-    DataFile("spatial_transcriptomics", "visium_outs/filtered_feature_bc_matrix.h5", f"{_VISIUM}/filtered_feature_bc_matrix.h5", description="Visium matrix (nf-core spatialvi)"),
+    # nf-core's filtered_feature_bc_matrix.h5 for this sample is a stub: 1 gene
+    # x 10881 spots with every count zero, so ANY QC filter empties it and
+    # squidpy_qc dies with "Too few spots or genes after filtering".
+    # raw_feature_bc_matrix.h5 is the real (downsampled) matrix -- 19023 genes x
+    # 11397 spots, 7089 non-empty -- so stage that under the filename the Space
+    # Ranger readers look for. Counts top out at ~22/spot, which is why the
+    # spatial template uses CI-sized min_counts/min_genes thresholds.
+    DataFile("spatial_transcriptomics", "visium_outs/filtered_feature_bc_matrix.h5", f"{_VISIUM}/raw_feature_bc_matrix.h5", description="Visium matrix (nf-core spatialvi)"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/scalefactors_json.json", f"{_VISIUM}/spatial/scalefactors_json.json", description="Visium scalefactors"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_positions.csv", f"{_VISIUM}/spatial/tissue_positions.csv", description="Visium tissue positions"),
     DataFile("spatial_transcriptomics", "visium_outs/spatial/tissue_hires_image.png", f"{_VISIUM}/spatial/tissue_hires_image.png", description="Visium hires image"),

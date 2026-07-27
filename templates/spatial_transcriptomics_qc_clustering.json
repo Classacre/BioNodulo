@@ -68,11 +68,11 @@
         80
       ],
       "params": {
-        "min_counts": 500,
-        "min_cells": 3,
-        "max_mt_pct": 20.0,
-        "n_hvg": 2000,
-        "n_pcs": 15,
+        "min_counts": 3,
+        "min_cells": 1,
+        "max_mt_pct": 100.0,
+        "n_hvg": 500,
+        "n_pcs": 10,
         "resolution": 0.8
       },
       "ui": {
@@ -109,10 +109,10 @@
       ],
       "params": {
         "sample_name": "visium_sample",
-        "min_cells": 3,
-        "min_genes": 200,
-        "n_hvg": 2000,
-        "n_pcs": 15,
+        "min_cells": 1,
+        "min_genes": 3,
+        "n_hvg": 500,
+        "n_pcs": 10,
         "resolution": 0.8
       },
       "ui": {

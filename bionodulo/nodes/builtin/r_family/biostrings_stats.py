@@ -135,7 +135,12 @@ class BiostringsStatsNode(PreparedRScriptNode):
                 for (strand_name in names(strand_sequences)) {{
                     strand_sequence <- strand_sequences[[strand_name]]
                     for (frame_offset in 0:2) {{
-                        usable_length <- width(strand_sequence) - frame_offset
+                        # length(), not width(): dna[[i]] returns a single
+                        # DNAString (an XString), and width() is only defined
+                        # for XStringSet/Views. Calling it here failed every run
+                        # with "unable to find an inherited method for function
+                        # 'width' for signature 'x = \"DNAString\"'".
+                        usable_length <- length(strand_sequence) - frame_offset
                         usable_length <- usable_length - (usable_length %% 3L)
                         if (usable_length <= 0) next
 
