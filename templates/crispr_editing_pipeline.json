@@ -72,7 +72,7 @@
         80
       ],
       "params": {
-        "target": "chr9:1-1000",
+        "target": "MT192765.1:1-1000",
         "pam": "NGG",
         "guide_length": 20,
         "max_guides": 50,

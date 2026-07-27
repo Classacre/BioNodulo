@@ -368,7 +368,9 @@ def test_wgs_variant_template_adds_coverage_plot_from_indexed_bam_pair() -> None
 
     assert node_types["coverage_plot_001"] == "coverage_plot"
     coverage = next(node for node in workflow["nodes"] if node["id"] == "coverage_plot_001")
-    assert coverage["params"]["region"] == "NC_000913.3:1-50000"
+    # Wildtype is the single contig in this workflow's reference; the old
+    # E. coli accession outlived the reference it belonged to.
+    assert coverage["params"]["region"] == "Wildtype:1-50000"
     assert coverage["params"]["window_size"] == 100
     assert coverage["params"]["format"] == "html"
     _assert_edge(workflow, "e18", "idx_001", "indexed_bam", "coverage_plot_001", "alignment")

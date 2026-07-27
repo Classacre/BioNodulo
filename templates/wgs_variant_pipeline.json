@@ -242,7 +242,7 @@
         80
       ],
       "params": {
-        "expr": "QUAL>20 && DP>5"
+        "expr": "QUAL>20 && INFO/DP>5"
       },
       "ui": {
         "title": "bcftools filter"
@@ -350,7 +350,7 @@
         758
       ],
       "params": {
-        "region": "NC_000913.3:1-50000",
+        "region": "Wildtype:1-50000",
         "window_size": 100,
         "title": "WGS Coverage",
         "format": "html"

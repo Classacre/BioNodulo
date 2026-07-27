@@ -273,7 +273,7 @@
         80
       ],
       "params": {
-        "expr": "QUAL>30 && DP>10"
+        "expr": "QUAL>30 && INFO/DP>10"
       },
       "ui": {
         "title": "bcftools filter"

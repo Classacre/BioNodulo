@@ -122,7 +122,9 @@ def test_crispr_template_validates_inputs_outputs_and_quality_gates() -> None:
     assert crispresso_gate["params"]["on_fail"] == "halt"
     assert "CRISPResso2 HTML report" in crispresso_gate["params"]["error_message"]
 
-    assert guide_design["params"]["target"] == "chr9:1-1000"
+    # The genome is the nf-core sarscov2 fixture (one contig, 29,829 bp);
+    # "chr9" came from a human reference this workflow never loads.
+    assert guide_design["params"]["target"] == "MT192765.1:1-1000"
     assert guide_design["params"]["pam"] == "NGG"
     assert guide_design["params"]["guide_length"] == 20
     assert guide_design["params"]["mismatches"] == 3
