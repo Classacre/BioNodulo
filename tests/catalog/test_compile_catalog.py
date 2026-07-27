@@ -10,6 +10,8 @@ import pytest
 from scripts.compile_catalog import (
     BASELINE_LEDGER,
     BASELINE_NODE_COUNT,
+    EXPECTED_NODE_COUNT,
+    POST_BASELINE_NODE_IDS,
     CatalogBuildError,
     expected_documents,
     main,
@@ -42,12 +44,13 @@ def test_first_wave_projections_are_deterministic_and_cover_seven_nodes() -> Non
         "baseline_nodes": BASELINE_NODE_COUNT,
         "implemented_nodes": 7,
         "promotion_status": "promotion_candidate",
-        "remaining_nodes": 936,
+        "remaining_nodes": EXPECTED_NODE_COUNT - 7,
         "status_counts": {"promotion_candidate": 7},
+        "total_nodes": EXPECTED_NODE_COUNT,
     }
     assert promotion["status"] == "promotion_candidate"
     assert promotion["availability_status"] == "active"
-    assert promotion["operational_summary"]["operational_nodes"] == BASELINE_NODE_COUNT
+    assert promotion["operational_summary"]["operational_nodes"] == EXPECTED_NODE_COUNT
     assert promotion["operational_summary"]["remaining_operational_nodes"] == 0
     assert len(promotion["nodes"]) == 7
     assert {node["status"] for node in promotion["nodes"]} == {"promotion_candidate"}
@@ -56,27 +59,30 @@ def test_first_wave_projections_are_deterministic_and_cover_seven_nodes() -> Non
     operational_path = next(path for path in first if path.name == "catalog.operational.json")
     operational = json.loads(first[operational_path])
     assert operational["summary"] == {
-        "active_nodes": BASELINE_NODE_COUNT,
+        "active_nodes": EXPECTED_NODE_COUNT,
         "all_nodes_active": True,
         "all_nodes_released": False,
-        "availability_counts": {"active": BASELINE_NODE_COUNT, "blocked": 0},
+        "availability_counts": {"active": EXPECTED_NODE_COUNT, "blocked": 0},
         "baseline_nodes": BASELINE_NODE_COUNT,
         "blocked_nodes": 0,
-        "evidence_pending_nodes": 936,
+        "evidence_pending_nodes": EXPECTED_NODE_COUNT - 7,
         "importability_verified": True,
-        "legacy_compatible_nodes": BASELINE_NODE_COUNT,
-        "operational_nodes": BASELINE_NODE_COUNT,
+        "legacy_compatible_nodes": EXPECTED_NODE_COUNT,
+        "operational_nodes": EXPECTED_NODE_COUNT,
+        "post_baseline_node_ids": sorted(POST_BASELINE_NODE_IDS),
+        "post_baseline_nodes": len(POST_BASELINE_NODE_IDS),
         "released_typed_nodes": 0,
         "remaining_operational_nodes": 0,
-        "remaining_typed_contract_nodes": 936,
+        "remaining_typed_contract_nodes": EXPECTED_NODE_COUNT - 7,
+        "total_nodes": EXPECTED_NODE_COUNT,
         "typed_contract_nodes": 7,
         "typed_status_counts": {"promotion_candidate": 7},
         "verification_status_counts": {
-            "evidence_pending": 936,
+            "evidence_pending": EXPECTED_NODE_COUNT - 7,
             "promotion_candidate": 7,
         },
     }
-    assert len(operational["nodes"]) == BASELINE_NODE_COUNT
+    assert len(operational["nodes"]) == EXPECTED_NODE_COUNT
 
 
 def test_cli_check_does_not_change_forensic_baseline() -> None:
@@ -99,7 +105,7 @@ def test_every_operational_node_is_proven_importable() -> None:
     operational = _operational(expected_documents())
     summary = operational["summary"]
 
-    assert summary["availability_counts"] == {"active": BASELINE_NODE_COUNT, "blocked": 0}
+    assert summary["availability_counts"] == {"active": EXPECTED_NODE_COUNT, "blocked": 0}
     assert summary["blocked_nodes"] == 0
     assert summary["all_nodes_active"] is True
     assert {entry["availability"] for entry in operational["nodes"].values()} == {"active"}
@@ -109,7 +115,7 @@ def test_every_operational_node_is_proven_importable() -> None:
 def test_lock_records_the_importability_proof() -> None:
     lock = _lock(expected_documents())
     assert lock["operational"]["importability_verified"] is True
-    assert lock["operational"]["availability_counts"] == {"active": BASELINE_NODE_COUNT, "blocked": 0}
+    assert lock["operational"]["availability_counts"] == {"active": EXPECTED_NODE_COUNT, "blocked": 0}
 
 
 def test_unimportable_module_is_blocked_not_active() -> None:
@@ -127,13 +133,13 @@ def test_unimportable_module_is_blocked_not_active() -> None:
     assert "synthetic module failure" in entry["blocked_reason"]
 
     summary = operational["summary"]
-    assert summary["availability_counts"] == {"active": BASELINE_NODE_COUNT - 1, "blocked": 1}
+    assert summary["availability_counts"] == {"active": EXPECTED_NODE_COUNT - 1, "blocked": 1}
     assert summary["blocked_nodes"] == 1
-    assert summary["legacy_compatible_nodes"] == BASELINE_NODE_COUNT - 1
+    assert summary["legacy_compatible_nodes"] == EXPECTED_NODE_COUNT - 1
     assert summary["all_nodes_active"] is False
     # Total membership is unchanged — a blocked node is still catalogued.
-    assert summary["operational_nodes"] == BASELINE_NODE_COUNT
-    assert len(operational["nodes"]) == BASELINE_NODE_COUNT
+    assert summary["operational_nodes"] == EXPECTED_NODE_COUNT
+    assert len(operational["nodes"]) == EXPECTED_NODE_COUNT
 
 
 def test_missing_class_symbol_is_blocked_not_active() -> None:

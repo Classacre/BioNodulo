@@ -7,7 +7,11 @@ import pytest
 
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.catalog.registry import CatalogRegistry, QuarantinedNodeError
-from scripts.compile_catalog import BASELINE_NODE_COUNT, expected_documents
+from scripts.compile_catalog import (
+    EXPECTED_NODE_COUNT,
+    POST_BASELINE_NODE_IDS,
+    expected_documents,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -27,12 +31,16 @@ def test_operational_catalog_matches_every_focused_legacy_owner() -> None:
     baseline = json.loads((REPO_ROOT / "bionodulo/nodes/generated/baseline-ledger.json").read_text())
     baseline_ids = {entry["node_id"] for entry in baseline["entries"]}
 
-    assert len(nodes) == BASELINE_NODE_COUNT
-    assert set(nodes) == set(legacy_index) == set(legacy_metadata) == baseline_ids
+    assert len(nodes) == EXPECTED_NODE_COUNT
+    # The operational catalog is the sealed ledger PLUS declared post-baseline
+    # nodes; the two legacy projections must match it exactly either way.
+    assert set(nodes) == set(legacy_index) == set(legacy_metadata)
+    assert set(nodes) - baseline_ids == set(POST_BASELINE_NODE_IDS)
+    assert baseline_ids - set(nodes) == set()
     assert {entry["status"] for entry in nodes.values()} == {"legacy_compatible"}
     assert {entry["runtime_adapter"] for entry in nodes.values()} == {"base_node_v1"}
     assert {entry["availability"] for entry in nodes.values()} == {"active"}
-    assert len({entry["execution_factory"] for entry in nodes.values()}) == BASELINE_NODE_COUNT
+    assert len({entry["execution_factory"] for entry in nodes.values()}) == EXPECTED_NODE_COUNT
 
     for node_id, entry in nodes.items():
         python_class = legacy_metadata[node_id]["python_class"]
@@ -47,7 +55,7 @@ def test_operational_registry_resolves_all_943_base_node_classes() -> None:
     document = _operational_document()
     registry = CatalogRegistry.from_operational_document(document)
 
-    assert len(registry.node_ids) == BASELINE_NODE_COUNT
+    assert len(registry.node_ids) == EXPECTED_NODE_COUNT
     for node_id in registry.node_ids:
         implementation = registry.resolve(node_id)
         assert isinstance(implementation, type)

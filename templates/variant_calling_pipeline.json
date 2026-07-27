@@ -7,14 +7,9 @@
     {
       "name": "snpeff_genome",
       "type": "STRING",
-      "required": true,
-      "description": "SnpEff genome identifier for a custom predictor built against this workflow's exact Staphylococcus aureus wildtype.fna tutorial reference; it must match snpeff_database"
-    },
-    {
-      "name": "snpeff_database",
-      "type": "FILE",
-      "required": true,
-      "description": "snpEffectPredictor.bin from a custom SnpEff database built against this workflow's exact Staphylococcus aureus wildtype.fna tutorial reference; snpeff_genome must identify that same database"
+      "required": false,
+      "description": "Identifier the in-workflow SnpEff database is registered under; the database is built here from this workflow's own reference, not fetched from SnpEff's registry",
+      "default": "Wildtype"
     }
   ],
   "nodes": [
@@ -285,18 +280,52 @@
       }
     },
     {
-      "id": "snpeff_database_001",
+      "id": "snpeff_gff_001",
       "type": "input_file",
       "position": [
         3680,
         700
       ],
       "params": {
-        "file": "{{snpeff_database}}",
-        "source": "local"
+        "file": "https://zenodo.org/record/582600/files/wildtype.gff",
+        "source": "url"
       },
       "ui": {
-        "title": "SnpEff Database Artifact"
+        "title": "Reference Annotation (GFF3)",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "snpeff_build_001",
+      "type": "snpeff_build",
+      "position": [
+        3860,
+        700
+      ],
+      "params": {
+        "genome": "{{snpeff_genome}}",
+        "annotation_format": "gff3",
+        "memory": 4
+      },
+      "ui": {
+        "title": "Build SnpEff Database",
+        "validation": {
+          "outputs": {
+            "predictor_database": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -746,10 +775,32 @@
       }
     },
     {
+      "id": "e14_snpeff_ref",
+      "from": {
+        "node": "ref_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "snpeff_build_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e14_snpeff_gff",
+      "from": {
+        "node": "snpeff_gff_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "snpeff_build_001",
+        "input": "annotation"
+      }
+    },
+    {
       "id": "e14_snpeff_database",
       "from": {
-        "node": "snpeff_database_001",
-        "output": "file"
+        "node": "snpeff_build_001",
+        "output": "predictor_database"
       },
       "to": {
         "node": "snpeff_001",

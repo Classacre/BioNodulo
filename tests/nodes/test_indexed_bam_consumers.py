@@ -19,6 +19,7 @@ from bionodulo.nodes.builtin.variant import (
     MantaNode,
 )
 from bionodulo.nodes.builtin.visualization import CoveragePlotNode
+from scripts.compile_catalog import EXPECTED_NODE_COUNT  # live catalog size: sealed ledger + declared post-baseline nodes
 
 
 CLI_NODES = {
@@ -423,7 +424,7 @@ def test_generated_catalog_exposes_indexed_bam_contracts() -> None:
     index = json.loads((root / "bionodulo/nodes/node_index.json").read_text())
     metadata = json.loads((root / "bionodulo/nodes/node_metadata.json").read_text())
 
-    assert len(index) == 943
+    assert len(index) == EXPECTED_NODE_COUNT
     assert metadata["samtools_index"]["output"] == ["BAM", "BAI"]
     assert metadata["samtools_index"]["output_name"] == ["indexed_bam", "bai"]
     assert metadata["samtools_faidx"]["output"] == [

@@ -26,7 +26,12 @@ sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 import gen_node_index  # noqa: E402
 
 
-EXPECTED_NODE_COUNT = 943
+# The LIVE catalog: the sealed 943-node forensic ledger plus every node added
+# since, declared in compile_catalog.POST_BASELINE_NODE_IDS. Derived rather than
+# hardcoded so the ledger and this count can never disagree silently.
+import compile_catalog  # noqa: E402
+
+EXPECTED_NODE_COUNT = compile_catalog.EXPECTED_NODE_COUNT
 EXPECTED_HISTORICAL_ALIAS_COUNT = 22
 BUILTIN_MODULE_PREFIX = "bionodulo.nodes.builtin."
 
@@ -58,8 +63,11 @@ def test_catalog_identity_and_generated_manifests_are_consistent(live_owners):
     baseline = json.loads((_REPO_ROOT / "bionodulo/nodes/generated/baseline-ledger.json").read_text())
     baseline_ids = {entry["node_id"] for entry in baseline["entries"]}
     live_ids = set(owners_by_id)
-    assert len(baseline["entries"]) == EXPECTED_NODE_COUNT
-    assert baseline_ids == live_ids
+    # The ledger is sealed forensic history and stays at its original size; the
+    # live catalog is that plus every declared post-baseline node.
+    assert len(baseline["entries"]) == compile_catalog.BASELINE_NODE_COUNT
+    assert live_ids - baseline_ids == set(compile_catalog.POST_BASELINE_NODE_IDS)
+    assert baseline_ids - live_ids == set(), "a ledger node disappeared from the live catalog"
 
     committed_metadata = json.loads((_REPO_ROOT / "bionodulo/nodes/node_metadata.json").read_text())
     assert set(committed_metadata) == live_ids

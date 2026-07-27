@@ -14,6 +14,7 @@ from .interproscan import InterProScanNode
 from .intersect_genes import IntersectGenesNode
 from .prokka import ProkkaNode
 from .snpeff import SnpEffNode
+from .snpeff_build import SnpEffBuildNode
 from .vep_annotate import VEPAnnotateNode
 from .vep import VEPNode
 
@@ -32,6 +33,7 @@ __all__ = [
     "IntersectGenesNode",
     "ProkkaNode",
     "SnpEffNode",
+    "SnpEffBuildNode",
     "VEPAnnotateNode",
     "VEPNode",
 ]

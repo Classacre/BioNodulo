@@ -21,6 +21,7 @@ from bionodulo.nodes.builtin.macs2_family.bdgpeakcall import MACS2BdgPeakNode
 from bionodulo.nodes.builtin.macs2_family.callpeak import MACS2CallpeakNode
 from bionodulo.nodes.registry import NodeRegistry
 from bionodulo.workflow.validation import validate_workflow
+from scripts.compile_catalog import EXPECTED_NODE_COUNT  # live catalog size: sealed ledger + declared post-baseline nodes
 
 
 NODES = (
@@ -447,6 +448,6 @@ def test_live_discovery_preserves_all_node_ids_and_uses_focused_owners() -> None
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
 
-    assert len(registry.all()) == 943
+    assert len(registry.all()) == EXPECTED_NODE_COUNT
     for node in NODES:
         assert registry.get(node.NODE_ID) is node

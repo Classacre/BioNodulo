@@ -24,6 +24,7 @@ from bionodulo.nodes.builtin.utility_preview_family.text_preview import TextPrev
 from bionodulo.nodes.builtin.utility_preview_family.view_text_file import ViewTextFileNode
 from bionodulo.nodes.builtin.utils import TextPreviewNode as FacadeTextPreviewNode
 from bionodulo.nodes.registry import NodeRegistry
+from scripts.compile_catalog import EXPECTED_NODE_COUNT  # live catalog size: sealed ledger + declared post-baseline nodes
 
 
 NODE_MODULES = {
@@ -56,7 +57,7 @@ def test_family_has_focused_ownership_and_keeps_943_ids() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
 
-    assert len(registry.object_info()) == 943
+    assert len(registry.object_info()) == EXPECTED_NODE_COUNT
     assert {node_id: registry.get(node_id).__module__ for node_id in NODE_MODULES} == NODE_MODULES
     assert FacadeTextPreviewNode is TextPreviewNode
     assert FacadeHTMLReportNode is HTMLReportNode

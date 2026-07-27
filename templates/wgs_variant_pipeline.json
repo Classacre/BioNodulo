@@ -7,15 +7,9 @@
     {
       "name": "snpeff_genome",
       "type": "STRING",
-      "required": true,
-      "default": "Escherichia_coli_str_k_12_substr_mg1655_gca_000005845",
-      "description": "Pinned SnpEff 5.2 genome identifier for the E. coli K-12 MG1655 GCA_000005845 reference; it must match snpeff_database"
-    },
-    {
-      "name": "snpeff_database",
-      "type": "FILE",
-      "required": true,
-      "description": "snpEffectPredictor.bin for the pinned Escherichia_coli_str_k_12_substr_mg1655_gca_000005845 SnpEff 5.2 database"
+      "required": false,
+      "default": "Wildtype",
+      "description": "Identifier the in-workflow SnpEff database is registered under; any valid SnpEff id works because the database is built here, not fetched from SnpEff's registry"
     }
   ],
   "nodes": [
@@ -27,7 +21,7 @@
         80
       ],
       "params": {
-        "text": "WGS variant pipeline: complete germline variant discovery from whole-genome sequencing data.\n\nData source: ENA PRJEB2138 (E. coli K-12 Illumina paired-end) + NCBI RefSeq E. coli K-12 MG1655.\nFiles: R1.fq (18M), R2.fq (18M), ecoli_k12_mg1655.fna (4.5M reference).\nNote: This is a demonstration dataset. For real analysis, use appropriate reference genomes and databases."
+        "text": "WGS variant pipeline: complete germline variant discovery from whole-genome sequencing data.\n\nData source: Galaxy Training variant-calling tutorial (Zenodo 582600) --\nStaphylococcus aureus wildtype reference (wildtype.fna, 197 kb, single contig\n'Wildtype') with its Prokka annotation (wildtype.gff, 167 CDS) and 12,480\npaired 150 bp mutant reads.\n\nReads and reference are the SAME organism -- verified 100% of a 10k-read\nsubset aligns. The previous pairing used sarscov2 reads against an E. coli\nreference and mapped 0%.\n\nThe SnpEff database is BUILT in-workflow from this reference + annotation, so\nthe pipeline needs no pre-published SnpEff genome and no user-supplied file."
       },
       "ui": {
         "title": "Notes",
@@ -42,10 +36,10 @@
         80
       ],
       "params": {
-        "sample_name": "wgs1",
+        "sample_name": "mutant",
         "reads": [
-          "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz",
-          "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_2.fastq.gz"
+          "https://zenodo.org/record/582600/files/mutant_R1.fastq",
+          "https://zenodo.org/record/582600/files/mutant_R2.fastq"
         ]
       },
       "ui": {
@@ -70,7 +64,7 @@
         270
       ],
       "params": {
-        "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
+        "reference": "https://zenodo.org/record/582600/files/wildtype.fna"
       },
       "ui": {
         "title": "Reference FASTA",
@@ -255,18 +249,52 @@
       }
     },
     {
-      "id": "snpeff_database_001",
+      "id": "snpeff_gff_001",
       "type": "input_file",
       "position": [
         3320,
         700
       ],
       "params": {
-        "file": "{{snpeff_database}}",
-        "source": "local"
+        "file": "https://zenodo.org/record/582600/files/wildtype.gff",
+        "source": "url"
       },
       "ui": {
-        "title": "SnpEff Database Artifact"
+        "title": "Reference Annotation (GFF3)",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "snpeff_build_001",
+      "type": "snpeff_build",
+      "position": [
+        3500,
+        700
+      ],
+      "params": {
+        "genome": "{{snpeff_genome}}",
+        "annotation_format": "gff3",
+        "memory": 4
+      },
+      "ui": {
+        "title": "Build SnpEff Database",
+        "validation": {
+          "outputs": {
+            "predictor_database": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -672,10 +700,32 @@
       }
     },
     {
+      "id": "e14_snpeff_ref",
+      "from": {
+        "node": "ref_001",
+        "output": "reference"
+      },
+      "to": {
+        "node": "snpeff_build_001",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e14_snpeff_gff",
+      "from": {
+        "node": "snpeff_gff_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "snpeff_build_001",
+        "input": "annotation"
+      }
+    },
+    {
       "id": "e14_snpeff_database",
       "from": {
-        "node": "snpeff_database_001",
-        "output": "file"
+        "node": "snpeff_build_001",
+        "output": "predictor_database"
       },
       "to": {
         "node": "snpeff_001",

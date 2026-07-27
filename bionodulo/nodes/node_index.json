@@ -846,6 +846,7 @@
   "snippy_clean_full_aln": "bionodulo.nodes.builtin.snippy_family.snippy_clean_full_aln",
   "snippy_core": "bionodulo.nodes.builtin.snippy_family.snippy_core",
   "snpeff": "bionodulo.nodes.builtin.annotation_family.snpeff",
+  "snpeff_build": "bionodulo.nodes.builtin.annotation_family.snpeff_build",
   "som.py": "bionodulo.nodes.builtin.variant_family.happy_sompy",
   "sort_file": "bionodulo.nodes.builtin.data_transform_family.sort_file",
   "spaceranger": "bionodulo.nodes.builtin.single_cell_spatial_family.spaceranger",

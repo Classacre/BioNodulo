@@ -39,6 +39,15 @@ BASELINE_LEDGER = GENERATED_DIR / "baseline-ledger.json"
 LEGACY_NODE_INDEX = REPO_ROOT / "bionodulo" / "nodes" / "node_index.json"
 LEGACY_NODE_METADATA = REPO_ROOT / "bionodulo" / "nodes" / "node_metadata.json"
 BASELINE_NODE_COUNT = 943
+# Nodes written AFTER the forensic ledger was sealed. The ledger reconciles
+# historical git refs, so a class authored today exists in none of them and can
+# never be proven that way -- but the catalog still has to grow. Listing an ID
+# here is the explicit, reviewable act of adding a node: it must still resolve
+# its execution factory (see _blocked_reason), so `availability` stays a proof.
+# Keep the ledger itself at exactly BASELINE_NODE_COUNT; it is forensic history,
+# not a live inventory.
+POST_BASELINE_NODE_IDS: frozenset[str] = frozenset({"snpeff_build"})
+EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)
 SAMTOOLS_MODULES: tuple[str, ...] = (
     "bionodulo.nodes.catalog.tools.samtools.view",
     "bionodulo.nodes.catalog.tools.samtools.collate",
@@ -211,11 +220,27 @@ def _build_operational_document(
         for entry in baseline_entries
         if isinstance(entry, dict) and isinstance(entry.get("node_id"), str)
     }
-    expected_ids = set(baseline_by_id)
-    if len(expected_ids) != BASELINE_NODE_COUNT:
+    baseline_ids = set(baseline_by_id)
+    if len(baseline_ids) != BASELINE_NODE_COUNT:
         raise CatalogBuildError(f"baseline ledger must contain {BASELINE_NODE_COUNT} unique node IDs")
+    # The ledger is sealed history; the live catalog is the ledger plus the
+    # explicitly declared post-baseline IDs. Anything else in the index is drift.
+    overlap = sorted(POST_BASELINE_NODE_IDS & baseline_ids)
+    if overlap:
+        raise CatalogBuildError(
+            f"post-baseline IDs must not already exist in the forensic ledger: {overlap}"
+        )
+    expected_ids = baseline_ids | set(POST_BASELINE_NODE_IDS)
+    if len(expected_ids) != EXPECTED_NODE_COUNT:
+        raise CatalogBuildError(f"catalog must contain exactly {EXPECTED_NODE_COUNT} node IDs")
     if set(legacy_index) != expected_ids:
-        raise CatalogBuildError("legacy node index IDs differ from the forensic baseline")
+        unexpected = sorted(set(legacy_index) - expected_ids)
+        absent = sorted(expected_ids - set(legacy_index))
+        raise CatalogBuildError(
+            "legacy node index IDs differ from the forensic baseline "
+            f"(undeclared: {unexpected}; absent: {absent}). Declare a genuinely new "
+            "node in POST_BASELINE_NODE_IDS."
+        )
     if set(legacy_metadata) != expected_ids:
         raise CatalogBuildError("legacy node metadata IDs differ from the forensic baseline")
 
@@ -266,7 +291,10 @@ def _build_operational_document(
         availability_counts[availability] += 1
 
         node_metadata_digest = _sha256(_canonical_json_bytes(metadata))
-        baseline_entry = baseline_by_id[node_id]
+        # Post-baseline nodes have no ledger entry by construction: the ledger
+        # records classes that existed at seal time. Absence here is expected
+        # and carries no alias history.
+        baseline_entry = baseline_by_id.get(node_id, {})
         legacy_alias_of = baseline_entry.get("alias_of")
         common: dict[str, Any] = {
             "aliases": aliases,
@@ -304,8 +332,11 @@ def _build_operational_document(
     blocked_nodes = availability_counts.get("blocked", 0)
     summary = {
         "active_nodes": active_nodes,
-        "all_nodes_active": blocked_nodes == 0 and len(operational_nodes) == BASELINE_NODE_COUNT,
-        "all_nodes_released": released_typed_nodes == BASELINE_NODE_COUNT,
+        # Coverage is measured against the LIVE catalog (baseline + declared
+        # post-baseline nodes), not the sealed ledger — otherwise adding a node
+        # would make these read as complete while one node went unaccounted for.
+        "all_nodes_active": blocked_nodes == 0 and len(operational_nodes) == EXPECTED_NODE_COUNT,
+        "all_nodes_released": released_typed_nodes == EXPECTED_NODE_COUNT,
         "availability_counts": {"active": active_nodes, "blocked": blocked_nodes},
         "baseline_nodes": BASELINE_NODE_COUNT,
         "blocked_nodes": blocked_nodes,
@@ -313,9 +344,12 @@ def _build_operational_document(
         "importability_verified": blocked_nodes == 0,
         "legacy_compatible_nodes": active_nodes,
         "operational_nodes": len(operational_nodes),
+        "post_baseline_node_ids": sorted(POST_BASELINE_NODE_IDS),
+        "post_baseline_nodes": len(POST_BASELINE_NODE_IDS),
         "released_typed_nodes": released_typed_nodes,
-        "remaining_operational_nodes": BASELINE_NODE_COUNT - len(operational_nodes),
-        "remaining_typed_contract_nodes": BASELINE_NODE_COUNT - len(compiled.specs),
+        "remaining_operational_nodes": EXPECTED_NODE_COUNT - len(operational_nodes),
+        "remaining_typed_contract_nodes": EXPECTED_NODE_COUNT - len(compiled.specs),
+        "total_nodes": EXPECTED_NODE_COUNT,
         "typed_contract_nodes": len(compiled.specs),
         "typed_status_counts": dict(sorted(typed_status_counts.items())),
         "verification_status_counts": dict(sorted(verification_counts.items())),
@@ -379,7 +413,8 @@ def _compile() -> tuple[Any, dict[str, Any]]:
     summary = {
         "implemented_nodes": len(compiled.specs),
         "baseline_nodes": BASELINE_NODE_COUNT,
-        "remaining_nodes": BASELINE_NODE_COUNT - len(compiled.specs),
+        "total_nodes": EXPECTED_NODE_COUNT,
+        "remaining_nodes": EXPECTED_NODE_COUNT - len(compiled.specs),
         "status_counts": statuses,
         "all_nodes_released": all(record["status"] == "released" for record in node_records),
     }
@@ -499,14 +534,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(
             f"Catalog projections are up to date ({len(documents)} files; "
-            f"{BASELINE_NODE_COUNT}/{BASELINE_NODE_COUNT} operational, "
-            f"{len(SAMTOOLS_MODULES)}/{BASELINE_NODE_COUNT} typed)."
+            f"{EXPECTED_NODE_COUNT}/{EXPECTED_NODE_COUNT} operational, "
+            f"{len(SAMTOOLS_MODULES)}/{EXPECTED_NODE_COUNT} typed)."
         )
         return 0
     print(
         f"Wrote {len(documents)} catalog projections "
-        f"({BASELINE_NODE_COUNT}/{BASELINE_NODE_COUNT} operational, "
-        f"{len(SAMTOOLS_MODULES)}/{BASELINE_NODE_COUNT} typed)."
+        f"({EXPECTED_NODE_COUNT}/{EXPECTED_NODE_COUNT} operational, "
+        f"{len(SAMTOOLS_MODULES)}/{EXPECTED_NODE_COUNT} typed)."
     )
     return 0
 

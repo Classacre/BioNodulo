@@ -400,59 +400,53 @@ def test_wgs_variant_template_prioritizes_annotated_variants() -> None:
     assert workflow["outputs"]["prioritized_vcf"] == "prioritize_vcf_001"
     assert workflow["outputs"]["prioritized_vcf_quality_gate"] == "gate_prioritized_vcf_001"
 
+def test_variant_templates_build_their_own_snpeff_database() -> None:
+    """Both variant templates must be runnable with no user-supplied files.
 
-def test_variant_templates_supply_exact_snpeff_database_dependencies() -> None:
-    expected_defaults = {
-        "variant_calling_pipeline.json": None,
-        "wgs_variant_pipeline.json": ("Escherichia_coli_str_k_12_substr_mg1655_gca_000005845"),
-    }
+    They previously declared `snpeff_database` as a REQUIRED FILE parameter with
+    no default, so `POST /api/runs` rejected them outright ("Missing required
+    workflow parameters") and neither could ever run unattended. `snpeff` runs
+    with -noDownload by design, so the fix is to build the predictor in-workflow
+    from the template's own reference + annotation.
+    """
     registry = NodeRegistry.create_isolated()
-    file_node = registry.get("input_file")
+    build_node = registry.get("snpeff_build")
     snpeff_node = registry.get("snpeff")
-    assert file_node is not None
+    assert build_node is not None, "snpeff_build must be registered"
     assert snpeff_node is not None
 
-    snpeff_input_types = snpeff_node.INPUT_TYPES()
-    assert file_node.RETURN_TYPES[file_node.RETURN_NAMES.index("file")] == "FILE"
-    assert snpeff_input_types["required"]["genome"][0] == "STRING"
-    assert snpeff_input_types["required"]["database"][0] == "FILE"
-    assert snpeff_input_types["optional"]["data_dir"][0] == "DIRECTORY"
+    # The build output must be exactly what snpeff consumes as `database`.
+    assert build_node.RETURN_NAMES[0] == "predictor_database"
+    assert snpeff_node.INPUT_TYPES()["required"]["database"][0] == "FILE"
 
-    for template_name, expected_default in expected_defaults.items():
+    for template_name in ("variant_calling_pipeline.json", "wgs_variant_pipeline.json"):
         workflow = _load_template(template_name)
         node_types = _node_types(workflow)
         parameters = {parameter["name"]: parameter for parameter in workflow["parameters"]}
-        database = _node_by_id(workflow, "snpeff_database_001")
-        snpeff = _node_by_id(workflow, "snpeff_001")
 
-        assert "snpeff_data_dir_001" not in node_types
-        assert node_types["snpeff_database_001"] == "input_file"
-        assert "snpeff_data_dir" not in parameters
-        assert parameters["snpeff_genome"]["type"] == "STRING"
-        assert parameters["snpeff_genome"]["required"] is True
-        assert parameters["snpeff_genome"].get("default") == expected_default
-        assert parameters["snpeff_database"]["type"] == "FILE"
-        assert parameters["snpeff_database"]["required"] is True
-        assert database["params"] == {"file": "{{snpeff_database}}", "source": "local"}
-        assert snpeff["params"]["genome"] == "{{snpeff_genome}}"
-        assert not any(edge.get("to") == {"node": "snpeff_001", "input": "data_dir"} for edge in workflow["edges"])
+        # No parameter may be required-without-default, or the run is rejected
+        # before any work happens.
+        unrunnable = [
+            name
+            for name, parameter in parameters.items()
+            if parameter.get("required") and parameter.get("default") in (None, "")
+        ]
+        assert unrunnable == [], f"{template_name} cannot run unattended: {unrunnable}"
+        assert "snpeff_database" not in parameters
+        assert "snpeff_database_001" not in node_types
+        assert node_types["snpeff_build_001"] == "snpeff_build"
+
+        # reference + annotation in, predictor out, straight into snpeff.
+        _assert_edge(workflow, "e14_snpeff_ref", "ref_001", "reference", "snpeff_build_001", "reference")
+        _assert_edge(workflow, "e14_snpeff_gff", "snpeff_gff_001", "file", "snpeff_build_001", "annotation")
         _assert_edge(
             workflow,
             "e14_snpeff_database",
-            "snpeff_database_001",
-            "file",
+            "snpeff_build_001",
+            "predictor_database",
             "snpeff_001",
             "database",
         )
-
-    variant_parameters = {
-        parameter["name"]: parameter for parameter in _load_template("variant_calling_pipeline.json")["parameters"]
-    }
-    assert "default" not in variant_parameters["snpeff_genome"]
-    for parameter_name in ("snpeff_genome", "snpeff_database"):
-        description = variant_parameters[parameter_name]["description"]
-        assert "custom" in description
-        assert "exact Staphylococcus aureus wildtype.fna tutorial reference" in description
 
 
 def test_official_variant_templates_wire_every_required_sidecar_input() -> None:
