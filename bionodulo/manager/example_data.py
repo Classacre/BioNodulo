@@ -205,13 +205,19 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     # single_cell reference — the cellranger-tiny-ref that MATCHES the tinygex
     # reads above (hg19 chr21, ~120 MB). The published refdata-gex-GRCh38 is
     # 11.4 GB and is a different genome from these reads entirely.
+    #
+    # INCOMPLETE for Cell Ranger: this mirror's STAR index has no `SA` suffix
+    # array (confirmed against the repo tree, not just a request — raw.github
+    # answers a missing path with a 200 whose BODY is "404: Not Found", which
+    # reads as a 14-byte file). cellranger_count requires star/SA, so the
+    # template still cannot run; these entries stage everything that does
+    # exist so only the genuinely missing piece remains.
     DataFile("single_cell_ref", "fasta/genome.fa", f"{_TINYREF_RAW}/fasta/genome.fa", description="cellranger tiny reference FASTA"),
     DataFile("single_cell_ref", "genes/genes.gtf", f"{_TINYREF_RAW}/genes/genes.gtf", description="cellranger tiny reference GTF"),
     # reference.json is the one Git-LFS file here, so it needs the media host.
     DataFile("single_cell_ref", "reference.json", f"{_TINYREF_LFS}/reference.json", description="cellranger tiny reference metadata"),
     DataFile("single_cell_ref", "star/Genome", f"{_TINYREF_RAW}/star/Genome", description="cellranger tiny STAR index Genome"),
     DataFile("single_cell_ref", "star/SAindex", f"{_TINYREF_RAW}/star/SAindex", description="cellranger tiny STAR index SAindex"),
-    DataFile("single_cell_ref", "star/SA", f"{_TINYREF_RAW}/star/SA", description="cellranger tiny STAR index SA"),
     DataFile("single_cell_ref", "star/chrName.txt", f"{_TINYREF_RAW}/star/chrName.txt", description="cellranger tiny STAR index chrName.txt"),
     DataFile("single_cell_ref", "star/chrLength.txt", f"{_TINYREF_RAW}/star/chrLength.txt", description="cellranger tiny STAR index chrLength.txt"),
     DataFile("single_cell_ref", "star/chrStart.txt", f"{_TINYREF_RAW}/star/chrStart.txt", description="cellranger tiny STAR index chrStart.txt"),
@@ -224,7 +230,6 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("single_cell_ref", "star/sjdbList.fromGTF.out.tab", f"{_TINYREF_RAW}/star/sjdbList.fromGTF.out.tab", description="cellranger tiny STAR index sjdbList.fromGTF.out.tab"),
     DataFile("single_cell_ref", "star/transcriptInfo.tab", f"{_TINYREF_RAW}/star/transcriptInfo.tab", description="cellranger tiny STAR index transcriptInfo.tab"),
     DataFile("single_cell_ref", "star/exonGeTrInfo.tab", f"{_TINYREF_RAW}/star/exonGeTrInfo.tab", description="cellranger tiny STAR index exonGeTrInfo.tab"),
-    DataFile("single_cell_ref", "star/Log.out", f"{_TINYREF_RAW}/star/Log.out", description="cellranger tiny STAR index Log.out"),
 
     # chip_seq — nf-core chipseq Spt5 IP/input pair + yeast reference + gene annotations
     DataFile("chip_seq", "genome.fa", f"{_NFCORE}/chipseq/reference/genome.fa", description="S. cerevisiae reference (nf-core chipseq)"),

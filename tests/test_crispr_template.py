@@ -69,7 +69,9 @@ def test_crispr_template_covers_editing_design_and_screen_analysis() -> None:
     assert node_types["render_guide_design_tab_0"] == "table_preview"
     assert node_types["render_guide_design_tab_1"] == "table_preview"
     assert node_types["render_cas_offinder_tab_2"] == "table_preview"
-    assert node_types["render_gate_crispresso_report_tab_3"] == "table_preview"
+    # CRISPResso2 emits an HTML report; table_preview accepts only
+    # .bed/.csv/.gff/.kreport and rejected it at run time.
+    assert node_types["render_gate_crispresso_report_tab_3"] == "html_preview"
     assert node_types["render_mageck_test_tab_4"] == "table_preview"
     assert "data_validator" not in node_types.values()
 

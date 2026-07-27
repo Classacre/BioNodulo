@@ -354,14 +354,14 @@
     },
     {
       "id": "render_gate_crispresso_report_tab_3",
-      "type": "table_preview",
+      "type": "html_preview",
       "position": [
         1520,
         740
       ],
       "params": {},
       "ui": {
-        "title": "View Table: gate_crispresso_report"
+        "title": "Preview CRISPResso2 Report"
       }
     },
     {
