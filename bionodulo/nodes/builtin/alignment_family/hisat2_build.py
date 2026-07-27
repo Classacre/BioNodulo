@@ -76,15 +76,15 @@ class HISAT2BuildNode(HISAT2CommandNode):
             str(prefix),
         ]
 
-    async def run(self, **kwargs: Any) -> Any:
-        result = await super().run(**kwargs)
-        if isinstance(result, tuple) and result:
+    @classmethod
+    def VERIFY_OUTPUTS(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Verify before the shared cache is written, not after run() returns."""
+        if outputs:
             find_index_bundle(
-                result[0],
+                outputs[0],
                 label="HISAT2",
                 suffix_families=HISAT2_SUFFIX_FAMILIES,
             )
-        return result
 
     @classmethod
     def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:

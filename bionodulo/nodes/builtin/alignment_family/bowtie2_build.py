@@ -76,15 +76,20 @@ class Bowtie2BuildNode(Bowtie2CommandNode):
             str(prefix),
         ]
 
-    async def run(self, **kwargs: Any) -> Any:
-        result = await super().run(**kwargs)
-        if isinstance(result, tuple) and result:
+    @classmethod
+    def VERIFY_OUTPUTS(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Reject an index directory that exists but has no complete sibling set.
+
+        This used to run after `super().run()` returned, which was too late: the
+        reference cache had already published the incomplete index, so every
+        later run staged it, skipped the build, and failed the same way.
+        """
+        if outputs:
             find_index_bundle(
-                result[0],
+                outputs[0],
                 label="Bowtie2",
                 suffix_families=BOWTIE2_SUFFIX_FAMILIES,
             )
-        return result
 
     @classmethod
     def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:

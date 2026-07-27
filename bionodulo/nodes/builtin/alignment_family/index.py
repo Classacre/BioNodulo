@@ -86,11 +86,11 @@ class BWAIndexNode(BwaCommandNode):
         command.extend(["-p", reference, reference])
         return command
 
-    async def run(self, **kwargs: Any) -> Any:
-        result = await super().run(**kwargs)
-        if isinstance(result, tuple) and result:
-            find_index_prefix(result[0])
-        return result
+    @classmethod
+    def VERIFY_OUTPUTS(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Verify before the shared cache is written, not after run() returns."""
+        if outputs:
+            find_index_prefix(outputs[0])
 
     @classmethod
     def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:

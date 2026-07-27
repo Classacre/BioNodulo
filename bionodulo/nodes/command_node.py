@@ -270,6 +270,18 @@ class CommandNode(BaseNode):
         """Prepare deterministic artifacts or inputs before command rendering."""
         return None
 
+    @classmethod
+    def VERIFY_OUTPUTS(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Assert the produced outputs are actually usable. Raise if they are not.
+
+        Runs after the existence check and before the reference cache is written.
+        Override when existence is weaker than correctness — an index directory
+        can exist while missing half its sibling files. A node that publishes to
+        the shared cache should verify here rather than after `run()` returns,
+        because by then the result has already been offered to every other user.
+        """
+        return None
+
     async def run(self, **kwargs: Any) -> Union[tuple[Any, ...], dict[str, Any]]:
         """Execute the command via the workflow context.
 
@@ -322,6 +334,7 @@ class CommandNode(BaseNode):
         # configured (REFERENCE_CACHE_BUCKET) and the node opts in.
         ref_id: str | None = None
         staged_from_cache = False
+        staged_paths: list[Path] = []
         try:
             ref_id = self.__class__.reference_cache_id(kwargs)
         except Exception:  # noqa: BLE001 — never let a cache-id error break a run
@@ -342,6 +355,7 @@ class CommandNode(BaseNode):
                                     shutil.copytree(item, dst)
                                 else:
                                     shutil.copy2(item, dst)
+                                staged_paths.append(dst)
                         staged_from_cache = True
                         logger.info(
                             "[%s] reference cache HIT %s — skipping build",
@@ -360,6 +374,31 @@ class CommandNode(BaseNode):
             # Plan outputs using the REAL output dir so returned paths are stable.
             # Preparation may use those paths and update inputs consumed by rendering.
             outputs = self.__class__.PLAN_OUTPUTS(kwargs, real_output_dir)
+
+            # Trust, but verify what we staged. A cache entry that does not hold
+            # a usable reference would otherwise skip the build forever: every
+            # run stages it, skips, and fails, so nothing ever republishes a good
+            # one. Treating a bad entry as a miss makes that self-healing —
+            # this run rebuilds and overwrites it — and it repairs entries
+            # poisoned before this check existed, without any manual purge.
+            if staged_from_cache:
+                try:
+                    self.__class__.VERIFY_OUTPUTS(kwargs, outputs)
+                except Exception as exc:  # noqa: BLE001 — bad entry → rebuild
+                    logger.warning(
+                        "[%s] cached reference %s is unusable (%s); rebuilding",
+                        self.__class__.NODE_ID, ref_id, exc,
+                    )
+                    for path in staged_paths:
+                        try:
+                            if path.is_dir():
+                                shutil.rmtree(path, ignore_errors=True)
+                            else:
+                                path.unlink(missing_ok=True)
+                        except OSError:
+                            pass
+                    staged_paths = []
+                    staged_from_cache = False
             stdout_output_index = self.__class__.STDOUT_OUTPUT_INDEX
             stderr_output_index = self.__class__.STDERR_OUTPUT_INDEX
             stdout_path: Path | None = None
@@ -468,8 +507,28 @@ class CommandNode(BaseNode):
                     f"Command failed (exit {result.get('returncode')}): {stderr[:500]}"
                 )
 
+            required_outputs = self.__class__.REQUIRED_OUTPUT_PATHS(kwargs, outputs)
+            missing_outputs = [path for path in required_outputs if not path.exists()]
+            if missing_outputs:
+                missing = ", ".join(str(path) for path in missing_outputs)
+                raise RuntimeError(f"Command completed but did not create expected output(s): {missing}")
+
+            # Node-specific sufficiency check. Existence is not correctness: a
+            # bowtie2 index directory can exist and still lack a complete sibling
+            # set. Runs before publishing so a node can veto its own result.
+            self.__class__.VERIFY_OUTPUTS(kwargs, outputs)
+
             # Publish a freshly-built reference to the shared cache so every later
             # run (any user) stages it instead of rebuilding. Best-effort.
+            #
+            # This MUST stay after both checks above. A cache entry is shared by
+            # every user, and staging one skips the build entirely — so an entry
+            # that does not hold a usable reference poisons every later run, and
+            # the damage is self-perpetuating because those runs skip the build
+            # that would have replaced it. Publishing on exit-0 alone is how
+            # ChIP-Seq's bowtie2 index broke: a build that returned 0 without
+            # writing a complete index got cached, and every later run then failed
+            # in ~3s with no bowtie2-build subprocess at all.
             if ref_id and not staged_from_cache:
                 try:
                     from bionodulo.execution import reference_cache as _refcache
@@ -479,12 +538,6 @@ class CommandNode(BaseNode):
                 except Exception as exc:  # noqa: BLE001 — publish is best-effort
                     logger.info("[%s] reference cache publish skipped: %s",
                                 self.__class__.NODE_ID, exc)
-
-            required_outputs = self.__class__.REQUIRED_OUTPUT_PATHS(kwargs, outputs)
-            missing_outputs = [path for path in required_outputs if not path.exists()]
-            if missing_outputs:
-                missing = ", ".join(str(path) for path in missing_outputs)
-                raise RuntimeError(f"Command completed but did not create expected output(s): {missing}")
 
             # Return output paths as tuple
             if len(outputs) == 1:

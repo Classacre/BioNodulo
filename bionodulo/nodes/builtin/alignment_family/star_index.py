@@ -80,14 +80,19 @@ class STARIndexNode(STARCommandNode):
             str(inputs.get("sjdb_overhang", 100)),
         ]
 
-    async def run(self, **kwargs: Any) -> Any:
-        result = await super().run(**kwargs)
-        if isinstance(result, tuple) and result:
-            index_dir = Path(result[0])
+    @classmethod
+    def VERIFY_OUTPUTS(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
+        """Verify before the shared cache is written, not after run() returns.
+
+        STAR matters most here: this is the 30+ minute build the cache exists
+        for, so a poisoned entry is both the costliest to have cached and the
+        one every later run is most likely to stage instead of rebuilding.
+        """
+        if outputs:
+            index_dir = Path(outputs[0])
             missing = [name for name in STAR_INDEX_MARKERS if not (index_dir / name).is_file()]
             if missing:
                 raise RuntimeError(f"STAR index is incomplete; missing: {', '.join(missing)}")
-        return result
 
     @classmethod
     def reference_cache_id(cls, inputs: dict[str, Any]) -> Optional[str]:
