@@ -17,9 +17,11 @@ import logging
 import os
 import re
 import shutil
+import tarfile
 import tempfile
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -184,6 +186,104 @@ def _download_to_cache(
         if decoded_path is not None:
             decoded_path.unlink(missing_ok=True)
     return dest
+
+
+_ARCHIVE_SUFFIXES = (".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".tar", ".zip")
+
+
+def _looks_like_archive(name: str) -> bool:
+    return name.lower().endswith(_ARCHIVE_SUFFIXES)
+
+
+def _safe_extract_members(archive_root: Path, names: list[str]) -> None:
+    """Reject any member that would land outside *archive_root*.
+
+    Archive members are attacker-controlled text: an entry named ``../../etc/x``
+    or an absolute path escapes the extraction directory (the "tar slip" class).
+    Resolve each destination and require it stay inside the root.
+    """
+    root = archive_root.resolve()
+    for name in names:
+        target = (root / name).resolve()
+        if target != root and root not in target.parents:
+            raise ValueError(f"Refusing to extract archive member outside the target directory: {name}")
+
+
+def _extract_archive(archive: Path, destination: Path) -> None:
+    """Extract a tar/zip archive into *destination*, refusing unsafe members."""
+    destination.mkdir(parents=True, exist_ok=True)
+    if zipfile.is_zipfile(archive):
+        with zipfile.ZipFile(archive) as zf:
+            _safe_extract_members(destination, zf.namelist())
+            zf.extractall(destination)
+        return
+    with tarfile.open(archive) as tf:
+        members = tf.getmembers()
+        # Symlinks/hardlinks can also point outside the root even when the
+        # member name itself looks benign, so check their targets too.
+        for member in members:
+            if member.issym() or member.islnk():
+                link = member.linkname
+                resolved = (destination / Path(member.name).parent / link).resolve()
+                root = destination.resolve()
+                if resolved != root and root not in resolved.parents:
+                    raise ValueError(
+                        f"Refusing to extract archive link pointing outside the target: {member.name}"
+                    )
+        _safe_extract_members(destination, [member.name for member in members])
+        # `filter="data"` is CPython's own hardening (default from 3.14): it
+        # strips absolute paths, ".." components, links escaping the root, and
+        # unsafe modes/device files. Belt and braces with the checks above,
+        # which give a clearer error and cover older interpreters.
+        try:
+            tf.extractall(destination, filter="data")
+        except TypeError:  # Python < 3.12 has no `filter` argument
+            tf.extractall(destination)
+
+
+def _flatten_single_root(directory: Path) -> Path:
+    """Return the real content root of an extracted archive.
+
+    Archives conventionally wrap everything in one top-level directory
+    (``k2_viral_20240112/...``), so returning the extraction directory itself
+    would hand consumers a folder containing exactly one folder.
+    """
+    entries = [entry for entry in directory.iterdir() if entry.name not in (".", "..")]
+    if len(entries) == 1 and entries[0].is_dir():
+        return entries[0]
+    return directory
+
+
+def _download_archive_to_cache(url: str, context: Any) -> Path:
+    """Download and extract an archive URL, returning the extracted directory.
+
+    Extraction is atomic: a partially-unpacked tree is never promoted to the
+    cache path, so an interrupted download can't be mistaken for a complete
+    reference database on the next run.
+    """
+    cache_dir = _cache_root(context) / _url_cache_key(url)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    dest = cache_dir / "extracted"
+    if dest.exists():
+        logger.debug("URL archive cache hit: %s -> %s", url, dest)
+        return _flatten_single_root(dest)
+
+    logger.info("Downloading archive %s -> %s", _url_cache_key(url)[:12], dest)
+    req = urllib.request.Request(url, headers={"User-Agent": _HTTP_USER_AGENT})
+    download_path = _temporary_path(cache_dir, prefix=".archive-", suffix=".part")
+    staging = Path(tempfile.mkdtemp(prefix=".extract-", dir=cache_dir))
+    try:
+        with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_S) as response:
+            with download_path.open("wb") as fh:
+                shutil.copyfileobj(response, fh)
+        _extract_archive(download_path, staging)
+        os.replace(staging, dest)
+        staging = None  # type: ignore[assignment]
+    finally:
+        download_path.unlink(missing_ok=True)
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
+    return _flatten_single_root(dest)
 
 
 def _materialise_example_entry(entry: Any, dest: Path, context: Any) -> bool:
@@ -413,12 +513,19 @@ class CopyInputNode(CommandNode):
                 decompress_gzip=cls.DECOMPRESS_GZIP,
             )
         if mode == "url" and isinstance(source, str) and source.strip():
+            if cls.EXPECTED_KIND == "directory" and _looks_like_archive(_safe_filename(source)):
+                return _download_archive_to_cache(source, context)
             return _download_to_cache(
                 source,
                 context,
                 decompress_gzip=cls.DECOMPRESS_GZIP,
             )
         if mode in ("auto", "") and isinstance(source, str) and _looks_like_url(source):
+            # A directory input pointed at a .tar.gz means "unpack this and give
+            # me the tree" — reference bundles (kraken2 DBs, Space Ranger
+            # references) are only published as archives.
+            if cls.EXPECTED_KIND == "directory" and _looks_like_archive(_safe_filename(source)):
+                return _download_archive_to_cache(source, context)
             return _download_to_cache(
                 source,
                 context,

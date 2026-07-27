@@ -55,7 +55,8 @@
         270
       ],
       "params": {
-        "directory": "kraken2_db"
+        "directory": "https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20240112.tar.gz",
+        "source": "url"
       },
       "ui": {
         "title": "Kraken2 DB",

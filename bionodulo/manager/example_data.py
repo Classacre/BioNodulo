@@ -143,6 +143,9 @@ _NFCORE = "https://raw.githubusercontent.com/nf-core/test-datasets"
 _MAGECK = "https://raw.githubusercontent.com/davidliwei/mageck/master/demo/demo2"
 # 10x tinygex (cellranger-tiny-fastq) — Git-LFS, must use the media host.
 _TINYGEX = "https://media.githubusercontent.com/media/minoda-lab/universc/master/test/shared/cellranger-tiny-fastq/3.0.0"
+_TINYREF_PATH = "minoda-lab/universc/7cbd039613b45c64f4b6d8219906aafda28dd5f9/test/cellranger_reference/cellranger-tiny-ref/1.2.0"
+_TINYREF_RAW = f"https://raw.githubusercontent.com/{_TINYREF_PATH}"
+_TINYREF_LFS = f"https://media.githubusercontent.com/media/{_TINYREF_PATH}"
 _VISIUM = f"{_NFCORE}/spatialvi/testdata/human-brain-cancer-11-mm-capture-area-ffpe-2-standard_v2_ffpe_cytassist/outs"
 
 EXAMPLE_DATA_MANIFEST: list[DataFile] = [
@@ -198,6 +201,30 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("single_cell", "tinygex_S1_L002_I1_001.fastq", f"{_TINYGEX}/tinygex_S1_L002_I1_001.fastq.gz", gunzip=True, description="10x tinygex L002 I1"),
     DataFile("single_cell", "tinygex_S1_L002_R1_001.fastq", f"{_TINYGEX}/tinygex_S1_L002_R1_001.fastq.gz", gunzip=True, description="10x tinygex L002 R1"),
     DataFile("single_cell", "tinygex_S1_L002_R2_001.fastq", f"{_TINYGEX}/tinygex_S1_L002_R2_001.fastq.gz", gunzip=True, description="10x tinygex L002 R2"),
+
+    # single_cell reference — the cellranger-tiny-ref that MATCHES the tinygex
+    # reads above (hg19 chr21, ~120 MB). The published refdata-gex-GRCh38 is
+    # 11.4 GB and is a different genome from these reads entirely.
+    DataFile("single_cell_ref", "fasta/genome.fa", f"{_TINYREF_RAW}/fasta/genome.fa", description="cellranger tiny reference FASTA"),
+    DataFile("single_cell_ref", "genes/genes.gtf", f"{_TINYREF_RAW}/genes/genes.gtf", description="cellranger tiny reference GTF"),
+    # reference.json is the one Git-LFS file here, so it needs the media host.
+    DataFile("single_cell_ref", "reference.json", f"{_TINYREF_LFS}/reference.json", description="cellranger tiny reference metadata"),
+    DataFile("single_cell_ref", "star/Genome", f"{_TINYREF_RAW}/star/Genome", description="cellranger tiny STAR index Genome"),
+    DataFile("single_cell_ref", "star/SAindex", f"{_TINYREF_RAW}/star/SAindex", description="cellranger tiny STAR index SAindex"),
+    DataFile("single_cell_ref", "star/SA", f"{_TINYREF_RAW}/star/SA", description="cellranger tiny STAR index SA"),
+    DataFile("single_cell_ref", "star/chrName.txt", f"{_TINYREF_RAW}/star/chrName.txt", description="cellranger tiny STAR index chrName.txt"),
+    DataFile("single_cell_ref", "star/chrLength.txt", f"{_TINYREF_RAW}/star/chrLength.txt", description="cellranger tiny STAR index chrLength.txt"),
+    DataFile("single_cell_ref", "star/chrStart.txt", f"{_TINYREF_RAW}/star/chrStart.txt", description="cellranger tiny STAR index chrStart.txt"),
+    DataFile("single_cell_ref", "star/chrNameLength.txt", f"{_TINYREF_RAW}/star/chrNameLength.txt", description="cellranger tiny STAR index chrNameLength.txt"),
+    DataFile("single_cell_ref", "star/genomeParameters.txt", f"{_TINYREF_RAW}/star/genomeParameters.txt", description="cellranger tiny STAR index genomeParameters.txt"),
+    DataFile("single_cell_ref", "star/exonInfo.tab", f"{_TINYREF_RAW}/star/exonInfo.tab", description="cellranger tiny STAR index exonInfo.tab"),
+    DataFile("single_cell_ref", "star/geneInfo.tab", f"{_TINYREF_RAW}/star/geneInfo.tab", description="cellranger tiny STAR index geneInfo.tab"),
+    DataFile("single_cell_ref", "star/sjdbInfo.txt", f"{_TINYREF_RAW}/star/sjdbInfo.txt", description="cellranger tiny STAR index sjdbInfo.txt"),
+    DataFile("single_cell_ref", "star/sjdbList.out.tab", f"{_TINYREF_RAW}/star/sjdbList.out.tab", description="cellranger tiny STAR index sjdbList.out.tab"),
+    DataFile("single_cell_ref", "star/sjdbList.fromGTF.out.tab", f"{_TINYREF_RAW}/star/sjdbList.fromGTF.out.tab", description="cellranger tiny STAR index sjdbList.fromGTF.out.tab"),
+    DataFile("single_cell_ref", "star/transcriptInfo.tab", f"{_TINYREF_RAW}/star/transcriptInfo.tab", description="cellranger tiny STAR index transcriptInfo.tab"),
+    DataFile("single_cell_ref", "star/exonGeTrInfo.tab", f"{_TINYREF_RAW}/star/exonGeTrInfo.tab", description="cellranger tiny STAR index exonGeTrInfo.tab"),
+    DataFile("single_cell_ref", "star/Log.out", f"{_TINYREF_RAW}/star/Log.out", description="cellranger tiny STAR index Log.out"),
 
     # chip_seq — nf-core chipseq Spt5 IP/input pair + yeast reference + gene annotations
     DataFile("chip_seq", "genome.fa", f"{_NFCORE}/chipseq/reference/genome.fa", description="S. cerevisiae reference (nf-core chipseq)"),
