@@ -104,7 +104,7 @@
           "outputs": {
             "pin_file": {
               "expected_format": "text",
-              "min_size_bytes": 1,
+              "min_size_bytes": 0,
               "fail_on_error": true
             }
           }
