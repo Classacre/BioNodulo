@@ -128,3 +128,30 @@ def test_proteomics_sage_percolator_template_is_discoverable_from_workflow_templ
 
     assert template_response.status_code == 200
     assert template_response.json()["name"] == "Proteomics Sage-Percolator Search"
+
+
+def test_sage_pin_is_optional_but_always_materialised(tmp_path) -> None:
+    """Sage omits results.sage.pin when nothing clears 1% FDR.
+
+    Verified against Sage 0.14.6 with the project's OWN fixture and config: a
+    correct PSM lands in results.sage.tsv while no .pin is written, because FDR
+    on a single file has no decoy distribution to estimate from. Requiring the
+    PIN unconditionally turned an empty-but-valid search into a node failure.
+    """
+    from bionodulo.nodes.builtin.proteomics_family.sage_search import SageSearchNode
+
+    outputs = [
+        tmp_path / "results.sage.tsv",
+        tmp_path / "results.json",
+        tmp_path / "sage_config.json",
+        tmp_path / "results.sage.pin",
+    ]
+    required = SageSearchNode.REQUIRED_OUTPUT_PATHS({}, outputs)
+    assert outputs[3] not in required, "the PIN must not be a hard requirement"
+    assert outputs[0] in required and outputs[1] in required
+
+    # Downstream Percolator consumes the PIN over a wired edge, so an absent
+    # file would break the graph; an empty one means the same thing readably.
+    SageSearchNode.VERIFY_OUTPUTS({}, outputs)
+    assert outputs[3].is_file()
+    assert outputs[3].read_text(encoding="utf-8") == ""
