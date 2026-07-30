@@ -34,14 +34,16 @@ class XCMSRetentionCorrectionNode(MetabolomicsCommandNode):
     REQUIRED_CONDA_PACKAGES = [
         "r-base",
         "bioconductor-xcms",
+        "bioconductor-msexperiment",
         "bioconductor-biocparallel",
         "r-jsonlite",
         "r-readr",
     ]
-    REQUIRED_R_PACKAGES = ["xcms", "BiocParallel", "jsonlite", "readr"]
+    REQUIRED_R_PACKAGES = ["xcms", "MsExperiment", "BiocParallel", "jsonlite", "readr"]
     CONDA_PACKAGE_CONSTRAINTS = {
         "r-base": "4.5.*",
         "bioconductor-xcms": "4.8.0",
+        "bioconductor-msexperiment": "1.12.0",
         "bioconductor-biocparallel": "1.44.0",
         "r-jsonlite": "2.0.0",
         "r-readr": "2.2.0",
@@ -157,6 +159,7 @@ class XCMSRetentionCorrectionNode(MetabolomicsCommandNode):
             f"""\
             suppressPackageStartupMessages({{
                 library("xcms")
+                library("MsExperiment")
                 library("BiocParallel")
                 library("jsonlite")
                 library("readr")

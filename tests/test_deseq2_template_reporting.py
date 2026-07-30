@@ -67,7 +67,7 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert "protein_table" not in string_enrichment["params"]
     assert string_enrichment["params"]["id_column"] == "gene"
     assert string_enrichment["params"]["query_type"] == "enrichment"
-    assert string_enrichment["params"]["species"] == 4932
+    assert string_enrichment["params"]["species"] == 9606  # airway is human; 4932 (yeast) made STRING answer 404
     assert normalized_counts_transpose["params"]["id_column"] == "gene"
     assert normalized_counts_transpose["params"]["new_header"] == "sample"
     assert normalized_counts_transpose["params"]["output_type"] == "CSV"

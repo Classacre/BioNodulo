@@ -262,7 +262,7 @@
       "params": {
         "protein_ids": "",
         "id_column": "gene",
-        "species": 4932,
+        "species": 9606,
         "query_type": "enrichment"
       },
       "ui": {

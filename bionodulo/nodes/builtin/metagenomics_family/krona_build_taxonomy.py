@@ -87,10 +87,12 @@ class KronaBuildTaxonomyNode(MetagenomicsCommandNode):
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> str:
-        cls.require_valid_inputs(inputs)
-        taxonomy_dir = cls.PLAN_OUTPUTS(
-            inputs, Path(path_value(inputs.get("output", inputs.get("output_dir", "."))) ).parent
-        )[0].parent
+        validation = cls.VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            raise ValueError(str(validation))
+        # PLAN_OUTPUTS places taxonomy.tab under <node dir>/taxonomy, and the
+        # runner passes that node directory as `output`.
+        taxonomy_dir = cls.output_dir(inputs) / "taxonomy"
         source = Path(path_value(inputs["taxdump"]))
         # The extractor reads names.dmp/nodes.dmp from the directory it is given,
         # so an archive input is unpacked next to where taxonomy.tab will land.
