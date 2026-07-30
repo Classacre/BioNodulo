@@ -31,6 +31,11 @@ def normalize_conda_package(name: str) -> str:
 # Mapping of executable names to conda package names.
 # This is the single source of truth for tool → package resolution.
 EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
+    # bunzip2 is a binary shipped by the `bzip2` package; there is no conda
+    # package of that name, so an unmapped entry produces an unsolvable
+    # dependency. A dev box hides this by resolving bunzip2 from /usr/bin.
+    "bunzip2": "bzip2",
+    "bzip2": "bzip2",
     "bwa": "bwa",
     "bwa-mem2": "bwa-mem2",
     "blastn": "blast",
