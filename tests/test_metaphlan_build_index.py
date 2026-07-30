@@ -33,7 +33,11 @@ def test_command_expands_the_bzipped_fasta_and_forces_a_large_index(tmp_path: Pa
         {"database": "/data/mpa", "index": INDEX, "output": str(tmp_path / "n"), "threads": 4}
     )
     assert "bunzip2 -k" in command
-    assert f'"{INDEX}_SGB.fna.bz2"' in command
+    # Globs the bundle's own *.fna.bz2 rather than assuming one filename, then
+    # asserts the marker FASTA exists: a missing one otherwise surfaces only as
+    # "Encountered internal Bowtie 2 exception (#1)", which names no cause.
+    assert "*.fna.bz2" in command
+    assert f'if [ ! -s "{INDEX}_SGB.fna" ]' in command
     assert "--large-index" in command
     assert command.startswith("set -e;")
 

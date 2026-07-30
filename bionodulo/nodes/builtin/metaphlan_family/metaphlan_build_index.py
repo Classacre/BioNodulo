@@ -98,11 +98,19 @@ class MetaPhlAnBuildIndexNode(MetagenomicsCommandNode):
         # bowtie2-build needs it expanded, but MetaPhlAn still wants the original
         # alongside. --large-index forces the bt2l members the profiler requires
         # regardless of how small the toy database is.
+        # Decompress whichever marker FASTA the bundle actually ships, then
+        # assert it exists before invoking bowtie2-build. Without that check a
+        # missing FASTA surfaces only as "Encountered internal Bowtie 2
+        # exception (#1)", which says nothing about the real cause.
         return (
             f'set -e; mkdir -p "{target}"; cp -f "{source}"/* "{target}"/; '
             f'cd "{target}"; '
-            f'if [ -f "{index}_SGB.fna.bz2" ] && [ ! -f "{index}_SGB.fna" ]; then '
-            f'bunzip2 -k "{index}_SGB.fna.bz2"; fi; '
+            f'for archive in *.fna.bz2; do '
+            f'[ -e "$archive" ] || continue; '
+            f'[ -e "${{archive%.bz2}}" ] || bunzip2 -k "$archive"; done; '
+            f'if [ ! -s "{index}_SGB.fna" ]; then '
+            f'echo "MetaPhlAn marker FASTA {index}_SGB.fna is missing or empty; '
+            f'bundle contains: $(ls)" >&2; exit 1; fi; '
             f'bowtie2-build --large-index --threads {threads} "{index}_SGB.fna" "{index}"'
         )
 
