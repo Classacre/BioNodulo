@@ -87,6 +87,30 @@
       }
     },
     {
+      "id": "metaphlan_build_index_001",
+      "type": "metaphlan_build_index",
+      "position": [
+        260,
+        430
+      ],
+      "params": {
+        "index": "mpa_vJan21_TOY_CHOCOPhlAnSGB_202103",
+        "threads": 4
+      },
+      "ui": {
+        "title": "Build MetaPhlAn Index",
+        "validation": {
+          "outputs": {
+            "database": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "humann_reads_001",
       "type": "input_file",
       "position": [
@@ -683,10 +707,21 @@
       }
     },
     {
-      "id": "e19",
+      "id": "e_mpa_build",
       "from": {
         "node": "metaphlan_db_001",
         "output": "directory"
+      },
+      "to": {
+        "node": "metaphlan_build_index_001",
+        "input": "database"
+      }
+    },
+    {
+      "id": "e19",
+      "from": {
+        "node": "metaphlan_build_index_001",
+        "output": "database"
       },
       "to": {
         "node": "metaphlan_001",

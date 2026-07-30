@@ -1532,7 +1532,10 @@ def test_metagenomics_template_validates_database_directory_before_profiling() -
     assert not _has_edge(workflow, "db_001", "directory", "validate_db_001", "input")
     assert _has_edge(workflow, "db_001", "directory", "kraken2_001", "db")
     assert _has_edge(workflow, "db_001", "directory", "bracken_001", "db")
-    assert _has_edge(workflow, "metaphlan_db_001", "directory", "metaphlan_001", "database")
+    # MetaPhlAn bundles ship no Bowtie2 index, and the profiler fails closed
+    # without it, so the index is built in-workflow first.
+    assert _has_edge(workflow, "metaphlan_db_001", "directory", "metaphlan_build_index_001", "database")
+    assert _has_edge(workflow, "metaphlan_build_index_001", "database", "metaphlan_001", "database")
     # Krona's taxonomy.tab is not published anywhere; it is built in-workflow
     # from the NCBI taxdump by krona_build_taxonomy.
     assert _has_edge(workflow, "krona_taxdump_001", "file", "krona_build_taxonomy_001", "taxdump")

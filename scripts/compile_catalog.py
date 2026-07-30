@@ -46,7 +46,9 @@ BASELINE_NODE_COUNT = 943
 # its execution factory (see _blocked_reason), so `availability` stays a proof.
 # Keep the ledger itself at exactly BASELINE_NODE_COUNT; it is forensic history,
 # not a live inventory.
-POST_BASELINE_NODE_IDS: frozenset[str] = frozenset({"snpeff_build", "krona_build_taxonomy"})
+POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
+    {"snpeff_build", "krona_build_taxonomy", "metaphlan_build_index"}
+)
 EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)
 SAMTOOLS_MODULES: tuple[str, ...] = (
     "bionodulo.nodes.catalog.tools.samtools.view",

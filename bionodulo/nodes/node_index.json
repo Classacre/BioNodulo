@@ -637,6 +637,7 @@
   "metabat2_jgi_summarize_bam_contig_depths": "bionodulo.nodes.builtin.metabat2_family.metabat2_jgi_summarize_bam_contig_depths",
   "metaboanalyst_stats": "bionodulo.nodes.builtin.metabolomics_family.metaboanalyst_stats",
   "metaphlan": "bionodulo.nodes.builtin.metaphlan_family.metaphlan",
+  "metaphlan_build_index": "bionodulo.nodes.builtin.metaphlan_family.metaphlan_build_index",
   "methyldackel": "bionodulo.nodes.builtin.epigenomics_family.methyldackel",
   "minia": "bionodulo.nodes.builtin.assembly_family.minia",
   "miniasm": "bionodulo.nodes.builtin.assembly_family.miniasm",

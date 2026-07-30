@@ -76,7 +76,7 @@
         533
       ],
       "params": {
-        "file": "templates/data/smoke/heatmap_annotation.csv"
+        "file": "examples/data/deseq2/sample_info.csv"
       },
       "ui": {
         "title": "Heatmap Annotation",
