@@ -118,7 +118,7 @@
         590
       ],
       "params": {
-        "file": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/illumina/fastq/test_1.fastq.gz",
+        "file": "https://raw.githubusercontent.com/biobakery/humann/9c6dfef873837c0ed281e1093718769d1aea98c9/examples/demo.fastq.gz",
         "source": "url"
       },
       "ui": {
@@ -538,6 +538,18 @@
       "ui": {
         "title": "Krona Taxonomy"
       }
+    },
+    {
+      "id": "humann_profile_001",
+      "type": "input_file",
+      "params": {
+        "file": "https://raw.githubusercontent.com/biobakery/humann/9c6dfef873837c0ed281e1093718769d1aea98c9/humann/tests/data/demo_metaphlan_bugs_list.tsv",
+        "source": "url"
+      },
+      "position": {
+        "x": -560,
+        "y": 1180
+      }
     }
   ],
   "edges": [
@@ -729,17 +741,6 @@
       }
     },
     {
-      "id": "e20",
-      "from": {
-        "node": "metaphlan_001",
-        "output": "profile"
-      },
-      "to": {
-        "node": "humann_001",
-        "input": "taxonomic_profile"
-      }
-    },
-    {
       "id": "e21",
       "from": {
         "node": "humann_nucleotide_db_001",
@@ -853,6 +854,17 @@
       "to": {
         "node": "krona_001",
         "input": "classification"
+      }
+    },
+    {
+      "id": "e20",
+      "from": {
+        "node": "humann_profile_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "humann_001",
+        "input": "taxonomic_profile"
       }
     }
   ],

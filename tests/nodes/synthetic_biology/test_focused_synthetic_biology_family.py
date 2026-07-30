@@ -19,6 +19,7 @@ from bionodulo.nodes.builtin.synthetic_biology_family.ibiosim_model import iBioS
 from bionodulo.nodes.builtin.synthetic_biology_family.sbol_design_import import (
     SBOLDesignImportNode,
 )
+from bionodulo.execution.external_binary import spec_for
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -28,7 +29,11 @@ def test_focused_synthetic_biology_nodes_are_source_pinned_and_discoverable() ->
 
     expected = {
         "sbol_design_import": (SBOLDesignImportNode, "1.1", "c84ccd16028821f8668473758031e1b6dcdcd628"),
-        "copasi_simulation": (COPASISimulationNode, "4.46.300", "e9c47d912b55eccd56f70b72e52f19d61f5ab2e2"),
+        # Build-298, not the newer Build-300: 298 is the last release whose
+        # assets include an extractable COPASI-4.45.298-AllSE.tar.gz. Build-300
+        # ships only bindings, a .dmg, an .exe and a self-extracting installer,
+        # none of which yields CopasiSE without running an installer.
+        "copasi_simulation": (COPASISimulationNode, "4.45.298", "d1ad0fd8b4f2246639b37c75c8e320c525426d7a"),
         "ibiosim_model": (iBioSimModelNode, "0.0.1", "905de27812f011dd63c37f41347ed89839936161"),
         "cello_circuit_design": (CelloCircuitDesignNode, "0.1", "e5fed2256089f5defe3afd0c90eafea2fa1e13f0"),
     }
@@ -43,9 +48,35 @@ def test_focused_synthetic_biology_nodes_are_source_pinned_and_discoverable() ->
         assert node_class.__module__.startswith("bionodulo.nodes.builtin.synthetic_biology_family.")
 
 
+def test_copasi_is_provisioned_from_the_vendor_archive() -> None:
+    """COPASI publishes no conda package, so the binary comes from its release.
+
+    executable_path is explicit because the AllSE tarball holds Linux64/,
+    Linux/, Darwin-arm/, Darwin-intel/ and WIN* copies of the same filename; a
+    search would be free to pick the wrong platform's.
+    """
+    spec = spec_for(COPASISimulationNode)
+
+    assert spec is not None
+    assert spec["source"].endswith("COPASI-4.45.298-AllSE.tar.gz")
+    assert "/Build-298/" in spec["source"]
+    assert spec["executable_path"] == "COPASI-4.45.298-AllSE/Linux64/CopasiSE"
+    assert spec["platform"] == "linux-64"
+    assert EXECUTABLE_TO_CONDA_PACKAGE["CopasiSE"] == ""
+
+
 def test_synthetic_biology_environment_contracts_are_exact() -> None:
     assert PACKAGE_MIN_VERSIONS["pysbol3"] == "1.1"
-    assert SBOLDesignImportNode.CONDA_PACKAGE_CONSTRAINTS == {"pysbol3": "1.1"}
+    # setuptools is held below 81 because pysbol3 1.1 hard-requires
+    # pyshacl ~=0.18.1, and that pyshacl imports pkg_resources -- which
+    # setuptools 81 removed. Without the pin the import chain dies with
+    # ModuleNotFoundError before any SBOL file is read, and moving pyshacl
+    # forward is impossible because pysbol3 pins it.
+    assert SBOLDesignImportNode.CONDA_PACKAGE_CONSTRAINTS == {
+        "pysbol3": "1.1",
+        "setuptools": "80.10.2",
+    }
+    assert PACKAGE_MIN_VERSIONS["setuptools"] == "80.10.2"
     assert EXECUTABLE_TO_CONDA_PACKAGE["iBioSim"] == ""
     assert EXECUTABLE_TO_CONDA_PACKAGE["dot"] == "graphviz"
 

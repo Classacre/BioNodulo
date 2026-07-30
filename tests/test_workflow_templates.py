@@ -1499,7 +1499,15 @@ def test_metagenomics_template_gates_trimmed_reads_before_profiling() -> None:
     assert node_types["humann_reads_001"] == "input_file"
     assert _has_edge(workflow, "humann_reads_001", "file", "humann_retry_001", "input")
     assert _has_edge(workflow, "humann_retry_001", "passthrough", "humann_001", "input")
-    assert _has_edge(workflow, "metaphlan_001", "profile", "humann_001", "taxonomic_profile")
+    # HUMAnN's profile deliberately does NOT come from metaphlan_001. HUMAnN 3.9
+    # accepts a taxonomic profile only from MetaPhlAn database v3 or vJun23, and
+    # the MetaPhlAn branch here runs the vJan21 TOY database -- its profile is
+    # refused outright ("not generated with the database version v3 or vJun23").
+    # The real vJun23 index is ~20 GB. HUMAnN's own v3-era fixture matches the
+    # v201901_v31 DEMO ChocoPhlAn this template already fetches.
+    assert node_types["humann_profile_001"] == "input_file"
+    assert _has_edge(workflow, "humann_profile_001", "file", "humann_001", "taxonomic_profile")
+    assert not _has_edge(workflow, "metaphlan_001", "profile", "humann_001", "taxonomic_profile")
     assert _has_edge(
         workflow,
         "humann_nucleotide_db_001",

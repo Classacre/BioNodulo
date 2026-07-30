@@ -1,0 +1,10 @@
+[workspace]
+name = "bionodulo-workflow"
+version = "0.1.0"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+pysbol3 = "1.1"
+python = "3.12.*"
+setuptools = "80.10.2"

@@ -156,7 +156,11 @@ class STARsoloCountNode(STARCommandNode):
 
     @classmethod
     def _solo_root(cls, inputs: dict[str, Any]) -> Path:
-        return cls.output_dir(inputs) / cls.NODE_ID
+        # The runner already sets `output` to <run>/<NODE_ID>, so appending
+        # NODE_ID again produced .../starsolo_count/starsolo_count/ and the
+        # planned outputs were never written. PLAN_OUTPUTS is the one that adds
+        # NODE_ID, because it is handed the run root instead.
+        return cls.output_dir(inputs)
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:

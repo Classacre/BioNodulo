@@ -19,18 +19,23 @@ class COPASISimulationNode(SyntheticBiologyCommandNode):
 
     NODE_ID = "copasi_simulation"
     DISPLAY_NAME = "COPASI Simulation"
-    DESCRIPTION = "Run configured model tasks with CopasiSE 4.46 Build 300."
+    DESCRIPTION = "Run configured model tasks with CopasiSE 4.45 Build 298."
     SEARCH_ALIASES = ["BioNodulo builtin", "COPASI", "CopasiSE", "SBML", "SED-ML", "OMEX"]
     RETURN_TYPES = ("FILE", "CPS", "LOG")
     RETURN_NAMES = ("report", "updated_model", "log")
     REQUIRED_EXECUTABLES = ["CopasiSE"]
     REQUIRED_CONDA_PACKAGES: list[str] = []
     REQUIRED_PATH_INPUTS = ("model_file",)
-    VERSION = "4.46.300"
-    GIT_COMMIT = "e9c47d912b55eccd56f70b72e52f19d61f5ab2e2"
+    # Build-298, not the newer Build-300, because 298 is the most recent release
+    # that publishes an EXTRACTABLE CopasiSE: its assets include
+    # COPASI-4.45.298-AllSE.tar.gz, while Build-300 ships only language bindings,
+    # a .dmg, a .exe and a self-extracting .sh installer -- none of which yields
+    # CopasiSE without running an installer. Verified against the live asset list.
+    VERSION = "4.45.298"
+    GIT_COMMIT = "d1ad0fd8b4f2246639b37c75c8e320c525426d7a"
     GIT_URL = "https://github.com/copasi/COPASI.git"
     SOURCE_URL = f"https://github.com/copasi/COPASI/tree/{GIT_COMMIT}"
-    RELEASE_TAG_URL = "https://github.com/copasi/COPASI/tree/Build-300"
+    RELEASE_TAG_URL = "https://github.com/copasi/COPASI/tree/Build-298"
     DOCUMENTATION_URL = "https://copasi.org/Support/User_Manual/Model_Creation/Commandline_Version_and_Commandline_Options/"
     LICENSE = "Artistic-2.0"
     LICENSE_URL = f"https://github.com/copasi/COPASI/blob/{GIT_COMMIT}/license.txt"
@@ -41,14 +46,17 @@ class COPASISimulationNode(SyntheticBiologyCommandNode):
         "manual": DOCUMENTATION_URL,
         "license": LICENSE_URL,
     }
-    PACKAGE_CONSTRAINT = "external BYOL CopasiSE 4.46 Build 300"
+    PACKAGE_CONSTRAINT = "vendor-provisioned CopasiSE 4.45 Build 298 (no conda package exists)"
     ACCESS_CONSTRAINTS = (
-        "worker-provisioned CopasiSE built from COPASI Build-300",
+        "worker-provisioned CopasiSE from the COPASI Build-298 AllSE release archive",
         "Artistic License 2.0 terms apply",
     )
-    QUARANTINE_STATUS = "byol-evidence-only-no-binary-execution"
+    QUARANTINE_STATUS = "vendor-archive-provisioned"
     AUDIT_STATUS = "contract-checked-no-binary-execution"
-    KNOWN_LIMITATION = "No verified Conda package or immutable CopasiSE binary is provisioned by this node."
+    KNOWN_LIMITATION = (
+        "No conda package exists for COPASI in conda-forge or bioconda; CopasiSE is "
+        "provisioned from the vendor release archive."
+    )
     REPORT_SEMANTICS = (
         "--report-file overrides the target of each task that actually runs. The report is only "
         "materialized when the CPS task or selected SED-ML task defines report output."
@@ -58,6 +66,20 @@ class COPASISimulationNode(SyntheticBiologyCommandNode):
         "changing the return code, so BioNodulo additionally requires the configured report, saved "
         "CPS, and captured log to exist."
     )
+    # COPASI publishes no conda package, so CopasiSE comes from the vendor
+    # release archive. executable_path is explicit because the AllSE tarball
+    # holds Linux64/, Linux/, Darwin-arm/, Darwin-intel/ and WIN* copies of the
+    # same filename; a search would be free to pick the wrong platform's.
+    ENVIRONMENT = {
+        "provisioning": "external_worker_binary",
+        "version": "4.45.298",
+        "source": (
+            "https://github.com/copasi/COPASI/releases/download/Build-298/"
+            "COPASI-4.45.298-AllSE.tar.gz"
+        ),
+        "executable_path": "COPASI-4.45.298-AllSE/Linux64/CopasiSE",
+        "platform": "linux-64",
+    }
     EXPERIMENTAL = True
     SHELL = True
     INPUT_FORMATS = ("cps", "sbml", "sedml", "omex")

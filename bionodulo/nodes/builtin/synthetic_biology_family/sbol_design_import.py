@@ -20,8 +20,14 @@ class SBOLDesignImportNode(SyntheticBiologyCommandNode):
     RETURN_TYPES = ("SBOL", "JSON")
     RETURN_NAMES = ("normalized_sbol", "summary")
     REQUIRED_EXECUTABLES = ["python"]
-    REQUIRED_CONDA_PACKAGES = ["pysbol3"]
-    CONDA_PACKAGE_CONSTRAINTS = {"pysbol3": "1.1"}
+    # setuptools is held below 81 because pysbol3 1.1 hard-requires
+    # `pyshacl ~=0.18.1`, and that pyshacl does `import pkg_resources` in
+    # extras/__init__.py. setuptools 81 removed pkg_resources, so the import
+    # chain dies with ModuleNotFoundError before any SBOL file is read. Moving
+    # pyshacl forward is not possible -- the solver answers "pysbol3 1.1 would
+    # require pyshacl ~=0.18.1, for which no candidates were found".
+    REQUIRED_CONDA_PACKAGES = ["pysbol3", "setuptools"]
+    CONDA_PACKAGE_CONSTRAINTS = {"pysbol3": "1.1", "setuptools": "80.10.2"}
     PACKAGE_CONSTRAINT = "pysbol3 = 1.1"
     REQUIRED_PATH_INPUTS = ("sbol_file",)
     VERSION = "1.1"

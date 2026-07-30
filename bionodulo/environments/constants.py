@@ -332,6 +332,10 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     # installs 1.3 and NanoPlot dies at import. The conda package is named
     # python-kaleido; there is no conda-forge package called `kaleido`.
     "python-kaleido": "0.2.1",
+    # pysbol3 1.1 hard-requires pyshacl ~=0.18.1, which imports pkg_resources.
+    # setuptools 81 removed pkg_resources, so setuptools is held below it. Moving
+    # pyshacl forward is not an option -- pysbol3 pins it.
+    "setuptools": "80.10.2",
     # bioconda's humann 3.9 is a py312 build that installs into
     # lib/python3.12/site-packages but declares only `python >=3`. A solver left
     # free picks 3.13 and `humann` then dies with ModuleNotFoundError. This was

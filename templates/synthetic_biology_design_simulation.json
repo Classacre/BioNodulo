@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "Synthetic Biology Design and Simulation",
-  "description": "BioCAD template with source-pinned SBOL normalization, COPASI and iBioSim simulation branches, and a Cello v2 DNACompiler branch with every required design artifact represented explicitly.",
+  "description": "SBOL 3 design import and a COPASI time-course simulation of a published model",
   "category": "Synthetic Biology",
   "tags": [
     "synthetic-biology",
@@ -15,11 +15,10 @@
     "combine-archive"
   ],
   "tools": [
-    "input_file",
-    "sbol_design_import",
     "copasi_simulation",
-    "ibiosim_model",
-    "cello_circuit_design"
+    "input_file",
+    "note",
+    "sbol_design_import"
   ],
   "nodes": [
     {
@@ -30,7 +29,7 @@
         80
       ],
       "params": {
-        "text": "Synthetic-biology template with independent SBOL, COPASI, iBioSim, and Cello branches. Input paths are placeholders. COPASI and the case-sensitive iBioSim wrapper must be provisioned in the worker image. Cello additionally requires a pinned DNACompiler JAR plus Java, Python, Yosys, and Graphviz."
+        "text": "Synthetic-biology template with two independent branches: an SBOL 3 design import via pySBOL3, and a COPASI time-course simulation of a published model.\n\nThe iBioSim and Cello branches were removed because neither tool can be obtained by an automated pipeline:\n- Cello publishes NO release asset at all. CIDARLAB/Cello-v2 v0.1 has an empty assets list, there is no cello-dnacompiler JAR anywhere, and neither bioconda nor conda-forge carries it. Its only distribution is a Docker image.\n- iBioSim ships iBioSim-linux64.zip, but its launcher is a cwd-dependent shell script ending in  with no arguments, i.e. the GUI. There is no headless CLI to drive.\n\nCOPASI has no conda package either, so CopasiSE is provisioned from the vendor Build-298 AllSE archive - the newest release that ships an extractable binary rather than an installer.\n\nData: SBOLTestSuite toggle_switch.rdf (SBOL 3, pinned to a commit SHA) and BioModels BIOMD0000000012 (Elowitz & Leibler repressilator)."
       },
       "ui": {
         "title": "Runtime Requirements",
@@ -45,7 +44,8 @@
         80
       ],
       "params": {
-        "file": "examples/data/synthetic_biology/toggle_switch.xml"
+        "file": "https://raw.githubusercontent.com/SynBioDex/SBOLTestSuite/0044284331b2f915a6e4b9d50e1cbf3ea2f62dcd/SBOL3/toggle_switch/toggle_switch.rdf",
+        "source": "url"
       },
       "ui": {
         "title": "SBOL Design",
@@ -98,7 +98,8 @@
         250
       ],
       "params": {
-        "file": "examples/data/synthetic_biology/toggle_model.cps"
+        "file": "https://www.ebi.ac.uk/biomodels/model/download/BIOMD0000000012?filename=BIOMD0000000012_url.xml",
+        "source": "url"
       },
       "ui": {
         "title": "COPASI CPS Model",
@@ -121,7 +122,7 @@
         250
       ],
       "params": {
-        "input_format": "cps",
+        "input_format": "sbml",
         "scheduled_task": "Time-Course",
         "sedml_task": "",
         "verbose": false,
@@ -138,222 +139,6 @@
             },
             "updated_model": {
               "expected_format": "auto",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "omex_archive_001",
-      "type": "input_file",
-      "position": [
-        80,
-        420
-      ],
-      "params": {
-        "file": "examples/data/synthetic_biology/toggle_study.omex"
-      },
-      "ui": {
-        "title": "COMBINE Archive",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "auto",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "ibiosim_model_001",
-      "type": "ibiosim_model",
-      "position": [
-        460,
-        420
-      ],
-      "params": {
-        "quiet": true,
-        "debug": false
-      },
-      "ui": {
-        "title": "iBioSim Model",
-        "validation": {
-          "outputs": {
-            "results_dir": {
-              "expected_format": "directory",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "cello_netlist_001",
-      "type": "input_file",
-      "position": [
-        80,
-        610
-      ],
-      "params": {
-        "file": "examples/data/synthetic_biology/toggle_netlist.v"
-      },
-      "ui": {
-        "title": "Cello Verilog Netlist",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "text",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "cello_ucf_001",
-      "type": "input_file",
-      "position": [
-        80,
-        760
-      ],
-      "params": {
-        "file": "examples/data/synthetic_biology/Eco1C1G1T1.UCF.json"
-      },
-      "ui": {
-        "title": "Cello User Constraints",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "json",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "cello_input_sensor_001",
-      "type": "input_file",
-      "position": [
-        80,
-        910
-      ],
-      "params": {
-        "file": "https://raw.githubusercontent.com/CIDARLAB/Cello-UCF/222827d30a28730404f0601d64f63436354fee9d/files/v2/input/Eco/Eco1C1G1T1.input.json",
-        "source": "url"
-      },
-      "ui": {
-        "title": "Cello Input Sensors",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "json",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "cello_output_device_001",
-      "type": "input_file",
-      "position": [
-        80,
-        1060
-      ],
-      "params": {
-        "file": "https://raw.githubusercontent.com/CIDARLAB/Cello-UCF/222827d30a28730404f0601d64f63436354fee9d/files/v2/output/Eco/Eco1C1G1T1.output.json",
-        "source": "url"
-      },
-      "ui": {
-        "title": "Cello Output Devices",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "json",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "cello_options_001",
-      "type": "input_file",
-      "position": [
-        80,
-        1210
-      ],
-      "params": {
-        "file": "examples/data/synthetic_biology/cello_options.csv"
-      },
-      "ui": {
-        "title": "Cello Options",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "csv",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "cello_jar_001",
-      "type": "input_file",
-      "position": [
-        80,
-        1360
-      ],
-      "params": {
-        "file": "external/cello/cello-dnacompiler-2.0.0-SNAPSHOT-jar-with-dependencies.jar"
-      },
-      "ui": {
-        "title": "Pinned Cello DNACompiler JAR",
-        "validation": {
-          "outputs": {
-            "file": {
-              "expected_format": "auto",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "cello_design_001",
-      "type": "cello_circuit_design",
-      "position": [
-        460,
-        950
-      ],
-      "params": {
-        "netlist_constraint_file": "",
-        "python_executable": "python"
-      },
-      "ui": {
-        "title": "Cello Circuit Design",
-        "validation": {
-          "outputs": {
-            "design_dir": {
-              "expected_format": "directory",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            },
-            "output_netlist": {
-              "expected_format": "json",
               "min_size_bytes": 1,
               "fail_on_error": true
             }
@@ -384,91 +169,15 @@
         "node": "copasi_simulation_001",
         "input": "model_file"
       }
-    },
-    {
-      "id": "e_ibiosim",
-      "from": {
-        "node": "omex_archive_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "ibiosim_model_001",
-        "input": "archive_file"
-      }
-    },
-    {
-      "id": "e_cello_netlist",
-      "from": {
-        "node": "cello_netlist_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "cello_design_001",
-        "input": "input_netlist"
-      }
-    },
-    {
-      "id": "e_cello_ucf",
-      "from": {
-        "node": "cello_ucf_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "cello_design_001",
-        "input": "user_constraints_file"
-      }
-    },
-    {
-      "id": "e_cello_input_sensor",
-      "from": {
-        "node": "cello_input_sensor_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "cello_design_001",
-        "input": "input_sensor_file"
-      }
-    },
-    {
-      "id": "e_cello_output_device",
-      "from": {
-        "node": "cello_output_device_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "cello_design_001",
-        "input": "output_device_file"
-      }
-    },
-    {
-      "id": "e_cello_options",
-      "from": {
-        "node": "cello_options_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "cello_design_001",
-        "input": "options_file"
-      }
-    },
-    {
-      "id": "e_cello_jar",
-      "from": {
-        "node": "cello_jar_001",
-        "output": "file"
-      },
-      "to": {
-        "node": "cello_design_001",
-        "input": "cello_jar"
-      }
     }
   ],
   "groups": [],
   "outputs": {
-    "source_sbol": "sbol_design_001",
-    "sbol_summary": "sbol_import_001",
+    "sbol_design": "sbol_design_001",
+    "sbol_document": "sbol_import_001",
+    "copasi_model": "copasi_model_001",
     "copasi_report": "copasi_simulation_001",
-    "ibiosim_results": "ibiosim_model_001",
-    "cello_design": "cello_design_001"
+    "copasi_updated_model": "copasi_simulation_001",
+    "copasi_log": "copasi_simulation_001"
   }
 }
