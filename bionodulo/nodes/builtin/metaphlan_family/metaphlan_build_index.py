@@ -110,7 +110,7 @@ class MetaPhlAnBuildIndexNode(MetagenomicsCommandNode):
             f'[ -e "${{archive%.bz2}}" ] || bunzip2 -k "$archive"; done; '
             f'if [ ! -s "{index}_SGB.fna" ]; then '
             f'echo "MetaPhlAn marker FASTA {index}_SGB.fna is missing or empty; '
-            f'bundle contains: $(ls)" >&2; exit 1; fi; '
+            f'bundle contains: $(ls)"; exit 1; fi; '
             f'bowtie2-build --large-index --threads {threads} "{index}_SGB.fna" "{index}"'
         )
 
