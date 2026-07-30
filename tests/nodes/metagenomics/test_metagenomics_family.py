@@ -50,6 +50,7 @@ PINNED = {
         "tag": "v3.9",
         "commit": "9c6dfef873837c0ed281e1093718769d1aea98c9",
         "package": "humann",
+        "extra_packages": ("python",),
         "executable": "humann",
     },
     KronaTaxonomyNode: {
@@ -132,7 +133,12 @@ def test_source_and_package_contracts_are_exactly_pinned(
     assert node.BIOCONDA_CONSTRAINT == f"{expected['package']}={expected['version']}"
     assert node.UPSTREAM_TAG == expected["tag"]
     assert node.GIT_COMMIT == expected["commit"]
-    assert node.REQUIRED_CONDA_PACKAGES == [expected["package"]]
+    # `extra_packages` covers a node that must pin a transitive dependency its
+    # own conda package under-declares (humann/python -- see PACKAGE_MIN_VERSIONS).
+    assert node.REQUIRED_CONDA_PACKAGES == [
+        expected["package"],
+        *expected.get("extra_packages", ()),
+    ]
     assert node.REQUIRED_EXECUTABLES == [expected["executable"]]
     assert node.DOCUMENTATION_URL.startswith("https://github.com/")
     assert node.UPSTREAM_SOURCE

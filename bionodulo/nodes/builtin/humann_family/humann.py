@@ -18,6 +18,16 @@ from bionodulo.nodes.builtin.metagenomics_family.adapter import (
 class HUMAnNNode(MetagenomicsCommandNode):
     """Profile gene families and pathways using explicit reference databases."""
 
+    #: HUMAnN MUST NOT share an environment with anything that needs bowtie2.
+    #: The bioconda `humann` package vendors bowtie2 2.2.3 binaries at the SAME
+    #: file paths the real `bowtie2` package owns -- `bin/bowtie2-build-s` is
+    #: listed in both conda-meta records of a solved env. Whichever unpacks last
+    #: wins, so an env that locks bowtie2 2.5.5 can still expose 2.2.3 on PATH.
+    #: That is how `bowtie2-build --threads` died as "Encountered internal
+    #: Bowtie 2 exception (#1)": `--threads` did not exist until 2.3. Confirmed
+    #: by reading conda-meta in the solved env, not inferred from the symptom.
+    ENVIRONMENT = {"type": "pixi", "name": "humann"}
+
     NODE_ID = "humann"
     DISPLAY_NAME = "HUMAnN"
     DESCRIPTION = "Profile microbial gene families and pathways from reads plus an explicit taxonomic profile."
@@ -25,7 +35,9 @@ class HUMAnNNode(MetagenomicsCommandNode):
     RETURN_TYPES = ("HUMANN_OUTPUT", "TSV", "TSV", "TSV", "TXT")
     RETURN_NAMES = ("output_dir", "genefamilies", "pathabundance", "pathcoverage", "log")
     REQUIRED_EXECUTABLES = ["humann"]
-    REQUIRED_CONDA_PACKAGES = ["humann"]
+    # `python` is listed so the 3.12 pin in PACKAGE_MIN_VERSIONS reaches this
+    # environment: the bioconda humann build targets 3.12 but does not say so.
+    REQUIRED_CONDA_PACKAGES = ["humann", "python"]
     VERSION = "3.9"
     BIOCONDA_VERSION = VERSION
     BIOCONDA_CONSTRAINT = "humann=3.9"

@@ -327,6 +327,13 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "bracken": "3.1",
     "metaphlan": "4.2.4",
     "humann": "3.9",
+    # bioconda's humann 3.9 is a py312 build that installs into
+    # lib/python3.12/site-packages but declares only `python >=3`. A solver left
+    # free picks 3.13 and `humann` then dies with ModuleNotFoundError. This was
+    # invisible while humann shared an env with metaphlan (which pins 3.12);
+    # isolating humann exposed the upstream packaging bug. Nodes needing humann
+    # list `python` explicitly so this pin reaches their environment.
+    "python": "3.12.*",
     "krona": "2.8.1",
     "maxbin2": "2.2.7",
     "checkm-genome": "1.2.5",
