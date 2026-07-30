@@ -38,8 +38,11 @@ class MetaPhlAnBuildIndexNode(MetagenomicsCommandNode):
     #: this node "succeed" while the profiler still rejects the database.
     INDEX_SUFFIXES = (".1.bt2l", ".2.bt2l", ".3.bt2l", ".4.bt2l", ".rev.1.bt2l", ".rev.2.bt2l")
     OUTPUT_FILENAMES = ()
-    REQUIRED_EXECUTABLES = ["bowtie2-build"]
-    REQUIRED_CONDA_PACKAGES = ["bowtie2"]
+    # bzip2 is declared explicitly: the marker FASTA ships bzip2-compressed and
+    # the worker image is minimal, so relying on a host bunzip2 works on a dev
+    # box and fails in the cloud -- which is exactly how this first surfaced.
+    REQUIRED_EXECUTABLES = ["bowtie2-build", "bunzip2"]
+    REQUIRED_CONDA_PACKAGES = ["bowtie2", "bzip2"]
     CONDA_PACKAGE_CONSTRAINTS = {"bowtie2": "2.5.*"}
     VERSION = "2.5"
     GIT_URL = "https://github.com/BenLangmead/bowtie2.git"
