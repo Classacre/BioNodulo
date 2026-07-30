@@ -279,7 +279,7 @@
       ],
       "params": {
         "name": "chip_smoke",
-        "genome_size": "2000",
+        "genome_size": "12157105",
         "format": "BAMPE",
         "pvalue": 0.5
       },

@@ -1367,7 +1367,9 @@ def test_chip_seq_template_validates_macs2_peak_output() -> None:
     macs2 = next(node for node in workflow["nodes"] if node["id"] == "macs2_001")
     assert macs2["params"] == {
         "name": "chip_smoke",
-        "genome_size": "2000",
+        # Measured from the staged reference: 17 contigs, 12,157,105 bp. The old
+        # 2000 understated it 6000x, so MACS2's background model rejected everything.
+        "genome_size": "12157105",
         "format": "BAMPE",
         "pvalue": 0.5,
     }

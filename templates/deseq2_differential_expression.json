@@ -27,7 +27,7 @@
         80
       ],
       "params": {
-        "file": "templates/data/smoke/counts.csv"
+        "file": "examples/data/deseq2/counts.csv"
       },
       "ui": {
         "title": "Count Matrix",
@@ -51,7 +51,7 @@
         231
       ],
       "params": {
-        "file": "templates/data/smoke/sample_info.csv"
+        "file": "examples/data/deseq2/sample_info.csv"
       },
       "ui": {
         "title": "Sample Info",

@@ -298,7 +298,13 @@ def _materialise_example_entry(entry: Any, dest: Path, context: Any) -> bool:
             from bionodulo.manager.example_data import _download_url
 
             dest.parent.mkdir(parents=True, exist_ok=True)
-            _download_url(entry.url, dest, gunzip=getattr(entry, "gunzip", False))
+            _download_url(
+                entry.url,
+                dest,
+                gunzip=getattr(entry, "gunzip", False),
+                archive_member=getattr(entry, "archive_member", None),
+                rename_columns=getattr(entry, "rename_columns", None),
+            )
             return dest.exists()
         except Exception as exc:
             logger.warning(

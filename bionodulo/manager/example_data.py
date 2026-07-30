@@ -23,6 +23,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,15 @@ class DataFile:
     gunzip: bool = False
     generator: Callable[[Path], None] | None = None
     description: str = ""
+    #: Member path to extract when ``url`` points at a tar archive. Some
+    #: reference data is only distributed inside a package tarball (R/
+    #: Bioconductor experiment data, tool bundles), with no per-file URL.
+    archive_member: str | None = None
+    #: Header renames applied to a downloaded CSV, ``{old: new}``. Real public
+    #: datasets rarely use the column names a template's design formula expects
+    #: (airway calls its condition column ``dex``), and renaming a header is
+    #: honest relabelling -- unlike synthesising values, the data is untouched.
+    rename_columns: Mapping[str, str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +90,13 @@ def download_example_data(
 
         try:
             if spec.url:
-                _download_url(spec.url, dest, gunzip=spec.gunzip)
+                _download_url(
+                    spec.url,
+                    dest,
+                    gunzip=spec.gunzip,
+                    archive_member=spec.archive_member,
+                    rename_columns=spec.rename_columns,
+                )
                 downloaded.append(str(dest.relative_to(project_root)))
                 _emit("  downloaded OK", "success")
             elif spec.generator is not None:
@@ -108,7 +124,49 @@ def download_example_data(
     return summary
 
 
-def _download_url(url: str, dest: Path, gunzip: bool = False) -> None:
+def _extract_member(archive: Path, member: str, dest: Path) -> None:
+    """Copy one member out of a tar archive to *dest*.
+
+    Member names come from our own manifest, not from the archive, so this
+    selects a known path rather than extracting attacker-controlled names.
+    """
+    import tarfile
+
+    with tarfile.open(archive) as tf:
+        try:
+            extracted = tf.extractfile(member)
+        except KeyError as error:
+            raise FileNotFoundError(f"{member} is not in {archive.name}") from error
+        if extracted is None:
+            raise FileNotFoundError(f"{member} in {archive.name} is not a regular file")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with extracted, dest.open("wb") as out_fh:
+            shutil.copyfileobj(extracted, out_fh)
+
+
+def _apply_header_renames(path: Path, renames: Mapping[str, str]) -> None:
+    """Rewrite only the CSV header line, leaving every data row untouched."""
+    import csv
+    import io
+
+    text = path.read_text(encoding="utf-8")
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    if not rows:
+        return
+    rows[0] = [renames.get(column, column) for column in rows[0]]
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\n").writerows(rows)
+    path.write_text(buffer.getvalue(), encoding="utf-8")
+
+
+def _download_url(
+    url: str,
+    dest: Path,
+    gunzip: bool = False,
+    archive_member: str | None = None,
+    rename_columns: Mapping[str, str] | None = None,
+) -> None:
     """Download a single URL to *dest*, optionally decompressing gz."""
     headers = {
         "User-Agent": (
@@ -123,13 +181,24 @@ def _download_url(url: str, dest: Path, gunzip: bool = False) -> None:
         with open(tmp_path, "wb") as fh:
             shutil.copyfileobj(response, fh)
 
-    if gunzip:
+    if archive_member:
+        try:
+            _extract_member(tmp_path, archive_member, dest)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+        if rename_columns:
+            _apply_header_renames(dest, rename_columns)
+        return
+    elif gunzip:
         with gzip.open(tmp_path, "rb") as gz_fh:
             with open(dest, "wb") as out_fh:
                 shutil.copyfileobj(gz_fh, out_fh)
         tmp_path.unlink()
     else:
         tmp_path.replace(dest)
+
+    if rename_columns:
+        _apply_header_renames(dest, rename_columns)
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +209,10 @@ def _download_url(url: str, dest: Path, gunzip: bool = False) -> None:
 # ---------------------------------------------------------------------------
 
 _NFCORE = "https://raw.githubusercontent.com/nf-core/test-datasets"
+_AIRWAY = "https://raw.githubusercontent.com/bioconnector/workshops/master/data"
+_AIRWAY_COUNTS = f"{_AIRWAY}/airway_scaledcounts.csv"
+_AIRWAY_META = f"{_AIRWAY}/airway_metadata.csv"
+_MSDATA = "https://bioconductor.org/packages/release/data/experiment/src/contrib/msdata_0.52.0.tar.gz"
 _MAGECK = "https://raw.githubusercontent.com/davidliwei/mageck/8ac6eea1d4bdb0d6e12b6124f8ab77254eaf6efe/demo/demo2"
 # 10x tinygex (cellranger-tiny-fastq) — Git-LFS, must use the media host.
 _TINYGEX = "https://media.githubusercontent.com/media/minoda-lab/universc/master/test/shared/cellranger-tiny-fastq/3.0.0"
@@ -185,6 +258,15 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("biopython", "deseq2_counts.csv", "https://raw.githubusercontent.com/bioconnector/workshops/master/data/airway_scaledcounts.csv", description="airway RNA-seq count matrix"),
     DataFile("biopython", "deseq2_sample_info.csv", "https://raw.githubusercontent.com/bioconnector/workshops/master/data/airway_metadata.csv", description="airway sample metadata"),
     DataFile("biopython", "heatmap_data.csv", "https://raw.githubusercontent.com/bioconnector/workshops/master/data/airway_scaledcounts.csv", description="airway expression matrix for heatmap"),
+
+    # deseq2 — the real airway RNA-seq experiment (38,694 genes x 8 samples,
+    # control/treated). The previous smoke matrix had FOUR genes, and DESeq2
+    # cannot fit a dispersion trend from that: it stops with "all gene-wise
+    # dispersion estimates are within 2 orders of magnitude from the minimum".
+    # Only the metadata header is relabelled (dex -> condition) to match the
+    # template's design formula; no value is altered.
+    DataFile("deseq2", "counts.csv", _AIRWAY_COUNTS, rename_columns={"ensgene": "gene"}, description="airway count matrix"),
+    DataFile("deseq2", "sample_info.csv", _AIRWAY_META, rename_columns={"id": "sample", "dex": "condition"}, description="airway sample metadata"),
     DataFile("biopython", "heatmap_annotation.csv", "https://raw.githubusercontent.com/bioconnector/workshops/master/data/airway_metadata.csv", description="airway sample annotations"),
 
     # pangenomics — pggb HLA-DRB1 tutorial haplotypes
@@ -267,8 +349,12 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("proteomics", "target_decoy.fasta", f"{_NFCORE}/quantms/testdata/lfq_ci/BSA/18Protein_SoCe_Tr_detergents_trace.fasta", description="BSA-matched protein FASTA (target-only; Sage generates decoys)"),
 
     # metabolomics — ProteoWizard mzML
-    DataFile("metabolomics", "sample.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="ProteoWizard tiny mzML"),
-    DataFile("metabolomics", "sample_2.mzML", "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/example_data/tiny.pwiz.1.1.1.mzML", description="Second local copy of the ProteoWizard tiny mzML for multi-file workflow wiring"),
+    # ProteoWizard's tiny.pwiz is a format demo with no real chromatography, so
+    # centWave found no chromatographic peaks. These are real CE-MS runs from
+    # Bioconductor's msdata: 982 centroided MS1 spectra each, spanning RT
+    # 400-900s. msdata publishes no per-file URL, hence archive_member.
+    DataFile("metabolomics", "sample.mzML", _MSDATA, archive_member="msdata/inst/CE-MS/CEMS_10ppm.mzML", description="CE-MS 10ppm run (Bioconductor msdata)"),
+    DataFile("metabolomics", "sample_2.mzML", _MSDATA, archive_member="msdata/inst/CE-MS/CEMS_25ppm.mzML", description="CE-MS 25ppm run (Bioconductor msdata)"),
 
     # long_read — nf-core nanoseq reference + a real tiny ONT pod5
     DataFile("long_read", "reference.fasta", f"{_NFCORE}/nanoseq/reference/chr22_23800000-23980000.fa", description="Nanopore reference (nf-core nanoseq)"),

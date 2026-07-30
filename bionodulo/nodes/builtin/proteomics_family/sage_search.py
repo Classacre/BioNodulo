@@ -199,35 +199,6 @@ class SageSearchNode(ProteomicsCommandNode):
             raise ValueError("Input 'fasta_db' contains tagged decoys but no target accession")
 
     @classmethod
-    def REQUIRED_OUTPUT_PATHS(
-        cls,
-        inputs: dict[str, Any],
-        outputs: list[Path],
-    ) -> list[Path]:
-        """The PIN is conditional: Sage omits it when nothing passes FDR.
-
-        Verified against Sage 0.14.6 using the project's OWN test fixture and
-        config: a correct PSM is written to results.sage.tsv while no
-        results.sage.pin appears, because zero PSMs clear 1% FDR. Requiring the
-        PIN unconditionally turned "this search found nothing" -- a legitimate
-        scientific outcome, and unavoidable for a single-file search where FDR
-        has no decoy distribution to work with -- into a hard node failure.
-        """
-        pin_path = outputs[3] if len(outputs) > 3 else None
-        return [path for path in outputs if path != pin_path]
-
-    @classmethod
-    def VERIFY_OUTPUTS(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
-        """Materialise an empty PIN so downstream Percolator still gets a file.
-
-        A missing artifact would break the wired edge; an empty one carries the
-        same meaning (no PSMs) in a form the consumer can read.
-        """
-        if len(outputs) > 3 and not outputs[3].exists():
-            outputs[3].parent.mkdir(parents=True, exist_ok=True)
-            outputs[3].write_text("", encoding="utf-8")
-
-    @classmethod
     def PREPARE_EXECUTION(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
         cls.require_valid_inputs(inputs)
         output_dir = outputs[0].parent
@@ -283,5 +254,11 @@ class SageSearchNode(ProteomicsCommandNode):
         command = ["sage"]
         if inputs.get("batch_size") is not None:
             command.extend(["--batch-size", str(inputs["batch_size"])])
+        # --write-pin must be a CLI FLAG. Sage declares `write_pin` on its config
+        # struct as #[serde(skip_serializing)] and fills it from command-line args
+        # only, so the key in sage_config.json is parsed and then ignored -- no
+        # PIN is written and nothing warns. Verified against Sage 0.14.6: the
+        # same config yields no .pin via the key and a .pin via the flag.
+        command.append("--write-pin")
         command.append(config_path)
         return command

@@ -70,6 +70,9 @@ def test_sage_prepares_native_config_command_and_outputs(tmp_path: Path) -> None
         "sage",
         "--batch-size",
         "2",
+        # Sage ignores `write_pin` in the config (skip_serializing, CLI-only), so
+        # the PIN only exists when the flag is passed.
+        "--write-pin",
         str(outputs[2]),
     ]
     config = json.loads(outputs[2].read_text(encoding="utf-8"))
