@@ -98,7 +98,8 @@
         382
       ],
       "params": {
-        "directory": "external/dorado/models/simplex"
+        "directory": "https://cdn.oxfordnanoportal.com/software/analysis/dorado/dna_r9.4.1_e8_fast@v3.4.zip",
+        "source": "url"
       },
       "ui": {
         "title": "Dorado Simplex Model",
@@ -121,7 +122,8 @@
         533
       ],
       "params": {
-        "directory": "external/dorado/models/modified_bases"
+        "directory": "https://cdn.oxfordnanoportal.com/software/analysis/dorado/dna_r9.4.1_e8_fast@v3.4_5mCG@v0.1.zip",
+        "source": "url"
       },
       "ui": {
         "title": "Dorado Modified-Base Model",

@@ -89,7 +89,9 @@ def test_metagenomics_template_wires_krona_from_kraken() -> None:
     # Krona is inline-previewable, so it renders on the node — no separate sink.
     assert "render_krona_html_1" not in types
     assert _has_edge(wf, "kraken2_001", "classification", "krona_001", "classification")
-    assert _has_edge(wf, "krona_taxonomy_001", "directory", "krona_001", "taxonomy")
+    # taxonomy.tab is built in-workflow from the NCBI taxdump: KronaTools
+    # publishes no prebuilt database, only updateTaxonomy.sh.
+    assert _has_edge(wf, "krona_build_taxonomy_001", "taxonomy", "krona_001", "taxonomy")
 
 
 def test_single_cell_template_wires_scanpy_umap() -> None:

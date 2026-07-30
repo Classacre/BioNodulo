@@ -132,17 +132,48 @@
       }
     },
     {
-      "id": "krona_taxonomy_001",
-      "type": "input_directory",
+      "id": "krona_taxdump_001",
+      "type": "input_file",
       "position": [
         80,
         1070
       ],
       "params": {
-        "directory": "krona_taxonomy"
+        "file": "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz",
+        "source": "url"
       },
       "ui": {
-        "title": "Krona Taxonomy DB"
+        "title": "NCBI taxdump",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "auto",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "krona_build_taxonomy_001",
+      "type": "krona_build_taxonomy",
+      "position": [
+        260,
+        1070
+      ],
+      "params": {},
+      "ui": {
+        "title": "Build Krona Taxonomy",
+        "validation": {
+          "outputs": {
+            "taxonomy": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
       }
     },
     {
@@ -696,10 +727,21 @@
       }
     },
     {
+      "id": "e_krona_taxdump",
+      "from": {
+        "node": "krona_taxdump_001",
+        "output": "file"
+      },
+      "to": {
+        "node": "krona_build_taxonomy_001",
+        "input": "taxdump"
+      }
+    },
+    {
       "id": "e23",
       "from": {
-        "node": "krona_taxonomy_001",
-        "output": "directory"
+        "node": "krona_build_taxonomy_001",
+        "output": "taxonomy"
       },
       "to": {
         "node": "krona_001",

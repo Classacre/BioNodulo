@@ -1531,7 +1531,10 @@ def test_metagenomics_template_validates_database_directory_before_profiling() -
     assert _has_edge(workflow, "db_001", "directory", "kraken2_001", "db")
     assert _has_edge(workflow, "db_001", "directory", "bracken_001", "db")
     assert _has_edge(workflow, "metaphlan_db_001", "directory", "metaphlan_001", "database")
-    assert _has_edge(workflow, "krona_taxonomy_001", "directory", "krona_001", "taxonomy")
+    # Krona's taxonomy.tab is not published anywhere; it is built in-workflow
+    # from the NCBI taxdump by krona_build_taxonomy.
+    assert _has_edge(workflow, "krona_taxdump_001", "file", "krona_build_taxonomy_001", "taxdump")
+    assert _has_edge(workflow, "krona_build_taxonomy_001", "taxonomy", "krona_001", "taxonomy")
     assert _has_edge(workflow, "kraken2_001", "classification", "krona_001", "classification")
     assert workflow["outputs"]["validated_db"] == "db_001"
 

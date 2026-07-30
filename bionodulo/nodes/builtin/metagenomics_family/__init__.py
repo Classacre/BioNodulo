@@ -4,6 +4,7 @@ from .bracken import BrackenNode
 from .kraken2 import Kraken2Node
 from .kraken2_build import Kraken2BuildNode
 from .krona import KronaTaxonomyNode
+from .krona_build_taxonomy import KronaBuildTaxonomyNode
 from .maxbin import MaxBinNode
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "Kraken2Node",
     "Kraken2BuildNode",
     "KronaTaxonomyNode",
+    "KronaBuildTaxonomyNode",
     "MaxBinNode",
     "MetaPhlAnNode",
 ]

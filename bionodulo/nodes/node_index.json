@@ -593,6 +593,7 @@
   "krakentools_kreport2krona": "bionodulo.nodes.builtin.krakentools_family.krakentools_kreport2krona",
   "krakentools_kreport2mpa": "bionodulo.nodes.builtin.krakentools_family.krakentools_kreport2mpa",
   "krona": "bionodulo.nodes.builtin.metagenomics_family.krona",
+  "krona_build_taxonomy": "bionodulo.nodes.builtin.metagenomics_family.krona_build_taxonomy",
   "line_chart": "bionodulo.nodes.builtin.visualization_family.line_chart",
   "list_operations": "bionodulo.nodes.builtin.utility_collections_family.list_operations",
   "llm_decision": "bionodulo.nodes.builtin.llm_family.llm_decision",
