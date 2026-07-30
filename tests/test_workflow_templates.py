@@ -1604,49 +1604,36 @@ def test_metagenomics_template_validates_multiqc_report_before_preview() -> None
     assert workflow["outputs"]["validated_multiqc_report"] == "mqc_001"
 
 
-def test_single_cell_template_validates_input_directories_before_cellranger() -> None:
+def test_single_cell_template_validates_its_inputs_before_quantification() -> None:
+    """Validation moved onto the input nodes when Cell Ranger was replaced.
+
+    The old graph validated a FASTQ *directory* and a Cell Ranger transcriptome
+    directory. STARsolo takes the two reads and a STAR index built in-workflow,
+    so the checks now sit on the FASTA, GTF and read inputs.
+    """
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert "validate_fastq_dir_001" not in node_types
-    assert "validate_reference_dir_001" not in node_types
-    fastq_validator = _output_validation(workflow, "fastq_001", "directory")
-    ref_validator = _output_validation(workflow, "ref_001", "directory")
-    assert fastq_validator["expected_format"] == "directory"
-    assert ref_validator["expected_format"] == "directory"
-    assert fastq_validator["min_size_bytes"] > 0
-    assert ref_validator["min_size_bytes"] > 0
-    assert fastq_validator["fail_on_error"] is True
-    assert ref_validator["fail_on_error"] is True
-    assert not _has_edge(workflow, "fastq_001", "directory", "validate_fastq_dir_001", "input")
-    assert _has_edge(workflow, "fastq_001", "directory", "cr_count_retry_001", "input")
-    assert _has_edge(workflow, "cr_count_retry_001", "passthrough", "cr_count_001", "fastq_dir")
-    assert not _has_edge(workflow, "ref_001", "directory", "validate_reference_dir_001", "input")
-    assert _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
-    assert not _has_edge(workflow, "fastq_001", "directory", "cr_count_001", "fastq_dir")
-    assert _has_edge(workflow, "ref_001", "directory", "cr_count_001", "transcriptome")
-    assert workflow["outputs"]["validated_fastq_dir"] == "fastq_001"
-    assert workflow["outputs"]["validated_reference_dir"] == "ref_001"
+    assert "cr_count_001" not in node_types
+    assert "cr_count_retry_001" not in node_types
+    assert node_types["genome_fasta_001"] == "input_fasta"
+    assert node_types["genes_gtf_001"] == "input_gff"
+    assert node_types["r1_001"] == "input_fastq"
+    assert node_types["r2_001"] == "input_fastq"
+    assert workflow["outputs"]["genome_fasta"] == "genome_fasta_001"
+    assert workflow["outputs"]["gene_annotation"] == "genes_gtf_001"
 
 
-def test_single_cell_template_validates_cellranger_web_summary_before_preview() -> None:
+def test_single_cell_template_drops_the_cellranger_web_summary_gate() -> None:
+    """web_summary.html is a Cell Ranger artifact; STARsolo does not write one."""
     workflow = _load_template("single_cell_pipeline.json")
     node_types = _node_types(workflow)
 
-    assert "validate_web_summary_001" not in node_types
-    assert node_types["gate_web_summary_001"] == "gate"
-    validator = _output_validation(workflow, "cr_count_001", "web_summary")
-    gate = next(node for node in workflow["nodes"] if node["id"] == "gate_web_summary_001")
-    assert validator["expected_format"] == "text"
-    assert validator["min_size_bytes"] > 0
-    assert validator["fail_on_error"] is True
-    assert gate["params"]["condition_mode"] == "file_exists"
-    assert gate["params"]["on_fail"] == "halt"
-    assert "web_summary" in gate["params"]["error_message"]
-    assert not _has_edge(workflow, "cr_count_001", "web_summary", "validate_web_summary_001", "input")
-    assert _has_edge(workflow, "cr_count_001", "web_summary", "gate_web_summary_001", "value")
-    assert workflow["outputs"]["validated_web_summary"] == "cr_count_001"
-    assert workflow["outputs"]["web_summary_quality_gate"] == "gate_web_summary_001"
+    assert "gate_web_summary_001" not in node_types
+    assert "html_preview_001" not in node_types
+    assert "validated_web_summary" not in workflow["outputs"]
+    assert "web_summary_quality_gate" not in workflow["outputs"]
+    assert workflow["outputs"]["starsolo_log"] == "starsolo_001"
 
 
 def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
@@ -1658,10 +1645,9 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
     # The single_cell_report_001 html_report and its html_preview were removed by design.
     assert "single_cell_report_001" not in node_types
     assert "single_cell_report_preview_001" not in node_types
-    assert node_types["render_cr_count_tab_0"] == "table_preview"
-    assert "render_metrics_summary_chart_ima_1" not in node_types
-    # Cell Ranger 9.0.1 writes a wide, two-line metrics CSV rather than a
-    # Metric Name/Metric Value table; preview the native table directly.
+    # render_cr_count_tab_0 previewed Cell Ranger's metrics_summary.csv, which
+    # has no STARsolo equivalent.
+    assert "render_cr_count_tab_0" not in node_types
     assert "metrics_summary_chart_001" not in node_types
 
     dashboard = next(node for node in workflow["nodes"] if node["id"] == "qc_dashboard_001")
@@ -1669,8 +1655,6 @@ def test_single_cell_template_adds_qc_dashboard_and_report() -> None:
     assert dashboard["params"]["title"] == "Single Cell QC Dashboard"
 
     assert _has_edge(workflow, "qc_dashboard_001", "qc_dashboard", "qc_dashboard_preview_001", "file")
-    assert not _has_edge(workflow, "cr_count_001", "metrics_summary", "metrics_summary_chart_001", "table")
-    assert _has_edge(workflow, "cr_count_001", "metrics_summary", "render_cr_count_tab_0", "file")
     assert workflow["outputs"]["qc_dashboard"] == "qc_dashboard_001"
     assert "metrics_summary_chart" not in workflow["outputs"]
     assert "report" not in workflow["outputs"]

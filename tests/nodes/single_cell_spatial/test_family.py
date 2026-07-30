@@ -197,7 +197,11 @@ def test_scanpy_umap_writes_pinned_pipeline_with_explicit_determinism(tmp_path: 
     script_path = output / "scanpy_umap.py"
     script = script_path.read_text(encoding="utf-8")
     assert command == ["python", str(script_path)]
-    assert "sc.read_10x_h5('/data/filtered_feature_bc_matrix.h5', gex_only=True)" in script
+    # The loader dispatches on the path: STARsolo writes a Matrix-Market
+    # directory, Cell Ranger a single HDF5, and one node serves both.
+    assert "_source = pathlib.Path('/data/filtered_feature_bc_matrix.h5')" in script
+    assert "sc.read_10x_h5(_source, gex_only=True)" in script
+    assert "sc.read_10x_mtx(_source" in script
     assert "sc.pp.filter_cells(adata, min_genes=250)" in script
     assert "sc.pp.filter_genes(adata, min_cells=4)" in script
     assert "flavor=\"igraph\"" in script

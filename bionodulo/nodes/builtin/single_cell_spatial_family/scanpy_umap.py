@@ -42,7 +42,17 @@ class ScanpyUmapNode(PythonScriptNode):
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
-            "required": {"matrix_h5": ("FILE", {"description": "Cell Ranger feature-barcode matrix HDF5"})},
+            "required": {
+                "matrix_h5": (
+                    ("FILE", "DIRECTORY"),
+                    {
+                        "description": (
+                            "Feature-barcode matrix: a Cell Ranger HDF5 file, or a "
+                            "Matrix-Market directory as written by STARsolo"
+                        )
+                    },
+                )
+            },
             "optional": {
                 "min_genes": ("INT", {"default": 200, "min": 0, "max": 5000}),
                 "min_cells": ("INT", {"default": 3, "min": 1, "max": 1000}),
@@ -96,12 +106,20 @@ class ScanpyUmapNode(PythonScriptNode):
     ) -> str:
         return textwrap.dedent(
             f"""\
+            import pathlib
+
             import matplotlib
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
             import scanpy as sc
 
-            adata = sc.read_10x_h5({h5!r}, gex_only=True)
+            _source = pathlib.Path({h5!r})
+            if _source.is_dir():
+                # STARsolo writes a Matrix-Market triple, not an HDF5. Reading
+                # either shape lets one node serve Cell Ranger and STARsolo.
+                adata = sc.read_10x_mtx(_source, var_names="gene_symbols", cache=False)
+            else:
+                adata = sc.read_10x_h5(_source, gex_only=True)
             adata.var_names_make_unique()
             sc.pp.filter_cells(adata, min_genes={min_genes})
             sc.pp.filter_genes(adata, min_cells={min_cells})

@@ -167,6 +167,37 @@ def test_an_executable_already_on_path_is_used_as_is(
     assert external_binary.provision(_Vendor, "toolx") == bin_dir
 
 
+def test_every_vendor_binary_node_routes_its_env_through_the_helper() -> None:
+    """A node with its own `run()` bypasses CommandNode's provisioning.
+
+    That is exactly what kept Dorado at exit 127 after provisioning was added:
+    `CommandNode.run` gained the hook, but dorado_basecaller overrides `run()`
+    and passed `env=self.__class__.ENV_VARS` straight through.
+    """
+    import inspect
+
+    from bionodulo.nodes.registry import NodeRegistry
+
+    registry = NodeRegistry()
+    registry.load_builtin_nodes()
+
+    offenders: list[str] = []
+    for node_id, node_class in registry._nodes.items():
+        if external_binary.spec_for(node_class) is None:
+            continue
+        run = node_class.__dict__.get("run")
+        if run is None:
+            continue  # inherits CommandNode.run, which is already wired
+        source = inspect.getsource(run)
+        if "env_with_binary" not in source:
+            offenders.append(node_id)
+
+    assert not offenders, (
+        "these nodes need a vendor binary and override run() without calling "
+        "env_with_binary, so the binary will be absent: " + ", ".join(sorted(offenders))
+    )
+
+
 def test_dorado_declares_a_provisionable_spec() -> None:
     """The real node this module exists for."""
     from bionodulo.nodes.builtin.long_read_family.dorado_basecaller import (

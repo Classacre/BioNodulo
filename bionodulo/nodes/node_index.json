@@ -862,6 +862,7 @@
   "star_align": "bionodulo.nodes.builtin.alignment_family.star_align",
   "star_index": "bionodulo.nodes.builtin.alignment_family.star_index",
   "staramr_search": "bionodulo.nodes.builtin.annotation_family.staramr_search",
+  "starsolo_count": "bionodulo.nodes.builtin.alignment_family.starsolo_count",
   "strelka2": "bionodulo.nodes.builtin.variant_family.strelka2",
   "string_db": "bionodulo.nodes.builtin.string_db_family.network",
   "string_format": "bionodulo.nodes.builtin.data_transform_family.string_format",

@@ -99,6 +99,8 @@ def test_single_cell_template_wires_scanpy_umap() -> None:
     types = {n["id"]: n["type"] for n in wf["nodes"]}
     assert types["scanpy_umap_001"] == "scanpy_umap"
     assert types["render_umap_ima_1"] == "image_preview"
-    assert _has_edge(wf, "cr_count_001", "filtered_feature_bc_matrix_h5", "scanpy_umap_001", "matrix_h5")
+    # Cell Ranger is BYOL and unusable unattended; STARsolo feeds the same
+    # matrix, as a Matrix-Market directory rather than an HDF5.
+    assert _has_edge(wf, "starsolo_001", "filtered_matrix", "scanpy_umap_001", "matrix_h5")
     assert _has_edge(wf, "scanpy_umap_001", "umap_png", "render_umap_ima_1", "file")
     assert _has_edge(wf, "scanpy_umap_001", "qc_violin_png", "render_qc_violin_ima_2", "file")

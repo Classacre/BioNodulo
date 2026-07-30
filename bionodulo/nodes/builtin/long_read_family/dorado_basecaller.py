@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from bionodulo.execution.external_binary import env_with_binary
+
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -177,7 +179,7 @@ class DoradoBasecallerNode(DoradoCommandNode):
                 command,
                 context=context,
                 cwd=node_out,
-                env=self.__class__.ENV_VARS or None,
+                env=env_with_binary(self.__class__, self.__class__.ENV_VARS or None),
                 stdout_path=node_out / "dorado.stdout.log",
                 stderr_path=node_out / "dorado.stderr.log",
             )

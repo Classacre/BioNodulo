@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "Single-cell pipeline: processes 10x Genomics data with Cell Ranger for count matrices.\n\nData source: 10x Genomics cellranger-tiny-fastq test dataset (via GitHub/minoda-lab/universc).\nSample: tinygex (2 lanes: L001 + L002).\n\nReference: the MATCHING cellranger-tiny-ref (hg19 chr21, ~120 MB), from the same\nmirror as the reads. The published refdata-gex-GRCh38 is 11.4 GB and is a\ndifferent genome from these reads entirely."
+        "text": "Single-cell pipeline: builds a STAR index from a tiny reference, quantifies droplet reads with STARsolo, then clusters and embeds with Scanpy.\n\nCell Ranger is NOT used: 10x distributes it under a click-through licence, so its download URL answers 403 to any unattended fetch and no conda channel may redistribute it. STARsolo is the open equivalent and emits the same Matrix-Market triple Scanpy reads.\n\nData: 10x cellranger-tiny-fastq 3.0.0 (tinygex, 230,610 read pairs, v3 chemistry - R1 is 28 bp = 16 bp CB + 12 bp UMI, R2 is 91 bp cDNA) against cellranger-tiny-ref 1.2.0, both pinned to a commit SHA. The prebuilt star/ directory in that reference is NOT used: it ships Genome and SAindex but no SA, so the index is built here instead."
       },
       "ui": {
         "title": "Notes",
@@ -20,129 +20,102 @@
       }
     },
     {
-      "id": "fastq_001",
-      "type": "input_directory",
+      "id": "genome_fasta_001",
+      "type": "input_fasta",
       "position": [
         80,
         80
       ],
       "params": {
-        "directory": "examples/data/single_cell"
+        "reference": "https://raw.githubusercontent.com/minoda-lab/universc/7cbd039613b45c64f4b6d8219906aafda28dd5f9/test/cellranger_reference/cellranger-tiny-ref/1.2.0/fasta/genome.fa",
+        "source": "url"
       },
       "ui": {
-        "title": "FASTQ Directory",
-        "validation": {
-          "outputs": {
-            "directory": {
-              "expected_format": "directory",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
+        "title": "Tiny Genome FASTA"
       }
     },
     {
-      "id": "ref_001",
-      "type": "input_directory",
+      "id": "genes_gtf_001",
+      "type": "input_gff",
       "position": [
         80,
-        231
+        220
       ],
       "params": {
-        "directory": "examples/data/single_cell_ref"
+        "annotation": "https://raw.githubusercontent.com/minoda-lab/universc/7cbd039613b45c64f4b6d8219906aafda28dd5f9/test/cellranger_reference/cellranger-tiny-ref/1.2.0/genes/genes.gtf",
+        "source": "url"
       },
       "ui": {
-        "title": "Cell Ranger Reference",
-        "validation": {
-          "outputs": {
-            "directory": {
-              "expected_format": "directory",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
+        "title": "Tiny Gene GTF"
       }
     },
     {
-      "id": "cr_count_001",
-      "type": "cellranger_count",
+      "id": "star_index_001",
+      "type": "star_index",
       "position": [
-        800,
-        80
+        380,
+        150
       ],
       "params": {
-        "run_id": "tinygex",
-        "sample": "tinygex",
-        "expect_cells": 100,
-        "threads": 16,
-        "memory": 64,
-        "create_bam": false
+        "threads": 4,
+        "genome_sa_index_nbases": 11,
+        "sjdb_overhang": 90
       },
       "ui": {
-        "title": "Cell Ranger Count",
-        "validation": {
-          "outputs": {
-            "web_summary": {
-              "expected_format": "text",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            },
-            "metrics_summary": {
-              "expected_format": "csv",
-              "min_size_bytes": 1,
-              "fail_on_error": true
-            }
-          }
-        }
+        "title": "STAR Index"
       }
     },
     {
-      "id": "cr_count_retry_001",
-      "type": "retry",
+      "id": "r1_001",
+      "type": "input_fastq",
       "position": [
-        440,
-        80
+        80,
+        380
       ],
       "params": {
-        "max_retries": 2,
-        "delay_seconds": 5,
-        "backoff_multiplier": 2,
-        "max_delay": 120,
-        "retry_on": "all",
-        "only_retry_specific_nodes": "cr_count_001"
+        "reads": [
+          "https://media.githubusercontent.com/media/minoda-lab/universc/7cbd039613b45c64f4b6d8219906aafda28dd5f9/test/shared/cellranger-tiny-fastq/3.0.0/tinygex_S1_L001_R1_001.fastq.gz"
+        ],
+        "source": "url"
       },
       "ui": {
-        "title": "Retry Cell Ranger Count"
+        "title": "Barcode Read (R1)"
       }
     },
     {
-      "id": "html_preview_001",
-      "type": "html_preview",
+      "id": "r2_001",
+      "type": "input_fastq",
       "position": [
-        1520,
-        80
+        80,
+        500
       ],
-      "params": {},
+      "params": {
+        "reads": [
+          "https://media.githubusercontent.com/media/minoda-lab/universc/7cbd039613b45c64f4b6d8219906aafda28dd5f9/test/shared/cellranger-tiny-fastq/3.0.0/tinygex_S1_L001_R2_001.fastq.gz"
+        ],
+        "source": "url"
+      },
       "ui": {
-        "title": "View web_summary"
+        "title": "cDNA Read (R2)"
       }
     },
     {
-      "id": "gate_web_summary_001",
-      "type": "gate",
+      "id": "starsolo_001",
+      "type": "starsolo_count",
       "position": [
-        1160,
-        80
+        680,
+        300
       ],
       "params": {
-        "condition_mode": "file_exists",
-        "on_fail": "halt",
-        "error_message": "Cell Ranger web_summary validation failed before preview"
+        "solo_type": "CB_UMI_Simple",
+        "cb_length": 16,
+        "umi_length": 12,
+        "solo_features": "Gene",
+        "cell_filter": "EmptyDrops_CR",
+        "threads": 4
       },
       "ui": {
-        "title": "Gate web_summary"
+        "title": "STARsolo Count"
       }
     },
     {
@@ -155,7 +128,7 @@
       "params": {
         "run_name": "Single Cell QC",
         "title": "Single Cell QC Dashboard",
-        "custom_metrics": "{\"Sample\": \"tinygex\", \"Expected Cells\": \"100\", \"Assay\": \"10x Genomics single-cell RNA-seq\"}",
+        "custom_metrics": "{\"Sample\": \"tinygex\", \"Assay\": \"10x Genomics single-cell RNA-seq\", \"Quantifier\": \"STARsolo\"}",
         "theme": "light"
       },
       "ui": {
@@ -175,18 +148,6 @@
       }
     },
     {
-      "id": "render_cr_count_tab_0",
-      "type": "table_preview",
-      "position": [
-        1880,
-        414
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Table: cr_count"
-      }
-    },
-    {
       "id": "scanpy_umap_001",
       "type": "scanpy_umap",
       "position": [
@@ -194,9 +155,9 @@
         300
       ],
       "params": {
-        "min_genes": 200,
+        "min_genes": 10,
         "min_cells": 3,
-        "n_pcs": 30,
+        "n_pcs": 15,
         "n_neighbors": 15,
         "resolution": 1.0
       },
@@ -231,85 +192,65 @@
   ],
   "edges": [
     {
-      "id": "e3a",
+      "id": "e1",
       "from": {
-        "node": "cr_count_001",
-        "output": "web_summary"
+        "node": "genome_fasta_001",
+        "output": "reference"
       },
       "to": {
-        "node": "gate_web_summary_001",
-        "input": "value"
+        "node": "star_index_001",
+        "input": "reference"
       }
     },
     {
-      "id": "e3b",
+      "id": "e2",
       "from": {
-        "node": "gate_web_summary_001",
-        "output": "output"
+        "node": "genes_gtf_001",
+        "output": "annotation"
       },
       "to": {
-        "node": "html_preview_001",
-        "input": "file"
+        "node": "star_index_001",
+        "input": "gtf"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "star_index_001",
+        "output": "index"
+      },
+      "to": {
+        "node": "starsolo_001",
+        "input": "genome_dir"
       }
     },
     {
       "id": "e4",
       "from": {
-        "node": "fastq_001",
-        "output": "directory"
+        "node": "r2_001",
+        "output": "read1"
       },
       "to": {
-        "node": "cr_count_retry_001",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e4a",
-      "from": {
-        "node": "cr_count_retry_001",
-        "output": "passthrough"
-      },
-      "to": {
-        "node": "cr_count_001",
-        "input": "fastq_dir"
+        "node": "starsolo_001",
+        "input": "cdna_fastq"
       }
     },
     {
       "id": "e5",
       "from": {
-        "node": "ref_001",
-        "output": "directory"
+        "node": "r1_001",
+        "output": "read1"
       },
       "to": {
-        "node": "cr_count_001",
-        "input": "transcriptome"
+        "node": "starsolo_001",
+        "input": "barcode_fastq"
       }
     },
     {
       "id": "e6",
       "from": {
-        "node": "qc_dashboard_001",
-        "output": "qc_dashboard"
-      },
-      "to": {
-        "node": "qc_dashboard_preview_001",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "cr_count_001",
-        "output": "metrics_summary"
-      },
-      "to": {
-        "node": "render_cr_count_tab_0",
-        "input": "file"
-      }
-    },
-    {
-      "from": {
-        "node": "cr_count_001",
-        "output": "filtered_feature_bc_matrix_h5"
+        "node": "starsolo_001",
+        "output": "filtered_matrix"
       },
       "to": {
         "node": "scanpy_umap_001",
@@ -317,6 +258,7 @@
       }
     },
     {
+      "id": "e7",
       "from": {
         "node": "scanpy_umap_001",
         "output": "umap_png"
@@ -327,6 +269,7 @@
       }
     },
     {
+      "id": "e8",
       "from": {
         "node": "scanpy_umap_001",
         "output": "qc_violin_png"
@@ -335,21 +278,31 @@
         "node": "render_qc_violin_ima_2",
         "input": "file"
       }
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "qc_dashboard_001",
+        "output": "qc_dashboard"
+      },
+      "to": {
+        "node": "qc_dashboard_preview_001",
+        "input": "file"
+      }
     }
   ],
   "groups": [],
   "outputs": {
-    "counts": "cr_count_001",
-    "filtered_feature_bc_matrix": "cr_count_001",
-    "filtered_feature_bc_matrix_h5": "cr_count_001",
-    "cellranger_retry_policy": "cr_count_retry_001",
-    "validated_fastq_dir": "fastq_001",
-    "validated_reference_dir": "ref_001",
-    "validated_web_summary": "cr_count_001",
-    "validated_metrics_summary": "cr_count_001",
-    "web_summary_quality_gate": "gate_web_summary_001",
+    "genome_fasta": "genome_fasta_001",
+    "gene_annotation": "genes_gtf_001",
+    "star_index": "star_index_001",
+    "barcode_reads": "r1_001",
+    "cdna_reads": "r2_001",
+    "filtered_matrix": "starsolo_001",
+    "raw_matrix": "starsolo_001",
+    "starsolo_log": "starsolo_001",
+    "umap": "scanpy_umap_001",
     "qc_dashboard": "qc_dashboard_001",
-    "qc_dashboard_preview": "qc_dashboard_preview_001",
-    "umap": "scanpy_umap_001"
+    "qc_dashboard_preview": "qc_dashboard_preview_001"
   }
 }

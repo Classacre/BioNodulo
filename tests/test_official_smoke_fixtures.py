@@ -101,6 +101,15 @@ def test_remote_inputs_are_pinned_to_an_immutable_ref() -> None:
             match = re.search(r"raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/", value)
             if not match or not re.fullmatch(r"[0-9a-f]{40}", match.group(1)):
                 unpinned.append(value)
+        elif "media.githubusercontent.com" in value:
+            # Git-LFS files must come from the media host: raw.githubusercontent
+            # answers a 132-byte pointer for them. Same mutability risk, so the
+            # ref must be a commit SHA here too.
+            match = re.search(
+                r"media\.githubusercontent\.com/media/[^/]+/[^/]+/([^/]+)/", value
+            )
+            if not match or not re.fullmatch(r"[0-9a-f]{40}", match.group(1)):
+                unpinned.append(value)
     assert not unpinned, "GitHub raw inputs must pin a commit SHA:\n  " + "\n  ".join(unpinned)
 
 

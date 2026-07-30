@@ -33,6 +33,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import zipfile
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,15 @@ PROVISIONING_KEY = "external_worker_binary"
 #: hostile input, but `filter="data"` is still the correct default and this
 #: keeps the behaviour identical on Python versions where it is not.
 _TAR_FILTER = "data"
+
+
+def _reject_unsafe_members(root: Path, names: list[str]) -> None:
+    """Refuse any zip member that would land outside `root` (the zip-slip class)."""
+    resolved_root = root.resolve()
+    for name in names:
+        target = (resolved_root / name).resolve()
+        if target != resolved_root and resolved_root not in target.parents:
+            raise ValueError(f"Refusing to extract archive member outside the target directory: {name}")
 
 
 def spec_for(node_class: Any) -> dict[str, str] | None:
@@ -59,6 +69,11 @@ def spec_for(node_class: Any) -> dict[str, str] | None:
         "source": source,
         "version": str(environment.get("version", "")).strip(),
         "platform": str(environment.get("platform", "")).strip(),
+        # Path of the executable INSIDE the archive, relative to its root. Needed
+        # whenever an archive ships one binary per platform: COPASI's AllSE
+        # tarball holds Linux64/, Linux/, Darwin-arm/, WIN64/ copies of CopasiSE,
+        # and a search would pick whichever sorted first.
+        "executable_path": str(environment.get("executable_path", "")).strip(),
     }
 
 
@@ -81,12 +96,23 @@ def _root_dir() -> Path:
     return (Path(temp) if temp else Path(tempfile.gettempdir())) / "bionodulo-extbin"
 
 
-def _find_executable(tree: Path, name: str) -> Path | None:
+def _find_executable(tree: Path, name: str, relative: str = "") -> Path | None:
     """Locate `name` inside an unpacked vendor tree.
 
-    Vendor tarballs unpack to a versioned root (dorado-0.9.6-linux-x64/bin/dorado),
-    so the executable is not at a fixed depth.
+    When the spec gives `executable_path`, only that path is accepted -- a search
+    would otherwise be free to pick a different platform's copy of the same
+    filename. Otherwise fall back to bin/<name> then a recursive search, because
+    vendor tarballs unpack to a versioned root
+    (dorado-0.9.6-linux-x64/bin/dorado) and the depth is not fixed.
     """
+    if relative:
+        exact = tree / relative
+        if exact.is_file():
+            if not os.access(exact, os.X_OK):
+                # Zip archives do not preserve the executable bit.
+                exact.chmod(exact.stat().st_mode | 0o111)
+            return exact
+        return None
     direct = tree / "bin" / name
     if direct.is_file() and os.access(direct, os.X_OK):
         return direct
@@ -115,6 +141,31 @@ def _download(url: str, destination: Path) -> None:
         shutil.copyfileobj(response, handle)
 
 
+def env_with_binary(node_class: Any, base_env: dict[str, str] | None = None) -> dict[str, str] | None:
+    """Return the env a node's command needs, provisioning its binary first.
+
+    Use this from any node that runs a command, including nodes with their own
+    `run()` override -- `CommandNode.run` is not the only execution path, and a
+    node that bypasses it would otherwise still die as exit 127.
+
+    PATH is built from the FULL parent value because `env` is merged over the
+    sanitized parent environment: a bare {"PATH": dir} would erase every other
+    tool the command needs.
+    """
+    executables = getattr(node_class, "REQUIRED_EXECUTABLES", None) or []
+    if not executables:
+        return dict(base_env) if base_env else None
+
+    bin_dir = provision(node_class, executables[0])
+    if bin_dir is None:
+        return dict(base_env) if base_env else None
+
+    merged = dict(base_env or {})
+    inherited = merged.get("PATH") or os.environ.get("PATH", "")
+    merged["PATH"] = f"{bin_dir}{os.pathsep}{inherited}"
+    return merged
+
+
 def provision(node_class: Any, executable: str) -> Path | None:
     """Ensure `executable` exists on this worker; return its directory.
 
@@ -141,7 +192,8 @@ def provision(node_class: Any, executable: str) -> Path | None:
     identity = cache_id(spec)
     tree = _root_dir() / identity
 
-    existing = _find_executable(tree, executable) if tree.is_dir() else None
+    relative = spec.get("executable_path", "")
+    existing = _find_executable(tree, executable, relative) if tree.is_dir() else None
     if existing is not None:
         return existing.parent
 
@@ -159,7 +211,7 @@ def provision(node_class: Any, executable: str) -> Path | None:
                 if tree.exists():
                     shutil.rmtree(tree, ignore_errors=True)
                 shutil.copytree(staged, tree)
-                found = _find_executable(tree, executable)
+                found = _find_executable(tree, executable, relative)
                 if found is not None:
                     return found.parent
     except Exception:  # noqa: BLE001 — cache is an accelerator, never a gate
@@ -170,13 +222,19 @@ def provision(node_class: Any, executable: str) -> Path | None:
         shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)
 
-    archive = staging / "download.tar.gz"
+    is_zip = spec["source"].lower().endswith(".zip")
+    archive = staging / ("download.zip" if is_zip else "download.tar.gz")
     _download(spec["source"], archive)
-    with tarfile.open(archive) as handle:
-        handle.extractall(staging, filter=_TAR_FILTER)  # noqa: S202 — vendor tarball, data filter
+    if is_zip:
+        with zipfile.ZipFile(archive) as zip_handle:
+            _reject_unsafe_members(staging, zip_handle.namelist())
+            zip_handle.extractall(staging)  # noqa: S202 — members checked above
+    else:
+        with tarfile.open(archive) as handle:
+            handle.extractall(staging, filter=_TAR_FILTER)  # noqa: S202 — data filter
     archive.unlink(missing_ok=True)
 
-    found = _find_executable(staging, executable)
+    found = _find_executable(staging, executable, relative)
     if found is None:
         shutil.rmtree(staging, ignore_errors=True)
         raise RuntimeError(
@@ -197,7 +255,7 @@ def provision(node_class: Any, executable: str) -> Path | None:
         shutil.rmtree(tree, ignore_errors=True)
     staging.rename(tree)
 
-    resolved = _find_executable(tree, executable)
+    resolved = _find_executable(tree, executable, relative)
     if resolved is None:  # pragma: no cover — rename preserves layout
         raise RuntimeError(f"{executable} disappeared while installing {identity}")
     return resolved.parent

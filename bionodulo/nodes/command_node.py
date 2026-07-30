@@ -449,13 +449,9 @@ class CommandNode(BaseNode):
             # needs its tarball fetched and put on PATH; without this the tool is
             # simply absent and the run dies as exit 127, naming nothing. Raises on
             # failure rather than letting that happen.
-            external_bin_dir: Path | None = None
-            if getattr(self.__class__, "REQUIRED_EXECUTABLES", None):
-                from bionodulo.execution.external_binary import provision as _provision_binary
+            from bionodulo.execution.external_binary import env_with_binary
 
-                external_bin_dir = _provision_binary(
-                    self.__class__, self.__class__.REQUIRED_EXECUTABLES[0]
-                )
+            node_env = env_with_binary(self.__class__, self.__class__.ENV_VARS or None)
 
             self.__class__.PREPARE_EXECUTION(kwargs, prepare_outputs)
 
@@ -479,16 +475,6 @@ class CommandNode(BaseNode):
                 logger.info("[%s] Executing: %s", self.__class__.NODE_ID, cmd if isinstance(cmd, str) else " ".join(cmd))
 
                 # Execute via context if available
-                # PATH must carry the full parent value: `env` is merged over the
-                # sanitized parent environment, so a bare {"PATH": dir} would erase
-                # every other tool on PATH.
-                node_env: dict[str, str] | None = dict(self.__class__.ENV_VARS or {}) or None
-                if external_bin_dir is not None:
-                    inherited = node_env.get("PATH") if node_env else None
-                    base_path = inherited or os.environ.get("PATH", "")
-                    node_env = node_env or {}
-                    node_env["PATH"] = f"{external_bin_dir}{os.pathsep}{base_path}"
-
                 if context is not None and hasattr(context, "run_command"):
                     command_kwargs: dict[str, Any] = {
                         "env": node_env,

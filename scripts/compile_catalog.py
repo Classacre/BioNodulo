@@ -47,7 +47,14 @@ BASELINE_NODE_COUNT = 943
 # Keep the ledger itself at exactly BASELINE_NODE_COUNT; it is forensic history,
 # not a live inventory.
 POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
-    {"snpeff_build", "krona_build_taxonomy", "metaphlan_build_index"}
+    {
+        "snpeff_build",
+        "krona_build_taxonomy",
+        "metaphlan_build_index",
+        # Cell Ranger is BYOL (403 to any unattended fetch, redistributable
+        # by no conda channel), so single-cell counting needs an open node.
+        "starsolo_count",
+    }
 )
 EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)
 SAMTOOLS_MODULES: tuple[str, ...] = (

@@ -17,6 +17,7 @@ from bionodulo.nodes.builtin.alignment_family.mem import BWAMemNode
 from bionodulo.nodes.builtin.alignment_family.minimap2_align import Minimap2AlignNode
 from bionodulo.nodes.builtin.alignment_family.minimap2_index import Minimap2IndexNode
 from bionodulo.nodes.builtin.alignment_family.star_align import STARAlignNode
+from bionodulo.nodes.builtin.alignment_family.starsolo_count import STARsoloCountNode
 from bionodulo.nodes.builtin.alignment_family.star_index import STARIndexNode
 
 
@@ -37,5 +38,6 @@ __all__ = [
     "Minimap2AlignNode",
     "STARIndexNode",
     "STARAlignNode",
+    "STARsoloCountNode",
     "BamLeftAlignNode",
 ]
