@@ -81,13 +81,10 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert _has_edge(workflow, "significant_genes_001", "filtered_table", "pathway_enrichment_001", "input_genes")
     assert _has_edge(workflow, "pathway_gene_sets_001", "file", "pathway_enrichment_001", "database")
     assert _has_edge(workflow, "pathway_enrichment_001", "overlap", "render_pathway_enrichment_tab_4", "file")
-    assert _has_edge(workflow, "deseq2_001", "results_csv", "string_enrichment_001", "protein_table")
-    assert not _has_edge(
-        workflow,
-        "significant_genes_001",
-        "filtered_table",
-        "string_enrichment_001",
-        "protein_table",
+    # STRING gets the SIGNIFICANT genes, not all 38,694 result rows: enrichment
+    # against every measured gene is meaningless and exceeds STRING's limits.
+    assert _has_edge(
+        workflow, "significant_genes_001", "filtered_table", "string_enrichment_001", "protein_table"
     )
     assert _has_edge(workflow, "string_enrichment_001", "interaction_network", "render_string_enrichment_tab_5", "file")
 

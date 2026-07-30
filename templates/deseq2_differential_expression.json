@@ -467,8 +467,8 @@
     {
       "id": "e7j",
       "from": {
-        "node": "deseq2_001",
-        "output": "results_csv"
+        "node": "significant_genes_001",
+        "output": "filtered_table"
       },
       "to": {
         "node": "string_enrichment_001",

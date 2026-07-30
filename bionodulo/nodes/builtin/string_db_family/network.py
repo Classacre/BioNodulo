@@ -114,10 +114,22 @@ def _read_identifier_table(path: str | Path, column: str) -> list[str]:
     with Path(path).open(newline="", encoding="utf-8") as handle:
         sample = handle.read(2048)
         handle.seek(0)
-        try:
-            dialect = csv.Sniffer().sniff(sample, delimiters=",\t") if sample.strip() else csv.excel_tab
-        except csv.Error:
-            dialect = csv.excel_tab if "\t" in sample else csv.excel
+        # Decide the delimiter from the HEADER, not by sniffing a byte window.
+        # Sniffer inspects a truncated sample and, on a real results table, can
+        # settle on a delimiter that appears inside quoted text; the whole line
+        # then parses as one field and csv raises "field larger than field
+        # limit (131072)" -- which reads like a data problem rather than a
+        # mis-detected dialect.
+        header = sample.splitlines()[0] if sample.strip() else ""
+        if "\t" in header and ("," not in header or header.count("\t") >= header.count(",")):
+            dialect: Any = csv.excel_tab
+        elif "," in header:
+            dialect = csv.excel
+        else:
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=",\t") if sample.strip() else csv.excel_tab
+            except csv.Error:
+                dialect = csv.excel_tab
         reader = csv.DictReader(handle, dialect=dialect)
         if reader.fieldnames is None or column not in reader.fieldnames:
             raise ValueError(f"Column {column!r} not found in STRING identifier table")
