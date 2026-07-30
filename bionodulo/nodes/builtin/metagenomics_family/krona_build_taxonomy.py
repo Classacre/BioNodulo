@@ -81,9 +81,13 @@ class KronaBuildTaxonomyNode(MetagenomicsCommandNode):
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:
+        # Return the DIRECTORY, not taxonomy.tab inside it. RETURN_TYPES says
+        # DIRECTORY because ktImportTaxonomy takes `-tax <dir>`, and the output
+        # validator checks the planned path against that declared type -- planning
+        # the file made it demand a directory named "taxonomy.tab".
         node_dir = Path(output_dir) / cls.NODE_ID / "taxonomy"
         node_dir.mkdir(parents=True, exist_ok=True)
-        return [node_dir / cls.OUTPUT_FILENAMES[0]]
+        return [node_dir]
 
     @classmethod
     def render_command(cls, inputs: dict[str, Any]) -> str:
@@ -108,5 +112,10 @@ class KronaBuildTaxonomyNode(MetagenomicsCommandNode):
     @classmethod
     def VERIFY_OUTPUTS(cls, inputs: dict[str, Any], outputs: list[Path]) -> None:
         """A truncated taxonomy silently produces an empty chart, so check size."""
-        if outputs and outputs[0].exists() and outputs[0].stat().st_size == 0:
+        if not outputs:
+            return
+        taxonomy = outputs[0] / cls.OUTPUT_FILENAMES[0]
+        if not taxonomy.is_file():
+            raise ValueError(f"Krona taxonomy build did not produce {taxonomy.name}")
+        if taxonomy.stat().st_size == 0:
             raise ValueError("Krona taxonomy.tab was written empty; the taxdump is incomplete")

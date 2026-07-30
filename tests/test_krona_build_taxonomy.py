@@ -19,9 +19,12 @@ def test_planned_output_matches_the_directory_the_command_writes(tmp_path: Path)
     inputs = {"taxdump": "/data/taxdump.tar.gz", "output": str(tmp_path / "krona_build_taxonomy")}
     outputs = KronaBuildTaxonomyNode.PLAN_OUTPUTS(inputs, tmp_path)
 
-    assert outputs[0].name == "taxonomy.tab"
-    assert outputs[0].parent.name == "taxonomy"
-    assert str(outputs[0].parent) in KronaBuildTaxonomyNode.render_command(inputs)
+    # The planned output is the DIRECTORY, matching RETURN_TYPES ("DIRECTORY",)
+    # and ktImportTaxonomy's `-tax <dir>`. Planning taxonomy.tab instead made the
+    # output validator demand a *directory* by that name and fail the run.
+    assert outputs[0].name == "taxonomy"
+    assert outputs[0].is_dir()
+    assert str(outputs[0]) in KronaBuildTaxonomyNode.render_command(inputs)
 
 
 def test_archive_and_directory_inputs_are_both_handled(tmp_path: Path) -> None:
@@ -52,12 +55,19 @@ def test_extractor_is_located_relative_to_the_installed_tool(tmp_path: Path) -> 
 
 def test_empty_taxonomy_is_rejected(tmp_path: Path) -> None:
     """An empty taxonomy.tab yields a silently blank chart, so fail loudly."""
-    outputs = [tmp_path / "taxonomy.tab"]
-    outputs[0].write_text("", encoding="utf-8")
+    taxonomy_dir = tmp_path / "taxonomy"
+    taxonomy_dir.mkdir()
+    outputs = [taxonomy_dir]
+
+    with pytest.raises(ValueError, match="did not produce"):
+        KronaBuildTaxonomyNode.VERIFY_OUTPUTS({}, outputs)
+
+    table = taxonomy_dir / "taxonomy.tab"
+    table.write_text("", encoding="utf-8")
     with pytest.raises(ValueError, match="empty"):
         KronaBuildTaxonomyNode.VERIFY_OUTPUTS({}, outputs)
 
-    outputs[0].write_text("1\troot\n", encoding="utf-8")
+    table.write_text("1\troot\n", encoding="utf-8")
     KronaBuildTaxonomyNode.VERIFY_OUTPUTS({}, outputs)
 
 
