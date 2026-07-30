@@ -347,3 +347,45 @@ def test_percolator_sage_staging_fails_closed_on_decoy_prefix_mismatch(tmp_path:
 
     with pytest.raises(ValueError, match="decoy proteins must start"):
         PercolatorNode.PREPARE_EXECUTION(inputs, outputs)
+
+
+def test_sage_pin_scan_numbers_are_normalised_to_integers(tmp_path: Path) -> None:
+    """Percolator parses ScanNr as an integer and aborts the run otherwise.
+
+    Sage writes the native mzML spectrum identifier there, so a real PIN carries
+    "spectrum=2861" and Percolator dies with "error reading scan number on line
+    2. Check if scan number is an integer." -- with no output at all. Verified
+    against Percolator 3.07.1: normalising this field makes the same run succeed.
+    """
+    from bionodulo.nodes.builtin.proteomics_family.percolator import _prepare_sage_pin
+
+    source = tmp_path / "results.sage.pin"
+    source.write_text(
+        "SpecId\tLabel\tScanNr\tPeptide\tProteins\n"
+        "61\t1\tspectrum=2861\tLVTDLTK\tsp|P02769|ALBU_BOVIN\n"
+        # Thermo-style identifiers carry several integers; the scan is the last.
+        "62\t-1\tcontrollerType=0 controllerNumber=1 scan=30069\tKTLDVR\trev_sp|P02769|ALBU_BOVIN\n"
+        "63\t1\t44\tAGELATK\tsp|P00000|TEST\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "staged.pin"
+    _prepare_sage_pin(source, target, decoy_prefix="rev_")
+
+    rows = [line.split("\t") for line in target.read_text(encoding="utf-8").splitlines()]
+    assert [row[2] for row in rows[1:]] == ["2861", "30069", "44"]
+    for row in rows[1:]:
+        assert row[2].isdigit(), row
+
+
+def test_sage_pin_rejects_a_scan_field_with_no_number(tmp_path: Path) -> None:
+    """Guessing a scan number would silently misattribute a PSM."""
+    from bionodulo.nodes.builtin.proteomics_family.percolator import _prepare_sage_pin
+
+    source = tmp_path / "bad.pin"
+    source.write_text(
+        "SpecId\tLabel\tScanNr\tPeptide\tProteins\n"
+        "1\t1\tnot-a-scan\tLVTDLTK\tsp|P02769|ALBU_BOVIN\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="no scan number"):
+        _prepare_sage_pin(source, tmp_path / "out.pin", decoy_prefix="rev_")

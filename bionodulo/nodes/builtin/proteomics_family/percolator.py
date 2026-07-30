@@ -53,6 +53,24 @@ def _sage_peptide_for_picked_protein(value: str, *, line_number: int) -> str:
     return f"-.{peptide}.-"
 
 
+def _sage_scan_number(value: str, *, line_number: int) -> str:
+    """Return the integer scan number from a Sage PIN ScanNr field.
+
+    Sage emits the native mzML spectrum identifier (``spectrum=2861``, or a
+    Thermo ``controllerType=0 controllerNumber=1 scan=30069``), while Percolator
+    requires a plain integer and aborts the entire run on anything else.
+    """
+    text = value.strip()
+    if text.isdigit():
+        return text
+    matches = re.findall(r"(\d+)", text)
+    if not matches:
+        raise ValueError(
+            f"Sage PIN line {line_number} ScanNr {value!r} contains no scan number"
+        )
+    return matches[-1]
+
+
 def _prepare_sage_pin(source: Path, target: Path, *, decoy_prefix: str) -> None:
     """Convert Sage 0.14.7's documented PIN dialect to native Percolator tab input."""
 
@@ -76,6 +94,7 @@ def _prepare_sage_pin(source: Path, target: Path, *, decoy_prefix: str) -> None:
         label_index = header.index("Label")
         peptide_index = header.index("Peptide")
         protein_index = header.index("Proteins")
+        scan_index = header.index("ScanNr")
 
         with target.open("w", encoding="utf-8", newline="") as target_handle:
             writer = csv.writer(target_handle, delimiter="\t", lineterminator="\n")
@@ -106,6 +125,14 @@ def _prepare_sage_pin(source: Path, target: Path, *, decoy_prefix: str) -> None:
                             f"Sage PIN line {line_number} target proteins must not start with {decoy_prefix!r}"
                         )
 
+                # Percolator parses ScanNr as an INTEGER and aborts the whole
+                # run with "error reading scan number on line N" otherwise. Sage
+                # writes the mzML spectrum identifier there ("spectrum=2861"),
+                # so pull the trailing integer out of it.
+                row[scan_index] = _sage_scan_number(
+                    row[scan_index],
+                    line_number=line_number,
+                )
                 row[peptide_index] = _sage_peptide_for_picked_protein(
                     row[peptide_index],
                     line_number=line_number,
