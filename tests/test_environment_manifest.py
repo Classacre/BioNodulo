@@ -185,8 +185,8 @@ def test_committed_samtools_manifests_use_explicit_exact_constraint() -> None:
         "5789cfdfd03011a4",
         "5f56c77e87adf0dc",
         "a3e1f5870a14637e",
+        "a6d14540abf27c14",
         "a8aef18369bd202f",
-        "beea8043b91d36dc",
         "e7d71a57eedc92e4",
     }
     actual_environment_ids = set()

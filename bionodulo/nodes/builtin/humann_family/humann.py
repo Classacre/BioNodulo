@@ -270,6 +270,17 @@ class HUMAnNNode(MetagenomicsCommandNode):
             str(inputs.get("threads", 1)),
             "--taxonomic-profile",
             path_value(inputs.get("taxonomic_profile")),
+            # The profile is supplied, so HUMAnN never runs MetaPhlAn
+            # (humann.py:969 takes the profile branch). --bypass-prescreen only
+            # gates *running* it; the profile still drives the custom nucleotide
+            # database. Without this flag HUMAnN version-checks MetaPhlAn by
+            # reading the LAST line of `metaphlan --version` (config.py
+            # metaphlan_version line:-1 column:2) -- but MetaPhlAn 4.2 prints a
+            # second line there ("No complete MetaPhlAn Bowtie2 database found",
+            # or "Installed databases: ..."), so column 2 is a word and the int()
+            # raises. That aborts the run with "CRITICAL ERROR: Can not call
+            # software version for metaphlan", regardless of the database.
+            "--bypass-prescreen",
             "--nucleotide-database",
             path_value(inputs.get("nucleotide_database")),
             "--protein-database",

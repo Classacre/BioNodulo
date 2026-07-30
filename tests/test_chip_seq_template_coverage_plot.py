@@ -38,8 +38,12 @@ def test_chip_seq_template_plots_bigwig_signal_in_final_report() -> None:
     assert "render_chip_signal_plot_ima_2" not in node_types
 
     plot = _node_by_id(workflow, "chip_signal_plot_001")
-    assert plot["params"]["region"] == "smoke_chr1:1-2000"
-    assert plot["params"]["window_size"] == 100
+    # The reference is the nf-core yeast genome (contigs I..XVI); there is no
+    # contig named smoke_chr1, so pyBigWig failed the whole pipeline at the
+    # last node. MACS2 calls peaks in this window, so it provably has signal.
+    assert plot["params"]["region"] == "XVI:920000-940000"
+    # 200 bp bins over a 20 kb window keeps the plot at 100 points.
+    assert plot["params"]["window_size"] == 200
     assert plot["params"]["title"] == "ChIP-Seq Signal Coverage"
     assert plot["params"]["format"] == "html"
 

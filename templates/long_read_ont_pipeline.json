@@ -36,7 +36,7 @@
         80
       ],
       "params": {
-        "text": "ONT long-read workflow: stages explicit local Dorado simplex and modified-base model directories, prepares colocated FASTA sidecars, basecalls to a sorted BAM/BAI pair, splits existing barcode classifications with Dorado demux in BAM mode, selects exactly one source-native barcode BAM, converts it to FASTQ with Samtools Fastx, validates that FASTQ, filters it with Chopper, runs NanoPlot QC, and generates a CpG-aware Modkit bedMethyl pileup.\n\nInputs are placeholders. Point the POD5, model, and reference inputs at staged local artifacts before execution. The selected_barcode value must equal the Dorado BC tag (or sample-sheet alias) to process; the default follows the configured SQK-NBD114-24 kit."
+        "text": "ONT long-read workflow: provisions the vendor Dorado binary, basecalls POD5 to a sorted BAM/BAI pair with 5mCG modified-base calls, filters with chopper, runs NanoPlot QC, and pileups CpG methylation with modkit.\n\nData: nf-core/test-datasets test.pod5 (100 reads, R9.4.1 4 kHz, SQK-LSK109).\nNOTE: this file is filed under sarscov2/ upstream but the reads are human -- BLAST puts them on chr22 (86% identity to chr22 clones) and 0/100 map to SARS-CoV-2, while 15 map to chr22. The reference is therefore hg38 chr22.\nThresholds are measured on this data: median read 318 bp, median Q14.2, so chopper -q 7 -l 200 keeps 74/100 reads (the old -l 1000 kept none)."
       },
       "ui": {
         "title": "Notes",
@@ -51,7 +51,8 @@
         80
       ],
       "params": {
-        "directory": "examples/data/long_read/pod5"
+        "directory": "https://raw.githubusercontent.com/nf-core/test-datasets/e89cc625a41689dc9d0abf50289ec90aa9284b19/data/genomics/sarscov2/nanopore/pod5/test.pod5",
+        "source": "url"
       },
       "ui": {
         "title": "POD5 Directory",
@@ -74,7 +75,8 @@
         231
       ],
       "params": {
-        "reference": "https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/sarscov2/genome/genome.fasta"
+        "reference": "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr22.fa.gz",
+        "source": "url"
       },
       "ui": {
         "title": "Reference FASTA",
@@ -160,7 +162,6 @@
         80
       ],
       "params": {
-        "kit_name": "SQK-NBD114-24",
         "trim": "all",
         "min_qscore": 9,
         "device": "auto"
@@ -183,22 +184,6 @@
       },
       "ui": {
         "title": "Gate Basecalled BAM"
-      }
-    },
-    {
-      "id": "dorado_demux_001",
-      "type": "dorado_demux",
-      "position": [
-        1520,
-        80
-      ],
-      "params": {
-        "no_classify": true,
-        "selected_barcode": "SQK-NBD114-24_barcode01",
-        "threads": 8
-      },
-      "ui": {
-        "title": "Dorado Demux"
       }
     },
     {
@@ -244,8 +229,8 @@
         382
       ],
       "params": {
-        "min_quality": 10,
-        "min_length": 1000,
+        "min_quality": 7,
+        "min_length": 200,
         "headcrop": 0,
         "tailcrop": 0,
         "threads": 8
@@ -348,18 +333,6 @@
       "ui": {
         "title": "View Table: modkit"
       }
-    },
-    {
-      "id": "render_dorado_demux_tab_2",
-      "type": "table_preview",
-      "position": [
-        4040,
-        600
-      ],
-      "params": {},
-      "ui": {
-        "title": "View Table: dorado_demux"
-      }
     }
   ],
   "edges": [
@@ -427,28 +400,6 @@
       "to": {
         "node": "gate_basecalled_bam_001",
         "input": "value"
-      }
-    },
-    {
-      "id": "e7",
-      "from": {
-        "node": "gate_basecalled_bam_001",
-        "output": "output"
-      },
-      "to": {
-        "node": "dorado_demux_001",
-        "input": "reads"
-      }
-    },
-    {
-      "id": "e8",
-      "from": {
-        "node": "dorado_demux_001",
-        "output": "selected_bam"
-      },
-      "to": {
-        "node": "samtools_fastx_001",
-        "input": "input"
       }
     },
     {
@@ -562,14 +513,14 @@
       }
     },
     {
-      "id": "e19",
+      "id": "e7",
       "from": {
-        "node": "dorado_demux_001",
-        "output": "barcode_summary"
+        "node": "gate_basecalled_bam_001",
+        "output": "output"
       },
       "to": {
-        "node": "render_dorado_demux_tab_2",
-        "input": "file"
+        "node": "samtools_fastx_001",
+        "input": "input"
       }
     }
   ],
@@ -586,14 +537,11 @@
     "filtered_reads_quality_gate": "gate_filtered_reads_001",
     "basecalled_bam": "dorado_basecaller_001",
     "basecalled_bam_index": "dorado_basecaller_001",
-    "demux_dir": "dorado_demux_001",
-    "barcode_summary": "dorado_demux_001",
-    "selected_demux_bam": "dorado_demux_001",
-    "selected_demux_fastq": "samtools_fastx_001",
-    "validated_selected_demux_fastq": "validate_selected_fastq_001",
     "filtered_reads": "chopper_001",
     "qc_report": "nanoplot_001",
     "qc_stats": "nanoplot_001",
-    "bedmethyl": "modkit_001"
+    "bedmethyl": "modkit_001",
+    "basecalled_fastq": "samtools_fastx_001",
+    "validated_basecalled_fastq": "validate_selected_fastq_001"
   }
 }

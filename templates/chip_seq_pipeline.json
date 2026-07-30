@@ -348,8 +348,8 @@
         430
       ],
       "params": {
-        "region": "smoke_chr1:1-2000",
-        "window_size": 100,
+        "region": "XVI:920000-940000",
+        "window_size": 200,
         "title": "ChIP-Seq Signal Coverage",
         "format": "html"
       },

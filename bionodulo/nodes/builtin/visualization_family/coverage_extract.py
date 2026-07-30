@@ -69,6 +69,22 @@ def _bigwig_bins(
     rows: list[dict[str, object]] = []
     handle = pyBigWig.open(str(path))
     try:
+        # pyBigWig raises a bare RuntimeError for an unknown chromosome, which
+        # surfaces as an unexplained exit 1 only after the whole pipeline has
+        # run. Name the mismatch and list the contigs that do exist.
+        available = handle.chroms() or {}
+        if chromosome not in available:
+            raise ValueError(
+                f"region chromosome {chromosome!r} is not in {path.name}; "
+                f"it contains: {', '.join(sorted(available)) or '(none)'}"
+            )
+        contig_length = int(available[chromosome])
+        if region_start >= contig_length:
+            raise ValueError(
+                f"region {chromosome}:{region_start}-{region_end} starts past the end "
+                f"of {chromosome} (length {contig_length})"
+            )
+        region_end = min(region_end, contig_length)
         for start in range(region_start, region_end, max(window_size, 1)):
             end = min(start + max(window_size, 1), region_end)
             value = handle.stats(chromosome, start, end, type="mean")[0]

@@ -29,8 +29,13 @@ class NanoPlotQCNode(LongReadCommandNode):
     RETURN_NAMES = ("qc_report", "qc_stats")
     OUTPUT_FILENAMES = ("NanoPlot-report.html", "NanoStats.txt")
     REQUIRED_EXECUTABLES = ["NanoPlot"]
-    REQUIRED_CONDA_PACKAGES = ["nanoplot"]
-    CONDA_PACKAGE_CONSTRAINTS = {"nanoplot": "1.44.1"}
+    # python-kaleido is pinned to 0.2.1 because nanoplotter imports
+    # `kaleido.scopes.plotly`, which kaleido 1.x removed. bioconda's nanoplot
+    # 1.44.1 does not declare that ceiling, so a free solver installs 1.3 and
+    # NanoPlot dies at import with ModuleNotFoundError before reading a read.
+    # The conda package is named python-kaleido; `kaleido` does not exist there.
+    REQUIRED_CONDA_PACKAGES = ["nanoplot", "python-kaleido"]
+    CONDA_PACKAGE_CONSTRAINTS = {"nanoplot": "1.44.1", "python-kaleido": "0.2.1"}
     PACKAGE_CONSTRAINT = "nanoplot = 1.44.1"
     VERSION = "1.44.1"
     SOURCE_URL = (

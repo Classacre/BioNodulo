@@ -380,6 +380,12 @@ def test_humann_argv_requires_upstream_taxonomy_and_both_reference_databases() -
         "1",
         "--taxonomic-profile",
         "profile.tsv",
+        # With a profile supplied HUMAnN never runs MetaPhlAn, but it still
+        # version-checks it by reading the LAST line of `metaphlan --version` --
+        # and MetaPhlAn 4.2 prints a database line after the version, so the
+        # parse raises and the run aborts. --bypass-prescreen skips that check
+        # without changing which profile drives the custom database.
+        "--bypass-prescreen",
         "--nucleotide-database",
         "/db/chocophlan",
         "--protein-database",

@@ -159,6 +159,13 @@ def test_class_source_segment_matches_stdlib_across_the_repository() -> None:
     """
     compared = 0
     for path in sorted((REPO_ROOT / "bionodulo").rglob("*.py")):
+        # `.pixi/` holds solved conda environments, which appear under
+        # bionodulo/environments/locks/<id>/ as soon as anyone runs a committed
+        # lock. They are gitignored, but rglob still descends into them, and a
+        # third-party module with non-UTF-8 bytes then fails this scan for a
+        # reason that has nothing to do with the ledger.
+        if ".pixi" in path.parts:
+            continue
         source = path.read_text(encoding="utf-8")
         try:
             tree = ast.parse(source)

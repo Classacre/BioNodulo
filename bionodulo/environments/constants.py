@@ -327,6 +327,11 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "bracken": "3.1",
     "metaphlan": "4.2.4",
     "humann": "3.9",
+    # NanoPlot's nanoplotter imports `kaleido.scopes.plotly`, removed in kaleido
+    # 1.x. bioconda's nanoplot 1.44.1 declares no ceiling, so a free solver
+    # installs 1.3 and NanoPlot dies at import. The conda package is named
+    # python-kaleido; there is no conda-forge package called `kaleido`.
+    "python-kaleido": "0.2.1",
     # bioconda's humann 3.9 is a py312 build that installs into
     # lib/python3.12/site-packages but declares only `python >=3`. A solver left
     # free picks 3.13 and `humann` then dies with ModuleNotFoundError. This was

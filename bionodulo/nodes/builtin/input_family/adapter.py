@@ -254,6 +254,29 @@ def _flatten_single_root(directory: Path) -> Path:
     return directory
 
 
+def _wrap_file_in_directory(downloaded: Path) -> Path:
+    """Return a directory containing `downloaded`, for directory inputs.
+
+    Some tools only accept a directory (dorado scans a POD5 *directory*), while
+    the public dataset is published as a single file. Without this, pointing a
+    directory input at that URL downloads the file and then fails validation
+    with "Expected a directory input, got file" -- forcing the file to be
+    committed to the repo instead of fetched from its real source.
+
+    Deliberately URL-only: a *local* path that is a file is more likely a
+    mistake than an intent, and should keep failing loudly.
+    """
+    wrapper = downloaded.parent / f"{downloaded.name}.asdir"
+    wrapper.mkdir(parents=True, exist_ok=True)
+    target = wrapper / downloaded.name
+    if not target.exists():
+        try:
+            os.link(downloaded, target)
+        except OSError:
+            shutil.copy2(downloaded, target)
+    return wrapper
+
+
 def _download_archive_to_cache(url: str, context: Any) -> Path:
     """Download and extract an archive URL, returning the extracted directory.
 
@@ -521,22 +544,28 @@ class CopyInputNode(CommandNode):
         if mode == "url" and isinstance(source, str) and source.strip():
             if cls.EXPECTED_KIND == "directory" and _looks_like_archive(_safe_filename(source)):
                 return _download_archive_to_cache(source, context)
-            return _download_to_cache(
+            downloaded = _download_to_cache(
                 source,
                 context,
                 decompress_gzip=cls.DECOMPRESS_GZIP,
             )
+            if cls.EXPECTED_KIND == "directory" and downloaded.is_file():
+                return _wrap_file_in_directory(downloaded)
+            return downloaded
         if mode in ("auto", "") and isinstance(source, str) and _looks_like_url(source):
             # A directory input pointed at a .tar.gz means "unpack this and give
             # me the tree" — reference bundles (kraken2 DBs, Space Ranger
             # references) are only published as archives.
             if cls.EXPECTED_KIND == "directory" and _looks_like_archive(_safe_filename(source)):
                 return _download_archive_to_cache(source, context)
-            return _download_to_cache(
+            downloaded = _download_to_cache(
                 source,
                 context,
                 decompress_gzip=cls.DECOMPRESS_GZIP,
             )
+            if cls.EXPECTED_KIND == "directory" and downloaded.is_file():
+                return _wrap_file_in_directory(downloaded)
+            return downloaded
         src = Path(source)
         if not src.is_absolute() and context is not None:
             workspace = getattr(context, "workspace_dir", Path("."))

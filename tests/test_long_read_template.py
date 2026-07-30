@@ -61,7 +61,6 @@ def test_long_read_ont_template_wires_explicit_models_and_sidecars() -> None:
     assert node_types["modified_model_001"] == "input_directory"
     assert node_types["ref_sidecars_001"] == "samtools_faidx"
     assert node_types["dorado_basecaller_001"] == "dorado_basecaller"
-    assert node_types["dorado_demux_001"] == "dorado_demux"
     assert node_types["samtools_fastx_001"] == "samtools_fastx"
     assert node_types["validate_selected_fastq_001"] == "data_validator"
     assert node_types["chopper_001"] == "chopper_filter"
@@ -80,11 +79,11 @@ def test_long_read_ont_template_wires_explicit_models_and_sidecars() -> None:
     )
     assert _has_edge(workflow, "ref_sidecars_001", "reference", "dorado_basecaller_001", "reference")
     assert _has_edge(workflow, "dorado_basecaller_001", "basecalled_bam", "gate_basecalled_bam_001", "value")
-    assert _has_edge(workflow, "gate_basecalled_bam_001", "output", "dorado_demux_001", "reads")
-    assert _has_edge(workflow, "dorado_demux_001", "selected_bam", "samtools_fastx_001", "input")
+    # This dataset is SQK-LSK109, an unbarcoded ligation kit, so there is nothing
+    # for dorado demux to separate; the gated BAM goes straight to samtools fastx.
+    assert _has_edge(workflow, "gate_basecalled_bam_001", "output", "samtools_fastx_001", "input")
     assert _has_edge(workflow, "samtools_fastx_001", "reads", "validate_selected_fastq_001", "input")
     assert _has_edge(workflow, "validate_selected_fastq_001", "validated_fastq", "chopper_001", "reads")
-    assert not _has_edge(workflow, "dorado_demux_001", "demux_dir", "chopper_001", "reads")
     assert "selected_demux_fastq_001" not in node_types
     assert _has_edge(workflow, "chopper_001", "filtered_reads", "gate_filtered_reads_001", "value")
     assert _has_edge(workflow, "gate_filtered_reads_001", "output", "nanoplot_001", "fastq")
@@ -106,7 +105,6 @@ def test_long_read_ont_template_uses_source_native_options_and_explicit_selectio
     workflow = _load_template("long_read_ont_pipeline.json")
 
     basecaller = _node_by_id(workflow, "dorado_basecaller_001")
-    demux = _node_by_id(workflow, "dorado_demux_001")
     fastx = _node_by_id(workflow, "samtools_fastx_001")
     fastq_validator = _node_by_id(workflow, "validate_selected_fastq_001")
     chopper = _node_by_id(workflow, "chopper_001")
@@ -118,13 +116,9 @@ def test_long_read_ont_template_uses_source_native_options_and_explicit_selectio
     assert "model" not in basecaller["params"]
     assert "modified_bases" not in basecaller["params"]
     assert basecaller["params"]["device"] == "auto"
-    assert demux["params"] == {
-        "no_classify": True,
-        "selected_barcode": "SQK-NBD114-24_barcode01",
-        "threads": 8,
-    }
-    assert {"mode", "emit_summary", "output_name", "kit_name"}.isdisjoint(demux["params"])
-    assert "emit_fastq" not in demux["params"]
+    # kit_name is absent: naming SQK-NBD114-24 (a kit-14 barcoding kit) told
+    # dorado to demultiplex barcodes this LSK109 run cannot contain.
+    assert "kit_name" not in basecaller["params"]
     assert fastx["params"] == {"threads": 8, "output_format": "fastq", "outputs": ["other"]}
     assert fastq_validator["params"] == {
         "expected_format": "fastq",
@@ -160,9 +154,8 @@ def test_long_read_ont_template_uses_source_native_options_and_explicit_selectio
     assert workflow["outputs"]["reference_fai"] == "ref_sidecars_001"
     assert workflow["outputs"]["sequence_dictionary"] == "ref_sidecars_001"
     assert workflow["outputs"]["basecalled_bam_index"] == "dorado_basecaller_001"
-    assert workflow["outputs"]["selected_demux_bam"] == "dorado_demux_001"
-    assert workflow["outputs"]["selected_demux_fastq"] == "samtools_fastx_001"
-    assert workflow["outputs"]["validated_selected_demux_fastq"] == "validate_selected_fastq_001"
+    assert workflow["outputs"]["basecalled_fastq"] == "samtools_fastx_001"
+    assert workflow["outputs"]["validated_basecalled_fastq"] == "validate_selected_fastq_001"
     assert workflow["outputs"]["bedmethyl"] == "modkit_001"
 
 
@@ -212,7 +205,7 @@ def test_long_read_ont_template_is_discoverable_from_workflow_templates_api() ->
     )
     assert listed["name"] == "ONT Long-Read Sequencing"
     assert listed["category"] == "Long Read"
-    assert listed["node_count"] >= 16
+    assert listed["node_count"] >= 15
     assert "dorado_basecaller" in listed["tools"]
     assert "modkit_pileup" in listed["tools"]
     assert "Reference FAI + Dictionary" in listed["preview_steps"]
