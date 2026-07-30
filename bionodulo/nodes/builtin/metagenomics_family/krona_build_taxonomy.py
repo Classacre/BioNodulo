@@ -99,7 +99,7 @@ class KronaBuildTaxonomyNode(MetagenomicsCommandNode):
         # `tar -m` matches upstream's taxonomy.make and avoids clock-skew warnings.
         return (
             f'set -e; mkdir -p "{taxonomy_dir}"; '
-            f'if [ -d "{source}" ]; then cp -f "{source}"/*.dmp "{taxonomy_dir}"/; '
+            f'if [ -d "{source}" ]; then cp -rf "{source}"/. "{taxonomy_dir}"/; '
             f'else tar -xmf "{source}" -C "{taxonomy_dir}"; fi; '
             f'perl "$(dirname "$(command -v ktImportTaxonomy)")"/../opt/krona/scripts/extractTaxonomy.pl '
             f'"{taxonomy_dir}"'

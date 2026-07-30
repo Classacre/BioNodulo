@@ -103,7 +103,7 @@ class MetaPhlAnBuildIndexNode(MetagenomicsCommandNode):
         # missing FASTA surfaces only as "Encountered internal Bowtie 2
         # exception (#1)", which says nothing about the real cause.
         return (
-            f'set -e; mkdir -p "{target}"; cp -f "{source}"/* "{target}"/; '
+            f'set -e; mkdir -p "{target}"; cp -rf "{source}"/. "{target}"/; '
             f'cd "{target}"; '
             f'for archive in *.fna.bz2; do '
             f'[ -e "$archive" ] || continue; '

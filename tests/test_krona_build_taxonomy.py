@@ -30,7 +30,9 @@ def test_archive_and_directory_inputs_are_both_handled(tmp_path: Path) -> None:
         {"taxdump": "/data/taxdump.tar.gz", "output": str(tmp_path / "n")}
     )
     assert "tar -xmf" in command
-    assert "*.dmp" in command  # directory branch copies the dumps instead
+    # Directory branch copies the whole tree: `cp -f dir/*` aborts under set -e
+    # when the source holds a subdirectory ("-r not specified; omitting directory").
+    assert "cp -rf" in command
     assert "extractTaxonomy.pl" in command
 
 
