@@ -82,6 +82,68 @@ jobs:
           BIONODULO_BACKEND_SRC: ${{ github.workspace }}
         run: npm run prepare:assets
 
+      # Apple requires EVERY nested Mach-O in the bundle to carry a Developer ID
+      # signature, the hardened runtime and a secure timestamp. tauri-action
+      # signs only the outer .app, so notarization rejected the bundled
+      # interpreter, uv and the Python extension modules with "The executable
+      # does not have the hardened runtime enabled" / "not signed with a valid
+      # Developer ID certificate" / "signature does not include a secure
+      # timestamp". Signing has to happen inside-out, i.e. here, BEFORE the app
+      # is assembled and signed.
+      - name: Sign bundled macOS binaries
+        if: matrix.os == 'macos-latest'
+        working-directory: desktop
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+
+          # A dedicated keychain, because tauri-action imports the same
+          # certificate again later and we must not disturb the login keychain.
+          KEYCHAIN=bionodulo-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          # Without this, codesign blocks on an interactive keychain prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+
+          signed=0
+          # -type f skips symlinks deliberately: codesign follows them and would
+          # sign the same inode repeatedly (python/python3/python3.12 are links).
+          while IFS= read -r -d '' file; do
+            kind=$(file -b "$file")
+            case "$kind" in
+              *Mach-O*) ;;
+              *) continue ;;
+            esac
+            # Entitlements belong on executables. Libraries and loadable bundles
+            # are signed hardened but without them.
+            if [[ "$kind" == *executable* ]]; then
+              codesign --force --options runtime --timestamp \
+                --entitlements build/entitlements.mac.plist \
+                --sign "$APPLE_SIGNING_IDENTITY" "$file"
+            else
+              codesign --force --options runtime --timestamp \
+                --sign "$APPLE_SIGNING_IDENTITY" "$file"
+            fi
+            signed=$((signed + 1))
+          done < <(find assets -type f -print0)
+
+          echo "Signed $signed nested Mach-O files."
+          # A zero count means the layout changed and nothing got signed, which
+          # would only surface later as an opaque notarization rejection.
+          test "$signed" -gt 0
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
