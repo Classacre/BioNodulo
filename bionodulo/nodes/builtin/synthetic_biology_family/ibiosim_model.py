@@ -60,6 +60,15 @@ class iBioSimModelNode(SyntheticBiologyCommandNode):
         "yet built', and the release commit says the Dockerfile does not succeed. No verified immutable "
         "image or Conda package is available."
     )
+    DEPRECATED = True
+    DEPRECATION_MESSAGE = (
+        "iBioSim ships no headless CLI. The iBioSim-linux64.zip launcher is a "
+        "cwd-dependent shell script ending in `exec java -jar iBioSim.jar` with "
+        "no arguments -- that is the GUI, which cannot be driven by a workflow. "
+        "No conda channel carries iBioSim either, so nothing can provision it. "
+        "This node cannot run and is kept only so existing saved workflows still "
+        "load."
+    )
     EXPERIMENTAL = True
     SHELL = True
 

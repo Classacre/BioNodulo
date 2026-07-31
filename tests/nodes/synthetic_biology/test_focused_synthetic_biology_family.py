@@ -300,3 +300,19 @@ def test_cello_requires_each_documented_design_artifact() -> None:
         "output_device_file",
         "cello_jar",
     }
+
+
+def test_the_two_unobtainable_tools_are_deprecated_in_the_catalog() -> None:
+    """Neither tool can be downloaded by an automated pipeline.
+
+    They stay registered so saved workflows still load, but they must not be
+    offered as if they were runnable -- a user picking one gets a node that
+    cannot execute at all.
+    """
+    for node_class, needle in (
+        (iBioSimModelNode, "no headless CLI"),
+        (CelloCircuitDesignNode, "no obtainable artifact"),
+    ):
+        assert node_class.DEPRECATED is True
+        assert needle in node_class.DEPRECATION_MESSAGE
+        assert node_class.lifecycle_metadata()["status"] == "deprecated"

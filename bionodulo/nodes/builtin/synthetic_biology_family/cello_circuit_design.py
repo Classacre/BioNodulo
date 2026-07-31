@@ -68,6 +68,14 @@ class CelloCircuitDesignNode(SyntheticBiologyCommandNode):
         "digest. The staged cello_jar identity and the unpinned dnaplotlib runtime must therefore be "
         "attested externally before this node can leave quarantine."
     )
+    DEPRECATED = True
+    DEPRECATION_MESSAGE = (
+        "Cello publishes no obtainable artifact. CIDARLAB/Cello-v2 v0.1 has an "
+        "empty release asset list, no cello-dnacompiler JAR is published "
+        "anywhere, and neither bioconda nor conda-forge carries it -- Docker is "
+        "its only distribution. There is nothing for a workflow to download, so "
+        "this node cannot run. Kept only so existing saved workflows still load."
+    )
     EXPERIMENTAL = True
     SHELL = True
 
