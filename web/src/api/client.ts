@@ -11,7 +11,7 @@
 // no auto-toast. Add those in domain hooks if/when they actually become
 // needed.
 
-import { getToken } from '../collab/authStorage';
+import { getToken, refreshToken } from '../collab/authStorage';
 import { appPath } from '../utils/appBase';
 import { resolveCollabUrl } from '../collab/remoteBase';
 
@@ -113,13 +113,31 @@ function buildUrl(path: string, basePath = DEFAULT_BASE): string {
 /** Low-level: returns the raw Response after an HTTP-status check. */
 export async function apiRequest(path: string, init: ApiRequestInit = {}): Promise<Response> {
   const url = buildUrl(path, init.basePath);
-  const headers = buildHeaders(init);
-  const { json, body, anonymous: _a, basePath: _b, ...rest } = init;
-  const response = await fetch(url, {
+  const { json, body, anonymous, basePath: _b, ...rest } = init;
+  const send = () => fetch(url, {
     ...rest,
-    headers,
+    headers: buildHeaders(init),
     body: json !== undefined ? JSON.stringify(json) : body,
   });
+
+  let response = await send();
+
+  // Retry a 401 exactly once, after forcing a token refresh.
+  //
+  // getToken() clears an expired token and returns null, so a request made a
+  // second past the ~60s Clerk TTL is sent with NO Authorization header and is
+  // rejected. The refresh runs on a 45s interval, which browsers throttle in
+  // background tabs, so this window is missed routinely. Without this retry the
+  // user is told "Run failed: Unauthorized" for a run that is perfectly fine --
+  // observed on run 71c48448, which went on to complete normally.
+  //
+  // Strictly once, and never for an explicitly anonymous call: a genuine 401
+  // must still surface rather than loop.
+  if (response.status === 401 && !anonymous) {
+    const refreshed = await refreshToken();
+    if (refreshed) response = await send();
+  }
+
   if (!response.ok) {
     const errorBody = await readErrorBody(response);
     throw new ApiError(

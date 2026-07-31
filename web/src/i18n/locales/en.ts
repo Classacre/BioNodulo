@@ -2009,6 +2009,7 @@ class MyToolNode(CommandNode):
       consoleDetailsFallback: 'see the console for details',
       runFailedMessage: '{{name}} - {{detail}}',
       runFailedLog: 'Run failed: {{message}}',
+      runSubmittedButFollowUpFailed: 'Run submitted, but a follow-up call failed: {{message}}. The run is queued and will continue — check the Runs drawer.',
       runErrorLog: 'Run error: {{message}}',
       installFailed: 'Dependency install failed',
       runInterruptedLog: 'Run interrupted',

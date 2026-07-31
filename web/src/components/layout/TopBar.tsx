@@ -206,7 +206,7 @@ export default function TopBar({
       <div className="brand">
         <BrandMark />
         <strong>BioNodulo</strong>
-        <small>2.0</small>
+        <small>{__APP_VERSION__}</small>
       </div>
 
       <div className="validation-badge" style={{ visibility: validationErrors.length ? 'visible' : 'hidden' }}>

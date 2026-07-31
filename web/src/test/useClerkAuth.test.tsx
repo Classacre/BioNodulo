@@ -38,6 +38,9 @@ const authMocks = vi.hoisted(() => ({
   clearToken: vi.fn(),
   setAuthUser: vi.fn(),
   setToken: vi.fn(),
+  // The hook registers a refresher so the API client can retry a 401 once
+  // instead of surfacing a transient "Unauthorized" as a failed run.
+  registerTokenRefresher: vi.fn(),
 }));
 
 vi.mock('@clerk/clerk-js', () => ({ Clerk: clerkMocks.Clerk }));

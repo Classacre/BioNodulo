@@ -99,3 +99,33 @@ export function getAuthUser(): AuthUser | null {
 export function isGuestUser(user: { kind?: 'guest' | 'account' } | null): boolean {
   return !!user && user.kind !== 'account';
 }
+
+
+// --- token refresh hook -------------------------------------------------
+//
+// getToken() deliberately clears an expired token and returns null, so a request
+// made a second past the TTL goes out with NO Authorization header and is
+// rejected as Unauthorized. Clerk's session token lives ~60s and is re-pulled on
+// a 45s interval, but browsers throttle timers in background tabs, so that
+// window is missed routinely -- the user sees "Unauthorized" for a run that is
+// actually fine.
+//
+// The auth layer registers a refresher here; the API client calls it once
+// before retrying a 401 rather than surfacing a transient failure.
+type TokenRefresher = () => Promise<string | null>;
+
+let tokenRefresher: TokenRefresher | null = null;
+
+export function registerTokenRefresher(refresher: TokenRefresher | null): void {
+  tokenRefresher = refresher;
+}
+
+/** Force a fresh token. Returns null when no refresher is registered. */
+export async function refreshToken(): Promise<string | null> {
+  if (!tokenRefresher) return null;
+  try {
+    return await tokenRefresher();
+  } catch {
+    return null;
+  }
+}

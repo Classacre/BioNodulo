@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { readFileSync } from 'fs';
 import { visualizer } from 'rollup-plugin-visualizer';
 
 // Bundle-size analysis: run `npm run build:analyze` to emit `dist/stats.html`.
@@ -8,13 +9,34 @@ import { visualizer } from 'rollup-plugin-visualizer';
 // stay lean.
 const analyze = process.env.BIONODULO_ANALYZE === '1';
 
+// The UI used to hard-code "2.0" in two places -- the boot screen and the top
+// bar -- which kept claiming a version the product has never shipped. Both now
+// read this, sourced from package.json, so the displayed version cannot drift
+// from the released one again.
+const appVersion = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
+).version as string;
+
 export default defineConfig({
   // Colab and notebook-hosted environments can expose the app below a path
   // prefix. Relative asset URLs keep the built SPA loadable in both root and
   // proxied deployments.
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     react(),
+    // The boot screen is inlined in index.html so it paints before any JS
+    // loads, which means `define` cannot reach it. Substituting the placeholder
+    // here keeps the pre-hydration version honest too -- it previously read a
+    // hard-coded "2.0".
+    {
+      name: 'bionodulo-html-version',
+      transformIndexHtml(html: string) {
+        return html.replaceAll('%APP_VERSION%', appVersion);
+      },
+    },
     ...(analyze
       ? [
           visualizer({

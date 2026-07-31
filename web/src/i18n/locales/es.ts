@@ -2019,6 +2019,7 @@ class MyToolNode(CommandNode):
       consoleDetailsFallback: 'consulta la consola para mas detalles',
       runFailedMessage: '{{name}} - {{detail}}',
       runFailedLog: 'Ejecucion fallida: {{message}}',
+      runSubmittedButFollowUpFailed: 'Ejecución enviada, pero una llamada posterior falló: {{message}}. La ejecución está en cola y continuará; revisa el panel de ejecuciones.',
       runErrorLog: 'Error de ejecucion: {{message}}',
       installFailed: 'Fallo la instalacion de dependencias',
       runInterruptedLog: 'Ejecucion interrumpida',

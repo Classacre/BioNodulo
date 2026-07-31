@@ -1722,6 +1722,9 @@ export default function App() {
       batch: batchCount,
       cacheEnabled,
     });
+    // Set once a run exists server-side. Anything that throws after this point
+    // did NOT fail the run, and must not be reported as though it did.
+    let runSubmitted = false;
     try {
       const v = await validate(activeWorkflow);
       if (v && v.valid === false && Array.isArray(v.errors) && v.errors.length > 0) {
@@ -1786,6 +1789,9 @@ export default function App() {
           compute: specToRunBody(computeSpec),
           inputs,
         });
+        // The run now exists server-side. A dry run does not count: nothing was
+        // queued, so a later throw genuinely means the request failed.
+        if (!dryRunPreview && result.status !== 'dry_run') runSubmitted = true;
         if (dryRunPreview || result.status === 'dry_run') {
           const preview = result as RunRecord & {
             execution_order?: string[];
@@ -1885,8 +1891,15 @@ export default function App() {
       addLog({
         run_id: 'workflow',
         node_id: 'engine',
-        level: 'error',
-        message: t('console.actions.runFailedLog', { message: msg }),
+        // A post-submission failure is the UI's own follow-up call going wrong,
+        // not a failed run. Reporting a run-failure for something already queued
+        // -- which then completed normally -- sent the user hunting a problem
+        // that did not exist. Observed as a transient auth error on run
+        // 71c48448, which finished fine.
+        level: runSubmitted ? 'warn' : 'error',
+        message: runSubmitted
+          ? t('console.actions.runSubmittedButFollowUpFailed', { message: msg })
+          : t('console.actions.runFailedLog', { message: msg }),
         timestamp: new Date().toISOString(),
       });
       // Auto-open console so the user sees the error

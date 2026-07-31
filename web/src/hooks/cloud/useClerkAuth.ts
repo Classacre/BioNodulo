@@ -29,7 +29,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { Clerk } from '@clerk/clerk-js';
 import { getUserColor } from '../../collab';
-import { clearToken, setAuthUser, setToken } from '../../collab/authStorage';
+import { clearToken, registerTokenRefresher, setAuthUser, setToken } from '../../collab/authStorage';
 import { authUserAtom, cloudConfigAtom } from '../../state/appAtoms';
 import { logError } from '../../state/logging';
 
@@ -124,6 +124,7 @@ export function useClerkAuth(): UseClerkAuthResult {
         setAuthUser(user);
         setAuthUserAtom(user);
         setClerkSignedIn(true);
+        return token;
       } catch (err) {
         logError('clerk.session.sync', err);
       }
@@ -149,6 +150,11 @@ export function useClerkAuth(): UseClerkAuthResult {
         refreshTimer = setInterval(() => {
           void sync(clerk, true);
         }, TOKEN_REFRESH_MS);
+        // The API client calls this when a request comes back 401, so a token
+        // that lapsed between refreshes costs one retry instead of surfacing as
+        // a failed run. The timer above is throttled in background tabs, which
+        // is exactly when the lapse happens.
+        registerTokenRefresher(async () => (await sync(clerk, true)) ?? null);
       } catch (err) {
         logError('clerk.load', err);
       }
@@ -164,6 +170,7 @@ export function useClerkAuth(): UseClerkAuthResult {
       cancelled = true;
       window.removeEventListener('focus', onFocus);
       if (refreshTimer) clearInterval(refreshTimer);
+      registerTokenRefresher(null);
       unsubscribe?.();
       clerkRef.current = null;
     };
