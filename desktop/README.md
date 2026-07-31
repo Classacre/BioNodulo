@@ -1,115 +1,122 @@
 # BioNodulo Desktop
 
-Electron desktop app that wraps the open-source [BioNodulo](https://github.com/Classacre/BioNodulo)
-Python backend, following the ComfyUI-Desktop architecture: a thin Electron shell
-bundles an embedded Python runtime + `uv`, creates a per-user virtual environment
-on first run, spawns and supervises the FastAPI backend, and loads the BioNodulo
-web UI in a sandboxed Chromium renderer.
+Tauri 2 desktop app that wraps the [BioNodulo](https://github.com/Classacre/BioNodulo)
+Python backend: a native Rust shell bundles a standalone Python runtime + `uv`,
+creates a per-user virtual environment on first run, spawns and supervises the
+FastAPI backend, and loads the BioNodulo web UI from the system webview.
 
-The Electron shell is proprietary; the BioNodulo core it wraps is GPL-3.
+Licensed under the BioNodulo Closed Alpha Commercial License (see `LICENSE` at
+the repository root).
 
 ## Architecture
 
 ```
-apps/desktop/
-  src/
-    main/
-      index.ts          App lifecycle, window, first-run vs. normal boot,
-                        single-instance lock, deep links, graceful shutdown
-      ipc.ts            All ipcMain.handle channels (app/settings/python/setup/shell)
-      preload.ts        contextBridge -> window.bionoduloAPI (sandboxed, no Node)
-      python-process.ts Spawn/supervise backend, health-poll, log ring buffer, SIGTERM+SIGKILL
-      python-env.ts     First-run venv creation + dependency install via bundled uv (Tier-2 updates too)
-      paths.ts          Dev vs. packaged asset/data path resolution (space-safe)
-      portable.ts       Portable-mode detection + data-dir selection
-      port.ts           Free-port discovery (loopback)
-      updater.ts        electron-updater (Tier-1 shell updates, GitHub feed)
-      store.ts          electron-store schema (encrypted at rest)
-    renderer/
-      first-run.html    Setup wizard (data dir, venv, deps, progress)
-      loading.html      Backend-starting splash + live log
-      error.html        Backend-failed screen (open logs / retry)
-    types/global.d.ts   window.bionoduloAPI typing
+desktop/
+  src-tauri/
+    src/
+      main.rs         Binary entry; suppresses the extra console window on Windows
+      lib.rs          App builder, plugin registration (updater, deep-link), setup
+      commands.rs     #[tauri::command] handlers exposed to the frontend
+      supervisor.rs   Spawn/supervise the backend, health-poll, shutdown
+      provision.rs    First-run venv creation + dependency install via bundled uv
+      paths.rs        Dev vs. bundled asset/data path resolution
+      port.rs         Free-port discovery on loopback (prefers 8188)
+      settings.rs     Persisted app settings
+      deeplink.rs     bionodulo:// deep-link handling
+      security.rs     URL/navigation allowlisting for the webview
+    tauri.conf.json   Bundle targets, updater endpoint + pubkey, macOS hardening
+  frontend/           Plain HTML/JS shell screens (no framework, no bundler)
+    first-run.html    Setup wizard (venv creation, dependency install, progress)
+    loading.html      Backend-starting splash + live log
+    error.html        Backend-failed screen
   scripts/
-    prepare-backend.mjs Stage BioNodulo source -> assets/bionodulo-backend
-    prepare-python.mjs  Fetch python-build-standalone + uv -> assets/
-    copy-renderer.mjs   Copy renderer HTML into dist/ after tsc
+    prepare-backend.mjs     Stage BioNodulo source -> assets/bionodulo-backend
+    prepare-python.mjs      Fetch python-build-standalone + uv -> assets/
+    prepare-cloudflared.mjs Fetch cloudflared (share/collaboration tunnel)
+    copy-icons.mjs          Stage app icons
   build/
-    installer.nsh       NSIS custom install (deep-link protocol registration)
-    entitlements.mac.plist  Hardened-runtime entitlements for child Python process
-  assets/               Build-time, gitignored (see assets/README.md)
+    entitlements.mac.plist  Hardened-runtime entitlements for the child Python process
+  assets/             Build-time, gitignored (see assets/README.md)
 ```
 
 ## Python bundling strategy
 
-Two layers, exactly like ComfyUI Desktop:
+Two layers:
 
-1. **Bundled tools** (shipped in the installer via `extraResources`):
-   - `python-embedded/<os>/` — a standalone Python interpreter
-     (python-build-standalone; Windows uses the same install-only build).
-   - `uv/<os>/uv[.exe]` — Astral's `uv` for fast, deterministic dependency
-     resolution.
-   - `bionodulo-backend/` — the BioNodulo Python source + prebuilt `web/dist`.
-2. **Per-user virtual environment** (created on first run, NOT shipped):
-   - `uv venv <userData>/venv --python <embedded> --seed`
-   - `uv pip install -e <backend>` installs BioNodulo and all its deps.
+1. **Bundled tools** (shipped in the installer as Tauri `resources`):
+   - a standalone Python interpreter (python-build-standalone), used only to
+     bootstrap the virtual environment;
+   - `uv` for fast, deterministic dependency resolution;
+   - `bionodulo-backend/` — the BioNodulo Python source + prebuilt `web/dist`;
+   - `cloudflared` — used by the share/collaboration tunnel.
+2. **Per-user virtual environment**, created on first run and *not* shipped.
+   `provision.rs` drives this and streams progress to the first-run screen.
 
-This keeps the installer thin (~tens of MB) while heavy scientific deps land in
-the user's data dir on first launch.
+This keeps the installer small while the heavy scientific dependencies land in
+the user's data directory on first launch.
 
 ## Backend integration notes
 
-The real `main.py` accepts `--host`, `--port`, `--project-root` (the spec's
-`--listen`/`--workspace` names do not exist), so the process manager uses those.
-The backend serves both its API and the web UI on one port; liveness is probed at
-`/api/health` (with `/health` and `/` as fallbacks). The desktop picks a free
-port (prefers 8188) and loads `http://127.0.0.1:<port>`.
+`main.py` accepts `--host`, `--port` and `--project-root`. The backend serves
+both its API and the web UI on one port. The shell picks a free loopback port
+(preferring 8188), loads `http://127.0.0.1:<port>`, and probes `/api/health`
+until the backend is live, with a 60 s overall budget and a 2 s per-request
+timeout.
 
 ## Development
 
 ```bash
-cd apps/desktop
-ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install   # types only; skip the Electron binary
-pnpm run prepare:assets                         # stage backend + python + uv (needs network)
-pnpm run dev                                    # tsc + electron --dev-tools
+cd desktop
+npm install               # @tauri-apps/cli + cross-env
+npm run prepare:assets    # stage backend + python + uv + cloudflared (needs network)
+npm run tauri:dev         # BIONODULO_DEV=1 tauri dev
 ```
 
-For a UI-only loop without the full Python stack, point the backend at any local
-BioNodulo dev server, or stub the health endpoint.
+Linux additionally needs the WebKitGTK development packages — see the
+`Install Linux webview deps` step in `.github/workflows/desktop-release.yml` for
+the exact list.
 
 ## Building installers
 
 ```bash
-pnpm run prepare:assets
-pnpm run build:win          # NSIS + portable (Windows)
-pnpm run build:mac          # DMG + zip (arm64 + x64)
-pnpm run build:linux        # AppImage + deb + tar.gz
+npm run prepare:assets
+npm run tauri:build
 ```
+
+Bundle targets are declared in `tauri.conf.json`: `nsis` (Windows), `app` and
+`dmg` (macOS), `appimage` and `deb` (Linux).
 
 ## What runs in CI
 
-`.github/workflows/desktop-release.yml` (repo root) builds on `desktop-v*` tags
-across windows-latest / macos-latest (arm64) / macos-13 (x64) / ubuntu-latest:
-checks out `Classacre/BioNodulo`, builds its web frontend, stages assets, runs
-`electron-builder`, and uploads installers as a **draft** GitHub Release.
+`.github/workflows/desktop-release.yml` triggers on `desktop-v*` tags. It builds
+the web SPA once on Linux, then runs `tauri-apps/tauri-action` across
+macOS (aarch64 + x86_64), Windows and Linux, and publishes the installers as a
+GitHub Release.
 
-Code signing / notarization are wired via env secrets (`WIN_CSC_LINK`,
-`MAC_CSC_LINK`, `APPLE_ID`, `APPLE_TEAM_ID`, …) and are optional — unsigned dev
-builds work without them. Auto-update feed points at `Classacre/BioNodulo`
-releases (override with `BIONODULO_UPDATE_FEED`).
+**Signing status:**
 
-## Updates (two tiers)
+- **macOS** is signed and notarized, using the `APPLE_CERTIFICATE`,
+  `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,
+  `APPLE_PASSWORD` and `APPLE_TEAM_ID` repository secrets. All six must be
+  present — `tauri-action` treats an empty `APPLE_CERTIFICATE` as "import this
+  certificate" and fails, so there is no partial mode.
+- **Windows is unsigned.** No code-signing certificate has been purchased, so
+  installers trip SmartScreen. This is a known, deliberate gap.
 
-- **Tier 1 — shell**: `electron-updater` checks the GitHub Releases feed on
-  startup, downloads in the background, prompts to restart. Disabled in portable
-  mode.
-- **Tier 2 — Python deps**: `python:update-dependencies` IPC re-runs
-  `uv pip install --upgrade -e <backend>` in the venv with progress streamed to
-  the renderer.
+## Updates
 
-## Portable mode
+`tauri-plugin-updater` checks the endpoint configured in `tauri.conf.json`
+(`releases/latest/download/latest.json`) against a static, minisign-signed
+manifest. Update artifacts are produced because `createUpdaterArtifacts` is
+enabled.
 
-Detected via `BIONODULO_PORTABLE=1`, `--portable`, a `portable.ini` or `data/`
-dir next to the executable, or electron-builder's `PORTABLE_EXECUTABLE_DIR`. In
-portable mode all data (venv, workspace, logs, settings) lives in `data/` next to
-the binary and the auto-updater is disabled.
+The release workflow publishes with `releaseDraft: false` and
+`prerelease: false`, and **both matter**: GitHub's `/releases/latest` resolves to
+the most recent release that is neither a draft nor a prerelease, so marking a
+release as either makes it invisible to the updater. Alpha status is carried by
+the tag name (`desktop-v0.1.0-alpha.N`), not by the prerelease flag. Do not
+change either flag without first moving the updater endpoint off
+`/releases/latest`.
+
+Python-side updates are handled separately by re-running the dependency install
+in the per-user venv.
