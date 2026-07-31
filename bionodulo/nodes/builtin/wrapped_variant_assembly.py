@@ -66,4 +66,67 @@ from bionodulo.nodes.builtin.variant_family.beagle import BeagleNode
 from bionodulo.nodes.builtin.variant_family.breseq import BreseqNode
 from bionodulo.nodes.builtin.visualization_family.bellavista import BellavistaPrepareNode
 
-__all__ = [name for name in globals() if name.endswith("Node")]
+# Explicit, not `[name for name in globals() ...]`: mypy evaluates __all__
+# statically, so a comprehension over globals() made `import *` export
+# nothing as far as the type checker was concerned, and every name in every
+# consuming module became an undefined-name error. That pattern accounted
+# for roughly 8000 of the repository's 8535 mypy errors. The contents below
+# are exactly what the comprehension produced at import time.
+__all__ = [
+    "ABySSPEGalaxyNode",
+    "ABySSPENode",
+    "AmpliGoneNode",
+    "BayeScanGalaxyNode",
+    "BayeScanNode",
+    "BeagleNode",
+    "BellavistaPrepareNode",
+    "BellerophonNode",
+    "BiGSCAPENode",
+    "BiSCoTNode",
+    "BiaPyNode",
+    "BigWigOutlierBedNode",
+    "BinetteNode",
+    "BinningRefinerNode",
+    "BioExtBam2MsaNode",
+    "BioExtBealignNode",
+    "BioboxAddTaxidNode",
+    "BreseqNode",
+    "COMEBinBamNode",
+    "COMEBinNode",
+    "CamiAmberAddNode",
+    "CamiAmberConvertNode",
+    "CamiAmberNode",
+    "ChromeisterNode",
+    "CompleasmNode",
+    "DrepCompareNode",
+    "DrepDereplicateNode",
+    "EASTRNode",
+    "EvidenceModelerNode",
+    "ExonerateNode",
+    "Export2GraphlanNode",
+    "FargeneNode",
+    "FastSparNode",
+    "FastSparPvaluesNode",
+    "FastSparReduceNode",
+    "FreyjaAggregatePlotNode",
+    "FreyjaBootNode",
+    "FreyjaDemixNode",
+    "FreyjaVariantsNode",
+    "GTDBTkClassifyWFNode",
+    "GraphlanAnnotateNode",
+    "GraphlanNode",
+    "IVarConsensusNode",
+    "IVarFilterVariantsNode",
+    "IVarRemoveReadsNode",
+    "IVarTrimNode",
+    "IVarVariantsNode",
+    "LoFreqAlnQualNode",
+    "LoFreqCallNode",
+    "LoFreqFilterNode",
+    "LoFreqIndelQualNode",
+    "LoFreqViterbiNode",
+    "MetaBAT2JgiSummarizeBamContigDepthsNode",
+    "MetaBAT2Node",
+    "PreseqCCurveNode",
+    "PreseqLCExtrapNode",
+]

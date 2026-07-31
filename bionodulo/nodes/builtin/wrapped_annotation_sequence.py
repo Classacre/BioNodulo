@@ -45,4 +45,50 @@ from bionodulo.nodes.builtin.seqkit_family import (
     SeqKitTranslateNode,
 )
 
-__all__ = [name for name in globals() if name.endswith("Node")]
+# Explicit, not `[name for name in globals() ...]`: mypy evaluates __all__
+# statically, so a comprehension over globals() made `import *` export
+# nothing as far as the type checker was concerned, and every name in every
+# consuming module became an undefined-name error. That pattern accounted
+# for roughly 8000 of the repository's 8535 mypy errors. The contents below
+# are exactly what the comprehension produced at import time.
+__all__ = [
+    "AMRFinderPlusNode",
+    "AegeanCanonGff3Node",
+    "AegeanGaevalNode",
+    "AegeanLocusPocusNode",
+    "AegeanParsevalNode",
+    "ArribaDrawFusionsNode",
+    "ArribaGetFiltersNode",
+    "ArribaNode",
+    "ArticGuppyplexNode",
+    "ArticMinionNode",
+    "AugustusNode",
+    "AugustusTrainingNode",
+    "BUSCONode",
+    "FeatureCountsNode",
+    "HTSeqCountNode",
+    "RoaryNode",
+    "SeqKitFx2tabNode",
+    "SeqKitGrepNode",
+    "SeqKitHeadNode",
+    "SeqKitLocateNode",
+    "SeqKitSortNode",
+    "SeqKitSplit2Node",
+    "SeqKitStatsNode",
+    "SeqKitTranslateNode",
+    "SeqTKCompNode",
+    "SeqTKCutNNode",
+    "SeqTKDropSENode",
+    "SeqTKFqchkNode",
+    "SeqTKHetyNode",
+    "SeqTKListHetNode",
+    "SeqTKMergeFANode",
+    "SeqTKMergePENode",
+    "SeqTKMutFANode",
+    "SeqTKRandBaseNode",
+    "SeqTKSampleNode",
+    "SeqTKSeqNode",
+    "SeqTKSubseqNode",
+    "SeqTKTeloNode",
+    "SeqTKTrimFQNode",
+]

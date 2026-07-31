@@ -88,8 +88,11 @@ jobs:
       - name: Ruff lint
         run: python -m ruff check bionodulo tests
 
-      - name: Mypy type check advisory
-        run: python -m mypy bionodulo --ignore-missing-imports || true
+      # Ratcheted, not advisory. `|| true` meant the count could climb forever
+      # unnoticed, which is how it reached 8535. The gate only asserts that the
+      # number never grows; it drops the baseline automatically when it shrinks.
+      - name: Mypy ratchet
+        run: python scripts/mypy_ratchet.py
 
   frontend:
     name: Frontend

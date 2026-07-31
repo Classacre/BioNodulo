@@ -49,4 +49,53 @@ from bionodulo.nodes.builtin.metagenomics_family.fasta_to_contig2bin import Fast
 from bionodulo.nodes.builtin.snippy_family import SnippyCleanFullAlnNode, SnippyCoreNode, SnippyNode
 from bionodulo.nodes.builtin.typing_family.kleborate import KleborateNode
 
-__all__ = [name for name in globals() if name.endswith("Node")]
+# Explicit, not `[name for name in globals() ...]`: mypy evaluates __all__
+# statically, so a comprehension over globals() made `import *` export
+# nothing as far as the type checker was concerned, and every name in every
+# consuming module became an undefined-name error. That pattern accounted
+# for roughly 8000 of the repository's 8535 mypy errors. The contents below
+# are exactly what the comprehension produced at import time.
+__all__ = [
+    "ABRicateListNode",
+    "ABRicateNode",
+    "ABRicateSummaryNode",
+    "BandageImageNode",
+    "BandageInfoNode",
+    "CheRRIEvalNode",
+    "CheRRITrainNode",
+    "CheckM2Node",
+    "CheckMAnalyzeNode",
+    "CheckMLineageSetNode",
+    "CheckMLineageWFNode",
+    "CheckMPlotNode",
+    "CheckMQANode",
+    "CheckMTaxonSetNode",
+    "CheckMTaxonomyWFNode",
+    "CheckMTetraNode",
+    "CheckMTreeNode",
+    "CheckMTreeQANode",
+    "ChewBBACAAlleleCallEvaluatorNode",
+    "ChewBBACAAlleleCallNode",
+    "ChewBBACACreateSchemaNode",
+    "ChewBBACADownloadSchemaNode",
+    "ChewBBACAExtractCgMLSTNode",
+    "ChewBBACAJoinProfilesNode",
+    "ChewBBACANSStatsNode",
+    "ChewBBACAPrepExternalSchemaNode",
+    "ChiraCollapseNode",
+    "ChiraExtractNode",
+    "ChiraMapNode",
+    "ChiraMergeNode",
+    "ChiraQuantifyNode",
+    "DASToolNode",
+    "FastaToContig2BinNode",
+    "GfaToFaNode",
+    "KleborateNode",
+    "PlasmidFinderNode",
+    "RavenNode",
+    "ShovillNode",
+    "SnippyCleanFullAlnNode",
+    "SnippyCoreNode",
+    "SnippyNode",
+    "StaramrSearchNode",
+]

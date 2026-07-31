@@ -21,4 +21,30 @@ from .vg_construct import VGConstructNode
 from .vg_index import VGIndexNode
 from .vg_map import VGMapNode
 
-__all__ = [name for name in globals() if name.endswith("Node")]
+# Explicit, not `[name for name in globals() ...]`: mypy evaluates __all__
+# statically, so a comprehension over globals() made `import *` export
+# nothing as far as the type checker was concerned, and every name in every
+# consuming module became an undefined-name error. That pattern accounted
+# for roughly 8000 of the repository's 8535 mypy errors. The contents below
+# are exactly what the comprehension produced at import time.
+__all__ = [
+    "CactusExportNode",
+    "CactusGalaxyNode",
+    "MinigraphCactusNode",
+    "MinigraphNode",
+    "ODGIBuildNode",
+    "ODGIStatsNode",
+    "ODGIViewNode",
+    "ODGIVisualizeNode",
+    "ODGIVizNode",
+    "PGGBBuildNode",
+    "PGGBNode",
+    "PangenomeGeneNode",
+    "PangenomeSVNode",
+    "PangenomeStatsNode",
+    "VCFDecomposeNode",
+    "VGCallNode",
+    "VGConstructNode",
+    "VGIndexNode",
+    "VGMapNode",
+]

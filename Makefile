@@ -49,8 +49,8 @@ lint-py: ## Ruff lint (CI: ruff check bionodulo tests)
 lint-web: ## ESLint the web sources (CI: npm run lint)
 	cd $(WEB) && npm run lint
 
-typecheck: ## Advisory mypy on the backend (CI: non-blocking)
-	$(PY) -m mypy bionodulo --ignore-missing-imports || true
+typecheck: ## Ratcheted mypy on the backend (fails if the error count grows)
+	$(PY) scripts/mypy_ratchet.py
 
 build: build-web ## Type-check + build the frontend (CI: npm run build)
 

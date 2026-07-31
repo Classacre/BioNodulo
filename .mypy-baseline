@@ -1,0 +1,4 @@
+# Maximum mypy errors tolerated by scripts/mypy_ratchet.py.
+# It may only ever go down. Lower it by fixing errors, never by editing
+# this number upwards to make a red build green.
+530
