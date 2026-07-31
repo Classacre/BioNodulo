@@ -81,6 +81,10 @@ test.beforeEach(async ({ context, page }) => {
         due_schedule_count: 1,
         due_file_watch_triggers: [],
         due_file_watch_count: 0,
+        // Required: the validator calls requireArray on submitted_runs, so
+        // omitting it threw ApiValidationError, the evaluation state was never
+        // set, and the counts silently never rendered.
+        submitted_runs: [],
         errors: [],
         scheduler_runner_contract_supported: true,
         file_watch_runner_contract_supported: true,

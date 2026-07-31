@@ -60,4 +60,7 @@ build-web:
 e2e: ## Run the Playwright end-to-end suite (auto-starts the dev server)
 	cd $(WEB) && npm run test:e2e
 
+e2e-ci: ## Run the E2E suite the way CI does (skips become failures)
+	CI=true $(MAKE) e2e
+
 verify: lint test build ## Full local gate: lint + tests + build (CI parity)

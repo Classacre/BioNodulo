@@ -8,6 +8,7 @@ import BottomConsole from './components/layout/BottomConsole';
 import RunsDrawer from './components/layout/RunsDrawer';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/WorkflowCanvas';
+import WorkflowStatsOverlay from './components/canvas/WorkflowStatsOverlay';
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
 // localStorage key for persisted cloud-editor console logs (survive refresh).
 const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
@@ -3495,6 +3496,19 @@ export default function App() {
           onAddComment={handleAddComment}
           onResolveComment={handleResolveComment}
           onDeleteComment={handleDeleteComment}
+        />
+
+        {/* Restored after the native React Flow canvas rewrite dropped it. That
+            rewrite replaced its custom Minimap, SelectionToolbox and
+            GroupContextMenu with React Flow's MiniMap, NodeToolbar and a group
+            node -- but React Flow has no stats widget, so this one was deleted
+            with nothing put in its place. Its unit test went in the same
+            commit, and the e2e suite did not run in CI, so nothing reported
+            the loss. */}
+        <WorkflowStatsOverlay
+          workflow={activeWorkflow}
+          hidden={focusMode}
+          systemStats={hostFeaturesEnabled}
         />
 
         {/* Registered rail panels: docked panels stack from the left edge by

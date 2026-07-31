@@ -108,6 +108,42 @@ export default function NodePropertiesDialog({ node, objectInfo, onRename, onPar
               {outputs.length > 0 && <div><b>{t('canvas.props.outputs')}:</b> {outputs.map(o => o.name).join(', ')}</div>}
             </section>
           )}
+
+          {/* Provenance. The canvas rewrite replaced NodeInfoPanel with this
+              dialog but did not carry its citation block across, so DOIs and
+              citation text stopped appearing anywhere in the UI while the
+              backend kept serving them for all 947 nodes. For a scientific
+              tool this is how users credit the software their results depend
+              on, so it is not decoration. */}
+          {(meta?.version || meta?.citation_dois?.length || meta?.citation_text
+            || meta?.citation_urls?.length || meta?.documentation_url) && (
+            <section className="bio-props-section bio-props-provenance">
+              <h4>{t('nodeDetails.metadata')}</h4>
+              {meta?.version && (
+                <div><b>{t('nodeDetails.version')}:</b> {meta.version}</div>
+              )}
+              {meta?.citation_dois && meta.citation_dois.length > 0 && (
+                <div><b>{t('nodeDetails.doi')}</b> {meta.citation_dois.join(', ')}</div>
+              )}
+              {meta?.citation_text && (
+                <div><b>{t('nodeDetails.citation')}:</b> {meta.citation_text}</div>
+              )}
+              {meta?.citation_urls && meta.citation_urls.length > 0 && (
+                <div className="bio-props-links">
+                  {meta.citation_urls.map(url => (
+                    <a key={url} href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+                  ))}
+                </div>
+              )}
+              {meta?.documentation_url && (
+                <div className="bio-props-links">
+                  <a href={meta.documentation_url} target="_blank" rel="noopener noreferrer">
+                    {t('nodeDetails.openDocumentationLink')}
+                  </a>
+                </div>
+              )}
+            </section>
+          )}
         </div>
         <footer className="bn-ui-dialog-footer">
           <button type="button" className="bn-ui-button" onClick={onClose}>{t('common.done', 'Done')}</button>

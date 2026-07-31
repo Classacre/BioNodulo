@@ -39,6 +39,9 @@ test.beforeEach(async ({ context, page }) => {
 test('hides host-only rail panels in editor mode', async ({ page }) => {
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => null);
   if (!response || !response.ok()) {
+    // Never skip in CI. A silent skip meant a green suite could prove nothing
+    // at all -- which is how three canvas regressions reached main unnoticed.
+    if (process.env.CI) throw new Error('dev server unavailable (refusing to skip in CI)');
     test.skip(true, 'dev server unavailable');
     return;
   }
@@ -55,6 +58,9 @@ test('hides host-only rail panels in editor mode', async ({ page }) => {
 test('shows User + Cloud-compute rail menus above settings when signed in', async ({ page }) => {
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => null);
   if (!response || !response.ok()) {
+    // Never skip in CI. A silent skip meant a green suite could prove nothing
+    // at all -- which is how three canvas regressions reached main unnoticed.
+    if (process.env.CI) throw new Error('dev server unavailable (refusing to skip in CI)');
     test.skip(true, 'dev server unavailable');
     return;
   }
@@ -77,13 +83,23 @@ test('shows User + Cloud-compute rail menus above settings when signed in', asyn
 test('Compute panel shows a live credits/hr quote', async ({ page }) => {
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => null);
   if (!response || !response.ok()) {
+    // Never skip in CI. A silent skip meant a green suite could prove nothing
+    // at all -- which is how three canvas regressions reached main unnoticed.
+    if (process.env.CI) throw new Error('dev server unavailable (refusing to skip in CI)');
     test.skip(true, 'dev server unavailable');
     return;
   }
   await page.locator('nav.left-rail').getByRole('button', { name: /^Cloud compute/ }).click();
-  await expect(page.getByText('credits / hr')).toBeVisible();
-  // Presets render; Small (a Free-allowed preset) is selectable.
-  await expect(page.getByRole('button', { name: 'Small', exact: true })).toBeVisible();
+  // The panel legitimately shows the rate twice -- once as the headline quote
+  // and once in the custom-compute row -- so any bare text match trips strict
+  // mode. Scope to the panel body and take the headline, and assert the number
+  // separately so the test fails if the quote renders as an empty label.
+  const computeBody = page.locator('.rail-panel-body');
+  await expect(computeBody.getByText('credits / hr', { exact: true }).first()).toBeVisible();
+  await expect(computeBody.getByText(/^[\d,]+$/).first()).toBeVisible();
+  // Presets render. QUICK_SIZES is labelled XS/S/M/L/XL/XXL -- the test used to
+  // look for "Small", which no longer exists anywhere in the panel.
+  await expect(page.getByRole('button', { name: 'S', exact: true })).toBeVisible();
 });
 
 test('does not poll host-only endpoints in editor mode', async ({ page }) => {
@@ -95,6 +111,9 @@ test('does not poll host-only endpoints in editor mode', async ({ page }) => {
 
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => null);
   if (!response || !response.ok()) {
+    // Never skip in CI. A silent skip meant a green suite could prove nothing
+    // at all -- which is how three canvas regressions reached main unnoticed.
+    if (process.env.CI) throw new Error('dev server unavailable (refusing to skip in CI)');
     test.skip(true, 'dev server unavailable');
     return;
   }

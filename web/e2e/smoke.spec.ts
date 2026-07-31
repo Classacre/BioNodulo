@@ -5,6 +5,9 @@ import { test, expect } from '@playwright/test';
 test('app shell mounts', async ({ page }) => {
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => null);
   if (!response || !response.ok()) {
+    // Never skip in CI. A silent skip meant a green suite could prove nothing
+    // at all -- which is how three canvas regressions reached main unnoticed.
+    if (process.env.CI) throw new Error('dev server unavailable (refusing to skip in CI)');
     test.skip(true, 'dev server unavailable');
     return;
   }

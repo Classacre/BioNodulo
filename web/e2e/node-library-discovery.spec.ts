@@ -18521,13 +18521,23 @@ test('BioNodulo built-in nodes render citation metadata in node info', async ({ 
   // Scope to the workflow-stats overlay — the transient `#bn-boot` element also
   // carries role="status", which makes a bare getByRole('status') ambiguous.
   await expect(page.locator('.workflow-stats-overlay')).toContainText('1');
-  await page.mouse.click(nodePoint.x + 80, nodePoint.y + 30, { button: 'right' });
-  await page.getByText('Node Info').click();
+  // Right-click the node element itself rather than a guessed pixel offset.
+  // The offset assumed the pre-rewrite placement, so after the native React
+  // Flow rewrite moved the node it opened the *pane* menu -- which has no
+  // "Node info" entry -- and the test timed out on a click that could never
+  // resolve.
+  await page.locator('.react-flow__node').first().click({ button: 'right' });
+  await page.getByText('Node info').click();
 
-  const infoPanel = page.locator('.node-editor').last();
-  await expect(infoPanel.getByText('DIAMOND Align')).toBeVisible();
-  await expect(infoPanel.getByText('DOI', { exact: true })).toBeVisible();
-  await expect(infoPanel.getByText('10.1038/s41592-021-01101-x', { exact: true })).toBeVisible();
+  // The rewrite replaced the .node-editor side panel with a modal dialog;
+  // .node-editor now only exists as orphaned CSS.
+  const infoPanel = page.locator('.bio-props-dialog');
+  // The node's display name is an editable input in the dialog, not static text.
+  await expect(infoPanel.locator('input[type="text"]')).toHaveValue(/DIAMOND Align/);
+  // The label sits in a <b> inside a <div> that carries the same text, so a
+  // bare match resolves to both.
+  await expect(infoPanel.getByText('DOI').first()).toBeVisible();
+  await expect(infoPanel.getByText(/10\.1038\/s41592-021-01101-x/).first()).toBeVisible();
   await expect(infoPanel.getByRole('link', { name: 'https://doi.org/10.1038/s41592-021-01101-x' })).toBeVisible();
   await expect(infoPanel.getByText('Sensitive protein alignments at tree-of-life scale using DIAMOND.')).toBeVisible();
 });

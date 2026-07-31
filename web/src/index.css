@@ -4422,3 +4422,11 @@ kbd {
 .workspace-cloud { display: flex; flex-direction: column; min-height: 0; }
 .workspace-cloud-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px; }
 .workspace-cloud-hint { font-size: 11px; color: var(--muted); }
+
+/* Node provenance block in the properties dialog: DOIs, citation text and
+   documentation links. Restored with the citation display the canvas rewrite
+   dropped. */
+.bio-props-provenance { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.bio-props-provenance b { color: var(--text); }
+.bio-props-links { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.bio-props-links a { color: var(--accent); overflow-wrap: anywhere; }
