@@ -1,4 +1,4 @@
-# BioNodulo 2.0
+# BioNodulo
 
 **Visual bioinformatics pipelines, node by node.**
 

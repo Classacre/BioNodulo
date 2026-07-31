@@ -89,7 +89,7 @@ test('command palette can add nodes beyond the first 40 object_info entries', as
 
   await page.getByRole('option', { name: /Add LLM Prompt/ }).click();
   // Scope to the workflow-stats overlay: the app also renders a transient
-  // `#bn-boot` element with role="status" ("BioNodulo 2.0 Ready"), so a bare
+  // `#bn-boot` element with role="status" (a status region), so a bare
   // getByRole('status') is ambiguous under Playwright strict mode.
   await expect(page.locator('.workflow-stats-overlay')).toContainText('1');
   await expect(page.locator('.workflow-stats-cat', { hasText: 'ai' })).toBeVisible();

@@ -1,8 +1,8 @@
 {
   "name": "@bionodulo/desktop",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
-  "description": "BioNodulo Desktop — Node-based bioinformatics workflows (Tauri shell)",
+  "description": "BioNodulo Desktop \u2014 Node-based bioinformatics workflows (Tauri shell)",
   "author": "BioNodulo",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
