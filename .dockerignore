@@ -23,6 +23,18 @@ environments/
 # Keep root runtime caches excluded while retaining those lock bundles.
 !bionodulo/environments/
 !bionodulo/environments/**
+# ...but NOT the solved environments themselves. `.pixi/` on line 2 only matches
+# at the context root -- Docker does not apply a bare directory pattern
+# recursively -- so the re-include above was dragging every locally-solved
+# bionodulo/environments/locks/*/.pixi/envs tree into the build context and into
+# the image. Measured: that path is 3.7 MB without .pixi and 3.6 GB with it, and
+# it was the single 1.39 GB layer in a 1.63 GB worker image.
+#
+# It also made the image size depend on the machine doing the build: a developer
+# who had solved locks locally shipped a far bigger image than a clean checkout.
+# Later rules win in .dockerignore, so this must stay below the re-includes.
+bionodulo/environments/**/.pixi
+bionodulo/environments/**/.pixi/**
 SPEC.md
 examples/
 *.fq
