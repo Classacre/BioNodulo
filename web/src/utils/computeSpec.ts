@@ -9,8 +9,11 @@ export type ResourceProfile =
 
 // Published customer sell-rates (credits/second). 1 credit = $0.01. Mirror of
 // the server's VCPU_CREDIT_RATE / RAM_GB_CREDIT_RATE.
-export const VCPU_CREDIT_RATE = 0.00101;
-export const RAM_GB_CREDIT_RATE = 0.0000787;
+// Repriced 2026-08-01. Mirror of the server's rates in
+// bionodulo-website apps/web/lib/resource-profiles.ts -- the server re-prices on
+// submit, so these exist only to quote the same number in the Compute panel.
+export const VCPU_CREDIT_RATE = 0.00127;
+export const RAM_GB_CREDIT_RATE = 0.000195;
 export const MIN_GB_PER_VCPU = 4;
 
 /** Credits/second for an arbitrary spec (max of CPU- and RAM-derived). */
