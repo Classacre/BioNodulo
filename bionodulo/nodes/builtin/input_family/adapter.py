@@ -19,6 +19,7 @@ import re
 import shutil
 import tarfile
 import tempfile
+import time
 import urllib.parse
 import urllib.request
 import zipfile
@@ -30,7 +31,15 @@ from bionodulo.nodes.command_node import CommandNode
 logger = logging.getLogger(__name__)
 
 URL_SCHEMES = {"http", "https", "ftp"}
-_HTTP_USER_AGENT = "BioNodulo/2.0 (https://github.com/Classacre/BioNodulo; input-node downloader)"
+_DOWNLOAD_CHUNK_BYTES = 1024 * 256
+from bionodulo import __version__ as _BIONODULO_VERSION
+
+# Version comes from the package: the literal used to say 2.0, a release
+# that never existed.
+_HTTP_USER_AGENT = (
+    f"BioNodulo/{_BIONODULO_VERSION} "
+    "(https://github.com/Classacre/BioNodulo; input-node downloader)"
+)
 _DOWNLOAD_TIMEOUT_S = 300
 
 
@@ -132,6 +141,79 @@ def _temporary_path(directory: Path, *, prefix: str, suffix: str) -> Path:
     return Path(value)
 
 
+# Emit at most this often, so a fast download cannot flood the event stream.
+_PROGRESS_INTERVAL_S = 0.25
+
+
+def _copy_with_progress(response: Any, fh: Any, context: Any, url: str) -> None:
+    """Stream `response` into `fh`, emitting node_download_progress as it goes.
+
+    Downloads were previously a silent `shutil.copyfileobj`, so a node fetching
+    a multi-GB reference looked identical to a hung one. The UI renders these
+    events as a progress bar on the node itself.
+
+    Emission is throttled and best-effort: a context without `emit` (unit tests,
+    the CLI) just copies, and a failing emit must never abort a download that is
+    otherwise fine.
+    """
+    emit = getattr(context, "emit", None)
+    node_id = getattr(context, "node_id", None)
+    run_id = getattr(context, "run_id", None)
+
+    total = 0
+    length = response.headers.get("Content-Length") if hasattr(response, "headers") else None
+    try:
+        total = int(length) if length else 0
+    except (TypeError, ValueError):
+        total = 0
+
+    read = 0
+    last = 0.0
+    while True:
+        chunk = response.read(_DOWNLOAD_CHUNK_BYTES)
+        if not chunk:
+            break
+        fh.write(chunk)
+        read += len(chunk)
+        if emit is None or node_id is None:
+            continue
+        now = time.monotonic()
+        if now - last < _PROGRESS_INTERVAL_S:
+            continue
+        last = now
+        try:
+            emit(
+                "node_download_progress",
+                {
+                    "run_id": run_id,
+                    "node_id": node_id,
+                    "url": url,
+                    "downloaded_bytes": read,
+                    # 0 when the server sends no Content-Length; the UI shows an
+                    # indeterminate bar rather than a wrong percentage.
+                    "total_bytes": total,
+                },
+            )
+        except Exception:  # noqa: BLE001 - progress must never fail a download
+            logger.debug("download progress emit failed", exc_info=True)
+
+    if emit is not None and node_id is not None:
+        try:
+            emit(
+                "node_download_progress",
+                {
+                    "run_id": run_id,
+                    "node_id": node_id,
+                    "url": url,
+                    "downloaded_bytes": read,
+                    "total_bytes": total or read,
+                    "done": True,
+                },
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("final download progress emit failed", exc_info=True)
+
+
 def _download_to_cache(
     url: str,
     context: Any,
@@ -170,7 +252,7 @@ def _download_to_cache(
     try:
         with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_S) as response:
             with download_path.open("wb") as fh:
-                shutil.copyfileobj(response, fh)
+                _copy_with_progress(response, fh, context, url)
         if gunzip:
             decoded_path = _temporary_path(cache_dir, prefix=".decoded-", suffix=".part")
             with gzip.open(download_path, "rb") as gz_fh, decoded_path.open("wb") as out_fh:
@@ -298,7 +380,7 @@ def _download_archive_to_cache(url: str, context: Any) -> Path:
     try:
         with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_S) as response:
             with download_path.open("wb") as fh:
-                shutil.copyfileobj(response, fh)
+                _copy_with_progress(response, fh, context, url)
         _extract_archive(download_path, staging)
         os.replace(staging, dest)
         staging = None  # type: ignore[assignment]

@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 import { apiGet } from '../../api/client';
 import { toast } from '../../state/notifications';
 import type { LogEntry, RunRecord, NodeStatus } from '../../types';
+import { nodeDownloadProgressAtom } from '../../state/runAtoms';
+import { useSetAtom } from 'jotai';
 
 function workflowStatusLabel(t: (key: string) => string, status: unknown): string {
   switch (status) {
@@ -48,6 +50,7 @@ export function useWorkflowMessages({
   recordNodeStart,
   clearNodeRunProgress,
 }: UseWorkflowMessagesArgs): void {
+  const setNodeDownloadProgress = useSetAtom(nodeDownloadProgressAtom);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -106,6 +109,26 @@ export function useWorkflowMessages({
             nodeWord: t(totalNodes === 1 ? 'console.nodesCount' : 'console.nodesCount_plural'),
           }),
           timestamp: ts,
+        });
+      } else if (data.type === 'node_download_progress') {
+        // Rendered as a bar on the node itself. Cleared on completion so a
+        // finished node does not keep a stale bar.
+        const nodeId = String(payload.node_id);
+        setNodeDownloadProgress(prev => {
+          if (payload.done) {
+            if (!(nodeId in prev)) return prev;
+            const next = { ...prev };
+            delete next[nodeId];
+            return next;
+          }
+          return {
+            ...prev,
+            [nodeId]: {
+              downloaded: Number(payload.downloaded_bytes) || 0,
+              total: Number(payload.total_bytes) || 0,
+              url: payload.url ? String(payload.url) : undefined,
+            },
+          };
         });
       } else if (data.type === 'node_start') {
         updateNodeRunStatus(runId, String(payload.node_id), 'running');

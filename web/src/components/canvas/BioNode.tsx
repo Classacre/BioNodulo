@@ -9,6 +9,8 @@
 import { memo, useContext } from 'react';
 import { Handle, Position, NodeToolbar, NodeResizer, type NodeProps } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue } from 'jotai';
+import { nodeDownloadProgressAtom } from '../../state/runAtoms';
 import { NODE_HEADER_H, NODE_PIN_H, toHexColor } from '../../utils/nodeLayout';
 import type { GraphNode } from './canvasModel';
 import { BioNodeActionsContext, MultiSelectContext } from './bioNodeActions';
@@ -26,6 +28,10 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
   const actions = useContext(BioNodeActionsContext);
   const multiSelected = useContext(MultiSelectContext);
   const { g, categoryLabel, missingDependency, running } = data as BioNodeData;
+  // Remote-input download progress for THIS node. Shown on the node because a
+  // toast in the corner is both far from the work and easy to miss; toasts are
+  // reserved for the user's own uploads.
+  const download = useAtomValue(nodeDownloadProgressAtom)[g.id];
 
   // Reroute: a bare pass-through dot with a single in/out handle.
   if (g.type === 'reroute') {
@@ -63,6 +69,26 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
       data-status={g.status ?? ''}
       data-category={categoryLabel}
     >
+      {download && (
+        <div
+          className={`bio-node-download ${download.total > 0 ? '' : 'is-indeterminate'}`}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={download.total || undefined}
+          aria-valuenow={download.total ? download.downloaded : undefined}
+          title={download.url}
+        >
+          <div
+            className="bio-node-download-fill"
+            style={
+              download.total > 0
+                ? { width: `${Math.min(100, (download.downloaded / download.total) * 100)}%` }
+                : undefined
+            }
+          />
+        </div>
+      )}
+
       {/* Native drag-to-resize handles — only for real (non-note) nodes and only
           while selected. Commit the final size back to the workflow on end. */}
       {!g.visualOnly && (
