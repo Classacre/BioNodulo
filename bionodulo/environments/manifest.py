@@ -689,6 +689,56 @@ async def run_pixi_lock(
         return False, "pixi executable not found"
 
 
+def host_conda_subdir() -> str:
+    """Return this machine's conda subdir, e.g. linux-64 / win-64 / osx-arm64."""
+    import platform as _platform
+
+    system = _platform.system()
+    machine = _platform.machine().lower()
+    is_arm = machine in ("arm64", "aarch64")
+    if system == "Windows":
+        return "win-64"
+    if system == "Darwin":
+        return "osx-arm64" if is_arm else "osx-64"
+    return "linux-aarch64" if is_arm else "linux-64"
+
+
+def manifest_platforms(manifest: Path) -> list[str]:
+    """Platforms declared by a pixi manifest, in declaration order."""
+    try:
+        text = manifest.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    match = re.search(r"^platforms\s*=\s*\[([^\]]*)\]", text, re.M)
+    if not match:
+        return []
+    return re.findall(r"['\"]([^'\"]+)['\"]", match.group(1))
+
+
+def explain_unsupported_platform(declared: list[str], host: str) -> str:
+    """Human-readable reason a workflow environment cannot install here.
+
+    pixi's own error ends with "Add it with 'pixi workspace platform add
+    win-64'", which is actively misleading here: bioconda publishes NO Windows
+    packages at all -- blast and samtools exist only for linux-64,
+    linux-aarch64, osx-64 and osx-arm64 -- so following that advice trades a
+    clear install failure for a confusing solve failure.
+    """
+    declared_text = ", ".join(declared) or "none"
+    if host == "win-64":
+        return (
+            "This workflow's tools are not available for Windows. Its "
+            f"environment targets {declared_text}, and the bioconda channel that "
+            "provides most bioinformatics tools publishes no Windows builds at "
+            "all. Run this workflow on the cloud, or run the app inside WSL2."
+        )
+    return (
+        f"This workflow's environment targets {declared_text}, which does not "
+        f"include this machine ({host}). Run it on the cloud, or use a machine "
+        "matching one of those platforms."
+    )
+
+
 async def run_pixi_install(
     env_dir: str | Path,
     timeout: int = _PIXI_INSTALL_TIMEOUT,
@@ -714,6 +764,17 @@ async def run_pixi_install(
     pixi = get_pixi_path()
     if pixi is None:
         return False, "pixi executable not found"
+
+    # Fail before pixi does, with a reason the user can act on: pixi's own
+    # message suggests adding the platform, which cannot work when the packages
+    # do not exist for it.
+    declared = manifest_platforms(manifest)
+    host = host_conda_subdir()
+    if declared and host not in declared:
+        reason = explain_unsupported_platform(declared, host)
+        if emit:
+            emit("install.log", {"job_id": job_id, "stream": "stderr", "message": reason})
+        return False, reason
 
     if emit:
         emit("install.log", {"job_id": job_id, "stream": "stdout", "message": f"[pixi] Starting pixi install in {env_dir}"})
