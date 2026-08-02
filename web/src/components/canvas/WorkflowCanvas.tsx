@@ -64,6 +64,7 @@ import CollabCursors from './CollabCursors';
 import NodeComments from './NodeComments';
 import ContextMenu, { type MenuItem } from './ContextMenu';
 import NodePropertiesDialog from './NodePropertiesDialog';
+import NodeLogsPopover from './NodeLogsPopover';
 import { captureCanvasThumbnail } from '../../utils/canvasThumbnail';
 import HelperLines from './HelperLines';
 import { getHelperLines } from './helperLines';
@@ -332,6 +333,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [commentOpenNodeId, setCommentOpenNodeId] = useState<string | null>(null);
   const [propsNodeId, setPropsNodeId] = useState<string | null>(null);
+  // Per-node log viewer, opened from the node context menu. Position is the
+  // click point so the panel appears next to the node you asked about.
+  const [logsNode, setLogsNode] = useState<{ id: string; x: number; y: number } | null>(null);
   const [menu, setMenu] = useState<{ kind: 'node' | 'pane' | 'edge'; x: number; y: number; nodeId?: string; edgeId?: string; flow: { x: number; y: number } } | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -978,6 +982,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       const collapsed = Boolean(ui.collapsed);
       const items: MenuItem[] = [
         { key: 'info', label: t('canvas.menu.nodeInfo'), icon: 'info', onClick: () => setPropsNodeId(m.nodeId!) },
+        {
+          key: 'logs',
+          label: t('canvas.menu.viewLogs', { defaultValue: 'View logs' }),
+          icon: 'console',
+          onClick: () => setLogsNode({ id: m.nodeId!, x: m.x, y: m.y }),
+        },
         { key: 'edit', label: t('canvas.menu.editProperties'), icon: 'edit', onClick: () => setPropsNodeId(m.nodeId!) },
       ];
       if (onAddComment) items.push({ key: 'comment', label: t('canvas.menu.addComment'), icon: 'comment', onClick: () => setCommentOpenNodeId(m.nodeId!) });
@@ -1148,6 +1158,18 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       </ReactFlow>
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} items={buildMenuItems(menu)} onClose={() => setMenu(null)} />
+      )}
+      {logsNode && (
+        <NodeLogsPopover
+          nodeId={logsNode.id}
+          title={
+            nodesRef.current.find(n => n.id === logsNode.id)?.ui?.title
+            ?? nodesRef.current.find(n => n.id === logsNode.id)?.type
+          }
+          x={logsNode.x}
+          y={logsNode.y}
+          onClose={() => setLogsNode(null)}
+        />
       )}
       {propsNode && (
         <NodePropertiesDialog

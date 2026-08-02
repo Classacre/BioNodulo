@@ -22,6 +22,64 @@ EmitCallback = Callable[[str, dict[str, Any]], Any]
 _DEFAULT_ROOT = Path.home() / ".pixi"
 _PIXI_BIN = Path("bin") / "pixi" if platform.system() != "Windows" else Path("bin") / "pixi.exe"
 
+# GitHub rejects urllib's default User-Agent with 403.
+_USER_AGENT = "BioNodulo-runtime-installer"
+
+# (system, normalised machine) -> release asset. Windows ships a .zip, the rest
+# a .tar.gz; both contain a single `pixi` executable at the archive root.
+_PIXI_ASSETS = {
+    ("Windows", "x86_64"): "pixi-x86_64-pc-windows-msvc.zip",
+    ("Windows", "aarch64"): "pixi-aarch64-pc-windows-msvc.zip",
+    ("Darwin", "x86_64"): "pixi-x86_64-apple-darwin.tar.gz",
+    ("Darwin", "aarch64"): "pixi-aarch64-apple-darwin.tar.gz",
+    ("Linux", "x86_64"): "pixi-x86_64-unknown-linux-musl.tar.gz",
+    ("Linux", "aarch64"): "pixi-aarch64-unknown-linux-musl.tar.gz",
+}
+
+
+def _normalise_machine(machine: str) -> str:
+    """Map platform.machine() spellings onto the release naming."""
+    m = machine.lower()
+    if m in ("amd64", "x86_64", "x64"):
+        return "x86_64"
+    if m in ("arm64", "aarch64"):
+        return "aarch64"
+    return m
+
+
+def _pixi_asset_name() -> str | None:
+    return _PIXI_ASSETS.get((platform.system(), _normalise_machine(platform.machine())))
+
+
+def _extract_pixi(archive: Path, bin_path: Path) -> None:
+    """Extract the single pixi executable from `archive` to `bin_path`."""
+    import tarfile
+    import zipfile
+
+    wanted = bin_path.name  # pixi or pixi.exe
+    if archive.suffix == ".zip":
+        with zipfile.ZipFile(archive) as zf:
+            member = next(
+                (n for n in zf.namelist() if Path(n).name.lower() == wanted.lower()),
+                None,
+            )
+            if member is None:
+                raise RuntimeError(f"{wanted} not found inside {archive.name}")
+            with zf.open(member) as src:
+                bin_path.write_bytes(src.read())
+        return
+
+    with tarfile.open(archive, "r:gz") as tf:
+        member = next(
+            (m for m in tf.getmembers() if Path(m.name).name == wanted), None
+        )
+        if member is None:
+            raise RuntimeError(f"{wanted} not found inside {archive.name}")
+        extracted = tf.extractfile(member)
+        if extracted is None:
+            raise RuntimeError(f"could not read {wanted} from {archive.name}")
+        bin_path.write_bytes(extracted.read())
+
 
 def managed_pixi_root() -> Path:
     """Get the root prefix for the managed pixi installation.
@@ -109,49 +167,56 @@ def install_managed_pixi(
     _emit_log(emit, "info", "Starting pixi installation...")
     bin_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Use the official pixi install script
-    install_script_url = "https://pixi.sh/install.sh"
+    # Fetch the release BINARY, not the install script.
+    #
+    # The previous implementation downloaded https://pixi.sh/install.sh and ran
+    # it with `bash`. That is broken on Windows three separate ways: install.sh
+    # is a POSIX shell script, stock Windows has no `bash`, and
+    # urllib.urlretrieve sends "Python-urllib/3.x" as its User-Agent, which the
+    # CDN rejects -- the reported failure was exactly
+    # "failed to install pixi ... HTTP Error 403: Forbidden".
+    #
+    # pixi publishes a plain binary per platform, so no shell is involved at
+    # all and the same code path works everywhere.
+    asset = _pixi_asset_name()
+    if asset is None:
+        err = (
+            f"No pixi build for this platform ({platform.system()} "
+            f"{platform.machine()})."
+        )
+        logger.error(err)
+        _emit_log(emit, "error", err)
+        return False
+
+    url = f"https://github.com/prefix-dev/pixi/releases/latest/download/{asset}"
 
     try:
         import urllib.request
 
-        script_path = bin_path.parent / "install.sh"
-        logger.info("Downloading pixi installer from %s", install_script_url)
-        _emit_log(emit, "info", f"Downloading pixi installer from {install_script_url} ...")
-        urllib.request.urlretrieve(install_script_url, script_path)
+        logger.info("Downloading pixi from %s", url)
+        _emit_log(emit, "info", f"Downloading pixi ({asset}) ...")
+        # An explicit User-Agent is required: the default one is 403'd.
+        request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+        archive = bin_path.parent / asset
+        with urllib.request.urlopen(request, timeout=300) as response:
+            archive.write_bytes(response.read())
 
-        _emit_log(emit, "info", "Running installer...")
-        # Keep the official installer aligned with BioNodulo's managed path.
-        env = os.environ.copy()
-        env["PIXI_NO_PATH_UPDATE"] = "1"
-        env["PIXI_HOME"] = str(root)
-        env["PIXI_BIN_DIR"] = str(bin_path.parent)
-        result = subprocess.run(
-            ["bash", str(script_path)],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-
-        script_path.unlink(missing_ok=True)
-
-        if result.returncode != 0:
-            output = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
-            logger.error("pixi install script failed: %s", output)
-            _emit_log(emit, "error", f"pixi install failed: {output[:1200] or 'installer exited with no output'}")
-            return False
+        _emit_log(emit, "info", "Extracting pixi ...")
+        _extract_pixi(archive, bin_path)
+        archive.unlink(missing_ok=True)
 
         if bin_path.exists():
-            bin_path.chmod(0o755)
+            if platform.system() != "Windows":
+                bin_path.chmod(0o755)
             msg = f"pixi installed successfully at {bin_path}"
             logger.info(msg)
             _emit_log(emit, "success", msg)
             return True
-        else:
-            err = f"pixi binary not found after installation: {bin_path}"
-            logger.error(err)
-            _emit_log(emit, "error", err)
-            return False
+
+        err = f"pixi binary not found after installation: {bin_path}"
+        logger.error(err)
+        _emit_log(emit, "error", err)
+        return False
 
     except Exception as exc:
         err = f"Failed to install pixi: {exc}"

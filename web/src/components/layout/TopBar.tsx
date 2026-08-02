@@ -278,7 +278,10 @@ export default function TopBar({
               ? <><Icon name="stop" size={14} /> {t('topbar.runningEllipsis')}</>
               : <><Icon name="play" size={14} /> {t('topbar.run')}</>}
           </button>
-          {!editorMode && (
+          {/* Always rendered. Hiding it left the primary half of a SPLIT button
+              on its own, keeping the flat inner edge and reading as a Run
+              button that had been cut off. The genuinely host-only sections
+              inside the menu are gated individually instead. */}
           <button
             ref={runToggleRef}
             type="button"
@@ -292,9 +295,8 @@ export default function TopBar({
           >
             <Icon name="chevronDown" size={12} />
           </button>
-          )}
 
-          {!editorMode && runMenuOpen && (
+          {runMenuOpen && (
             <div className="run-split-menu" role="menu" onKeyDown={handleRunMenuKeyDown}>
               {onRunOnCloud && (
                 <>
@@ -352,6 +354,9 @@ export default function TopBar({
                 <span className="run-split-menu-radio">{dryRunPreview ? '●' : '○'}</span>
                 {t('topbar.dryRunPreview')}
               </button>
+              {/* Host-only: the cloud run API rejects resume_checkpoint, so
+                  offering it in the cloud editor would only ever fail. */}
+              {!editorMode && (<>
               <div className="run-split-menu-checkpoint">
                 <span className="run-split-menu-checkpoint-label">{t('topbar.resumeCheckpoint')}</span>
                 <span
@@ -387,6 +392,9 @@ export default function TopBar({
                   <Icon name="close" size={12} /> {t('topbar.clearResumeCheckpoint')}
                 </button>
               )}
+              </>)}
+              {/* Host-only: queue mode governs the local execution queue. */}
+              {!editorMode && (<>
               <div className="run-split-menu-divider" />
               <div className="run-split-menu-header">{t('topbar.queueMode')}</div>
               {(['manual', 'change', 'instant'] as QueueMode[]).map(mode => (
@@ -405,6 +413,7 @@ export default function TopBar({
                   {t(QUEUE_MODE_KEYS[mode])}
                 </button>
               ))}
+              </>)}
               <div className="run-split-menu-divider" />
               <button
                 type="button"

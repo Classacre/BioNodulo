@@ -2109,6 +2109,11 @@ class MyToolNode(CommandNode):
       ungroup: 'Desagrupar',
       delete: 'Eliminar grupo y contenido',
     },
+    nodeLogs: {
+      title: 'Registros del nodo',
+      count: '{{count}} líneas',
+      empty: 'Aún no hay registros para este nodo. Ejecuta el flujo para generar salida.',
+    },
     menu: {
       run: 'Ejecutar nodo',
       edit: 'Editar',
@@ -2122,6 +2127,7 @@ class MyToolNode(CommandNode):
       delete: 'Eliminar',
       // Menús contextuales (nodo + lienzo).
       nodeInfo: 'Información del nodo',
+      viewLogs: 'Ver registros',
       editProperties: 'Editar propiedades',
       addComment: 'Añadir comentario',
       addInput: 'Añadir entrada',

@@ -4430,3 +4430,42 @@ kbd {
 .bio-props-provenance b { color: var(--text); }
 .bio-props-links { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 .bio-props-links a { color: var(--accent); overflow-wrap: anywhere; }
+
+/* Per-node log viewer, opened from the node context menu. Fixed positioning so
+   it floats above the canvas and is not clipped by React Flow's transform. */
+.node-logs-popover {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel, #1b1f24);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
+  overflow: hidden;
+}
+.node-logs-popover-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+.node-logs-popover-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node-logs-popover-count { color: var(--muted); font-weight: 400; font-size: 11px; }
+.node-logs-popover-body {
+  overflow-y: auto;
+  padding: 6px 10px 10px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.node-logs-popover-empty { color: var(--muted); font-family: inherit; margin: 8px 0; }
+.node-logs-popover-line { display: flex; gap: 8px; align-items: baseline; }
+.node-logs-popover-time { color: var(--muted); flex: none; }
+.node-logs-popover-message { overflow-wrap: anywhere; white-space: pre-wrap; }
+.node-logs-popover-line.is-error .node-logs-popover-message { color: var(--danger, #ff6b6b); }
+.node-logs-popover-line.is-warn .node-logs-popover-message { color: var(--warning, #ffb340); }
+.node-logs-popover-line.is-success .node-logs-popover-message { color: var(--success, #7ee6b4); }

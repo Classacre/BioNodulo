@@ -2099,6 +2099,11 @@ class MyToolNode(CommandNode):
       ungroup: 'Ungroup',
       delete: 'Delete group and contents',
     },
+    nodeLogs: {
+      title: 'Node logs',
+      count: '{{count}} lines',
+      empty: 'No logs for this node yet. Run the workflow to produce output.',
+    },
     menu: {
       run: 'Run node',
       edit: 'Edit',
@@ -2112,6 +2117,7 @@ class MyToolNode(CommandNode):
       delete: 'Delete',
       // Right-click context menus (node + pane).
       nodeInfo: 'Node info',
+      viewLogs: 'View logs',
       editProperties: 'Edit properties',
       addComment: 'Add comment',
       addInput: 'Add input',

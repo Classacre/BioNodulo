@@ -11,18 +11,20 @@ import {
 } from '../utils/computeSpec';
 
 describe('customComputeRate (mirror of server sell-rates)', () => {
-  it('8 vCPU / 64 GB is vCPU-bound', () => {
-    expect(customComputeRate(8, 64)).toBeCloseTo(0.00808, 6);
+  it('8 vCPU / 64 GB is RAM-bound', () => {
+    // Repriced 2026-08-01: 64 * 0.000195 = 0.01248 now exceeds 8 * 0.00127,
+    // so this shape flipped from vCPU-bound to RAM-bound.
+    expect(customComputeRate(8, 64)).toBeCloseTo(0.01248, 6);
   });
   it('4 vCPU / 128 GB is RAM-bound', () => {
-    expect(customComputeRate(4, 128)).toBeCloseTo(0.0100736, 7);
+    expect(customComputeRate(4, 128)).toBeCloseTo(0.02496, 7);
   });
 });
 
 describe('specCreditsPerHour / specLabel', () => {
   it('custom hourly cost + label', () => {
     // 12 vCPU / 96 GB → max(12*0.00101, 96*0.0000787)=0.01212 → 44 cr/hr
-    expect(specCreditsPerHour({ kind: 'custom', vcpu: 12, ramGb: 96 })).toBe(44);
+    expect(specCreditsPerHour({ kind: 'custom', vcpu: 12, ramGb: 96 })).toBe(67);
     expect(specLabel({ kind: 'custom', vcpu: 12, ramGb: 96 })).toBe('12 vCPU / 96 GB');
   });
   it('legacy profile maps to a size + labels by dims', () => {
