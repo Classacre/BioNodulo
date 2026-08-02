@@ -2,7 +2,7 @@
 name = "bionodulo-workflow"
 version = "0.1.0"
 channels = ["conda-forge", "bioconda"]
-platforms = ["linux-64"]
+platforms = ["linux-64", "osx-64", "osx-arm64"]
 
 [dependencies]
 bioconductor-deseq2 = "1.50.2"

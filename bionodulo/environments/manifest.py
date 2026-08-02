@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from bionodulo.environments.platform_support import ENVIRONMENT_PLATFORMS
 from bionodulo.environments.constants import (
     EXECUTABLE_TO_CONDA_PACKAGE,
     PACKAGE_BUILD_CONSTRAINTS,
@@ -36,6 +37,19 @@ _PIXI_ENVIRONMENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 # Every rendered manifest pins this today; named explicitly so the lock cache is
 # keyed by it instead of assuming it.
 DEFAULT_LOCK_PLATFORM = "linux-64"
+
+# Platforms a workflow environment may target. linux-64 is what the cloud
+# workers run and is never dropped; the macOS entries let the desktop app
+# install environments natively. Windows is absent on purpose -- bioconda
+# publishes no win-64 packages at all (see explain_unsupported_platform).
+SUPPORTED_LOCK_PLATFORMS = ("linux-64", "osx-64", "osx-arm64")
+
+# macOS support is recorded, never predicted. A table of package names cannot
+# express it: a pin whose exact version has no macOS build (blast 2.17.0), a
+# linux-only build string (macs2 py311hdad781d_1), and a transitive dead end
+# (bcftools 1.24 -> htslib >=1.24) all produce the same unsolvable result from
+# package names that each look fine in isolation. scripts/solve_macos_locks.py
+# asks the solver and writes the answer here.
 
 # Optional second source of locks, consulted only when the repo has no committed
 # bundle. Returns (manifest_text, lock_bytes), or None on a miss.
@@ -301,13 +315,37 @@ def workflow_to_packages(
     return list(workflow_to_environment_plan(workflow, registry).all_packages)
 
 
+def _platforms_for_env(env_id: str) -> list[str]:
+    """Platforms recorded as solvable for an environment, linux-64 first.
+
+    A pure function of the environment id, and therefore of the package set:
+    committed manifests are compared to generated text byte-for-byte, so
+    anything host-dependent here would mark every committed lock stale on the
+    machines that did not generate it.
+
+    An unrecorded environment falls back to linux-64 alone. That is the safe
+    direction -- a new environment runs in the cloud immediately, and gains
+    macOS once someone runs the solver script.
+    """
+    recorded = ENVIRONMENT_PLATFORMS.get(env_id)
+    if not recorded:
+        return [DEFAULT_LOCK_PLATFORM]
+    return [p for p in SUPPORTED_LOCK_PLATFORMS if p in recorded]
+
+
+def _render_platforms(env_id: str) -> str:
+    """Render the platforms array as TOML, for embedding in manifest text."""
+    inner = ", ".join(f'"{p}"' for p in _platforms_for_env(env_id))
+    return f"[{inner}]"
+
+
 def _manifest_text(packages: list[str]) -> str:
     toml_lines = [
         '[workspace]',
         'name = "bionodulo-workflow"',
         'version = "0.1.0"',
         'channels = ["conda-forge", "bioconda"]',
-        'platforms = ["linux-64"]',
+        f'platforms = {_render_platforms(get_env_id(packages))}',
         '',
         '[dependencies]',
     ]
@@ -329,7 +367,7 @@ def _manifest_text_for_plan(plan: WorkflowEnvironmentPlan) -> str:
         'name = "bionodulo-workflow"',
         'version = "0.1.0"',
         'channels = ["conda-forge", "bioconda"]',
-        'platforms = ["linux-64"]',
+        f"platforms = {_render_platforms(get_environment_plan_id(plan))}",
         "",
         "[dependencies]",
     ]

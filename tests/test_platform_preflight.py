@@ -82,16 +82,17 @@ def test_a_missing_manifest_does_not_raise(tmp_path: Path) -> None:
     assert m.manifest_platforms(tmp_path / "absent.toml") == []
 
 
-def test_every_committed_lock_is_linux_only() -> None:
+def test_no_committed_lock_targets_windows() -> None:
     """Documents why the desktop app cannot run workflows natively on Windows.
 
-    If this ever fails because locks gained osx-64/osx-arm64, that is the point
-    at which macOS desktop execution becomes possible and this test should be
-    updated rather than deleted.
+    macOS support was added later, so this no longer asserts linux-only -- but
+    win-64 can never appear, because bioconda publishes no Windows packages.
     """
     locks = Path(m.__file__).resolve().parents[1] / "environments" / "locks"
     manifests = sorted(locks.glob("*/pixi.toml"))
     assert manifests, "expected committed environment locks"
 
     for manifest in manifests:
-        assert m.manifest_platforms(manifest) == ["linux-64"], manifest.parent.name
+        declared = m.manifest_platforms(manifest)
+        assert declared[0] == "linux-64", manifest.parent.name
+        assert "win-64" not in declared, manifest.parent.name
