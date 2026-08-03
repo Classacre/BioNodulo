@@ -86,6 +86,7 @@ import { makeAppFileActionCopy } from './utils/appFileActionCopy';
 import { promptWorkflowRunParameters } from './utils/workflowParameters';
 import { makeAppCollabCopy } from './collab/appCollabCopy';
 import { appWebSocketUrl } from './utils/appBase';
+import { maybeSuggestCloud } from './utils/cloudSuggestion';
 import { logTelemetry } from './state/telemetry';
 import { installDomOverlayBridge } from './state/overlays';
 import {
@@ -1716,6 +1717,14 @@ export default function App() {
 
   const handleRun = useCallback(async () => {
     setIsRunning(true);
+    // On Windows this run happens inside the private WSL2 distribution. Local
+    // is the default there, so this only points out that the cloud exists --
+    // once, dismissibly, and without delaying the run.
+    void maybeSuggestCloud(() => {
+      // Defined below in this component; only ever called from the toast, long
+      // after both callbacks exist.
+      void handleRunOnCloud();
+    });
     logTelemetry('workflow.run.start', {
       workflow: activeWorkflow.name,
       nodes: activeWorkflow.nodes?.length ?? 0,

@@ -46,6 +46,8 @@ pub enum WslReadiness {
     Ready,
     /// WSL itself is missing; enabling it requires an elevated command.
     NotInstalled,
+    /// The installer enabled WSL, but Windows has not restarted yet.
+    RebootRequired,
     /// WSL exists but our distribution has not been imported yet.
     DistroMissing,
     /// WSL is present but reports version 1, which cannot run our userland.
@@ -63,6 +65,10 @@ impl WslReadiness {
                  `wsl --install --no-distribution`, then restart Windows. Running on the \
                  cloud needs no setup at all."
                 .into(),
+            Self::RebootRequired => "BioNodulo enabled WSL2 during installation, but \
+                 Windows needs to restart before workflows can run on this PC. Until then \
+                 they will run on the cloud."
+                .into(),
             Self::DistroMissing => format!(
                 "WSL2 is enabled but the {DISTRO} environment has not been set up yet. \
                  This downloads a small Linux userland and needs no administrator rights."
@@ -78,6 +84,7 @@ impl WslReadiness {
         match self {
             Self::Ready => "ready",
             Self::NotInstalled => "wsl-missing",
+            Self::RebootRequired => "reboot-required",
             Self::DistroMissing => "distro-missing",
             Self::Version1Only => "wsl-v1",
         }
@@ -85,6 +92,8 @@ impl WslReadiness {
 
     /// Whether the user can resolve this without an administrator.
     pub fn user_fixable(&self) -> bool {
+        // A pending restart is the user's to perform, but not from inside this
+        // wizard, so it is grouped with the states we cannot resolve here.
         matches!(self, Self::DistroMissing | Self::Version1Only)
     }
 }
@@ -299,10 +308,10 @@ pub mod runtime {
         // `--status` fails outright when the optional component is absent,
         // which is the only case needing administrator rights.
         let Ok((ok, status)) = run(&["--status".to_string()], PROBE_TIMEOUT).await else {
-            return WslReadiness::NotInstalled;
+            return unavailable_reason().await;
         };
         if !ok {
-            return WslReadiness::NotInstalled;
+            return unavailable_reason().await;
         }
 
         match run(&["--list".into(), "--quiet".into()], PROBE_TIMEOUT).await {
@@ -412,6 +421,43 @@ pub mod runtime {
             return Err(format!("engine install failed: {}", output.trim()));
         }
         Ok(())
+    }
+
+    /// Tell "WSL was never enabled" apart from "enabled, awaiting a restart".
+    ///
+    /// The installer records the flag after enabling the Windows features,
+    /// which do not take effect until Windows restarts. Reporting that as a
+    /// missing installation would send the user to run an elevated command
+    /// they have already effectively run.
+    async fn unavailable_reason() -> WslReadiness {
+        if reboot_pending().await {
+            WslReadiness::RebootRequired
+        } else {
+            WslReadiness::NotInstalled
+        }
+    }
+
+    async fn reboot_pending() -> bool {
+        // reg.exe rather than a registry crate: one probe, at startup, and it
+        // keeps the dependency surface of the desktop shell unchanged.
+        let mut cmd = tokio::process::Command::new("reg.exe");
+        cmd.args([
+            "query",
+            r"HKLM\Software\BioNodulo",
+            "/v",
+            "WslRebootPending",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x0800_0000);
+        }
+        match cmd.output().await {
+            Ok(out) => out.status.success(),
+            Err(_) => false,
+        }
     }
 
     /// Current IP of the distribution, used only if loopback forwarding fails.
@@ -581,6 +627,7 @@ mod tests {
         let keys: Vec<_> = [
             WslReadiness::Ready,
             WslReadiness::NotInstalled,
+            WslReadiness::RebootRequired,
             WslReadiness::DistroMissing,
             WslReadiness::Version1Only,
         ]
@@ -598,6 +645,16 @@ mod tests {
         assert!(WslReadiness::NotInstalled.message().contains("wsl --install"));
         assert!(WslReadiness::NotInstalled.message().contains("administrator"));
         assert!(WslReadiness::Version1Only.message().contains("--set-default-version 2"));
+    }
+
+    #[test]
+    fn a_pending_restart_does_not_ask_for_an_elevated_command() {
+        // The installer already ran it. Repeating that advice would be wrong
+        // and would read as the setup having failed.
+        let message = WslReadiness::RebootRequired.message();
+        assert!(message.contains("restart"), "{message}");
+        assert!(!message.contains("wsl --install"), "{message}");
+        assert!(message.contains("cloud"), "{message}");
     }
 
     #[test]

@@ -68,28 +68,37 @@ function finish(title, message, { error = false, retry = false } = {}) {
   show("done");
 }
 
-// Windows cannot run these tools natively: they are published for Linux and
-// macOS only. Offer the choice rather than silently leaving the app unable to
-// run anything locally -- but only on Windows, and only when WSL is a route
-// the user can actually take.
-async function offerLocalExecution() {
+// On Windows the tools cannot run natively, so local execution means a private
+// WSL2 distribution. The installer already enabled WSL while it was elevated,
+// so this needs no administrator rights and is done without asking: local is
+// the default, and the cloud is offered as a suggestion rather than a gate.
+//
+// Returns true when the wizard has taken over the screen to report a problem.
+async function setUpLocalExecution() {
   let status;
   try {
     status = await api.getLocalExecutionStatus();
   } catch {
-    return false;
+    return false; // Not a Windows build, or the command is unavailable.
   }
   if (!status || !status.requiresWsl || status.state === "ready") return false;
 
   if (!status.userFixable) {
-    // Enabling WSL needs administrator rights, which we cannot grant. Show the
-    // exact command and let the user continue on the cloud meanwhile.
-    $("localBlocked").textContent = status.message || "";
-    $("localBlocked").style.display = "";
-    $("setupLocal").disabled = true;
+    // WSL itself is missing: either the installer could not enable it, or
+    // Windows has not been restarted yet. Neither is fixable from here.
+    $("localDetail").textContent = status.message || "";
+    show("local");
+    return true;
   }
-  show("local");
-  return true;
+
+  try {
+    await api.setupLocalExecution();
+    return false;
+  } catch (err) {
+    $("localDetail").textContent = errText(err);
+    show("local");
+    return true;
+  }
 }
 
 async function runSetup() {
@@ -98,7 +107,8 @@ async function runSetup() {
   try {
     await api.runSetup();
     $("bar").style.width = "100%";
-    if (await offerLocalExecution()) return;
+    $("phase").textContent = "Setting up local execution...";
+    if (await setUpLocalExecution()) return;
     finish("Setup complete", "BioNodulo is ready to launch.");
   } catch (err) {
     finish("Setup failed", errText(err), { error: true, retry: true });
@@ -109,23 +119,14 @@ $("skipLocal").addEventListener("click", () => {
   finish("Setup complete", "BioNodulo is ready to launch. Workflows will run on the cloud.");
 });
 
-$("setupLocal").addEventListener("click", async () => {
-  $("setupLocal").disabled = true;
-  $("skipLocal").disabled = true;
+$("retryLocal").addEventListener("click", async () => {
+  $("retryLocal").disabled = true;
   show("install");
-  $("bar").style.width = "5%";
-  try {
-    await api.setupLocalExecution();
-    $("bar").style.width = "100%";
+  $("phase").textContent = "Setting up local execution...";
+  if (!(await setUpLocalExecution())) {
     finish("Setup complete", "Local execution is ready. Workflows will run on this PC.");
-  } catch (err) {
-    // Local execution is optional, so a failure here is not a failed setup:
-    // the app still works on the cloud.
-    finish(
-      "Setup complete, without local execution",
-      errText(err) + " You can run workflows on the cloud, and retry local setup in Settings.",
-    );
   }
+  $("retryLocal").disabled = false;
 });
 
 $("start").addEventListener("click", runSetup);

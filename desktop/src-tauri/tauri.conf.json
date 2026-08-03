@@ -36,6 +36,12 @@
     "macOS": {
       "entitlements": "../build/entitlements.mac.plist",
       "hardenedRuntime": true
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "./windows/hooks.nsh"
+      }
     }
   },
   "plugins": {
