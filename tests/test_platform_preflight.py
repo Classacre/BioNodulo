@@ -30,6 +30,16 @@ def test_windows_is_named_as_the_real_constraint() -> None:
     assert "platform add" not in reason
 
 
+def test_the_cloud_is_still_recommended_over_local_windows() -> None:
+    """Local execution via WSL2 exists now, but it costs an administrator step
+    and several GB. The message must not present the two as equivalent."""
+    reason = m.explain_unsupported_platform(["linux-64"], "win-64")
+
+    assert reason.index("cloud") < reason.index("WSL2"), reason
+    assert "administrator" in reason
+    assert "Settings" in reason
+
+
 def test_other_mismatches_get_a_generic_but_honest_message() -> None:
     reason = m.explain_unsupported_platform(["linux-64"], "osx-arm64")
 

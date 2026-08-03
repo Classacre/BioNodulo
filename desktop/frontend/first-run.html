@@ -41,6 +41,17 @@
         font-size: 12px; color: #8aa0c8; white-space: pre-wrap;
       }
       .msg { margin-top: 14px; font-size: 13px; color: #9fb0d0; }
+      .choice {
+        border: 1px solid #2a3a60; border-radius: 12px; padding: 14px 16px; margin-top: 14px;
+        background: #0d1424;
+      }
+      .choice.recommended { border-color: #3b82f6; }
+      .choice-title { font-size: 15px; font-weight: 600; }
+      .choice-body { margin: 6px 0 0; font-size: 13px; color: #9fb0d0; }
+      .tag {
+        font-size: 11px; font-weight: 600; color: #bfdbfe; background: #1e3a8a;
+        border-radius: 999px; padding: 2px 8px; margin-left: 8px; vertical-align: middle;
+      }
       .error { color: #f87171; }
     </style>
   </head>
@@ -69,7 +80,42 @@
         <div id="log" class="log" aria-live="polite"></div>
       </section>
 
-      <!-- Step 3: done / error -->
+      <!-- Step 3 (Windows only): how workflows should run.
+           Windows cannot run these tools natively -- bioconda publishes no
+           win-64 packages -- so the honest choice is cloud, or a private
+           Linux environment via WSL2. Cloud is presented first because it
+           needs no setup, no administrator, and no disk. -->
+      <section id="step-local" class="step">
+        <h1>How should workflows run?</h1>
+        <p class="sub">
+          Windows can't run bioinformatics tools directly: they're published for Linux
+          and macOS only. You have two options.
+        </p>
+
+        <div class="choice recommended">
+          <div class="choice-title">Run on the cloud <span class="tag">Recommended</span></div>
+          <p class="choice-body">
+            Nothing to install. Workflows run on Linux machines and results come back to
+            the app. You can switch to local execution later in Settings.
+          </p>
+        </div>
+
+        <div class="choice">
+          <div class="choice-title">Also set up local execution</div>
+          <p class="choice-body" id="localDetail">
+            Installs a private Linux environment (WSL2) on this PC. Needs administrator
+            rights once, a few GB of disk, and several minutes.
+          </p>
+          <div id="localBlocked" class="msg error" style="display:none"></div>
+        </div>
+
+        <div class="actions">
+          <button id="skipLocal" class="secondary" type="button">Use the cloud</button>
+          <button id="setupLocal" type="button">Set up local execution</button>
+        </div>
+      </section>
+
+      <!-- Step 4: done / error -->
       <section id="step-done" class="step">
         <h1 id="doneTitle">Setup complete</h1>
         <p id="doneMsg" class="sub">BioNodulo is ready to launch.</p>

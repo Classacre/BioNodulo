@@ -65,7 +65,11 @@ pub fn parse_deep_link(raw: &str) -> Option<DeepLinkPayload> {
 }
 
 // H5 — settings write allowlist
-const RENDERER_WRITABLE_SETTINGS: [&str; 2] = ["updateChannel", "windowBounds"];
+// "localExecution" is a user preference, not a path or credential: the worst
+// a hostile renderer achieves is routing the backend through WSL, which is
+// refused outright unless the distribution is already provisioned.
+const RENDERER_WRITABLE_SETTINGS: [&str; 3] =
+    ["updateChannel", "windowBounds", "localExecution"];
 
 pub fn is_renderer_writable_setting(key: &str) -> bool {
     RENDERER_WRITABLE_SETTINGS.contains(&key)
@@ -145,6 +149,7 @@ mod tests {
     fn writable_settings_allowlist() {
         assert!(is_renderer_writable_setting("updateChannel"));
         assert!(is_renderer_writable_setting("windowBounds"));
+        assert!(is_renderer_writable_setting("localExecution"));
         assert!(!is_renderer_writable_setting("pythonPath"));
         assert!(!is_renderer_writable_setting("venvPath"));
         assert!(!is_renderer_writable_setting("firstRun"));

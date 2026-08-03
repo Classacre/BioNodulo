@@ -13,9 +13,17 @@ pub fn get_version(app: AppHandle) -> String {
 
 #[tauri::command]
 pub fn get_paths(app: AppHandle) -> Value {
+    // Under WSL the workspace lives on ext4 inside the distribution, so the
+    // Windows-visible path is a \\wsl.localhost share rather than a drive
+    // path. Without this the user has no way to open their own results.
+    let workspace: Value = if crate::wsl_mode_enabled(&app) {
+        Value::String(crate::wsl::windows_share_path(&crate::wsl::linux_workspace()))
+    } else {
+        serde_json::json!(paths::workspace_path(&app))
+    };
     serde_json::json!({
         "userData": paths::data_root(&app),
-        "workspace": paths::workspace_path(&app),
+        "workspace": workspace,
         "venv": paths::venv_path(&app),
         "logs": paths::logs_path(&app),
         "temp": std::env::temp_dir(),
@@ -131,4 +139,77 @@ pub fn show_logs(app: AppHandle) -> String {
         Ok(()) => String::new(),
         Err(e) => e.to_string(),
     }
+}
+
+/// Report whether local workflow execution can run on this machine.
+///
+/// Only Windows needs the WSL2 path: bioconda publishes no win-64 packages, so
+/// nothing can be installed natively there. Every other platform already is
+/// the target platform and is always ready.
+#[tauri::command]
+pub async fn get_local_execution_status(app: AppHandle) -> Value {
+    let enabled = matches!(settings::get(&app, "localExecution"), Value::Bool(true));
+
+    if !cfg!(windows) {
+        return serde_json::json!({
+            "supported": true,
+            "requiresWsl": false,
+            "enabled": enabled,
+            "state": "ready",
+            "message": "Local execution runs natively on this platform.",
+            "userFixable": true,
+        });
+    }
+
+    let readiness = crate::wsl::runtime::readiness().await;
+    serde_json::json!({
+        "supported": true,
+        "requiresWsl": true,
+        "enabled": enabled,
+        "state": readiness.state_key(),
+        "message": readiness.message(),
+        "userFixable": readiness.user_fixable(),
+    })
+}
+
+/// Provision the private WSL2 distribution and install the engine into it.
+#[tauri::command]
+pub async fn setup_local_execution(app: AppHandle) -> Result<(), String> {
+    if !cfg!(windows) {
+        return Err("Local execution needs no setup on this platform.".into());
+    }
+    let data = paths::data_root(&app);
+    let backend = paths::backend_path(&app);
+
+    let notify = |app: &AppHandle, message: &str| {
+        let _ = tauri::Emitter::emit(
+            app,
+            "setup:progress",
+            provision::SetupProgress {
+                phase: "wsl".into(),
+                message: message.into(),
+                fraction: None,
+            },
+        );
+    };
+
+    let handle = app.clone();
+    crate::wsl::runtime::provision(&data, |m| notify(&handle, m)).await?;
+    let handle = app.clone();
+    crate::wsl::runtime::install_backend(&backend, |m| notify(&handle, m)).await?;
+
+    // Only recorded once both steps succeeded: a half-provisioned distribution
+    // that the app believes is ready fails every run instead of offering setup.
+    settings::set_internal(&app, "localExecution", Value::Bool(true));
+    Ok(())
+}
+
+/// Remove the private distribution so setup can be retried from scratch.
+#[tauri::command]
+pub async fn reset_local_execution(app: AppHandle) -> Result<(), String> {
+    settings::set_internal(&app, "localExecution", Value::Bool(false));
+    if !cfg!(windows) {
+        return Ok(());
+    }
+    crate::wsl::runtime::unregister().await
 }

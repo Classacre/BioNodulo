@@ -768,7 +768,10 @@ def explain_unsupported_platform(declared: list[str], host: str) -> str:
             "This workflow's tools are not available for Windows. Its "
             f"environment targets {declared_text}, and the bioconda channel that "
             "provides most bioinformatics tools publishes no Windows builds at "
-            "all. Run this workflow on the cloud, or run the app inside WSL2."
+            "all. Running on the cloud is the quickest route and needs no setup. "
+            "To run locally instead, enable local execution in Settings: it "
+            "installs a private Linux environment via WSL2, which needs "
+            "administrator rights once and a few GB of disk."
         )
     return (
         f"This workflow's environment targets {declared_text}, which does not "

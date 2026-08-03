@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
+use tokio::process::Child;
 
 use crate::{paths, port};
 
@@ -123,7 +123,16 @@ impl Supervisor {
             ));
         }
 
-        let free = port::find_free_port(8188).map_err(|e| e.to_string())?;
+        // Local execution on Windows runs the backend inside WSL2, because
+        // bioconda publishes no Windows packages. That changes two things: the
+        // process is launched through wsl.exe, and the socket has to be
+        // reachable across the VM boundary.
+        let via_wsl = crate::wsl_mode_enabled(app);
+        let base_port = if via_wsl { crate::wsl::MIN_FORWARDED_PORT } else { 8188 };
+        let free = port::find_free_port(base_port).map_err(|e| e.to_string())?;
+        // Loopback-only would be unreachable from Windows; WSL forwards a
+        // listener bound to all interfaces.
+        let bind_host = if via_wsl { "0.0.0.0" } else { "127.0.0.1" };
         let url = format!("http://127.0.0.1:{free}");
         {
             let mut inner = self.inner.lock().unwrap();
@@ -134,21 +143,29 @@ impl Supervisor {
         let _ = std::fs::create_dir_all(&workspace);
         let _ = std::fs::create_dir_all(&logs);
 
+        // Under WSL the workspace lives on ext4 inside the distribution. Runs
+        // touch a great many files, and /mnt/c costs roughly 10x each time.
+        let project_root: String = if via_wsl {
+            crate::wsl_linux_workspace()
+        } else {
+            workspace.to_string_lossy().into_owned()
+        };
+
         let cors_origins = format!("{},https://cloud.bionodulo.com", url);
         let cf = crate::paths::cloudflared_path(app);
-        let mut cmd = Command::new(&python);
+        let mut cmd = crate::wsl_spawn_command(via_wsl, &python, &backend);
         cmd.arg(&main_script)
             .arg("--host")
-            .arg("127.0.0.1")
+            .arg(bind_host)
             .arg("--port")
             .arg(free.to_string())
             .arg("--project-root")
-            .arg(&workspace)
+            .arg(&project_root)
             .current_dir(&backend)
             .env("PYTHONPATH", &backend)
             .env("PYTHONUNBUFFERED", "1")
             .env("VIRTUAL_ENV", &venv)
-            .env("BIONODULO_HOST", "127.0.0.1")
+            .env("BIONODULO_HOST", bind_host)
             .env("BIONODULO_PORT", free.to_string())
             .env("BIONODULO_CORS_ORIGINS", &cors_origins)
             .env("BIONODULO_CORS_ALLOW_LOOPBACK", "1")
@@ -193,8 +210,12 @@ impl Supervisor {
 
         *self.child.lock().await = Some(child);
 
-        match self.wait_for_ready(&url).await {
-            Ok(()) => {
+        let candidates = crate::wsl_candidate_urls(via_wsl, url, free).await;
+        match self.wait_for_ready_any(&candidates).await {
+            Ok(reachable) => {
+                // Adopt whichever address answered: under WSL that may be the
+                // distribution's own IP rather than loopback.
+                self.inner.lock().unwrap().server_url = reachable;
                 self.set_status(app, PythonStatus::Running);
                 Ok(())
             }
@@ -205,19 +226,28 @@ impl Supervisor {
         }
     }
 
-    async fn wait_for_ready(&self, base: &str) -> Result<(), String> {
+    /// Probe every candidate address until one serves health, returning it.
+    ///
+    /// All candidates are tried on each pass rather than one being given the
+    /// full timeout first: when WSL loopback forwarding is broken, waiting out
+    /// the whole budget on 127.0.0.1 before trying the reachable address would
+    /// look like a dead backend for a minute.
+    async fn wait_for_ready_any(&self, candidates: &[String]) -> Result<String, String> {
         let client = reqwest::Client::builder()
             .timeout(HEALTH_REQ_TIMEOUT)
             .build()
             .map_err(|e| e.to_string())?;
-        let endpoints = [
-            format!("{base}/api/health"),
-            format!("{base}/health"),
-            format!("{base}/"),
-        ];
+        let endpoints: Vec<(String, String)> = candidates
+            .iter()
+            .flat_map(|base| {
+                ["/api/health", "/health", "/"]
+                    .into_iter()
+                    .map(move |path| (base.clone(), format!("{base}{path}")))
+            })
+            .collect();
+
         let start = Instant::now();
         while start.elapsed() < HEALTH_TIMEOUT {
-            // Bail if the child already exited.
             {
                 let mut guard = self.child.lock().await;
                 if let Some(c) = guard.as_mut() {
@@ -226,10 +256,10 @@ impl Supervisor {
                     }
                 }
             }
-            for url in &endpoints {
+            for (base, url) in &endpoints {
                 if let Ok(resp) = client.get(url).send().await {
                     if resp.status().is_success() {
-                        return Ok(());
+                        return Ok(base.clone());
                     }
                 }
             }

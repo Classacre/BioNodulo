@@ -6,6 +6,7 @@ mod provision;
 mod security;
 mod settings;
 mod supervisor;
+mod wsl;
 
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
@@ -74,7 +75,10 @@ pub fn run() {
             commands::select_directory,
             commands::open_external,
             commands::open_path,
-            commands::show_logs
+            commands::show_logs,
+            commands::get_local_execution_status,
+            commands::setup_local_execution,
+            commands::reset_local_execution
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -205,4 +209,61 @@ fn urlencoding_min(s: &str) -> String {
             other => format!("%{:02X}", other as u32),
         })
         .collect()
+}
+
+/// Whether the backend should run inside the private WSL2 distribution.
+///
+/// Only ever true on Windows: bioconda publishes no win-64 packages, so a
+/// native Windows backend cannot install any workflow environment. Elsewhere
+/// the host already is the target platform.
+pub fn wsl_mode_enabled(app: &tauri::AppHandle) -> bool {
+    if !cfg!(windows) {
+        return false;
+    }
+    matches!(settings::get(app, "localExecution"), serde_json::Value::Bool(true))
+}
+
+/// Build the backend command, either directly or routed through WSL.
+///
+/// The Windows interpreter cannot run inside the distribution, so WSL mode
+/// substitutes the Linux virtualenv provisioned during setup.
+pub fn wsl_spawn_command(
+    via_wsl: bool,
+    python: &std::path::Path,
+    backend: &std::path::Path,
+) -> tokio::process::Command {
+    if !via_wsl {
+        let mut cmd = tokio::process::Command::new(python);
+        cmd.current_dir(backend);
+        return cmd;
+    }
+
+    let workdir = wsl::to_wsl_path(backend).unwrap_or_else(|_| wsl::LINUX_HOME.to_string());
+    let mut cmd = tokio::process::Command::new("wsl.exe");
+    cmd.args(wsl::exec_args(&workdir, &wsl::linux_python(), &[]));
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
+
+/// Every URL the backend may be reachable on, in probe order.
+///
+/// Loopback forwarding is the normal path but not a guarantee: it breaks after
+/// sleep/wake and under VPN filter drivers. The distribution's own address
+/// still works then, so it is offered as a fallback rather than reporting a
+/// dead backend.
+pub async fn wsl_candidate_urls(via_wsl: bool, loopback: String, port: u16) -> Vec<String> {
+    if !via_wsl {
+        return vec![loopback];
+    }
+    let ip = wsl::runtime::vm_ip().await;
+    wsl::candidate_urls(port, ip.as_deref())
+}
+
+/// Workspace path inside the private distribution, on ext4.
+pub fn wsl_linux_workspace() -> String {
+    wsl::linux_workspace()
 }

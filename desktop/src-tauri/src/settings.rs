@@ -13,6 +13,7 @@ fn defaults() -> Value {
         "venvPath": "",
         "firstRun": true,
         "updateChannel": "stable",
+        "localExecution": false,
         "lastCheckForUpdates": "",
         "windowBounds": { "width": 1400, "height": 900 }
     })
